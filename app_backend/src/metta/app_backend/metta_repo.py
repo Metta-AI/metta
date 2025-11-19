@@ -1,83 +1,72 @@
-import hashlib
 import logging
-import secrets
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from psycopg import Connection
-from psycopg.rows import class_row
+from psycopg.rows import class_row, dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field
 
 from metta.app_backend.migrations import MIGRATIONS
-from metta.app_backend.query_logger import execute_single_row_query_and_log
 from metta.app_backend.schema_manager import run_migrations
 
-TaskStatus = Literal["unprocessed", "canceled", "done", "error"]
+TaskStatus = Literal["unprocessed", "running", "canceled", "done", "error", "system_error"]
+FinishedTaskStatus = Literal["done", "error", "canceled", "system_error"]
 
 
 class TaskStatusUpdate(BaseModel):
     status: TaskStatus
     clear_assignee: bool = False
-    attributes: dict[str, Any] = Field(default_factory=dict)
-
-
-class TrainingRunRow(BaseModel):
-    id: uuid.UUID
-    name: str
-    created_at: datetime
-    user_id: str
-    finished_at: datetime | None
-    status: str
-    url: str | None
-    description: str | None
-    tags: list[str]
-
-
-class MachineTokenRow(BaseModel):
-    id: uuid.UUID
-    name: str
-    created_at: datetime
-    expiration_time: datetime
-    last_used_at: datetime | None
+    status_details: dict[str, Any] = Field(default_factory=dict)
 
 
 class EvalTaskRow(BaseModel):
-    """Row model that matches the eval_tasks table structure."""
+    """Row model that matches the eval_tasks table with latest attempt data."""
 
-    id: uuid.UUID
-    policy_id: uuid.UUID
-    sim_suite: str
-    status: str
+    model_config = {"from_attributes": True}
+
+    id: int
+    command: str
+    data_uri: str | None
+    git_hash: str | None
+    attributes: dict[str, Any]
+    user_id: str
+    created_at: datetime
+    is_finished: bool
+    latest_attempt_id: int | None
+
+    # Fields from the latest attempt (populated via JOIN)
+    # Note: attempt_number will be 0 for new tasks, status will be 'unprocessed'
+    attempt_number: int | None = 0
+    status: TaskStatus = "unprocessed"
+    status_details: dict[str, Any] | None = None
+    assigned_at: datetime | None = None
+    assignee: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    output_log_path: str | None = None
+
+
+class TaskAttemptRow(BaseModel):
+    """Row model for task_attempts table."""
+
+    model_config = {"from_attributes": True}
+
+    id: int
+    task_id: int
+    attempt_number: int
     assigned_at: datetime | None
     assignee: str | None
-    created_at: datetime
-    attributes: dict[str, Any]
-    retries: int
-    user_id: str | None
-    updated_at: datetime
-
-
-class EvalTaskWithPolicyName(BaseModel):
-    """Extended eval task row that includes policy name from JOIN with policies table."""
-
-    id: uuid.UUID
-    policy_id: uuid.UUID
-    sim_suite: str
-    status: str
-    assigned_at: datetime | None
-    assignee: str | None
-    created_at: datetime
-    attributes: dict[str, Any]
-    retries: int
-    policy_name: str
-    policy_url: str
-    user_id: str | None
-    updated_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    output_log_path: str | None
+    status: TaskStatus
+    status_details: dict[str, Any] | None
 
 
 class SweepRow(BaseModel):
@@ -93,23 +82,32 @@ class SweepRow(BaseModel):
     updated_at: datetime
 
 
-class PolicyRow(BaseModel):
+class PolicyVersionRow(BaseModel):
     id: uuid.UUID
-    name: str
-    url: str | None
-
-
-class PolicyEval(BaseModel):
-    num_agents: int
-    total_score: float
-
-
-class CoGamesSubmissionRow(BaseModel):
-    id: uuid.UUID
-    user_id: str
-    name: str | None
-    s3_path: str
+    internal_id: int
+    policy_id: uuid.UUID
+    version: int
+    s3_path: str | None
+    git_hash: str | None
+    policy_spec: dict[str, Any]
+    attributes: dict[str, Any]
     created_at: datetime
+
+
+class PublicPolicyVersionRow(BaseModel):
+    id: uuid.UUID
+    policy_id: uuid.UUID
+    created_at: datetime
+    policy_created_at: datetime
+    name: str
+    version: int
+
+
+class LeaderboardEntry(BaseModel):
+    policy_version: PublicPolicyVersionRow
+    user_id: str
+    scores: dict[str, float]
+    avg_score: float | None = None
 
 
 logger = logging.getLogger(name="metta_repo")
@@ -151,406 +149,69 @@ class MettaRepo:
                 # Event loop might be closed, ignore
                 pass
 
-    def _hash_token(self, token: str) -> str:
-        """Hash a token for secure storage."""
-        return hashlib.sha256(token.encode()).hexdigest()
-
-    # All methods are async - no sync versions
-
-    async def get_policy_by_id(self, policy_id: uuid.UUID) -> PolicyRow | None:
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, url
-                    FROM policies
-                    WHERE id = %s
-                    """,
-                    (policy_id,),
-                )
-                return await cur.fetchone()
-
-    async def get_policy_ids(self, policy_names: list[str]) -> dict[str, uuid.UUID]:
-        if not policy_names:
-            return {}
-
-        async with self.connect() as con:
-            res = await con.execute(
-                """
-                SELECT id, name FROM policies WHERE name = ANY(%s)
-                """,
-                (policy_names,),
-            )
-            rows = await res.fetchall()
-            return {row[1]: row[0] for row in rows}
-
-    async def create_training_run(
-        self,
-        name: str,
-        user_id: str,
-        attributes: dict[str, str],
-        url: str | None,
-        description: str | None,
-        tags: list[str] | None,
-    ) -> uuid.UUID:
-        status = "running"
-        async with self.connect() as con:
-            # Try to insert a new training run, but if it already exists, return the existing ID
-            result = await con.execute(
-                """
-                INSERT INTO training_runs (name, user_id, attributes, status, url, description, tags)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (user_id, name) DO NOTHING
-                RETURNING id
-                """,
-                (name, user_id, Jsonb(attributes), status, url, description, tags),
-            )
-            row = await result.fetchone()
-            if row is None:
-                # If no result, the run already exists, so fetch its ID
-                result = await con.execute(
-                    """
-                    SELECT id FROM training_runs WHERE user_id = %s AND name = %s
-                    """,
-                    (user_id, name),
-                )
-                row = await result.fetchone()
-                if row is None:
-                    raise RuntimeError("Failed to find existing training run")
-            return row[0]
-
-    async def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                UPDATE training_runs
-                SET status = %s, finished_at = CASE WHEN %s != 'running' THEN CURRENT_TIMESTAMP ELSE finished_at END
-                WHERE id = %s
-                """,
-                (status, status, run_id),
-            )
-            if result.rowcount == 0:
-                raise ValueError(f"Training run with ID {run_id} not found")
-
-    async def create_epoch(
-        self,
-        run_id: uuid.UUID,
-        start_training_epoch: int,
-        end_training_epoch: int,
-        attributes: dict[str, Any],
-    ) -> uuid.UUID:
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                INSERT INTO epochs (run_id, start_training_epoch, end_training_epoch, attributes)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id
-                """,
-                (run_id, start_training_epoch, end_training_epoch, Jsonb(attributes)),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to insert policy epoch")
-            return row[0]
-
-    async def create_policy(
-        self,
-        name: str,
-        description: str | None,
-        url: str | None,
-        epoch_id: uuid.UUID | None,
-    ) -> uuid.UUID:
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                INSERT INTO policies (name, description, url, epoch_id) VALUES (%s, %s, %s, %s)
-                RETURNING id
-                """,
-                (name, description, url, epoch_id),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to insert policy")
-            return row[0]
-
-    async def record_episode(
-        self,
-        agent_policies: dict[int, uuid.UUID],
-        agent_metrics: dict[int, dict[str, float]],
-        eval_name: str,
-        primary_policy_id: uuid.UUID,
-        stats_epoch: uuid.UUID | None,
-        replay_url: str | None,
-        attributes: dict[str, Any],
-        eval_task_id: uuid.UUID | None = None,
-        tags: list[str] | None = None,
-        thumbnail_url: str | None = None,
-    ) -> uuid.UUID:
-        async with self.connect() as con:
-            # Validate that eval name is in the format of 'eval_category/env_name'
-            parts = eval_name.split("/")
-            if len(parts) != 2:
-                raise ValueError("Eval name must be in the format of 'eval_category/env_name'")
-            eval_category, env_name = parts
-
-            # Insert into episodes table
-            result = await con.execute(
-                """
-                INSERT INTO episodes (
-                    replay_url,
-                    eval_name,
-                    eval_category,
-                    env_name,
-                    primary_policy_id,
-                    stats_epoch,
-                    attributes,
-                    eval_task_id,
-                    thumbnail_url
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s
-                ) RETURNING id, internal_id
-                """,
-                (
-                    replay_url,
-                    eval_name,
-                    eval_category,
-                    env_name,
-                    primary_policy_id,
-                    stats_epoch,
-                    Jsonb(attributes),
-                    eval_task_id,
-                    thumbnail_url,
-                ),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to insert episode record")
-            episode_id = row[0]
-            episode_internal_id = row[1]
-
-            # Insert agent policies
-            for agent_id, policy_id in agent_policies.items():
-                await con.execute(
-                    """
-                    INSERT INTO episode_agent_policies (
-                        episode_id,
-                        policy_id,
-                        agent_id
-                    ) VALUES (%s, %s, %s)
-                    """,
-                    (episode_id, policy_id, agent_id),
-                )
-
-            # Insert agent metrics in bulk
-            rows: list[tuple[int, int, str, float]] = []
-            for agent_id, metrics in agent_metrics.items():
-                for metric_name, value in metrics.items():
-                    rows.append((episode_internal_id, agent_id, metric_name, value))
-
-            async with con.cursor() as cursor:
-                await cursor.executemany(
-                    """
-                  INSERT INTO episode_agent_metrics (episode_internal_id, agent_id, metric, value)
-                  VALUES (%s, %s, %s, %s)
-                  """,
-                    rows,
-                )
-
-            # Add tags if provided
-            if tags:
-                tag_rows = [(episode_id, tag) for tag in tags]
-                async with con.cursor() as cursor:
-                    await cursor.executemany(
-                        """
-                        INSERT INTO episode_tags (episode_id, tag)
-                        VALUES (%s, %s)
-                        ON CONFLICT (episode_id, tag) DO NOTHING
-                        """,
-                        tag_rows,
-                    )
-
-            return episode_id
-
-    async def get_training_runs(self) -> list[TrainingRunRow]:
-        """Get all training runs."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(TrainingRunRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, created_at, user_id, finished_at, status, url, description,
-                           COALESCE(tags, ARRAY[]::TEXT[]) as tags
-                    FROM training_runs
-                    ORDER BY created_at DESC
-                    """
-                )
-                return await cur.fetchall()
-
-    async def get_training_run(self, run_id: str) -> TrainingRunRow | None:
-        """Get a specific training run by ID."""
-        try:
-            run_uuid = uuid.UUID(run_id)
-        except ValueError:
-            return None
-
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(TrainingRunRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, created_at, user_id, finished_at, status, url, description,
-                           COALESCE(tags, ARRAY[]::TEXT[]) as tags
-                    FROM training_runs
-                    WHERE id = %s
-                    """,
-                    (run_uuid,),
-                )
-                return await cur.fetchone()
-
-    async def create_machine_token(self, user_id: str, name: str, expiration_days: int = 365) -> str:
-        """Create a new machine token for a user."""
-        # Generate a secure random token
-        token = secrets.token_urlsafe(32)
-        token_hash = self._hash_token(token)
-
-        # Set expiration time
-        expiration_time = datetime.now() + timedelta(days=expiration_days)
-
-        async with self.connect() as con:
-            await con.execute(
-                """
-                INSERT INTO machine_tokens (user_id, name, token_hash, expiration_time)
-                VALUES (%s, %s, %s, %s)
-                """,
-                (user_id, name, token_hash, expiration_time),
-            )
-
-        return token
-
-    async def list_machine_tokens(self, user_id: str) -> list[MachineTokenRow]:
-        """List all machine tokens for a user."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(MachineTokenRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, created_at, expiration_time, last_used_at
-                    FROM machine_tokens
-                    WHERE user_id = %s
-                    ORDER BY created_at DESC
-                    """,
-                    (user_id,),
-                )
-                return await cur.fetchall()
-
-    async def delete_machine_token(self, user_id: str, token_id: str) -> bool:
-        """Delete a machine token."""
-        try:
-            token_uuid = uuid.UUID(token_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                DELETE FROM machine_tokens
-                WHERE id = %s AND user_id = %s
-                """,
-                (token_uuid, user_id),
-            )
-            return result.rowcount > 0
-
-    async def validate_machine_token(self, token: str) -> str | None:
-        """Validate a machine token and return the user_id if valid."""
-        token_hash = self._hash_token(token)
-
-        async with self.connect() as con:
-            query = """
-                UPDATE machine_tokens
-                SET last_used_at = CURRENT_TIMESTAMP
-                WHERE token_hash = %s AND expiration_time > CURRENT_TIMESTAMP
-                RETURNING user_id
-                """
-            result = await execute_single_row_query_and_log(
-                con,
-                query,
-                (token_hash,),
-                "validate_machine_token",
-            )
-
-            if result:
-                return result[0]
-            return None
-
-    async def update_training_run_description(self, user_id: str, run_id: str, description: str) -> bool:
-        """Update the description of a training run."""
-        try:
-            run_uuid = uuid.UUID(run_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                UPDATE training_runs
-                SET description = %s
-                WHERE id = %s AND user_id = %s
-                """,
-                (description, run_uuid, user_id),
-            )
-            return result.rowcount > 0
-
-    async def update_training_run_tags(self, user_id: str, run_id: str, tags: list[str]) -> bool:
-        """Update the tags of a training run."""
-        try:
-            run_uuid = uuid.UUID(run_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                UPDATE training_runs
-                SET tags = %s
-                WHERE id = %s AND user_id = %s
-                """,
-                (tags, run_uuid, user_id),
-            )
-            return result.rowcount > 0
-
     async def create_eval_task(
         self,
-        policy_id: uuid.UUID,
-        sim_suite: str,
+        command: str,
+        user_id: str,
         attributes: dict[str, Any],
-        user_id: str | None = None,
+        git_hash: str | None = None,
+        data_uri: str | None = None,
     ) -> EvalTaskRow:
+        async with self.connect() as con:
+            # Insert the task
+            result = await con.execute(
+                """
+                INSERT INTO eval_tasks (command, data_uri, git_hash, attributes, user_id)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (command, data_uri, git_hash, Jsonb(attributes), user_id),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create eval task")
+            task_id = row[0]
+
+            # Create the first attempt
+            result2 = await con.execute(
+                """
+                INSERT INTO task_attempts (task_id, attempt_number, status)
+                VALUES (%s, 0, 'unprocessed')
+                RETURNING id
+                """,
+                (task_id,),
+            )
+            row2 = await result2.fetchone()
+            if row2 is None:
+                raise RuntimeError("Failed to create first attempt")
+            attempt_id = row2[0]
+
+            # Update the task with the latest_attempt_id
+            await con.execute(
+                """
+                UPDATE eval_tasks
+                SET latest_attempt_id = %s
+                WHERE id = %s
+                """,
+                (attempt_id, task_id),
+            )
+
+            # Fetch and return the complete task directly within the same transaction
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
+                await cur.execute("SELECT * FROM eval_tasks_view WHERE id = %s", (task_id,))
+                task = await cur.fetchone()
+                if task is None:
+                    raise RuntimeError("Failed to retrieve created task")
+                return task
+
+    async def get_available_tasks(self, limit: int = 200) -> list[EvalTaskRow]:
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 await cur.execute(
                     """
-                    INSERT INTO eval_tasks (policy_id, sim_suite, attributes, user_id)
-                    VALUES (%s, %s, %s, %s)
-                    RETURNING id, policy_id, sim_suite, status, assigned_at,
-                             assignee, created_at, attributes, retries, user_id, updated_at
-                    """,
-                    (policy_id, sim_suite, Jsonb(attributes), user_id),
-                )
-                row = await cur.fetchone()
-                if row is None:
-                    raise RuntimeError("Failed to create eval task")
-                return row
-
-    async def get_available_tasks(self, limit: int = 200) -> list[EvalTaskWithPolicyName]:
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
-                await cur.execute(
-                    """
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    JOIN policies p ON et.policy_id = p.id
-                    WHERE status = 'unprocessed'
-                      AND assignee IS NULL
-                    ORDER BY et.created_at ASC
+                    SELECT * FROM eval_tasks_view
+                    WHERE status = 'unprocessed' AND assignee IS NULL AND is_finished = FALSE
+                    ORDER BY created_at ASC
                     LIMIT %s
                     """,
                     (limit,),
@@ -559,101 +220,130 @@ class MettaRepo:
 
     async def claim_tasks(
         self,
-        task_ids: list[uuid.UUID],
+        task_ids: list[int],
         assignee: str,
-    ) -> list[uuid.UUID]:
+    ) -> list[int]:
         if not task_ids:
             return []
 
         async with self.connect() as con:
+            # Update the latest attempt for each task
             result = await con.execute(
                 """
-                UPDATE eval_tasks
-                SET assignee = %s, assigned_at = NOW(), retries = retries +1, updated_at = NOW()
-                WHERE id = ANY(%s)
-                    AND status = 'unprocessed'
-                    AND assignee IS NULL
-                RETURNING id
+                UPDATE task_attempts
+                SET assignee = %s, assigned_at = NOW()
+                WHERE id IN (
+                    SELECT latest_attempt_id FROM eval_tasks
+                    WHERE id = ANY(%s) AND is_finished = FALSE
+                )
+                AND status = 'unprocessed'
+                AND assignee IS NULL
+                RETURNING task_id
                 """,
                 (assignee, task_ids),
             )
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_claimed_tasks(self, assignee: str | None = None) -> list[EvalTaskWithPolicyName]:
+    async def get_claimed_tasks(self, assignee: str | None = None) -> list[EvalTaskRow]:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 if assignee is not None:
                     await cur.execute(
                         """
-                        SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                                et.assignee, et.created_at, et.attributes, et.retries,
-                                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                        FROM eval_tasks et
-                        JOIN policies p ON et.policy_id = p.id
-                        WHERE assignee = %s AND status = 'unprocessed'
-                        ORDER BY et.created_at ASC
+                        SELECT * FROM eval_tasks_view
+                        WHERE assignee = %s AND status = 'unprocessed' AND is_finished = FALSE
+                        ORDER BY created_at ASC
                         """,
                         (assignee,),
                     )
                 else:
                     await cur.execute(
                         """
-                        SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                                et.assignee, et.created_at, et.attributes, et.retries,
-                                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                        FROM eval_tasks et
-                        JOIN policies p ON et.policy_id = p.id
-                        WHERE status = 'unprocessed' AND assignee IS NOT NULL
-                        ORDER BY et.created_at ASC
-                        """,
+                        SELECT * FROM eval_tasks_view
+                        WHERE status = 'unprocessed' AND assignee IS NOT NULL AND is_finished = FALSE
+                        ORDER BY created_at ASC
+                        """
                     )
                 return await cur.fetchall()
 
-    async def update_task_statuses(
-        self,
-        updates: dict[uuid.UUID, TaskStatusUpdate],
-        require_assignee: str | None = None,
-    ) -> dict[uuid.UUID, TaskStatus]:
-        if not updates:
-            return {}
-
-        updated = {}
+    async def start_task(self, task_id: int) -> None:
         async with self.connect() as con:
-            for task_id, update in updates.items():
-                if require_assignee:
-                    filter_clause = "id = %s AND assignee = %s"
-                    filter_params = (task_id, require_assignee)
-                else:
-                    filter_clause = "id = %s"
-                    filter_params = (task_id,)
-
-                if update.clear_assignee:
-                    assignee_clause = "assignee = NULL,"
-                else:
-                    assignee_clause = ""
-
-                query = f"""
-                UPDATE eval_tasks
-                SET status = %s,
-                    {assignee_clause}
-                    attributes = COALESCE(attributes, '{{}}'::jsonb) || %s::jsonb,
-                    updated_at = NOW()
-                WHERE {filter_clause}
-                RETURNING id
+            await con.execute(
                 """
-                params = (update.status, Jsonb(update.attributes)) + filter_params
-                result = await con.execute(query, params)
+                UPDATE task_attempts
+                SET status = 'running', started_at = NOW()
+                WHERE id = (SELECT latest_attempt_id FROM eval_tasks WHERE id = %s)
+                """,
+                (task_id,),
+            )
 
-                if result.rowcount > 0:
-                    updated[task_id] = update.status
+    async def finish_task(
+        self, task_id: int, status: FinishedTaskStatus, status_details: dict[str, Any], log_path: str | None = None
+    ) -> None:
+        async with self.connect() as con:
+            # Update the current attempt
+            await con.execute(
+                """
+                UPDATE task_attempts
+                SET status = %s, finished_at = NOW(), status_details = %s, output_log_path = %s
+                WHERE id = (SELECT latest_attempt_id FROM eval_tasks WHERE id = %s)
+                """,
+                (status, Jsonb(status_details), log_path, task_id),
+            )
 
-        return updated
+            # Get the current attempt number
+            result = await con.execute(
+                """
+                SELECT attempt_number FROM task_attempts
+                WHERE id = (SELECT latest_attempt_id FROM eval_tasks WHERE id = %s)
+                """,
+                (task_id,),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError(f"Failed to get attempt number for task {task_id}")
+            current_attempt = row[0]
+
+            # Check if we should mark the task as finished or create a new attempt
+            should_finish = status != "system_error" or current_attempt >= 2  # 0, 1, 2 = 3 attempts
+
+            if should_finish:
+                # Mark the task as finished
+                await con.execute(
+                    """
+                    UPDATE eval_tasks
+                    SET is_finished = TRUE
+                    WHERE id = %s
+                    """,
+                    (task_id,),
+                )
+            else:
+                # Create a new attempt for retry
+                await con.execute(
+                    """
+                    INSERT INTO task_attempts (task_id, attempt_number, status)
+                    VALUES (%s, %s, 'unprocessed')
+                    """,
+                    (task_id, current_attempt + 1),
+                )
+
+                # Update latest_attempt_id
+                await con.execute(
+                    """
+                    UPDATE eval_tasks
+                    SET latest_attempt_id = (
+                        SELECT id FROM task_attempts WHERE task_id = %s ORDER BY attempt_number DESC LIMIT 1
+                    )
+                    WHERE id = %s
+                    """,
+                    (task_id, task_id),
+                )
 
     async def count_tasks(self, where_clause: str) -> int:
         async with self.connect() as con:
             result = await con.execute(
-                f"SELECT COUNT(*) FROM eval_tasks WHERE {where_clause}",  # type: ignore
+                f"SELECT COUNT(*) FROM eval_tasks_view WHERE {where_clause}",  # type: ignore
             )
             res = await result.fetchone()
             if res is None:
@@ -663,87 +353,16 @@ class MettaRepo:
     async def get_avg_runtime(self, where_clause: str) -> float | None:
         async with self.connect() as con:
             result = await con.execute(
-                f"SELECT EXTRACT(EPOCH FROM AVG(updated_at - assigned_at)) FROM eval_tasks WHERE {where_clause}",  # type: ignore
+                f"""
+                SELECT EXTRACT(EPOCH FROM AVG(finished_at - assigned_at))
+                FROM eval_tasks_view
+                WHERE {where_clause}
+                """,  # type: ignore
             )
             res = await result.fetchone()
             if res is None:
                 raise RuntimeError(f"Failed to get average runtime with where clause {where_clause}")
             return res[0]
-
-    async def add_episode_tags(self, episode_ids: list[uuid.UUID], tag: str) -> int:
-        """Add a tag to multiple episodes by UUID. Returns number of episodes tagged."""
-        if not episode_ids:
-            return 0
-
-        async with self.connect() as con:
-            # Use INSERT ... ON CONFLICT DO NOTHING to avoid duplicate key errors
-            rows_affected = 0
-            for episode_id in episode_ids:
-                result = await con.execute(
-                    """
-                    INSERT INTO episode_tags (episode_id, tag)
-                    VALUES (%s, %s)
-                    ON CONFLICT (episode_id, tag) DO NOTHING
-                    """,
-                    (episode_id, tag),
-                )
-                rows_affected += result.rowcount
-            return rows_affected
-
-    async def remove_episode_tags(self, episode_ids: list[uuid.UUID], tag: str) -> int:
-        """Remove a tag from multiple episodes by UUID. Returns number of episodes untagged."""
-        if not episode_ids:
-            return 0
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                DELETE FROM episode_tags
-                WHERE episode_id = ANY(%s) AND tag = %s
-                """,
-                (episode_ids, tag),
-            )
-            return result.rowcount
-
-    async def get_episode_tags(self, episode_ids: list[uuid.UUID]) -> dict[str, list[str]]:
-        """Get all tags for the given episode UUIDs."""
-        if not episode_ids:
-            return {}
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT episode_id, tag
-                FROM episode_tags
-                WHERE episode_id = ANY(%s)
-                ORDER BY episode_id, tag
-                """,
-                (episode_ids,),
-            )
-            rows = await result.fetchall()
-
-            # Group tags by episode UUID (converted to string for JSON serialization)
-            tags_by_episode = {}
-            for episode_uuid, tag in rows:
-                episode_key = str(episode_uuid)
-                if episode_key not in tags_by_episode:
-                    tags_by_episode[episode_key] = []
-                tags_by_episode[episode_key].append(tag)
-
-            return tags_by_episode
-
-    async def get_all_episode_tags(self) -> list[str]:
-        """Get all distinct tags that exist in the system."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT DISTINCT tag
-                FROM episode_tags
-                ORDER BY tag
-                """
-            )
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
 
     async def create_sweep(self, name: str, project: str, entity: str, wandb_sweep_id: str, user_id: str) -> uuid.UUID:
         """Create a new sweep."""
@@ -794,18 +413,13 @@ class MettaRepo:
                 raise ValueError(f"Sweep {sweep_id} not found")
             return row[0]
 
-    async def get_latest_assigned_task_for_worker(self, assignee: str) -> EvalTaskWithPolicyName | None:
+    async def get_latest_assigned_task_for_worker(self, assignee: str) -> EvalTaskRow | None:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 await cur.execute(
                     """
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    JOIN policies p ON et.policy_id = p.id
-                    WHERE assignee = %s
-                      AND assigned_at IS NOT NULL
+                    SELECT * FROM eval_tasks_view
+                    WHERE assignee = %s AND assigned_at IS NOT NULL
                     ORDER BY assigned_at DESC
                     LIMIT 1
                     """,
@@ -813,30 +427,32 @@ class MettaRepo:
                 )
                 return await cur.fetchone()
 
-    async def get_task_by_id(self, task_id: uuid.UUID) -> EvalTaskWithPolicyName | None:
+    async def get_task_by_id(self, task_id: int) -> EvalTaskRow | None:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
+                await cur.execute("SELECT * FROM eval_tasks_view WHERE id = %s", (task_id,))
+                return await cur.fetchone()
+
+    async def get_task_attempts(self, task_id: int) -> list[TaskAttemptRow]:
+        """Get all attempts for a task, ordered by attempt_number."""
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(TaskAttemptRow)) as cur:
                 await cur.execute(
                     """
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    JOIN policies p ON et.policy_id = p.id
-                    WHERE et.id = %s
+                    SELECT * FROM task_attempts
+                    WHERE task_id = %s
+                    ORDER BY attempt_number ASC
                     """,
                     (task_id,),
                 )
-                return await cur.fetchone()
+                return await cur.fetchall()
 
     async def get_all_tasks(
         self,
         limit: int = 500,
         statuses: list[TaskStatus] | None = None,
         git_hash: str | None = None,
-        policy_ids: list[uuid.UUID] | None = None,
-        sim_suites: list[str] | None = None,
-    ) -> list[EvalTaskWithPolicyName]:
+    ) -> list[EvalTaskRow]:
         async with self.connect() as con:
             # Build the WHERE clause dynamically
             where_conditions = []
@@ -844,36 +460,22 @@ class MettaRepo:
 
             if statuses:
                 placeholders = ", ".join(["%s"] * len(statuses))
-                where_conditions.append(f"et.status IN ({placeholders})")
+                where_conditions.append(f"status IN ({placeholders})")
                 params.extend(statuses)
 
             if git_hash:
-                where_conditions.append("et.attributes->>'git_hash' = %s")
+                where_conditions.append("git_hash = %s")
                 params.append(git_hash)
-
-            if policy_ids:
-                placeholders = ", ".join(["%s"] * len(policy_ids))
-                where_conditions.append(f"et.policy_id IN ({placeholders})")
-                params.extend(policy_ids)
-
-            if sim_suites:
-                placeholders = ", ".join(["%s"] * len(sim_suites))
-                where_conditions.append(f"et.sim_suite IN ({placeholders})")
-                params.extend(sim_suites)
 
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             params.append(limit)
 
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 await cur.execute(
                     f"""
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    LEFT JOIN policies p ON et.policy_id = p.id
+                    SELECT * FROM eval_tasks_view
                     WHERE {where_clause}
-                    ORDER BY et.created_at DESC
+                    ORDER BY created_at DESC
                     LIMIT %s
                     """,
                     params,
@@ -884,100 +486,60 @@ class MettaRepo:
         self,
         page: int = 1,
         page_size: int = 50,
-        policy_name: str | None = None,
-        sim_suite: str | None = None,
         status: str | None = None,
         assignee: str | None = None,
         user_id: str | None = None,
-        retries: str | None = None,
         created_at: str | None = None,
         assigned_at: str | None = None,
-        updated_at: str | None = None,
-        include_attributes: bool = False,
-    ) -> tuple[list[EvalTaskWithPolicyName], int]:
+    ) -> tuple[list[EvalTaskRow], int]:
         async with self.connect() as con:
             where_conditions = []
             params = []
 
             # Add text-based filters using ILIKE for case-insensitive substring search
-            if policy_name:
-                where_conditions.append("p.name ILIKE %s")
-                params.append(f"%{policy_name}%")
-
-            if sim_suite:
-                where_conditions.append("et.sim_suite ILIKE %s")
-                params.append(f"%{sim_suite}%")
-
             if status:
                 # Use exact match for status since it's an enum-like field
-                where_conditions.append("et.status = %s")
+                where_conditions.append("status = %s")
                 params.append(status)
 
             if assignee:
-                where_conditions.append("et.assignee ILIKE %s")
+                where_conditions.append("assignee ILIKE %s")
                 params.append(f"%{assignee}%")
 
             if user_id:
-                where_conditions.append("et.user_id ILIKE %s")
+                where_conditions.append("user_id ILIKE %s")
                 params.append(f"%{user_id}%")
 
-            if retries:
-                where_conditions.append("CAST(et.retries AS TEXT) ILIKE %s")
-                params.append(f"%{retries}%")
-
             if created_at:
-                where_conditions.append("CAST(et.created_at AS TEXT) ILIKE %s")
+                where_conditions.append("CAST(created_at AS TEXT) ILIKE %s")
                 params.append(f"%{created_at}%")
 
             if assigned_at:
-                where_conditions.append("CAST(et.assigned_at AS TEXT) ILIKE %s")
+                where_conditions.append("CAST(assigned_at AS TEXT) ILIKE %s")
                 params.append(f"%{assigned_at}%")
-
-            if updated_at:
-                where_conditions.append("CAST(et.updated_at AS TEXT) ILIKE %s")
-                params.append(f"%{updated_at}%")
 
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
 
             # Get total count
             count_query = f"""
                 SELECT COUNT(*)
-                FROM eval_tasks et
-                LEFT JOIN policies p ON et.policy_id = p.id
+                FROM eval_tasks_view
                 WHERE {where_clause}
             """
             count_result = await con.execute(count_query, params)
-            total_count = (await count_result.fetchone())[0]
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
 
             # Get paginated results
             offset = (page - 1) * page_size
             params.extend([page_size, offset])
 
-            # Conditionally include attributes field
-            # When not including full attributes, return minimal subset for UI display
-            if include_attributes:
-                attributes_field = "et.attributes"
-            else:
-                attributes_field = """
-                    jsonb_build_object(
-                        'git_hash', et.attributes->>'git_hash',
-                        'output_log_path', et.attributes->>'output_log_path',
-                        'stderr_log_path', et.attributes->>'stderr_log_path',
-                        'stdout_log_path', et.attributes->>'stdout_log_path',
-                        'details', et.attributes->'details'
-                    ) as attributes
-                """.strip()
-
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 await cur.execute(
                     f"""
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, {attributes_field}, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    LEFT JOIN policies p ON et.policy_id = p.id
+                    SELECT * FROM eval_tasks_view
                     WHERE {where_clause}
-                    ORDER BY et.created_at DESC
+                    ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                     """,
                     params,
@@ -993,7 +555,11 @@ class MettaRepo:
 
             # Use ANY() for proper list handling in PostgreSQL
             queryRes = await con.execute(
-                "SELECT DISTINCT assignee, attributes->>'git_hash' FROM eval_tasks WHERE assignee = ANY(%s)",
+                """
+                SELECT DISTINCT assignee, git_hash
+                FROM eval_tasks_view
+                WHERE assignee = ANY(%s)
+                """,
                 (assignees,),
             )
             rows = await queryRes.fetchall()
@@ -1003,20 +569,287 @@ class MettaRepo:
                     res[row[0]].append(row[1])
             return res
 
-    async def create_cogames_submission(
-        self, submission_id: uuid.UUID, user_id: str, s3_path: str, name: str | None = None
-    ) -> uuid.UUID:
-        """Create a new CoGames policy submission with a specific ID."""
+    # Stats queries
+    async def upsert_policy(self, name: str, user_id: str, attributes: dict[str, Any]) -> uuid.UUID:
         async with self.connect() as con:
             result = await con.execute(
                 """
-                INSERT INTO cogames_policy_submissions (id, user_id, name, s3_path)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO policies (name, user_id, attributes)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id, name) DO NOTHING
                 RETURNING id
                 """,
-                (submission_id, user_id, name, s3_path),
+                (name, user_id, Jsonb(attributes)),
+            )
+            row = await result.fetchone()
+            if row is not None:
+                return row[0]
+            else:
+                # Policy already exists, get the id
+                result = await con.execute(
+                    """
+                    SELECT id FROM policies WHERE user_id = %s AND name = %s
+                    """,
+                    (user_id, name),
+                )
+                row = await result.fetchone()
+                if row is not None:
+                    return row[0]
+                else:
+                    raise ValueError(f"Policy {name} not found")
+
+    async def get_latest_policy_version(self, policy_id: uuid.UUID) -> int | None:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT MAX(version) FROM policy_versions WHERE policy_id = %s
+                """,
+                (policy_id,),
+            )
+            res = await result.fetchone()
+            if res:
+                return res[0]
+
+    async def create_policy_version(
+        self,
+        policy_id: uuid.UUID,
+        s3_path: str | None,
+        git_hash: str | None,
+        policy_spec: dict[str, Any],
+        attributes: dict[str, Any],
+    ) -> uuid.UUID:
+        async with self.connect() as con:
+            latest_version = await self.get_latest_policy_version(policy_id)
+            next_version = latest_version + 1 if latest_version is not None else 1
+
+            result = await con.execute(
+                """
+                INSERT INTO policy_versions (policy_id, version, s3_path, git_hash, policy_spec, attributes)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (policy_id, next_version, s3_path, git_hash, Jsonb(policy_spec), Jsonb(attributes)),
             )
             row = await result.fetchone()
             if row is None:
-                raise RuntimeError("Failed to create CoGames submission")
+                raise ValueError("Failed to create policy version")
             return row[0]
+
+    async def get_policy_version(self, policy_version_id: uuid.UUID) -> PolicyVersionRow | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PolicyVersionRow)) as cur:
+                await cur.execute("SELECT * FROM policy_versions WHERE id = %s", (policy_version_id,))
+                return await cur.fetchone()
+
+    async def get_user_policy_versions(self, user_id: str) -> list[PublicPolicyVersionRow]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT pv.id, pv.policy_id, pv.created_at, p.name, p.created_at AS policy_created_at, pv.version
+                    FROM policy_versions AS pv, policies AS p
+                    WHERE pv.policy_id = p.id AND p.user_id = %s
+                    ORDER BY pv.created_at DESC, pv.version DESC
+                    """,
+                    (user_id,),
+                )
+                return await cur.fetchall()
+
+    async def upsert_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> None:
+        if not tags:
+            return
+
+        rows = [(policy_version_id, key, value) for key, value in tags.items()]
+
+        async with self.connect() as con:
+            async with con.cursor() as cur:
+                await cur.executemany(
+                    """
+                    INSERT INTO policy_version_tags (policy_version_id, key, value)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (policy_version_id, key)
+                    DO UPDATE SET value = EXCLUDED.value
+                    """,
+                    rows,
+                )
+
+    async def record_episode(
+        self,
+        id: UUID,
+        data_uri: str,
+        primary_pv_id: uuid.UUID | None,
+        replay_url: str | None,
+        attributes: dict[str, Any],
+        eval_task_id: uuid.UUID | None,
+        thumbnail_url: str | None,
+        tags: list[tuple[str, str]],
+        policy_versions: list[tuple[uuid.UUID, int]],  # pv_id, num_agents
+        policy_metrics: list[tuple[uuid.UUID, str, float]],  # pv_id, metric_name, metric_value
+    ) -> uuid.UUID:
+        async with self.connect() as con:
+            # Insert into episodes table
+            result = await con.execute(
+                """
+                INSERT INTO episodes (
+                    id,
+                    data_uri,
+                    primary_pv_id,
+                    replay_url,
+                    thumbnail_url,
+                    attributes,
+                    eval_task_id
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s
+                ) RETURNING internal_id
+                """,
+                (id, data_uri, primary_pv_id, replay_url, thumbnail_url, Jsonb(attributes), eval_task_id),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to insert episode record")
+            episode_internal_id = row[0]
+
+            # Insert episode policies in bulk
+            async with con.cursor() as cur:
+                rows = [(id, pv_id, num_agents) for pv_id, num_agents in policy_versions]
+                await cur.executemany(
+                    """
+                    INSERT INTO episode_policies (episode_id, policy_version_id, num_agents)
+                    VALUES (%s, %s, %s)
+                    """,
+                    rows,
+                )
+
+            # Get internal_id for each policy version UUID
+            pv_uuid_to_internal_id: dict[uuid.UUID, int] = {}
+            if policy_metrics:
+                pv_uuids = list({pv_id for pv_id, _, _ in policy_metrics})
+                result = await con.execute(
+                    """
+                    SELECT id, internal_id FROM policy_versions WHERE id = ANY(%s)
+                    """,
+                    (pv_uuids,),
+                )
+                rows = await result.fetchall()
+                for row in rows:
+                    pv_uuid_to_internal_id[row[0]] = row[1]
+
+            # Insert episode policy metrics in bulk
+            async with con.cursor() as cur:
+                rows = [
+                    (episode_internal_id, pv_uuid_to_internal_id[pv_id], metric_name, metric_value)
+                    for pv_id, metric_name, metric_value in policy_metrics
+                ]
+                await cur.executemany(
+                    """
+                    INSERT INTO episode_policy_metrics (episode_internal_id, pv_internal_id, metric_name, value)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    rows,
+                )
+
+            # Insert episode tags in bulk
+            async with con.cursor() as cur:
+                rows = [(id, key, value) for key, value in tags]
+                await cur.executemany(
+                    """
+                    INSERT INTO episode_tags (episode_id, key, value)
+                    VALUES (%s, %s, %s)
+                    """,
+                    rows,
+                )
+
+            return id
+
+    async def get_avg_per_agent_score_by_tag(
+        self,
+        tag_key: str,
+        user_id: str | None = None,
+        policy_version_id: uuid.UUID | None = None,
+    ) -> list[LeaderboardEntry]:
+        """Fetch average per-agent scores per tag with optional filters."""
+        params: list[Any] = [tag_key]
+        user_filter_clause = ""
+        policy_filter_clause = ""
+
+        if user_id is not None:
+            user_filter_clause = "AND pol.user_id = %s"
+            params.append(user_id)
+
+        if policy_version_id is not None:
+            policy_filter_clause = "AND pv.id = %s"
+            params.append(policy_version_id)
+
+        query = f"""
+SELECT
+    pv.id AS policy_version_id,
+    pv.internal_id,
+    pv.policy_id,
+    pv.version,
+    pv.s3_path,
+    pv.git_hash,
+    pv.policy_spec,
+    pv.attributes,
+    pv.created_at,
+    pol.created_at AS policy_created_at,
+    pol.name AS policy_name,
+    pol.user_id,
+    et.value AS leaderboard_name,
+    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent
+FROM episode_policies ep
+JOIN episodes e ON e.id = ep.episode_id
+JOIN policy_versions pv ON pv.id = ep.policy_version_id
+JOIN policies pol ON pol.id = pv.policy_id
+JOIN episode_policy_metrics epm
+    ON epm.episode_internal_id = e.internal_id
+    AND epm.pv_internal_id = pv.internal_id
+JOIN episode_tags et ON et.episode_id = e.id
+WHERE epm.metric_name = 'reward'
+  AND et.key = %s
+  {user_filter_clause}
+  {policy_filter_clause}
+GROUP BY
+    pv.id,
+    pv.internal_id,
+    pv.policy_id,
+    pv.version,
+    pv.s3_path,
+    pv.git_hash,
+    pv.policy_spec,
+    pv.attributes,
+    pv.created_at,
+    pol.name,
+    pol.user_id,
+    pol.created_at,
+    et.value
+ORDER BY pv.created_at DESC, pol.user_id, pv.id, et.value
+"""
+
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(query, params)
+                rows = await cur.fetchall()
+
+        entries_by_policy: dict[uuid.UUID, LeaderboardEntry] = {}
+        for row in rows:
+            policy_version_id_value = row["policy_version_id"]
+            entry = entries_by_policy.get(policy_version_id_value)
+            if entry is None:
+                policy_version = PublicPolicyVersionRow(
+                    id=row["policy_version_id"],
+                    policy_id=row["policy_id"],
+                    version=row["version"],
+                    created_at=row["created_at"],
+                    policy_created_at=row["policy_created_at"],
+                    name=row["policy_name"],
+                )
+                entry = LeaderboardEntry(
+                    policy_version=policy_version,
+                    user_id=row["user_id"],
+                    scores={},
+                )
+                entries_by_policy[policy_version_id_value] = entry
+
+            entry.scores[row["leaderboard_name"]] = row["avg_reward_per_agent"]
+
+        return list(entries_by_policy.values())

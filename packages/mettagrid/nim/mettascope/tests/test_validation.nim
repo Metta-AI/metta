@@ -10,7 +10,7 @@ proc getMinimalReplay(fileName: string = "sample.json.z"): JsonNode =
     "max_steps": 100,
     "map_size": [10, 10],
     "file_name": "test replay file format",
-    "type_names": ["agent", "resource"],
+    "type_names": ["agent", "assembler", "resource"],
     "action_names": ["move", "collect"],
     "item_names": ["wood", "stone"],
     "group_names": ["group1", "group2"],
@@ -60,6 +60,33 @@ proc getMinimalReplay(fileName: string = "sample.json.z"): JsonNode =
         "inventory_max": 10,
         "color": 1,
       },
+      {
+        "id": 3,
+        "type_name": "assembler",
+        # Assembler-specific fields
+        "protocols": [
+          {
+            "minAgents": 0,
+            "vibes": [1, 2],  # Example vibes
+            "inputs": [[0, 2]],  # 2 wood
+            "outputs": [[1, 1]], # 1 stone
+            "cooldown": 10
+          }
+        ],
+        "cooldown_remaining": 0,
+        "cooldown_duration": 10,
+        "is_clipped": false,
+        "is_clip_immune": false,
+        "uses_count": 0,
+        "max_uses": 100,
+        "allow_partial_usage": true,
+        # Common fields
+        "location": [[0, [1, 1]]],
+        "orientation": 0,
+        "inventory": [],
+        "inventory_max": 50,
+        "color": 2,
+      },
     ]
   }
 
@@ -85,7 +112,7 @@ block schema_validation:
     replay["num_agents"] = %*(-1)
     let issues = validateReplay(replay)
     doAssert issues.len > 0, "Should have validation issues"
-    doAssert issues.anyIt(it.message.contains("'num_agents' must be positive")), &"Expected positive validation error, got: {issues}"
+    doAssert issues.anyIt(it.message.contains("'num_agents' must be non-negative")), &"Expected non-negative validation error, got: {issues}"
     echo "✓ Invalid num_agents properly rejected"
 
   block invalid_map_size:
@@ -95,3 +122,12 @@ block schema_validation:
     doAssert issues.len > 0, "Should have validation issues"
     doAssert issues.anyIt(it.message.contains("'map_size[0]' must be positive")), &"Expected positive validation error, got: {issues}"
     echo "✓ Invalid map_size properly rejected"
+
+  block empty_objects_valid_when_no_agents:
+    var replay = getMinimalReplay()
+    replay["num_agents"] = %*0
+    replay["objects"] = %*[]
+    replay.delete("reward_sharing_matrix")
+    let issues = validateReplay(replay)
+    doAssert issues.len == 0, &"Replay with map but empty objects should be valid when num_agents=0, but got: {issues}"
+    echo "✓ Empty objects array valid when no agents expected"

@@ -25,11 +25,11 @@ def mock_debug_user_email():
 
 
 # Skip all tests that use postgres_container; it is flaky
-def pytest_collection_modifyitems(config, items):
-    skip_pg = pytest.mark.skip(reason="postgres_container flaky")
-    for item in items:
-        if "postgres_container" in item.fixturenames:
-            item.add_marker(skip_pg)
+# def pytest_collection_modifyitems(config, items):
+#     skip_pg = pytest.mark.skip(reason="postgres_container flaky")
+#     for item in items:
+#         if "postgres_container" in item.fixturenames:
+#             item.add_marker(skip_pg)
 
 
 @pytest.fixture(scope="class")
@@ -89,17 +89,19 @@ def auth_headers() -> Dict[str, str]:
 @pytest.fixture(scope="class")
 def stats_client(test_client: TestClient) -> StatsClient:
     """Create a stats client for testing."""
-    # First create a machine token
-    token_response = test_client.post(
-        "/tokens",
-        json={"name": "test_token", "permissions": ["read", "write"]},
-        headers={"X-Auth-Request-Email": "test_user@example.com"},
-    )
-    assert token_response.status_code == 200, f"Failed to create token: {token_response.text}"
-    token = token_response.json()["token"]
+    # Create stats client with a dummy token (auth will use X-Auth-Request-Email header instead)
+    client = create_test_stats_client(test_client, machine_token="dummy_token")
+    # Override the request method to add X-Auth-Request-Email header
+    original_request = client._http_client.request
 
-    # Create stats client that works with TestClient
-    return create_test_stats_client(test_client, machine_token=token)
+    def request_with_auth(method: str, url: str, **kwargs):
+        headers = kwargs.get("headers", {})
+        headers["X-Auth-Request-Email"] = "test_user@example.com"
+        kwargs["headers"] = headers
+        return original_request(method, url, **kwargs)
+
+    client._http_client.request = request_with_auth
+    return client
 
 
 # Isolated fixtures for function-scoped testing
@@ -131,17 +133,19 @@ def isolated_test_client(isolated_test_app: FastAPI) -> TestClient:
 @pytest.fixture(scope="function")
 def isolated_stats_client(isolated_test_client: TestClient) -> StatsClient:
     """Create a stats client with isolated database for testing."""
-    # First create a machine token
-    token_response = isolated_test_client.post(
-        "/tokens",
-        json={"name": "test_token", "permissions": ["read", "write"]},
-        headers={"X-Auth-Request-Email": "test_user@example.com"},
-    )
-    assert token_response.status_code == 200, f"Failed to create token: {token_response.text}"
-    token = token_response.json()["token"]
+    # Create stats client with a dummy token (auth will use X-Auth-Request-Email header instead)
+    client = create_test_stats_client(isolated_test_client, machine_token="dummy_token")
+    # Override the request method to add X-Auth-Request-Email header
+    original_request = client._http_client.request
 
-    # Create stats client that works with TestClient
-    return create_test_stats_client(isolated_test_client, machine_token=token)
+    def request_with_auth(method: str, url: str, **kwargs):
+        headers = kwargs.get("headers", {})
+        headers["X-Auth-Request-Email"] = "test_user@example.com"
+        kwargs["headers"] = headers
+        return original_request(method, url, **kwargs)
+
+    client._http_client.request = request_with_auth
+    return client
 
 
 @pytest.fixture

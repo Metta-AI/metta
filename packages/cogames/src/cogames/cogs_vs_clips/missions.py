@@ -6,9 +6,9 @@ from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
-    ChestHeartTuneVariant,
     ClipHubStationsVariant,
     ClipPeriodOnVariant,
+    EmptyBaseVariant,
     ExtractorHeartTuneVariant,
     HeartChorusVariant,
     InventoryHeartTuneVariant,
@@ -20,18 +20,11 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 
 # Training Facility Missions
 
-AssembleMission = Mission(
-    name="assemble",
-    description="Make HEARTs by using the assembler. Coordinate your team to maximize efficiency.",
-    site=TRAINING_FACILITY,
-    variants=[InventoryHeartTuneVariant(hearts=5), PackRatVariant()],
-)
-
 HarvestMission = Mission(
     name="harvest",
     description="Collect resources, assemble hearts, and deposit them in the chest. Make sure to stay charged!",
     site=TRAINING_FACILITY,
-    variants=[ExtractorHeartTuneVariant(hearts=5), PackRatVariant()],
+    variants=[ExtractorHeartTuneVariant(hearts=10), PackRatVariant(), LonelyHeartVariant()],
 )
 
 VibeCheckMission = Mission(
@@ -39,7 +32,7 @@ VibeCheckMission = Mission(
     description="Modulate the group vibe to assemble HEARTs.",
     site=TRAINING_FACILITY,
     num_cogs=4,
-    variants=[VibeCheckMin2Variant(), InventoryHeartTuneVariant(hearts=1)],
+    variants=[VibeCheckMin2Variant(), ExtractorHeartTuneVariant(hearts=10)],
 )
 
 
@@ -48,8 +41,14 @@ RepairMission = Mission(
     description="Repair disabled stations to restore their functionality.",
     site=TRAINING_FACILITY,
     num_cogs=2,
-    variants=[InventoryHeartTuneVariant(hearts=1), ClipPeriodOnVariant(), ClipHubStationsVariant()],
-)
+    variants=[
+        InventoryHeartTuneVariant(hearts=1),
+        ExtractorHeartTuneVariant(hearts=10),
+        LonelyHeartVariant(),
+        ClipPeriodOnVariant(),
+        ClipHubStationsVariant(),
+    ],
+)  # If you get only two hearts you failed.
 
 
 # Easy Hearts: simplified heart crafting and generous limits with extractor hub
@@ -83,14 +82,7 @@ HelloWorldOpenWorldMission = Mission(
     name="open_world",
     description="Collect resources and assemble HEARTs.",
     site=HELLO_WORLD,
-)
-
-TreasureHuntMission = Mission(
-    name="clipping",
-    description=("Extractors are getting clipped, and we need to unclip them to continue."),
-    site=HELLO_WORLD,
-    num_cogs=4,
-    variants=[ClipPeriodOnVariant()],
+    variants=[EmptyBaseVariant()],
 )
 
 
@@ -99,6 +91,7 @@ Machina1OpenWorldMission = Mission(
     name="open_world",
     description="Collect resources and assemble HEARTs.",
     site=MACHINA_1,
+    variants=[EmptyBaseVariant()],
 )
 
 
@@ -107,16 +100,14 @@ HelloWorldUnclipMission = Mission(
     description="Stabilize clipped extractors scattered across the hello_world sector.",
     site=HELLO_WORLD,
     num_cogs=4,
-    variants=[ClipPeriodOnVariant(), ChestHeartTuneVariant(hearts=1), ClipHubStationsVariant()],
+    variants=[ClipPeriodOnVariant(), InventoryHeartTuneVariant(hearts=1), ClipHubStationsVariant()],
 )
 
 
 MISSIONS: list[Mission] = [
     HarvestMission,
-    AssembleMission,
     VibeCheckMission,
     RepairMission,
-    TreasureHuntMission,
     EasyHeartsTrainingMission,
     EasyHeartsHelloWorldMission,
     HelloWorldUnclipMission,

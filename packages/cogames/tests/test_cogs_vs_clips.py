@@ -54,7 +54,8 @@ def test_inventory_heart_tune_caps_initial_inventory_to_limits():
     env = mission.make_env()
     agent = env.game.agent
 
-    energy_limit = int(agent.resource_limits["energy"])
+    # Find energy limit from resource_limits list
+    energy_limit = agent.get_limit_for_resource("energy")
     assert agent.initial_inventory["energy"] == energy_limit
 
 

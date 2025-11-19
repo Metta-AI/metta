@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import (
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
+    ResourceLimitsConfig,
     WallConfig,
 )
 from mettagrid.simulator import Action, Simulation
@@ -29,7 +30,11 @@ def create_test_sim(initial_inventory: dict[str, int] | None = None) -> Simulati
         actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
         objects={"wall": WallConfig()},
         agent=AgentConfig(
-            resource_limits={"wood": 10, "stone": 10, "iron": 10},
+            resource_limits={
+                "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
+                "stone": ResourceLimitsConfig(limit=10, resources=["stone"]),
+                "iron": ResourceLimitsConfig(limit=10, resources=["iron"]),
+            },
             initial_inventory=initial_inventory,
         ),
     )
