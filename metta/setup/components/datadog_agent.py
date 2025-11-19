@@ -73,12 +73,18 @@ class DatadogAgentSetup(SetupModule):
 
         # Set hostname for Docker environments (required for agent to start)
         # Use SKYPILOT_TASK_ID if available, otherwise use METTA_RUN_ID, fallback to hostname
-        hostname = (
+        # Must be RFC1123 compliant: lowercase, numbers, hyphens only, max 63 chars, no underscores
+        raw_hostname = (
             os.environ.get("SKYPILOT_TASK_ID")
             or os.environ.get("METTA_RUN_ID")
             or os.environ.get("HOSTNAME")
             or "skypilot-job"
         )
+        # Sanitize hostname: replace underscores with hyphens, lowercase, truncate to 63 chars
+        hostname = raw_hostname.lower().replace("_", "-")[:63]
+        # Ensure it starts with alphanumeric
+        if not hostname[0].isalnum():
+            hostname = "skypilot-" + hostname
         env["DD_HOSTNAME"] = hostname
 
         # Set tags from SkyPilot environment variables
@@ -147,12 +153,17 @@ class DatadogAgentSetup(SetupModule):
 
                     # Only set hostname if not already configured
                     if "hostname:" not in config_content:
-                        hostname = (
+                        raw_hostname = (
                             os.environ.get("SKYPILOT_TASK_ID")
                             or os.environ.get("METTA_RUN_ID")
                             or os.environ.get("HOSTNAME")
                             or "skypilot-job"
                         )
+                        # Sanitize hostname: replace underscores with hyphens, lowercase, truncate to 63 chars
+                        hostname = raw_hostname.lower().replace("_", "-")[:63]
+                        # Ensure it starts with alphanumeric
+                        if not hostname[0].isalnum():
+                            hostname = "skypilot-" + hostname
                         # Append hostname to config
                         with open(config_file, "a") as f:
                             f.write(f"\nhostname: {hostname}\n")
