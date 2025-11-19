@@ -1,6 +1,6 @@
 import ast
 import logging
-from typing import Sequence, Union
+from typing import Any, Sequence, Union, cast
 
 import numpy as np
 from rich.console import Console
@@ -290,6 +290,9 @@ def run(
     mission = Machina1OpenWorldMission.model_copy(deep=True)
     mission.num_cogs = num_cogs
     env_config = mission.make_env()
+    map_builder = getattr(env_config.game, "map_builder", None)
+    if map_builder is not None and hasattr(map_builder, "seed"):
+        cast(Any, map_builder).seed = seed
 
     # Setup Simulations
     simulations = []
