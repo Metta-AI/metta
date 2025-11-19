@@ -14,7 +14,7 @@ spec:
       labels:
         {{- include "match-scheduler.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name | default (include "match-scheduler.serviceAccountName" .) }}
+      serviceAccountName: {{ required "serviceAccount.name is required" .Values.serviceAccount.name }}
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
@@ -30,7 +30,7 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: KUBERNETES_SERVICE_ACCOUNT
-          value: {{ include "match-scheduler.serviceAccountName" . }}
+          value: {{ .Values.serviceAccount.name | quote }}
         - name: KUBERNETES_POD_NAME
           valueFrom:
             fieldRef:
