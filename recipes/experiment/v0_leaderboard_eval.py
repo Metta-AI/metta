@@ -2,13 +2,13 @@ import logging
 from typing import Sequence
 
 from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
+from metta.app_backend.leaderboard_constants import LEADERBOARD_SIM_NAME_EPISODE_KEY
 from metta.sim.runner import SimulationRunConfig
 from metta.tools.multi_versioned_policy_eval import MultiPolicyVersionEvalTool
 from metta.tools.utils.auto_config import auto_stats_server_uri
 
 logger = logging.getLogger(__name__)
 
-V0_LEADERBOARD_NAME_TAG_KEY = "v0-leaderboard-name"
 
 # Baseline UUIDs
 THINKY_UUID = "4f00146e-7a14-4b5d-b15e-6068f1b82de6"
@@ -32,7 +32,7 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
         num_episodes=num_episodes,
         proportions=[1.0, 0.0, 0.0],
         episode_tags={
-            V0_LEADERBOARD_NAME_TAG_KEY: "machina1-self-play",
+            LEADERBOARD_SIM_NAME_EPISODE_KEY: "machina1-self-play",
             "type": "self_play",
         },
     )
@@ -44,7 +44,7 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
         num_episodes=num_episodes,
         proportions=[1.0, 1.0, 0.0],
         episode_tags={
-            V0_LEADERBOARD_NAME_TAG_KEY: "machina1-with-thinky",
+            LEADERBOARD_SIM_NAME_EPISODE_KEY: "machina1-with-thinky",
             "type": "with_thinky",
         },
     )
@@ -56,7 +56,7 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
         num_episodes=num_episodes,
         proportions=[1.0, 0.0, 1.0],
         episode_tags={
-            V0_LEADERBOARD_NAME_TAG_KEY: "machina1-with-ladybug",
+            LEADERBOARD_SIM_NAME_EPISODE_KEY: "machina1-with-ladybug",
             "type": "with_ladybug",
         },
     )
