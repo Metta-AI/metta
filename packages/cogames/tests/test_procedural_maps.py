@@ -2,7 +2,8 @@ import math
 
 import pytest
 
-from cogames.cogs_vs_clips.procedural import MachinaArenaConfig
+from cogames.cogs_vs_clips.missions import HelloWorldOpenWorldMission
+from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, MapSeedVariant
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import DEFAULT_EXTRACTORS, BaseHub
 
@@ -208,3 +209,29 @@ def test_procedural_builder_deterministic_with_seed():
 
     # Deterministic grid given the same seed and dimensions
     assert (m1.grid == m2.grid).all()
+
+
+def test_map_seed_variant_sets_seed_and_produces_deterministic_map():
+    # HelloWorldOpenWorldMission uses the HELLO_WORLD site, which is MapGen-based.
+    base_mission = HelloWorldOpenWorldMission
+    seed_variant = MapSeedVariant(seed=123)
+    mission_with_seed = base_mission.with_variants([seed_variant])
+
+    env_cfg_1 = mission_with_seed.make_env()
+    env_cfg_2 = mission_with_seed.make_env()
+
+    mb1 = env_cfg_1.game.map_builder
+    mb2 = env_cfg_2.game.map_builder
+
+    assert isinstance(mb1, MapGen.Config)
+    assert isinstance(mb2, MapGen.Config)
+    assert mb1.seed == 123
+    assert mb2.seed == 123
+
+    # Given the same MapGen seed and mission/site, the generated grids should match.
+    builder1 = mb1.create()
+    builder2 = mb2.create()
+    map1 = builder1.build()
+    map2 = builder2.build()
+
+    assert (map1.grid == map2.grid).all()
