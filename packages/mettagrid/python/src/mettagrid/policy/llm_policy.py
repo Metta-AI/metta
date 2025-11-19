@@ -1,6 +1,7 @@
 """LLM-based policy for MettaGrid using GPT or Claude."""
 
 import json
+import logging
 import os
 import random
 from typing import Literal
@@ -8,6 +9,8 @@ from typing import Literal
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
+
+logger = logging.getLogger(__name__)
 
 GAME_RULES_PROMPT = """You are playing MettaGrid, a multi-agent gridworld game.
 
@@ -79,6 +82,12 @@ def observation_to_json(obs: AgentObservation, policy_env_info: PolicyEnvInterfa
 class LLMAgentPolicy(AgentPolicy):
     """Per-agent LLM policy that queries GPT or Claude for action selection."""
 
+    # Class-level tracking for all instances
+    total_calls = 0
+    total_input_tokens = 0
+    total_output_tokens = 0
+    total_cost = 0.0
+
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
@@ -135,6 +144,8 @@ Respond with ONLY the action name from the available actions list. No explanatio
 
         # Query LLM
         try:
+            action_name = "noop"  # Default fallback
+
             if self.provider == "openai":
                 assert self.client is not None
                 response = self.client.chat.completions.create(
@@ -150,6 +161,25 @@ Respond with ONLY the action name from the available actions list. No explanatio
                 if action_name is None:
                     action_name = "noop"
                 action_name = action_name.strip()
+
+                # Track usage and cost
+                usage = response.usage
+                if usage:
+                    LLMAgentPolicy.total_calls += 1
+                    LLMAgentPolicy.total_input_tokens += usage.prompt_tokens
+                    LLMAgentPolicy.total_output_tokens += usage.completion_tokens
+
+                    # Cost calculation for gpt-4o-mini: $0.150/1M input, $0.600/1M output
+                    input_cost = (usage.prompt_tokens / 1_000_000) * 0.150
+                    output_cost = (usage.completion_tokens / 1_000_000) * 0.600
+                    call_cost = input_cost + output_cost
+                    LLMAgentPolicy.total_cost += call_cost
+
+                    logger.debug(
+                        f"OpenAI response: '{action_name}' | "
+                        f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out | "
+                        f"Cost: ${call_cost:.6f}"
+                    )
 
             elif self.provider == "anthropic":
                 assert self.anthropic_client is not None
@@ -168,11 +198,31 @@ Respond with ONLY the action name from the available actions list. No explanatio
                         action_name = block.text.strip()
                         break
 
+                # Track usage and cost
+                usage = response.usage
+                LLMAgentPolicy.total_calls += 1
+                LLMAgentPolicy.total_input_tokens += usage.input_tokens
+                LLMAgentPolicy.total_output_tokens += usage.output_tokens
+
+                # Cost calculation for claude-3-5-sonnet: $3.00/1M input, $15.00/1M output
+                input_cost = (usage.input_tokens / 1_000_000) * 3.00
+                output_cost = (usage.output_tokens / 1_000_000) * 15.00
+                call_cost = input_cost + output_cost
+                LLMAgentPolicy.total_cost += call_cost
+
+                logger.debug(
+                    f"Anthropic response: '{action_name}' | "
+                    f"Tokens: {usage.input_tokens} in, {usage.output_tokens} out | "
+                    f"Cost: ${call_cost:.6f}"
+                )
+
             # Parse and return action
-            return self._parse_action(action_name)
+            parsed_action = self._parse_action(action_name)
+            logger.info(f"Agent {obs.agent_id}: LLM chose '{action_name}' -> Action: {parsed_action.name}")
+            return parsed_action
 
         except Exception as e:
-            print(f"LLM API error: {e}. Falling back to random action.")
+            logger.error(f"LLM API error: {e}. Falling back to random action.")
             return random.choice(self.policy_env_info.actions.actions())
 
 
@@ -199,8 +249,31 @@ Respond with ONLY the action name from the available actions list. No explanatio
                 return action
 
         # Fallback to random action if parsing fails
-        print(f"Warning: Could not parse action '{action_name}'. Using random action.")
+        logger.warning(f"Could not parse action '{action_name}'. Using random action.")
         return random.choice(self.policy_env_info.actions.actions())
+
+    @classmethod
+    def get_cost_summary(cls) -> dict:
+        """Get summary of API usage and costs.
+
+        Returns:
+            Dictionary with usage statistics
+        """
+        return {
+            "total_calls": cls.total_calls,
+            "total_input_tokens": cls.total_input_tokens,
+            "total_output_tokens": cls.total_output_tokens,
+            "total_tokens": cls.total_input_tokens + cls.total_output_tokens,
+            "total_cost": cls.total_cost,
+        }
+
+    @classmethod
+    def reset_cost_tracking(cls) -> None:
+        """Reset cost tracking counters."""
+        cls.total_calls = 0
+        cls.total_input_tokens = 0
+        cls.total_output_tokens = 0
+        cls.total_cost = 0.0
 
 
 class LLMMultiAgentPolicy(MultiAgentPolicy):

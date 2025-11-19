@@ -4,11 +4,13 @@
 import argparse
 import logging
 import os
+import signal
+import sys
 
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.policy.llm_policy import LLMMultiAgentPolicy
+from mettagrid.policy.llm_policy import LLMAgentPolicy, LLMMultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
@@ -49,11 +51,48 @@ def parse_args() -> argparse.Namespace:
         default=0.7,
         help="LLM sampling temperature",
     )
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+        help="Logging level",
+    )
     return parser.parse_args()
 
 
+def print_cost_summary():
+    """Print LLM API cost summary."""
+    summary = LLMAgentPolicy.get_cost_summary()
+    print("\n" + "="*60)
+    print("LLM API COST SUMMARY")
+    print("="*60)
+    print(f"Total API calls:     {summary['total_calls']}")
+    print(f"Total input tokens:  {summary['total_input_tokens']:,}")
+    print(f"Total output tokens: {summary['total_output_tokens']:,}")
+    print(f"Total tokens:        {summary['total_tokens']:,}")
+    print(f"Total cost:          ${summary['total_cost']:.6f}")
+    print("="*60 + "\n")
+
+
+def signal_handler(sig, frame):
+    """Handle Ctrl+C gracefully."""
+    print("\n\nInterrupted by user (Ctrl+C)")
+    print_cost_summary()
+    sys.exit(0)
+
+
 def main():
+    # Set up signal handler for Ctrl+C
+    signal.signal(signal.SIGINT, signal_handler)
+
     args = parse_args()
+
+    # Configure logging
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format='%(levelname)s - %(name)s - %(message)s'
+    )
 
     # Check for API key
     if args.provider == "openai" and not os.getenv("OPENAI_API_KEY"):
@@ -108,12 +147,19 @@ def main():
     # Run rollout
     logger.info("\n=== Starting simulation ===")
     rollout = Rollout(config=cfg, policies=agent_policies, render_mode=args.render)
-    rollout.run_until_done()
+
+    try:
+        rollout.run_until_done()
+    except KeyboardInterrupt:
+        logger.info("\n=== Simulation interrupted ===")
 
     logger.info("\n=== Simulation complete ===")
     logger.info(f"Total steps: {rollout._sim.current_step}")
     logger.info(f"Total rewards: {rollout._sim.episode_rewards}")
     logger.info(f"Episode stats: {rollout._sim.episode_stats}")
+
+    # Print cost summary
+    print_cost_summary()
 
 
 if __name__ == "__main__":
