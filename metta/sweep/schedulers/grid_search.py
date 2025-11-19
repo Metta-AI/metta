@@ -14,9 +14,9 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from pydantic import Field
 
+from metta.sweep.core import CategoricalParameterConfig
 from metta.sweep.models import JobDefinition, JobStatus, RunInfo
 from metta.sweep.utils import create_eval_job, create_training_job, generate_run_id
-from metta.sweep.core import CategoricalParameterConfig
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)

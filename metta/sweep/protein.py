@@ -451,7 +451,7 @@ class Protein:
         with torch.no_grad():
             mu_t, var_t = self.gp_score(suggestions_t, full_cov=False)
         mu = mu_t.numpy()
-        sd = np.sqrt(np.maximum(var_t.numpy(), 1e-12))
+        np.sqrt(np.maximum(var_t.numpy(), 1e-12))
 
         # For 'naive' normalization path (info/weighting)
         # Use subset statistics if subset was used

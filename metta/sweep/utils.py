@@ -5,8 +5,8 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
-from metta.sweep.models import JobDefinition, JobTypes, RunInfo
 from metta.common.util.constants import PROD_STATS_SERVER_URI, SOFTMAX_S3_POLICY_PREFIX
+from metta.sweep.models import JobDefinition, JobTypes, RunInfo
 
 logger = logging.getLogger(__name__)
 

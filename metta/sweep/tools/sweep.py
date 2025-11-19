@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any, Optional
 
 from cogweb.cogweb_client import CogwebClient
-from metta.sweep.stores import WandbStore
 from metta.common.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
@@ -16,6 +15,7 @@ from metta.common.wandb.context import WandbConfig
 from metta.sweep.core import ParameterConfig
 from metta.sweep.dispatchers import LocalDispatcher, SkypilotDispatcher
 from metta.sweep.protein_config import ProteinConfig
+from metta.sweep.stores import WandbStore
 from metta.sweep.sweep import ProteinSweep
 from metta.tools.utils.auto_config import auto_wandb_config
 
