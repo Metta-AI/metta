@@ -369,10 +369,8 @@ class SweepOrchestrator(ABC):
             elif run.has_started_eval and not run.has_been_evaluated:
                 # Evaluation already dispatched and still running
                 trial.state = TrialState.EVALUATING
-                self.running.add(trial_id)
             elif run.has_started_training and not run.has_completed_training:
                 trial.state = TrialState.TRAINING
-                self.running.add(trial_id)
             elif run.has_completed_training and not self.skip_evaluation and not run.has_been_evaluated:
                 trial.state = TrialState.AWAITING_EVALUATION
             elif run.has_been_evaluated or (self.skip_evaluation and run.has_completed_training):
@@ -399,6 +397,9 @@ class SweepOrchestrator(ABC):
                     self.total_cost += cost
             else:
                 trial.state = TrialState.PENDING
+
+            # Ensure recovered trials occupying slots are tracked correctly
+            self._restore_running_membership(trial)
 
             # Register the recovered trial
             self.trials[trial_id] = trial
@@ -564,9 +565,16 @@ class SweepOrchestrator(ABC):
         # First, check for any trials awaiting evaluation
         awaiting_eval = [t for t in self.trials.values() if t.state == TrialState.AWAITING_EVALUATION]
 
-        if awaiting_eval:
-            logger.info(f"Dispatching evaluation for {len(awaiting_eval)} trials")
+        # Calculate available slots up front so both evaluation and training respect the cap
+        available_slots = self._calculate_available_slots()
+
+        if awaiting_eval and available_slots > 0:
+            remaining = min(len(awaiting_eval), available_slots)
+            logger.info(f"Dispatching evaluation for {remaining} trial(s)")
             for trial in awaiting_eval:
+                if available_slots <= 0:
+                    break
+
                 # Convert trial to evaluation job
                 job = self._trial_to_job(trial)
 
@@ -584,11 +592,8 @@ class SweepOrchestrator(ABC):
                     trial.id, TrialState.EVALUATING, reason="Evaluation dispatched", dispatch_id=dispatch_id
                 )
 
+                available_slots -= 1
                 logger.info(f"Dispatched evaluation for trial {trial.id}")
-
-        # Then handle new training trials if we have slots
-        # Calculate available slots
-        available_slots = self._calculate_available_slots()
 
         if available_slots <= 0:
             return
@@ -613,9 +618,6 @@ class SweepOrchestrator(ABC):
 
             # Update trial state
             self._update_trial_state(trial.id, TrialState.PENDING, reason="Dispatched", dispatch_id=dispatch_id)
-
-            # Track as running
-            self.running.add(trial.id)
 
             logger.info(f"Dispatched trial {trial.id} with params {trial.params}")
 
@@ -648,6 +650,29 @@ class SweepOrchestrator(ABC):
         current_active = self.n_active
         return max(0, self.max_parallel - current_active)
 
+    def _state_counts_as_running(self, state: TrialState) -> bool:
+        """Determine if a state should occupy a concurrency slot."""
+        return state in {
+            TrialState.PENDING,
+            TrialState.TRAINING,
+            TrialState.EVALUATING,
+        }
+
+    def _restore_running_membership(self, trial: Trial) -> None:
+        """Restore running set membership for recovered active trials."""
+        if self._state_counts_as_running(trial.state):
+            self.running.add(trial.id)
+
+    def _sync_running_membership(self, trial_id: str, old_state: TrialState, new_state: TrialState) -> None:
+        """Update running set membership after a state transition."""
+        was_running = self._state_counts_as_running(old_state)
+        is_running = self._state_counts_as_running(new_state)
+
+        if was_running and not is_running:
+            self.running.discard(trial_id)
+        elif not was_running and is_running:
+            self.running.add(trial_id)
+
     # ============= State Management =============
 
     def _register_trial(self, trial: Trial) -> None:
@@ -676,6 +701,9 @@ class SweepOrchestrator(ABC):
             reason = metadata.pop("reason", "")
             transition = trial.transition_to(new_state, reason=reason, **metadata)
             logger.debug(f"Trial {trial_id}: {old_state.name} → {new_state.name}")
+
+            # Keep running membership consistent with state transitions
+            self._sync_running_membership(trial_id, old_state, new_state)
 
             # Create context for hooks (infrastructure side effects)
             context = TransitionContext(
