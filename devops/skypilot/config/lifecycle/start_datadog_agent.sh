@@ -56,6 +56,11 @@ fi
 
 echo "[DATADOG] Starting Datadog agent daemon..."
 
+# Delay startup to prevent interference with training process initialization
+# This gives Ray/Torchrun time to bind ports and start up fully
+echo "[DATADOG] Waiting 60s for training to initialize before starting agent..."
+sleep 60
+
 # Start agent in background, redirect output to logs
 nohup "$AGENT_BINARY" run > /tmp/datadog-agent.log 2>&1 &
 AGENT_PID=$!
