@@ -4,6 +4,7 @@ import logging
 from typing import override
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
+from cogames.cogs_vs_clips.variants import TinyHeartProtocolsVariant
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import EVALS
 from mettagrid.config.mettagrid_config import AssemblerConfig, ProtocolConfig
@@ -61,37 +62,7 @@ class EvalVariant(MissionVariant):
         # Make HEART crafting feasible with a single agent using the heart glyph
         assembler_obj = env.game.objects.get("assembler")
         if isinstance(assembler_obj, AssemblerConfig):
-            # Set small single-agent protocols and prepend explicit heart/red-heart variants
-            tiny_inputs = {
-                "carbon": 2,
-                "oxygen": 2,
-                "germanium": 1,
-                "silicon": 3,
-                "energy": 2,
-            }
-
-            tiny_heart_protocols = [
-                ProtocolConfig(
-                    vibes=["heart_a"] * (i + 1),
-                    input_resources=tiny_inputs,
-                    output_resources={"heart": i + 1},
-                )
-                for i in range(4)
-            ]
-            tiny_redheart_protocols = [
-                ProtocolConfig(
-                    vibes=["red-heart"] * (i + 1),
-                    input_resources=tiny_inputs,
-                    output_resources={"heart": i + 1},
-                )
-                for i in range(4)
-            ]
-
-            assembler_obj.protocols = [
-                *tiny_heart_protocols,
-                *tiny_redheart_protocols,
-                *assembler_obj.protocols,
-            ]
+            TinyHeartProtocolsVariant().modify_env(mission, env)
 
         if self.max_uses_charger is not None and "charger" in env.game.objects:
             env.game.objects["charger"].max_uses = self.max_uses_charger

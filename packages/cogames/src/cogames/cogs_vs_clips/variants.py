@@ -195,6 +195,61 @@ class HeartChorusVariant(MissionVariant):
         env.game.agent.rewards.stats = rewards
 
 
+class TinyHeartProtocolsVariant(MissionVariant):
+    """Prepend small single-agent heart protocols for easy crafting.
+
+    Provides low-cost heart recipes keyed off heart and red-heart vibes so evals and
+    debugging runs can yield hearts without heavy resource accumulation.
+    """
+
+    name: str = "tiny_heart_protocols"
+    description: str = "Prepend low-cost heart/red-heart assembler protocols."
+
+    # Allow customization if ever needed; defaults match prior inline block.
+    carbon_cost: int = 2
+    oxygen_cost: int = 2
+    germanium_cost: int = 1
+    silicon_cost: int = 3
+    energy_cost: int = 2
+
+    @override
+    def modify_env(self, mission, env) -> None:
+        assembler = env.game.objects.get("assembler")
+        if not isinstance(assembler, AssemblerConfig):
+            raise TypeError("Expected 'assembler' to be AssemblerConfig")
+
+        tiny_inputs = {
+            "carbon": self.carbon_cost,
+            "oxygen": self.oxygen_cost,
+            "germanium": self.germanium_cost,
+            "silicon": self.silicon_cost,
+            "energy": self.energy_cost,
+        }
+
+        tiny_heart_protocols = [
+            ProtocolConfig(
+                vibes=["heart_a"] * (i + 1),
+                input_resources=tiny_inputs,
+                output_resources={"heart": i + 1},
+            )
+            for i in range(4)
+        ]
+        tiny_redheart_protocols = [
+            ProtocolConfig(
+                vibes=["red-heart"] * (i + 1),
+                input_resources=tiny_inputs,
+                output_resources={"heart": i + 1},
+            )
+            for i in range(4)
+        ]
+
+        assembler.protocols = [
+            *tiny_heart_protocols,
+            *tiny_redheart_protocols,
+            *assembler.protocols,
+        ]
+
+
 class VibeCheckMin2Variant(MissionVariant):
     name: str = "vibe_check_min_2"
     description: str = "Require at least 2 heart vibes to craft a heart."
@@ -609,6 +664,7 @@ VARIANTS: list[MissionVariant] = [
     SolarFlareVariant(),
     SuperChargedVariant(),
     TraderVariant(),
+    TinyHeartProtocolsVariant(),
     VibeCheckMin2Variant(),
     *DIFFICULTY_VARIANTS,
 ]
