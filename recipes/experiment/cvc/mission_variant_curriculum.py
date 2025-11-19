@@ -109,6 +109,69 @@ def get_all_variant_names() -> list[str]:
     return [variant.name for variant in VARIANTS]
 
 
+def resolve_missions(
+    missions: Optional[list[str] | str] = None,
+) -> list[str]:
+    """Resolve mission set names or individual mission names to a list of mission names.
+
+    Args:
+        missions: Can be:
+            - None: Returns FULL_CURRICULUM_MISSIONS
+            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A comma-separated string of mission names or set names
+            - A list of mission names or set names
+
+    Returns:
+        List of mission name strings
+
+    Examples:
+        >>> resolve_missions("eval_missions")
+        ['go_together', 'oxygen_bottleneck', ...]
+        >>> resolve_missions(["eval_missions", "diagnostic_missions"])
+        ['go_together', ..., 'diagnostic_assemble_seeded_near', ...]
+        >>> resolve_missions("extractor_hub_30,extractor_hub_50")
+        ['extractor_hub_30', 'extractor_hub_50']
+    """
+    # Handle None - default to all missions
+    if missions is None:
+        return list(FULL_CURRICULUM_MISSIONS)
+
+    # Handle comma-separated string input (for shell compatibility)
+    if isinstance(missions, str):
+        missions = [m.strip() for m in missions.split(",") if m.strip()]
+
+    if not missions:
+        raise ValueError("missions must be non-empty")
+
+    # Mission set name -> mission name list mapping
+    MISSION_SETS: dict[str, tuple[str, ...]] = {
+        "eval_missions": MISSIONS,
+        "diagnostic_missions": DIAGNOSTIC_MISSIONS,
+        "training_facility_missions": TRAINING_FACILITY_MISSIONS,
+        "all": FULL_CURRICULUM_MISSIONS,
+    }
+
+    resolved: list[str] = []
+    for item in missions:
+        item = item.strip()
+        # Check if it's a mission set name
+        if item in MISSION_SETS:
+            resolved.extend(MISSION_SETS[item])
+        else:
+            # Assume it's an individual mission name
+            resolved.append(item)
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_resolved = []
+    for mission in resolved:
+        if mission not in seen:
+            seen.add(mission)
+            unique_resolved.append(mission)
+
+    return unique_resolved
+
+
 def _deduplicate_assembler_protocols(env: MettaGridConfig) -> None:
     """Deduplicate assembler protocols to prevent C++ config errors.
 
@@ -136,58 +199,61 @@ def make_curriculum(
     num_cogs: int = 4,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-    variants: Optional[Sequence[str]] = None,
+    variants: Optional[Sequence[str] | str] = None,
     exclude_variants: Optional[Sequence[str] | str] = None,
-    all_variants_per_mission: bool = False,
     stats_max_cap: float = 0.5,
 ) -> CurriculumConfig:
     """Create a mission-variant curriculum for CoGs vs Clips training with learning progress.
 
     Args:
-        base_missions: List of mission names to include, or comma-separated string.
-            If None and all_variants_per_mission=False, defaults to FULL_CURRICULUM_MISSIONS.
-            Required if all_variants_per_mission=True.
+        base_missions: Mission names to include. Can be:
+            - None: Uses FULL_CURRICULUM_MISSIONS
+            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A comma-separated string of mission names or set names (e.g., "eval_missions,diagnostic_missions")
+            - A list of mission names or set names (e.g., ["eval_missions", "extractor_hub_30"])
         num_cogs: Number of agents per mission
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
-        variants: Optional mission variants to apply (only used when all_variants_per_mission=False)
-        exclude_variants: Optional list of variant names to exclude, or comma-separated string
-            (only used when all_variants_per_mission=True)
-        all_variants_per_mission: If True, create separate tasks for each mission-variant combination.
-            If False, apply the same variants to all missions (or no variants if variants=None).
-        stats_max_cap: Maximum reward cap for resource stats (default: 0.5 for variants mode, 1.0 for full mode)
+        variants: Optional mission variants to apply. If None, no variants are applied.
+            If provided, creates separate tasks for each mission-variant combination.
+            Can be a list or comma-separated string.
+        exclude_variants: Optional list of variant names to exclude, or comma-separated string.
+            Only used when variants=None (to get all variants except excluded ones).
+        stats_max_cap: Maximum reward cap for resource stats (default: 0.5)
 
     Returns:
         A CurriculumConfig with learning progress algorithm
     """
-    # Handle comma-separated string input (for shell compatibility)
-    if isinstance(base_missions, str):
-        base_missions = [m.strip() for m in base_missions.split(",") if m.strip()]
+    # Resolve mission sets to actual mission names
+    base_missions = resolve_missions(base_missions)
 
-    if base_missions is None:
-        if all_variants_per_mission:
-            raise ValueError("base_missions must be provided when all_variants_per_mission=True")
-        base_missions = list(FULL_CURRICULUM_MISSIONS)
-
-    if not base_missions:
-        raise ValueError("base_missions must be non-empty")
+    # Handle comma-separated string for variants
+    if isinstance(variants, str):
+        variants = [v.strip() for v in variants.split(",") if v.strip()]
 
     # Handle comma-separated string for exclude_variants
     if isinstance(exclude_variants, str):
         exclude_variants = [v.strip() for v in exclude_variants.split(",") if v.strip()]
 
-    all_mission_tasks = []
-
-    if all_variants_per_mission:
-        # Mode 1: Create separate tasks for each mission-variant combination
-        # Get all variant names, excluding any that should be skipped
-        all_variant_names = get_all_variant_names()
-        if exclude_variants:
+    # Determine which variants to use
+    if variants is None:
+        # If no variants specified, check if we should use all variants (minus excluded)
+        if exclude_variants is not None:
+            # Get all variants except excluded ones
+            all_variant_names = get_all_variant_names()
             exclude_set = set(exclude_variants)
             variant_names = [v for v in all_variant_names if v not in exclude_set]
         else:
-            variant_names = all_variant_names
+            # No variants at all - just base missions
+            variant_names = []
+    else:
+        # Use the specified variants
+        variant_names = list(variants)
 
+    all_mission_tasks = []
+
+    if variant_names:
+        # Create separate tasks for each mission-variant combination
         for mission_name in base_missions:
             mission_template = None
 
@@ -226,7 +292,6 @@ def make_curriculum(
                             variant_names=[variant_name],
                         )
                         mission_env = mission.make_env()
-                        # Note: Inventory clamping is handled automatically by the Inventory class
 
                     # Deduplicate assembler protocols to avoid C++ config errors
                     _deduplicate_assembler_protocols(mission_env)
@@ -281,7 +346,7 @@ def make_curriculum(
             raise ValueError(f"No valid mission-variant combinations found for missions: {base_missions}")
 
     else:
-        # Mode 2: Apply the same variants to all missions (or no variants)
+        # No variants: just create tasks for base missions
         for mission_name in base_missions:
             mission_template = None
 
@@ -302,18 +367,17 @@ def make_curriculum(
                     mission_env = cogs_v_clips.make_training_env(
                         num_cogs=num_cogs,
                         mission=mission_name,
-                        variants=variants,
+                        variants=None,  # No variants
                     )
                 except ValueError:
                     # Skip missions that don't exist
                     continue
             else:
                 # Use the mission template directly (works for both eval and diagnostic missions)
-                variant_names = cogs_v_clips._normalize_variant_names(variants=variants)
                 mission = cogs_v_clips._prepare_mission(
                     mission_template,
                     num_cogs=num_cogs,
-                    variant_names=variant_names,
+                    variant_names=[],  # No variants
                 )
                 mission_env = mission.make_env()
 
@@ -343,7 +407,9 @@ def make_curriculum(
             # Reward for gaining resources (not just having them) to avoid rewarding initial inventory
             mission_tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
             mission_tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
-            mission_tasks.add_bucket("game.agent.rewards.stats.germanium.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
+            mission_tasks.add_bucket(
+                "game.agent.rewards.stats.germanium.gained", [0.0, 0.005, 0.01, 0.015, 0.02]
+            )
             mission_tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
 
             # Cap resource rewards to prevent hoarding
@@ -386,7 +452,11 @@ def train(
     """Create a training tool for CoGs vs Clips with mission-variant curriculum.
 
     Args:
-        base_missions: List of mission names to include, or comma-separated string.
+        base_missions: Mission names to include. Can be:
+            - None: Uses FULL_CURRICULUM_MISSIONS
+            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A comma-separated string of mission names or set names
+            - A list of mission names or set names
             If None and all_variants_per_mission=False, defaults to FULL_CURRICULUM_MISSIONS.
             Required if all_variants_per_mission=True.
         num_cogs: Number of agents per mission
@@ -409,7 +479,6 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
         exclude_variants=exclude_variants,
-        all_variants_per_mission=all_variants_per_mission,
         stats_max_cap=0.5 if all_variants_per_mission else 1.0,
     )
 
@@ -484,8 +553,10 @@ def experiment(
     """Submit a training job on AWS with 4 GPUs.
 
     Args:
-        base_missions: Optional list of mission names to include.
-            If None and all_variants_per_mission=False, defaults to FULL_CURRICULUM_MISSIONS.
+        base_missions: Optional mission names to include. Can be:
+            - None: Uses FULL_CURRICULUM_MISSIONS (if all_variants_per_mission=False)
+            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A list of mission names or set names
             Required if all_variants_per_mission=True.
         run_name: Optional run name. If not provided, generates one with timestamp.
         num_cogs: Number of agents per mission (default: 4).
