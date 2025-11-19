@@ -50,12 +50,14 @@ POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
     PolicyUnderTest("nim_race_car", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("scripted_baseline"),
     PolicyUnderTest("scripted_unclipping"),
+    PolicyUnderTest("scripted_starter"),
     PolicyUnderTest(
         "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
         requires_nim=True,
         supports_supervisor=True,
     ),
     PolicyUnderTest("cogames.policy.scripted_agent.baseline_agent.BaselinePolicy"),
+    PolicyUnderTest("cogames.policy.scripted_agent.starter_agent.StarterPolicy"),
 )
 
 SUPERVISOR_POLICIES: tuple[PolicyUnderTest, ...] = tuple(p for p in POLICIES_UNDER_TEST if p.supports_supervisor)
