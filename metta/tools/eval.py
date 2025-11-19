@@ -4,13 +4,14 @@ import sys
 from typing import Sequence
 
 import torch
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
 from metta.common.util.uri import ParsedURI
 from metta.common.wandb.context import WandbContext
+from metta.doxascope.doxascope_data import DoxascopeLogger
 from metta.eval.eval_request_config import EvalResults
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -23,11 +24,14 @@ logger = logging.getLogger(__name__)
 
 
 class EvaluateTool(Tool):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
     replay_dir: str = Field(default_factory=auto_replay_dir)
     enable_replays: bool = True
+    doxascope_logger: DoxascopeLogger | None = None
 
     group: str | None = None  # Separate group parameter like in train.py
 
@@ -97,8 +101,9 @@ class EvaluateTool(Tool):
                 except Exception as e2:
                     logger.error("Fallback WandB logging failed: %s", e2, exc_info=True)
 
-    def eval_policy(self, normalized_uri: str, stats_client: StatsClient | None) -> EvalResults:
-        device = torch.device("cpu")
+    def eval_policy(
+        self, normalized_uri: str, stats_client: StatsClient | None, doxascope_logger: DoxascopeLogger | None
+    ) -> EvalResults:
         device = torch.device("cpu")
 
         def _materialize_policy(policy_uri: str) -> MultiAgentPolicyInitializer:
@@ -117,7 +122,8 @@ class EvaluateTool(Tool):
             simulations=[sim.to_simulation_run_config() for sim in self.simulations],
             replay_dir=self.replay_dir,
             seed=self.system.seed,
-            enable_replays=True,
+            enable_replays=self.enable_replays if hasattr(self, "enable_replays") else True,
+            doxascope_logger=doxascope_logger or self.doxascope_logger,
         )
 
         # TODO: this should also submit to stats-server
@@ -151,6 +157,9 @@ class EvaluateTool(Tool):
         for policy_uri in self.policy_uris:
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 
+            if self.doxascope_logger:
+                self.doxascope_logger.configure(policy_uri=normalized_uri)
+
             # Verify the checkpoint exists and load metadata
             try:
                 agent = CheckpointManager.load_artifact_from_uri(normalized_uri)
@@ -161,7 +170,7 @@ class EvaluateTool(Tool):
                 continue
 
             results = {"policy_uri": normalized_uri, "checkpoints": []}
-            eval_results = self.eval_policy(normalized_uri, stats_client)
+            eval_results = self.eval_policy(normalized_uri, stats_client, self.doxascope_logger)
             metadata = CheckpointManager.get_policy_metadata(normalized_uri)
             results["checkpoints"].append(
                 {
@@ -176,6 +185,9 @@ class EvaluateTool(Tool):
                 }
             )
             all_results["policies"].append(results)
+
+        if self.doxascope_logger and self.doxascope_logger.data:
+            self.doxascope_logger.save()
 
         # Output JSON results to stdout
         # Ensure all logging is flushed before printing JSON

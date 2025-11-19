@@ -5,6 +5,7 @@ from typing import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from metta.doxascope.doxascope_data import DoxascopeLogger
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import MultiAgentPolicy
@@ -23,6 +24,7 @@ class SimulationRunConfig(BaseModel):
         default=10000, description="Maximum time (in ms) a policy is given to take an action"
     )
     episode_tags: dict[str, str] = Field(default_factory=dict, description="Tags to add to each episode")
+    doxascope_enabled: bool = Field(default=False, description="Enable Doxascope logger")
 
 
 class SimulationRunResult(BaseModel):
@@ -42,6 +44,7 @@ def run_simulations(
     replay_dir: str | None,
     seed: int,
     enable_replays: bool = True,
+    doxascope_logger: DoxascopeLogger | None = None,
 ) -> list[SimulationRunResult]:
     simulation_rollouts: list[SimulationRunResult] = []
 
@@ -52,6 +55,15 @@ def run_simulations(
             replay_root = Path(replay_dir).expanduser()
             unique_dir = replay_root / uuid.uuid4().hex[:12]
             replay_writer = ReplayLogWriter(str(unique_dir))
+
+        if doxascope_logger is None and simulation.doxascope_enabled:
+            simulation_id = f"eval_{uuid.uuid4().hex[:12]}"
+            current_logger = DoxascopeLogger(enabled=True, simulation_id=simulation_id)
+        elif doxascope_logger:
+            sim_id = f"eval_{uuid.uuid4().hex[:12]}"
+            current_logger = doxascope_logger.clone(sim_id)
+        else:
+            current_logger = None
 
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
         multi_agent_policies: list[MultiAgentPolicy] = [pi(env_interface) for pi in policy_initializers]
@@ -66,9 +78,13 @@ def run_simulations(
             # max_time_s=simulation.max_time_s,
             max_action_time_ms=simulation.max_action_time_ms,
             event_handlers=[replay_writer] if replay_writer else None,
+            doxascope_logger=current_logger,
         )
 
         replay_urls = replay_writer.get_written_replay_urls() if replay_writer else {}
+
+        if current_logger:
+            current_logger.save()
 
         simulation_rollouts.append(
             SimulationRunResult(

@@ -2,14 +2,13 @@ import logging
 import time
 from typing import Optional
 
+from metta.doxascope.doxascope_data import DoxascopeLogger
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.renderer.renderer import Renderer, RenderMode, create_renderer
 from mettagrid.simulator import Simulator, SimulatorEventHandler
 from mettagrid.util.stats_writer import StatsWriter
-from metta.doxascope.doxascope_data import DoxascopeLogger
-
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,7 @@ class Rollout:
         pass_sim_to_policies: bool = False,
         event_handlers: Optional[list[SimulatorEventHandler]] = None,
         stats_writer: Optional[StatsWriter] = None,
-        doxascope_logger: Optional[DoxascopeLogger] = None
+        doxascope_logger: Optional[DoxascopeLogger] = None,
     ):
         self._config = config
         self._policies = policies
@@ -50,16 +49,6 @@ class Rollout:
         self._agents = self._sim.agents()
 
         self._doxascope_logger = doxascope_logger
-
-        ##### Configure Doxascope Logger if provided not configured #####
-        if self._doxascope_logger is not None and self._doxascope_logger.output_file is None:
-            # Use first policy's class name as the policy URI
-            policy_name = self._policies[0].__class__.__name__ if self._policies else "unknown"
-            self._doxascope_logger.configure(
-                policy_uri=policy_name,
-                object_type_names=self._sim.object_type_names,
-            )
-        #####
 
         sim = self._sim if self._pass_sim_to_policies else None
         # Reset policies and create agent policies if needed
@@ -89,9 +78,10 @@ class Rollout:
         #### Log Doxascope at end of Step ####
         if self._doxascope_logger is not None and self._doxascope_logger.enabled:
             env_grid_objects = self._sim.grid_objects()
-            self._doxascope_logger.log_timestep_cogames(
+            self._doxascope_logger.log_timestep(
                 policies=self._policies,
                 env_grid_objects=env_grid_objects,
+                object_type_names=self._sim.object_type_names,
             )
         #####
 

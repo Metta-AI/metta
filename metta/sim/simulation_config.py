@@ -36,4 +36,5 @@ class SimulationConfig(Config):
             env=self.env,
             num_episodes=self.num_episodes,
             episode_tags={"name": self.name, "category": self.suite},
+            doxascope_enabled=self.doxascope_enabled,
         )
