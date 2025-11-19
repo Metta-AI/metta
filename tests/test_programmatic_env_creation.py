@@ -16,6 +16,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
+    ResourceLimitsConfig,
     WallConfig,
 )
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -110,9 +111,9 @@ class TestProgrammaticEnvironments:
                         },
                     ),
                     resource_limits={
-                        "heart": 255,
-                        "ore_red": 10,
-                        "battery_red": 5,
+                        "heart": ResourceLimitsConfig(limit=255, resources=["heart"]),
+                        "ore_red": ResourceLimitsConfig(limit=10, resources=["ore_red"]),
+                        "battery_red": ResourceLimitsConfig(limit=5, resources=["battery_red"]),
                     },
                 ),
                 map_builder=RandomMapBuilder.Config(
@@ -132,10 +133,9 @@ class TestProgrammaticEnvironments:
         assert rewards["battery_red"] == 0.8
 
         # Verify resource limits
-        limits = config.game.agent.resource_limits
-        assert limits["heart"] == 255
-        assert limits["ore_red"] == 10
-        assert limits["battery_red"] == 5
+        assert config.game.agent.get_limit_for_resource("heart") == 255
+        assert config.game.agent.get_limit_for_resource("ore_red") == 10
+        assert config.game.agent.get_limit_for_resource("battery_red") == 5
 
     def test_config_with_teams(self):
         """Test creating an environment with agent teams."""

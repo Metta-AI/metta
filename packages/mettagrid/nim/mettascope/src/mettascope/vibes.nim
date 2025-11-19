@@ -17,13 +17,9 @@ find "/UI/Main/**/VibePanel":
         echo "no agent selected, can't send vibe action"
         return
 
-      # Check if vibeId is valid (within bounds of vibeNames)
-      if vibeId < 0 or vibeId >= replay.config.game.vibeNames.len:
-        echo "invalid vibe id: ", vibeId, " (max: ", replay.config.game.vibeNames.len - 1, ")"
-        return
-
       # Get the vibe name and find the corresponding action
-      let vibeName = replay.config.game.vibeNames[vibeId]
+      let vibeName = getVibeName(vibeId)
+
       let vibeActionId = replay.actionNames.find("change_vibe_" & vibeName)
       if vibeActionId == -1:
         echo "vibe action not found: change_vibe_", vibeName
