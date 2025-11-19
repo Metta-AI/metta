@@ -7,6 +7,9 @@ This script submits:
    - All variants on all DEFAULT_CURRICULUM_MISSIONS (1 run)
 2. Full curriculum experiment (all_variants_per_mission=False):
    - All maps, standard variant (no variants)
+
+Note: You can also use mission set names like "eval_missions", "diagnostic_missions",
+"training_facility_missions", or "all" instead of individual mission names.
 """
 
 from recipes.experiment import cogs_v_clips

@@ -473,12 +473,18 @@ def train(
     Returns:
         A TrainTool configured with the mission-variant curriculum
     """
+    # When all_variants_per_mission=True, we want all variants (unless exclude_variants is specified)
+    # Pass exclude_variants=[] to indicate "get all variants" if not already specified
+    resolved_exclude_variants = exclude_variants
+    if all_variants_per_mission and exclude_variants is None:
+        resolved_exclude_variants = []
+
     resolved_curriculum = curriculum or make_curriculum(
         base_missions=base_missions,
         num_cogs=num_cogs,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
-        exclude_variants=exclude_variants,
+        exclude_variants=resolved_exclude_variants,
         stats_max_cap=0.5 if all_variants_per_mission else 1.0,
     )
 
