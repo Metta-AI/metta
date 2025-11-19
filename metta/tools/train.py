@@ -127,7 +127,7 @@ class TrainTool(Tool):
             self.trainer.losses.ppo.enabled = False
             self.training_env.supervisor.policy = self.trainer.behavior_cloning.policy_uri
             self.training_env.supervisor.policy_data_path = self.trainer.behavior_cloning.policy_data_uri
-            self.trainer.losses.supervisor.student_led = self.trainer.behavior_cloning.student_led
+            self.trainer.losses.supervisor.teacher_lead_prob = self.trainer.behavior_cloning.teacher_lead_prob
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
