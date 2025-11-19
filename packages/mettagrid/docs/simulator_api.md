@@ -207,6 +207,10 @@ if not agent.last_action_success:
 
 ## Observation System
 
+> **Note**: For detailed technical information about the observation format, including binary structure, coordinate
+> encoding, feature IDs, and how to use `IdMap` to discover features, see [observations.md](observations.md). This
+> section focuses on using observations via the Python API.
+
 ### ObservationFeatureSpec
 
 Represents metadata about an observation feature type.
