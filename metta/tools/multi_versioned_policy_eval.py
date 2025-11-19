@@ -31,7 +31,6 @@ class MultiPolicyVersionEvalTool(ToolWithResult):
             stats_client=stats_client,
             policy_version_ids=self.policy_version_ids,
             primary_policy_version_id=self.primary_policy_version_id,
-            skip_duckdb_upload=True,
         )
         policy_versions = [
             stats_client.get_policy_version(uuid.UUID(policy_version_id))
