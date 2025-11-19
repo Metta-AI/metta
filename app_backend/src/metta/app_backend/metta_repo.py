@@ -850,6 +850,7 @@ ORDER BY pv.created_at DESC, pol.user_id, pv.id, et.value
                     created_at=row["created_at"],
                     policy_created_at=row["policy_created_at"],
                     name=row["policy_name"],
+                    user_id=row["user_id"],
                 )
                 entry = LeaderboardEntry(
                     policy_version=policy_version,
