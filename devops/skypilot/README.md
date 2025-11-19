@@ -243,63 +243,34 @@ terminate after completion, sandboxes remain running until you stop them.
 ### Quick Start
 
 ```bash
-# Create sandbox with main branch
+# Launch a new sandbox
 ./devops/skypilot/sandbox.py
+```
 
-# Check if you have any existing sandboxes
-./devops/skypilot/sandbox.py --check
+### Checking Sandbox Status
 
-# Force create new sandbox (even if one exists)
-./devops/skypilot/sandbox.py --new
-
-# Connect to your sandbox
-ssh <sandbox-name>
+```bash
+# Show existing sandboxes and management commands
+./devops/skypilot/sandbox.py
 ```
 
 ### Creating a Sandbox
 
 ```bash
-# Show existing sandboxes and management commands
-./devops/skypilot/sandbox.py
-
-# Launch a new sandbox with 1 GPU (default)
-./devops/skypilot/sandbox.py --new
+# Launch a new sandbox
+./devops/skypilot/sandbox.py new
 
 # Launch with multiple GPUs
-./devops/skypilot/sandbox.py --new --gpus 4
+./devops/skypilot/sandbox.py new --gpus 4
 
 # Launch with specific git branch
-./devops/skypilot/sandbox.py --new --git-ref feature/my-branch
+./devops/skypilot/sandbox.py new --git-ref feature/my-branch
 
 # Increase wait timeout for cluster initialization
-./devops/skypilot/sandbox.py --new --wait-timeout 600
-```
+./devops/skypilot/sandbox.py new --wait-timeout 600
 
-### Checking Sandbox Status
-
-The `--check` mode provides a quick overview of your sandboxes without creating a new sandbox if none exist:
-
-```bash
-./devops/skypilot/sandbox.py --check
-```
-
-Example output:
-
-```
-Found 2 sandbox(es) for user alice:
-  • alice-sandbox-1 (running) [L4:1]
-  • alice-sandbox-2 (stopped) [L4:4]
-
-Summary:
-  1 running
-  1 stopped
-
-📦 Manage sandboxes:
-  Launch new:     ./devops/skypilot/sandbox.py --new
-  Connect:        ssh alice-sandbox-1
-  Restart:        uv run sky start alice-sandbox-2
-  Stop:           uv run sky stop alice-sandbox-1
-  Delete:         uv run sky down alice-sandbox-1
+# Connect to your sandbox
+ssh <sandbox-name>
 ```
 
 ### Managing Sandboxes

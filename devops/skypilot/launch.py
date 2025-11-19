@@ -9,6 +9,7 @@ import warnings
 from typing import Annotated, Literal, Optional
 
 import typer
+from typer import rich_utils
 
 from devops.skypilot.utils.task_helpers import display_task_summary, patch_task, validate_task_name
 from metta.common.util.log_config import init_logging
@@ -88,6 +89,8 @@ def check_git_state(commit_hash: str) -> str | None:
 app = typer.Typer(
     rich_markup_mode="rich",
 )
+
+rich_utils.STYLE_HELPTEXT = ""  # don't gray out help text - https://github.com/fastapi/typer/issues/437
 
 
 @app.command()
