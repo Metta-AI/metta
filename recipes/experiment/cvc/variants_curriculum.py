@@ -181,8 +181,8 @@ def make_curriculum(
                 _deduplicate_assembler_protocols(mission_env)
 
                 # Give each environment a label so per-label rewards can be tracked in stats/W&B.
-                # Use mission_name + variant_name as the label to distinguish variant combinations.
-                label = f"{mission_name}_{variant_name}"
+                # Use mission:variant format to distinguish variant combinations.
+                label = f"{mission_name}:{variant_name}"
                 try:
                     mission_env.label = label  # type: ignore[attr-defined]
                 except Exception:
@@ -212,10 +212,10 @@ def make_curriculum(
 
                 # Cap resource rewards to prevent hoarding - max 1.0 reward per resource type per episode
                 # This prevents agents from getting unlimited reward by collecting more and more resources
-                mission_tasks.add_bucket("game.agent.rewards.stats_max.carbon.gained", [1.0])
-                mission_tasks.add_bucket("game.agent.rewards.stats_max.oxygen.gained", [1.0])
-                mission_tasks.add_bucket("game.agent.rewards.stats_max.germanium.gained", [1.0])
-                mission_tasks.add_bucket("game.agent.rewards.stats_max.silicon.gained", [1.0])
+                mission_tasks.add_bucket("game.agent.rewards.stats_max.carbon.gained", [0.5])
+                mission_tasks.add_bucket("game.agent.rewards.stats_max.oxygen.gained", [0.5])
+                mission_tasks.add_bucket("game.agent.rewards.stats_max.germanium.gained", [0.5])
+                mission_tasks.add_bucket("game.agent.rewards.stats_max.silicon.gained", [0.5])
 
                 all_mission_tasks.append(mission_tasks)
             except Exception as e:

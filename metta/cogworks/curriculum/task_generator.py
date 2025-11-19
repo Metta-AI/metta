@@ -301,8 +301,8 @@ class BucketedTaskGenerator(TaskGenerator):
 
         # Get task from the child generator
         mg_config = self._child_generator.get_task(task_id)
-        if self._config.label is not None:
-            mg_config.label += "|" + self._config.label
+        # Keep the existing label from the child generator (e.g., mission:variant)
+        # Don't append bucket values or config labels to keep labels simple
 
         # Apply the sampled bucket values as overrides
         return self._apply_overrides(mg_config, overrides)
