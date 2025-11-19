@@ -128,7 +128,10 @@ def reduce_map_resources(
                 map_data[row_idx][col_idx] = "."
 
     # Create and return new AsciiMapBuilder.Config
+    # Convert map_data back from list of lists to list of strings
+    map_data_strings = ["".join(row) if isinstance(row, list) else row for row in map_data]
+
     return AsciiMapBuilder.Config(
-        map_data=map_data,
+        map_data=map_data_strings,
         char_to_map_name=char_to_map_name,
     )
