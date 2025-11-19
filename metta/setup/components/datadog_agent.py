@@ -297,7 +297,15 @@ logs:
                             os.chmod(log_path, 0o644)  # Ensure readable
                     with open(log_config_file, "w") as f:
                         f.write(log_config)
-                    info("Created custom log collection configuration")
+                    # Set proper permissions so agent can read it
+                    os.chmod(log_config_file, 0o644)
+                    info(f"Created custom log collection configuration at {log_config_file}")
+                    info(f"Config file size: {os.path.getsize(log_config_file)} bytes")
+                    # Verify the YAML is valid by checking basic structure
+                    if "logs:" in log_config and "type: file" in log_config:
+                        info("Log collection config appears valid (contains 'logs:' and 'type: file')")
+                    else:
+                        warning("Log collection config might be malformed!")
             except Exception as e:
                 warning(f"Could not create log collection config: {e}")
 
