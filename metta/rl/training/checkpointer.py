@@ -77,32 +77,20 @@ class Checkpointer(TrainerComponent):
 
             if normalized_uri:
                 spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
-                payload = None
-                if self._distributed.is_master():
-                    loaded_policy = initialize_or_load_policy(policy_env_info, spec)
-                    loaded_policy = self._ensure_save_capable(loaded_policy)
-                    state_dict = {k: v.cpu() for k, v in loaded_policy.state_dict().items()}
-                    arch = getattr(loaded_policy, "_policy_architecture", self._policy_architecture)
-                    action_count = len(policy_env_info.actions.actions())
-                    payload = (state_dict, arch, action_count, normalized_uri)
-                state_dict, arch, action_count, normalized_uri = self._distributed.broadcast_from_master(payload)
-
-                local_action_count = len(policy_env_info.actions.actions())
-                if local_action_count != action_count:
-                    msg = f"Action space mismatch on resume: master={action_count}, rank={local_action_count}"
-                    raise ValueError(msg)
-
-                policy = arch.make_policy(policy_env_info).to(load_device)
-                if hasattr(policy, "initialize_to_environment"):
-                    policy.initialize_to_environment(policy_env_info, load_device)
-                missing, unexpected = policy.load_state_dict(state_dict, strict=True)
-                if missing or unexpected:
-                    raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+                policy = initialize_or_load_policy(policy_env_info, spec)
                 policy = self._ensure_save_capable(policy)
-                if self._distributed.is_master():
-                    self._latest_policy_uri = normalized_uri
-                    logger.info("Loaded policy from %s", normalized_uri)
-                return policy
+                # Guard against silently loading a policy with no trainable params (e.g., failed state_dict load)
+                trainable = sum(p.numel() for p in policy.parameters() if getattr(p, "requires_grad", False))
+                if trainable == 0:
+                    logger.warning(
+                        "Loaded policy from %s has zero trainable parameters; recreating a fresh policy.",
+                        normalized_uri,
+                    )
+                    policy = None
+                self._latest_policy_uri = normalized_uri
+                logger.info("Loaded policy from %s", normalized_uri)
+                if policy is not None:
+                    return policy
 
         # Non-distributed or fallthrough: load locally (fail hard on errors)
         if candidate_uri:
