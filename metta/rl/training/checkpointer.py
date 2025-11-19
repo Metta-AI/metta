@@ -76,6 +76,14 @@ class Checkpointer(TrainerComponent):
                 spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
                 policy = initialize_or_load_policy(policy_env_info, spec)
                 policy = self._ensure_save_capable(policy)
+                # Guard against silently loading a policy with no trainable params (e.g., failed state_dict load)
+                trainable = sum(p.numel() for p in policy.parameters() if getattr(p, "requires_grad", False))
+                if trainable == 0:
+                    logger.warning(
+                        "Loaded policy from %s has zero trainable parameters; recreating a fresh policy.",
+                        normalized_uri,
+                    )
+                    policy = None
                 self._latest_policy_uri = normalized_uri
                 logger.info("Loaded policy from %s", normalized_uri)
             except FileNotFoundError:
