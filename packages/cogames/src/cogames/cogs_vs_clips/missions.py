@@ -82,7 +82,7 @@ HelloWorldOpenWorldMission = Mission(
     name="open_world",
     description="Collect resources and assemble HEARTs.",
     site=HELLO_WORLD,
-    variants=[EmptyBaseVariant()]
+    variants=[EmptyBaseVariant()],
 )
 
 
@@ -91,7 +91,7 @@ Machina1OpenWorldMission = Mission(
     name="open_world",
     description="Collect resources and assemble HEARTs.",
     site=MACHINA_1,
-    variants=[EmptyBaseVariant()]
+    variants=[EmptyBaseVariant()],
 )
 
 

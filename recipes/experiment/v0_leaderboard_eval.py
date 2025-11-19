@@ -83,8 +83,8 @@ def run(
     # Construct the list of policy IDs to be fetched
     policy_version_ids = [
         policy_version_id,  # The Candidate (Index 0)
-        THINKY_UUID,        # Thinky (Index 1)
-        LADYBUG_UUID,       # Ladybug (Index 2)
+        THINKY_UUID,  # Thinky (Index 1)
+        LADYBUG_UUID,  # Ladybug (Index 2)
     ]
 
     tool = MultiPolicyVersionEvalTool(
