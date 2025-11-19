@@ -31,7 +31,7 @@ class LossesConfig(Config):
     contrastive: contrastive_config.ContrastiveConfig = Field(
         default_factory=lambda: contrastive_config.ContrastiveConfig(enabled=False)
     )
-    action_supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
+    supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
     kickstarter: KickstarterConfig = Field(default_factory=lambda: KickstarterConfig(enabled=False))
 
@@ -39,8 +39,8 @@ class LossesConfig(Config):
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
         # also, the way it's setup doesn't let the experimenter give names to losses.
         loss_configs: dict[str, LossConfig] = {}
-        if self.action_supervisor.enabled:
-            loss_configs["action_supervisor"] = self.action_supervisor
+        if self.supervisor.enabled:
+            loss_configs["action_supervisor"] = self.supervisor
         if self.ppo_critic.enabled:
             loss_configs["ppo_critic"] = self.ppo_critic
         if self.ppo_actor.enabled:

@@ -48,7 +48,7 @@ def prio_sample(
         return (
             minibatch,
             idx,
-            torch.ones((minibatch.shape[0], minibatch.shape[1]), device=buffer.device, dtype=torch.long),
+            torch.ones((minibatch.shape[0], minibatch.shape[1]), device=buffer.device, dtype=torch.float32),
         )
 
     anneal_beta = calculate_prioritized_sampling_params(
