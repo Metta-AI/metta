@@ -144,14 +144,16 @@ class DatadogAgentSetup(SetupModule):
         # Check if binary exists even if return code is non-zero (install script may return non-zero on warnings)
         agent_binary = "/opt/datadog-agent/bin/agent/agent"
         if os.path.exists(agent_binary):
-            # Set hostname in config file if not already set
+            # Configure datadog.yaml with hostname, logs, and tags
             config_file = "/etc/datadog-agent/datadog.yaml"
             if os.path.exists(config_file):
                 try:
                     with open(config_file, "r") as f:
                         config_content = f.read()
 
-                    # Only set hostname if not already configured
+                    config_updates = []
+
+                    # Set hostname if not already configured
                     if "hostname:" not in config_content:
                         raw_hostname = (
                             os.environ.get("SKYPILOT_TASK_ID")
@@ -164,12 +166,70 @@ class DatadogAgentSetup(SetupModule):
                         # Ensure it starts with alphanumeric
                         if not hostname[0].isalnum():
                             hostname = "skypilot-" + hostname
-                        # Append hostname to config
-                        with open(config_file, "a") as f:
-                            f.write(f"\nhostname: {hostname}\n")
+                        config_updates.append(f"hostname: {hostname}")
                         info(f"Set hostname in Datadog config: {hostname}")
+
+                    # Enable logs if not already configured
+                    if "logs_enabled:" not in config_content:
+                        config_updates.append("logs_enabled: true")
+                        info("Enabled log collection in Datadog config")
+
+                    # Set tags if not already configured
+                    if tags and "tags:" not in config_content:
+                        # Filter out empty tags and format as YAML list
+                        valid_tags = [tag for tag in tags if tag and tag.strip()]
+                        if valid_tags:
+                            tags_list = "[" + ", ".join([f'"{tag}"' for tag in valid_tags]) + "]"
+                            config_updates.append(f"tags: {tags_list}")
+                            info(f"Set tags in Datadog config: {tags_list}")
+
+                    # Append any updates to config file
+                    if config_updates:
+                        with open(config_file, "a") as f:
+                            f.write("\n# Metta SkyPilot job configuration\n")
+                            for update in config_updates:
+                                f.write(f"{update}\n")
                 except Exception as e:
-                    warning(f"Could not set hostname in config file: {e}")
+                    warning(f"Could not update Datadog config file: {e}")
+
+            # Configure log collection paths
+            try:
+                conf_d_dir = "/etc/datadog-agent/conf.d"
+                if os.path.exists(conf_d_dir):
+                    # Create custom log collection config
+                    custom_logs_dir = os.path.join(conf_d_dir, "custom_logs.d")
+                    os.makedirs(custom_logs_dir, exist_ok=True)
+
+                    log_config_file = os.path.join(custom_logs_dir, "conf.yaml")
+                    log_config = """# Custom log collection for SkyPilot jobs
+logs:
+  - type: file
+    path: /tmp/*.log
+    service: skypilot-job
+    source: custom
+    sourcecategory: application
+    
+  - type: file
+    path: /var/log/*.log
+    service: skypilot-job
+    source: system
+    sourcecategory: system
+    
+  - type: file
+    path: /workspace/metta/**/*.log
+    service: metta
+    source: metta
+    sourcecategory: application
+    log_processing_rules:
+      - type: multi_line
+        name: new_log_start_with_date
+        pattern: \d{4}-\d{2}-\d{2}
+"""
+                    with open(log_config_file, "w") as f:
+                        f.write(log_config)
+                    info("Created custom log collection configuration")
+            except Exception as e:
+                warning(f"Could not create log collection config: {e}")
 
             success("Datadog agent installed successfully (binary found).")
             return
