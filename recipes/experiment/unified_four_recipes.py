@@ -79,12 +79,12 @@ MAJOR CHALLENGES AND CONSIDERATIONS:
 8. AGENT COUNT COMPATIBILITY
    - Navigation: uses instancing (terrain maps have embedded agent counts)
    - Assembly: 1 agent
-   - Arena: 24 agents (large multi-agent) -> standardized
+   - Arena_CvC: 24 agents (large multi-agent) -> standardized
    - CvC: 1-8 agents (typically 4)
 
    SOLUTION: Standardize on 6 agents across all domains.
    - Navigation: 6 agents works with terrain maps (divisible by 1, 2, 3, 6)
-   - Arena: uses 6 agents
+   - Arena_CvC: uses 6 agents
    - CvC: uses 6 agents (called num_cogs)
    - Assembly: uses 1 agent (handled internally)
 
@@ -96,6 +96,15 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+from cogames.cogs_vs_clips.stations import (
+    CarbonExtractorConfig,
+    ChargerConfig,
+    CvCAssemblerConfig,
+    CvCChestConfig,
+    GermaniumExtractorConfig,
+    OxygenExtractorConfig,
+    SiliconExtractorConfig,
+)
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -108,6 +117,17 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
+from mettagrid.builder import empty_assemblers
+from mettagrid.config.mettagrid_config import (
+    ActionsConfig,
+    AttackActionConfig,
+    ChangeVibeActionConfig,
+    MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
+    ResourceModActionConfig,
+    WallConfig,
+)
 from recipes.experiment import cogs_v_clips
 from recipes.experiment.assembly_lines import (
     AssemblyLinesTaskGenerator,
@@ -115,6 +135,168 @@ from recipes.experiment.assembly_lines import (
 from recipes.experiment.assembly_lines import (
     make_task_generator_cfg as make_assembly_cfg,
 )
+
+
+def make_unified_action_config() -> ActionsConfig:
+    """Create a standardized action configuration for all domains.
+
+    This ensures all environments have the same action space size.
+    Domains that don't use certain actions will have them enabled but
+    they'll be effectively masked out through action masking or high costs.
+
+    Returns:
+        ActionsConfig with all action types enabled
+    """
+    return ActionsConfig(
+        noop=NoopActionConfig(enabled=True),
+        move=MoveActionConfig(
+            enabled=True,
+            allowed_directions=[
+                "north",
+                "south",
+                "east",
+                "west",
+                "northeast",
+                "northwest",
+                "southeast",
+                "southwest",
+            ],
+        ),
+        attack=AttackActionConfig(
+            enabled=True,
+            consumed_resources={"laser": 1},  # Will be overridden per domain
+        ),
+        change_vibe=ChangeVibeActionConfig(
+            enabled=True,
+            number_of_vibes=4,  # Standard for most domains
+        ),
+        resource_mod=ResourceModActionConfig(
+            enabled=True,  # Enable for compatibility
+        ),
+    )
+
+
+def apply_unified_actions(env: MettaGridConfig) -> MettaGridConfig:
+    """Apply unified action configuration to an environment.
+
+    This replaces the environment's action config with a standardized one,
+    preserving domain-specific settings where needed (like attack costs).
+    Also ensures all necessary resources exist in the environment.
+
+    Args:
+        env: The environment to modify
+
+    Returns:
+        The modified environment with unified actions
+    """
+    # Store domain-specific attack settings before overwriting
+    original_attack_cost = {}
+    if hasattr(env.game.actions, "attack") and hasattr(env.game.actions.attack, "consumed_resources"):
+        original_attack_cost = env.game.actions.attack.consumed_resources.copy()
+
+    # CRITICAL: Replace vibe list with a standardized, complete list
+    # We cannot append to existing lists because different domains have different
+    # starting vibe counts, which would result in different action space sizes.
+    # ALL environments MUST have EXACTLY the same vibe list for action space compatibility.
+    unified_vibes = [
+        "default",
+        "charger",
+        "carbon_a",
+        "carbon_b",
+        "oxygen_a",
+        "oxygen_b",
+        "germanium_a",
+        "germanium_b",
+        "silicon_a",
+        "silicon_b",
+        "heart_a",
+        "heart_b",
+        "gear",
+        "assembler",
+        "chest",
+        "wall",
+    ]
+
+    # Replace (not append!) the vibe list to ensure all environments have identical vibes
+    env.game.vibe_names = unified_vibes.copy()
+
+    # Now create unified actions with the correct vibe count
+    unified_actions = make_unified_action_config()
+    unified_actions.change_vibe.number_of_vibes = len(env.game.vibe_names)
+
+    # Preserve domain-specific attack settings
+    if original_attack_cost:
+        unified_actions.attack.consumed_resources = original_attack_cost
+
+    env.game.actions = unified_actions
+
+    # CRITICAL: Replace resource list with a standardized, complete list
+    # We cannot append to existing lists because different domains have different
+    # starting resources, which would result in different resource_names lists.
+    # ALL environments MUST have EXACTLY the same resource list for config compatibility.
+    unified_resources = [
+        # Assembly line / Arena resources
+        "ore_red",
+        "ore_blue",
+        "ore_green",
+        "battery_red",
+        "battery_blue",
+        "battery_green",
+        "heart",
+        "armor",
+        "laser",
+        "blueprint",
+        # CvC resources
+        "energy",
+        "carbon",
+        "oxygen",
+        "germanium",
+        "silicon",
+        "decoder",
+        "modulator",
+        "resonator",
+        "scrambler",
+    ]
+
+    # Replace (not append!) the resource list to ensure all environments have identical resources
+    env.game.resource_names = unified_resources.copy()
+
+    # CRITICAL: Replace objects dict with a standardized, complete dict
+    # We cannot merge with existing objects because different domains have different
+    # object sets, which would result in different object_type_names.
+    # ALL environments MUST have EXACTLY the same objects for config compatibility.
+
+    # Define ALL object types used across ALL domains
+    # These must ALL be present even if not used on a specific map
+    unified_objects = {
+        "wall": WallConfig(name="wall"),
+        "altar": empty_assemblers.altar,
+        # Assembly line objects
+        "generator_red": empty_assemblers.generator_red,
+        "generator_blue": empty_assemblers.generator_blue,
+        "generator_green": empty_assemblers.generator_green,
+        "mine_red": empty_assemblers.mine_red,
+        "mine_blue": empty_assemblers.mine_blue,
+        "mine_green": empty_assemblers.mine_green,
+        "factory": empty_assemblers.factory,
+        "temple": empty_assemblers.temple,
+        "armory": empty_assemblers.armory,
+        "lab": empty_assemblers.lab,
+        "lasery": empty_assemblers.lasery,
+        # CvC objects (instantiate with defaults)
+        "assembler": CvCAssemblerConfig().station_cfg(),
+        "chest": CvCChestConfig().station_cfg(),
+        "charger": ChargerConfig().station_cfg(),
+        "carbon_extractor": CarbonExtractorConfig().station_cfg(),
+        "oxygen_extractor": OxygenExtractorConfig().station_cfg(),
+        "germanium_extractor": GermaniumExtractorConfig().station_cfg(),
+        "silicon_extractor": SiliconExtractorConfig().station_cfg(),
+    }
+
+    # Replace (not merge!) the objects dict to ensure all environments have identical object types
+    env.game.objects = unified_objects.copy()
+
+    return env
 
 
 def make_navigation_tasks(num_agents: int = 6, num_instances: int = 4) -> cc.BucketedTaskGenerator.Config:
@@ -173,6 +355,9 @@ def make_navigation_tasks(num_agents: int = 6, num_instances: int = 4) -> cc.Buc
         ),
     )
 
+    # Apply unified action configuration for compatibility
+    nav_env = apply_unified_actions(nav_env)
+
     nav_tasks = cc.bucketed(nav_env)
 
     # Bucket 1: Terrain types (diverse navigation challenges)
@@ -219,25 +404,28 @@ def make_assembly_tasks() -> AssemblyLinesTaskGenerator.Config:
     )
 
 
-def make_arena_tasks(num_agents: int = 6) -> cc.BucketedTaskGenerator.Config:
-    """Create arena task generator with bucketed curriculum.
+def make_arena_cvc_tasks(num_agents: int = 6) -> cc.BucketedTaskGenerator.Config:
+    """Create arena_cvc task generator with bucketed curriculum.
 
-    Arena tasks test:
+    Arena_cvc tasks test:
     - Resource competition and gathering
     - Combat and strategic decision making
     - Multi-agent coordination
 
     Args:
-        num_agents: Number of agents (reduced from 24 to 4 for compatibility)
+        num_agents: Number of agents (reduced from 24 to 6 for compatibility)
 
     Returns:
-        BucketedTaskGenerator.Config for arena tasks
+        BucketedTaskGenerator.Config for arena_cvc tasks
     """
-    # CHALLENGE: Original arena recipe uses 24 agents, but CvC evals use 4
-    # SOLUTION: Use 4 agents for consistency with evaluation suite
+    # CHALLENGE: Original arena recipe uses 24 agents, but CvC evals use 6
+    # SOLUTION: Use 6 agents for consistency with evaluation suite
     arena_env = eb.make_arena(num_agents=num_agents)
-    arena_env.label = "arena"  # Track domain in W&B stats
+    arena_env.label = "arena_cvc"  # Track domain in W&B stats
     arena_env.game.max_steps = 1000
+
+    # Apply unified action configuration for compatibility
+    arena_env = apply_unified_actions(arena_env)
 
     arena_tasks = cc.bucketed(arena_env)
 
@@ -302,6 +490,9 @@ def make_cvc_tasks(num_cogs: int = 6) -> list[cc.BucketedTaskGenerator.Config]:
                 print(f"  Skipping CvC mission '{mission_name}' - uses MapGen instancing")
                 continue
 
+            # Apply unified action configuration for compatibility
+            mission_env = apply_unified_actions(mission_env)
+
         except (ValueError, AttributeError) as e:
             # Skip missions that don't exist or fail to load
             print(f"  Skipping CvC mission '{mission_name}': {e}")
@@ -338,14 +529,14 @@ def make_curriculum(
     This curriculum uses TaskGeneratorSet (via cc.merge) to sample tasks from:
     1. Navigation (path planning, terrain navigation)
     2. Assembly Lines (in-context learning, ordered chains)
-    3. Arena (resource competition, combat)
+    3. Arena_CvC (resource competition, combat)
     4. CvC Missions (integrative tasks)
 
     Args:
         num_agents: Number of agents for navigation/arena (default 4)
         enable_detailed_slice_logging: Enable detailed curriculum slice logging
         algorithm_config: Optional curriculum algorithm (defaults to LearningProgress)
-        domain_weights: Optional dict with keys ['navigation', 'assembly', 'arena', 'cvc']
+        domain_weights: Optional dict with keys ['navigation', 'assembly', 'arena_cvc', 'cvc']
                        to control sampling weights (defaults to equal weights)
 
     Returns:
@@ -363,9 +554,9 @@ def make_curriculum(
     assembly_tasks = make_assembly_tasks()
     print("  ✓ Assembly tasks created")
 
-    print("  3. Creating arena tasks...")
-    arena_tasks = make_arena_tasks(num_agents=num_agents)
-    print("  ✓ Arena tasks created")
+    print("  3. Creating arena_cvc tasks...")
+    arena_cvc_tasks = make_arena_cvc_tasks(num_agents=num_agents)
+    print("  ✓ Arena_CvC tasks created")
 
     print("  4. Creating CvC tasks...")
     cvc_tasks = make_cvc_tasks(num_cogs=num_agents)
@@ -378,7 +569,7 @@ def make_curriculum(
         domain_weights = {
             "navigation": 1.0,
             "assembly": 1.0,
-            "arena": 1.0,
+            "arena_cvc": 1.0,
             "cvc": 1.0,
         }
 
@@ -399,11 +590,11 @@ def make_curriculum(
         cvc_merged = None
 
     # Build list of all domain generators
-    all_domains = [nav_tasks, assembly_tasks, arena_tasks]
+    all_domains = [nav_tasks, assembly_tasks, arena_cvc_tasks]
     domain_weight_list = [
         domain_weights["navigation"],
         domain_weights["assembly"],
-        domain_weights["arena"],
+        domain_weights["arena_cvc"],
     ]
 
     if cvc_merged is not None:
@@ -472,7 +663,7 @@ def make_integrative_eval_suite(num_cogs: int = 6) -> list[SimulationConfig]:
     # Focus on missions that require skills from multiple domains:
     # - Navigation skills: path planning, obstacle avoidance
     # - Assembly skills: understanding object interactions, in-context learning
-    # - Arena skills: resource competition, strategic decision-making
+    # - Arena_CvC skills: resource competition, strategic decision-making
     # - Coordination: multi-agent synchronization
 
     integrative_missions = [
@@ -515,7 +706,7 @@ def simulations(num_agents: int = 6) -> list[SimulationConfig]:
     Returns:
         List of all evaluation simulations
     """
-    from recipes.experiment.arena import simulations as arena_sims
+    from recipes.experiment.arena import simulations as arena_cvc_sims
     from recipes.experiment.assembly_lines import make_assembly_line_eval_suite
     from recipes.experiment.navigation import make_navigation_eval_suite
 
@@ -527,8 +718,8 @@ def simulations(num_agents: int = 6) -> list[SimulationConfig]:
     # Assembly line evals
     all_sims.extend(make_assembly_line_eval_suite())
 
-    # Arena evals
-    all_sims.extend(arena_sims(env=None))
+    # Arena_CvC evals
+    all_sims.extend(arena_cvc_sims(env=None))
 
     # CvC integrative evals (primary evaluation target)
     all_sims.extend(make_integrative_eval_suite(num_cogs=num_agents))
@@ -615,7 +806,7 @@ def play(
 
     Args:
         policy_uri: Optional policy to load
-        domain: Which domain to play ("navigation", "assembly", "arena", "cvc")
+        domain: Which domain to play ("navigation", "assembly", "arena_cvc", "cvc")
         mission: Mission name (for CvC domain)
         num_agents: Number of agents
 
@@ -630,10 +821,10 @@ def play(
         from recipes.experiment.assembly_lines import play as assembly_play
 
         return assembly_play()
-    elif domain == "arena":
-        from recipes.experiment.arena import play as arena_play
+    elif domain == "arena_cvc":
+        from recipes.experiment.arena import play as arena_cvc_play
 
-        return arena_play(policy_uri=policy_uri)
+        return arena_cvc_play(policy_uri=policy_uri)
     elif domain == "cvc":
         return cogs_v_clips.play(
             policy_uri=policy_uri,
@@ -676,7 +867,7 @@ def verify_action_space_compatibility():
     # Sample one task from each domain to ensure they can be created
     _ = make_navigation_tasks(num_agents=4)
     _ = make_assembly_tasks()
-    _ = make_arena_tasks(num_agents=4)
+    _ = make_arena_cvc_tasks(num_agents=4)
     _ = make_cvc_tasks(num_cogs=4)
 
     print("✓ Task generators created successfully")
