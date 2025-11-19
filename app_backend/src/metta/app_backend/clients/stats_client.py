@@ -17,6 +17,7 @@ from metta.app_backend.routes.sql_routes import SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
     BulkEpisodeUploadResponse,
     CompleteBulkUploadRequest,
+    MyPolicyVersionsResponse,
     PolicyCreate,
     PolicyVersionCreate,
     PresignedUploadUrlResponse,
@@ -143,6 +144,13 @@ class StatsClient:
 
     def get_leaderboard_policies_v2(self) -> LeaderboardPoliciesResponse:
         return self._make_sync_request(LeaderboardPoliciesResponse, "POST", "/leaderboard/v2")
+
+    def get_my_policy_versions(self) -> MyPolicyVersionsResponse:
+        return self._make_sync_request(
+            MyPolicyVersionsResponse,
+            "GET",
+            "/stats/policies/my-versions",
+        )
 
     def get_leaderboard_policies_v2_users_me(self) -> LeaderboardPoliciesResponse:
         return self._make_sync_request(
