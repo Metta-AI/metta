@@ -277,6 +277,8 @@ class CortexStackConfig(BaseModel):
 class RouterConfig(BaseModel):
     """Router settings with global prior and optional per-token refinement."""
 
+    model_config = ConfigDict(extra="allow")
+
     # Global prior settings
     d_key: int | None = Field(default=None, ge=1, description="Key/query dim for global prior; defaults to d_hidden.")
     temperature: float = Field(default=1.0, gt=0.0, description="Softmax temperature for the global gate.")
@@ -288,16 +290,15 @@ class RouterConfig(BaseModel):
     # Per-token refinement (optional; disabled when whisper_lambda == 0)
     d_key_local: int | None = Field(default=None, ge=1, description="Key dim for per‑token refiner; defaults to d_key.")
     local_temperature: float = Field(default=1.0, gt=0.0, description="Temperature for token‑refiner logits.")
-    whisper_lambda: float = Field(default=0.1, ge=0.0, description="Strength λ of per‑token refinement (0 disables).")
+    whisper_lambda: float = Field(default=0.1, ge=0.0, description="Strength λ of per-token refinement (0 disables).")
     center_refine: bool = Field(default=True, description="Center token logits over experts to redistribute mass only.")
     restrict_to_topk: bool = Field(default=True, description="Limit refinement to the global top‑k support if set.")
-
-    class Config:
-        extra = "allow"
 
 
 class ColumnBlockConfig(BlockConfig):
     """Column of experts with a shared router."""
+
+    model_config = ConfigDict(extra="allow")
 
     block_type: str = "column"
     experts: list[SerializeAsAny[BlockConfig]]
@@ -312,9 +313,6 @@ class ColumnBlockConfig(BlockConfig):
             "larger values engage both paths more strongly. Also scales gradient flow through both paths."
         ),
     )
-
-    class Config:
-        extra = "allow"
 
     def get_cell_hidden_size(self, d_hidden: int) -> int:  # type: ignore[override]
         return d_hidden
