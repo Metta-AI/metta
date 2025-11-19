@@ -210,6 +210,30 @@ logs:
     sourcecategory: monitoring
     
   - type: file
+    path: /tmp/training_logs/*.log
+    service: skypilot-training
+    source: training
+    sourcecategory: application
+    
+  - type: file
+    path: /tmp/training_logs/training_combined.log
+    service: skypilot-training
+    source: training
+    sourcecategory: application
+    
+  - type: file
+    path: /tmp/training_logs/training_stdout.log
+    service: skypilot-training
+    source: training
+    sourcecategory: application
+    
+  - type: file
+    path: /tmp/training_logs/training_stderr.log
+    service: skypilot-training
+    source: training
+    sourcecategory: application
+    
+  - type: file
     path: /tmp/*.log
     service: skypilot-job
     source: custom

@@ -237,8 +237,18 @@ run_cmd() {
 
   echo "[INFO] Running command: ${cmd[*]}"
 
+  # Create log directory for Datadog agent to collect
+  TRAINING_LOG_DIR="/tmp/training_logs"
+  mkdir -p "$TRAINING_LOG_DIR"
+
+  # Log files for Datadog collection
+  TRAINING_STDOUT_LOG="$TRAINING_LOG_DIR/training_stdout.log"
+  TRAINING_STDERR_LOG="$TRAINING_LOG_DIR/training_stderr.log"
+  TRAINING_COMBINED_LOG="$TRAINING_LOG_DIR/training_combined.log"
+
   # Use process substitution so $! is the trainer (not tee)
-  setsid "${cmd[@]}" &
+  # Redirect stdout and stderr to log files for Datadog collection
+  setsid "${cmd[@]}" > >(tee "$TRAINING_STDOUT_LOG" >> "$TRAINING_COMBINED_LOG") 2> >(tee "$TRAINING_STDERR_LOG" >> "$TRAINING_COMBINED_LOG") &
   export CMD_PID=$!
 
   sleep 1
