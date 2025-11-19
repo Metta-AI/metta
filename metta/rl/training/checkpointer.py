@@ -65,32 +65,69 @@ class Checkpointer(TrainerComponent):
 
         candidate_uri: Optional[str] = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
 
-        # Broadcast just the URI; each rank loads locally to avoid pickling DDP-wrapped modules
-        if self._distributed.is_master():
-            normalized_uri = CheckpointManager.normalize_uri(candidate_uri) if candidate_uri else None
-        else:
-            normalized_uri = None
-        normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
+        if self._distributed.is_distributed:
+            # Master decides the URI to load; all ranks then receive state_dict & arch.
+            if self._distributed.is_master():
+                normalized_uri = CheckpointManager.normalize_uri(candidate_uri) if candidate_uri else None
+            else:
+                normalized_uri = None
+            normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
-        if normalized_uri:
-            try:
-                load_device = torch.device(self._distributed.config.device)
-                spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
-                policy = initialize_or_load_policy(policy_env_info, spec)
-                policy = self._ensure_save_capable(policy)
-                # Guard against silently loading a policy with no trainable params (e.g., failed state_dict load)
-                trainable = sum(p.numel() for p in policy.parameters() if getattr(p, "requires_grad", False))
-                if trainable == 0:
-                    raise ValueError("Loaded policy has zero trainable parameters")
-                if self._distributed.is_master():
+            if normalized_uri:
+                try:
+                    load_device = torch.device(self._distributed.config.device)
+                    spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+
+                    payload = None
+                    if self._distributed.is_master():
+                        loaded_policy = initialize_or_load_policy(policy_env_info, spec)
+                        loaded_policy = self._ensure_save_capable(loaded_policy)
+                        state_dict = {k: v.cpu() for k, v in loaded_policy.state_dict().items()}
+                        action_count = len(policy_env_info.actions.actions())
+                        payload = (state_dict, self._policy_architecture, action_count, normalized_uri)
+
+                    state_dict, arch, action_count, normalized_uri = self._distributed.broadcast_from_master(payload)
+
+                    local_action_count = len(policy_env_info.actions.actions())
+                    if local_action_count != action_count:
+                        raise ValueError(
+                            f"Action space mismatch on resume: master={action_count}, rank={local_action_count}"
+                        )
+
+                    policy = arch.make_policy(policy_env_info)
+                    policy = policy.to(load_device)
+                    if hasattr(policy, "initialize_to_environment"):
+                        policy.initialize_to_environment(policy_env_info, load_device)
+                    missing, unexpected = policy.load_state_dict(state_dict, strict=True)
+                    if missing or unexpected:
+                        raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+
+                    policy = self._ensure_save_capable(policy)
+                    if self._distributed.is_master():
+                        self._latest_policy_uri = normalized_uri
+                        logger.info("Loaded policy from %s", normalized_uri)
+                    return policy
+                except FileNotFoundError:
+                    if self._distributed.is_master():
+                        logger.warning("Policy checkpoint %s not found; training will start fresh", normalized_uri)
+                except Exception as exc:  # pragma: no cover - defensive guard
+                    if self._distributed.is_master():
+                        logger.warning("Failed to load policy from %s: %s", normalized_uri, exc)
+
+        else:
+            if candidate_uri:
+                normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
+                try:
+                    load_device = torch.device(self._distributed.config.device)
+                    spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+                    policy = initialize_or_load_policy(policy_env_info, spec)
+                    policy = self._ensure_save_capable(policy)
                     self._latest_policy_uri = normalized_uri
                     logger.info("Loaded policy from %s", normalized_uri)
-                return policy
-            except FileNotFoundError:
-                if self._distributed.is_master():
+                    return policy
+                except FileNotFoundError:
                     logger.warning("Policy checkpoint %s not found; training will start fresh", normalized_uri)
-            except Exception as exc:  # pragma: no cover - defensive guard
-                if self._distributed.is_master():
+                except Exception as exc:  # pragma: no cover - defensive guard
                     logger.warning("Failed to load policy from %s: %s", normalized_uri, exc)
 
         logger.info("Creating new policy for training run")
