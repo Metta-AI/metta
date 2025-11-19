@@ -404,6 +404,10 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
                             </div>
                           )}
                         </div>
+                        <div className="detail-section">
+                          <h4>Policy version</h4>
+                          <div className="policy-meta">ID: {policyVersion.id}</div>
+                        </div>
                       </div>
                     </td>
                   </tr>
