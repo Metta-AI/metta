@@ -18,11 +18,6 @@ env:
   WORKER_IDLE_TIMEOUT: "1200"
   DD_TRACE_ENABLED: "true"
 
-# Annotations to apply to eval-worker pods created by the orchestrator.
-# Default disables eviction from Karpenter/EKS consolidation.
-workerPodAnnotations:
-  karpenter.sh/do-not-evict: "true"
-
 secrets:
   wandb: "wandb-api-secret"
   machineToken: "machine-token-secret"
