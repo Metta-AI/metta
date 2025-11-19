@@ -15,8 +15,8 @@ import typer
 import yaml  # type: ignore[import]
 from click.core import ParameterSource
 from packaging.version import Version
-from rich.panel import Panel
 from rich import box
+from rich.panel import Panel
 from rich.table import Table
 
 from cogames import evaluate as evaluate_module
@@ -97,32 +97,36 @@ def tutorial_cmd(
 
     console.print(
         Panel.fit(
-            "[bold cyan]Welcome to CoGames Tutorial![/bold cyan]\n\n"
-            "Your goal is to learn the basics of survival and crafting.\n\n"
-            "Clicking allows you to inspect different objects in the environment.\n"
-            "To control your cog, click on them in the GUI.\n"
-            "Use WASD to move and select vibes from the menu to the right.\n\n"
-
-            "[bold]1. Energy Management[/bold]\n"
-            "   • You consume energy to move and work. Your battery recharges over time.\n"
-            "   • Watch your energy bar! If it's low, wait a few turns or visit a [yellow]+[/yellow] Charger.\n\n"
-            "[bold]2. Gather Materials[/bold]\n"
-            "   • Visit the Extractors in the corners to mine resources:\n"
-            "     [yellow]C[/yellow] Carbon, [yellow]O[/yellow] Oxygen, [yellow]G[/yellow] Germanium, "
-            "[yellow]S[/yellow] Silicon.\n"
-            "   • Walk into an extractor to mine. Note: Silicon ([yellow]S[/yellow]) costs 20 Energy to mine!\n\n"
-            "[bold]3. Craft a HEART[/bold]\n"
-            "   • Go to the Assembler [yellow]&[/yellow] in the center.\n"
-            "   • To craft, you must be adjacent to it and [bold]broadcast the correct Vibe[/bold].\n"
-            "   • [bold]Action:[/bold] Switch your vibe to [red]Heart A[/red] by clicking the icon in the top "
-            "right.\n"
-            "   • [bold]Recipe:[/bold] You need 10 Carbon, 10 Oxygen, 2 Germanium, 30 Silicon.\n\n"
-            "[bold]4. Deposit[/bold]\n"
-            "   • Bring the HEART to the Chest [yellow]C[/yellow] (usually near the center).\n"
-            "   • Switch your vibe to [red]Heart B[/red].\n"
-            "   • Walk into the Chest to deposit.\n"
-            "   • [red bold]WARNING![/red bold] If you have a neutral vibe selected you will deposit all your items, to get them out vibe the [bold yellow]object type A[/bold yellow] vibe. \n\n"
-            "Good luck! Press Enter to launch the simulation (similarly to how you would run [green]cogames play[/green]).",
+            "[bold cyan]MISSION BRIEFING: Tutorial Sector[/bold cyan]\n\n"
+            "Welcome, Cognitive. This simulation mirrors frontline HEART ops—treat every turn as live deployment.\n\n"
+            "[bold]FIELD AWARENESS[/bold]\n"
+            "- Inspect terrain and stations by clicking.\n"
+            "  WASD drives your chassis; the GUI vibe deck sets your resonance.\n"
+            "- Only one action resolves per turn.\n"
+            "  Movement engages adjacent targets, including stations and fellow Cogs.\n\n"
+            "[bold]ENERGY & LOADOUT[/bold]\n"
+            "- Battery stores 100 energy, passively regains +1 each turn.\n"
+            "  Movement spends 2, typically nets 1.\n"
+            "- Chargers [yellow]+[/yellow] restore up to 50 energy but require cooldown.\n"
+            "  Stage rotations before you redline.\n\n"
+            "[bold]RESOURCE ACQUISITION[/bold]\n"
+            "- Four extractor stations anchor the arena:\n"
+            "  [yellow]C[/yellow] Carbon, [yellow]O[/yellow] Oxygen,\n"
+            "  [yellow]G[/yellow] Germanium, [yellow]S[/yellow] Silicon.\n"
+            "- Step into an extractor to claim output. Silicon draws 20 energy—arrive topped off.\n\n"
+            "[bold]ASSEMBLER PROTOCOL[/bold]\n"
+            "- The central [yellow]&[/yellow] responds to correct resonance only.\n"
+            "  Approach adjacent, then broadcast [red]heart_a[/red].\n"
+            "- Standard fabrication recipe: 10 Carbon, 10 Oxygen, 2 Germanium, 30 Silicon → +1 HEART.\n"
+            "- Inputs are pulled from your cargo instantly; confirm inventory before engagement.\n\n"
+            "[bold]CHEST DELIVERY[/bold]\n"
+            "- Communal Chest [yellow]C[/yellow] records mission success.\n"
+            "  Carry a HEART, switch to [red]heart_b[/red], then move into the chest to deposit.\n"
+            "- Neutral resonance dumps entire inventory.\n"
+            "  To reclaim stranded stacks, vibe the matching resource *_a protocol.\n\n"
+            "[bold red]FINAL DIRECTIVE[/bold red]\n"
+            "Secure a HEART, deposit without incident, then press Enter to transition into live ops.\n"
+            "(Equivalent to launching [green]cogames play[/green].)",
             title="Mission Briefing",
             border_style="green",
         )
