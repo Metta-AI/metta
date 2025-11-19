@@ -239,6 +239,7 @@ def _():
                 return generate_valid_random_actions(self.env, self.num_agents)
 
             ar, ac = agent["r"], agent["c"]
+            # TODO: orientation no longer exists
             agent_ori = int(agent.get("agent:orientation", 0))
 
             # Check agent's ore inventory first
@@ -1669,14 +1670,10 @@ def _(
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         run_name_from_ckpt = metadata["run_name"]
 
-        trained_artifact = CheckpointManager.load_from_uri(
-            str(latest_ckpt), policy_env_info, device
+        policy_spec = CheckpointManager.policy_spec_from_uri(
+            CheckpointManager.normalize_uri(str(latest_ckpt)), device=device
         )
-        trained_policy = trained_artifact.policy
-        if trained_policy is None:
-            raise RuntimeError(
-                "Expected serialized policy in artifact for evaluation demo"
-            )
+        trained_policy = initialize_or_load_policy(policy_env_info, policy_spec)
 
         # Create evaluation environment
         with contextlib.redirect_stdout(io.StringIO()):
