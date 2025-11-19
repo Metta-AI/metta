@@ -149,6 +149,11 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
         label="RaceCar",
         policy_path="cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy",
     ),
+    "starter": AgentConfig(
+        key="starter",
+        label="Starter",
+        policy_path="cogames.policy.scripted_agent.starter_agent.StarterPolicy",
+    ),
 }
 
 EXPERIMENT_MAP: Dict[str, Mission] = {}
