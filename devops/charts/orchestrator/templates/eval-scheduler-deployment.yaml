@@ -16,7 +16,7 @@ metadata:
 spec:
   replicas: {{ default 1 .Values.evalScheduler.replicaCount }}
   selector:
-    evalLabels:
+    matchLabels:
       app.kubernetes.io/name: eval-scheduler
       app.kubernetes.io/instance: {{ .Release.Name }}
       app.kubernetes.io/component: eval-scheduler
