@@ -7,7 +7,7 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
-from metta.common.tool import Tool
+from metta.common.tool.tool import ToolResult, ToolWithResult
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.runner import SimulationRunConfig
 from metta.sim.simulate_and_record import ObservatoryWriter, simulate_and_record
@@ -17,7 +17,7 @@ from recipes.experiment import arena
 logger = logging.getLogger(__name__)
 
 
-class MultiPolicyVersionEvalTool(Tool):
+class MultiPolicyVersionEvalTool(ToolWithResult):
     simulations: Sequence[SimulationRunConfig] = Field(description="Simulations to evaluate")
     replay_dir: str = Field(default_factory=auto_replay_dir)
     verbose: bool = Field(default=True, description="Whether to log verbose output")
@@ -26,7 +26,7 @@ class MultiPolicyVersionEvalTool(Tool):
     policy_version_ids: list[str] = Field(description="Policy version ids to log to observatory")
     primary_policy_version_id: str = Field(description="Primary policy version id to log to observatory")
 
-    def invoke(self, args: dict[str, str]) -> int | None:
+    def run_job(self) -> ToolResult:
         stats_client = StatsClient.create(self.stats_server_uri)
         observatory_writer = ObservatoryWriter(
             stats_client=stats_client,
@@ -59,7 +59,10 @@ class MultiPolicyVersionEvalTool(Tool):
             render_eval_summary(
                 rollout_results, policy_names=[spec.name for spec in policy_specs], verbose=self.verbose
             )
-        return 0
+        return ToolResult(result="success")
+
+
+V0_LEADERBOARD_NAME_TAG_KEY = "v0-leaderboard-name"
 
 
 def simulations() -> Sequence[SimulationRunConfig]:
@@ -72,29 +75,31 @@ def simulations() -> Sequence[SimulationRunConfig]:
             env=basic_env,
             num_episodes=1,
             episode_tags={
-                "name": "basic",
-                "category": "arena",
-                "v0-leaderboard": "true",
+                "v0-leaderboard-name": "arena-basic",
             },
         ),
         SimulationRunConfig(
             env=combat_env,
             num_episodes=1,
             episode_tags={
-                "name": "combat",
-                "category": "arena",
-                "v0-leaderboard": "true",
+                "v0-leaderboard-name": "arena-combat",
             },
         ),
     ]
 
 
 # ./tools/run.py recipes.experiment.v0_leaderboard_eval.run policy_version_id=127fb5d8-b530-4b27-9a60-9cf4e6be6365
-def run(policy_version_id: str, stats_server_uri: str | None = None) -> MultiPolicyVersionEvalTool:
+def run(
+    policy_version_id: str,
+    result_file_path: str,
+    eval_task_id: str,
+    stats_server_uri: str | None = None,
+) -> MultiPolicyVersionEvalTool:
     if (api_url := stats_server_uri or auto_stats_server_uri()) is None:
         raise ValueError("stats_server_uri is required")
 
     return MultiPolicyVersionEvalTool(
+        result_file_path=result_file_path,
         simulations=simulations(),
         policy_version_ids=[
             policy_version_id,
