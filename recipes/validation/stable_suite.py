@@ -93,7 +93,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         remote=RemoteConfig(gpus=1, nodes=1),
         is_training_job=True,
         metrics_to_track=["env_agent/heart.gained"],
-        # Temporarily disable heart acceptance while recipe logging is debugged.
+        # Temporarily disable heart acceptance while logging is debugged.
         acceptance_criteria=[],
     )
 
