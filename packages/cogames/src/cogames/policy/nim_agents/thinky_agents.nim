@@ -267,7 +267,6 @@ proc step*(
 
     let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
 
-
     # Parse the tokens into a vision map.
     var visible: Table[Location, seq[FeatureValue]]
     for token in 0 ..< numTokens:
