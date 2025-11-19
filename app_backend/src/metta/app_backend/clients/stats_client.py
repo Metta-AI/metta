@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import uuid
 from typing import Any, Type, TypeVar
@@ -106,6 +108,12 @@ class StatsClient:
             )
             response.raise_for_status()
             return BulkEpisodeUploadResponse.model_validate(response.json())
+
+    def update_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> UUIDResponse:
+        """Update tags for a specific policy version in Observatory."""
+        return self._make_sync_request(
+            UUIDResponse, "PUT", f"/stats/policies/versions/{policy_version_id}/tags", json=tags
+        )
 
     @staticmethod
     def create(stats_server_uri: str) -> "StatsClient":
