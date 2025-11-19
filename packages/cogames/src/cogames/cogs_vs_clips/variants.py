@@ -3,7 +3,7 @@ from typing import Iterable, Sequence, override
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
 from cogames.cogs_vs_clips.procedural import BaseHubVariant, MachinaArenaVariant
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig, ResourceLimitsConfig
 from mettagrid.mapgen.scenes.base_hub import DEFAULT_EXTRACTORS as HUB_EXTRACTORS
 from mettagrid.mapgen.scenes.building_distributions import DistributionConfig, DistributionType
 
@@ -249,25 +249,19 @@ class InventoryHeartTuneVariant(MissionVariant):
 
         heart_cost = mission.assembler.first_heart_cost
         per_heart = {
-            "carbon": heart_cost * 2,
-            "oxygen": heart_cost * 2,
-            "germanium": max(heart_cost // 2, 1),
-            "silicon": heart_cost * 5,
-            "energy": heart_cost * 2,
+            "carbon": heart_cost,
+            "oxygen": heart_cost,
+            "germanium": max(heart_cost // 10, 1),
+            "silicon": 3 * heart_cost,
+            "energy": 0,
         }
 
         if hearts > 0:
             agent_cfg = env.game.agent
             agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
-            resource_limits = dict(agent_cfg.resource_limits)
 
             def _limit_for(resource: str) -> int:
-                if resource in resource_limits:
-                    return int(resource_limits[resource])
-                for key, limit in resource_limits.items():
-                    if isinstance(key, tuple) and resource in key:
-                        return int(limit)
-                return int(agent_cfg.default_resource_limit)
+                return agent_cfg.get_limit_for_resource(resource)
 
             for resource_name, per_heart_value in per_heart.items():
                 current = int(agent_cfg.initial_inventory.get(resource_name, 0))
@@ -277,9 +271,11 @@ class InventoryHeartTuneVariant(MissionVariant):
 
         if self.heart_capacity is not None:
             agent_cfg = env.game.agent
-            limits = dict(agent_cfg.resource_limits)
-            limits["heart"] = max(int(limits.get("heart", 0)), int(self.heart_capacity))
-            agent_cfg.resource_limits = limits
+            hearts_limit = agent_cfg.resource_limits.get("heart")
+            if hearts_limit is None:
+                hearts_limit = ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"])
+            hearts_limit.limit = max(int(hearts_limit.limit), int(self.heart_capacity))
+            agent_cfg.resource_limits["heart"] = hearts_limit
 
 
 class ChestHeartTuneVariant(MissionVariant):
@@ -294,10 +290,10 @@ class ChestHeartTuneVariant(MissionVariant):
             return
         heart_cost = mission.assembler.first_heart_cost
         per_heart = {
-            "carbon": heart_cost * 2,
-            "oxygen": heart_cost * 2,
-            "germanium": max(heart_cost // 2, 1),
-            "silicon": heart_cost * 5,
+            "carbon": heart_cost,
+            "oxygen": heart_cost,
+            "germanium": max(heart_cost // 10, 1),
+            "silicon": 3 * heart_cost,
         }
         chest_cfg = env.game.objects["chest"]
         if not isinstance(chest_cfg, ChestConfig):
@@ -320,10 +316,10 @@ class ExtractorHeartTuneVariant(MissionVariant):
             return
         heart_cost = mission.assembler.first_heart_cost
         one_heart = {
-            "carbon": heart_cost * 2,
-            "oxygen": heart_cost * 2,
-            "germanium": max(heart_cost // 2, 1),
-            "silicon": heart_cost * 5,
+            "carbon": heart_cost,
+            "oxygen": heart_cost,
+            "germanium": max(heart_cost // 10, 1),
+            "silicon": 3 * heart_cost,
         }
 
         # Carbon per-use depends on efficiency
@@ -475,7 +471,7 @@ class SingleUseSwarmVariant(MissionVariant):
     @override
     def modify_mission(self, mission):
         # Make each extractor single-use
-        for res in ("carbon", "oxygen", "germanium", "silicon"):
+        for res in ("carbon", "oxygen", "silicon"):
             extractor = getattr(mission, f"{res}_extractor", None)
             if extractor is not None:
                 extractor.max_uses = 1

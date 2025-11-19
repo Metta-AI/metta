@@ -30,6 +30,7 @@ from mettagrid.config.mettagrid_config import (
     MoveActionConfig,
     NoopActionConfig,
     ProtocolConfig,
+    ResourceLimitsConfig,
 )
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
@@ -49,6 +50,14 @@ class MissionVariant(Config, ABC):
         # Override this method to modify the produced environment.
         # Variants are allowed to modify the environment in-place.
         pass
+
+    def compat(self, mission: Mission) -> bool:
+        """Check if this variant is compatible with the given mission.
+
+        Returns True if the variant can be safely applied to the mission.
+        Override this method to add compatibility checks.
+        """
+        return True
 
     def apply(self, mission: Mission) -> Mission:
         mission = mission.model_copy(deep=True)
@@ -102,6 +111,9 @@ class Mission(Config):
     site: Site
     num_cogs: int | None = None
 
+    # Variants are applied to the mission immediately, and to its env when make_env is called
+    variants: list[MissionVariant] = Field(default_factory=list)
+
     carbon_extractor: CarbonExtractorConfig = Field(default_factory=CarbonExtractorConfig)
     oxygen_extractor: OxygenExtractorConfig = Field(default_factory=OxygenExtractorConfig)
     germanium_extractor: GermaniumExtractorConfig = Field(default_factory=GermaniumExtractorConfig)
@@ -112,7 +124,7 @@ class Mission(Config):
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
     clip_period: int = Field(default=0)
-    cargo_capacity: int = Field(default=255)
+    cargo_capacity: int = Field(default=100)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
     inventory_regen_interval: int = Field(default=1)
@@ -123,9 +135,6 @@ class Mission(Config):
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
     compass_enabled: bool = Field(default=False)
-
-    # Variants are applied to the mission immediately, and to its env when make_env is called
-    variants: list[MissionVariant] = Field(default_factory=list)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -172,10 +181,14 @@ class Mission(Config):
             ),
             agent=AgentConfig(
                 resource_limits={
-                    "heart": self.heart_capacity,
-                    "energy": self.energy_capacity,
-                    ("carbon", "oxygen", "germanium", "silicon"): self.cargo_capacity,
-                    ("scrambler", "modulator", "decoder", "resonator"): self.gear_capacity,
+                    "heart": ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"]),
+                    "energy": ResourceLimitsConfig(limit=self.energy_capacity, resources=["energy"]),
+                    "cargo": ResourceLimitsConfig(
+                        limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
+                    ),
+                    "gear": ResourceLimitsConfig(
+                        limit=self.gear_capacity, resources=["scrambler", "modulator", "decoder", "resonator"]
+                    ),
                 },
                 rewards=AgentRewards(
                     stats={"chest.heart.amount": 1 / num_cogs},

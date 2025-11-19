@@ -6,7 +6,13 @@ from typing import Callable, Dict
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, MettaGridConfig, ProtocolConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    ChestConfig,
+    MettaGridConfig,
+    ProtocolConfig,
+    ResourceLimitsConfig,
+)
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
 RESOURCE_NAMES: tuple[str, ...] = ("carbon", "oxygen", "germanium", "silicon")
@@ -180,9 +186,6 @@ class _DiagnosticMissionBase(Mission):
                 extractor.start_clipped = True
             if resource in self.extractor_max_uses and hasattr(extractor, "max_uses"):
                 extractor.max_uses = self.extractor_max_uses[resource]
-            clipped_key = f"clipped_{resource}_extractor"
-            if clipped_key in cfg.game.objects:
-                cfg.game.objects.pop(clipped_key)
 
     def _apply_assembler_requirements(self, cfg: MettaGridConfig) -> None:
         assembler = cfg.game.objects.get("assembler")
@@ -238,9 +241,10 @@ class _DiagnosticMissionBase(Mission):
         for _name, obj in cfg.game.objects.items():
             if not isinstance(obj, ChestConfig):
                 continue
-            limits = dict(obj.resource_limits or {})
-            limits["heart"] = 1
-            obj.resource_limits = limits
+            # Find existing heart limit or create new one
+            heart_limit = obj.resource_limits.get("heart", ResourceLimitsConfig(limit=1, resources=["heart"]))
+            heart_limit.limit = 1
+            obj.resource_limits["heart"] = heart_limit
 
     def _ensure_minimal_heart_recipe(self, assembler: AssemblerConfig) -> None:
         minimal_inputs = {
@@ -376,7 +380,6 @@ class DiagnosticExtractMissingOxygen(_DiagnosticMissionBase):
     name: str = "diagnostic_extract_missing_oxygen"
     description: str = "Gather oxygen from the extractor to complete a heart."
     map_name: str = "evals/diagnostic_extract_lab.map"
-    dynamic_assembler_chorus: bool = True
     inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"carbon": 2, "germanium": 1, "silicon": 3})
     max_steps: int = Field(default=130)
 
@@ -385,7 +388,6 @@ class DiagnosticExtractMissingGermanium(_DiagnosticMissionBase):
     name: str = "diagnostic_extract_missing_germanium"
     description: str = "Gather germanium from the extractor to complete a heart."
     map_name: str = "evals/diagnostic_extract_lab.map"
-    dynamic_assembler_chorus: bool = True
     inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"carbon": 2, "oxygen": 2, "silicon": 3})
     max_steps: int = Field(default=130)
 
@@ -394,7 +396,6 @@ class DiagnosticExtractMissingSilicon(_DiagnosticMissionBase):
     name: str = "diagnostic_extract_missing_silicon"
     description: str = "Gather silicon from the extractor to complete a heart."
     map_name: str = "evals/diagnostic_extract_lab.map"
-    dynamic_assembler_chorus: bool = True
     inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"carbon": 2, "oxygen": 2, "germanium": 1})
     max_steps: int = Field(default=130)
 

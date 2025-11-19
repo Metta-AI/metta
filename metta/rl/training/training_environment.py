@@ -7,7 +7,7 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Literal, Tuple
+from typing import Any, List, Literal, Optional, Tuple
 
 import numpy as np
 import torch
@@ -70,6 +70,9 @@ class TrainingEnvironmentConfig(Config):
     )
 
     supervisor: EnvSupervisorConfig = Field(default_factory=EnvSupervisorConfig)
+
+    maps_cache_size: Optional[int] = Field(default=None, ge=1)
+    """Number of maps to cache in shared memory. None for unlimited."""
 
 
 @dataclass
@@ -177,6 +180,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             batch_size=self._batch_size,
             num_workers=num_workers,
             zero_copy=cfg.zero_copy,
+            maps_cache_size=cfg.maps_cache_size,
             replay_writer=replay_writer,
         )
 

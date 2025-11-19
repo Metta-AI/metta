@@ -1,6 +1,7 @@
-import std/[json, tables],
+import std/[json, tables, strformat],
   boxy, fidget2/[hybridrender],
-  zippy, vmath, jsony
+  zippy, vmath, jsony,
+  ./validation
 
 type
 
@@ -8,8 +9,10 @@ type
     enabled*: bool
 
   Protocol* = object
-    inputResources*: Table[string, int]
-    outputResources*: Table[string, int]
+    minAgents*: int
+    vibes*: seq[int]
+    inputs*: seq[ItemAmount]
+    outputs*: seq[ItemAmount]
     cooldown*: int
 
   RecipeInfoConfig* = tuple[pattern: seq[string], protocol: Protocol]
@@ -87,7 +90,7 @@ type
     exhaustion*: seq[bool]
     cooldownMultiplier*: seq[float]
     currentRecipeId*: int
-    recipes*: seq[RecipeInfo]
+    protocols*: seq[Protocol]
 
     # Computed fields.
     gainMap*: seq[seq[ItemAmount]]
@@ -170,13 +173,8 @@ type
     usesCount*: int
     maxUses*: int
     allowPartialUsage*: bool
-    recipes*: seq[RecipeInfo]
+    protocols*: seq[Protocol]
 
-  RecipeInfo* = object
-    pattern*: int
-    inputs*: seq[ItemAmount]
-    outputs*: seq[ItemAmount]
-    cooldown*: int
 
   ReplayStep* = ref object
     step*: int
@@ -493,6 +491,13 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
 
   doAssert jsonObj["version"].getInt == 2
 
+  # Check for validation issues and log them to console
+  let issues = validateReplay(jsonObj)
+  if issues.len > 0:
+    issues.prettyPrint()
+  else:
+    echo "No validation issues found"
+
   let replay = Replay(
     version: jsonObj["version"].getInt,
     actionNames: jsonObj["action_names"].to(seq[string]),
@@ -731,8 +736,7 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.usesCount.add(obj.usesCount)
     entity.maxUses = obj.maxUses
     entity.allowPartialUsage = obj.allowPartialUsage
-
-    entity.recipes.add(obj.recipes)
+    entity.protocols = obj.protocols
 
   # Extend the max steps.
   replay.maxSteps = max(replay.maxSteps, step + 1)

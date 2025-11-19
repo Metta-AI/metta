@@ -61,7 +61,7 @@ jobs:
         id: release
         run: |
           # Build command with optional arguments
-          CMD="./devops/stable/stable.py release --no-interactive"
+          CMD="./devops/stable/stable.py --no-interactive release"
 
           if [ -n "${{ github.event.inputs.version }}" ]; then
             CMD="$CMD --version=${{ github.event.inputs.version }}"

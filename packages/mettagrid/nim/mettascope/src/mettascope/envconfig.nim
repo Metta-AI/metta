@@ -1,6 +1,6 @@
 import
   std/[json, os],
-  boxy, fidget2,
+  boxy, fidget2, webby, windy,
   common, replays
 
 var envConfig: Node
@@ -17,15 +17,7 @@ find "/UI/Main/**/EnvironmentInfo/OpenConfig":
         "No replay config found."
       else:
         replay.mgConfig.pretty
-    if not dirExists("tmp"):
-      createDir("tmp")
-    writeFile("tmp/mg_config.json", text)
-    when defined(windows):
-      discard execShellCmd("notepad tmp/mg_config.json")
-    elif defined(macosx):
-      discard execShellCmd("open -a TextEdit tmp/mg_config.json")
-    else:
-      discard execShellCmd("xdg-open tmp/mg_config.json")
+    openTempTextFile("mg_config.json", text)
 
 proc updateEnvConfig*() =
   ## Updates the environment config panel to

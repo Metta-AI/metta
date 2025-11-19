@@ -28,6 +28,7 @@ from cogames.cli.mission import (
     get_mission_name_and_config,
     get_mission_names_and_configs,
     list_evals,
+    list_missions,
     list_variants,
 )
 from cogames.cli.policy import (
@@ -37,6 +38,7 @@ from cogames.cli.policy import (
     policy_arg_w_proportion_example,
 )
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
+from cogames.cli.utils import init_suppress_warnings
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid.policy.loader import discover_and_register_policies
@@ -47,6 +49,7 @@ from mettagrid.simulator import Simulator
 # Always add current directory to Python path
 sys.path.insert(0, ".")
 
+init_suppress_warnings()
 logger = logging.getLogger("cogames.main")
 
 
@@ -105,7 +108,12 @@ def games_cmd(
     ),
     print_cvc_config: bool = typer.Option(False, "--print-cvc-config", help="Print Mission config (CVC config)"),
     print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig"),
+    site: Optional[str] = typer.Argument(None, help="Site to list missions for (e.g., training_facility)"),
 ) -> None:
+    if mission is None:
+        list_missions(site)
+        return
+
     resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
 
     if print_cvc_config or print_mg_config:
@@ -403,6 +411,11 @@ def evaluate_cmd(
         "-m",
         help="Missions to evaluate (supports wildcards, e.g., --mission training_facility.*)",
     ),
+    mission_set: Optional[str] = typer.Option(
+        None,
+        "--mission-set",
+        help="Predefined mission set: eval_missions, integrated_evals, spanning_evals, diagnostic_evals, all",
+    ),
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -438,6 +451,22 @@ def evaluate_cmd(
         ),
     ),
 ) -> None:
+    # Handle mission set expansion
+    if mission_set and missions:
+        console.print("[red]Error: Cannot use both --mission-set and --mission[/red]")
+        raise typer.Exit(1)
+
+    if mission_set:
+        from cogames.cli.mission import load_mission_set
+
+        try:
+            mission_objs = load_mission_set(mission_set)
+            missions = [m.full_name() for m in mission_objs]
+            console.print(f"[cyan]Using mission set '{mission_set}' ({len(missions)} missions)[/cyan]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
     policy_specs = get_policy_specs_with_proportions(ctx, policies)
@@ -541,11 +570,11 @@ def submit_cmd(
         "-p",
         help=f"Policy specification: {policy_arg_example}",
     ),
-    name: Optional[str] = typer.Option(
-        None,
+    name: str = typer.Option(
+        ...,
         "--name",
         "-n",
-        help="Optional name for the submission",
+        help="Policy name for the submission",
     ),
     include_files: Optional[list[str]] = typer.Option(  # noqa: B008
         None,

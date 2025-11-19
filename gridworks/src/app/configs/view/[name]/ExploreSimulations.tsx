@@ -5,7 +5,7 @@ import z from "zod/v4";
 
 import { ConfigViewer } from "@/components/ConfigViewer";
 import { Tabs } from "@/components/Tabs";
-import { Config } from "@/lib/api";
+import { MakerConfig } from "@/lib/api";
 
 import { MapSection } from "./MapSection";
 
@@ -16,7 +16,7 @@ const simulationsSchema = z.array(
   })
 );
 
-export const ExploreSimulations: FC<{ cfg: Config }> = ({ cfg }) => {
+export const ExploreSimulations: FC<{ cfg: MakerConfig }> = ({ cfg }) => {
   const [selectedSimulation, setSelectedSimulation] = useState<string | null>(
     null
   );
