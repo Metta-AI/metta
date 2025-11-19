@@ -232,13 +232,6 @@ class CoreTrainingLoop:
         training_env_id = context.training_env_id
         assert training_env_id is not None, "Training environment ID is required"
 
-        # # Initialize shared loss data # av delete
-        # shared_loss_mb_data = self.experience.give_me_empty_md_td()
-        # for loss_name in self.losses.keys():
-        #     shared_loss_mb_data[loss_name] = self.experience.give_me_empty_md_td()
-
-        # Reset loss tracking
-        # shared_loss_mb_data.zero_()
         self.experience.reset_importance_sampling_ratios()
 
         for loss in self.losses.values():
