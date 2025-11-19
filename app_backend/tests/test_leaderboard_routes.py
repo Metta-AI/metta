@@ -3,6 +3,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.leaderboard_constants import SUBMITTED_KEY, V0_LEADERBOARD_NAME_TAG_KEY
 from metta.app_backend.metta_repo import MettaRepo
 
@@ -125,7 +126,7 @@ async def test_leaderboard_and_me_routes(
 @pytest.mark.asyncio
 async def test_leaderboard_v2_route_returns_tags_and_scores(
     isolated_stats_repo: MettaRepo,
-    isolated_test_client: TestClient,
+    isolated_stats_client: StatsClient,
 ) -> None:
     user = "leaderboard@example.com"
     policy_version_id = await _create_policy_with_scores(
@@ -148,36 +149,31 @@ async def test_leaderboard_v2_route_returns_tags_and_scores(
     empty_policy_version_id = await _create_policy_version(isolated_stats_repo, user, "pending-policy")
     await isolated_stats_repo.upsert_policy_version_tags(empty_policy_version_id, {SUBMITTED_KEY: "true"})
 
-    headers = {"X-Auth-Request-Email": user}
-    response = isolated_test_client.post("/leaderboard/v2", headers=headers)
-    assert response.status_code == 200
-    entries = response.json()["entries"]
-    assert [entry["policy_version"]["id"] for entry in entries] == [
-        str(policy_version_id),
-        str(empty_policy_version_id),
-    ]
+    response = isolated_stats_client.get_leaderboard_policies_v2()
+    entries = response.entries
+    assert [entry.policy_version.id for entry in entries] == [policy_version_id, empty_policy_version_id]
 
     populated_entry = entries[0]
     expected_scores = {
         f"{V0_LEADERBOARD_NAME_TAG_KEY}:arena-basic": 20.0,
         f"{V0_LEADERBOARD_NAME_TAG_KEY}:arena-combat": 10.0,
     }
-    assert populated_entry["scores"] == expected_scores
-    assert populated_entry["avg_score"] == pytest.approx(15.0)
-    assert populated_entry["policy_version"]["tags"] == {SUBMITTED_KEY: "true"}
-    assert populated_entry["policy_version"]["user_id"] == user
+    assert populated_entry.scores == expected_scores
+    assert populated_entry.avg_score == pytest.approx(15.0)
+    assert populated_entry.policy_version.tags == {SUBMITTED_KEY: "true"}
+    assert populated_entry.policy_version.user_id == user
 
     empty_entry = entries[1]
-    assert empty_entry["scores"] == {}
-    assert empty_entry["avg_score"] is None
-    assert empty_entry["policy_version"]["tags"] == {SUBMITTED_KEY: "true"}
-    assert empty_entry["policy_version"]["user_id"] == user
+    assert empty_entry.scores == {}
+    assert empty_entry.avg_score is None
+    assert empty_entry.policy_version.tags == {SUBMITTED_KEY: "true"}
+    assert empty_entry.policy_version.user_id == user
 
 
 @pytest.mark.asyncio
 async def test_leaderboard_v2_filters_by_policy_version_id(
     isolated_stats_repo: MettaRepo,
-    isolated_test_client: TestClient,
+    isolated_stats_client: StatsClient,
 ) -> None:
     user = "policy-filter@example.com"
     matching_pv_id = await _create_policy_with_scores(
@@ -204,21 +200,16 @@ async def test_leaderboard_v2_filters_by_policy_version_id(
     )
     await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {SUBMITTED_KEY: "true"})
 
-    response = isolated_test_client.post(
-        f"/leaderboard/v2/policy/{matching_pv_id}",
-        headers={"X-Auth-Request-Email": user},
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert len(body["entries"]) == 1
-    assert body["entries"][0]["policy_version"]["id"] == str(matching_pv_id)
-    assert body["entries"][0]["policy_version"]["user_id"] == user
+    response = isolated_stats_client.get_leaderboard_policies_v2_for_policy(matching_pv_id)
+    assert len(response.entries) == 1
+    assert response.entries[0].policy_version.id == matching_pv_id
+    assert response.entries[0].policy_version.user_id == user
 
 
 @pytest.mark.asyncio
 async def test_leaderboard_v2_users_me_route_filters_by_user(
     isolated_stats_repo: MettaRepo,
-    isolated_test_client: TestClient,
+    isolated_stats_client: StatsClient,
 ) -> None:
     user = "policy-owner@example.com"
     other_user = "other@example.com"
@@ -246,16 +237,9 @@ async def test_leaderboard_v2_users_me_route_filters_by_user(
     )
     await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {SUBMITTED_KEY: "true"})
 
-    response = isolated_test_client.post(
-        "/leaderboard/v2/users/me",
-        json={
-            "policy_version_tags": {SUBMITTED_KEY: "true"},
-            "score_group_episode_tag": V0_LEADERBOARD_NAME_TAG_KEY,
-        },
-        headers={"X-Auth-Request-Email": user},
-    )
-    assert response.status_code == 200
-    entries = response.json()["entries"]
+    isolated_stats_client._test_user_email = user  # type: ignore[attr-defined]
+    response = isolated_stats_client.get_leaderboard_policies_v2_users_me()
+    entries = response.entries
     assert len(entries) == 1
-    assert entries[0]["policy_version"]["id"] == str(owned_pv_id)
-    assert entries[0]["policy_version"]["user_id"] == user
+    assert entries[0].policy_version.id == owned_pv_id
+    assert entries[0].policy_version.user_id == user

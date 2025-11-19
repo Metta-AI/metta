@@ -71,9 +71,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.post("/v2/users/me", response_model=LeaderboardPoliciesResponse)
-    async def get_leaderboard_policies_v2_for_user(
-        request: LeaderboardPoliciesRequest, user: str = user_or_token
-    ) -> LeaderboardPoliciesResponse:
+    async def get_leaderboard_policies_v2_for_user(user: str = user_or_token) -> LeaderboardPoliciesResponse:
         return await _get_leaderboard_policies_v2(
             request=LeaderboardPoliciesRequest(
                 policy_version_tags={SUBMITTED_KEY: "true"},
