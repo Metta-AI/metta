@@ -82,8 +82,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "metta.common.tool.run_tool",
-      // "args": ["recipes.experiment.scratchpad.${env:USER}.train"],
-      "args": ["recipes.prod.arena_basic_easy_shaped.train"],
+      "args": ["recipes.experiment.scratchpad.${env:USER}.train"],
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "env": {
