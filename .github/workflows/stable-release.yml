@@ -22,6 +22,7 @@ jobs:
     permissions:
       contents: write # Needed to create tags and push to stable branch
       issues: write # Needed for Asana integration (if used)
+      id-token: write # Needed for AWS OIDC authentication
 
     steps:
       - name: Checkout repository
@@ -92,6 +93,12 @@ jobs:
         run: |
           mkdir -p $HOME/.metta
           echo "${{ secrets.OBSERVATORY_TOKEN }}" > $HOME/.metta/observatory_token
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE }}
+          aws-region: us-east-1
 
       - name: Configure SkyPilot API server
         run: |
