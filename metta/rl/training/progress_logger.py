@@ -22,12 +22,17 @@ def _format_total_steps(total_timesteps: int) -> str:
 
 
 def _format_epoch_time(seconds: float) -> str:
-    """Format epoch time in minutes:seconds format."""
+    """Format epoch time as Xm Ys (dropping zero units)."""
     if seconds <= 0:
-        return "0:00"
+        return "0s"
     minutes = int(seconds // 60)
     secs = int(seconds % 60)
-    return f"{minutes}:{secs:02d}"
+    parts: list[str] = []
+    if minutes:
+        parts.append(f"{minutes}m")
+    if secs or not parts:
+        parts.append(f"{secs}s")
+    return " ".join(parts)
 
 
 def _create_progress_table(epoch: int, run_name: str | None) -> Table:
@@ -69,7 +74,7 @@ def log_rich_progress(
     if heart_rate is not None:
         heart_display += f" ({heart_rate:.3f}/s)"
 
-    values_display = f"epoch-time: {epoch_time_display} | {heart_display}"
+    values_display = f"{epoch_time_display} | {heart_display}"
 
     table.add_row(
         "Steps",
@@ -138,7 +143,7 @@ def log_training_progress(
             f"{label} _ epoch {epoch} _ {progress_str} _ "
             f"{_human_readable_si(steps_per_sec, 'sps')} _ "
             f"train {train_pct:.0f}% _ rollout {rollout_pct:.0f}% _ stats {stats_pct:.0f}% _ "
-            f"epoch-time: {epoch_time_str}"
+            f"{epoch_time_str}"
         )
         segment = f"heart.gained {heart_value:.3f}"
         if heart_rate is not None:
