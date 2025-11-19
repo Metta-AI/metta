@@ -71,11 +71,26 @@ if ps -p "$AGENT_PID" > /dev/null; then
     cat /tmp/datadog-agent-status.log 2>/dev/null || echo "  (no status output)"
   fi
   
-  # Verify log collection config exists
+  # Verify log collection config exists and show contents
   if [ -f "/etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml" ]; then
     echo "[DATADOG] Log collection config found: /etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml"
+    echo "[DATADOG] Config file contents (first 20 lines):"
+    head -20 "/etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml" | sed 's/^/  /'
+    
+    # Check if agent can see the config
+    if "$AGENT_BINARY" configcheck > /tmp/datadog-configcheck.log 2>&1; then
+      if grep -q "skypilot_training" /tmp/datadog-configcheck.log 2>/dev/null; then
+        echo "[DATADOG] ✓ Agent recognizes skypilot_training config"
+      else
+        echo "[DATADOG] ⚠️ Agent configcheck doesn't show skypilot_training config"
+        echo "[DATADOG] Configcheck output:"
+        cat /tmp/datadog-configcheck.log | head -30 | sed 's/^/  /'
+      fi
+    fi
   else
     echo "[DATADOG] WARNING: Log collection config not found!"
+    echo "[DATADOG] Checking what config files exist:"
+    ls -la /etc/datadog-agent/conf.d/*/conf.yaml 2>/dev/null | head -10 | sed 's/^/  /' || echo "  (no config files found)"
   fi
   
   # Check if log files exist and have content
