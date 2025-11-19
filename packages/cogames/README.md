@@ -41,59 +41,37 @@ uv pip install cogames
 # List available missions
 cogames missions
 
-# Play an episode of the training_facility_1 mission
-cogames play -m training_facility_1 -p random
+# Describe a specific mission in detail
+cogames missions -m [MISSION]
 
-# Train a policy in that environment using an out-of-the-box, stateless network architecture
-cogames train -m training_facility_1 -p stateless
+# List available variants for modifying missions
+cogames variants
 
-# Watch or play alongside your trained policy
-cogames play -m training_facility_1 -p stateless:train_dir/policy.pt
+# List all missions used as evals for analyzing the behaviour of agents
+cogames evals
 
-# Evaluate how your policy performs on a different mission
-cogames eval -m machina_1 -p stateless:./train_dir/policy.pt
+# Shows all policies available and their shorthands
+cogames policies
 
-# Submit your trained policy to see how it plays with other AI agents
-cogames submit -p cogames.MyPolicy --name my-first-policy
+# Show version info
+cogames version
 ```
 
-## Commands
+## Play, Train, and Eval
 
 Most commands are of the form `cogames <command> -m [MISSION] -p [POLICY] [OPTIONS]`
 
 To specify a `MISSION`, you can:
 
-- Use a mission name from the default registry emitted by `cogames missions`, e.g. `training_facility_1`
-- Use a path to a mission configuration file, e.g. path/to/mission.yaml"
+- Use a mission name from the registry given by `cogames missions`, e.g. `training_facility_1`.
+- Use a path to a mission configuration file, e.g. `path/to/mission.yaml`.
+- Alternatively, specify a set of missions with `-set` or `-S`.
 
 To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][:PROPORTION]`:
 
-- `CLASS`: Policy shorthand (`noop`, `random`, `lstm`, `stateless`) or fully qualified class path like
-  `cogames.policy.random.RandomPolicy`. Use `cogames policies` to see a full list of default policies.
+- `CLASS`: Use a policy shorthand or full path from the registry given by `cogames policies`, e.g. `lstm` or `cogames.policy.random.RandomPolicy`.
 - `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
 - `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
-
-### `cogames missions -m [MISSION]`
-
-Lists all missions and their high-level specs.
-
-If a mission is provided, describes a specific mission in detail.
-
-### `cogames variants`
-
-Lists available variants for modifying missions
-
-### `cogames evals`
-
-Lists all missions used as evals for analyzing the behaviour of agents
-
-### `cogames policies`
-
-Shows a list of default policies available to you, and the shorthands with which you can use them.
-
-### `cogames version`
-
-Show version info for mettagrid, pufferlib-core, and cogames.
 
 ### `cogames play -m [MISSION] -p [POLICY]`
 
@@ -212,7 +190,9 @@ for step in range(1000):
 
 ### `cogames eval -m [MISSION] [-m MISSION...] -p POLICY [-p POLICY...]`
 
-Evaluate one or more policies on one or more missions.
+Evaluate one or more policies on one or more missions. 
+
+We provide a set of eval missions which you can use instead of missions `-m`. Specify `-set` or `-S` among: `eval_missions`, `integrated_evals`, `spanning_evals`, `diagnostic_evals`, `all`.
 
 You can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy populations.
 
@@ -241,7 +221,7 @@ their assignments each episode.
 
 ### `cogames make-mission -m [BASE_MISSION]`
 
-Create custom mission configuration. In this case, the mission provided is the template mission to which you'll apply
+Create a custom mission configuration. In this case, the mission provided is the template mission to which you'll apply
 modifications.
 
 **Options:**
@@ -251,7 +231,7 @@ modifications.
 - `--height H`: Map height (default: 10)
 - `--output PATH`: Save to file
 
-You will be able to provide your specified `--output` path as the `MISSION` argument to other `cogames` commmands.
+You will be able to provide your specified `--output` path as the `MISSION` argument to other `cogames` commands.
 
 ## Policy Submission
 ### `cogames login`
