@@ -1,0 +1,20 @@
+1. I tried charging whenever energy dropped below 50% (and tightened the near-full threshold) and I got 39/67 evaluations.
+2. I tried seeding exploration targets around every clipped extractor to find the assembler faster and I got 38/67 evaluations.
+3. I tried shrinking the initial exploration list to just the four cardinal spokes and I got 41/67 evaluations.
+4. I tried biasing agents to drift back toward the origin whenever energy was low and I got 41/67 evaluations.
+5. I tried queueing charger-scouting offsets whenever we were low on energy without a known charger and I got 39/67 evaluations.
+6. I tried rotating resource priorities per agent based on agent id to reduce extractor contention and I got 39/67 evaluations.
+7. I tried triggering SOS mode when remaining uses were <=2 (the change we kept) and I got 41/67 evaluations.
+8. I tried forcing a chest-search pattern whenever we carried a heart without having seen the chest yet and I got 38/67 evaluations.
+9. I tried dumping resources as soon as inventory was maxed even if the average wasn't skewed and I got 38/67 evaluations.
+10. I tried rebuilding the exploration list with larger radii formed from each agent's shuffled offsets and I got 39/67 evaluations.
+11. I tried requiring a top-up at a charger before starting assembler runs if energy was below the recipe cost and I got 39/67 evaluations.
+12. I tried relaxing extractor crowd checks so up to two agents could target the same extractor and I got 39/67 evaluations.
+13. I tried adding an extra ring of exploration targets around assemblers as soon as they were seen and I got 39/67 evaluations.
+14. I tried using offset-informed random fallback moves instead of raw action ids and I got 39/67 evaluations.
+15. I tried tracking unreachable exploration targets and skipping them after failed paths and I got 41/67 evaluations (but it wasn't reliable, so I reverted).
+16. I tried boosting the resource targets immediately when SOS mode activated and I got 41/67 evaluations (also reverted after seeing no consistent gain).
+17. I tried resetting resource targets to match each new assembler recipe exactly every step and I got 39/67 evaluations.
+18. I tried preemptively dumping excess carbon before the inventory hard cap and I got 39/67 evaluations.
+19. I tried adding a stuck-prevention rule for four identical move commands in a row and I got 39/67 evaluations.
+20. I tried immediately queueing the assembler location itself at the front of the exploration list once it was seen and I got 38/67 evaluations.
