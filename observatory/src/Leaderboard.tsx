@@ -12,12 +12,13 @@ type SectionState = {
   error: string | null
 }
 
-type SectionConfig = {
-  title: string
+type ViewKey = 'public' | 'mine'
+
+type ViewConfig = {
+  sectionKey: ViewKey
+  label: string
   subtitle: string
-  state: SectionState
   emptyMessage: string
-  sectionKey: string
 }
 
 const STYLES = `
@@ -28,49 +29,63 @@ const STYLES = `
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-.leaderboard-header {
+.leaderboard-card {
   max-width: 1100px;
-  margin: 0 auto 24px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 15px rgba(15, 23, 42, 0.03);
+  padding: 24px 28px 32px;
 }
 
-.leaderboard-header h1 {
+.leaderboard-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.leaderboard-title {
   font-size: 28px;
   color: #0f172a;
   margin: 0 0 6px;
 }
 
-.leaderboard-header p {
-  color: #475569;
+.leaderboard-description,
+.leaderboard-view-subtitle {
   margin: 0;
+  color: #475569;
   font-size: 15px;
 }
 
-.leaderboard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-  gap: 24px;
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-.leaderboard-section {
-  background: #fff;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  padding: 20px;
-  box-shadow: 0 10px 15px rgba(15, 23, 42, 0.03);
-}
-
-.leaderboard-section h2 {
-  font-size: 20px;
-  color: #0f172a;
-  margin: 0;
-}
-
-.leaderboard-section p {
-  color: #475569;
-  margin: 4px 0 16px;
+.leaderboard-view-subtitle {
   font-size: 14px;
+  margin-top: 6px;
+}
+
+.leaderboard-toggle {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.toggle-button {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  padding: 8px 18px;
+  background: #f9fafb;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle-button.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
 }
 
 .section-state {
@@ -232,7 +247,26 @@ const createInitialSectionState = (): SectionState => ({
 export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
   const [publicLeaderboard, setPublicLeaderboard] = useState<SectionState>(() => createInitialSectionState())
   const [personalLeaderboard, setPersonalLeaderboard] = useState<SectionState>(() => createInitialSectionState())
+  const [view, setView] = useState<ViewKey>('public')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set())
+
+  const viewConfigs: Record<ViewKey, ViewConfig> = {
+    public: {
+      sectionKey: 'public',
+      label: 'Public',
+      subtitle: 'Published policies submitted to the cogames leaderboard.',
+      emptyMessage: 'No public leaderboard entries yet.',
+    },
+    mine: {
+      sectionKey: 'mine',
+      label: 'Mine',
+      subtitle: `Entries uploaded by ${currentUser}.`,
+      emptyMessage: 'You have not submitted any leaderboard policies yet.',
+    },
+  }
+  const toggleOptions: ViewKey[] = ['public', 'mine']
+  const activeState = view === 'public' ? publicLeaderboard : personalLeaderboard
+  const activeConfig = viewConfigs[view]
 
   useEffect(() => {
     let ignore = false
@@ -258,6 +292,7 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
   useEffect(() => {
     let ignore = false
     const load = async () => {
+      setPersonalLeaderboard((prev) => ({ ...prev, loading: true, error: null }))
       try {
         const response = await repo.getPersonalLeaderboard()
         if (!ignore) {
@@ -287,124 +322,125 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
     })
   }
 
-  const renderSection = ({ title, subtitle, state, emptyMessage, sectionKey }: SectionConfig) => (
-    <section key={sectionKey} className="leaderboard-section">
-      <div className="section-header">
-        <h2>{title}</h2>
-        <p>{subtitle}</p>
-      </div>
-      {state.loading ? (
+  const renderContent = (state: SectionState, config: ViewConfig) => {
+    if (state.loading) {
+      return (
         <div className="section-state">
           <div className="loading-spinner" />
           Loading policies...
         </div>
-      ) : state.error ? (
-        <div className="section-state error">{state.error}</div>
-      ) : state.entries.length === 0 ? (
-        <div className="section-state">{emptyMessage}</div>
-      ) : (
-        <table className="leaderboard-table">
-          <thead>
-            <tr>
-              <th>Policy</th>
-              <th>Policy Created</th>
-              <th>Avg Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.entries.map((entry) => {
-              const { policy_version: policyVersion } = entry
-              const policyId = policyVersion.id
-              const policyDisplay = `${policyVersion.name}.${policyVersion.version}`
-              const createdAt = policyVersion.policy_created_at || policyVersion.created_at
-              const rowKey = `${sectionKey}-${policyId}`
-              const isExpanded = expandedRows.has(rowKey)
-              const scoreEntries = Object.entries(entry.scores).sort(([a], [b]) => a.localeCompare(b))
-              const tagEntries = Object.entries(policyVersion.tags).sort(([a], [b]) => a.localeCompare(b))
-              return (
-                <Fragment key={`${sectionKey}-${policyId}`}>
-                  <tr className="policy-row" onClick={() => toggleRow(rowKey)}>
-                    <td>
-                      <div className="policy-title">{policyDisplay}</div>
-                      <div className="policy-meta">{policyVersion.user_id}</div>
-                    </td>
-                    <td>
-                      <div className="policy-meta">{formatDate(createdAt)}</div>
-                    </td>
-                    <td>
-                      <div className="policy-title">{formatScore(entry.avg_score)}</div>
+      )
+    }
+    if (state.error) {
+      return <div className="section-state error">{state.error}</div>
+    }
+    if (state.entries.length === 0) {
+      return <div className="section-state">{config.emptyMessage}</div>
+    }
+
+    return (
+      <table className="leaderboard-table">
+        <thead>
+          <tr>
+            <th>Policy</th>
+            <th>Policy Created</th>
+            <th>Avg Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {state.entries.map((entry) => {
+            const { policy_version: policyVersion } = entry
+            const policyId = policyVersion.id
+            const policyDisplay = `${policyVersion.name}.${policyVersion.version}`
+            const createdAt = policyVersion.policy_created_at || policyVersion.created_at
+            const rowKey = `${config.sectionKey}-${policyId}`
+            const isExpanded = expandedRows.has(rowKey)
+            const scoreEntries = Object.entries(entry.scores).sort(([a], [b]) => a.localeCompare(b))
+            const tagEntries = Object.entries(policyVersion.tags).sort(([a], [b]) => a.localeCompare(b))
+            return (
+              <Fragment key={`${config.sectionKey}-${policyId}`}>
+                <tr className="policy-row" onClick={() => toggleRow(rowKey)}>
+                  <td>
+                    <div className="policy-title">{policyDisplay}</div>
+                    <div className="policy-meta">{policyVersion.user_id}</div>
+                  </td>
+                  <td>
+                    <div className="policy-meta">{formatDate(createdAt)}</div>
+                  </td>
+                  <td>
+                    <div className="policy-title">{formatScore(entry.avg_score)}</div>
+                  </td>
+                </tr>
+                {isExpanded && (
+                  <tr className="policy-details-row">
+                    <td colSpan={3}>
+                      <div className="policy-details">
+                        <div className="detail-section">
+                          <h4>Scores by Simulation</h4>
+                          {scoreEntries.length === 0 ? (
+                            <div className="policy-meta">No simulation scores available.</div>
+                          ) : (
+                            <div className="score-grid">
+                              {scoreEntries.map(([simName, scoreValue]) => (
+                                <div className="score-pill" key={`${policyId}-${simName}`}>
+                                  <span>{simName}</span>
+                                  <span>{scoreValue.toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="detail-section">
+                          <h4>Tags</h4>
+                          {tagEntries.length === 0 ? (
+                            <div className="policy-meta">No tags for this policy version.</div>
+                          ) : (
+                            <div className="tag-list">
+                              {tagEntries.map(([key, value]) => (
+                                <span key={`${policyId}-${key}-${value}`} className="tag-pill">
+                                  {key}: {value}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </td>
                   </tr>
-                  {isExpanded && (
-                    <tr className="policy-details-row">
-                      <td colSpan={3}>
-                        <div className="policy-details">
-                          <div className="detail-section">
-                            <h4>Scores by Simulation</h4>
-                            {scoreEntries.length === 0 ? (
-                              <div className="policy-meta">No simulation scores available.</div>
-                            ) : (
-                              <div className="score-grid">
-                                {scoreEntries.map(([simName, scoreValue]) => (
-                                  <div className="score-pill" key={`${policyId}-${simName}`}>
-                                    <span>{simName}</span>
-                                    <span>{scoreValue.toFixed(2)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <div className="detail-section">
-                            <h4>Tags</h4>
-                            {tagEntries.length === 0 ? (
-                              <div className="policy-meta">No tags for this policy version.</div>
-                            ) : (
-                              <div className="tag-list">
-                                {tagEntries.map(([key, value]) => (
-                                  <span key={`${policyId}-${key}-${value}`} className="tag-pill">
-                                    {key}: {value}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
-    </section>
-  )
-
-  const sections: SectionConfig[] = [
-    {
-      title: 'Public leaderboard',
-      subtitle: 'Published policies submitted to the cogames leaderboard.',
-      state: publicLeaderboard,
-      emptyMessage: 'No public leaderboard entries yet.',
-      sectionKey: 'public',
-    },
-    {
-      title: 'My submissions',
-      subtitle: `Entries uploaded by ${currentUser}.`,
-      state: personalLeaderboard,
-      emptyMessage: 'You have not submitted any leaderboard policies yet.',
-      sectionKey: 'mine',
-    },
-  ]
+                )}
+              </Fragment>
+            )
+          })}
+        </tbody>
+      </table>
+    )
+  }
 
   return (
     <div className="leaderboard-page">
       <style>{STYLES}</style>
-      <div className="leaderboard-header">
-        <h1>Leaderboard</h1>
+      <div className="leaderboard-card">
+        <div className="leaderboard-header">
+          <div>
+            <h1 className="leaderboard-title">Leaderboard</h1>
+          </div>
+          <div className="leaderboard-toggle">
+            {toggleOptions.map((option) => {
+              const config = viewConfigs[option]
+              return (
+                <button
+                  key={config.sectionKey}
+                  className={`toggle-button ${view === option ? 'active' : ''}`}
+                  onClick={() => setView(option)}
+                >
+                  {config.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        {renderContent(activeState, activeConfig)}
       </div>
-      <div className="leaderboard-grid">{sections.map((section) => renderSection(section))}</div>
     </div>
   )
 }
