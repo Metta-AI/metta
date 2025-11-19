@@ -34,15 +34,11 @@ fi
 # Check if agent is already running
 if pgrep -f "datadog-agent.*run" > /dev/null 2>&1; then
   echo "[DATADOG] Agent is already running"
-  # Check if log collection config exists - if so, restart to pick it up
-  if [ -f "/etc/datadog-agent/conf.d/custom_logs.d/conf.yaml" ]; then
-    echo "[DATADOG] Log collection config found, restarting agent to pick up changes..."
-    pkill -f "datadog-agent.*run" || true
-    sleep 2
-  else
-    echo "[DATADOG] No log collection config found, agent running with default config"
-    exit 0
-  fi
+  # Always restart to ensure it picks up latest config (logs_enabled, log collection config, etc.)
+  # This is safe because we're in the run phase and configs are already set
+  echo "[DATADOG] Restarting agent to ensure latest configuration is loaded..."
+  pkill -f "datadog-agent.*run" || true
+  sleep 2
 fi
 
 echo "[DATADOG] Starting Datadog agent daemon..."

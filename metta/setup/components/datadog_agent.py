@@ -189,6 +189,11 @@ class DatadogAgentSetup(SetupModule):
                             f.write("\n# Metta SkyPilot job configuration\n")
                             for update in config_updates:
                                 f.write(f"{update}\n")
+                        
+                        # If we enabled logs, we need to restart the agent to pick up the change
+                        # But we can't restart here (no systemd in Docker), so the run-phase script will handle it
+                        if "logs_enabled: true" in config_updates:
+                            info("logs_enabled set - agent will be restarted in run phase to pick up changes")
                 except Exception as e:
                     warning(f"Could not update Datadog config file: {e}")
 
