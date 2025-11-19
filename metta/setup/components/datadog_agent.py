@@ -218,6 +218,8 @@ class DatadogAgentSetup(SetupModule):
                         tags_yaml = f"    tags:\n{tags_lines}\n"
 
                     log_config_file = os.path.join(custom_logs_dir, "conf.yaml")
+                    # Use explicit file paths (Datadog doesn't reliably support wildcards)
+                    # Create empty log files to ensure they exist when agent starts
                     log_config = f"""# Custom log collection for SkyPilot jobs
 logs:
   - type: file
@@ -225,12 +227,6 @@ logs:
     service: datadog-agent
     source: datadog-agent
     sourcecategory: monitoring
-{tags_yaml}
-  - type: file
-    path: /tmp/training_logs/*.log
-    service: skypilot-training
-    source: training
-    sourcecategory: application
 {tags_yaml}
   - type: file
     path: /tmp/training_logs/training_combined.log
@@ -250,28 +246,17 @@ logs:
     source: training
     sourcecategory: application
 {tags_yaml}
-  - type: file
-    path: /tmp/*.log
-    service: skypilot-job
-    source: custom
-    sourcecategory: application
-{tags_yaml}
-  - type: file
-    path: /var/log/*.log
-    service: skypilot-job
-    source: system
-    sourcecategory: system
-{tags_yaml}
-  - type: file
-    path: /workspace/metta/**/*.log
-    service: metta
-    source: metta
-    sourcecategory: application
-{tags_yaml}    log_processing_rules:
-      - type: multi_line
-        name: new_log_start_with_date
-        pattern: \\d{{4}}-\\d{{2}}-\\d{{2}}
 """
+                    # Ensure log directory and files exist before writing config
+                    training_log_dir = "/tmp/training_logs"
+                    os.makedirs(training_log_dir, exist_ok=True)
+                    # Create empty log files so Datadog agent can start collecting immediately
+                    for log_file in ["training_combined.log", "training_stdout.log", "training_stderr.log"]:
+                        log_path = os.path.join(training_log_dir, log_file)
+                        if not os.path.exists(log_path):
+                            with open(log_path, "a") as f:
+                                f.write("")  # Create empty file
+                            os.chmod(log_path, 0o644)  # Ensure readable
                     with open(log_config_file, "w") as f:
                         f.write(log_config)
                     info("Created custom log collection configuration")

@@ -246,9 +246,14 @@ run_cmd() {
   TRAINING_STDERR_LOG="$TRAINING_LOG_DIR/training_stderr.log"
   TRAINING_COMBINED_LOG="$TRAINING_LOG_DIR/training_combined.log"
 
+  # Create empty log files so Datadog agent can start collecting immediately
+  touch "$TRAINING_STDOUT_LOG" "$TRAINING_STDERR_LOG" "$TRAINING_COMBINED_LOG"
+  chmod 644 "$TRAINING_STDOUT_LOG" "$TRAINING_STDERR_LOG" "$TRAINING_COMBINED_LOG"
+
   # Use process substitution so $! is the trainer (not tee)
   # Redirect stdout and stderr to log files for Datadog collection
-  setsid "${cmd[@]}" > >(tee "$TRAINING_STDOUT_LOG" >> "$TRAINING_COMBINED_LOG") 2> >(tee "$TRAINING_STDERR_LOG" >> "$TRAINING_COMBINED_LOG") &
+  # Use unbuffered output to ensure logs are written immediately
+  setsid "${cmd[@]}" > >(stdbuf -oL -eL tee "$TRAINING_STDOUT_LOG" >> "$TRAINING_COMBINED_LOG") 2> >(stdbuf -oL -eL tee "$TRAINING_STDERR_LOG" >> "$TRAINING_COMBINED_LOG") &
   export CMD_PID=$!
 
   sleep 1
