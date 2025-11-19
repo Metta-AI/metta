@@ -221,6 +221,20 @@ def _setup_recipe_logging(log_file: Path, group: str) -> None:
     metta_logger.info(separator)
 
 
+def _run_cleanup_cancelled_runs(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
+    """Clean up cancelled workflow runs from concurrency settings."""
+    _ensure_no_extra_args("cleanup-cancelled-runs", extra_args)
+    _print_header("Cleanup Cancelled Runs")
+
+    cmd = [
+        "uv",
+        "run",
+        str(get_repo_root() / ".github/actions/cleanup-cancelled-runs/cleanup_cancelled_runs.py"),
+    ]
+    passed = _run_command(cmd, "Cleanup cancelled runs", verbose=verbose)
+    return CheckResult("Cleanup Cancelled Runs", passed)
+
+
 def _run_recipe_tests(
     *, verbose: bool = False, name_filter: str | None = None, no_interactive: bool = False, max_local_jobs: int = 2
 ) -> CheckResult:
@@ -310,6 +324,18 @@ stages: dict[str, StageRunner] = {
     "cpp-benchmarks": lambda v, args, name, _: _run_cpp_benchmarks(verbose=v, extra_args=args),
     "nim-tests": lambda v, args, name, _: _run_nim_tests(verbose=v, extra_args=args),
     "recipe-tests": lambda v, args, name, ni: _run_recipe_tests(verbose=v, name_filter=name, no_interactive=ni),
+    "cleanup-cancelled-runs": lambda v, args, name, _: _run_cleanup_cancelled_runs(verbose=v, extra_args=args),
+}
+
+# Stages that run by default when `metta ci` is called without --stage
+# Excludes stages that require GitHub Actions context (e.g., cleanup-cancelled-runs)
+DEFAULT_STAGES = {
+    "lint",
+    "python-tests-and-benchmarks",
+    "cpp-tests",
+    "cpp-benchmarks",
+    "nim-tests",
+    "recipe-tests",
 }
 
 
@@ -356,13 +382,15 @@ def cmd_ci(
             error(f"Stage '{stage}' failed.")
             sys.exit(1)
 
-    # Otherwise run all stages (local development workflow)
+    # Otherwise run all default stages (local development workflow)
     console.print(Panel.fit("[bold]Running All CI Checks[/bold]", border_style="cyan"))
 
     results: list[CheckResult] = []
 
-    # Run all stages in order
+    # Run only default stages (excludes stages that require GitHub Actions context)
     for stage_name, stage_func in stages.items():
+        if stage_name not in DEFAULT_STAGES:
+            continue
         result = stage_func(verbose, None, None, no_interactive)
         results.append(result)
         if not result.passed and not continue_on_error:
