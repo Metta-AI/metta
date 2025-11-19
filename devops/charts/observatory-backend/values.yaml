@@ -5,6 +5,9 @@
 # That endpoint is protected by oauth2-proxy.
 host: api.observatory.softmax-research.net
 
+# Large DuckDB uploads for eval stats need a generous body size limit.
+ingressMaxBodySize: 200m
+
 image:
   registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
   name: metta-app-backend

@@ -7,6 +7,9 @@ metadata:
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_set_header X-Auth-Request-Email   "";
       proxy_set_header X-Auth-Request-User    "";
+    {{- if .Values.ingressMaxBodySize }}
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.ingressMaxBodySize | quote }}
+    {{- end }}
 
 spec:
   ingressClassName: nginx
