@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import subprocess
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.worker_managers.worker import Worker
@@ -12,9 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class K8sPodManager(AbstractContainerManager):
-    def __init__(
-        self, namespace: Optional[str] = None, kubeconfig: Optional[str] = None, wandb_api_key: Optional[str] = None
-    ):
+    def __init__(self, namespace: str | None = None, kubeconfig: str | None = None, wandb_api_key: str | None = None):
         self._namespace = namespace or os.environ.get("KUBERNETES_NAMESPACE", "orchestrator")
         self._kubeconfig = kubeconfig or os.environ.get("KUBERNETES_KUBECONFIG", None)
         self._wandb_api_key = wandb_api_key or os.environ.get("WANDB_API_KEY", "")
