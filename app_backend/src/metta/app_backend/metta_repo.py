@@ -7,7 +7,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from psycopg import Connection
-from psycopg.rows import class_row
+from psycopg.rows import class_row, dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field
@@ -92,6 +92,13 @@ class PolicyVersionRow(BaseModel):
     policy_spec: dict[str, Any]
     attributes: dict[str, Any]
     created_at: datetime
+
+
+class LeaderboardEntry(BaseModel):
+    policy_version: PolicyVersionRow
+    policy_name: str
+    user_id: str
+    score: float
 
 
 logger = logging.getLogger(name="metta_repo")
@@ -730,3 +737,94 @@ class MettaRepo:
                 )
 
             return id
+
+    async def get_leaderboard_entries(
+        self,
+        leaderboard_tag_key: str,
+        user_id: str | None = None,
+    ) -> list[LeaderboardEntry]:
+        """Fetch leaderboard entries optionally filtered by policy user ID."""
+        user_filter_clause = ""
+        params: list[Any] = [leaderboard_tag_key]
+        if user_id is not None:
+            user_filter_clause = "AND pol.user_id = %s"
+            params.append(user_id)
+
+        query = f"""
+WITH per_sim AS (
+    SELECT
+        ep.policy_version_id,
+        pv.internal_id,
+        et.value AS leaderboard_name,
+        AVG(epm.value / ep.num_agents) AS avg_reward_per_agent
+    FROM episode_policies ep
+    JOIN episodes e ON e.id = ep.episode_id
+    JOIN policy_versions pv ON pv.id = ep.policy_version_id
+    JOIN policies pol ON pol.id = pv.policy_id
+    JOIN episode_policy_metrics epm
+        ON epm.episode_internal_id = e.internal_id
+        AND epm.pv_internal_id = pv.internal_id
+    JOIN episode_tags et ON et.episode_id = e.id
+    WHERE epm.metric_name = 'reward'
+      AND et.key = %s
+      {user_filter_clause}
+    GROUP BY ep.policy_version_id, pv.internal_id, et.value
+)
+SELECT
+    pv.id AS policy_version_id,
+    pv.internal_id,
+    pv.policy_id,
+    pv.version,
+    pv.s3_path,
+    pv.git_hash,
+    pv.policy_spec,
+    pv.attributes,
+    pv.created_at,
+    pol.name AS policy_name,
+    pol.user_id,
+    AVG(per_sim.avg_reward_per_agent) AS leaderboard_score
+FROM per_sim
+JOIN policy_versions pv ON pv.id = per_sim.policy_version_id
+JOIN policies pol ON pol.id = pv.policy_id
+GROUP BY
+    pv.id,
+    pv.internal_id,
+    pv.policy_id,
+    pv.version,
+    pv.s3_path,
+    pv.git_hash,
+    pv.policy_spec,
+    pv.attributes,
+    pv.created_at,
+    pol.name,
+    pol.user_id
+ORDER BY leaderboard_score DESC, pv.created_at DESC
+"""
+
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(query, params)
+                rows = await cur.fetchall()
+
+        entries: list[LeaderboardEntry] = []
+        for row in rows:
+            policy_version = PolicyVersionRow(
+                id=row["policy_version_id"],
+                internal_id=row["internal_id"],
+                policy_id=row["policy_id"],
+                version=row["version"],
+                s3_path=row["s3_path"],
+                git_hash=row["git_hash"],
+                policy_spec=row["policy_spec"] or {},
+                attributes=row["attributes"] or {},
+                created_at=row["created_at"],
+            )
+            entries.append(
+                LeaderboardEntry(
+                    policy_version=policy_version,
+                    policy_name=row["policy_name"],
+                    user_id=row["user_id"],
+                    score=row["leaderboard_score"],
+                )
+            )
+        return entries

@@ -12,18 +12,20 @@ from metta.app_backend.clients.stats_client import (
     PROD_STATS_SERVER_URI,
     StatsClient,
 )
+from metta.app_backend.leaderboard_constants import (
+    EVALS_DONE_KEY,
+    REMOTE_JOB_ID_KEY,
+    SUBMITTED_KEY,
+    V0_LEADERBOARD_NAME_TAG_KEY,
+)
 from metta.app_backend.metta_repo import TaskStatus
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.fs import get_repo_root
 from metta.common.util.log_config import init_suppress_warnings
-from recipes.experiment.v0_leaderboard_eval import V0_LEADERBOARD_NAME_TAG_KEY
 
 logger = logging.getLogger(__name__)
 
-SUBMITTED_KEY = "cogames-submitted"
-REMOTE_JOB_ID_KEY = "v0-leaderboard-eval-remote-job-id"
-EVALS_DONE_KEY = "v0-leaderboard-evals-done"
 DEFAULT_POLL_INTERVAL_SECONDS = 60.0
 
 
@@ -66,6 +68,10 @@ ORDER BY et1.value
 """
         ).rows
         return {leaderboard_name: score for leaderboard_name, score in rows}
+
+    def get_leaderboard_score(self, policy_version_id: uuid.UUID) -> float:
+        scores = self._get_per_sim_scores(policy_version_id).values()
+        return sum(scores) / len(scores)
 
     def _fetch_unscheduled_policy_versions(self) -> list[uuid.UUID]:
         """Get submitted policy versions that still need evals or whose prior eval failed."""

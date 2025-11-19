@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo, PolicyVersionRow
 from metta.app_backend.route_logger import timed_route
+from metta.app_backend.routes.leaderboard_routes import register_leaderboard_routes
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
 
@@ -60,6 +61,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     # Create the user-or-token authentication dependency
     user_or_token = Depends(create_user_or_token_dependency())
+
+    register_leaderboard_routes(router, stats_repo)
 
     @router.post("/policies", response_model=UUIDResponse)
     @timed_route("create_policy")
