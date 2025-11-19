@@ -4,20 +4,19 @@ import json
 import logging
 import os
 import socket
-import sys
 import time
 import traceback
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-from metta.sweep.dispatchers import LocalDispatcher
-from metta.adaptive.models import JobDefinition
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
+from metta.sweep.dispatchers import LocalDispatcher
+from metta.sweep.models import JobDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ class WorkerTool(Tool):
 
     # Database configuration (can be passed as argument or environment variable)
     db_url: Optional[str] = None  # PostgreSQL connection URL
-    run: Optional[str] = None  
+    run: Optional[str] = None
 
     # Worker configuration
     worker_id: Optional[str] = None  # Unique worker identifier
@@ -202,7 +201,8 @@ class WorkerTool(Tool):
                     """)
 
                     # Register or update this worker
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO worker_status (worker_id, hostname, group_id, status)
                         VALUES (%s, %s, %s, 'idle')
                         ON CONFLICT (worker_id) DO UPDATE
@@ -212,7 +212,9 @@ class WorkerTool(Tool):
                             last_heartbeat = NOW(),
                             started_at = NOW(),
                             current_job_id = NULL
-                    """, (self.worker_id, socket.gethostname(), self.group))
+                    """,
+                        (self.worker_id, socket.gethostname(), self.group),
+                    )
                     conn.commit()
 
             logger.info(f"Worker {self.worker_id} registered in database")
@@ -224,13 +226,16 @@ class WorkerTool(Tool):
         try:
             with psycopg2.connect(self.db_url) as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         UPDATE worker_status
                         SET status = 'offline',
                             last_heartbeat = NOW(),
                             current_job_id = NULL
                         WHERE worker_id = %s
-                    """, (self.worker_id,))
+                    """,
+                        (self.worker_id,),
+                    )
                     conn.commit()
 
             logger.info(f"Worker {self.worker_id} marked as offline")
@@ -242,11 +247,14 @@ class WorkerTool(Tool):
         try:
             with psycopg2.connect(self.db_url) as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         UPDATE worker_status
                         SET last_heartbeat = NOW()
                         WHERE worker_id = %s
-                    """, (self.worker_id,))
+                    """,
+                        (self.worker_id,),
+                    )
                     conn.commit()
 
             logger.debug(f"Worker {self.worker_id} sent heartbeat")
@@ -274,7 +282,8 @@ class WorkerTool(Tool):
                     # Atomically claim the oldest pending job (optionally filtered by group)
                     if self.group:
                         # Only claim jobs from the specified group
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             UPDATE job_queue
                             SET status = 'claimed',
                                 worker_id = %s,
@@ -288,10 +297,13 @@ class WorkerTool(Tool):
                                 LIMIT 1
                             )
                             RETURNING job_id, job_definition
-                        """, (self.worker_id, self.group))
+                        """,
+                            (self.worker_id, self.group),
+                        )
                     else:
                         # Claim any pending job (no group filter)
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             UPDATE job_queue
                             SET status = 'claimed',
                                 worker_id = %s,
@@ -304,25 +316,30 @@ class WorkerTool(Tool):
                                 LIMIT 1
                             )
                             RETURNING job_id, job_definition
-                        """, (self.worker_id,))
+                        """,
+                            (self.worker_id,),
+                        )
 
                     row = cursor.fetchone()
                     if row:
                         # Update worker status to busy
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             UPDATE worker_status
                             SET status = 'busy',
                                 current_job_id = %s,
                                 last_heartbeat = NOW()
                             WHERE worker_id = %s
-                        """, (row['job_id'], self.worker_id))
+                        """,
+                            (row["job_id"], self.worker_id),
+                        )
                         conn.commit()
 
                         # Deserialize job definition
-                        job_dict = row['job_definition']
+                        job_dict = row["job_definition"]
                         # Convert ISO format string back to datetime if present
-                        if 'created_at' in job_dict and isinstance(job_dict['created_at'], str):
-                            job_dict['created_at'] = datetime.fromisoformat(job_dict['created_at'])
+                        if "created_at" in job_dict and isinstance(job_dict["created_at"], str):
+                            job_dict["created_at"] = datetime.fromisoformat(job_dict["created_at"])
 
                         return JobDefinition(**job_dict)
 
@@ -332,8 +349,9 @@ class WorkerTool(Tool):
             logger.error(f"Failed to claim job: {e}", exc_info=True)
             return None
 
-    def _execute_job(self, job: JobDefinition, local_dispatcher: LocalDispatcher,
-                     is_distributed: bool, num_nodes: int, num_gpus: int):
+    def _execute_job(
+        self, job: JobDefinition, local_dispatcher: LocalDispatcher, is_distributed: bool, num_nodes: int, num_gpus: int
+    ):
         """Execute a job using appropriate strategy (run.sh for distributed, direct for single).
 
         Args:
@@ -345,8 +363,8 @@ class WorkerTool(Tool):
         """
         try:
             # Update status to running
-            self._update_job_status(job.run_id, 'running', is_distributed, is_master=True)
-            self._update_worker_status('busy', job.run_id)
+            self._update_job_status(job.run_id, "running", is_distributed, is_master=True)
+            self._update_worker_status("busy", job.run_id)
 
             # LocalDispatcher handles both torchrun and direct execution based on its configuration
             if is_distributed or num_gpus > 1:
@@ -368,22 +386,26 @@ class WorkerTool(Tool):
                 self._send_heartbeat()
 
             # Job completed successfully
-            self._update_job_status(job.run_id, 'completed', is_distributed, is_master=True)
+            self._update_job_status(job.run_id, "completed", is_distributed, is_master=True)
             logger.info(f"Job {job.run_id} completed successfully")
 
         except Exception as e:
             error_msg = f"Job {job.run_id} failed: {str(e)}\n{traceback.format_exc()}"
             logger.error(error_msg)
-            self._update_job_status(job.run_id, 'failed', is_distributed, is_master=True,
-                                   error_message=error_msg)
+            self._update_job_status(job.run_id, "failed", is_distributed, is_master=True, error_message=error_msg)
 
         finally:
             # Update worker status back to idle
-            self._update_worker_status('idle')
+            self._update_worker_status("idle")
 
-    def _update_job_status(self, job_id: str, status: str,
-                          is_distributed: bool = False, is_master: bool = True,
-                          error_message: Optional[str] = None):
+    def _update_job_status(
+        self,
+        job_id: str,
+        status: str,
+        is_distributed: bool = False,
+        is_master: bool = True,
+        error_message: Optional[str] = None,
+    ):
         """Update the status of a job in the database.
 
         Args:
@@ -395,33 +417,42 @@ class WorkerTool(Tool):
         """
         # Only master updates job status in distributed mode
         if is_distributed and not is_master:
-            logger.debug(f"Worker node skipping job status update (master's responsibility)")
+            logger.debug("Worker node skipping job status update (master's responsibility)")
             return
 
         try:
             with psycopg2.connect(self.db_url) as conn:
                 with conn.cursor() as cursor:
-                    if status == 'running':
-                        cursor.execute("""
+                    if status == "running":
+                        cursor.execute(
+                            """
                             UPDATE job_queue
                             SET status = %s,
                                 started_at = NOW()
                             WHERE job_id = %s
-                        """, (status, job_id))
-                    elif status in ('completed', 'failed'):
-                        cursor.execute("""
+                        """,
+                            (status, job_id),
+                        )
+                    elif status in ("completed", "failed"):
+                        cursor.execute(
+                            """
                             UPDATE job_queue
                             SET status = %s,
                                 completed_at = NOW(),
                                 error_message = %s
                             WHERE job_id = %s
-                        """, (status, error_message, job_id))
+                        """,
+                            (status, error_message, job_id),
+                        )
                     else:
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             UPDATE job_queue
                             SET status = %s
                             WHERE job_id = %s
-                        """, (status, job_id))
+                        """,
+                            (status, job_id),
+                        )
                     conn.commit()
 
             logger.debug(f"Updated job {job_id} status to {status}")
@@ -438,19 +469,21 @@ class WorkerTool(Tool):
         try:
             with psycopg2.connect(self.db_url) as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         UPDATE worker_status
                         SET status = %s,
                             current_job_id = %s,
                             last_heartbeat = NOW()
                         WHERE worker_id = %s
-                    """, (status, current_job_id, self.worker_id))
+                    """,
+                        (status, current_job_id, self.worker_id),
+                    )
                     conn.commit()
         except Exception as e:
             logger.error(f"Failed to update worker status: {e}")
 
-    def _run_worker_node(self, node_rank: int, num_nodes: int, num_gpus: int,
-                        local_dispatcher: LocalDispatcher):
+    def _run_worker_node(self, node_rank: int, num_nodes: int, num_gpus: int, local_dispatcher: LocalDispatcher):
         """Worker node loop: wait for job signals from master.
 
         Args:
@@ -488,11 +521,11 @@ class WorkerTool(Tool):
                             """)
                             row = cursor.fetchone()
 
-                            if row and row['job_id'] not in processed_jobs:
-                                job_dict = row['job_definition']
+                            if row and row["job_id"] not in processed_jobs:
+                                job_dict = row["job_definition"]
                                 # Convert ISO format string back to datetime if present
-                                if 'created_at' in job_dict and isinstance(job_dict['created_at'], str):
-                                    job_dict['created_at'] = datetime.fromisoformat(job_dict['created_at'])
+                                if "created_at" in job_dict and isinstance(job_dict["created_at"], str):
+                                    job_dict["created_at"] = datetime.fromisoformat(job_dict["created_at"])
 
                                 job = JobDefinition(**job_dict)
                                 logger.info(f"Worker node {node_rank} received job signal for {job.run_id}")
@@ -502,7 +535,9 @@ class WorkerTool(Tool):
 
                                 # Execute the job using LocalDispatcher (which will use run.sh)
                                 dispatch_id = local_dispatcher.dispatch(job)
-                                logger.info(f"Worker node {node_rank} dispatched job {job.run_id} with PID {dispatch_id}")
+                                logger.info(
+                                    f"Worker node {node_rank} dispatched job {job.run_id} with PID {dispatch_id}"
+                                )
 
                                 # Wait for completion
                                 while local_dispatcher.check_processes() > 0:
@@ -512,9 +547,12 @@ class WorkerTool(Tool):
                                 last_job_time = time.time()
 
                                 # Clean up the signal after execution
-                                cursor.execute("""
+                                cursor.execute(
+                                    """
                                     DELETE FROM job_signals WHERE job_id = %s
-                                """, (job.run_id,))
+                                """,
+                                    (job.run_id,),
+                                )
                                 conn.commit()
 
                 except Exception as e:
@@ -541,8 +579,8 @@ class WorkerTool(Tool):
         try:
             # Serialize job with datetime handling
             job_dict = asdict(job)
-            if 'created_at' in job_dict and isinstance(job_dict['created_at'], datetime):
-                job_dict['created_at'] = job_dict['created_at'].isoformat()
+            if "created_at" in job_dict and isinstance(job_dict["created_at"], datetime):
+                job_dict["created_at"] = job_dict["created_at"].isoformat()
 
             with psycopg2.connect(self.db_url) as conn:
                 with conn.cursor() as cursor:
@@ -559,14 +597,17 @@ class WorkerTool(Tool):
                     """)
 
                     # Insert or update signal
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO job_signals (job_id, job_definition)
                         VALUES (%s, %s)
                         ON CONFLICT (job_id) DO UPDATE
                         SET job_definition = EXCLUDED.job_definition,
                             created_at = NOW(),
                             expires_at = NOW() + INTERVAL '5 minutes'
-                    """, (job.run_id, json.dumps(job_dict)))
+                    """,
+                        (job.run_id, json.dumps(job_dict)),
+                    )
 
                     # Clean up old signals
                     cursor.execute("DELETE FROM job_signals WHERE expires_at < NOW()")
@@ -580,4 +621,3 @@ class WorkerTool(Tool):
 
         except Exception as e:
             logger.error(f"Failed to signal job to workers: {e}", exc_info=True)
-

@@ -2,11 +2,10 @@
 """Advanced monitoring and management for the worker pool."""
 
 import argparse
-import json
 import os
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Optional
 
 import psycopg2
@@ -14,8 +13,6 @@ from psycopg2.extras import RealDictCursor
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-
 
 console = Console()
 
@@ -58,7 +55,7 @@ class WorkerPoolMonitor:
                     FROM job_queue
                     GROUP BY status
                 """)
-                status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+                status_counts = {row["status"]: row["count"] for row in cursor.fetchall()}
 
                 # Recent job throughput
                 cursor.execute("""
@@ -72,10 +69,7 @@ class WorkerPoolMonitor:
                 """)
                 throughput = cursor.fetchone()
 
-                return {
-                    'status_counts': status_counts,
-                    'throughput': throughput
-                }
+                return {"status_counts": status_counts, "throughput": throughput}
 
     def display_dashboard(self):
         """Display a live dashboard of worker pool status."""
@@ -95,7 +89,7 @@ class WorkerPoolMonitor:
 
                     now = datetime.now(timezone.utc)
                     for worker in workers:
-                        heartbeat_delta = now - worker['last_heartbeat'].replace(tzinfo=timezone.utc)
+                        heartbeat_delta = now - worker["last_heartbeat"].replace(tzinfo=timezone.utc)
                         heartbeat_str = f"{heartbeat_delta.seconds}s ago"
 
                         # Color code based on heartbeat age
@@ -106,21 +100,19 @@ class WorkerPoolMonitor:
                         else:
                             heartbeat_str = f"[green]{heartbeat_str}[/green]"
 
-                        uptime = now - worker['started_at'].replace(tzinfo=timezone.utc)
-                        uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+                        uptime = now - worker["started_at"].replace(tzinfo=timezone.utc)
+                        uptime_str = str(uptime).split(".")[0]  # Remove microseconds
 
-                        status_color = {
-                            'idle': 'green',
-                            'busy': 'yellow',
-                            'offline': 'red'
-                        }.get(worker['status'], 'white')
+                        status_color = {"idle": "green", "busy": "yellow", "offline": "red"}.get(
+                            worker["status"], "white"
+                        )
 
                         worker_table.add_row(
-                            worker['worker_id'],
+                            worker["worker_id"],
                             f"[{status_color}]{worker['status']}[/{status_color}]",
-                            worker['current_job_id'] or "-",
+                            worker["current_job_id"] or "-",
                             heartbeat_str,
-                            uptime_str
+                            uptime_str,
                         )
 
                     # Create queue stats table
@@ -128,17 +120,19 @@ class WorkerPoolMonitor:
                     queue_table.add_column("Metric", style="cyan")
                     queue_table.add_column("Value", style="white")
 
-                    status_counts = stats['status_counts']
-                    throughput = stats['throughput']
+                    status_counts = stats["status_counts"]
+                    throughput = stats["throughput"]
 
-                    queue_table.add_row("Pending Jobs", str(status_counts.get('pending', 0)))
-                    queue_table.add_row("Running Jobs", str(status_counts.get('running', 0) + status_counts.get('claimed', 0)))
-                    queue_table.add_row("Completed Jobs", str(status_counts.get('completed', 0)))
-                    queue_table.add_row("Failed Jobs", str(status_counts.get('failed', 0)))
+                    queue_table.add_row("Pending Jobs", str(status_counts.get("pending", 0)))
+                    queue_table.add_row(
+                        "Running Jobs", str(status_counts.get("running", 0) + status_counts.get("claimed", 0))
+                    )
+                    queue_table.add_row("Completed Jobs", str(status_counts.get("completed", 0)))
+                    queue_table.add_row("Failed Jobs", str(status_counts.get("failed", 0)))
                     queue_table.add_row("", "")  # Spacer
-                    queue_table.add_row("Jobs (Last Hour)", str(throughput['last_hour'] or 0))
-                    queue_table.add_row("Jobs (Last 10 Min)", str(throughput['last_10min'] or 0))
-                    if throughput['avg_duration_seconds']:
+                    queue_table.add_row("Jobs (Last Hour)", str(throughput["last_hour"] or 0))
+                    queue_table.add_row("Jobs (Last 10 Min)", str(throughput["last_10min"] or 0))
+                    if throughput["avg_duration_seconds"]:
                         avg_duration = f"{throughput['avg_duration_seconds']:.1f}s"
                     else:
                         avg_duration = "N/A"
@@ -165,14 +159,17 @@ class WorkerPoolMonitor:
         with psycopg2.connect(self.db_url) as conn:
             with conn.cursor() as cursor:
                 # Mark stale claimed jobs as failed
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE job_queue
                     SET status = 'failed',
                         error_message = 'Job staled (no progress)',
                         completed_at = NOW()
                     WHERE status IN ('claimed', 'running')
                     AND claimed_at < NOW() - INTERVAL '%s hours'
-                """, (older_than_hours,))
+                """,
+                    (older_than_hours,),
+                )
 
                 stale_count = cursor.rowcount
 
@@ -217,15 +214,8 @@ class WorkerPoolMonitor:
 def main():
     """Main entry point for the pool monitor."""
     parser = argparse.ArgumentParser(description="Worker Pool Monitor and Manager")
-    parser.add_argument(
-        "command",
-        choices=["dashboard", "cleanup", "requeue"],
-        help="Command to execute"
-    )
-    parser.add_argument(
-        "--db-url",
-        help="PostgreSQL connection URL (or set POSTGRES_URL env var)"
-    )
+    parser.add_argument("command", choices=["dashboard", "cleanup", "requeue"], help="Command to execute")
+    parser.add_argument("--db-url", help="PostgreSQL connection URL (or set POSTGRES_URL env var)")
 
     args = parser.parse_args()
 

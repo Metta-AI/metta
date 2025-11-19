@@ -34,11 +34,12 @@ class ToolRegistry:
 
     def _register_tools(self) -> None:
         """Lazy import and register all tools."""
+        from metta.sweep.tools import WorkerTool
         from metta.tools.eval import EvaluateTool
         from metta.tools.play import PlayTool
         from metta.tools.replay import ReplayTool
         from metta.tools.request_remote_eval import RequestRemoteEvalTool
-        from metta.sweep.tools import SweepTool, WorkerTool
+        from metta.tools.sweep import SweepTool
         from metta.tools.train import TrainTool
 
         self.register(TrainTool)

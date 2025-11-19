@@ -1,4 +1,3 @@
-
 import logging
 import os
 import uuid
@@ -12,11 +11,14 @@ from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.config import DispatcherType, SweepOrchestratorConfig, SweepToolConfig
 from metta.sweep.core import ParameterConfig
-from metta.sweep.dispatchers import LocalDispatcher, SkypilotDispatcher
+from metta.sweep.dispatchers import LocalDispatcher, RemoteQueueDispatcher, SkypilotDispatcher
 from metta.sweep.protein_config import ProteinConfig
 from metta.sweep.protein_sweep import ProteinSweep
 from metta.sweep.stores import WandbStore
 from metta.tools.utils.auto_config import auto_wandb_config
+
+logger = logging.getLogger(__name__)
+
 
 class SweepTool(Tool):
     """Tool for Bayesian hyperparameter optimization using adaptive experiments.
@@ -207,7 +209,10 @@ class SweepTool(Tool):
         elif config.dispatcher_type == DispatcherType.SKYPILOT:
             dispatcher = SkypilotDispatcher()
         elif config.dispatcher_type == DispatcherType.REMOTE_QUEUE:
-            raise NotImplementedError("[SweepTool] Using RemoteQueueDispatcher for distributed execution")
+            dispatcher = RemoteQueueDispatcher(db_url=config.db_url, group=config.sweep_name)
+            logger.info(
+                f"[SweepTool] Using RemoteQueueDispatcher for distributed execution (group: {config.sweep_name})"
+            )
         else:
             raise ValueError(f"Unsupported dispatcher type: {config.dispatcher_type}")
 

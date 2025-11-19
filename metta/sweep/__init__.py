@@ -9,19 +9,13 @@ This module provides:
 
 # Core parameter configuration
 from metta.sweep.core import (
-    ParameterConfig,
     CategoricalParameterConfig,
-    SweepParameters,
     Distribution,
-    make_sweep,
+    ParameterConfig,
+    SweepParameters,
     grid_search,
+    make_sweep,
 )
-
-# Protein optimizer configuration
-from metta.sweep.protein_config import ProteinConfig, ProteinSettings
-
-# High-level tools
-from metta.sweep.tools import SweepTool, WorkerTool
 
 # Dispatchers for job execution
 from metta.sweep.dispatchers import (
@@ -29,6 +23,12 @@ from metta.sweep.dispatchers import (
     RemoteQueueDispatcher,
     SkypilotDispatcher,
 )
+
+# Protein optimizer configuration
+from metta.sweep.protein_config import ProteinConfig, ProteinSettings
+
+# High-level tools
+from metta.sweep.tools import WorkerTool
 
 __all__ = [
     # Core configuration
@@ -42,7 +42,6 @@ __all__ = [
     "ProteinConfig",
     "ProteinSettings",
     # Tools
-    "SweepTool",
     "WorkerTool",
     # Dispatchers
     "LocalDispatcher",

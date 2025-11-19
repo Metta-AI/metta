@@ -9,8 +9,8 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-from metta.adaptive.models import JobDefinition
-from metta.adaptive.utils import get_display_id
+from metta.sweep.models import JobDefinition
+from metta.sweep.utils import get_display_id
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class RemoteQueueDispatcher:
         if self.group:
             logger.info(f"RemoteQueueDispatcher initialized for group: {self.group}")
         else:
-            logger.info(f"RemoteQueueDispatcher initialized with database connection")
+            logger.info("RemoteQueueDispatcher initialized with database connection")
         self._ensure_table_exists()
 
     def _ensure_table_exists(self):
@@ -71,8 +71,8 @@ class RemoteQueueDispatcher:
             # Serialize job definition to JSON
             # Convert datetime objects to ISO format strings for JSON serialization
             job_dict = asdict(job)
-            if 'created_at' in job_dict and hasattr(job_dict['created_at'], 'isoformat'):
-                job_dict['created_at'] = job_dict['created_at'].isoformat()
+            if "created_at" in job_dict and hasattr(job_dict["created_at"], "isoformat"):
+                job_dict["created_at"] = job_dict["created_at"].isoformat()
 
             with psycopg2.connect(self.db_url) as conn:
                 with conn.cursor() as cursor:
@@ -92,7 +92,7 @@ class RemoteQueueDispatcher:
                             status = 'pending',
                             created_at = NOW()
                         """,
-                        (job.run_id, json.dumps(job_dict), self.group)
+                        (job.run_id, json.dumps(job_dict), self.group),
                     )
                     conn.commit()
 
@@ -116,7 +116,8 @@ class RemoteQueueDispatcher:
             with psycopg2.connect(self.db_url) as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                     if self.group:
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             SELECT
                                 status,
                                 COUNT(*) as count,
@@ -125,7 +126,9 @@ class RemoteQueueDispatcher:
                             FROM job_queue
                             WHERE group_id = %s
                             GROUP BY status
-                        """, (self.group,))
+                        """,
+                            (self.group,),
+                        )
                     else:
                         cursor.execute("""
                             SELECT
@@ -146,7 +149,7 @@ class RemoteQueueDispatcher:
                             WHERE table_name = 'worker_status'
                         );
                     """)
-                    has_worker_table = cursor.fetchone()['exists']
+                    has_worker_table = cursor.fetchone()["exists"]
 
                     worker_stats = []
                     if has_worker_table:
@@ -161,13 +164,10 @@ class RemoteQueueDispatcher:
                         """)
                         worker_stats = cursor.fetchall()
 
-                    return {
-                        'queue_stats': stats,
-                        'worker_stats': worker_stats
-                    }
+                    return {"queue_stats": stats, "worker_stats": worker_stats}
         except Exception as e:
             logger.error(f"Failed to get queue stats: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def cancel_job(self, job_id: str) -> bool:
         """Mark a job as cancelled in the queue.
@@ -190,7 +190,7 @@ class RemoteQueueDispatcher:
                         WHERE job_id = %s
                         AND status IN ('pending', 'claimed')
                         """,
-                        (job_id,)
+                        (job_id,),
                     )
                     cancelled = cursor.rowcount > 0
                     conn.commit()

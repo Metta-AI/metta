@@ -2,11 +2,11 @@
 """Setup script for initializing the worker pool database with Supabase."""
 
 import os
-import sys
 import socket
+import sys
 import urllib.parse
+
 import psycopg2
-from psycopg2 import sql
 
 
 def get_encoded_db_url():
@@ -16,8 +16,8 @@ def get_encoded_db_url():
     db_url = None
 
     # Check environment variable first
-    if 'POSTGRES_URL' in os.environ:
-        db_url = os.environ['POSTGRES_URL']
+    if "POSTGRES_URL" in os.environ:
+        db_url = os.environ["POSTGRES_URL"]
         print("Using database URL from POSTGRES_URL environment variable")
     # Check command line argument
     elif len(sys.argv) > 1:
@@ -34,7 +34,7 @@ def get_encoded_db_url():
         database = "postgres"
 
         # URL-encode the password to handle special characters
-        encoded_password = urllib.parse.quote(password, safe='')
+        encoded_password = urllib.parse.quote(password, safe="")
 
         # Construct the properly encoded URL
         db_url = f"postgresql://{user}:{encoded_password}@{host}:{port}/{database}"
@@ -43,6 +43,7 @@ def get_encoded_db_url():
     try:
         # Parse the database URL to extract components
         from urllib.parse import urlparse
+
         parsed = urlparse(db_url)
 
         # Extract hostname for DNS check
@@ -66,7 +67,7 @@ def get_encoded_db_url():
 
         # Hide password in output
         if parsed.password:
-            safe_url = db_url.replace(parsed.password, '****')
+            safe_url = db_url.replace(parsed.password, "****")
             print(f"Database URL (password hidden): {safe_url}")
         else:
             print(f"Database URL: {db_url}")
@@ -85,7 +86,7 @@ def test_connection(db_url):
             with conn.cursor() as cursor:
                 cursor.execute("SELECT version()")
                 version = cursor.fetchone()[0]
-                print(f"✓ Connected successfully to PostgreSQL")
+                print("✓ Connected successfully to PostgreSQL")
                 print(f"  Version: {version[:60]}...")
 
                 cursor.execute("SELECT current_database()")
@@ -151,7 +152,7 @@ def create_tables(db_url):
                 if job_queue_exists:
                     print("  ℹ job_queue table already exists")
                     response = input("  Drop and recreate tables? (y/n): ")
-                    if response.lower() == 'y':
+                    if response.lower() == "y":
                         cursor.execute("DROP TABLE IF EXISTS worker_status CASCADE;")
                         cursor.execute("DROP TABLE IF EXISTS job_signals CASCADE;")
                         cursor.execute("DROP TABLE IF EXISTS job_queue CASCADE;")
@@ -207,7 +208,9 @@ def create_tables(db_url):
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_status_created ON job_queue (status, created_at);")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_worker_status ON job_queue (worker_id, status);")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_job_id ON job_queue (job_id);")
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_group_status_created ON job_queue (group_id, status, created_at);")
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_group_status_created ON job_queue (group_id, status, created_at);"
+                )
                 print("  ✓ Created indices")
 
                 # Create worker_status table
@@ -373,7 +376,7 @@ def main():
     print("=" * 60)
 
     # Show usage if no URL is available
-    if 'POSTGRES_URL' not in os.environ and len(sys.argv) <= 1:
+    if "POSTGRES_URL" not in os.environ and len(sys.argv) <= 1:
         print("\nUsage:")
         print("  Option 1: Set environment variable")
         print("    export POSTGRES_URL='your_database_url'")
