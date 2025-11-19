@@ -14,7 +14,7 @@ import torch
 from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 
 try:  # Triton availability for GPU tests
-    from cortex.kernels.triton import rtu_stream_diag_triton as _rtu_triton_stream
+    from cortex.kernels.triton.rtu import rtu_stream_diag_triton as _rtu_triton_stream
 
     _HAS_TRITON = True
 except Exception:  # pragma: no cover
