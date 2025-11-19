@@ -253,16 +253,59 @@ run_cmd() {
   # Ensure files are readable/writable by Datadog agent (dd-agent user)
   chmod 666 "$TRAINING_STDOUT_LOG" "$TRAINING_STDERR_LOG" "$TRAINING_COMBINED_LOG"
 
-  # Use process substitution so $! is the trainer (not tee)
-  # Redirect stdout and stderr to log files for Datadog collection
-  # Use unbuffered output to ensure logs are written immediately
-  setsid "${cmd[@]}" > >(stdbuf -oL -eL tee "$TRAINING_STDOUT_LOG" >> "$TRAINING_COMBINED_LOG") 2> >(stdbuf -oL -eL tee "$TRAINING_STDERR_LOG" >> "$TRAINING_COMBINED_LOG") &
+  # Start training with simple file redirection (reliable, works with set -o pipefail)
+  # Redirect stdout and stderr to separate files for Datadog collection
+  setsid "${cmd[@]}" > "$TRAINING_STDOUT_LOG" 2> "$TRAINING_STDERR_LOG" &
   export CMD_PID=$!
+
+  # Merge logs in background for combined log (non-blocking, won't break training if it fails)
+  (
+    # Track what we've already written to avoid duplication
+    STDOUT_POS=0
+    STDERR_POS=0
+    while ps -p "$CMD_PID" > /dev/null 2>&1; do
+      # Append new content from stdout
+      if [ -f "$TRAINING_STDOUT_LOG" ]; then
+        CURRENT_SIZE=$(wc -c < "$TRAINING_STDOUT_LOG" 2>/dev/null || echo 0)
+        if [ "$CURRENT_SIZE" -gt "$STDOUT_POS" ]; then
+          tail -c +$((STDOUT_POS + 1)) "$TRAINING_STDOUT_LOG" >> "$TRAINING_COMBINED_LOG" 2>/dev/null || true
+          STDOUT_POS=$CURRENT_SIZE
+        fi
+      fi
+      # Append new content from stderr
+      if [ -f "$TRAINING_STDERR_LOG" ]; then
+        CURRENT_SIZE=$(wc -c < "$TRAINING_STDERR_LOG" 2>/dev/null || echo 0)
+        if [ "$CURRENT_SIZE" -gt "$STDERR_POS" ]; then
+          tail -c +$((STDERR_POS + 1)) "$TRAINING_STDERR_LOG" >> "$TRAINING_COMBINED_LOG" 2>/dev/null || true
+          STDERR_POS=$CURRENT_SIZE
+        fi
+      fi
+      sleep 2
+    done
+    # Final append of any remaining content
+    if [ -f "$TRAINING_STDOUT_LOG" ]; then
+      tail -c +$((STDOUT_POS + 1)) "$TRAINING_STDOUT_LOG" >> "$TRAINING_COMBINED_LOG" 2>/dev/null || true
+    fi
+    if [ -f "$TRAINING_STDERR_LOG" ]; then
+      tail -c +$((STDERR_POS + 1)) "$TRAINING_STDERR_LOG" >> "$TRAINING_COMBINED_LOG" 2>/dev/null || true
+    fi
+  ) &
 
   sleep 1
 
   export CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2> /dev/null | tr -d ' ')
   echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
+
+  # Verify training process is actually running
+  if ! ps -p "$CMD_PID" > /dev/null 2>&1; then
+    echo "[ERROR] Training process died immediately after startup!"
+    echo "[ERROR] Check log files: $TRAINING_STDOUT_LOG $TRAINING_STDERR_LOG"
+    if [ -f "$TRAINING_STDERR_LOG" ]; then
+      echo "[ERROR] Last 20 lines of stderr:"
+      tail -20 "$TRAINING_STDERR_LOG" || true
+    fi
+    exit 1
+  fi
 
   start_monitors
   start_datadog_agent

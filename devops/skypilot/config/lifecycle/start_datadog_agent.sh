@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # Start Datadog agent as a background daemon in SkyPilot jobs
 # This script is called during the run phase after environment setup
+# This script is non-fatal - failures won't break training
 
-set -e # Exit on error, but allow commands that might fail
+set +e  # Don't exit on error - Datadog is optional, training must continue
 
 # First, update the log collection config with run-specific tags
 # This must happen in the run phase when METTA_RUN_ID and SKYPILOT_TASK_ID are available
 if [ -f "$(dirname "$0")/update_datadog_log_config.sh" ]; then
   echo "[DATADOG] Updating log collection config with run-specific tags..."
-  bash "$(dirname "$0")/update_datadog_log_config.sh"
+  bash "$(dirname "$0")/update_datadog_log_config.sh" || echo "[DATADOG] WARNING: Config update failed, continuing"
 elif [ -f "./devops/skypilot/config/lifecycle/update_datadog_log_config.sh" ]; then
   echo "[DATADOG] Updating log collection config with run-specific tags..."
-  bash ./devops/skypilot/config/lifecycle/update_datadog_log_config.sh
+  bash ./devops/skypilot/config/lifecycle/update_datadog_log_config.sh || echo "[DATADOG] WARNING: Config update failed, continuing"
 else
   echo "[DATADOG] WARNING: update_datadog_log_config.sh not found, skipping config update"
 fi
@@ -112,12 +113,16 @@ if ps -p "$AGENT_PID" > /dev/null; then
   else
     echo "[DATADOG] WARNING: Training log file not found: /tmp/training_logs/training_combined.log"
   fi
-else
-  echo "[DATADOG] WARNING: Agent process died immediately after startup"
-  echo "[DATADOG] Check logs: /tmp/datadog-agent.log"
-  if [ -f /tmp/datadog-agent.log ]; then
-    echo "[DATADOG] Last 20 lines of agent log:"
-    tail -20 /tmp/datadog-agent.log || true
+  else
+    echo "[DATADOG] WARNING: Agent process died immediately after startup (non-critical)"
+    echo "[DATADOG] Check logs: /tmp/datadog-agent.log"
+    if [ -f /tmp/datadog-agent.log ]; then
+      echo "[DATADOG] Last 20 lines of agent log:"
+      tail -20 /tmp/datadog-agent.log || true
+    fi
+    # Don't exit with error - Datadog failures shouldn't break training
+    exit 0
   fi
-  exit 1
-fi
+
+# Always exit successfully - Datadog is optional
+exit 0
