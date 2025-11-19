@@ -43,10 +43,11 @@ class MultiPolicyVersionEvalTool(Tool):
             if not all(paths):
                 raise ValueError("All policy versions must have an s3 path")
             for p in paths:
+                assert p is not None
                 policy_spec = stack.enter_context(policy_spec_from_s3_submission(p))
                 policy_specs.append(policy_spec)
             rollout_results = simulate_and_record(
-                policy_specs=[policy_spec],
+                policy_specs=policy_specs,
                 simulations=self.simulations,
                 replay_dir=self.replay_dir,
                 seed=self.system.seed,

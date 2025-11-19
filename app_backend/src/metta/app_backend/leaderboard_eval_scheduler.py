@@ -104,7 +104,7 @@ LEFT JOIN eval_tasks_view task
 LEFT JOIN policy_version_tags done_tag
     ON pv.id = done_tag.policy_version_id
     AND done_tag.key = '{EVALS_DONE_KEY}'
-    AND done_tag.value != 'true'
+WHERE (done_tag.value IS NULL OR done_tag.value != 'true')
 """
         ).rows
         remote_jobs: list[PolicyRemoteJobStatus] = []
