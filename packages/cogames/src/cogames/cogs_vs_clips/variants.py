@@ -231,8 +231,9 @@ class TinyHeartProtocolsVariant(MissionVariant):
             for vibe in ("heart_a", "red-heart")
             for i in range(4)
         ]
-
-        assembler.protocols = [*tiny_protocols, *assembler.protocols]
+        tiny_keys = {(tuple(p.vibes), p.min_agents) for p in tiny_protocols}
+        existing = [p for p in assembler.protocols if (tuple(p.vibes), p.min_agents) not in tiny_keys]
+        assembler.protocols = [*tiny_protocols, *existing]
 
 
 class VibeCheckMin2Variant(MissionVariant):
