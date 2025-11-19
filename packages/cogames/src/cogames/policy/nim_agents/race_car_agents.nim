@@ -173,8 +173,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   # Randomize the offsets4 for each agent, so they take different directions.
   var offsets4 = Offsets4
   result.random.shuffle(offsets4)
-  for i in 0 ..< offsets4.len:
-    result.offsets4[i] = offsets4[i]
+  result.offsets4 = offsets4
 
   result.exploreLocations = @[
     Location(x: -7, y: 0),
@@ -493,7 +492,7 @@ proc step*(
           doAction(agent.cfg.actions.vibeGear.int32)
           log "switching to gear vibe to craft unclipping tool"
           return
-        # If we know where the assembler is, head there; otherwise keep exploring (no camping).
+        # Require assembler knowledge to craft; otherwise keep exploring normally.
         if agent.assemblerLocation.isSome():
           let action = agent.cfg.aStar(agent.location, agent.assemblerLocation.get(), agent.map)
           if action.isSome():
@@ -504,6 +503,13 @@ proc step*(
         # We have the gear—go unclip the extractor if we know where it is.
         if clippedTarget.isSome():
           let target = clippedTarget.get()
+          if manhattan(agent.location, target) == 1:
+            # Step onto the clipped extractor immediately.
+            let action = agent.cfg.aStar(agent.location, target, agent.map)
+            if action.isSome():
+              doAction(action.get().int32)
+              log "stepping onto clipped extractor to unclip"
+              return
           let action = agent.cfg.aStar(agent.location, target, agent.map)
           if action.isSome():
             doAction(action.get().int32)
@@ -799,10 +805,14 @@ proc step*(
             log "going to explore location: " & $location
             return
           else:
-            agent.exploreLocations.remove(location)
+            let idx = agent.exploreLocations.find(location)
+            if idx >= 0:
+              agent.exploreLocations.delete(idx)
             break
         else:
-          agent.exploreLocations.remove(location)
+          let idx = agent.exploreLocations.find(location)
+          if idx >= 0:
+            agent.exploreLocations.delete(idx)
           break
     measurePop()
 
