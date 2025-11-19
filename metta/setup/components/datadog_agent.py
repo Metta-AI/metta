@@ -200,60 +200,77 @@ class DatadogAgentSetup(SetupModule):
                     custom_logs_dir = os.path.join(conf_d_dir, "custom_logs.d")
                     os.makedirs(custom_logs_dir, exist_ok=True)
 
+                    # Build tags list for log configuration
+                    log_tags = []
+                    for env_var, tag in [
+                        ("METTA_RUN_ID", "metta_run_id"),
+                        ("SKYPILOT_TASK_ID", "skypilot_task_id"),
+                        ("SKYPILOT_NODE_RANK", "node_rank"),
+                        ("SKYPILOT_NUM_NODES", "num_nodes"),
+                    ]:
+                        if value := os.environ.get(env_var):
+                            log_tags.append(f"{tag}:{value}")
+
+                    # Format tags as YAML list
+                    tags_yaml = ""
+                    if log_tags:
+                        tags_lines = "\n".join([f'      - "{tag}"' for tag in log_tags])
+                        tags_yaml = f"    tags:\n{tags_lines}\n"
+
                     log_config_file = os.path.join(custom_logs_dir, "conf.yaml")
-                    log_config = """# Custom log collection for SkyPilot jobs
+                    log_config = f"""# Custom log collection for SkyPilot jobs
 logs:
   - type: file
     path: /tmp/datadog-agent.log
     service: datadog-agent
     source: datadog-agent
     sourcecategory: monitoring
-    
+{tags_yaml}
   - type: file
     path: /tmp/training_logs/*.log
     service: skypilot-training
     source: training
     sourcecategory: application
-    
+{tags_yaml}
   - type: file
     path: /tmp/training_logs/training_combined.log
     service: skypilot-training
     source: training
     sourcecategory: application
-    
+{tags_yaml}
   - type: file
     path: /tmp/training_logs/training_stdout.log
     service: skypilot-training
     source: training
     sourcecategory: application
-    
+{tags_yaml}
   - type: file
     path: /tmp/training_logs/training_stderr.log
     service: skypilot-training
     source: training
     sourcecategory: application
-    
+{tags_yaml}
   - type: file
     path: /tmp/*.log
     service: skypilot-job
     source: custom
     sourcecategory: application
-    
+{tags_yaml}
   - type: file
     path: /var/log/*.log
     service: skypilot-job
     source: system
     sourcecategory: system
-    
+{tags_yaml}
   - type: file
     path: /workspace/metta/**/*.log
     service: metta
     source: metta
     sourcecategory: application
-    log_processing_rules:
+{tags_yaml}    log_processing_rules:
       - type: multi_line
         name: new_log_start_with_date
-        pattern: \d{4}-\d{2}-\d{2}
+        pattern: \\d{{4}}-\\d{{2}}-\\d{{2}}
 """
                     with open(log_config_file, "w") as f:
                         f.write(log_config)
