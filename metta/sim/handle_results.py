@@ -11,7 +11,6 @@ from rich.table import Table
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.collections import remove_none_keys
-from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
 from metta.common.util.log_config import get_console, should_use_rich_console
 from metta.common.wandb.context import WandbRun
 from metta.rl.wandb import (
@@ -22,6 +21,7 @@ from metta.rl.wandb import (
 )
 from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
+from mettagrid.renderer.mettascope import METTASCOPE_REPLAY_URL_PREFIX
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
 
 logger = logging.getLogger(__name__)
