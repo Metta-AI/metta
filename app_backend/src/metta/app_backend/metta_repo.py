@@ -94,9 +94,17 @@ class PolicyVersionRow(BaseModel):
     created_at: datetime
 
 
+class PublicPolicyVersionRow(BaseModel):
+    id: uuid.UUID
+    policy_id: uuid.UUID
+    created_at: datetime
+    policy_created_at: datetime
+    name: str
+    version: int
+
+
 class LeaderboardEntry(BaseModel):
-    policy_version: PolicyVersionRow
-    policy_name: str
+    policy_version: PublicPolicyVersionRow
     user_id: str
     scores: dict[str, float]
     avg_score: float | None = None
@@ -633,6 +641,20 @@ class MettaRepo:
                 await cur.execute("SELECT * FROM policy_versions WHERE id = %s", (policy_version_id,))
                 return await cur.fetchone()
 
+    async def get_user_policy_versions(self, user_id: str) -> list[PublicPolicyVersionRow]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT pv.id, pv.policy_id, pv.created_at, p.name, p.created_at AS policy_created_at, pv.version
+                    FROM policy_versions AS pv, policies AS p
+                    WHERE pv.policy_id = p.id AND p.user_id = %s
+                    ORDER BY pv.created_at DESC, pv.version DESC
+                    """,
+                    (user_id,),
+                )
+                return await cur.fetchall()
+
     async def upsert_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> None:
         if not tags:
             return
@@ -769,6 +791,7 @@ SELECT
     pv.policy_spec,
     pv.attributes,
     pv.created_at,
+    pol.created_at AS policy_created_at,
     pol.name AS policy_name,
     pol.user_id,
     et.value AS leaderboard_name,
@@ -797,6 +820,7 @@ GROUP BY
     pv.created_at,
     pol.name,
     pol.user_id,
+    pol.created_at,
     et.value
 ORDER BY pv.created_at DESC, pol.user_id, pv.id, et.value
 """
@@ -811,20 +835,16 @@ ORDER BY pv.created_at DESC, pol.user_id, pv.id, et.value
             policy_version_id_value = row["policy_version_id"]
             entry = entries_by_policy.get(policy_version_id_value)
             if entry is None:
-                policy_version = PolicyVersionRow(
+                policy_version = PublicPolicyVersionRow(
                     id=row["policy_version_id"],
-                    internal_id=row["internal_id"],
                     policy_id=row["policy_id"],
                     version=row["version"],
-                    s3_path=row["s3_path"],
-                    git_hash=row["git_hash"],
-                    policy_spec=row["policy_spec"] or {},
-                    attributes=row["attributes"] or {},
                     created_at=row["created_at"],
+                    policy_created_at=row["policy_created_at"],
+                    name=row["policy_name"],
                 )
                 entry = LeaderboardEntry(
                     policy_version=policy_version,
-                    policy_name=row["policy_name"],
                     user_id=row["user_id"],
                     scores={},
                 )

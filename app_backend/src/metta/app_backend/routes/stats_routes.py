@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, Depends, Form, HTTPException, UploadFile, s
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo, PolicyVersionRow
+from metta.app_backend.metta_repo import MettaRepo, PolicyVersionRow, PublicPolicyVersionRow
 from metta.app_backend.route_logger import timed_route
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
@@ -329,5 +329,19 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to complete bulk upload: {str(e)}") from e
+
+    @router.get("/policies/my-versions")
+    @timed_route("get_my_policy_versions")
+    async def get_my_policy_versions(user: str = user_or_token) -> list[PublicPolicyVersionRow]:
+        """
+        Get all policy versions for the current user.
+
+        This route is used on https://softmax.com/alignmentleague to get the polices for the current user.
+        """
+        try:
+            policy_versions = await stats_repo.get_user_policy_versions(user)
+            return policy_versions
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get policy versions: {str(e)}") from e
 
     return router
