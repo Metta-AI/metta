@@ -111,9 +111,6 @@ class PPOActor(Loss):
         # Use gamma/lambda from critic to ensure consistency
         gamma = shared_loss_data.get("gamma", None)
         if gamma is not None:
-            print(f"ppo_actor found gamma: {gamma}")
-            print(f"gamma shape: {gamma.shape}")
-            print(f"gamma type: {type(gamma)}")
             gamma_flat = gamma.flatten()
             if gamma_flat.numel() > 0:
                 gamma = gamma_flat[0].item()
