@@ -7,7 +7,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from psycopg import Connection
-from psycopg.rows import class_row
+from psycopg.rows import class_row, dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field
@@ -92,6 +92,22 @@ class PolicyVersionRow(BaseModel):
     policy_spec: dict[str, Any]
     attributes: dict[str, Any]
     created_at: datetime
+
+
+class PublicPolicyVersionRow(BaseModel):
+    id: uuid.UUID
+    policy_id: uuid.UUID
+    created_at: datetime
+    policy_created_at: datetime
+    name: str
+    version: int
+
+
+class LeaderboardEntry(BaseModel):
+    policy_version: PublicPolicyVersionRow
+    user_id: str
+    scores: dict[str, float]
+    avg_score: float | None = None
 
 
 logger = logging.getLogger(name="metta_repo")
@@ -625,6 +641,20 @@ class MettaRepo:
                 await cur.execute("SELECT * FROM policy_versions WHERE id = %s", (policy_version_id,))
                 return await cur.fetchone()
 
+    async def get_user_policy_versions(self, user_id: str) -> list[PublicPolicyVersionRow]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT pv.id, pv.policy_id, pv.created_at, p.name, p.created_at AS policy_created_at, pv.version
+                    FROM policy_versions AS pv, policies AS p
+                    WHERE pv.policy_id = p.id AND p.user_id = %s
+                    ORDER BY pv.created_at DESC, pv.version DESC
+                    """,
+                    (user_id,),
+                )
+                return await cur.fetchall()
+
     async def upsert_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> None:
         if not tags:
             return
@@ -730,3 +760,96 @@ class MettaRepo:
                 )
 
             return id
+
+    async def get_avg_per_agent_score_by_tag(
+        self,
+        tag_key: str,
+        user_id: str | None = None,
+        policy_version_id: uuid.UUID | None = None,
+    ) -> list[LeaderboardEntry]:
+        """Fetch average per-agent scores per tag with optional filters."""
+        params: list[Any] = [tag_key]
+        user_filter_clause = ""
+        policy_filter_clause = ""
+
+        if user_id is not None:
+            user_filter_clause = "AND pol.user_id = %s"
+            params.append(user_id)
+
+        if policy_version_id is not None:
+            policy_filter_clause = "AND pv.id = %s"
+            params.append(policy_version_id)
+
+        query = f"""
+SELECT
+    pv.id AS policy_version_id,
+    pv.internal_id,
+    pv.policy_id,
+    pv.version,
+    pv.s3_path,
+    pv.git_hash,
+    pv.policy_spec,
+    pv.attributes,
+    pv.created_at,
+    pol.created_at AS policy_created_at,
+    pol.name AS policy_name,
+    pol.user_id,
+    et.value AS leaderboard_name,
+    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent
+FROM episode_policies ep
+JOIN episodes e ON e.id = ep.episode_id
+JOIN policy_versions pv ON pv.id = ep.policy_version_id
+JOIN policies pol ON pol.id = pv.policy_id
+JOIN episode_policy_metrics epm
+    ON epm.episode_internal_id = e.internal_id
+    AND epm.pv_internal_id = pv.internal_id
+JOIN episode_tags et ON et.episode_id = e.id
+WHERE epm.metric_name = 'reward'
+  AND et.key = %s
+  {user_filter_clause}
+  {policy_filter_clause}
+GROUP BY
+    pv.id,
+    pv.internal_id,
+    pv.policy_id,
+    pv.version,
+    pv.s3_path,
+    pv.git_hash,
+    pv.policy_spec,
+    pv.attributes,
+    pv.created_at,
+    pol.name,
+    pol.user_id,
+    pol.created_at,
+    et.value
+ORDER BY pv.created_at DESC, pol.user_id, pv.id, et.value
+"""
+
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(query, params)
+                rows = await cur.fetchall()
+
+        entries_by_policy: dict[uuid.UUID, LeaderboardEntry] = {}
+        for row in rows:
+            policy_version_id_value = row["policy_version_id"]
+            entry = entries_by_policy.get(policy_version_id_value)
+            if entry is None:
+                policy_version = PublicPolicyVersionRow(
+                    id=row["policy_version_id"],
+                    policy_id=row["policy_id"],
+                    version=row["version"],
+                    created_at=row["created_at"],
+                    policy_created_at=row["policy_created_at"],
+                    name=row["policy_name"],
+                )
+                entry = LeaderboardEntry(
+                    policy_version=policy_version,
+                    user_id=row["user_id"],
+                    scores={},
+                )
+                entries_by_policy[policy_version_id_value] = entry
+
+            entry.scores[row["leaderboard_name"]] = row["avg_reward_per_agent"]
+
+        return list(entries_by_policy.values())
