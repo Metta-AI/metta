@@ -196,11 +196,7 @@ class HeartChorusVariant(MissionVariant):
 
 
 class TinyHeartProtocolsVariant(MissionVariant):
-    """Prepend small single-agent heart protocols for easy crafting.
-
-    Provides low-cost heart recipes keyed off heart and red-heart vibes so evals and
-    debugging runs can yield hearts without heavy resource accumulation.
-    """
+    """Prepend low-cost heart/red-heart assembler protocols for easy hearts."""
 
     name: str = "tiny_heart_protocols"
     description: str = "Prepend low-cost heart/red-heart assembler protocols."
