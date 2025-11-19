@@ -6,6 +6,7 @@ import time
 import uuid
 from typing import Optional
 
+from gitta import get_current_commit
 from metta.app_backend.clients.stats_client import (
     PROD_STATS_SERVER_URI,
     StatsClient,
@@ -119,12 +120,13 @@ def main() -> None:
 
     backend_url = os.environ.get("BACKEND_URL", PROD_STATS_SERVER_URI)
     machine_token = os.environ.get("MACHINE_TOKEN")
-    eval_git_hash = os.environ.get("EVAL_GIT_HASH")
+    eval_git_hash = os.environ.get("EVAL_GIT_HASH", get_current_commit())
     poll_interval = float(os.environ.get("POLL_INTERVAL", DEFAULT_POLL_INTERVAL_SECONDS))
     repo_root = get_repo_root()
 
     logger.info("Backend URL: %s", backend_url)
     logger.info("Repo root: %s", repo_root)
+    logger.info("Eval git hash: %s", eval_git_hash)
 
     stats_client = create_stats_client(backend_url, machine_token) if machine_token else StatsClient.create(backend_url)
     try:
