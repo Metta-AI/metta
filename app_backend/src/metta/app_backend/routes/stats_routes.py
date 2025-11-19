@@ -1,10 +1,10 @@
 import tempfile
 import uuid
-from typing import Any
+from typing import Annotated, Any
 
 import aioboto3
 import duckdb
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
@@ -107,6 +107,18 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             return policy_version
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get policy version: {str(e)}") from e
+
+    @router.put("/policies/versions/{policy_version_id_str}/tags", response_model=UUIDResponse)
+    @timed_route("update_policy_version_tags")
+    async def update_policy_version_tags_route(
+        policy_version_id_str: str, tags: Annotated[dict[str, str], Body(...)], user: str = user_or_token
+    ) -> UUIDResponse:
+        try:
+            policy_version_id = uuid.UUID(policy_version_id_str)
+            await stats_repo.upsert_policy_version_tags(policy_version_id, tags)
+            return UUIDResponse(id=policy_version_id)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to update policy version tags: {str(e)}") from e
 
     @router.post("/policies/submit", response_model=UUIDResponse)
     @timed_route("submit_policy")

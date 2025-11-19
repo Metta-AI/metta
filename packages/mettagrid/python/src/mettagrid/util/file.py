@@ -1,9 +1,13 @@
+"""
+file.py
+================
+Read and write files to local or s3 destinations.
+"""
+
 from __future__ import annotations
 
 import logging
-import os
 import re
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Union
@@ -11,6 +15,9 @@ from urllib.parse import unquote, urlparse
 
 import boto3
 from botocore.exceptions import NoCredentialsError
+
+# This code is duplicated from metta.common.util.file.py and url.py
+# but we don't want mettagrid to depend on metta.common.
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,27 +117,6 @@ class ParsedURI:
         return cls(raw=value, scheme="file", local_path=local_path, path=str(local_path))
 
 
-METTASCOPE_REPLAY_URL_PREFIX = "https://metta-ai.github.io/metta/mettascope/mettascope.html?replay="
-
-
-def http_url(path: str) -> str:
-    """Convert *s3://* URIs to a public browser URL."""
-    parsed = ParsedURI.parse(path)
-    if parsed.scheme == "s3" and parsed.bucket and parsed.key:
-        return f"https://{parsed.bucket}.s3.amazonaws.com/{parsed.key}"
-    return parsed.canonical if parsed.scheme == "file" else parsed.raw
-
-
-def is_public_uri(url: str | None) -> bool:
-    """
-    Check if a URL is a public HTTP/HTTPS URL.
-    """
-    if not url:
-        return False
-    parsed = urlparse(url)
-    return parsed.scheme in ("http", "https") and bool(parsed.netloc)
-
-
 def write_data(path: str, data: Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
     """Write in-memory bytes/str to *local*, *s3://* destinations."""
     logger = logging.getLogger(__name__)
@@ -160,23 +146,9 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
     raise ValueError(f"Unsupported URI for write_data: {path}")
 
 
-def write_file(path: str, local_file: str, *, content_type: str = "application/octet-stream") -> None:
-    """Upload a file from disk to *s3://*, or copy locally."""
-    logger = logging.getLogger(__name__)
-
+def http_url(path: str) -> str:
+    """Convert *s3://* URIs to a public browser URL."""
     parsed = ParsedURI.parse(path)
-
-    if parsed.scheme == "s3":
-        bucket, key = parsed.require_s3()
-        boto3.client("s3").upload_file(local_file, bucket, key, ExtraArgs={"ContentType": content_type})
-        logger.debug("Uploaded %s → %s (size %d B)", local_file, parsed.canonical, os.path.getsize(local_file))
-        return
-
-    if parsed.scheme == "file" and parsed.local_path is not None:
-        dst = parsed.local_path
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(local_file, dst)
-        logger.debug("Copied %s → %s (size %d B)", local_file, dst, Path(local_file).stat().st_size)
-        return
-
-    raise ValueError(f"Unsupported URI for write_file: {path}")
+    if parsed.scheme == "s3" and parsed.bucket and parsed.key:
+        return f"https://{parsed.bucket}.s3.amazonaws.com/{parsed.key}"
+    return parsed.canonical if parsed.scheme == "file" else parsed.raw

@@ -1,3 +1,4 @@
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -103,25 +104,29 @@ class TestBasicSaveLoad:
         expected_filename = "test_run:v3.mpt"
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
 
-        with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
-            local_path = manager.checkpoint_dir / expected_filename
-            save_policy_artifact_safetensors(
-                local_path,
-                policy_architecture=mock_policy_architecture,
-                state_dict=mock_agent.state_dict(),
-            )
+        try:
+            with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
+                local_path = manager.checkpoint_dir / expected_filename
+                save_policy_artifact_safetensors(
+                    local_path,
+                    policy_architecture=mock_policy_architecture,
+                    state_dict=mock_agent.state_dict(),
+                )
 
-            # Upload via the actual policy save path
-            env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-            policy_spec = CheckpointManager.policy_spec_from_uri(f"file://{local_path}")
-            policy = initialize_or_load_policy(env_info, policy_spec)
-            remote_uri = policy.save_policy(expected_remote, policy_architecture=mock_policy_architecture)
+                # Upload via the actual policy save path
+                env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+                policy_spec = CheckpointManager.policy_spec_from_uri(f"file://{local_path}")
+                policy = initialize_or_load_policy(env_info, policy_spec)
+                remote_uri = policy.save_policy(expected_remote, policy_architecture=mock_policy_architecture)
 
-            assert remote_uri == expected_remote
-            mock_write.assert_called_once()
-            remote_arg, local_arg = mock_write.call_args[0]
-            assert remote_arg == expected_remote
-            assert Path(local_arg).name == Path(expected_filename).name
+                assert remote_uri == expected_remote
+                mock_write.assert_called_once()
+                remote_arg, local_arg = mock_write.call_args[0]
+                assert remote_arg == expected_remote
+                assert Path(local_arg).name == Path(expected_filename).name
+        finally:
+            if Path(expected_filename).exists():
+                os.remove(expected_filename)
 
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         epochs = [1, 5, 10]
