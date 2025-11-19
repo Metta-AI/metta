@@ -16,15 +16,15 @@ from metta.rl.utils import prepare_policy_forward_td
 
 
 class ActionSupervisedConfig(LossConfig):
-    action_loss_coef: float = Field(default=0.75, ge=0)
-    sample_enabled: bool = True  # Does not use prioritized sampling
-    rollout_forward_enabled: bool = True  # Update when including PPO as concurent loss
-    train_forward_enabled: bool = True  # Update when including PPO as concurent loss
+    action_loss_coef: float = Field(default=1, ge=0)
+    sample_enabled: bool = True  # True means sequentially sample from the buffer during train in this loss
+    rollout_forward_enabled: bool = True  # Control the rollout. If true, ensure ppo_critic is not also running rollout
+    train_forward_enabled: bool = True  # Forward policy during training. Same as above re PPO concurency collisions.
     teacher_lead_prob: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
-    action_reward_coef: float = Field(default=0.01, ge=0)  # wild ass guess at this point
 
     # Controls whether to add the imitation loss to the environment rewards.
-    add_action_loss_to_rewards: bool = Field(default=True)
+    add_action_loss_to_rewards: bool = Field(default=False)
+    action_reward_coef: float = Field(default=0.01, ge=0)  # value is awild ass guess
 
     def create(
         self,
@@ -41,7 +41,6 @@ class ActionSupervisedConfig(LossConfig):
         )
 
 
-# --------------------------ActionSupervised Loss----------------------------------
 class ActionSupervised(Loss):
     __slots__ = (
         "action_loss_coef",
@@ -119,10 +118,6 @@ class ActionSupervised(Loss):
 
         minibatch = shared_loss_data["sampled_mb"]
 
-        # av update the below to use the sampler. forward then in the rollout. Should overtake prio sampler rollout.
-        # use loss run gate accordingly
-        # then clean up the below since the sampler runs the policy in training.
-        # add the gather here, going of the policy's full logprobs
         if self.train_forward_enabled:
             policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
             flat_actions = minibatch["actions"].reshape(B * TT, -1)
@@ -130,16 +125,12 @@ class ActionSupervised(Loss):
             policy_td = self.policy.forward(policy_td, action=flat_actions)
             policy_td = policy_td.reshape(B, TT)
             shared_loss_data["policy_td"] = policy_td
-
-        # AV: the above runs a gather on the teacher actions against the student's logprobs which is the same as CE loss
-        # so that's slick. But that means we shouldn't write this policy td to shared_loss_data when using PPO!
-        # That means that when using PPO we need to write a separate gather here.
         else:
             policy_td = shared_loss_data["policy_td"]
 
         policy_full_log_probs = policy_td["full_log_probs"].reshape(minibatch.shape[0], minibatch.shape[1], -1)
         teacher_actions = minibatch["teacher_actions"]
-        # run a gather to get the student's logprobs for the teacher actions
+        # get the student's logprob for the action that the teacher chose
         student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1))
         student_log_probs = student_log_probs.reshape(minibatch.shape[0], minibatch.shape[1])
 
