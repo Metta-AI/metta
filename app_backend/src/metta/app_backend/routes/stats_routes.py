@@ -215,9 +215,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             return PresignedUploadUrlResponse(upload_url=presigned_url, s3_key=s3_key, upload_id=upload_id)
 
         except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to generate presigned URL: {str(e)}"
-            ) from e
+            raise HTTPException(status_code=500, detail=f"Failed to generate presigned URL: {str(e)}") from e
 
     @router.post("/episodes/bulk_upload/complete", response_model=BulkEpisodeUploadResponse)
     @timed_route("complete_bulk_upload")

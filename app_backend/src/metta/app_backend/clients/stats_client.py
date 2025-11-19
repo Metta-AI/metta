@@ -13,6 +13,7 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFil
 from metta.app_backend.routes.sql_routes import SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
     BulkEpisodeUploadResponse,
+    CompleteBulkUploadRequest,
     PolicyCreate,
     PolicyVersionCreate,
     PresignedUploadUrlResponse,
@@ -120,7 +121,6 @@ class StatsClient:
             s3_response.raise_for_status()
 
         # Step 3: Notify backend to process the uploaded file
-        from metta.app_backend.routes.stats_routes import CompleteBulkUploadRequest
 
         completion_request = CompleteBulkUploadRequest(upload_id=presigned_response.upload_id)
         completion_response = self._make_sync_request(
