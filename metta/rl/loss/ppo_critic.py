@@ -146,7 +146,7 @@ class PPOCritic(Loss):
             )
             # mb data should have been computed with policy under torch.no_grad()
             shared_loss_data["sampled_mb"] = minibatch
-            shared_loss_data["indices"] = NonTensorData(indices)
+            shared_loss_data["indices"] = NonTensorData(indices)  # this may break compile if we ever use it again
             shared_loss_data["prio_weights"] = prio_weights
         else:
             minibatch = shared_loss_data["sampled_mb"]
@@ -163,6 +163,10 @@ class PPOCritic(Loss):
                 )
 
         shared_loss_data["advantages"] = self.advantages[indices]
+        # Share gamma/lambda with other losses (e.g. actor) to ensure consistency
+        batch_size = shared_loss_data.batch_size
+        shared_loss_data["gamma"] = torch.full(batch_size, self.cfg.gamma, device=self.device)
+        shared_loss_data["gae_lambda"] = torch.full(batch_size, self.cfg.gae_lambda, device=self.device)
 
         # forward the policy if called for
         if self.train_forward_enabled:

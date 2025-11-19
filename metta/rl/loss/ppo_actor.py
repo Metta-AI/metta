@@ -26,10 +26,6 @@ class PPOActorConfig(LossConfig):
     clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
     # Entropy term weight from sweep
     ent_coef: float = Field(default=0.010000, ge=0)
-    # GAE lambda tuned via sweep (cf. standard 0.95)
-    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
-    # Gamma tuned for shorter effective horizon
-    gamma: float = Field(default=0.977, ge=0, le=1.0)
 
     # Normalization and clipping
     # Advantage normalization toggle
@@ -97,14 +93,27 @@ class PPOActor(Loss):
         importance_sampling_ratio = logratio.exp()
 
         # Re-compute advantages with new ratios (V-trace)
+        # Use gamma/lambda from critic to ensure consistency
+        gamma = shared_loss_data.get("gamma", None)
+        if gamma is not None:
+            gamma = gamma.flatten()[0].item()
+        else:
+            raise ValueError("ppo_actor could not find gamma in shared_loss_data")
+
+        gae_lambda = shared_loss_data.get("gae_lambda", None)
+        if gae_lambda is not None:
+            gae_lambda = gae_lambda.flatten()[0].item()
+        else:
+            raise ValueError("ppo_actor could not find gae_lambda in shared_loss_data")
+
         adv = compute_advantage(
             minibatch["values"],
             minibatch["rewards"],
             minibatch["dones"],
             importance_sampling_ratio,
             shared_loss_data["advantages"],
-            cfg.gamma,
-            cfg.gae_lambda,
+            gamma,
+            gae_lambda,
             cfg.vtrace.rho_clip,
             cfg.vtrace.c_clip,
             self.device,
