@@ -8,20 +8,12 @@ on:
     types: [completed]
     branches:
       - main
-      - akshay/jobs-shouldnt-cause-x-red-pr-comment-fixes # TEMPORARY: for testing
-  # TEMPORARY: Direct triggers for testing on branch
-  # push: Automatically runs when you push to the test branch
-  push:
-    branches:
-      - akshay/jobs-shouldnt-cause-x-red-pr-comment-fixes
-  # workflow_dispatch: Manual trigger from GitHub Actions UI for testing
-  workflow_dispatch:
 
 # Explicit concurrency settings to prevent cancellation
 # Each cleanup run gets a unique group based on the triggering workflow run ID
 # cancel-in-progress: false ensures this workflow never gets cancelled
 concurrency:
-  group: cleanup-cancelled-runs-${{ github.event.workflow_run.id || github.run_id }}
+  group: cleanup-cancelled-runs-${{ github.event.workflow_run.id }}
   cancel-in-progress: false
 
 permissions:
@@ -31,18 +23,13 @@ permissions:
 jobs:
   cleanup-cancelled-runs:
     name: "Cleanup Cancelled Runs"
-    # TEMPORARY: Allow testing on branch, then restrict to merge commits on main
-    # For workflow_run: only run on push events to main or test branch
-    # For push/workflow_dispatch: always run (for testing)
+    # Only run on push events to main (typically merge commits)
+    # This ensures we clean up cancelled runs after merges to main
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'push' ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.event == 'push' &&
-       (github.event.workflow_run.head_branch == 'akshay/jobs-shouldnt-cause-x-red-pr-comment-fixes' ||
-        (github.event.workflow_run.head_branch == 'main' &&
-         (contains(github.event.workflow_run.head_commit.message, 'Merge pull request') ||
-          contains(github.event.workflow_run.head_commit.message, 'Merge branch')))))
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      (contains(github.event.workflow_run.head_commit.message, 'Merge pull request') ||
+       contains(github.event.workflow_run.head_commit.message, 'Merge branch'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
