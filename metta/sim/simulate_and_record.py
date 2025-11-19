@@ -1,4 +1,3 @@
-from functools import partial
 from typing import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict
@@ -7,7 +6,6 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
 from metta.sim.handle_results import send_eval_results_to_wandb, write_eval_results_to_observatory
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult, run_simulations
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 
 
@@ -54,9 +52,7 @@ def simulate_and_record(
     on_progress: Callable[[str], None] = lambda x: None,
 ) -> list[SimulationRunResult]:
     rollout_results = run_simulations(
-        policy_initializers=[
-            partial(initialize_or_load_policy, policy_spec=policy_spec) for policy_spec in policy_specs
-        ],
+        policy_specs=policy_specs,
         simulations=simulations,
         replay_dir=replay_dir,
         seed=seed,

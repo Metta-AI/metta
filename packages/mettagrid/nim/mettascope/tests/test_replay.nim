@@ -1,6 +1,6 @@
 import
-  std/[json, os, osproc, sequtils, strformat, strutils, times],
-  zippy, jsony,
+  std/[json, os, osproc, strformat, strutils, times],
+  zippy,
   mettascope/[validation, replays]
 
 proc loadReplay(path: string): JsonNode =
