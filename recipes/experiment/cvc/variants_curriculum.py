@@ -173,7 +173,7 @@ def make_curriculum(
                         variant_names=[variant_name],
                     )
                     mission_env = mission.make_env()
-                    cogs_v_clips._clamp_agent_inventory(mission_env)
+                    # Note: Inventory clamping is handled automatically by the Inventory class
 
                 # Deduplicate assembler protocols to avoid C++ config errors
                 # Multiple variants (e.g., CogToolsOnlyVariant + clipping variants) can create duplicates
