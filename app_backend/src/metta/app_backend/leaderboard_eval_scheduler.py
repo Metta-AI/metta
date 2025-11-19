@@ -134,7 +134,7 @@ WHERE (done_tag.value IS NULL OR done_tag.value != 'true')
         self._mark_successful_remote_jobs(remote_jobs)
         unscheduled = self._fetch_unscheduled_policy_versions()
         logger.info("Found %d unscheduled policy versions", len(unscheduled))
-        needs_rescheduling = [j for j in remote_jobs if j.status in ("error", "canceled", "system_error")]
+        needs_rescheduling = [j for j in remote_jobs if j.status in ("error", "canceled", "system_error", None)]
         logger.info("Found %d remote jobs that need to be rescheduled", len(needs_rescheduling))
 
         for policy_version_id in [r.policy_version_id for r in needs_rescheduling] + unscheduled:
