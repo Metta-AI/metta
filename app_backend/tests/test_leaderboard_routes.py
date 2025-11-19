@@ -11,7 +11,7 @@ async def _create_policy_with_scores(
     stats_repo: MettaRepo,
     user_id: str,
     policy_name: str,
-    sim_scores: dict[str, float],
+    sim_scores: list[dict[str, float]],
 ) -> None:
     policy_id = await stats_repo.upsert_policy(name=policy_name, user_id=user_id, attributes={})
     policy_version_id = await stats_repo.create_policy_version(
@@ -22,19 +22,20 @@ async def _create_policy_with_scores(
         attributes={},
     )
 
-    for sim_name, reward in sim_scores.items():
-        await stats_repo.record_episode(
-            id=uuid.uuid4(),
-            data_uri=f"s3://episodes/{uuid.uuid4()}",
-            primary_pv_id=policy_version_id,
-            replay_url=None,
-            attributes={},
-            eval_task_id=None,
-            thumbnail_url=None,
-            tags=[(V0_LEADERBOARD_NAME_TAG_KEY, sim_name)],
-            policy_versions=[(policy_version_id, 1)],
-            policy_metrics=[(policy_version_id, "reward", reward)],
-        )
+    for reward_l in sim_scores:
+        for sim_name, reward in reward_l.items():
+            await stats_repo.record_episode(
+                id=uuid.uuid4(),
+                data_uri=f"s3://episodes/{uuid.uuid4()}",
+                primary_pv_id=policy_version_id,
+                replay_url=None,
+                attributes={},
+                eval_task_id=None,
+                thumbnail_url=None,
+                tags=[(V0_LEADERBOARD_NAME_TAG_KEY, sim_name)],
+                policy_versions=[(policy_version_id, 1)],
+                policy_metrics=[(policy_version_id, "reward", reward)],
+            )
 
 
 @pytest.mark.asyncio
@@ -49,19 +50,27 @@ async def test_leaderboard_and_me_routes(
         isolated_stats_repo,
         user_one,
         "alice-policy",
-        {
-            "arena-basic": 20.0,
-            "arena-combat": 10.0,
-        },
+        [
+            {
+                "arena-basic": 10.0,
+                "arena-combat": 10.0,
+            },
+            {
+                "arena-basic": 30.0,
+                "arena-combat": 10.0,
+            },
+        ],
     )
     await _create_policy_with_scores(
         isolated_stats_repo,
         user_two,
         "bob-policy",
-        {
-            "arena-basic": 4.0,
-            "arena-combat": 1.0,
-        },
+        [
+            {
+                "arena-basic": 4.0,
+                "arena-combat": 1.0,
+            }
+        ],
     )
 
     headers = {"X-Auth-Request-Email": user_one}
