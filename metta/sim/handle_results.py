@@ -322,6 +322,7 @@ def write_eval_results_to_observatory(
     rollout_results: list[SimulationRunResult],
     stats_client: StatsClient,
     primary_policy_version_id: str | None = None,
+    skip_duckdb_upload: bool = False,
 ) -> None:
     """Write evaluation results to the observatory by creating a DuckDB and uploading it."""
     from metta.app_backend.episode_stats_db import (
@@ -375,10 +376,11 @@ def write_eval_results_to_observatory(
 
         # Upload DuckDB file
         logger.info(f"Uploading evaluation results to observatory (DuckDB size: {duckdb_path})")
-        response = stats_client.bulk_upload_episodes(str(duckdb_path))
-        logger.info(
-            f"Successfully uploaded {response.episodes_created} episodes to observatory at {response.duckdb_s3_uri}"
-        )
+        if not skip_duckdb_upload:
+            response = stats_client.bulk_upload_episodes(str(duckdb_path))
+            logger.info(
+                f"Successfully uploaded {response.episodes_created} episodes to observatory at {response.duckdb_s3_uri}"
+            )
 
     except Exception as e:
         logger.error(f"Failed to write evaluation results to observatory: {e}", exc_info=True)
