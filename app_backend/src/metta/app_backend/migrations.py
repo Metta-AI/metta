@@ -109,4 +109,18 @@ MIGRATIONS = [
             """,
         ],
     ),
+    SqlMigration(
+        version=1,
+        description="Create policy_version_tags table for tag-based queries",
+        sql_statements=[
+            """CREATE TABLE policy_version_tags (
+                policy_version_id UUID NOT NULL REFERENCES policy_versions(id) ON DELETE CASCADE,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                PRIMARY KEY (policy_version_id, key)
+            )""",
+            """CREATE INDEX idx_policy_version_tags_key_value
+               ON policy_version_tags (key, value)""",
+        ],
+    ),
 ]

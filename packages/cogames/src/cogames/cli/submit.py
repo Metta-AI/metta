@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import uuid
 import zipfile
 from pathlib import Path
 
@@ -19,6 +20,7 @@ DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
 DEFAULT_VALIDATION_MISSION = "vanilla"
 VALIDATION_EPISODES = 1
 VALIDATION_MAX_STEPS = 10
+SUBMISSION_TAGS = {"cogames-submitted": "true"}
 
 
 def validate_paths(paths: list[str], console: Console) -> list[Path]:
@@ -214,27 +216,15 @@ def create_submission_zip(include_files: list[Path], policy_spec: PolicySpec, co
 def upload_submission(
     zip_path: Path,
     submission_name: str,
-    login_server_url: str,
+    token: str,
     submit_server_url: str,
     console: Console,
-) -> bool:
+) -> uuid.UUID | None:
     """Upload submission to CoGames backend.
 
-    Reads auth token from login server and POSTs to submit server's /cogames/submit_policy endpoint.
-    Returns True on success, False otherwise.
+    Uses the provided auth token to POST to the submit server's /cogames/submit_policy endpoint.
+    Returns the created policy version ID on success, None otherwise.
     """
-    # Get auth token from login server
-    authenticator = CoGamesAuthenticator()
-    if not authenticator.has_saved_token(login_server_url):
-        console.print("[red]Error:[/red] Not authenticated. Please run: [cyan]cogames login[/cyan]")
-        return False
-
-    # Load token
-    token = authenticator.load_token(login_server_url)
-    if not token:
-        console.print(f"[red]Error:[/red] Token not found for {login_server_url}")
-        return False
-
     # Prepare multipart form data
     console.print(f"[yellow]Uploading submission to {submit_server_url}...[/yellow]")
 
@@ -256,19 +246,56 @@ def upload_submission(
         if response.status_code == 200:
             result = response.json()
             console.print("[green]✓ Submitted successfully![/green]")
-            if "submission_id" in result:
-                console.print(f"[dim]Submission ID: {result['submission_id']}[/dim]")
-            return True
+            submission_id = result.get("id") or result.get("submission_id")
+            if submission_id:
+                try:
+                    policy_version_id = uuid.UUID(str(submission_id))
+                    console.print(f"[dim]Submission ID: {policy_version_id}[/dim]")
+                    return policy_version_id
+                except ValueError:
+                    console.print(f"[red]✗ Invalid submission ID returned: {submission_id}[/red]")
+                    return None
+
+            console.print("[red]✗ Submission ID missing from response[/red]")
+            return None
         else:
             console.print(f"[red]✗ Upload failed with status {response.status_code}[/red]")
             console.print(f"[red]Response: {response.text}[/red]")
-            return False
+            return None
 
     except httpx.TimeoutException:
         console.print("[red]✗ Upload timed out after 5 minutes[/red]")
-        return False
+        return None
     except Exception as e:
         console.print(f"[red]✗ Upload error: {e}[/red]")
+        return None
+
+
+def update_submission_tags(policy_version_id: uuid.UUID, token: str, submit_server_url: str, console: Console) -> bool:
+    """Upsert submission tags on the policy version."""
+    console.print(f"[yellow]Updating submission tags for {policy_version_id}...[/yellow]")
+
+    try:
+        response = httpx.put(
+            f"{submit_server_url}/stats/policies/versions/{policy_version_id}/tags",
+            json=SUBMISSION_TAGS,
+            headers={"X-Auth-Token": token},
+            timeout=60.0,
+        )
+
+        if response.status_code == 200:
+            console.print("[green]✓ Tags updated successfully[/green]")
+            return True
+
+        console.print(f"[red]✗ Failed to update tags ({response.status_code})[/red]")
+        console.print(f"[red]Response: {response.text}[/red]")
+        return False
+
+    except httpx.TimeoutException:
+        console.print("[red]✗ Tag update timed out[/red]")
+        return False
+    except Exception as e:
+        console.print(f"[red]✗ Tag update error: {e}[/red]")
         return False
 
 
@@ -314,6 +341,11 @@ def submit_command(
     if not authenticator.has_saved_token(login_server):
         console.print("[red]Error:[/red] Not authenticated.")
         console.print("Please run: [cyan]cogames login[/cyan]")
+        return
+
+    token = authenticator.load_token(login_server)
+    if not token:
+        console.print(f"[red]Error:[/red] Token not found for {login_server}")
         return
 
     # Parse policy spec
@@ -381,9 +413,14 @@ def submit_command(
 
     # Upload submission
     try:
-        success = upload_submission(zip_path, name, login_server, server, console)
-        if not success:
+        policy_version_id = upload_submission(zip_path, name, token, server, console)
+        if not policy_version_id:
             console.print("\n[red]Submission failed.[/red]")
+            return
+
+        tag_success = update_submission_tags(policy_version_id, token, server, console)
+        if not tag_success:
+            console.print("\n[red]Submission succeeded, but updating tags failed.[/red]")
     finally:
         # Clean up zip file
         if zip_path.exists():
