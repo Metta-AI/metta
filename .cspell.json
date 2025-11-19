@@ -194,7 +194,6 @@
     "netrc",
     "newlogprob",
     "nextitem",
-    "nishad",
     "nnodes",
     "nodeid",
     "nohearts",
@@ -325,9 +324,5 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": [
-    "node_modules",
-    "venv",
-    ".git"
-  ]
+  "ignorePaths": ["node_modules", "venv", ".git"]
 }
