@@ -43,13 +43,9 @@ class ActionSupervisedConfig(LossConfig):
 
 class ActionSupervised(Loss):
     __slots__ = (
-        "action_loss_coef",
-        "add_action_loss_to_rewards",
         "rollout_forward_enabled",
         "train_forward_enabled",
         "sample_enabled",
-        "teacher_lead_prob",
-        "action_reward_coef",
     )
 
     def __init__(
@@ -66,13 +62,9 @@ class ActionSupervised(Loss):
             loss_config = getattr(trainer_cfg.losses, instance_name, None)
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         # unpack config into slots
-        self.action_loss_coef = self.cfg.action_loss_coef
-        self.add_action_loss_to_rewards = self.cfg.add_action_loss_to_rewards
         self.rollout_forward_enabled = self.cfg.rollout_forward_enabled
         self.train_forward_enabled = self.cfg.train_forward_enabled
         self.sample_enabled = self.cfg.sample_enabled
-        self.teacher_lead_prob: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
-        self.action_reward_coef = self.cfg.action_reward_coef
 
     def get_experience_spec(self) -> Composite:
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
@@ -134,13 +126,15 @@ class ActionSupervised(Loss):
         student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1))
         student_log_probs = student_log_probs.reshape(minibatch.shape[0], minibatch.shape[1])
 
-        loss = -student_log_probs.mean() * self.action_loss_coef
+        loss = -student_log_probs.mean() * self.cfg.action_loss_coef
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
 
         # --------------------------Add action loss to rewards as per Matt's doc----------------------------------
-        if self.add_action_loss_to_rewards:
-            minibatch["rewards"] = minibatch["rewards"] + self.action_reward_coef * policy_td["act_log_prob"].detach()
+        if self.cfg.add_action_loss_to_rewards:
+            minibatch["rewards"] = (
+                minibatch["rewards"] + self.cfg.action_reward_coef * policy_td["act_log_prob"].detach()
+            )
             # NOTE: we should somehow normalize the policy loss before adding it to rewards, perhaps exponentiate then
             # softplus?
 
