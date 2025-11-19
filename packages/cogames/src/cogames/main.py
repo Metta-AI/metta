@@ -439,6 +439,22 @@ def evaluate_cmd(
             "Each replay will be saved with a unique UUID-based filename."
         ),
     ),
+    jobs: Optional[int] = typer.Option(
+        None,
+        "--jobs",
+        "-j",
+        help="Number of parallel workers for episode execution (default: CPU count, use 1 for serial)",
+        min=1,
+    ),
+    parallel_policy: bool = typer.Option(
+        False,
+        "--parallel-policy",
+        help=(
+            "Run each agent in its own subprocess. This allows stateful policies "
+            "(LSTM, scripted agents) to maintain state across steps. Each agent gets "
+            "a dedicated process that persists throughout the episode."
+        ),
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
@@ -457,6 +473,8 @@ def evaluate_cmd(
         episodes=episodes,
         output_format=format_,
         save_replay=save_replay_dir,
+        jobs=jobs,
+        parallel_policy=parallel_policy,
     )
 
 

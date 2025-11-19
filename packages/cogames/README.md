@@ -202,6 +202,12 @@ cogames eval -m machina_1 -p stateless:train_dir/model.pt
 
 # Mix two policies: 3 parts your policy, 5 parts random policy
 cogames eval -m machina_1 -p stateless:train_dir/model.pt:3 -p random::5
+
+# Parallelize evaluation across multiple CPU cores
+cogames eval -m machina_1 -p stateless:train_dir/model.pt --jobs 8
+
+# Run each agent in its own subprocess (for stateful policies)
+cogames eval -m machina_1 -p lstm:train_dir/model.pt --parallel-policy
 ```
 
 **Options:**
@@ -210,9 +216,13 @@ cogames eval -m machina_1 -p stateless:train_dir/model.pt:3 -p random::5
 - `--action-timeout-ms N`: Timeout per action (default: 250ms)
 - `--steps N`: Max steps per episode
 - `--format [json/yaml]`: Output results as structured json or yaml (default: None for human-readable tables)
+- `--jobs N` or `-j N`: Number of parallel workers for episode execution (default: CPU count, use 1 for serial)
+- `--parallel-policy`: Run each agent in its own subprocess. This allows stateful policies (LSTM, scripted agents) to maintain state across steps. Each agent gets a dedicated process that persists throughout the episode.
 
 When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but randomizes
 their assignments each episode.
+
+**Architecture**: For details on the evaluation architecture, parallelization, and protocol integrity guarantees, see [docs/EVALUATION_ARCHITECTURE.md](docs/EVALUATION_ARCHITECTURE.md).
 
 ### `cogames make-mission -m [BASE_MISSION]`
 
