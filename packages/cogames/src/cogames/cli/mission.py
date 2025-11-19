@@ -30,6 +30,52 @@ EVAL_MISSIONS_ALL: list[Mission] = [
 ]
 
 
+def load_mission_set(mission_set: str) -> list[Mission]:
+    """Load a predefined set of evaluation missions.
+
+    Args:
+        mission_set: Name of mission set to load. Options:
+            - "eval_missions": Core evaluation missions
+            - "integrated_evals": Integrated evaluation missions
+            - "spanning_evals": Spanning evaluation missions
+            - "diagnostic_evals": Diagnostic evaluation missions
+            - "all": All missions including core missions
+
+    Returns:
+        List of Mission objects in the specified set
+
+    Raises:
+        ValueError: If mission_set name is unknown
+    """
+    if mission_set == "all":
+        # All missions: eval missions + integrated + spanning + diagnostic + core missions
+        missions_list = []
+        missions_list.extend(CORE_EVAL_MISSIONS)
+        missions_list.extend(INTEGRATED_EVAL_MISSIONS)
+        missions_list.extend(SPANNING_EVAL_MISSIONS)
+        missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
+
+        # Add core missions that aren't already in eval sets
+        eval_mission_names = {m.name for m in missions_list}
+        for mission in MISSIONS:
+            if mission.name not in eval_mission_names:
+                missions_list.append(mission)
+
+    elif mission_set == "diagnostic_evals":
+        missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
+    elif mission_set == "eval_missions":
+        missions_list = list(CORE_EVAL_MISSIONS)
+    elif mission_set == "integrated_evals":
+        missions_list = list(INTEGRATED_EVAL_MISSIONS)
+    elif mission_set == "spanning_evals":
+        missions_list = list(SPANNING_EVAL_MISSIONS)
+    else:
+        available = "eval_missions, integrated_evals, spanning_evals, diagnostic_evals, all"
+        raise ValueError(f"Unknown mission set: {mission_set}\nAvailable sets: {available}")
+
+    return missions_list
+
+
 def parse_variants(variants_arg: Optional[list[str]]) -> list[MissionVariant]:
     """Parse variant specifications from command line.
 

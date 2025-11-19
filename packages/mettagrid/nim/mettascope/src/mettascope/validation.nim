@@ -1,6 +1,5 @@
 import
-  std/[json, strformat, strutils, sequtils],
-  zippy
+  std/[json, strformat, strutils, sequtils]
 
 type
   ValidationIssue* = object
@@ -402,8 +401,114 @@ proc validateAgentFields*(obj: JsonNode, objName: string, replayData: JsonNode, 
   # Validate action_id values are in range.
   validateActionIdRange(obj["action_id"], objName, replayData["action_names"].to(seq[string]), issues)
 
+proc validateProtocol*(protocol: JsonNode, protocolIndex: int, objName: string, issues: var seq[ValidationIssue]) =
+  ## Validate a single protocol within an assembler.
+  let protocolName = &"{objName}.protocols[{protocolIndex}]"
+
+  # Protocol must be an object
+  validateType(protocol, "object", protocolName, issues)
+
+  if protocol.kind != JObject:
+    return
+
+  # Check required fields
+  let requiredFields = ["minAgents", "vibes", "inputs", "outputs", "cooldown"]
+  requireFields(protocol, requiredFields, protocolName, issues)
+
+  # Validate field types
+  validateType(protocol["minAgents"], "int", protocolName & ".minAgents", issues)
+  validateType(protocol["vibes"], "array", protocolName & ".vibes", issues)
+  validateType(protocol["inputs"], "array", protocolName & ".inputs", issues)
+  validateType(protocol["outputs"], "array", protocolName & ".outputs", issues)
+  validateType(protocol["cooldown"], "int", protocolName & ".cooldown", issues)
+
+  # Validate non-negative values
+  if protocol["minAgents"].kind == JInt and protocol["minAgents"].getInt() < 0:
+    issues.add(ValidationIssue(
+      message: &"{protocolName}.minAgents must be non-negative",
+      field: protocolName & ".minAgents"
+    ))
+
+  if protocol["cooldown"].kind == JInt and protocol["cooldown"].getInt() < 0:
+    issues.add(ValidationIssue(
+      message: &"{protocolName}.cooldown must be non-negative",
+      field: protocolName & ".cooldown"
+    ))
+
+  # Validate vibes array contains integers
+  if protocol["vibes"].kind == JArray:
+    for i, vibe in protocol["vibes"].getElems():
+      validateType(vibe, "int", &"{protocolName}.vibes[{i}]", issues)
+
+  # Validate inputs and outputs arrays
+  for i, itemAmount in protocol["inputs"].getElems():
+    if itemAmount.kind == JArray and itemAmount.len == 2:
+      let itemId = itemAmount[0]
+      let count = itemAmount[1]
+      validateType(itemId, "int", &"{protocolName}.inputs[{i}][0]", issues)
+      validateType(count, "int", &"{protocolName}.inputs[{i}][1]", issues)
+      if count.kind == JInt and count.getInt() < 0:
+        issues.add(ValidationIssue(
+          message: &"{protocolName}.inputs[{i}][1] must be non-negative",
+          field: &"{protocolName}.inputs[{i}][1]"
+        ))
+    else:
+      issues.add(ValidationIssue(
+        message: &"{protocolName}.inputs[{i}] must be [item_id, count] array",
+        field: &"{protocolName}.inputs[{i}]"
+      ))
+
+  for i, itemAmount in protocol["outputs"].getElems():
+    if itemAmount.kind == JArray and itemAmount.len == 2:
+      let itemId = itemAmount[0]
+      let count = itemAmount[1]
+      validateType(itemId, "int", &"{protocolName}.outputs[{i}][0]", issues)
+      validateType(count, "int", &"{protocolName}.outputs[{i}][1]", issues)
+      if count.kind == JInt and count.getInt() < 0:
+        issues.add(ValidationIssue(
+          message: &"{protocolName}.outputs[{i}][1] must be non-negative",
+          field: &"{protocolName}.outputs[{i}][1]"
+        ))
+    else:
+      issues.add(ValidationIssue(
+        message: &"{protocolName}.outputs[{i}] must be [item_id, count] array",
+        field: &"{protocolName}.outputs[{i}]"
+      ))
+
+proc validateAssemblerFields*(obj: JsonNode, objName: string, issues: var seq[ValidationIssue]) =
+  ## Validate all assembler-specific fields.
+  let assemblerFields = [
+    "protocols", "cooldown_remaining", "cooldown_duration", "is_clipped",
+    "is_clip_immune", "uses_count", "max_uses", "allow_partial_usage"
+  ]
+  requireFields(obj, assemblerFields, objName, issues)
+
+  # Validate static assembler fields.
+  validateStaticValue(obj["cooldown_duration"], "int", objName & ".cooldown_duration", issues)
+  validateNonNegativeNumber(obj["cooldown_duration"], objName & ".cooldown_duration", issues)
+
+  validateStaticValue(obj["max_uses"], "int", objName & ".max_uses", issues)
+  validateNonNegativeNumber(obj["max_uses"], objName & ".max_uses", issues)
+
+  validateStaticValue(obj["allow_partial_usage"], "bool", objName & ".allow_partial_usage", issues)
+
+  # Validate protocols array
+  validateType(obj["protocols"], "array", objName & ".protocols", issues)
+  if obj["protocols"].kind == JArray:
+    let protocols = obj["protocols"]
+    for i in 0 ..< protocols.len:
+      let protocol = protocols[i]
+      if protocol.kind == JObject:
+        validateProtocol(protocol, i, objName, issues)
+
+  # Validate dynamic assembler fields (time series).
+  validateTimeSeries(obj["cooldown_remaining"], objName & ".cooldown_remaining", "int", issues)
+  validateTimeSeries(obj["is_clipped"], objName & ".is_clipped", "bool", issues)
+  validateTimeSeries(obj["is_clip_immune"], objName & ".is_clip_immune", "bool", issues)
+  validateTimeSeries(obj["uses_count"], objName & ".uses_count", "int", issues)
+
 proc validateBuildingFields*(obj: JsonNode, objName: string, issues: var seq[ValidationIssue]) =
-  ## Validate all building-specific fields.
+  ## Validate all building-specific fields (legacy buildings).
   let buildingFields = [
     "input_resources", "output_resources", "output_limit", "conversion_remaining",
     "is_converting", "conversion_duration", "cooldown_remaining", "is_cooling_down",
@@ -462,6 +567,8 @@ proc validateObject*(obj: JsonNode, objIndex: int, replayData: JsonNode, issues:
   # Validate specific object types.
   if obj.getOrDefault("is_agent").getBool() or "agent_id" in obj:
     validateAgentFields(obj, objName, replayData, issues)
+  elif "protocols" in obj:
+    validateAssemblerFields(obj, objName, issues)
   elif "input_resources" in obj:
     validateBuildingFields(obj, objName, issues)
 

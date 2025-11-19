@@ -85,9 +85,11 @@ def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
     update_object["protocols"] = []
     for protocol in grid_object.get("protocols", []):
         update_protocol = {}
+        update_protocol["minAgents"] = protocol.get("min_agents", 0)
+        update_protocol["vibes"] = protocol.get("vibes", [])
         update_protocol["inputs"] = list(protocol.get("inputs", {}).items())
         update_protocol["outputs"] = list(protocol.get("outputs", {}).items())
-        update_protocol["cooldown"] = protocol["cooldown"]
+        update_protocol["cooldown"] = protocol.get("cooldown", 0)
         update_object["protocols"].append(update_protocol)
 
 

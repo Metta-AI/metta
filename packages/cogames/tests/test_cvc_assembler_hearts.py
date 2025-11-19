@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from cogames.cogs_vs_clips.stations import CvCAssemblerConfig
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig, ResourceLimitsConfig
 from mettagrid.simulator import Simulation
 
 RESOURCES = [
@@ -36,7 +36,7 @@ def _make_simulation() -> Simulation:
     cfg = MettaGridConfig.EmptyRoom(num_agents=4, with_walls=True)
     cfg.game.resource_names = RESOURCES
     cfg.game.agent.default_resource_limit = 255
-    cfg.game.agent.resource_limits = {name: 255 for name in RESOURCES}
+    cfg.game.agent.resource_limits = {name: ResourceLimitsConfig(limit=255, resources=[name]) for name in RESOURCES}
     cfg.game.agent.initial_inventory = {name: 0 for name in RESOURCES}
 
     cfg.game.actions.noop.enabled = True

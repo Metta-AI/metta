@@ -144,7 +144,7 @@ class SiliconExtractorConfig(ExtractorConfig):
             max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
-                    input_resources={"energy": 25},
+                    input_resources={"energy": 20},
                     output_resources={"silicon": max(1, int(15 * self.efficiency // 100))},
                 )
             ],
@@ -186,7 +186,7 @@ class CvCAssemblerConfig(CvCStationConfig):
     additional_heart_cost: int = Field(default=5)
 
     def station_cfg(self) -> AssemblerConfig:
-        gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
+        gear = [("carbon", "decoder"), ("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator")]
         return AssemblerConfig(
             name="assembler",
             map_char="&",
