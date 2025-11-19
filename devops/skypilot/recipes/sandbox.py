@@ -1,4 +1,6 @@
 #!/usr/bin/env -S uv run
+# ruff: noqa: E402
+# ^ Imports must come after warnings.filterwarnings() to suppress Pydantic warnings from SkyPilot
 import argparse
 import logging
 import os
@@ -15,16 +17,16 @@ import warnings
 # These warnings are harmless and come from upstream dependencies, not our code.
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._generate_schema")
 
-import sky  # noqa: E402
-import sky.exceptions  # noqa: E402
-import yaml  # noqa: E402
+import sky
+import sky.exceptions
+import yaml
 
-import gitta as git  # noqa: E402
-from devops.skypilot.utils.cost_monitor import get_instance_cost  # noqa: E402
-from devops.skypilot.utils.job_helpers import set_task_secrets  # noqa: E402
-from metta.common.util.cli import spinner  # noqa: E402
-from metta.common.util.retry import retry_function  # noqa: E402
-from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow  # noqa: E402
+import gitta as git
+from devops.skypilot.utils.cost_monitor import get_instance_cost
+from devops.skypilot.utils.job_helpers import set_task_secrets
+from metta.common.util.cli import spinner
+from metta.common.util.retry import retry_function
+from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
 class CredentialWarningHandler(logging.Handler):
@@ -308,7 +310,7 @@ def handle_check_mode(clusters):
     return 0
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         prog="sandbox.py",
         description="""
@@ -606,4 +608,4 @@ Common management commands:
 
 
 if __name__ == "__main__":
-    sys.exit(main() or 0)
+    sys.exit(main())

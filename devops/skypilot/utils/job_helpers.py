@@ -13,6 +13,7 @@ import sky.jobs
 from sky.server.common import RequestId, get_server_url
 
 import gitta as git
+from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, green, red, yellow
 
@@ -160,7 +161,7 @@ def set_task_secrets(task: sky.Task) -> None:
     try:
         from metta.app_backend.clients.base_client import get_machine_token
 
-        observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
+        observatory_token = get_machine_token(PROD_STATS_SERVER_URI)
     except ImportError:
         observatory_token = None
 

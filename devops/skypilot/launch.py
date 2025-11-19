@@ -2,15 +2,19 @@
 # ruff: noqa: E402
 # ^ Imports must come after warnings.filterwarnings() to suppress Pydantic warnings from SkyPilot
 
-import argparse
 import copy
 import json
 import logging
 import re
 import subprocess
-import sys
 import warnings
-from typing import Any
+from typing import Annotated, Any, Literal, Optional
+
+import typer
+from sky import exceptions
+from sky.utils.common_utils import check_cluster_name_is_valid
+
+from metta.common.util.log_config import init_logging
 
 # Suppress Pydantic warnings from SkyPilot dependencies before importing sky
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._generate_schema")
@@ -30,21 +34,17 @@ from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red
 from metta.tools.utils.auto_config import auto_run_name
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("devops.skypilot.launch")
 
 
 def _validate_sky_task_name(run_name: str) -> bool:
-    """Validate that we will meet Sky's task naming requirements.
-
-    Sky requires task names to:
-    - Start with a letter (a-z or A-Z)
-    - Contain only letters, numbers, dashes, underscores, or dots
-    - End with a letter or number
-    """
+    """Validate that we will meet Sky's task naming requirements."""
     pattern = r"^[a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?$"
     valid = bool(re.match(pattern, run_name))
 
-    if not valid:
+    try:
+        check_cluster_name_is_valid(run_name)
+    except exceptions.InvalidClusterNameError:
         print(red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"))
         print("Sky task names must:")
         print("  - Start with a letter (not a number)")
@@ -113,7 +113,7 @@ def patch_task(
     gpus: int | None,
     nodes: int | None,
     no_spot: bool = False,
-) -> sky.Task:
+) -> None:
     overrides: dict[str, Any] = {}
     if cpus:
         overrides["cpus"] = cpus
@@ -142,90 +142,92 @@ def patch_task(
     if gpus or no_spot:
         task.set_resources(type(task.resources)(new_resources_list))
 
-    return task
+
+app = typer.Typer(
+    rich_markup_mode="rich",
+)
 
 
-def main() -> int:
-    """Main entry point for launch.py.
-
-    Returns:
-        Exit code (0 for success, 1 for error)
+@app.command()
+def main(
+    module_path: Annotated[
+        str,
+        typer.Argument(
+            help="Module path to run (e.g., arena.train or recipes.experiment.arena.train, "
+            "or two-token syntax like 'train arena'). "
+            "Any arguments following the module path will be passed to the tool."
+        ),
+    ],
+    # Launch-specific flags
+    run_id: Annotated[Optional[str], typer.Option("--run", help="Run ID for the job")] = None,
+    git_ref: Optional[str] = None,
+    gpus: Optional[int] = None,
+    nodes: Optional[int] = None,
+    cpus: Optional[int] = None,
+    dry_run: Annotated[bool, typer.Option(help="Show job summary without launching")] = False,
+    dump_config: Annotated[
+        Optional[Literal["json", "yaml"]],
+        typer.Option(help="Dump task configuration in specified format and exit"),
+    ] = None,
+    spot: Annotated[bool, typer.Option(help="Use spot instances")] = True,
+    copies: Annotated[int, typer.Option(help="Number of identical job copies to launch")] = 1,
+    heartbeat_timeout_seconds: Annotated[
+        int,
+        typer.Option(
+            "--heartbeat-timeout-seconds",
+            "--hb",
+            help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
+        ),
+    ] = 300,
+    max_runtime_hours: Annotated[
+        Optional[float],
+        typer.Option(
+            "-t",
+            "--max-runtime-hours",
+            help="Maximum job runtime in hours before automatic termination (supports decimals, e.g., 1.5 = 90 minutes)",
+        ),
+    ] = None,
+    skip_git_check: Annotated[bool, typer.Option(help="Skip git state validation and GitHub API calls")] = False,
+    confirm: Annotated[bool, typer.Option(help="Show confirmation prompt")] = False,
+    github_pat: Annotated[
+        Optional[str], typer.Option(help="GitHub PAT token for posting status updates (repo scope)")
+    ] = None,
+    discord_webhook_url: Annotated[
+        Optional[str], typer.Option(help="Discord webhook URL for status update channel")
+    ] = None,
+    run_ci_tests: Annotated[bool, typer.Option(help="Run NCCL and job restart tests")] = False,
+    tool_args: Annotated[
+        Optional[list[str]], typer.Argument(help="Tool arguments. Will be passed to tools/run.py.")
+    ] = None,
+):
     """
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Basic (single-token):
-  %(prog)s arena.train run=test_123 trainer.total_timesteps=100000
 
-  # Basic (two-token syntax):
-  %(prog)s train arena run=test_123 trainer.total_timesteps=100000
+    Main entry point for launch.py.
 
-  # Mix of launch flags and tool args:
-  %(prog)s arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
-  %(prog)s train arena --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
-        """,
-    )
+    [bold green]Examples:[/bold green]
+
+    [bold yellow]Basic (single-token):[/bold yellow]
+    launch.py arena.train run=test_123 trainer.total_timesteps=100000
+
+    [bold yellow]Basic (two-token syntax):[/bold yellow]
+    launch.py train arena run=test_123 trainer.total_timesteps=100000
+
+    [bold yellow]Mix of launch flags and tool args:[/bold yellow]
+    launch.py arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
+    launch.py train arena --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
+    """
 
     # First, we need to separate launch flags from tool args
     # We'll parse known args only, allowing unknown ones to be passed as tool args
-    parser.add_argument(
-        "module_path",
-        help="Module path to run (e.g., arena.train or recipes.experiment.arena.train, "
-        "or two-token syntax like 'train arena'). "
-        "Any arguments following the module path will be passed to the tool.",
-    )
-
-    # Launch-specific flags
-    parser.add_argument("--run", type=str, help="Run ID for the job")
-    parser.add_argument("--git-ref", type=str)
-    parser.add_argument("--gpus", type=int)
-    parser.add_argument("--nodes", type=int)
-    parser.add_argument("--cpus", type=int)
-    parser.add_argument("--dry-run", action="store_true", help="Show job summary without launching")
-    parser.add_argument(
-        "--dump-config",
-        choices=["json", "yaml"],
-        help="Dump task configuration in specified format and exit",
-    )
-    parser.add_argument("--no-spot", action="store_true", help="Disable spot instances")
-    parser.add_argument("--copies", type=int, default=1, help="Number of identical job copies to launch")
-    parser.add_argument(
-        "-hb",
-        "--heartbeat-timeout-seconds",
-        type=int,
-        default=300,
-        help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
-    )
-    parser.add_argument(
-        "-t",
-        "--max-runtime-hours",
-        type=float,
-        default=None,
-        help="Maximum job runtime in hours before automatic termination (supports decimals, e.g., 1.5 = 90 minutes)",
-    )
-    parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation and GitHub API calls")
-    parser.add_argument("-c", "--confirm", action="store_true", help="Show confirmation prompt")
-    parser.add_argument("--github-pat", type=str, help="GitHub PAT token for posting status updates (repo scope)")
-    parser.add_argument("--discord-webhook-url", type=str, help="Discord webhook URL for status update channel")
-    parser.add_argument(
-        "--run-ci-tests",
-        action="store_true",
-        help="Run NCCL and job restart tests",
-    )
-
-    # Use parse_known_args to handle both launch flags and tool args
-    args, tool_args = parser.parse_known_args()
 
     # Handle two-token syntax (e.g., 'train arena' → 'arena.train')
-    module_path = args.module_path
+    tool_args = tool_args or []
     second_token = tool_args[0] if tool_args else None
     resolved_path, args_consumed = parse_two_token_syntax(module_path, second_token)
     module_path = resolved_path
     tool_args = tool_args[args_consumed:]  # Skip consumed args
 
     # Handle run ID extraction
-    run_id = args.run
     filtered_args: list[str] = []
 
     for arg in tool_args:
@@ -248,112 +250,111 @@ Examples:
     cd_repo_root()
 
     # check that the parsed args.git_ref provides a valid commit hash
-    if args.git_ref:
-        commit_hash = git.resolve_git_ref(args.git_ref)
+    if git_ref:
+        commit_hash = git.resolve_git_ref(git_ref)
         if not commit_hash:
-            print(red(f"❌ Invalid git reference: '{args.git_ref}'"))
-            return 1
+            print(red(f"❌ Invalid git reference: '{git_ref}'"))
+            raise typer.Exit(1)
     else:
         commit_hash = git.get_current_commit()
 
         # check that the commit has been pushed and there are no staged changes
-        if not args.skip_git_check:
+        if not skip_git_check:
             error_message = check_git_state(commit_hash)
             if error_message:
                 print(error_message)
                 print("  - Skip check: add --skip-git-check flag")
-                return 1
+                raise typer.Exit(1)
 
     # Validate module path (supports shorthand like 'arena.train' or two-token 'train arena')
     if not validate_module_path(module_path):
         print(f"❌ Invalid module path: '{module_path}'")
         print("Module path should be like 'arena.train' or 'recipes.experiment.arena.train'")
-        return 1
+        raise typer.Exit(1)
 
     assert commit_hash
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
     if not _validate_run_tool(module_path, filtered_args):
-        return 1
+        raise typer.Exit(1)
 
     # Validate the provided run name
     if not _validate_sky_task_name(run_id):
-        return 1
+        raise typer.Exit(1)
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
     task._user_specified_yaml = None
 
     # Prepare environment variables including status parameters
-    env_updates = dict(
+    env_updates: dict[str, str] = dict(
         METTA_RUN_ID=run_id,
         METTA_MODULE_PATH=module_path,
         METTA_ARGS=" ".join(filtered_args),
         METTA_GIT_REF=commit_hash,
-        HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
-        GITHUB_PAT=args.github_pat,
-        MAX_RUNTIME_HOURS=args.max_runtime_hours,
-        DISCORD_WEBHOOK_URL=args.discord_webhook_url,
-        TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
-        TEST_NCCL="true" if args.run_ci_tests else "false",
+        TEST_JOB_RESTART="true" if run_ci_tests else "false",
+        TEST_NCCL="true" if run_ci_tests else "false",
     )
+    if heartbeat_timeout_seconds:
+        env_updates["HEARTBEAT_TIMEOUT"] = str(heartbeat_timeout_seconds)
+    if max_runtime_hours:
+        env_updates["MAX_RUNTIME_HOURS"] = str(max_runtime_hours)
 
-    env_updates = {k: v for k, v in env_updates.items() if v is not None}
     task = task.update_envs(env_updates)
     task.name = run_id
     task.validate_name()
 
-    task = patch_task(
+    patch_task(
         task,
-        cpus=args.cpus,
-        gpus=args.gpus,
-        nodes=args.nodes,
-        no_spot=args.no_spot,
+        cpus=cpus,
+        gpus=gpus,
+        nodes=nodes,
+        no_spot=not spot,
     )
 
     # Handle --dump-config option
-    if args.dump_config:
-        task_config = task.to_yaml_config()
+    if dump_config:
+        config_dict = task.to_yaml_config()
 
-        # Check if it's already a dict or a YAML string
-        if isinstance(task_config, dict):
-            config_dict = task_config
-        else:
-            config_dict = yaml.safe_load(task_config)
-
-        if args.dump_config == "json":
+        if dump_config == "json":
             print(json.dumps(config_dict, indent=2))
-        elif args.dump_config == "yaml":
+        elif dump_config == "yaml":
             # Pretty print the YAML
             print(yaml.dump(config_dict, default_flow_style=False, sort_keys=False))
-        return 0
+        return
 
     display_task_summary(
         task=task,
         commit_hash=commit_hash,
-        git_ref=args.git_ref,
-        skip_github=args.skip_git_check,
-        copies=args.copies,
+        git_ref=git_ref,
+        skip_github=skip_git_check,
+        copies=copies,
     )
 
     # For --dry-run, just exit after showing summary
-    if args.dry_run:
+    if dry_run:
         print(red("Dry run: exiting"))
-        return 0
+        return
 
     # For --confirm, ask for confirmation
-    if args.confirm and not get_user_confirmation("Should we launch this task?"):
-        return 0
+    if confirm and not get_user_confirmation("Should we launch this task?"):
+        return
 
     # Set secrets only when actually launching (not for dry-run or dump-config)
     set_task_secrets(task)
+    task.update_secrets(
+        dict(
+            DISCORD_WEBHOOK_URL=discord_webhook_url or "",
+            GITHUB_PAT=github_pat or "",
+        )
+    )
 
     # Launch the task(s)
-    for _ in range(args.copies):
+    for _ in range(copies):
         launch_task(task)
 
-    return 0
+    return
 
 
 if __name__ == "__main__":
-    exit_code = main()
-    sys.exit(exit_code)
+    init_logging()
+    app()
