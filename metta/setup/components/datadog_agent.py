@@ -220,18 +220,10 @@ class DatadogAgentSetup(SetupModule):
                             main_config = f.read()
                         
                         # Check if logs section already exists in main config
-                        if "logs:" not in main_config and log_tags_for_config:
-                            # Add basic log collection to main config
-                            with open(config_file, "a") as f:
-                                f.write("\n# Log collection configuration\n")
-                                f.write("logs:\n")
-                                f.write("  - type: file\n")
-                                f.write("    path: /tmp/training_logs/training_combined.log\n")
-                                f.write("    service: skypilot-training\n")
-                                f.write("    source: training\n")
-                                tags_list = ", ".join([f'"{tag}"' for tag in log_tags_for_config])
-                                f.write(f"    tags: [{tags_list}]\n")
-                                info("Added log collection to main datadog.yaml")
+                        # Note: Datadog agent reads logs from conf.d/*.d/conf.yaml files, not from main datadog.yaml
+                        # So we don't add logs here - they're in the separate config file
+                        # But we ensure logs_enabled is set above
+                        pass
                     except Exception as e:
                         warning(f"Could not add logs to main config: {e}")
                 except Exception as e:

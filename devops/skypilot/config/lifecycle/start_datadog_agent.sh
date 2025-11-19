@@ -53,11 +53,37 @@ sleep 2
 if ps -p "$AGENT_PID" > /dev/null; then
   echo "[DATADOG] Agent started successfully (PID: $AGENT_PID)"
 
-  # Try to verify status (non-blocking)
-  if "$AGENT_BINARY" status > /dev/null 2>&1; then
+  # Wait a bit more for agent to fully initialize
+  sleep 3
+
+  # Try to verify status and log collection
+  if "$AGENT_BINARY" status > /tmp/datadog-agent-status.log 2>&1; then
     echo "[DATADOG] Agent status: Running"
+    # Check if log collection is enabled
+    if grep -q "Logs Agent" /tmp/datadog-agent-status.log 2>/dev/null; then
+      echo "[DATADOG] Log collection appears to be enabled"
+    else
+      echo "[DATADOG] WARNING: Could not verify log collection status"
+    fi
   else
     echo "[DATADOG] Agent started but status check failed (may need more time)"
+    echo "[DATADOG] Status output:"
+    cat /tmp/datadog-agent-status.log 2>/dev/null || echo "  (no status output)"
+  fi
+  
+  # Verify log collection config exists
+  if [ -f "/etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml" ]; then
+    echo "[DATADOG] Log collection config found: /etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml"
+  else
+    echo "[DATADOG] WARNING: Log collection config not found!"
+  fi
+  
+  # Check if log files exist and have content
+  if [ -f "/tmp/training_logs/training_combined.log" ]; then
+    LOG_SIZE=$(stat -f%z /tmp/training_logs/training_combined.log 2>/dev/null || stat -c%s /tmp/training_logs/training_combined.log 2>/dev/null || echo "0")
+    echo "[DATADOG] Training log file exists: /tmp/training_logs/training_combined.log (size: ${LOG_SIZE} bytes)"
+  else
+    echo "[DATADOG] WARNING: Training log file not found: /tmp/training_logs/training_combined.log"
   fi
 else
   echo "[DATADOG] WARNING: Agent process died immediately after startup"
