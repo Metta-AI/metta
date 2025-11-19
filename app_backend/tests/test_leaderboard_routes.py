@@ -84,7 +84,7 @@ async def test_leaderboard_and_me_routes(
     }
     assert avg_score(entries[0]) > avg_score(entries[1])
 
-    me_response = isolated_test_client.get("/leaderboard/me", headers=headers)
+    me_response = isolated_test_client.get("/leaderboard/users/me", headers=headers)
     assert me_response.status_code == 200
     me_entries = me_response.json()["entries"]
     assert len(me_entries) == 1

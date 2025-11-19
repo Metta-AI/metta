@@ -99,6 +99,7 @@ class LeaderboardEntry(BaseModel):
     policy_name: str
     user_id: str
     scores: dict[str, float]
+    avg_score: float | None = None
 
 
 logger = logging.getLogger(name="metta_repo")
