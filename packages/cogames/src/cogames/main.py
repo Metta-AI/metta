@@ -23,6 +23,7 @@ from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
+from cogames.cli.leaderboard import leaderboard_cmd, submissions_cmd
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
@@ -631,6 +632,14 @@ def login_cmd(
     else:
         console.print("[red]Authentication failed![/red]")
         raise typer.Exit(1)
+
+
+app.command(name="submissions", help="List your submissions on the leaderboard")(submissions_cmd)
+
+app.command(
+    name="leaderboard",
+    help="Show leaderboard entries (public or your submissions) with per-sim scores",
+)(leaderboard_cmd)
 
 
 @app.command(name="submit", help="Submit a policy to CoGames competitions")
