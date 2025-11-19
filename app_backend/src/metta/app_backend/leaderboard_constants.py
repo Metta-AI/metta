@@ -1,9 +1,9 @@
 """Shared constants used by leaderboard components."""
 
 # Policy version tags
-SUBMITTED_KEY = "cogames-submitted"
-REMOTE_JOB_ID_KEY = "v0-leaderboard-eval-remote-job-id"
-EVALS_DONE_KEY = "v0-leaderboard-evals-done"
+COGAMES_SUBMITTED_PV_KEY = "cogames-submitted"
+LEADERBOARD_JOB_ID_PV_KEY = "v0-leaderboard-eval-remote-job-id"
+LEADERBOARD_EVAL_DONE_PV_KEY = "v0-leaderboard-evals-done"
 
 # Episode tags
-V0_LEADERBOARD_NAME_TAG_KEY = "v0-leaderboard-name"
+LEADERBOARD_SIM_NAME_EPISODE_KEY = "v0-leaderboard-name"

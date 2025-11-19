@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.leaderboard_constants import SUBMITTED_KEY, V0_LEADERBOARD_NAME_TAG_KEY
+from metta.app_backend.leaderboard_constants import COGAMES_SUBMITTED_PV_KEY, LEADERBOARD_SIM_NAME_EPISODE_KEY
 from metta.app_backend.metta_repo import MettaRepo
 
 
@@ -33,7 +33,7 @@ async def _create_policy_with_scores(
                 attributes={},
                 eval_task_id=None,
                 thumbnail_url=None,
-                tags=[(V0_LEADERBOARD_NAME_TAG_KEY, sim_name)],
+                tags=[(LEADERBOARD_SIM_NAME_EPISODE_KEY, sim_name)],
                 policy_versions=[(policy_version_id, 1)],
                 policy_metrics=[(policy_version_id, "reward", reward)],
             )
@@ -144,10 +144,10 @@ async def test_leaderboard_v2_route_returns_tags_and_scores(
             },
         ],
     )
-    await isolated_stats_repo.upsert_policy_version_tags(policy_version_id, {SUBMITTED_KEY: "true"})
+    await isolated_stats_repo.upsert_policy_version_tags(policy_version_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
 
     empty_policy_version_id = await _create_policy_version(isolated_stats_repo, user, "pending-policy")
-    await isolated_stats_repo.upsert_policy_version_tags(empty_policy_version_id, {SUBMITTED_KEY: "true"})
+    await isolated_stats_repo.upsert_policy_version_tags(empty_policy_version_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
 
     response = isolated_stats_client.get_leaderboard_policies_v2()
     entries = response.entries
@@ -155,18 +155,18 @@ async def test_leaderboard_v2_route_returns_tags_and_scores(
 
     populated_entry = entries[0]
     expected_scores = {
-        f"{V0_LEADERBOARD_NAME_TAG_KEY}:arena-basic": 20.0,
-        f"{V0_LEADERBOARD_NAME_TAG_KEY}:arena-combat": 10.0,
+        f"{LEADERBOARD_SIM_NAME_EPISODE_KEY}:arena-basic": 20.0,
+        f"{LEADERBOARD_SIM_NAME_EPISODE_KEY}:arena-combat": 10.0,
     }
     assert populated_entry.scores == expected_scores
     assert populated_entry.avg_score == pytest.approx(15.0)
-    assert populated_entry.policy_version.tags == {SUBMITTED_KEY: "true"}
+    assert populated_entry.policy_version.tags == {COGAMES_SUBMITTED_PV_KEY: "true"}
     assert populated_entry.policy_version.user_id == user
 
     empty_entry = entries[1]
     assert empty_entry.scores == {}
     assert empty_entry.avg_score is None
-    assert empty_entry.policy_version.tags == {SUBMITTED_KEY: "true"}
+    assert empty_entry.policy_version.tags == {COGAMES_SUBMITTED_PV_KEY: "true"}
     assert empty_entry.policy_version.user_id == user
 
 
@@ -186,7 +186,7 @@ async def test_leaderboard_v2_filters_by_policy_version_id(
             }
         ],
     )
-    await isolated_stats_repo.upsert_policy_version_tags(matching_pv_id, {SUBMITTED_KEY: "true"})
+    await isolated_stats_repo.upsert_policy_version_tags(matching_pv_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
 
     other_pv_id = await _create_policy_with_scores(
         isolated_stats_repo,
@@ -198,7 +198,7 @@ async def test_leaderboard_v2_filters_by_policy_version_id(
             }
         ],
     )
-    await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {SUBMITTED_KEY: "true"})
+    await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
 
     response = isolated_stats_client.get_leaderboard_policies_v2_for_policy(matching_pv_id)
     assert len(response.entries) == 1
@@ -223,7 +223,7 @@ async def test_leaderboard_v2_users_me_route_filters_by_user(
             }
         ],
     )
-    await isolated_stats_repo.upsert_policy_version_tags(owned_pv_id, {SUBMITTED_KEY: "true"})
+    await isolated_stats_repo.upsert_policy_version_tags(owned_pv_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
 
     other_pv_id = await _create_policy_with_scores(
         isolated_stats_repo,
@@ -235,7 +235,7 @@ async def test_leaderboard_v2_users_me_route_filters_by_user(
             }
         ],
     )
-    await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {SUBMITTED_KEY: "true"})
+    await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
 
     isolated_stats_client._test_user_email = user  # type: ignore[attr-defined]
     response = isolated_stats_client.get_leaderboard_policies_v2_users_me()

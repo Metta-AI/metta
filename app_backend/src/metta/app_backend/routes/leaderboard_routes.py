@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.leaderboard_constants import SUBMITTED_KEY, V0_LEADERBOARD_NAME_TAG_KEY
+from metta.app_backend.leaderboard_constants import COGAMES_SUBMITTED_PV_KEY, LEADERBOARD_SIM_NAME_EPISODE_KEY
 from metta.app_backend.metta_repo import LeaderboardEntry, LeaderboardPolicyEntry, MettaRepo
 
 
@@ -38,7 +38,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
         user_id: str | None = None, policy_version_id: str | None = None
     ) -> LeaderboardResponse:
         entries = await metta_repo.get_avg_per_agent_score_by_tag(
-            tag_key=V0_LEADERBOARD_NAME_TAG_KEY,
+            tag_key=LEADERBOARD_SIM_NAME_EPISODE_KEY,
             user_id=user_id,
             policy_version_id=uuid.UUID(policy_version_id) if policy_version_id else None,
         )
@@ -63,8 +63,8 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
         return await _get_leaderboard_policies_v2(
             request=LeaderboardPoliciesRequest(
                 # TODO: consider a designated-as-public tag, not just if it was submitted
-                policy_version_tags={SUBMITTED_KEY: "true"},
-                score_group_episode_tag=V0_LEADERBOARD_NAME_TAG_KEY,
+                policy_version_tags={COGAMES_SUBMITTED_PV_KEY: "true"},
+                score_group_episode_tag=LEADERBOARD_SIM_NAME_EPISODE_KEY,
                 user_id=None,
                 policy_version_id=None,
             )
@@ -74,8 +74,8 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     async def get_leaderboard_policies_v2_for_user(user: str = user_or_token) -> LeaderboardPoliciesResponse:
         return await _get_leaderboard_policies_v2(
             request=LeaderboardPoliciesRequest(
-                policy_version_tags={SUBMITTED_KEY: "true"},
-                score_group_episode_tag=V0_LEADERBOARD_NAME_TAG_KEY,
+                policy_version_tags={COGAMES_SUBMITTED_PV_KEY: "true"},
+                score_group_episode_tag=LEADERBOARD_SIM_NAME_EPISODE_KEY,
                 user_id=user,
                 policy_version_id=None,
             )
@@ -87,8 +87,8 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     ) -> LeaderboardPoliciesResponse:
         return await _get_leaderboard_policies_v2(
             request=LeaderboardPoliciesRequest(
-                policy_version_tags={SUBMITTED_KEY: "true"},
-                score_group_episode_tag=V0_LEADERBOARD_NAME_TAG_KEY,
+                policy_version_tags={COGAMES_SUBMITTED_PV_KEY: "true"},
+                score_group_episode_tag=LEADERBOARD_SIM_NAME_EPISODE_KEY,
                 user_id=None,
                 policy_version_id=uuid.UUID(policy_version_id),
             )
