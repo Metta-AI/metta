@@ -24,6 +24,17 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
+# Set up a single log file for Datadog and debugging
+TRAINING_LOG_DIR="/tmp/training_logs"
+mkdir -p "$TRAINING_LOG_DIR"
+chmod 777 "$TRAINING_LOG_DIR"
+
+TRAINING_COMBINED_LOG="$TRAINING_LOG_DIR/training_combined.log"
+touch "$TRAINING_COMBINED_LOG"
+chmod 666 "$TRAINING_COMBINED_LOG"
+
+echo "[INFO] Logging training output to: $TRAINING_COMBINED_LOG"
+
 # run torchrun; preserve exit code and print a friendly line
 set +e
 uv run torchrun \
@@ -33,8 +44,8 @@ uv run torchrun \
   --master-port=$MASTER_PORT \
   --node-rank=$NODE_INDEX \
   tools/run.py \
-  "$@"
-EXIT_CODE=$?
+  "$@" 2>&1 | tee -a "$TRAINING_COMBINED_LOG"
+EXIT_CODE=${PIPESTATUS[0]}   # real torchrun exit code
 set -e
 
 if [[ $EXIT_CODE -eq 0 ]]; then
