@@ -6,7 +6,7 @@ type
   Phase = enum gatherPhase, assemblePhase, deliverPhase, rechargePhase
   ObservedObject = object
     name: string
-    converting, clipped: bool
+    clipped: bool
     cooldownRemaining, remainingUses: int
     protocolInputs, protocolOutputs: Table[string, int]
     agentGroup, agentFrozen: int
@@ -14,7 +14,7 @@ type
     position: Location
     resource: string
     lastSeen, cooldownRemaining, remainingUses: int
-    converting, clipped: bool
+    clipped: bool
   LadybugState = object
     row, col, mapHeight, mapWidth, obsHalfWidth, obsHalfHeight: int
     phase: Phase
@@ -232,8 +232,6 @@ proc buildObservedObject(agent: LadybugAgent, features: seq[FeatureValue]): Obse
     if fv.featureId == agent.cfg.features.tag:
       tagIds.add(fv.value)
       continue
-    if fv.featureId == agent.cfg.features.converting:
-      result.converting = fv.value > 0
     elif fv.featureId == agent.cfg.features.cooldownRemaining:
       result.cooldownRemaining = fv.value
     elif fv.featureId == agent.cfg.features.clipped:
@@ -292,7 +290,6 @@ proc discoverExtractor(
   for i in 0 ..< items.len:
     if items[i].position == loc:
       items[i].lastSeen = agent.state.stepCount
-      items[i].converting = obj.converting
       items[i].cooldownRemaining = obj.cooldownRemaining
       items[i].clipped = obj.clipped
       if obj.remainingUses != 0:
@@ -304,7 +301,6 @@ proc discoverExtractor(
       position: loc,
       resource: resource,
       lastSeen: agent.state.stepCount,
-      converting: obj.converting,
       cooldownRemaining: obj.cooldownRemaining,
       clipped: obj.clipped,
       remainingUses: (if obj.remainingUses == 0: 999 else: obj.remainingUses)
@@ -749,7 +745,7 @@ proc moveIntoCell(agent: LadybugAgent, targetRow: int, targetCol: int): int =
   return agent.moveTowards(targetRow, targetCol, allowGoalBlock = true)
 
 proc useExtractor(agent: LadybugAgent, extractor: ExtractorInfo): int =
-  if extractor.cooldownRemaining > 0 or extractor.converting:
+  if extractor.cooldownRemaining > 0:
     agent.state.waitingAtExtractor = some(extractor.position)
     inc agent.state.waitSteps
     return agent.cfg.actions.noop

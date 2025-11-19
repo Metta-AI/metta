@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 from typing import Iterable
 
-ALLOWED_METTA_PACKAGES = ["mettagrid", "metta.common"]
+ALLOWED_METTA_PACKAGES = ["mettagrid"]
 
 EXCLUDE_FILES = set()
 

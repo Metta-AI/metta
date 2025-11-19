@@ -43,25 +43,45 @@ export type TrainingRunTagsUpdate = {
 }
 
 export type EvalTaskCreateRequest = {
-  policy_id: string
+  command: string
   git_hash: string | null
-  env_overrides?: Record<string, any>
-  sim_suite?: string
+  attributes: Record<string, any>
 }
 
 export type EvalTask = {
-  id: string
-  policy_id: string
-  sim_suite: string
-  status: 'unprocessed' | 'canceled' | 'done' | 'error'
+  // eval_tasks table columns
+  id: number
+  command: string
+  data_uri: string | null
+  git_hash: string | null
+  attributes: Record<string, any>
+  user_id: string
+  created_at: string
+  is_finished: boolean
+  latest_attempt_id: number | null
+
+  // Latest attempt columns (from JOIN)
+  attempt_number: number | null
+  status: 'unprocessed' | 'running' | 'canceled' | 'done' | 'error' | 'system_error'
+  status_details: Record<string, any> | null
   assigned_at: string | null
   assignee: string | null
-  created_at: string
-  attributes: Record<string, any>
-  policy_name: string | null
-  retries: number
-  updated_at: string
-  user_id: string | null
+  started_at: string | null
+  finished_at: string | null
+  output_log_path: string | null
+}
+
+export type TaskAttempt = {
+  id: number
+  task_id: number
+  attempt_number: number
+  assigned_at: string | null
+  assignee: string | null
+  started_at: string | null
+  finished_at: string | null
+  output_log_path: string | null
+  status: 'unprocessed' | 'running' | 'canceled' | 'done' | 'error' | 'system_error'
+  status_details: Record<string, any> | null
 }
 
 export type EvalTasksResponse = {
@@ -76,16 +96,18 @@ export type PaginatedEvalTasksResponse = {
   total_pages: number
 }
 
+export type TaskAttemptsResponse = {
+  attempts: TaskAttempt[]
+}
+
 export type TaskFilters = {
-  policy_name?: string
-  sim_suite?: string
+  command?: string
+  user_id?: string
   status?: string
   assignee?: string
-  user_id?: string
-  retries?: string
+  git_hash?: string
   created_at?: string
   assigned_at?: string
-  updated_at?: string
 }
 
 // Policy-based scorecard types
@@ -214,9 +236,9 @@ export interface Repo {
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
   getEvalTasks(): Promise<EvalTask[]>
   getEvalTasksPaginated(page: number, pageSize: number, filters: TaskFilters): Promise<PaginatedEvalTasksResponse>
-  getEvalTask(taskId: string): Promise<EvalTask>
-  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr' | 'output'): string
-  retryEvalTask(taskId: string): Promise<void>
+  getEvalTask(taskId: number): Promise<EvalTask>
+  getTaskAttempts(taskId: number): Promise<TaskAttemptsResponse>
+  getTaskLogUrl(taskId: number, logType: 'output'): string
 
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
@@ -362,38 +384,27 @@ export class ServerRepo implements Repo {
     params.append('page_size', pageSize.toString())
 
     // Only append non-empty filter values
-    if (filters.policy_name?.trim()) params.append('policy_name', filters.policy_name.trim())
-    if (filters.sim_suite?.trim()) params.append('sim_suite', filters.sim_suite.trim())
+    if (filters.command?.trim()) params.append('command', filters.command.trim())
+    if (filters.user_id?.trim()) params.append('user_id', filters.user_id.trim())
     if (filters.status?.trim()) params.append('status', filters.status.trim())
     if (filters.assignee?.trim()) params.append('assignee', filters.assignee.trim())
-    if (filters.user_id?.trim()) params.append('user_id', filters.user_id.trim())
-    if (filters.retries?.trim()) params.append('retries', filters.retries.trim())
+    if (filters.git_hash?.trim()) params.append('git_hash', filters.git_hash.trim())
     if (filters.created_at?.trim()) params.append('created_at', filters.created_at.trim())
     if (filters.assigned_at?.trim()) params.append('assigned_at', filters.assigned_at.trim())
-    if (filters.updated_at?.trim()) params.append('updated_at', filters.updated_at.trim())
 
     return this.apiCall<PaginatedEvalTasksResponse>(`/tasks/paginated?${params}`)
   }
 
-  async getEvalTask(taskId: string): Promise<EvalTask> {
+  async getEvalTask(taskId: number): Promise<EvalTask> {
     return this.apiCall<EvalTask>(`/tasks/${taskId}`)
   }
 
-  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr'): string {
-    return `${this.baseUrl}/tasks/${taskId}/logs/${logType}`
+  async getTaskAttempts(taskId: number): Promise<TaskAttemptsResponse> {
+    return this.apiCall<TaskAttemptsResponse>(`/tasks/${taskId}/attempts`)
   }
 
-  async retryEvalTask(taskId: string): Promise<void> {
-    await this.apiCallWithBody<void>('/tasks/claimed/update', {
-      updates: {
-        [taskId]: {
-          status: 'unprocessed',
-          clear_assignee: true,
-          attributes: {},
-        },
-      },
-      require_assignee: null,
-    })
+  getTaskLogUrl(taskId: number, logType: 'output'): string {
+    return `${this.baseUrl}/tasks/${taskId}/logs/${logType}`
   }
 
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {

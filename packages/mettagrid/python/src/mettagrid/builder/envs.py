@@ -13,6 +13,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
+    ResourceLimitsConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
@@ -79,7 +80,7 @@ def make_arena(
             agent=AgentConfig(
                 default_resource_limit=50,
                 resource_limits={
-                    "heart": 255,
+                    "heart": ResourceLimitsConfig(limit=255, resources=["heart"]),
                 },
                 rewards=AgentRewards(
                     inventory={
@@ -168,7 +169,7 @@ def make_assembly_lines(
                     },
                 ),
                 default_resource_limit=1,
-                resource_limits={"heart": 15},
+                resource_limits={"heart": ResourceLimitsConfig(limit=15, resources=["heart"])},
             ),
         ),
     )

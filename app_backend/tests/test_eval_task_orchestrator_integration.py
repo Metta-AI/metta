@@ -4,19 +4,17 @@ from datetime import datetime
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from httpx import ASGITransport, AsyncClient
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
 from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker, TaskResult
+from metta.app_backend.metta_repo import EvalTaskRow
 from metta.app_backend.routes.eval_task_routes import (
     TaskCreateRequest,
     TaskFilterParams,
-    TaskResponse,
 )
+from metta.app_backend.test_support.client_adapter import TestClientAdapter
 from metta.app_backend.worker_managers.base import AbstractWorkerManager
 from metta.app_backend.worker_managers.thread_manager import ThreadWorkerManager
 
@@ -25,7 +23,7 @@ class SuccessTaskExecutor(AbstractTaskExecutor):
     def __init__(self):
         pass
 
-    async def execute_task(self, task: TaskResponse) -> TaskResult:
+    async def execute_task(self, task: EvalTaskRow) -> TaskResult:
         return TaskResult(success=True)
 
 
@@ -33,7 +31,7 @@ class FailureTaskExecutor(AbstractTaskExecutor):
     def __init__(self):
         pass
 
-    async def execute_task(self, task: TaskResponse) -> TaskResult:
+    async def execute_task(self, task: EvalTaskRow) -> TaskResult:
         raise Exception("Failed task")
 
 
@@ -41,44 +39,28 @@ class TestEvalTaskOrchestratorIntegration:
     """Integration tests for EvalTaskOrchestrator with real database and FastAPI client."""
 
     @pytest.fixture
-    def eval_task_client(self, test_client: TestClient, test_app: FastAPI) -> EvalTaskClient:
+    def eval_task_client(self, test_client: TestClient) -> EvalTaskClient:
         """Create an eval task client for testing."""
-        token_response = test_client.post(
-            "/tokens",
-            json={"name": "integration_test_token", "permissions": ["read", "write"]},
-            headers={"X-Auth-Request-Email": "test_user@example.com"},
-        )
-        assert token_response.status_code == 200
-        token = token_response.json()["token"]
+        # Create client without a real token - auth will use X-Auth-Request-Email header
+        client = EvalTaskClient(backend_url=str(test_client.base_url), machine_token=None)
 
-        client = EvalTaskClient.__new__(EvalTaskClient)
-        client._http_client = AsyncClient(transport=ASGITransport(app=test_app), base_url=test_client.base_url)
-        client._machine_token = token
+        # Replace httpx client with TestClientAdapter
+        client._http_client = TestClientAdapter(test_client)  # type: ignore
+
+        # Override the adapter's request method to add X-Auth-Request-Email header
+        original_request = client._http_client.request
+
+        def request_with_auth(method, url, **kwargs):
+            # Merge headers from kwargs with our auth header
+            existing_headers = kwargs.get("headers", {})
+            # Add X-Auth-Request-Email to existing headers
+            merged_headers = {**existing_headers, "X-Auth-Request-Email": "test_user@example.com"}
+            kwargs["headers"] = merged_headers
+            return original_request(method, url, **kwargs)
+
+        client._http_client.request = request_with_auth
 
         return client
-
-    @pytest.fixture
-    def test_policy_id(self, stats_client: StatsClient) -> uuid.UUID:
-        """Create a test policy and return its ID."""
-        training_run = stats_client.create_training_run(
-            name=f"test_integration_run_{uuid.uuid4().hex[:8]}",
-            attributes={"test": "integration"},
-        )
-
-        epoch = stats_client.create_epoch(
-            run_id=training_run.id,
-            start_training_epoch=0,
-            end_training_epoch=100,
-        )
-
-        policy = stats_client.create_policy(
-            name=f"test_integration_policy_{uuid.uuid4().hex[:8]}",
-            description="Test policy for integration tests",
-            epoch_id=epoch.id,
-            url="s3://example/policy.pt",
-        )
-
-        return policy.id
 
     def create_success_worker(self, worker_name: str, eval_task_client: EvalTaskClient) -> EvalTaskWorker:
         return EvalTaskWorker(
@@ -113,16 +95,15 @@ class TestEvalTaskOrchestratorIntegration:
 
     @pytest.mark.asyncio
     async def test_successful_task_processing(
-        self, orchestrator: EvalTaskOrchestrator, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+        self, orchestrator: EvalTaskOrchestrator, eval_task_client: EvalTaskClient
     ):
         """Test that tasks are successfully processed by workers."""
         # Create a test task
-        task_response = await eval_task_client.create_task(
+        task_response = eval_task_client.create_task(
             TaskCreateRequest(
-                policy_id=test_policy_id,
+                command="metta evaluate navigation",
                 git_hash="integration_test_hash",
-                sim_suite="navigation",
-                env_overrides={"test": "integration"},
+                attributes={"sim_suite": "navigation", "test": "integration"},
             )
         )
         task_id = task_response.id
@@ -143,8 +124,8 @@ class TestEvalTaskOrchestratorIntegration:
                 await asyncio.sleep(1)
 
                 # Check if task is completed
-                filters = TaskFilterParams(policy_ids=[test_policy_id], limit=10)
-                all_tasks = await eval_task_client.get_all_tasks(filters=filters)
+                filters = TaskFilterParams(git_hash="integration_test_hash", limit=10)
+                all_tasks = eval_task_client.get_all_tasks(filters=filters)
                 processed_task = next((task for task in all_tasks.tasks if task.id == task_id), None)
 
                 if processed_task and processed_task.status == "done":
@@ -160,7 +141,7 @@ class TestEvalTaskOrchestratorIntegration:
                 orchestrator._worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_failed_task_processing(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_failed_task_processing(self, eval_task_client: EvalTaskClient):
         """Test that failed tasks are marked as error."""
 
         # Create orchestrator with failure workers
@@ -183,11 +164,11 @@ class TestEvalTaskOrchestratorIntegration:
         )
 
         # Create a test task
-        task_response = await eval_task_client.create_task(
+        task_response = eval_task_client.create_task(
             TaskCreateRequest(
-                policy_id=test_policy_id,
+                command="metta evaluate navigation",
                 git_hash="failure_test_hash",
-                sim_suite="navigation",
+                attributes={"sim_suite": "navigation"},
             )
         )
         task_id = task_response.id
@@ -206,8 +187,8 @@ class TestEvalTaskOrchestratorIntegration:
                 await asyncio.sleep(1)
 
                 # Check if task failed
-                filters = TaskFilterParams(policy_ids=[test_policy_id], limit=10)
-                all_tasks = await eval_task_client.get_all_tasks(filters=filters)
+                filters = TaskFilterParams(git_hash="failure_test_hash", limit=10)
+                all_tasks = eval_task_client.get_all_tasks(filters=filters)
                 failed_task = next((task for task in all_tasks.tasks if task.id == task_id), None)
 
                 if failed_task and failed_task.status == "error":
@@ -218,8 +199,8 @@ class TestEvalTaskOrchestratorIntegration:
             assert failed_task.status == "error"
 
             # Check error reason was stored
-            assert "error_reason" in failed_task.attributes or any(
-                key.startswith("error_reason_") for key in failed_task.attributes.keys()
+            assert "error_reason" in failed_task.status_details or any(
+                key.startswith("error_reason_") for key in failed_task.status_details.keys()
             )
 
         finally:
@@ -227,9 +208,7 @@ class TestEvalTaskOrchestratorIntegration:
 
     @pytest.mark.skip(reason="flaky: worker 'gw3' crashed while running ...")
     @pytest.mark.asyncio
-    async def test_multiple_workers_concurrent_processing(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
-    ):
+    async def test_multiple_workers_concurrent_processing(self, eval_task_client: EvalTaskClient):
         """Test multiple workers processing different tasks concurrently."""
 
         # Create orchestrator with multiple workers
@@ -248,12 +227,13 @@ class TestEvalTaskOrchestratorIntegration:
 
         # Create multiple test tasks
         task_ids = []
+        test_git_hash = f"concurrent_test_{uuid.uuid4().hex[:8]}"
         for i in range(5):
-            task_response = await eval_task_client.create_task(
+            task_response = eval_task_client.create_task(
                 TaskCreateRequest(
-                    policy_id=test_policy_id,
-                    git_hash=f"concurrent_test_hash_{i}",
-                    sim_suite="navigation",
+                    command="metta evaluate navigation",
+                    git_hash=f"{test_git_hash}_{i}",
+                    attributes={"sim_suite": "navigation"},
                 )
             )
             task_ids.append(task_response.id)
@@ -266,8 +246,8 @@ class TestEvalTaskOrchestratorIntegration:
                 await asyncio.sleep(0.5)
 
                 # Check if all tasks are done
-                filters = TaskFilterParams(policy_ids=[test_policy_id], limit=20)
-                all_tasks = await eval_task_client.get_all_tasks(filters=filters)
+                filters = TaskFilterParams(limit=20)
+                all_tasks = eval_task_client.get_all_tasks(filters=filters)
 
                 done_tasks = [task for task in all_tasks.tasks if task.id in task_ids and task.status == "done"]
                 if len(done_tasks) == len(task_ids):
@@ -278,8 +258,8 @@ class TestEvalTaskOrchestratorIntegration:
                     break
 
             # Verify all tasks were completed
-            filters = TaskFilterParams(policy_ids=[test_policy_id], limit=20)
-            all_tasks = await eval_task_client.get_all_tasks(filters=filters)
+            filters = TaskFilterParams(limit=20)
+            all_tasks = eval_task_client.get_all_tasks(filters=filters)
 
             completed_count = sum(1 for task in all_tasks.tasks if task.id in task_ids and task.status == "done")
 
@@ -325,9 +305,7 @@ class TestEvalTaskOrchestratorIntegration:
             success_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_orchestrator_with_custom_worker_manager(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
-    ):
+    async def test_orchestrator_with_custom_worker_manager(self, eval_task_client: EvalTaskClient):
         """Test that orchestrator works with custom worker managers."""
 
         # Create mock worker manager

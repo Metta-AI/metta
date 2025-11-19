@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import math
-from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
@@ -21,13 +20,18 @@ _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
 ProgressCallback = Callable[[int], None]
 
 
-class MultiEpisodeRolloutResult(BaseModel):
+class EpisodeRolloutResult(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    assignments: list[np.ndarray]
-    rewards: list[np.ndarray]
-    action_timeouts: list[np.ndarray]
-    stats: list[EpisodeStats]
-    replay_paths: list[str] = Field(default_factory=list)
+
+    assignments: np.ndarray  # agent_id -> policy_idx
+    rewards: np.ndarray  # agent_id -> reward
+    action_timeouts: np.ndarray  # agent_id -> timeout_count
+    stats: EpisodeStats
+    replay_path: str | None
+
+
+class MultiEpisodeRolloutResult(BaseModel):
+    episodes: list[EpisodeRolloutResult]
 
 
 def _compute_policy_agent_counts(num_agents: int, proportions: list[float]) -> list[int]:
@@ -55,9 +59,8 @@ def multi_episode_rollout(
     seed: int = 0,
     proportions: Optional[Sequence[float]] = None,
     progress_callback: Optional[ProgressCallback] = None,
-    save_replay: Optional[Path] = None,
+    save_replay: Optional[str] = None,
     max_action_time_ms: int | None = None,
-    event_handlers: Optional[list[SimulatorEventHandler]] = None,
 ) -> MultiEpisodeRolloutResult:
     """
     Runs rollout for multiple episodes, randomizing agent assignments for each episode in proportions
@@ -81,11 +84,7 @@ def multi_episode_rollout(
     )
     assignments = np.repeat(np.arange(len(policies)), policy_counts)
 
-    per_episode_rewards: list[np.ndarray] = []
-    per_episode_stats: list[EpisodeStats] = []
-    per_episode_assignments: list[np.ndarray] = []
-    per_episode_timeouts: list[np.ndarray] = []
-    all_replay_paths: list[str] = []
+    episode_results: list[EpisodeRolloutResult] = []
 
     rng = np.random.default_rng(seed)
     for episode_idx in range(episodes):
@@ -93,12 +92,12 @@ def multi_episode_rollout(
         agent_policies: list[AgentPolicy] = [
             policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
-        handlers = list(event_handlers or [])
 
         # Create a new replay writer for each episode if save_replay is provided
+        handlers: list[SimulatorEventHandler] = []
         episode_replay_writer = None
         if save_replay is not None:
-            episode_replay_writer = ReplayLogWriter(str(save_replay))
+            episode_replay_writer = ReplayLogWriter(save_replay)
             handlers.append(episode_replay_writer)
 
         rollout = Rollout(
@@ -110,22 +109,21 @@ def multi_episode_rollout(
 
         rollout.run_until_done()
 
-        per_episode_rewards.append(np.array(rollout._sim.episode_rewards, dtype=float))
-        per_episode_stats.append(rollout._sim.episode_stats)
-        per_episode_timeouts.append(np.array(rollout.timeout_counts, dtype=float))
-        per_episode_assignments.append(assignments.copy())
-
-        # Collect replay paths from this episode's writer
+        replay_path = None
         if episode_replay_writer is not None:
-            all_replay_paths.extend(episode_replay_writer.get_written_replay_paths())
+            replay_path = episode_replay_writer.get_written_replay_paths()[0]
+
+        result = EpisodeRolloutResult(
+            assignments=assignments.copy(),
+            rewards=np.array(rollout._sim.episode_rewards, dtype=float),
+            action_timeouts=np.array(rollout.timeout_counts, dtype=float),
+            stats=rollout._sim.episode_stats,
+            replay_path=replay_path,
+        )
+
+        episode_results.append(result)
 
         if progress_callback is not None:
             progress_callback(episode_idx)
 
-    return MultiEpisodeRolloutResult(
-        rewards=per_episode_rewards,
-        stats=per_episode_stats,
-        action_timeouts=per_episode_timeouts,
-        assignments=per_episode_assignments,
-        replay_paths=all_replay_paths,
-    )
+    return MultiEpisodeRolloutResult(episodes=episode_results)

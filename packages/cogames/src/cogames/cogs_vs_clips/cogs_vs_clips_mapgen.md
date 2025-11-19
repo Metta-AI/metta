@@ -218,19 +218,24 @@ CLI variants are composed in order, so `cogames play -m machina_procedural.open_
 
 ### Seeds and Reproducibility
 
-- Passing `seed` into a mapgen (`env.game.map_builder`) guarantees deterministic terrain and building placement.
-- CLI `--seed` flags (e.g., `cogames train --seed`) currently only seed the RL training loop; they do **not** inject a
-  procedural seed. Add a mission/variant override if you need deterministic maps from the CLI today.
+- `MapGen.Config.seed` (`env.game.map_builder.seed`) controls **map layout**: set it for deterministic terrain/building
+  placement for a mission/site.
+- `cogames evaluate` and `cogames play` use `--seed` for the simulator/policy RNG and `--map-seed` (or `--seed` if
+  omitted) for `MapGenConfig.seed`, so runs can be made fully reproducible from the CLI.
+- `cogames train` treats `--map-seed` as an **opt-in** override: when set, all procedural training missions use that
+  fixed `MapGenConfig.seed`; when left `None`, the vectorized env factory derives per-env map seeds from the runner’s
+  RNG so a fixed `--seed` yields a reproducible but diverse map sequence.
 
-Example override from a variant:
+Example programmatic override using the shared `MapSeedVariant` helper:
 
 ```python
-class FixSeedVariant(MissionVariant):
-    name: str = "fix_seed"
-    seed: int
-    def modify_env(self, mission: Mission, env: MettaGridConfig):
-        assert isinstance(env.game.map_builder, MapGen.Config)
-        env.game.map_builder.instance.seed = self.seed
+from cogames.cogs_vs_clips.procedural import MapSeedVariant
+
+base_mission = HelloWorldOpenWorldMission
+seeded_mission = base_mission.with_variants([MapSeedVariant(seed=1234)])
+env_cfg = seeded_mission.make_env()
+# env_cfg.game.map_builder is a MapGen.Config with seed=1234; calling builder.build()
+# will now deterministically reproduce the same grid.
 ```
 
 ---

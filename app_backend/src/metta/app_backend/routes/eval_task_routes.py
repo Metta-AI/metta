@@ -1,8 +1,11 @@
+import json
+import os
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional, TypeVar
 from urllib.parse import urlparse
 
+import aioboto3
 import boto3
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -10,43 +13,46 @@ from pydantic import BaseModel, Field
 
 import gitta as git
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import EvalTaskRow, EvalTaskWithPolicyName, MettaRepo, TaskStatus, TaskStatusUpdate
+from metta.app_backend.metta_repo import EvalTaskRow, FinishedTaskStatus, MettaRepo, TaskAttemptRow, TaskStatus
 from metta.app_backend.route_logger import timed_http_handler
 from metta.common.util.git_repo import REPO_SLUG
+
+OBSERVATORY_S3_BUCKET = "observatory-private"
 
 T = TypeVar("T")
 
 
 class TaskCreateRequest(BaseModel):
-    policy_id: uuid.UUID
-    sim_suite: str
-    attributes: dict[str, Any] = Field(default_factory=dict)
-
-    # We should remove these once clients have migrated
+    command: str
     git_hash: str | None = None
-    env_overrides: dict[str, Any] = Field(default_factory=dict)
+    data_file: dict[str, Any] | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class TaskClaimRequest(BaseModel):
-    tasks: list[uuid.UUID]
+    tasks: list[int]
     assignee: str
 
 
 class TaskClaimResponse(BaseModel):
-    claimed: list[uuid.UUID]
+    claimed: list[int]
 
 
-class TaskUpdateRequest(BaseModel):
-    require_assignee: str | None = None  # If supplied, the action only happens if the task is assigned to this worker
-    updates: dict[uuid.UUID, TaskStatusUpdate]
+class TaskFinishRequest(BaseModel):
+    task_id: int
+    status: FinishedTaskStatus
+    log_path: str | None = None
+    status_details: dict[str, Any] = Field(default_factory=dict)
+
+
+class TaskIdResponse(BaseModel):
+    task_id: int
 
 
 class TaskFilterParams(BaseModel):
     limit: int = Field(default=500, ge=1, le=1000)
     statuses: list[str] | None = None
     git_hash: str | None = None
-    policy_ids: list[uuid.UUID] | None = None
-    sim_suites: list[str] | None = None
 
 
 class TaskPaginationParams(BaseModel):
@@ -63,91 +69,16 @@ class TaskPaginationParams(BaseModel):
     updated_at: str | None = None
 
 
-class EvalTaskResponse(BaseModel):
-    id: uuid.UUID
-    policy_id: uuid.UUID
-    policy_uri: str
-    sim_suite: str
-    status: TaskStatus
-    assigned_at: datetime | None = None
-    assignee: str | None = None
-    created_at: datetime
-    attributes: dict[str, Any]
-    policy_name: str | None = None
-    retries: int
-    user_id: str | None = None
-    updated_at: datetime
-
-    def _attribute_property(self, key: str) -> Any | None:
-        return self.attributes.get(key)
-
-    @property
-    def git_hash(self) -> str | None:
-        return self._attribute_property("git_hash")
-
-    @property
-    def workers_spawned(self) -> int:
-        return self._attribute_property("workers_spawned") or 0
-
-    @classmethod
-    def from_db(cls, row: EvalTaskWithPolicyName) -> "EvalTaskResponse":
-        return cls(
-            id=row.id,
-            policy_id=row.policy_id,
-            policy_uri=row.policy_url,
-            sim_suite=row.sim_suite,
-            status=row.status,  # type: ignore
-            assigned_at=row.assigned_at,
-            assignee=row.assignee,
-            created_at=row.created_at,
-            attributes=row.attributes,
-            policy_name=row.policy_name,
-            retries=row.retries,
-            user_id=row.user_id,
-            updated_at=row.updated_at,
-        )
-
-
-class TaskResponse(BaseModel):
-    id: uuid.UUID
-    policy_id: uuid.UUID
-    sim_suite: str
-    status: TaskStatus
-    assigned_at: datetime | None = None
-    assignee: str | None = None
-    created_at: datetime
-    attributes: dict[str, Any]
-    retries: int
-    user_id: str | None = None
-    updated_at: datetime
-
-    @classmethod
-    def from_db(cls, task: EvalTaskRow) -> "TaskResponse":
-        return cls(
-            id=task.id,
-            policy_id=task.policy_id,
-            sim_suite=task.sim_suite,
-            status=task.status,  # type: ignore
-            assigned_at=task.assigned_at,
-            assignee=task.assignee,
-            created_at=task.created_at,
-            attributes=task.attributes or {},
-            retries=task.retries,
-            user_id=task.user_id,
-            updated_at=task.updated_at,
-        )
-
-
 class TaskUpdateResponse(BaseModel):
-    statuses: dict[uuid.UUID, TaskStatus]
+    statuses: dict[int, TaskStatus]
 
 
 class TasksResponse(BaseModel):
-    tasks: list[EvalTaskResponse]
+    tasks: list[EvalTaskRow]
 
 
 class PaginatedTasksResponse(BaseModel):
-    tasks: list[EvalTaskResponse]
+    tasks: list[EvalTaskRow]
     total_count: int
     page: int
     page_size: int
@@ -168,6 +99,10 @@ class TaskCountResponse(BaseModel):
 
 class TaskAvgRuntimeResponse(BaseModel):
     avg_runtime: float | None
+
+
+class TaskAttemptsResponse(BaseModel):
+    attempts: list[TaskAttemptRow]
 
 
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
@@ -191,43 +126,39 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         _latest_commit_cache = (commit_hash, now)
         return commit_hash
 
-    user_or_token = Depends(create_user_or_token_dependency(stats_repo))
+    user_or_token = Depends(create_user_or_token_dependency())
 
-    @router.post("", response_model=TaskResponse)
+    @router.post("", response_model=EvalTaskRow)
     @timed_http_handler
-    async def create_task(request: TaskCreateRequest, user: str = user_or_token) -> TaskResponse:
-        # If no git_hash provided, fetch latest commit from main branch
-        attributes = request.attributes.copy()
-        if not attributes.get("git_hash"):
-            if request.git_hash:
-                # Remove this once clients have migrated
-                attributes["git_hash"] = request.git_hash
-            else:
-                attributes["git_hash"] = await get_cached_latest_commit()
+    async def create_task(request: TaskCreateRequest, user: str = user_or_token) -> EvalTaskRow:
+        data_uri = None
+        if request.data_file:
+            file_path = f"data_file_{uuid.uuid4()}.json"
+            with open(file_path, "w") as f:
+                f.write(json.dumps(request.data_file))
 
-        policy = await stats_repo.get_policy_by_id(request.policy_id)
-        if not policy:
-            raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
+            s3_key = f"eval_tasks/data_files/{uuid.uuid4()}.json"
+            session = aioboto3.Session()
+            async with session.client("s3") as s3_client:  # type: ignore
+                await s3_client.upload_file(file_path, OBSERVATORY_S3_BUCKET, s3_key)
+            data_uri = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
 
-        if not policy.url:
-            raise HTTPException(status_code=400, detail="Policy URL is not set")
-
-        if not policy.url.startswith("s3://"):
-            raise HTTPException(status_code=400, detail="Policy URL is not an S3 URL")
+            os.remove(file_path)
 
         task = await stats_repo.create_eval_task(
-            policy_id=request.policy_id,
-            sim_suite=request.sim_suite,
-            attributes=attributes,
+            command=request.command,
+            git_hash=request.git_hash or await get_cached_latest_commit(),
+            attributes=request.attributes,
             user_id=user,
+            data_uri=data_uri,
         )
-        return TaskResponse.from_db(task)
+        return task
 
-    @router.get("/latest", response_model=EvalTaskResponse)
+    @router.get("/latest", response_model=EvalTaskRow)
     @timed_http_handler
-    async def get_latest_assigned_task_for_worker(assignee: str) -> EvalTaskResponse | None:
+    async def get_latest_assigned_task_for_worker(assignee: str) -> EvalTaskRow | None:
         task = await stats_repo.get_latest_assigned_task_for_worker(assignee=assignee)
-        return EvalTaskResponse.from_db(task) if task else None
+        return task
 
     @router.get("/available", response_model=TasksResponse)
     @timed_http_handler
@@ -235,8 +166,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         limit: int = Query(default=200, ge=1, le=1000),
     ) -> TasksResponse:
         tasks = await stats_repo.get_available_tasks(limit=limit)
-        task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
-        return TasksResponse(tasks=task_responses)
+        return TasksResponse(tasks=tasks)
 
     @router.post("/claim")
     @timed_http_handler
@@ -251,8 +181,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_claimed_tasks(assignee: str | None = Query(None)) -> TasksResponse:
         tasks = await stats_repo.get_claimed_tasks(assignee=assignee)
-        task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
-        return TasksResponse(tasks=task_responses)
+        return TasksResponse(tasks=tasks)
 
     @router.post("/git-hashes")
     @timed_http_handler
@@ -266,18 +195,13 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         limit: int = Query(default=500, ge=1, le=1000),
         statuses: list[TaskStatus] | None = Query(default=None),
         git_hash: str | None = Query(default=None),
-        policy_ids: list[uuid.UUID] | None = Query(default=None),
-        sim_suites: list[str] | None = Query(default=None),
     ) -> TasksResponse:
         tasks = await stats_repo.get_all_tasks(
             limit=limit,
             statuses=statuses,
             git_hash=git_hash,
-            policy_ids=policy_ids,
-            sim_suites=sim_suites,
         )
-        task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
-        return TasksResponse(tasks=task_responses)
+        return TasksResponse(tasks=tasks)
 
     @router.get("/paginated", response_model=PaginatedTasksResponse)
     @timed_http_handler
@@ -298,36 +222,34 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         tasks, total_count = await stats_repo.get_tasks_paginated(
             page=page,
             page_size=page_size,
-            policy_name=policy_name,
-            sim_suite=sim_suite,
             status=status,
             assignee=assignee,
             user_id=user_id,
-            retries=retries,
             created_at=created_at,
             assigned_at=assigned_at,
-            updated_at=updated_at,
-            include_attributes=include_attributes,
         )
-        task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
         total_pages = (total_count + page_size - 1) // page_size
         return PaginatedTasksResponse(
-            tasks=task_responses,
+            tasks=tasks,
             total_count=total_count,
             page=page,
             page_size=page_size,
             total_pages=total_pages,
         )
 
-    @router.post("/claimed/update")
+    @router.post("/{task_id}/start")
     @timed_http_handler
-    async def update_task_statuses(request: TaskUpdateRequest) -> TaskUpdateResponse:
-        updated = await stats_repo.update_task_statuses(
-            updates=request.updates,
-            require_assignee=request.require_assignee,
-        )
+    async def start_task(task_id: int) -> TaskIdResponse:
+        await stats_repo.start_task(task_id=task_id)
+        return TaskIdResponse(task_id=task_id)
 
-        return TaskUpdateResponse(statuses=updated)
+    @router.post("/{task_id}/finish")
+    @timed_http_handler
+    async def finish_task(task_id: int, request: TaskFinishRequest) -> TaskIdResponse:
+        await stats_repo.finish_task(
+            task_id=task_id, status=request.status, status_details=request.status_details, log_path=request.log_path
+        )
+        return TaskIdResponse(task_id=task_id)
 
     @router.get("/count")
     @timed_http_handler
@@ -339,22 +261,29 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     async def get_avg_runtime(where_clause: str = Query(default="")) -> TaskAvgRuntimeResponse:
         return TaskAvgRuntimeResponse(avg_runtime=await stats_repo.get_avg_runtime(where_clause=where_clause))
 
-    @router.get("/{task_id}", response_model=EvalTaskResponse)
+    @router.get("/{task_id}", response_model=EvalTaskRow)
     @timed_http_handler
-    async def get_task(task_id: uuid.UUID) -> EvalTaskResponse:
+    async def get_task(task_id: int) -> EvalTaskRow:
         """Get a single task by ID with full details including attributes."""
         task = await stats_repo.get_task_by_id(task_id)
         if not task:
             raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-        return EvalTaskResponse.from_db(task)
+        return task
+
+    @router.get("/{task_id}/attempts", response_model=TaskAttemptsResponse)
+    @timed_http_handler
+    async def get_task_attempts(task_id: int) -> TaskAttemptsResponse:
+        """Get all attempts for a specific task."""
+        attempts = await stats_repo.get_task_attempts(task_id)
+        return TaskAttemptsResponse(attempts=attempts)
 
     @router.get("/{task_id}/logs/{log_type}")
     @timed_http_handler
-    async def get_task_logs(task_id: uuid.UUID, log_type: str):
+    async def get_task_logs(task_id: int, log_type: str):
         """Stream log files from S3 for a specific task.
 
         Args:
-            task_id: The UUID of the task
+            task_id: The ID of the task
             log_type: Either "stdout" or "stderr" or "output"
 
         Returns:
@@ -369,8 +298,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
         # Get the log path from task attributes
-        log_path_key = f"{log_type}_log_path"
-        log_path = task.attributes.get(log_path_key)
+        log_path = task.output_log_path
 
         if not log_path:
             raise HTTPException(status_code=404, detail=f"No {log_type} log path found for task {task_id}")

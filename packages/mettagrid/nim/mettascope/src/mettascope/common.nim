@@ -193,3 +193,9 @@ proc getObjectAtLocation*(pos: IVec2): Entity =
     if obj.location.at(step).xy == pos:
       return obj
   return nil
+
+proc getVibeName*(vibeId: int): string =
+  if vibeId >= 0 and vibeId < replay.config.game.vibeNames.len:
+    result = replay.config.game.vibeNames[vibeId]
+  else:
+    raise newException(ValueError, "Vibe with ID " & $vibeId & " does not exist")
