@@ -3,18 +3,72 @@
 from __future__ import annotations
 
 import warnings
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple, cast
 
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
-from transformers.cache_utils import StaticCache
+from tensordict import TensorDict  # type: ignore[import-untyped]
 
 from cortex.cells.base import MemoryCell
 from cortex.cells.core import update_parent_state
 from cortex.cells.registry import register_cell
 from cortex.config import CellConfig
 from cortex.types import MaybeState, ResetMask, Tensor
+
+
+class LayerwiseCache:
+    """Per-layer sliding-window cache backed by preallocated K/V tensors."""
+
+    def __init__(
+        self,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        mem_len: int,
+        layer_idx: int,
+        kv_len: int,
+    ) -> None:
+        self.keys = k
+        self.values = v
+        self.mem_len = int(mem_len)
+        self.layer_idx = int(layer_idx)
+        self.kv_len = int(kv_len)
+
+    def update(
+        self,
+        key_states: torch.Tensor,
+        value_states: torch.Tensor,
+        layer_idx: int,
+        cache_kwargs: Optional[dict[str, Any]] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        _ = layer_idx
+        _ = cache_kwargs
+
+        B, n_kv, T, _ = key_states.shape
+        past_len = int(self.kv_len)
+
+        if past_len > 0:
+            k_past = self.keys[:, :, :past_len, :]
+            v_past = self.values[:, :, :past_len, :]
+            k_full = torch.cat((k_past, key_states), dim=2)
+            v_full = torch.cat((v_past, value_states), dim=2)
+        else:
+            k_full = key_states
+            v_full = value_states
+        total_len = past_len + T
+        new_past = min(total_len, self.mem_len)
+        if new_past > 0:
+            window_k = k_full[:, :, -new_past:, :].contiguous()
+            window_v = v_full[:, :, -new_past:, :].contiguous()
+            self.keys.zero_()
+            self.values.zero_()
+            self.keys[:, :, :new_past, :] = window_k
+            self.values[:, :, :new_past, :] = window_v
+        else:
+            self.keys.zero_()
+            self.values.zero_()
+
+        self.kv_len = new_past
+        return k_full, v_full
 
 
 class HFLlamaLayerConfig(CellConfig):
@@ -52,9 +106,10 @@ class HFLlamaLayerCell(MemoryCell):
         # which are not used by this cell's forward, causing DDP to flag unused parameters.
         # We only need rotary embeddings; keep a direct handle to that module instead.
         # LlamaRotaryEmbedding carries buffers but no trainable parameters, so it is safe.
-        self.hf_rotary_emb = getattr(hf_submodel, "rotary_emb", None)
-        if self.hf_rotary_emb is None:
+        rotary_emb = getattr(hf_submodel, "rotary_emb", None)
+        if rotary_emb is None:
             raise ValueError("hf_submodel is missing 'rotary_emb'")
+        self.hf_rotary_emb: nn.Module = rotary_emb
         self.hf_config = hf_config
 
         self.mem_len = int(cfg.mem_len)
@@ -103,7 +158,7 @@ class HFLlamaLayerCell(MemoryCell):
 
     # No dynamic cache helpers needed with tensor-backed KV state
 
-    def _prepare_static_cache(
+    def _prepare_layerwise_cache(
         self,
         state: TensorDict,
         *,
@@ -111,48 +166,22 @@ class HFLlamaLayerCell(MemoryCell):
         T: int,
         dtype: torch.dtype,
         device: torch.device,
-    ) -> tuple[StaticCache, int, torch.Tensor, torch.Tensor]:
-        """Create StaticCache bound to TensorDict KV tensors. Returns (cache, layer_idx, kv_len, cache_position)."""
-        # TODO: Currently KV cache is reintialzed and each layer keeps L layers in each forward pass (deleted after each forward pass),
-        # in future we would like to materialize only the required size.
-        have_kv = ("k" in state.keys()) and ("v" in state.keys())
-        if have_kv:
-            st_k = state.get("k")
-            n_kv = int(st_k.shape[1])
-            head_dim = int(st_k.shape[-1])
-        else:
-            n_kv = int(
-                getattr(
-                    self.hf_config,
-                    "num_key_value_heads",
-                    getattr(self.hf_config, "num_attention_heads", 1),
-                )
-            )
-            head_dim = int(
-                getattr(
-                    self.hf_layer.self_attn,
-                    "head_dim",
-                    self.hidden_size // int(getattr(self.hf_config, "num_attention_heads", 1)),
-                )
-            )
+    ) -> tuple[LayerwiseCache, int, torch.Tensor]:
+        """Create cache and return (cache, layer_idx, kv_len)."""
+        if "k" not in state.keys() or "v" not in state.keys():
+            # Should not happen for mem_len > 0, but fall back to init_state for robustness.
+            state.update(self.init_state(batch=B, device=device, dtype=dtype))
 
-        cache = StaticCache(config=self.hf_config, max_cache_len=self.mem_len)
-        cache.early_initialization(batch_size=B, num_heads=n_kv, head_dim=head_dim, dtype=dtype, device=device)
-        layer_idx = int(getattr(self.hf_layer.self_attn, "layer_idx", 0))
-
-        if have_kv:
-            layer = cache.layers[layer_idx]
-            layer.keys = state.get("k")
-            layer.values = state.get("v")
+        k = state.get("k")
+        v = state.get("v")
+        if k.shape[0] != B:
+            raise ValueError(f"LayerwiseCache expects batch size {B}, got {k.shape[0]}")
 
         kv_len = state.get("kv_len") if "kv_len" in state.keys() else torch.zeros(B, dtype=torch.long, device=device)
-        # Use a uniform insertion start across the batch and keep it in-bounds.
-        # This avoids out-of-range writes when kv_len reaches mem_len and ensures static positions are valid.
-        start = int(kv_len.min().item())
-        if self.mem_len > 0:
-            start = max(0, min(start, self.mem_len - T))
-        cache_position = torch.arange(start, start + T, device=device)
-        return cache, layer_idx, kv_len, cache_position
+        layer_idx = int(getattr(self.hf_layer.self_attn, "layer_idx", 0))
+        kv_len_scalar = int(kv_len[0].item()) if kv_len.numel() > 0 else 0
+        cache = LayerwiseCache(k=k, v=v, mem_len=self.mem_len, layer_idx=layer_idx, kv_len=kv_len_scalar)
+        return cache, layer_idx, kv_len
 
     @staticmethod
     def _build_last_reset_indices(resets_bt: torch.Tensor) -> torch.Tensor:
@@ -286,60 +315,35 @@ class HFLlamaLayerCell(MemoryCell):
             position_ids = torch.where(last_reset_idx >= 0, ar - last_reset_idx, base_since_seg + ar)
         position_embeddings = self.hf_rotary_emb(x_seq, position_ids)
 
-        # Build a StaticCache for the model and populate this layer from TD state
         if self.mem_len > 0:
-            cache, layer_idx, kv_len, cache_position = self._prepare_static_cache(
-                state, B=B, T=T, dtype=dtype, device=device
-            )
+            td_state = cast(TensorDict, state)
+            kv_len = td_state.get("kv_len") if "kv_len" in td_state else torch.zeros(B, dtype=torch.long, device=device)
+            # Build a lightweight cache for the model and populate this layer from TD state.
+            cache, layer_idx, kv_len = self._prepare_layerwise_cache(state, B=B, T=T, dtype=dtype, device=device)
+            past_len = int(kv_len[0].item()) if kv_len.numel() > 0 else 0
             if use_flash:
-                # FlashAttention path
-                if T > 1:
-                    # Efficient path: ignore per‑timestep resets; rely on causal masking
-                    if resets is not None and torch.count_nonzero(resets) > 0:
-                        warnings.warn(
-                            "FlashAttention: ignoring per‑timestep resets within chunk when T>1; "
-                            "use bptt_horizon=1 or eager attention to enforce mid‑chunk resets.",
-                            stacklevel=1,
-                        )
-                    y = self.hf_layer(
-                        hidden_states=x_seq,
-                        attention_mask=None,
-                        position_ids=position_ids,
-                        past_key_values=cache,
-                        cache_position=cache_position,
-                        position_embeddings=position_embeddings,
-                        use_cache=True,
+                # FlashAttention path; ignore per‑timestep resets within chunk when T>1.
+                if T > 1 and resets is not None and torch.count_nonzero(resets) > 0:
+                    warnings.warn(
+                        "FlashAttention: ignoring per‑timestep resets within chunk when T>1; "
+                        "use bptt_horizon=1 or eager attention to enforce mid‑chunk resets.",
+                        stacklevel=1,
                     )
-                else:
-                    # T == 1: build a 2D (B, K) padding mask from our additive mask
-                    att2d = self._build_additive_mask_static(
-                        B=B,
-                        T=T,
-                        mem_len=self.mem_len,
-                        kv_len=kv_len,
-                        pos=pos,
-                        seg_pos=seg_pos,
-                        last_reset_idx=last_reset_idx,
-                        dtype=dtype,
-                        device=device,
-                    )
-                    valid_k = att2d.squeeze(1).squeeze(1) == 0  # [B, K] bool mask: True means valid
-                    y = self.hf_layer(
-                        hidden_states=x_seq,
-                        attention_mask=valid_k,
-                        position_ids=position_ids,
-                        past_key_values=cache,
-                        cache_position=cache_position,
-                        position_embeddings=position_embeddings,
-                        use_cache=True,
-                    )
+                y = self.hf_layer(
+                    hidden_states=x_seq,
+                    attention_mask=None,
+                    position_ids=position_ids,
+                    past_key_values=cache,
+                    cache_position=None,
+                    position_embeddings=position_embeddings,
+                    use_cache=True,
+                )
             else:
-                # Eager path: build full additive mask over the static window
-                attention_mask = self._build_additive_mask_static(
+                # Eager path: build additive mask over dynamic context of length (past_len + T).
+                attention_mask = self._build_additive_mask(
                     B=B,
                     T=T,
-                    mem_len=self.mem_len,
-                    kv_len=kv_len,
+                    past_len=past_len,
                     pos=pos,
                     seg_pos=seg_pos,
                     last_reset_idx=last_reset_idx,
@@ -351,15 +355,15 @@ class HFLlamaLayerCell(MemoryCell):
                     attention_mask=attention_mask,
                     position_ids=position_ids,
                     past_key_values=cache,
-                    cache_position=cache_position,
+                    cache_position=None,
                     position_embeddings=position_embeddings,
                     use_cache=True,
                 )
             # KV updated in place via bound references; ensure state keeps aliases
-            state.set("k", cache.layers[layer_idx].keys)
-            state.set("v", cache.layers[layer_idx].values)
+            state.set("k", cache.keys)
+            state.set("v", cache.values)
             # Update kv_len with clamp to mem_len
-            new_kv_len = torch.clamp(kv_len + T, max=self.mem_len)
+            new_kv_len = torch.full_like(kv_len, cache.kv_len)
             state.set("kv_len", new_kv_len)
         else:
             # No KV cache
