@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from typing import Literal, Optional, TypeAlias
 
 import numpy as np
@@ -15,8 +17,9 @@ from rich.table import Table
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.subprocess_wrapper import PerAgentSubprocessWrapper
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 from mettagrid.simulator.multi_episode.summary import MultiEpisodeRolloutSummary, build_multi_episode_rollout_summaries
 
@@ -48,7 +51,8 @@ def evaluate(
     seed: int = 42,
     output_format: Optional[Literal["yaml", "json"]] = None,
     save_replay: Optional[str] = None,
-    parallel_agents: bool = False,
+    parallel_policy: bool = False,
+    jobs: int = 0,
 ) -> MissionResultsSummary:
     if not missions:
         raise ValueError("At least one mission must be provided for evaluation.")
@@ -66,41 +70,81 @@ def evaluate(
         for mission_name in mission_names:
             console.print(f"- {mission_name}")
 
+    # Create shared process pool for parallel policy execution if enabled
+    process_pool: Optional[ProcessPoolExecutor] = None
+    if parallel_policy:
+        max_workers = min(os.cpu_count() or 1, 8)  # Limit to avoid too many processes
+        try:
+            process_pool = ProcessPoolExecutor(max_workers=max_workers)
+        except Exception as e:
+            console.print(
+                f"[yellow]Warning: Failed to create process pool: {e}. Falling back to sequential execution.[/yellow]"
+            )
+            parallel_policy = False
+
     mission_results: list[MultiEpisodeRolloutResult] = []
     all_replay_paths: list[str] = []
-    for mission_name, env_cfg in missions:
-        env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
-        policy_instances: list[MultiAgentPolicy] = [
-            initialize_or_load_policy(env_interface, spec) for spec in policy_specs
-        ]
 
-        progress_label = f"Simulating ({mission_name})"
-        progress_iterable = range(episodes)
-        with typer.progressbar(progress_iterable, label=progress_label) as progress:
-            iterator = iter(progress)
+    try:
+        for mission_name, env_cfg in missions:
+            env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
+            policy_instances: list[MultiAgentPolicy] = [
+                initialize_or_load_policy(env_interface, spec) for spec in policy_specs
+            ]
 
-            def _progress_callback(_: int, progress_iter=iterator) -> None:
-                try:
-                    next(progress_iter)
-                except StopIteration:
-                    pass
+            # Wrap policies if parallel_policy is enabled
+            if parallel_policy and process_pool is not None:
+                # Create wrapper class that intercepts agent_policy() calls
+                class WrappedMultiAgentPolicy(MultiAgentPolicy):
+                    def __init__(self, wrapped: MultiAgentPolicy, pool: ProcessPoolExecutor):
+                        super().__init__(wrapped.policy_env_info)
+                        self._wrapped = wrapped
+                        self._pool = pool
+                        self._wrapped_agent_policies: dict[int, AgentPolicy] = {}
 
-            rollout_payload = multi_episode_rollout(
-                env_cfg=env_cfg,
-                policies=policy_instances,
-                proportions=proportions,
-                episodes=episodes,
-                max_action_time_ms=action_timeout_ms,
-                seed=seed,
-                progress_callback=_progress_callback,
-                save_replay=save_replay,
-                parallel_agents=parallel_agents,
-            )
-        mission_results.append(rollout_payload)
-        # Collect replay paths from this mission
-        for episode in rollout_payload.episodes:
-            if episode.replay_path:
-                all_replay_paths.append(episode.replay_path)
+                    def agent_policy(self, agent_id: int) -> AgentPolicy:
+                        if agent_id not in self._wrapped_agent_policies:
+                            base_policy = self._wrapped.agent_policy(agent_id)
+                            self._wrapped_agent_policies[agent_id] = PerAgentSubprocessWrapper(base_policy, self._pool)
+                        return self._wrapped_agent_policies[agent_id]
+
+                    def reset(self) -> None:
+                        self._wrapped.reset()
+                        self._wrapped_agent_policies.clear()
+
+                policy_instances = [WrappedMultiAgentPolicy(p, process_pool) for p in policy_instances]
+
+            progress_label = f"Simulating ({mission_name})"
+            progress_iterable = range(episodes)
+            with typer.progressbar(progress_iterable, label=progress_label) as progress:
+                iterator = iter(progress)
+
+                def _progress_callback(_: int, progress_iter=iterator) -> None:
+                    try:
+                        next(progress_iter)
+                    except StopIteration:
+                        pass
+
+                rollout_payload = multi_episode_rollout(
+                    env_cfg=env_cfg,
+                    policies=policy_instances,
+                    proportions=proportions,
+                    episodes=episodes,
+                    max_action_time_ms=action_timeout_ms,
+                    seed=seed,
+                    progress_callback=_progress_callback,
+                    save_replay=save_replay,
+                    jobs=jobs,
+                )
+            mission_results.append(rollout_payload)
+            # Collect replay paths from this mission
+            for episode in rollout_payload.episodes:
+                if episode.replay_path:
+                    all_replay_paths.append(episode.replay_path)
+    finally:
+        # Cleanup subprocesses
+        if process_pool is not None:
+            process_pool.shutdown(wait=True)
 
     summaries = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
     mission_names = [mission_name for mission_name, _ in missions]
