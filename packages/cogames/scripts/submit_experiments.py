@@ -74,4 +74,3 @@ if __name__ == "__main__":
     print("\n" + "=" * 80)
     print("All experiments submitted successfully!")
     print("=" * 80)
-

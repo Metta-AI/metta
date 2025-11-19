@@ -239,9 +239,7 @@ def _run_case(
     except Exception as e:
         # Log the error but exclude failed runs from results
         # This prevents zero-reward results from being included when runs actually failed
-        logger.warning(
-            f"Failed to run case: {exp_name} | {variant_name or 'base'} | {num_cogs} agent(s) - {e}"
-        )
+        logger.warning(f"Failed to run case: {exp_name} | {variant_name or 'base'} | {num_cogs} agent(s) - {e}")
         return []  # Return empty list to exclude failed runs from results
 
 

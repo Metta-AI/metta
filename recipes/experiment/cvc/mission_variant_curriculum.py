@@ -407,9 +407,7 @@ def make_curriculum(
             # Reward for gaining resources (not just having them) to avoid rewarding initial inventory
             mission_tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
             mission_tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
-            mission_tasks.add_bucket(
-                "game.agent.rewards.stats.germanium.gained", [0.0, 0.005, 0.01, 0.015, 0.02]
-            )
+            mission_tasks.add_bucket("game.agent.rewards.stats.germanium.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
             mission_tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
 
             # Cap resource rewards to prevent hoarding
