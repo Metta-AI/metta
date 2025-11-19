@@ -64,43 +64,34 @@ class Checkpointer(TrainerComponent):
         """Load the latest policy checkpoint or create a new policy."""
 
         candidate_uri: Optional[str] = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
-        load_device = torch.device(self._distributed.config.device)
 
-        # Distributed: master loads once, broadcasts payload; workers rebuild locally.
-        if self._distributed.is_distributed:
-            normalized_uri = (
-                CheckpointManager.normalize_uri(candidate_uri)
-                if self._distributed.is_master() and candidate_uri
-                else None
-            )
-            normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
+        # Broadcast just the URI; each rank loads locally to avoid pickling DDP-wrapped modules
+        if self._distributed.is_master():
+            normalized_uri = CheckpointManager.normalize_uri(candidate_uri) if candidate_uri else None
+        else:
+            normalized_uri = None
+        normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
-            if normalized_uri:
+        if normalized_uri:
+            try:
+                load_device = torch.device(self._distributed.config.device)
                 spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
                 policy = initialize_or_load_policy(policy_env_info, spec)
                 policy = self._ensure_save_capable(policy)
                 # Guard against silently loading a policy with no trainable params (e.g., failed state_dict load)
                 trainable = sum(p.numel() for p in policy.parameters() if getattr(p, "requires_grad", False))
                 if trainable == 0:
-                    logger.warning(
-                        "Loaded policy from %s has zero trainable parameters; recreating a fresh policy.",
-                        normalized_uri,
-                    )
-                    policy = None
-                self._latest_policy_uri = normalized_uri
-                logger.info("Loaded policy from %s", normalized_uri)
-                if policy is not None:
-                    return policy
-
-        # Non-distributed or fallthrough: load locally (fail hard on errors)
-        if candidate_uri:
-            normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
-            spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
-            policy = initialize_or_load_policy(policy_env_info, spec)
-            policy = self._ensure_save_capable(policy)
-            self._latest_policy_uri = normalized_uri
-            logger.info("Loaded policy from %s", normalized_uri)
-            return policy
+                    raise ValueError("Loaded policy has zero trainable parameters")
+                if self._distributed.is_master():
+                    self._latest_policy_uri = normalized_uri
+                    logger.info("Loaded policy from %s", normalized_uri)
+                return policy
+            except FileNotFoundError:
+                if self._distributed.is_master():
+                    logger.warning("Policy checkpoint %s not found; training will start fresh", normalized_uri)
+            except Exception as exc:  # pragma: no cover - defensive guard
+                if self._distributed.is_master():
+                    logger.warning("Failed to load policy from %s: %s", normalized_uri, exc)
 
         logger.info("Creating new policy for training run")
         fresh_policy = self._policy_architecture.make_policy(policy_env_info)
