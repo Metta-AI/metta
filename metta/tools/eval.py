@@ -137,6 +137,7 @@ class EvaluatePolicyVersionTool(Tool):
 
     group: str | None = None  # Separate group parameter like in train.py
     write_to_wandb: bool = True
+    device: str = "cpu"
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.stats_server_uri is None:
@@ -145,6 +146,8 @@ class EvaluatePolicyVersionTool(Tool):
         stats_client = StatsClient.create(self.stats_server_uri)
         policy_version = stats_client.get_policy_version(uuid.UUID(self.policy_version_id))
         policy_spec = PolicySpec.model_validate(policy_version.policy_spec)
+        if policy_spec.init_kwargs.get("device") is not None:
+            policy_spec.init_kwargs["device"] = self.device
 
         observatory_writer = ObservatoryWriter(
             stats_client=stats_client,
