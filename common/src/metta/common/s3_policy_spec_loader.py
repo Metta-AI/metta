@@ -64,7 +64,7 @@ def policy_spec_from_s3_submission(s3_path: str) -> Iterator[PolicySpec]:
     - reads policy_spec.json and re-roots any relative data_path to the extraction dir
     - prepends the extraction dir to sys.path so custom policy code can be imported
     """
-    with tempfile.TemporaryDirectory(prefix="policy_submission_") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="s3_policy_spec_") as tmpdir:
         extraction_root = Path(tmpdir)
         with local_copy(s3_path) as local_archive:
             _extract_submission_archive(local_archive, extraction_root)
