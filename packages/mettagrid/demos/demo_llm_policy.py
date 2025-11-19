@@ -7,12 +7,17 @@ import os
 import signal
 import sys
 
+from dotenv import load_dotenv
+
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.policy.llm_policy import LLMAgentPolicy, LLMMultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
+
+load_dotenv()
+
 
 logger = logging.getLogger("mettagrid.demos.llm_policy")
 
