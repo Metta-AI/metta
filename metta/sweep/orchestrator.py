@@ -132,7 +132,7 @@ class Trial:
         self.transitions = {
             TrialState.SUGGESTED: [TrialState.PENDING],
             TrialState.PENDING: [TrialState.TRAINING, TrialState.FAILED],
-            TrialState.TRAINING: [TrialState.AWAITING_EVALUATION, TrialState.FAILED],
+            TrialState.TRAINING: [TrialState.AWAITING_EVALUATION, TrialState.COMPLETED, TrialState.FAILED],
             TrialState.AWAITING_EVALUATION: [TrialState.EVALUATING, TrialState.FAILED],
             TrialState.EVALUATING: [TrialState.COMPLETED, TrialState.FAILED],
             # Terminal states
