@@ -224,7 +224,10 @@ def configure_component(component_name: str):
     modules = get_all_modules()
     module_map = {m.name: m for m in modules}
 
-    if not (module := module_map.get(component_name)):
+    # Normalize component name to lowercase for case-insensitive matching
+    normalized_name = component_name.lower()
+
+    if not (module := module_map.get(normalized_name)):
         error(f"Unknown component: {component_name}")
         info(f"Available components: {', '.join(sorted(module_map.keys()))}")
         raise typer.Exit(1)
@@ -240,12 +243,19 @@ def _get_selected_modules(components: list[str] | None = None, ensure_required: 
     _ensure_components_initialized()
     from metta.setup.registry import get_all_modules
 
+    # Normalize component names to lowercase for case-insensitive matching
+    normalized_components = [c.lower() for c in components] if components is not None else None
+
     return [
         m
         for m in get_all_modules()
         if (
-            (components is not None and (m.name in components) or (ensure_required and m.always_required))
-            or (components is None and m.is_enabled())
+            (
+                normalized_components is not None
+                and (m.name in normalized_components)
+                or (ensure_required and m.always_required)
+            )
+            or (normalized_components is None and m.is_enabled())
         )
     ]
 
@@ -282,8 +292,14 @@ def cmd_install(
     elif profile or not profile_exists:
         cmd_configure(profile=profile, non_interactive=non_interactive, component=None)
 
+    # Normalize component names to lowercase for case-insensitive matching
+    normalized_components = [c.lower() for c in components] if components is not None else None
+
     always_required_components = ["core", "system"]
-    modules = _get_selected_modules((always_required_components + components) if components else None)
+    components_to_install = (
+        (always_required_components + normalized_components) if normalized_components is not None else None
+    )
+    modules = _get_selected_modules(components_to_install)
 
     if not modules:
         info("No modules to install.")
@@ -292,7 +308,10 @@ def cmd_install(
     info(f"\nInstalling {len(modules)} components...\n")
 
     for module in modules:
-        force_install = force and (components is None) or (components is not None and module.name in components)
+        force_install = force and (
+            (normalized_components is None)
+            or (normalized_components is not None and module.name in normalized_components)
+        )
         info(f"[{module.name}] {module.description}" + (" (force install)" if force_install else ""))
 
         if module.install_once and module.check_installed() and not force_install:
@@ -306,7 +325,7 @@ def cmd_install(
             error(f"  Error: {e}\n")
 
     if not non_interactive and check_status:
-        cmd_status(components=components, non_interactive=non_interactive)
+        cmd_status(components=normalized_components, non_interactive=non_interactive)
 
 
 @app.command(name="status", help="Show status of components")

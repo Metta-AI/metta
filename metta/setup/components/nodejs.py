@@ -21,14 +21,43 @@ class NodejsSetup(SetupModule):
     def _cmd_exists(self, script: str) -> bool:
         return shutil.which(script) is not None
 
+    def _get_pnpm_home(self) -> str:
+        """Get the expected pnpm home directory based on platform."""
+        if platform.system() == "Darwin":
+            return os.path.expanduser("~/Library/pnpm")
+        else:
+            return os.path.expanduser("~/.local/share/pnpm")
+
+    def _cmd_exists_in_path_or_pnpm_home(self, script: str) -> bool:
+        """Check if command exists in PATH or in pnpm home directory."""
+        if self._cmd_exists(script):
+            return True
+
+        # Also check in pnpm home directory (for cases where PATH hasn't been updated yet)
+        pnpm_home = self._get_pnpm_home()
+        if os.path.exists(pnpm_home):
+            script_path = os.path.join(pnpm_home, script)
+            if os.path.exists(script_path) and os.access(script_path, os.X_OK):
+                return True
+
+        return False
+
     def check_installed(self) -> bool:
         if not (self.repo_root / "node_modules").exists():
             return False
 
-        if not self._cmd_exists("pnpm"):
+        # Update PATH for current process if pnpm home exists (similar to install method)
+        pnpm_home = self._get_pnpm_home()
+        if os.path.exists(pnpm_home):
+            os.environ["PNPM_HOME"] = pnpm_home
+            current_path = os.environ.get("PATH", "")
+            if pnpm_home not in current_path:
+                os.environ["PATH"] = f"{pnpm_home}:{current_path}"
+
+        if not self._cmd_exists_in_path_or_pnpm_home("pnpm"):
             return False
 
-        if not self._cmd_exists("turbo"):
+        if not self._cmd_exists_in_path_or_pnpm_home("turbo"):
             return False
 
         return True
@@ -92,11 +121,7 @@ class NodejsSetup(SetupModule):
             warning(f"pnpm setup returned non-zero exit code: {e}. Continuing...")
 
         # Set PNPM_HOME for current process if pnpm setup configured it
-        # Use platform-specific default locations that match pnpm setup behavior
-        if platform.system() == "Darwin":
-            pnpm_home = os.path.expanduser("~/Library/pnpm")
-        else:
-            pnpm_home = os.path.expanduser("~/.local/share/pnpm")
+        pnpm_home = self._get_pnpm_home()
 
         if os.path.exists(pnpm_home):
             info(f"Setting PNPM_HOME to {pnpm_home} for current process")

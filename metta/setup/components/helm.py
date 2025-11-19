@@ -2,11 +2,13 @@ import shutil
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import info
+from metta.setup.utils import error, info, warning
 
 
 @register_module
 class HelmSetup(SetupModule):
+    install_once = True
+
     HELM_PLUGINS = {
         "diff": "https://github.com/databus23/helm-diff",
         "helm-git": "https://github.com/aslafy-z/helm-git",
@@ -41,5 +43,29 @@ class HelmSetup(SetupModule):
 
         installed_plugins = self.get_installed_plugins()
         for plugin, url in self.HELM_PLUGINS.items():
+            # Uninstall existing plugin if force is enabled
+            if force and plugin in installed_plugins:
+                info(f"Uninstalling existing helm plugin: {plugin}")
+                uninstall_result = self.run_command(
+                    ["helm", "plugin", "uninstall", plugin], capture_output=True, check=False
+                )
+                if uninstall_result.returncode != 0:
+                    warning(f"Failed to uninstall helm plugin '{plugin}': {uninstall_result.stderr}")
+
             if plugin not in installed_plugins:
-                self.run_command(["helm", "plugin", "install", url])
+                info(f"Installing helm plugin: {plugin}")
+                install_cmd = ["helm", "plugin", "install", url]
+                if force:
+                    install_cmd.extend(["--verify=false"])
+                result = self.run_command(install_cmd, capture_output=True, check=False)
+
+                if result.returncode == 0:
+                    info(f"Installed helm plugin '{plugin}'.")
+                    continue
+
+                # Show error details
+                if result.stderr:
+                    error(f"Error installing helm plugin '{plugin}': {result.stderr}")
+                else:
+                    error(f"Failed to install helm plugin '{plugin}' (exit code: {result.returncode})")
+                warning(f"Skipping helm plugin '{plugin}' installation")

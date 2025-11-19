@@ -61,9 +61,23 @@ class AWSSetup(SetupModule):
         try:
             import boto3
 
-            sts = boto3.client("sts")
-            response = sts.get_caller_identity()
-            return response["Account"]
+            # First, try with default credential chain (includes AWS_PROFILE env var)
+            # This works if AWS_PROFILE is set in the environment
+            try:
+                sts = boto3.client("sts")
+                response = sts.get_caller_identity()
+                return response["Account"]
+            except Exception:
+                # If default credential chain fails, try profile-based approach
+                # For SOFTMAX users, try the "softmax" profile explicitly
+                saved_settings = get_saved_settings()
+                if saved_settings.user_type == UserType.SOFTMAX:
+                    session = boto3.Session(profile_name="softmax")
+                    sts = session.client("sts")
+                    response = sts.get_caller_identity()
+                    return response["Account"]
+                # For other cases, return None (credentials not found)
+                return None
         except Exception:
             return None
 

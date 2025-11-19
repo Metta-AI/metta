@@ -35,18 +35,57 @@ class PrSimilaritySetup(SetupModule):
         return ["core", "aws"]
 
     def check_installed(self) -> bool:
-        meta_path, vectors_path = _resolve_cache_paths(self.repo_root)
-        return meta_path.exists() and vectors_path.exists() and shutil.which("metta-pr-similarity-mcp") is not None
+        # Component is installed if the package is available
+        # Cache files are a runtime requirement and can be built/downloaded separately
+        return shutil.which("metta-pr-similarity-mcp") is not None
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
+        # Install the MCP package first
+        self._install_mcp_package(force=force)
+
         api_key = get_secretsmanager_secret("GEMINI-API-KEY", require_exists=False)
 
-        self._ensure_cache(force)
+        cache_downloaded = self._ensure_cache(force)
         self._configure_claude(api_key=api_key, force=force)
         self._configure_codex(api_key=api_key)
         self._configure_cursor(api_key=api_key)
 
-    def _ensure_cache(self, force: bool) -> None:
+        # Warn if cache is missing (required for server to work)
+        if not cache_downloaded:
+            meta_path, vectors_path = _resolve_cache_paths(self.repo_root)
+            if not meta_path.exists() or not vectors_path.exists():
+                warning(
+                    "PR similarity cache is missing. The MCP server requires the cache to function. "
+                    "You can build it locally with:\n"
+                    "    python mcp_servers/pr_similarity/build_cache.py --allow-full-rebuild"
+                )
+
+    def _install_mcp_package(self, force: bool) -> None:
+        """Install the metta-pr-similarity-mcp package."""
+        mcp_dir = self.repo_root / "mcp_servers" / "pr_similarity"
+
+        if not mcp_dir.exists():
+            warning(f"PR similarity MCP directory not found at {mcp_dir}")
+            return
+
+        # Check if already installed (unless force)
+        if not force and shutil.which("metta-pr-similarity-mcp") is not None:
+            debug("PR similarity MCP package already installed")
+            return
+
+        info("Installing PR similarity MCP package...")
+        try:
+            cmd = ["uv", "pip", "install"]
+            if force:
+                cmd.append("--force-reinstall")
+            cmd.extend(["-e", str(mcp_dir)])
+            self.run_command(cmd, capture_output=False)
+            info("PR similarity MCP package installed successfully")
+        except Exception as error:
+            warning(f"Failed to install PR similarity MCP package: {error}")
+            warning(f"You can manually install it with:\n    uv pip install -e {mcp_dir}")
+
+    def _ensure_cache(self, force: bool) -> bool:
         meta_path, vectors_path = _resolve_cache_paths(self.repo_root)
         need_download = force or not meta_path.exists() or not vectors_path.exists()
 
@@ -59,7 +98,7 @@ class PrSimilaritySetup(SetupModule):
 
         if not need_download:
             debug(f"PR similarity cache already present at {meta_path.parent}")
-            return
+            return True
 
         bucket = "softmax-public"
         prefix = "pr-cache/"
@@ -71,12 +110,18 @@ class PrSimilaritySetup(SetupModule):
             client.download_file(bucket, prefix + meta_path.name, str(meta_path))
             client.download_file(bucket, prefix + vectors_path.name, str(vectors_path))
             info(f"Downloaded PR similarity cache from s3://{bucket}/{prefix}")
+            return True
         except Exception as error:  # pragma: no cover - external dependency
-            warning(f"Unable to download PR similarity cache: {error}")
+            warning(f"Unable to download PR similarity cache from S3: {error}")
+            warning(
+                "This is optional - the cache will be built locally if needed. "
+                "To enable S3 download, ensure AWS credentials are configured (e.g., run 'metta configure aws')."
+            )
+            return False
 
     def _configure_claude(self, *, api_key: Optional[str], force: bool) -> None:
         if shutil.which("claude") is None:
-            debug("Claude CLI not found on PATH. Skipping Claude MCP configuration.")
+            debug("Claude CLI not found on PATH. Skipping Claude MCP configuration (optional).")
             return
 
         if shutil.which("metta-pr-similarity-mcp") is None:
@@ -131,7 +176,7 @@ class PrSimilaritySetup(SetupModule):
     def _configure_codex(self, *, api_key: Optional[str]) -> None:
         codex_executable = shutil.which("codex")
         if not codex_executable:
-            debug("Codex CLI not found on PATH. Skipping PR similarity MCP registration.")
+            debug("Codex CLI not found on PATH. Skipping PR similarity MCP registration (optional).")
             return
 
         command_path = shutil.which("metta-pr-similarity-mcp")
@@ -173,7 +218,7 @@ class PrSimilaritySetup(SetupModule):
 
     def _configure_cursor(self, *, api_key: Optional[str]) -> None:
         if not api_key:
-            warning("Skipping Cursor MCP registration: no GEMINI API key available from Secrets Manager.")
+            debug("Skipping Cursor MCP registration: no GEMINI API key available from Secrets Manager (optional).")
             return
 
         command_path = shutil.which("metta-pr-similarity-mcp")
