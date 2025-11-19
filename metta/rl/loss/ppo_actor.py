@@ -116,7 +116,7 @@ class PPOActor(Loss):
             if gamma_flat.numel() > 0:
                 gamma = gamma_flat[0].item()
             else:
-                gamma = 0
+                gamma = 1.0
             # else:
             #     # If gamma is empty, minibatch is likely empty - return early
             #     return self._zero_tensor, shared_loss_data, False
@@ -129,7 +129,7 @@ class PPOActor(Loss):
             if gae_lambda_flat.numel() > 0:
                 gae_lambda = gae_lambda_flat[0].item()
             else:
-                gae_lambda = 0
+                gae_lambda = 1.0
             # else:
             #     # If gae_lambda is empty, minibatch is likely empty - return early
             #     return self._zero_tensor, shared_loss_data, False
