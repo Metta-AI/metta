@@ -69,7 +69,7 @@ def filter_repo(source_path: Path, paths: list[str], make_root: str | None = Non
             prefix,
             "-b",
             branch_name,
-            timeout=600.0,
+            timeout=60.0,
         )
     except GitError as e:
         raise RuntimeError(f"Failed to split subtree: {e}") from e
