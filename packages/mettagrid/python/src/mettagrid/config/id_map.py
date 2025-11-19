@@ -77,9 +77,6 @@ class IdMap:
         core_features = [
             ("agent:group", 10.0),
             ("agent:frozen", 1.0),
-            ("agent:orientation", 1.0),
-            ("agent:reserved_for_future_use", 255.0),
-            ("converting", 1.0),
         ]
 
         for name, normalization in core_features:
@@ -91,8 +88,6 @@ class IdMap:
         feature_id += 1
 
         features.append(ObservationFeatureSpec(id=feature_id, normalization=10.0, name="last_action"))
-        feature_id += 1
-        features.append(ObservationFeatureSpec(id=feature_id, normalization=10.0, name="last_action_arg"))
         feature_id += 1
 
         features.append(ObservationFeatureSpec(id=feature_id, normalization=100.0, name="last_reward"))

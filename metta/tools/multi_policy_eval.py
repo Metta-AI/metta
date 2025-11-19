@@ -1,5 +1,4 @@
 import logging
-from functools import partial
 from typing import Sequence
 
 from pydantic import Field, model_validator
@@ -8,7 +7,6 @@ from metta.common.tool import Tool
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.runner import SimulationRunConfig, run_simulations
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
@@ -33,7 +31,7 @@ class MultiPolicyEvalTool(Tool):
 
     def invoke(self, args: dict[str, str]) -> int | None:
         simulation_results = run_simulations(
-            policy_initializers=[partial(initialize_or_load_policy, policy_spec=spec) for spec in self.policy_specs],
+            policy_specs=self.policy_specs,
             simulations=self.simulations,
             replay_dir=self.replay_dir,
             seed=self.system.seed,

@@ -1,0 +1,46 @@
+name: "Cleanup Cancelled Runs"
+description: "Deletes cancelled workflow runs that were superseded by newer runs (concurrency cancellations)"
+author: "Metta Team"
+
+inputs:
+  workflow-file:
+    description: "The basename of the workflow file (e.g., checks.yml)"
+    required: true
+  max-deletions:
+    description: "The maximum number of cancelled runs to delete per execution"
+    required: false
+    default: "10"
+  github-token:
+    description: "GitHub access token with actions:write permission"
+    required: false
+    default: "${{ github.token }}"
+  dry-run:
+    description: "If true, only logs what would be deleted without actually deleting"
+    required: false
+    default: "false"
+
+outputs:
+  deleted-count:
+    description: "Number of cancelled runs deleted"
+    value: ${{ steps.cleanup.outputs.deleted-count }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Environment
+      uses: ./.github/actions/setup-environment
+      with:
+        install-mode: minimal
+        extra-dependencies: |
+          PyGithub>=2.1.1
+
+    - name: Cleanup cancelled runs
+      id: cleanup
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_WORKFLOW-FILE: ${{ inputs.workflow-file }}
+        INPUT_MAX-DELETIONS: ${{ inputs.max-deletions }}
+        INPUT_DRY-RUN: ${{ inputs.dry-run }}
+      run: |
+        uv run ${{ github.action_path }}/cleanup_cancelled_runs.py

@@ -29,7 +29,7 @@ class ActionSupervisedConfig(LossConfig):
     action_reward_coef: float = Field(default=0.01, ge=0)  # wild ass guess at this point
 
     # Controls whether to add the imitation loss to the environment rewards.
-    add_action_loss_to_rewards: bool = Field(default=True)
+    add_action_loss_to_rewards: bool = Field(default=False)
     norm_adv: bool = Field(default=True)
 
     def create(
