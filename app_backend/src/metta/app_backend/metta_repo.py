@@ -99,6 +99,7 @@ class PublicPolicyVersionRow(BaseModel):
     policy_id: uuid.UUID
     created_at: datetime
     policy_created_at: datetime
+    user_id: str
     name: str
     version: int
     tags: dict[str, str] = Field(default_factory=dict)
@@ -900,6 +901,7 @@ SELECT
     pv.version,
     pv.created_at,
     pol.created_at AS policy_created_at,
+    pol.user_id,
     pol.name
 FROM policy_versions pv
 JOIN policies pol ON pol.id = pv.policy_id
@@ -972,6 +974,7 @@ GROUP BY pv.id, et.key, et.value
                 policy_id=row["policy_id"],
                 created_at=row["created_at"],
                 policy_created_at=row["policy_created_at"],
+                user_id=row["user_id"],
                 name=row["name"],
                 version=row["version"],
                 tags=tags_by_policy.get(pv_id, {}),

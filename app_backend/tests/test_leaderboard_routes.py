@@ -190,6 +190,7 @@ async def test_leaderboard_policies_route_returns_tags_and_scores(
         "leaderboard-public": "true",
         "cogames-submitted": "true",
     }
+    assert populated_entry["policy_version"]["user_id"] == user
 
     empty_entry = entries[1]
     assert empty_entry["scores"] == {}
@@ -198,6 +199,7 @@ async def test_leaderboard_policies_route_returns_tags_and_scores(
         "leaderboard-public": "true",
         "cogames-submitted": "true",
     }
+    assert empty_entry["policy_version"]["user_id"] == user
 
 
 @pytest.mark.asyncio
@@ -253,3 +255,4 @@ async def test_leaderboard_policies_filters_by_policy_version_id(
     body = response.json()
     assert len(body["entries"]) == 1
     assert body["entries"][0]["policy_version"]["id"] == str(matching_pv_id)
+    assert body["entries"][0]["policy_version"]["user_id"] == user
