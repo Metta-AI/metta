@@ -625,6 +625,24 @@ class MettaRepo:
                 await cur.execute("SELECT * FROM policy_versions WHERE id = %s", (policy_version_id,))
                 return await cur.fetchone()
 
+    async def upsert_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> None:
+        if not tags:
+            return
+
+        rows = [(policy_version_id, key, value) for key, value in tags.items()]
+
+        async with self.connect() as con:
+            async with con.cursor() as cur:
+                await cur.executemany(
+                    """
+                    INSERT INTO policy_version_tags (policy_version_id, key, value)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (policy_version_id, key)
+                    DO UPDATE SET value = EXCLUDED.value
+                    """,
+                    rows,
+                )
+
     async def record_episode(
         self,
         id: UUID,
