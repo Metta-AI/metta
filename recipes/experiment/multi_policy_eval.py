@@ -57,7 +57,7 @@ def run_old_uris(policy_uris: Sequence[str] | str | None = None) -> MultiPolicyE
     return run(policy_specs)
 
 
-# ./tools/run.py recipes.experiment.multi_policy_eval.run_submission s3_paths="s3://observatory-private/cogames/submissions/hr1t9o9ool5j7bfhe5dz5dh6/629c6ef2-43ef-4164-bef3-e3c5b0bacc48.zip"
+# ./tools/run.py recipes.experiment.multi_policy_eval.run_submission s3_paths="s3://observatory-private/cogames/submissions/vjwql00au2gr2vwv0z84p05w/3997039f-c8c9-42f4-a63c-f8e4df4cb018.zip"
 def run_submission(s3_paths: Sequence[str] | str | None = None) -> MultiPolicyEvalTool:
     if isinstance(s3_paths, str):
         s3_paths = [s3_paths]

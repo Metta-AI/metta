@@ -8,9 +8,11 @@ import json
 import logging
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional, TypeVar
 
+import httpx
 import typer
 import yaml  # type: ignore[import]
 from click.core import ParameterSource
@@ -23,7 +25,7 @@ from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
-from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
+from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator, perform_login
 from cogames.cli.mission import (
     describe_mission,
     get_mission_name_and_config,
@@ -56,6 +58,34 @@ logger = logging.getLogger("cogames.main")
 
 
 T = TypeVar("T")
+
+
+def _format_timestamp(value: Optional[str]) -> str:
+    """Format ISO timestamps for CLI output."""
+    if not value:
+        return "—"
+    normalized = value
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        timestamp = datetime.fromisoformat(normalized)
+    except ValueError:
+        return value
+
+    try:
+        # Convert to local timezone when available
+        if timestamp.tzinfo is not None:
+            timestamp = timestamp.astimezone()
+        return timestamp.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return timestamp.isoformat()
+
+
+def _format_score(value: Any) -> str:
+    """Format numeric scores for display."""
+    if isinstance(value, (int, float)):
+        return f"{float(value):.2f}"
+    return "—"
 
 
 def _resolve_mettascope_script() -> Path:
@@ -626,6 +656,89 @@ def login_cmd(
     else:
         console.print("[red]Authentication failed![/red]")
         raise typer.Exit(1)
+
+
+@app.command(name="submissions", help="List your submissions on the leaderboard")
+def submissions_cmd(
+    login_server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--login-server",
+        help="Login/authentication server URL",
+    ),
+    server: str = typer.Option(
+        DEFAULT_SUBMIT_SERVER,
+        "--server",
+        "-s",
+        help="Observatory API base URL",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the raw JSON response instead of a table",
+    ),
+) -> None:
+    """Fetch submissions tied to the authenticated user."""
+    authenticator = CoGamesAuthenticator()
+    if not authenticator.has_saved_token(login_server):
+        console.print("[red]Error:[/red] Not authenticated.")
+        console.print("Please run: [cyan]cogames login[/cyan]")
+        return
+
+    token = authenticator.load_token(login_server)
+    if not token:
+        console.print(f"[red]Error:[/red] Token not found for {login_server}")
+        return
+
+    console.print("[cyan]Fetching your submissions...[/cyan]")
+    try:
+        response = httpx.post(
+            f"{server}/leaderboard/v2/users/me",
+            json={},
+            headers={"X-Auth-Token": token},
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        console.print(f"[red]Failed to reach {server}:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    if response.status_code != 200:
+        console.print(f"[red]Request failed with status {response.status_code}[/red]")
+        console.print(f"[dim]{response.text}[/dim]")
+        raise typer.Exit(1)
+
+    payload = response.json()
+    if json_output:
+        console.print(json.dumps(payload, indent=2))
+        return
+
+    entries = payload.get("entries") or []
+    if not entries:
+        console.print("[yellow]No submissions found.[/yellow]")
+        return
+
+    table = Table(title="Your Submissions", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
+    table.add_column("Policy", style="bold cyan")
+    table.add_column("Created", style="green")
+    table.add_column("Avg Score", justify="right")
+    table.add_column("Version ID", style="dim")
+
+    for entry in entries:
+        policy_version = entry.get("policy_version", {})
+        policy_label = f"{policy_version.get('name', '?')}.{policy_version.get('version', '?')}"
+        created_at = policy_version.get("policy_created_at") or policy_version.get("created_at")
+        policy_row = (
+            policy_label,
+            _format_timestamp(created_at),
+            _format_score(entry.get("avg_score")),
+            str(policy_version.get("id", "—")),
+        )
+        table.add_row(*policy_row)
+
+        scores = entry.get("scores") or {}
+        for sim_name, score_value in sorted(scores.items()):
+            table.add_row(f"  ↳ {sim_name}", "", _format_score(score_value), "")
+
+    console.print(table)
 
 
 @app.command(name="submit", help="Submit a policy to CoGames competitions")
