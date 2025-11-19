@@ -71,6 +71,16 @@ class DatadogAgentSetup(SetupModule):
         env["DD_TRACE_ENABLED"] = os.environ.get("DD_TRACE_ENABLED", "true")
         env["DD_LOGS_ENABLED"] = os.environ.get("DD_LOGS_ENABLED", "true")
 
+        # Set hostname for Docker environments (required for agent to start)
+        # Use SKYPILOT_TASK_ID if available, otherwise use METTA_RUN_ID, fallback to hostname
+        hostname = (
+            os.environ.get("SKYPILOT_TASK_ID")
+            or os.environ.get("METTA_RUN_ID")
+            or os.environ.get("HOSTNAME")
+            or "skypilot-job"
+        )
+        env["DD_HOSTNAME"] = hostname
+
         # Set tags from SkyPilot environment variables
         tags = env.get("DD_TAGS", "").split(" ")
         for env_var, tag in [
@@ -128,6 +138,28 @@ class DatadogAgentSetup(SetupModule):
         # Check if binary exists even if return code is non-zero (install script may return non-zero on warnings)
         agent_binary = "/opt/datadog-agent/bin/agent/agent"
         if os.path.exists(agent_binary):
+            # Set hostname in config file if not already set
+            config_file = "/etc/datadog-agent/datadog.yaml"
+            if os.path.exists(config_file):
+                try:
+                    with open(config_file, "r") as f:
+                        config_content = f.read()
+
+                    # Only set hostname if not already configured
+                    if "hostname:" not in config_content:
+                        hostname = (
+                            os.environ.get("SKYPILOT_TASK_ID")
+                            or os.environ.get("METTA_RUN_ID")
+                            or os.environ.get("HOSTNAME")
+                            or "skypilot-job"
+                        )
+                        # Append hostname to config
+                        with open(config_file, "a") as f:
+                            f.write(f"\nhostname: {hostname}\n")
+                        info(f"Set hostname in Datadog config: {hostname}")
+                except Exception as e:
+                    warning(f"Could not set hostname in config file: {e}")
+
             success("Datadog agent installed successfully (binary found).")
             return
 
