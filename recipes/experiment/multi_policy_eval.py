@@ -11,6 +11,17 @@ from mettagrid.policy.policy import PolicySpec
 from recipes.experiment import arena
 
 
+def simulations() -> Sequence[SimulationRunConfig]:
+    basic_env = arena.mettagrid()
+    basic_env.game.actions.attack.consumed_resources["laser"] = 100
+    combat_env = basic_env.model_copy()
+    combat_env.game.actions.attack.consumed_resources["laser"] = 1
+    return [
+        SimulationRunConfig(env=basic_env, num_episodes=1),
+        SimulationRunConfig(env=combat_env, num_episodes=2),
+    ]
+
+
 def run(policy_specs: Sequence[PolicySpec] | None = None) -> MultiPolicyEvalTool:
     policy_specs = [
         PolicySpec(
@@ -23,27 +34,12 @@ def run(policy_specs: Sequence[PolicySpec] | None = None) -> MultiPolicyEvalTool
         ),
         *(policy_specs or []),
     ]
-    basic_env = arena.mettagrid()
-    basic_env.game.actions.attack.consumed_resources["laser"] = 100
-
-    combat_env = basic_env.model_copy()
-    combat_env.game.actions.attack.consumed_resources["laser"] = 1
+    sims = simulations()
+    sims[0].proportions = [i + 1 for i in range(len(policy_specs))]
 
     return MultiPolicyEvalTool(
         policy_specs=policy_specs,
-        simulations=[
-            SimulationRunConfig(
-                env=basic_env,
-                num_episodes=1,
-                proportions=[i + 1 for i in range(len(policy_specs))],
-                episode_tags={"name": "basic", "category": "arena"},
-            ),
-            SimulationRunConfig(
-                env=combat_env,
-                num_episodes=2,
-                episode_tags={"name": "combat", "category": "arena"},
-            ),
-        ],
+        simulations=sims,
     )
 
 
@@ -57,8 +53,8 @@ def run_old_uris(policy_uris: Sequence[str] | str | None = None) -> MultiPolicyE
     return run(policy_specs)
 
 
-# ./tools/run.py recipes.experiment.multi_policy_eval.run_submission s3_paths="s3://observatory-private/cogames/submissions/hr1t9o9ool5j7bfhe5dz5dh6/629c6ef2-43ef-4164-bef3-e3c5b0bacc48.zip"
-def run_submission(s3_paths: Sequence[str] | str | None = None) -> MultiPolicyEvalTool:
+# ./tools/run.py recipes.experiment.multi_policy_eval.run_s3 s3_paths="s3://observatory-private/cogames/submissions/hr1t9o9ool5j7bfhe5dz5dh6/629c6ef2-43ef-4164-bef3-e3c5b0bacc48.zip"
+def run_s3(s3_paths: Sequence[str] | str | None = None) -> MultiPolicyEvalTool:
     if isinstance(s3_paths, str):
         s3_paths = [s3_paths]
     policy_specs = []

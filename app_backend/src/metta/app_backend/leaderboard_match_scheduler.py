@@ -41,10 +41,14 @@ class LeaderboardMatchScheduler:
     @trace("match_scheduler.schedule_match")
     def _schedule_match(self, policy_version_id: uuid.UUID) -> int:
         logger.info("Scheduling match for policy: %s", policy_version_id)
-        # TODO: request a remote eval for the right thing, and
+        command_parts = [
+            "uv run tools/run.py recipes.experiment.v0_leaderboard_eval.run",
+            f"policy_version_id={str(policy_version_id)}",
+            f"stats_server_uri={self._stats_client._backend_url}",
+        ]
         eval_task = self._stats_client.create_eval_task(
             TaskCreateRequest(
-                command="recipes.experiment.multi_policy_eval.run",
+                command=" ".join(command_parts),
             )
         )
         logger.info("Successfully scheduled match for policy: %s: %s", policy_version_id, eval_task.id)
