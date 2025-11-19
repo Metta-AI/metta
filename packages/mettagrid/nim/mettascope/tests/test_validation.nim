@@ -112,7 +112,7 @@ block schema_validation:
     replay["num_agents"] = %*(-1)
     let issues = validateReplay(replay)
     doAssert issues.len > 0, "Should have validation issues"
-    doAssert issues.anyIt(it.message.contains("'num_agents' must be positive")), &"Expected positive validation error, got: {issues}"
+    doAssert issues.anyIt(it.message.contains("'num_agents' must be non-negative")), &"Expected non-negative validation error, got: {issues}"
     echo "✓ Invalid num_agents properly rejected"
 
   block invalid_map_size:
@@ -122,3 +122,12 @@ block schema_validation:
     doAssert issues.len > 0, "Should have validation issues"
     doAssert issues.anyIt(it.message.contains("'map_size[0]' must be positive")), &"Expected positive validation error, got: {issues}"
     echo "✓ Invalid map_size properly rejected"
+
+  block empty_objects_valid_when_no_agents:
+    var replay = getMinimalReplay()
+    replay["num_agents"] = %*0
+    replay["objects"] = %*[]
+    replay.delete("reward_sharing_matrix")
+    let issues = validateReplay(replay)
+    doAssert issues.len == 0, &"Replay with map but empty objects should be valid when num_agents=0, but got: {issues}"
+    echo "✓ Empty objects array valid when no agents expected"

@@ -12,18 +12,19 @@ from metta.app_backend.clients.stats_client import (
     PROD_STATS_SERVER_URI,
     StatsClient,
 )
+from metta.app_backend.leaderboard_constants import (
+    EVALS_DONE_KEY,
+    REMOTE_JOB_ID_KEY,
+    SUBMITTED_KEY,
+)
 from metta.app_backend.metta_repo import TaskStatus
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.fs import get_repo_root
 from metta.common.util.log_config import init_suppress_warnings
-from recipes.experiment.v0_leaderboard_eval import V0_LEADERBOARD_NAME_TAG_KEY
 
 logger = logging.getLogger(__name__)
 
-SUBMITTED_KEY = "cogames-submitted"
-REMOTE_JOB_ID_KEY = "v0-leaderboard-eval-remote-job-id"
-EVALS_DONE_KEY = "v0-leaderboard-evals-done"
 DEFAULT_POLL_INTERVAL_SECONDS = 60.0
 
 
@@ -46,26 +47,6 @@ class LeaderboardEvalScheduler:
         self._repo_root = repo_root
         self._poll_interval_seconds = poll_interval_seconds
         self._eval_git_hash = eval_git_hash
-
-    def _get_per_sim_scores(self, policy_version_id: uuid.UUID) -> dict[str, float]:
-        rows = self._stats_client.sql_query(
-            query=f"""
-SELECT
-    et1.value,
-    AVG(epm.value / ep.num_agents) as avg_reward_per_agent
-FROM episode_policies ep
-JOIN episodes e ON e.id = ep.episode_id
-JOIN episode_policy_metrics epm ON epm.episode_internal_id = e.internal_id
-    AND epm.pv_internal_id = (SELECT internal_id FROM policy_versions WHERE id = '{policy_version_id}')
-JOIN episode_tags et1 ON et1.episode_id = e.id
-WHERE ep.policy_version_id = '{policy_version_id}'
-    AND epm.metric_name = 'reward'
-    AND et1.key = '{V0_LEADERBOARD_NAME_TAG_KEY}'
-GROUP BY et1.value
-ORDER BY et1.value
-"""
-        ).rows
-        return {leaderboard_name: score for leaderboard_name, score in rows}
 
     def _fetch_unscheduled_policy_versions(self) -> list[uuid.UUID]:
         """Get submitted policy versions that still need evals or whose prior eval failed."""
@@ -214,7 +195,7 @@ def main() -> None:
             stats_client=stats_client,
             repo_root=str(repo_root),
             poll_interval_seconds=poll_interval,
-            eval_git_hash=eval_git_hash,
+            eval_git_hash=None if eval_git_hash == "main" else eval_git_hash,
         )
         scheduler.run()
     finally:

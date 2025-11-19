@@ -13,8 +13,10 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFil
 from metta.app_backend.routes.sql_routes import SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
     BulkEpisodeUploadResponse,
+    CompleteBulkUploadRequest,
     PolicyCreate,
     PolicyVersionCreate,
+    PresignedUploadUrlResponse,
     UUIDResponse,
 )
 from metta.common.util.collections import remove_none_values
@@ -92,22 +94,43 @@ class StatsClient:
     def sql_query(self, query: str) -> SQLQueryResponse:
         return self._make_sync_request(SQLQueryResponse, "POST", "/sql/query", json={"query": query})
 
-    def bulk_upload_episodes(
-        self, duckdb_path: str, s3_bucket: str = "metta-stats", s3_prefix: str = "episode_stats"
-    ) -> BulkEpisodeUploadResponse:
-        """Upload a DuckDB file containing episode stats to the backend.
+    def bulk_upload_episodes(self, duckdb_path: str) -> BulkEpisodeUploadResponse:
+        """Upload a DuckDB file containing episode stats using presigned URL approach.
 
-        The backend will store the file in S3 and write aggregated episodes to the database.
+        This method:
+        1. Requests a presigned URL from the backend
+        2. Uploads the DuckDB file directly to S3 using the presigned URL
+        3. Notifies the backend to process the uploaded file
+
+        The backend will then process the file from S3 and write aggregated episodes to the database.
         """
+        # Step 1: Get presigned URL
+        presigned_response = self._make_sync_request(
+            PresignedUploadUrlResponse, "POST", "/stats/episodes/bulk_upload/presigned-url"
+        )
+
+        # Step 2: Upload file directly to S3 using presigned URL
         with open(duckdb_path, "rb") as f:
-            files = {"file": ("episodes.duckdb", f, "application/octet-stream")}
-            params = {"s3_bucket": s3_bucket, "s3_prefix": s3_prefix}
-            headers = remove_none_values({"X-Auth-Token": self._machine_token})
-            response = self._http_client.post(
-                "/stats/episodes/bulk_upload", files=files, params=params, headers=headers
+            # Use a plain HTTP client for S3 upload (no auth headers needed)
+            s3_response = httpx.put(
+                presigned_response.upload_url,
+                content=f,
+                headers={"Content-Type": "application/octet-stream"},
+                timeout=300.0,  # 5 minute timeout for large files
             )
-            response.raise_for_status()
-            return BulkEpisodeUploadResponse.model_validate(response.json())
+            s3_response.raise_for_status()
+
+        # Step 3: Notify backend to process the uploaded file
+
+        completion_request = CompleteBulkUploadRequest(upload_id=presigned_response.upload_id)
+        completion_response = self._make_sync_request(
+            BulkEpisodeUploadResponse,
+            "POST",
+            "/stats/episodes/bulk_upload/complete",
+            json=completion_request.model_dump(mode="json"),
+        )
+
+        return completion_response
 
     def update_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> UUIDResponse:
         """Update tags for a specific policy version in Observatory."""
