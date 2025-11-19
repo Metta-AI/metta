@@ -31,7 +31,6 @@ class K8sPodManager(AbstractContainerManager):
         machine_token: str,
     ) -> dict:
         pod_name = self._format_container_name()
-
         return {
             "apiVersion": "v1",
             "kind": "Pod",
