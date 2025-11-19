@@ -95,7 +95,8 @@ def _render_table(title: str, entries: list[dict[str, Any]]) -> None:
 
         scores = entry.get("scores") or {}
         for sim_name, score_value in sorted(scores.items()):
-            table.add_row(f"  ↳ {sim_name}", "", _format_score(score_value), "")
+            pretty_name = sim_name.split(":", 1)[-1] if ":" in sim_name else sim_name
+            table.add_row(f"    {pretty_name}", "", _format_score(score_value), "")
 
     console.print(table)
 
