@@ -250,6 +250,42 @@ modifications.
 
 You will be able to provide your specified `--output` path as the `MISSION` argument to other `cogames` commmands.
 
+### `cogames submit -p POLICY --name NAME --include-files CHECKPOINT`
+
+Package your policy and upload it to the Observatory leaderboard. A typical invocation looks like:
+
+```bash
+cogames submit -p stateless:train_dir/policy.pt --name my_great_policy --include-files train_dir/policy.pt
+```
+
+What this does:
+
+1. Verifies you are authenticated (`cogames login`).
+2. Validates your policy in an isolated sandbox unless `--skip-validation` is passed.
+3. Bundles the provided checkpoint and supporting files into a zip archive.
+4. Uploads and submits the bundle
+
+Options:
+
+- `--include-files`: Repeat for each file or directory that needs to ship with your policy.
+- `--dry-run`: Run validation and packaging without uploading (zip is deleted afterwards).
+
+### `cogames submissions`
+
+After submitting, you can inspect your leaderboard entries directly from the CLI:
+
+```bash
+cogames submissions
+```
+
+### `cogames leaderboard`
+
+Shows you the current leaderboard
+
+```bash
+cogames leaderboard
+```
+
 ### `cogames version`
 
 Show version info for mettagrid, pufferlib-core, and cogames.
