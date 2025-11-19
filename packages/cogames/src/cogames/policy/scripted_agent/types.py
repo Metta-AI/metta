@@ -107,7 +107,6 @@ class ExtractorInfo:
     times_used: int = 0
 
     # Extractor state from observations
-    converting: bool = False  # Is it currently converting?
     cooldown_remaining: int = 0  # Steps until ready
     clipped: bool = False  # Is it depleted?
     remaining_uses: int = 999  # How many uses left
@@ -120,7 +119,6 @@ class ObjectState:
     name: str
 
     # Extractor/station features
-    converting: int = 0
     cooldown_remaining: int = 0
     clipped: int = 0
     remaining_uses: int = 999

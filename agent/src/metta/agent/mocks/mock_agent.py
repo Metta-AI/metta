@@ -114,7 +114,7 @@ class MockAgent(Policy):
         self.feature_normalizations = {feat.id: feat.normalization for feat in features}
 
         if self.original_feature_mapping is None:
-            self.original_feature_mapping = {name: feat.id for name, feat in features.items()}
+            self.original_feature_mapping = {feat.name: feat.id for feat in features}
             return
 
         UNKNOWN_FEATURE_ID = 255

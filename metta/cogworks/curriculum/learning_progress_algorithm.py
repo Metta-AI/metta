@@ -5,11 +5,11 @@ Provides intelligent task selection based on bidirectional learning progress ana
 using fast and slow exponential moving averages to detect learning opportunities.
 """
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
+from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .task_tracker import TaskTracker
 
 # Constants for bidirectional learning progress
@@ -76,10 +76,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Cache for expensive statistics computation
         self._stats_cache: Dict[str, Any] = {}
         self._stats_cache_valid = False
-        self._pending_updates: list[tuple[int, float]] = []
-        self._flush_threshold = 32
-        self._progress_dirty = True
-        self._task_index_cache: dict[int, int] = {}
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic statistics that all algorithms must provide."""
@@ -134,7 +130,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._stale_dist = True
         self._score_cache: Dict[int, float] = {}
         self._cache_valid_tasks: set[int] = set()
-        self._progress_dirty = True
 
     def _init_basic_scoring(self):
         """Initialize basic EMA tracking (fallback method)."""
@@ -155,83 +150,61 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using bidirectional learning progress."""
-        return self._score_tasks_common(
-            task_ids, self._get_bidirectional_learning_progress_score, ensure_progress_ready=True
-        )
+        scores = {}
+        for task_id in task_ids:
+            scores[task_id] = self._get_bidirectional_learning_progress_score(task_id)
+        return scores
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using basic EMA variance method."""
-        return self._score_tasks_common(task_ids, self._get_basic_learning_progress_score)
-
-    def _score_tasks_common(
-        self,
-        task_ids: List[int],
-        scorer: Callable[[int], float],
-        *,
-        ensure_progress_ready: bool = False,
-    ) -> Dict[int, float]:
-        """Shared scaffolding for task scoring across modes."""
-        self._flush_pending_updates()
-        if ensure_progress_ready:
-            self._ensure_progress_ready()
-
-        return {task_id: scorer(task_id) for task_id in task_ids}
-
-    def _flush_pending_updates(self) -> None:
-        if not self._pending_updates:
-            return
-
-        if self.hypers.use_bidirectional:
-            for task_id, score in self._pending_updates:
-                self._update_bidirectional_ema(task_id, score)
-        else:
-            for task_id, score in self._pending_updates:
-                self._update_basic_ema(task_id, score)
-
-        self._pending_updates.clear()
-        self._progress_dirty = True
-        self._cache_valid_tasks.clear()
-
-    def _ensure_progress_ready(self) -> None:
-        if not self.hypers.use_bidirectional:
-            return
-        if self._progress_dirty:
-            self._update_bidirectional_progress()
-            if self._task_dist is None or self._stale_dist:
-                self._calculate_task_distribution()
-            self._progress_dirty = False
+        scores = {}
+        for task_id in task_ids:
+            scores[task_id] = self._get_basic_learning_progress_score(task_id)
+        return scores
 
     def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
         """Calculate bidirectional learning progress score for a task."""
-        cached = self._score_cache.get(task_id) if task_id in self._cache_valid_tasks else None
-        if cached is not None:
-            return cached
+        # Return cached score if valid
+        if task_id in self._cache_valid_tasks and task_id in self._score_cache:
+            return self._score_cache[task_id]
 
         task_stats = self.task_tracker.get_task_stats(task_id)
         if not task_stats or task_stats["completion_count"] < 2:
+            # New tasks get exploration bonus
             score = self.hypers.exploration_bonus
         elif task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
+            # Tasks without sufficient data get exploration bonus
             score = self.hypers.exploration_bonus
         else:
-            self._ensure_progress_ready()
-            idx = self._task_index_cache.get(task_id)
-            if idx is not None and self._task_dist is not None and 0 <= idx < len(self._task_dist):
-                score = float(self._task_dist[idx])
+            # Calculate bidirectional learning progress
+            self._update_bidirectional_progress()
+
+            # Get task distribution if needed
+            if self._task_dist is None or self._stale_dist:
+                self._calculate_task_distribution()
+
+            # Find task index in our tracking
+            task_indices = list(self._outcomes.keys())
+            if task_id in task_indices and self._task_dist is not None:
+                task_idx = task_indices.index(task_id)
+                if task_idx < len(self._task_dist):
+                    # Use the bidirectional learning progress as score
+                    score = float(self._task_dist[task_idx])
+                else:
+                    score = self.hypers.exploration_bonus
             else:
                 score = self.hypers.exploration_bonus
 
-        if score <= 0:
-            score = self.hypers.exploration_bonus
-
+        # Cache the computed score
         self._score_cache[task_id] = score
         self._cache_valid_tasks.add(task_id)
         return score
 
     def _get_basic_learning_progress_score(self, task_id: int) -> float:
         """Calculate basic learning progress score using EMA variance."""
-        cached = self._score_cache.get(task_id) if task_id in self._cache_valid_tasks else None
-        if cached is not None:
-            return cached
+        # Return cached score if valid
+        if task_id in self._cache_valid_tasks and task_id in self._score_cache:
+            return self._score_cache[task_id]
 
         task_stats = self.task_tracker.get_task_stats(task_id)
         if not task_stats or task_stats["completion_count"] < 2:
@@ -241,13 +214,20 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         else:
             ema_score, ema_squared, num_samples = self._task_emas[task_id]
 
+            # Calculate variance from EMA
             variance = max(0.0, ema_squared - ema_score * ema_score)
             std_dev = np.sqrt(variance)
+
+            # Learning progress is approximated by variance in performance
             learning_progress = std_dev
+
+            # Add exploration bonus for tasks with few samples
             if num_samples < 10:
                 learning_progress += self.hypers.exploration_bonus * (10 - num_samples) / 10
+
             score = learning_progress
 
+        # Cache the computed score
         self._score_cache[task_id] = score
         self._cache_valid_tasks.add(task_id)
         return score
@@ -294,41 +274,33 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Remove from task tracker
         self.task_tracker.remove_task(task_id)
 
-        # Drop slice tracking data to avoid unbounded growth
-        self.slice_analyzer.remove_task(task_id)
-
         # Learning progress specific cleanup
         self._remove_task_from_scoring(task_id)
-
-        # Drop any queued updates for this task to prevent resurrection
-        self._drop_pending_updates(task_id)
 
         # Invalidate stats cache when task state changes
         self.invalidate_cache()
 
     def _remove_task_from_scoring(self, task_id: int) -> None:
         """Remove task from scoring system."""
-        self._invalidate_task_score(task_id)
-
         if self.hypers.use_bidirectional:
             self._outcomes.pop(task_id, None)
             self._counter.pop(task_id, None)
+            self._score_cache.pop(task_id, None)
+            self._cache_valid_tasks.discard(task_id)
             self._stale_dist = True
-            self._progress_dirty = True
         else:
             self._task_emas.pop(task_id, None)
-
-        self._drop_pending_updates(task_id)
+            self._score_cache.pop(task_id, None)
+            self._cache_valid_tasks.discard(task_id)
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the appropriate scoring method."""
         # Update task tracker
         self.task_tracker.update_task_performance(task_id, score)
 
+        # Update scoring method
         if self.hypers.use_bidirectional:
-            self._pending_updates.append((task_id, score))
-            if len(self._pending_updates) >= self._flush_threshold:
-                self._flush_pending_updates()
+            self._update_bidirectional_ema(task_id, score)
         else:
             self._update_basic_ema(task_id, score)
 
@@ -368,9 +340,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._counter[task_id] = 0
         self._counter[task_id] += 1
 
+        # Update bidirectional progress to ensure EMAs are updated
+        self._update_bidirectional_progress()
+
+        # Mark distribution as stale
         self._stale_dist = True
-        self._progress_dirty = True
-        self._invalidate_task_score(task_id)
+        self._cache_valid_tasks.discard(task_id)
 
     def _update_basic_ema(self, task_id: int, score: float) -> None:
         """Update basic EMA tracking for a task with new score."""
@@ -387,17 +362,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._task_emas[task_id] = (new_ema_score, new_ema_squared, num_samples + 1)
 
         # Invalidate cache for this task when EMA is updated
-        self._invalidate_task_score(task_id)
-
-    def _invalidate_task_score(self, task_id: int) -> None:
-        """Clear cached score state for a task."""
-        self._score_cache.pop(task_id, None)
         self._cache_valid_tasks.discard(task_id)
-
-    def _drop_pending_updates(self, task_id: int) -> None:
-        if not self._pending_updates:
-            return
-        self._pending_updates = [(tid, score) for tid, score in self._pending_updates if tid != task_id]
 
     def on_task_created(self, task: CurriculumTask) -> None:
         """Handle task creation by tracking it."""
@@ -503,7 +468,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Get all tracked task IDs
         task_ids = sorted(self._outcomes.keys())
         num_tasks = len(task_ids)
-        self._task_index_cache = {task_id: idx for idx, task_id in enumerate(task_ids)}
 
         if num_tasks == 0:
             return
@@ -674,10 +638,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
-        # Ensure latest updates are applied so state is consistent
-        self._flush_pending_updates()
-        self._ensure_progress_ready()
-
         state = {
             "type": self.hypers.algorithm_type(),
             "hypers": self.hypers.model_dump(),

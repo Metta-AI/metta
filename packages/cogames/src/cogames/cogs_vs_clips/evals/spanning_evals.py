@@ -17,6 +17,7 @@ from cogames.cogs_vs_clips.variants import (
     DistantResourcesVariant,
     EmptyBaseVariant,
     EnergizedVariant,
+    ExtractorHeartTuneVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
     PackRatVariant,
@@ -26,7 +27,6 @@ from cogames.cogs_vs_clips.variants import (
     SingleResourceUniformVariant,
     SingleToolUnclipVariant,
     SingleUseSwarmVariant,
-    Small50Variant,
     SuperChargedVariant,
     VibeCheckMin2Variant,
 )
@@ -162,7 +162,6 @@ OxygenBottleneckHard = Mission(
     variants=[
         EmptyBaseVariant(missing=["oxygen_extractor"]),
         ResourceBottleneckVariant(resource=["oxygen"]),
-        DistantResourcesVariant(),
         RoughTerrainVariant(),
     ],
 )
@@ -295,9 +294,7 @@ SingleUseSwarm = Mission(
     description="Everything is single use, so agents must fan out and reconverge with needed resources.",
     site=HELLO_WORLD,
     variants=[
-        EmptyBaseVariant(),
         SingleUseSwarmVariant(),
-        PackRatVariant(),
     ],
 )
 
@@ -309,8 +306,8 @@ SingleUseSwarmEasy = Mission(
     variants=[
         SingleUseSwarmVariant(),
         CompassVariant(),
-        Small50Variant(),
         SuperChargedVariant(),
+        ExtractorHeartTuneVariant(hearts=1),
     ],
 )
 
@@ -332,7 +329,6 @@ SingleUseSwarmHard = Mission(
         SingleUseSwarmVariant(),
         DistantResourcesVariant(),
         RoughTerrainVariant(),
-        DarkSideVariant(),
     ],
 )
 
@@ -353,9 +349,9 @@ VibeCheckEasy = Mission(
     description="Easy: generous hearts with shaping rewards to guide coordination.",
     site=HELLO_WORLD,
     variants=[
+        EmptyBaseVariant(),
         VibeCheckMin2Variant(),
         LonelyHeartVariant(),
-        PackRatVariant(),
     ],
 )
 
@@ -365,7 +361,7 @@ VibeCheckStandard = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(),
-        VibeCheckMin2Variant(),
+        VibeCheckMin2Variant(min_vibes=3),
     ],
 )
 
@@ -375,8 +371,7 @@ VibeCheckHard = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(),
-        VibeCheckMin2Variant(),
-        ResourceBottleneckVariant(),
+        VibeCheckMin2Variant(min_vibes=4),
     ],
 )
 

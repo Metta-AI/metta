@@ -9,7 +9,7 @@ import boto3
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy import PolicyArchitecture
 from metta.common.util.file import local_copy, write_file
 from metta.common.util.uri import ParsedURI
 from metta.rl.policy_artifact import (
@@ -190,11 +190,6 @@ class CheckpointManager:
         return self._remote_prefix is not None
 
     @staticmethod
-    def load_from_uri(uri: str, policy_env_info: PolicyEnvInterface, device: torch.device) -> Policy:
-        artifact = CheckpointManager.load_artifact_from_uri(uri)
-        return artifact.instantiate(policy_env_info, device)
-
-    @staticmethod
     def load_artifact_from_uri(uri: str) -> PolicyArtifact:
         """Load a policy from a URI (file://, s3://, or mock://).
 
@@ -276,38 +271,6 @@ class CheckpointManager:
             result["loss_states"] = state["loss_states"]
         return result
 
-    def save_agent(
-        self,
-        agent: Policy,
-        epoch: int,
-        *,
-        policy_architecture: PolicyArchitecture,
-    ) -> str:
-        """Save agent checkpoint to disk and upload to remote storage if configured.
-
-        The serialized artifact always includes the policy weights and architecture metadata.
-
-        Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
-        """
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{self.run_name}:v{epoch}.mpt"
-        checkpoint_path = self.checkpoint_dir / filename
-
-        save_policy_artifact_safetensors(
-            checkpoint_path,
-            policy_architecture=policy_architecture,
-            state_dict=agent.state_dict(),
-        )
-
-        remote_uri = None
-        if self._remote_prefix:
-            remote_uri = f"{self._remote_prefix}/{filename}"
-            write_file(remote_uri, str(checkpoint_path))
-
-        if remote_uri:
-            return remote_uri
-        return f"file://{checkpoint_path.resolve()}"
-
     def save_trainer_state(
         self,
         optimizer,
@@ -358,29 +321,33 @@ class CheckpointManager:
 
     def get_latest_checkpoint(self) -> str | None:
         local_max_checkpoint = _latest_checkpoint(f"file://{self.checkpoint_dir}")
-        remote_max_checkpoint = None
-        if self._remote_prefix:
-            _latest_checkpoint(self._remote_prefix)
+        remote_max_checkpoint = _latest_checkpoint(self._remote_prefix) if self._remote_prefix else None
+
+        if local_max_checkpoint and remote_max_checkpoint:
+            if remote_max_checkpoint["epoch"] > local_max_checkpoint["epoch"]:
+                # Prefer remote if ahead; ensure we don't silently resume behind.
+                return remote_max_checkpoint["uri"]
+            return local_max_checkpoint["uri"]
 
         if local_max_checkpoint:
-            if remote_max_checkpoint and remote_max_checkpoint["epoch"] > local_max_checkpoint["epoch"]:
-                raise ValueError("Invalid setup - trying to resume with a remote checkpoint ahead of local")
             return local_max_checkpoint["uri"]
-        elif remote_max_checkpoint:
+
+        if remote_max_checkpoint:
             return remote_max_checkpoint["uri"]
 
     @staticmethod
     def policy_spec_from_uri(
         uri: str,
         *,
-        display_name: str | None = None,
         device: str | torch.device | None = None,
+        strict: bool = True,
+        display_name: str | None = None,
     ) -> PolicySpec:
-        """Build a PolicySpec that loads a checkpoint via CheckpointPolicy."""
         normalized_uri = CheckpointManager.normalize_uri(uri)
-        init_kwargs = {
+        init_kwargs: dict[str, str | bool] = {
             "checkpoint_uri": normalized_uri,
             "display_name": display_name or normalized_uri,
+            "strict": strict,
         }
         if device is not None:
             init_kwargs["device"] = str(device)
@@ -391,27 +358,26 @@ class CheckpointManager:
 
 
 class CheckpointPolicy(MultiAgentPolicy):
-    """Policy wrapper that instantiates a checkpoint on demand."""
-
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
         *,
         checkpoint_uri: str,
-        strict: bool = True,
         device: str | torch.device = "cpu",
+        strict: bool = True,
         display_name: str | None = None,
     ):
         super().__init__(policy_env_info)
+        torch_device = torch.device(device)
         self._checkpoint_uri = checkpoint_uri
-        self._display_name = display_name or checkpoint_uri
-        self._device = torch.device(device)
-
         artifact = CheckpointManager.load_artifact_from_uri(checkpoint_uri)
-        policy = artifact.instantiate(policy_env_info, device=self._device, strict=strict)
-        policy = policy.to(self._device)
+        self._artifact = artifact
+        self._policy_architecture = artifact.policy_architecture
+        policy = artifact.instantiate(policy_env_info, device=torch_device, strict=strict)
+        policy = policy.to(torch_device)
         policy.eval()
         self._policy = policy
+        self._display_name = display_name or checkpoint_uri
 
     @property
     def display_name(self) -> str:
@@ -420,18 +386,47 @@ class CheckpointPolicy(MultiAgentPolicy):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return self._policy.agent_policy(agent_id)
 
-    def load_policy_data(self, policy_data_path: str) -> None:
-        self._policy.load_policy_data(policy_data_path)
+    def __call__(self, *args, **kwargs):
+        return self._policy(*args, **kwargs)
 
-    def save_policy_data(self, policy_data_path: str) -> None:
-        self._policy.save_policy_data(policy_data_path)
+    def save_policy(
+        self,
+        destination: str | Path,
+        *,
+        policy_architecture: PolicyArchitecture | None = None,
+    ) -> str:
+        """Persist the wrapped policy to a URI or filesystem path."""
+        architecture = policy_architecture or self._policy_architecture
+        if architecture is None:
+            raise ValueError("policy_architecture is required to save policy")
 
-    def reset(self) -> None:
-        if hasattr(self._policy, "reset"):
-            self._policy.reset()
+        parsed = ParsedURI.parse(str(destination))
+        # Resolve destination and write locally first
+        if parsed.scheme in ("", "file") or parsed.local_path:
+            path = parsed.local_path or Path(str(destination)).expanduser()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            save_policy_artifact_safetensors(
+                path,
+                policy_architecture=architecture,
+                state_dict=self._policy.state_dict(),
+            )
+            return f"file://{path.resolve()}"
 
-    def step_batch(self, raw_observations, raw_actions) -> None:
-        return self._policy.step_batch(raw_observations, raw_actions)
+        if parsed.scheme == "s3":
+            # Write locally (same filename) into checkpoint_dir, then upload
+            filename = Path(parsed.canonical).name
+            local_path = Path.cwd() / filename
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            save_policy_artifact_safetensors(
+                local_path,
+                policy_architecture=architecture,
+                state_dict=self._policy.state_dict(),
+            )
+            write_file(parsed.canonical, str(local_path))
+            return parsed.canonical
+
+        msg = f"Unsupported destination scheme for saving policy: {parsed.scheme or 'file'}"
+        raise ValueError(msg)
 
     def __getattr__(self, name: str):
         return getattr(self._policy, name)
