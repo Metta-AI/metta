@@ -2,7 +2,9 @@ import json
 import subprocess
 import sys
 
+import numpy as np
 import pytest
+import torch
 
 from metta.doxascope.doxascope_data import (
     DoxascopeLogger,
@@ -200,9 +202,7 @@ def test_doxascope_end_to_end(doxascope_env):
 
 
 def test_logger_agent_alignment():
-    """Verify DoxascopeLogger logs per-agent memory aligned with the correct agent positions."""
-    import numpy as np
-    import torch
+    """Verify DoxascopeLogger logs per-agent memory aligned with the correct agent positions using Cortex mock."""
 
     # Setup logger
     logger = DoxascopeLogger(enabled=True, simulation_id="simtest")
@@ -217,34 +217,55 @@ def test_logger_agent_alignment():
         2: {"type": 0, "agent_id": 1, "r": 0, "c": 1},
     }
 
-    # Fake policy with LSTM buffers in components['lstm_reset'] matching [L, B, H]
-    L, H = 1, 3
-    B = num_agents
-    lstm_h = torch.zeros((L, B, H), dtype=torch.float32)
-    lstm_c = torch.zeros((L, B, H), dtype=torch.float32)
-    # Give each agent a distinct constant pattern so we can validate alignment
-    for i in range(B):
-        lstm_h[:, i, :] = (i + 1) * 1.0
-        lstm_c[:, i, :] = (i + 1) * 10.0
+    # Create mock memory vectors for each agent
+    # Size 16, all 0.1s for agent 0, all 0.2s for agent 1
+    mem_size = 16
+    mem_0 = torch.full((mem_size,), 0.1, dtype=torch.float32)
+    mem_1 = torch.full((mem_size,), 0.2, dtype=torch.float32)
 
-    class FakeLSTM:
-        def __init__(self, h, c):
-            self.lstm_h = h
-            self.lstm_c = c
+    # Mock CortexTD component
+    class MockCortexTD:
+        def __init__(self):
+            # Simulate what CortexTD would store for current rollout state
+            # We'll put the memory vectors in _rollout_store_leaves style
+            # Leaf 1: the memory vector
+            self._rollout_store_leaves = [
+                # Assume capacity 10, shape (16,)
+                torch.zeros((10, mem_size), dtype=torch.float32)
+            ]
 
-    fake_lstm = FakeLSTM(lstm_h, lstm_c)
+            # Populate store at slots 0 and 1
+            self._rollout_store_leaves[0][0] = mem_0
+            self._rollout_store_leaves[0][1] = mem_1
 
-    class FakePolicy:
-        def __init__(self, components):
-            self.components = components
+            # Map agent IDs to slots
+            self._rollout_id2slot = {0: 0, 1: 1}
 
-    policy = FakePolicy({"lstm_reset": fake_lstm})
+            # Also set current state for direct lookup test (optional, but mimics real usage)
+            # Let's assume agent 0 is in the current batch at pos 0, agent 1 at pos 1
+            self._rollout_current_env_ids = torch.tensor([0, 1], dtype=torch.long)
+            # Construct a simplified TensorDict-like structure if needed,
+            # but our logger uses optree flattening on the state.
+            # For simplicity in this test, we'll rely on _rollout_current_state being a simple dict or object
+            # that optree can flatten. A list of tensors works.
+            self._rollout_current_state = [
+                torch.stack([mem_0, mem_1])  # Stacked batch
+            ]
 
-    # Policy indices [0, 1]
-    policy_idxs = torch.tensor([0, 1], dtype=torch.long)
+    class MockPolicy:
+        def __init__(self):
+            self.components = {"cortex": MockCortexTD()}
+
+    class MockAdapter:
+        def __init__(self, policy):
+            self._policy = policy
+
+    # Create a single shared policy and adapters for each agent
+    shared_policy = MockPolicy()
+    policies = [MockAdapter(shared_policy), MockAdapter(shared_policy)]
 
     # Log one timestep
-    logger.log_timestep(policy, policy_idxs, env_grid_objects)
+    logger.log_timestep(policies, env_grid_objects)
 
     # Validate
     assert logger.data, "Logger produced no data entries"
@@ -253,13 +274,17 @@ def test_logger_agent_alignment():
 
     # Expected positions: agent 0 -> (0,0), agent 1 -> (0,1)
     expected_positions = [(0, 0), (0, 1)]
+
+    # Sort agents by ID to ensure stable comparison order
+    agents.sort(key=lambda x: x["agent_id"])
+
     for i, agent_entry in enumerate(agents):
         assert tuple(agent_entry["position"]) == expected_positions[i]
-        # Memory vector expected: concat(h, c) for agent i, flattened
-        expected_vec = np.concatenate(
-            [(i + 1) * np.ones(H, dtype=np.float32), (i + 1) * 10.0 * np.ones(H, dtype=np.float32)]
-        )
+
         mv = np.array(agent_entry["memory_vector"], dtype=np.float32)
-        # The flattened shape is [L*2H] == [2H] since L=1
-        assert mv.shape[0] == 2 * H
-        assert np.allclose(mv, expected_vec)
+        assert mv.shape[0] == mem_size
+
+        if i == 0:
+            assert np.allclose(mv, mem_0.numpy())
+        else:
+            assert np.allclose(mv, mem_1.numpy())
