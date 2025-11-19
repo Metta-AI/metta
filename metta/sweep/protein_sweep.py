@@ -1,16 +1,15 @@
 """Protein-based Bayesian optimization sweep using the SweepOrchestrator framework."""
 
 import logging
-import random
-import string
 from typing import Optional
 
+from metta.sweep.config import SweepOrchestratorConfig
 from metta.sweep.models import JobDefinition
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.orchestrator import SweepOrchestrator, Trial, TrialState
 from metta.sweep.protein_config import ProteinConfig
 from metta.sweep.protocols import Dispatcher, Store
-from metta.sweep.utils import create_eval_job, create_training_job
+from metta.sweep.utils import create_eval_job, create_training_job, generate_run_id
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +28,7 @@ class ProteinSweep(SweepOrchestrator):
         experiment_id: str,
         dispatcher: Dispatcher,
         store: Store,
+        sweep_config: SweepOrchestratorConfig,
         protein_config: ProteinConfig,
         recipe_module: str,
         train_entrypoint: str = "train",
@@ -39,7 +39,6 @@ class ProteinSweep(SweepOrchestrator):
         nodes: int = 1,
         train_overrides: Optional[dict] = None,
         eval_overrides: Optional[dict] = None,
-        **kwargs,
     ):
         """Initialize Protein sweep.
 
@@ -47,6 +46,7 @@ class ProteinSweep(SweepOrchestrator):
             experiment_id: Unique experiment identifier
             dispatcher: Job dispatcher
             store: Data store (e.g., WandB)
+            sweep_config: Orchestrator configuration
             protein_config: Protein optimizer configuration
             recipe_module: Module containing train/eval functions
             train_entrypoint: Name of training function
@@ -57,7 +57,6 @@ class ProteinSweep(SweepOrchestrator):
             nodes: Nodes per job
             train_overrides: Additional training config overrides
             eval_overrides: Additional evaluation config overrides
-            **kwargs: Additional arguments passed to SweepOrchestrator
         """
         # Set attributes before calling super().__init__ since parent calls setup()
         self.protein_config = protein_config
@@ -76,7 +75,7 @@ class ProteinSweep(SweepOrchestrator):
         self.trial_counter = 0
 
         # Now call parent init which will call setup()
-        super().__init__(experiment_id, dispatcher, store, **kwargs)
+        super().__init__(experiment_id, dispatcher, store, sweep_config)
 
     def setup(self) -> None:
         """Initialize the Protein optimizer."""
@@ -131,9 +130,7 @@ class ProteinSweep(SweepOrchestrator):
         trials = []
         for suggestion in suggestions:
             self.trial_counter += 1
-            # Generate a 3-character random hash to avoid ID collisions
-            hash_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=3))
-            trial_id = f"{self.experiment_id}_trial_{self.trial_counter}_{hash_suffix}"
+            trial_id = generate_run_id(self.experiment_id, self.trial_counter)
 
             trial = Trial(
                 id=trial_id,

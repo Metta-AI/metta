@@ -3,7 +3,6 @@
 import logging
 import os
 import uuid
-from enum import StrEnum
 from pathlib import Path
 from typing import Any, Optional
 
@@ -12,6 +11,7 @@ from metta.common.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
+from metta.sweep.config import DispatcherType, SweepOrchestratorConfig, SweepToolConfig
 from metta.sweep.core import ParameterConfig
 from metta.sweep.dispatchers import LocalDispatcher, SkypilotDispatcher
 from metta.sweep.protein_config import ProteinConfig
@@ -20,14 +20,6 @@ from metta.sweep.stores import WandbStore
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
-
-
-class DispatcherType(StrEnum):
-    """Available dispatcher types for job execution."""
-
-    LOCAL = "local"  # All jobs run locally
-    SKYPILOT = "skypilot"  # All jobs run on Skypilot
-    REMOTE_QUEUE = "remote_queue"  # Jobs queued to PostgreSQL for remote workers
 
 
 class SweepTool(Tool):
@@ -94,20 +86,38 @@ class SweepTool(Tool):
     # Cost tracking configuration
     cost_key: Optional[str] = None  # WandB summary key to use for cost tracking (e.g. "overview/gpu_hours")
 
+    def _build_config(self) -> SweepToolConfig:
+        """Build and validate the sweep tool configuration."""
+        return SweepToolConfig(
+            sweep_name=self.sweep_name,
+            sweep_dir=self.sweep_dir,
+            sweep_server_uri=self.sweep_server_uri,
+            max_trials=self.max_trials,
+            batch_size=self.batch_size,
+            recipe_module=self.recipe_module,
+            train_entrypoint=self.train_entrypoint,
+            eval_entrypoint=self.eval_entrypoint,
+            gpus=self.gpus,
+            nodes=self.nodes,
+            max_parallel=self.max_parallel,
+            poll_interval=self.poll_interval,
+            initial_wait=self.initial_wait,
+            local_test=self.local_test,
+            force_eval=self.force_eval,
+            train_overrides=dict(self.train_overrides),
+            eval_overrides=dict(self.eval_overrides),
+            wandb=self.wandb,
+            stats_server_uri=self.stats_server_uri,
+            dispatcher_type=self.dispatcher_type,
+            capture_output=self.capture_output,
+            db_url=self.db_url,
+            cost_key=self.cost_key,
+        )
+
     def invoke(self, args: dict[str, str]) -> int | None:
         """Execute the sweep."""
 
-        if self.local_test:
-            # Local testing configuration
-            self.dispatcher_type = DispatcherType.LOCAL
-            self.train_overrides["trainer.total_timesteps"] = 50000  # Quick 50k timesteps for testing
-
-            # We let the batch size be set in training for the quick run
-            # Use pop() to safely remove keys without raising KeyError if they don't exist
-            # The keys include the full path "trainer.batch_size" not just "batch_size"
-            self.protein_config.parameters.pop("trainer.batch_size", None)
-            self.protein_config.parameters.pop("trainer.minibatch_size", None)
-            self.protein_config.parameters.pop("trainer.total_timesteps", None)
+        config = self._build_config()
 
         # Handle run parameter from dispatcher (ignored - only consumed to prevent unused args error)
         if "run" in args:
@@ -115,64 +125,68 @@ class SweepTool(Tool):
             # We consume it here but don't use it for sweep orchestration
             pass
 
-        # Generate sweep name if not provided (similar to TrainTool's run name)
-        if self.sweep_name is None:
-            self.sweep_name = f"sweep.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())[:8]}"
-
-        # Handle max_trials from args
+        # CLI overrides
         if "max_trials" in args:
-            self.max_trials = int(args["max_trials"])
-
-        # Handle recipe_module from args
+            config.max_trials = int(args["max_trials"])
         if "recipe_module" in args:
-            self.recipe_module = args["recipe_module"]
-
-        # Handle train_entrypoint from args
+            config.recipe_module = args["recipe_module"]
         if "train_entrypoint" in args:
-            self.train_entrypoint = args["train_entrypoint"]
-
-        # Handle eval_entrypoint from args
+            config.train_entrypoint = args["train_entrypoint"]
         if "eval_entrypoint" in args:
-            self.eval_entrypoint = args["eval_entrypoint"]
+            config.eval_entrypoint = args["eval_entrypoint"]
+
+        # Local testing configuration
+        if config.local_test:
+            config.dispatcher_type = DispatcherType.LOCAL
+            config.train_overrides["trainer.total_timesteps"] = 50000
+            self.protein_config.parameters.pop("trainer.batch_size", None)
+            self.protein_config.parameters.pop("trainer.minibatch_size", None)
+            self.protein_config.parameters.pop("trainer.total_timesteps", None)
+
+        # Generate sweep name if not provided (similar to TrainTool's run name)
+        if config.sweep_name is None:
+            config.sweep_name = f"sweep.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())[:8]}"
 
         # Set sweep_dir based on sweep name if not explicitly set
-        if self.sweep_dir is None:
-            self.sweep_dir = f"{self.system.data_dir}/sweeps/{self.sweep_name}"
+        if config.sweep_dir is None:
+            config.sweep_dir = f"{self.system.data_dir}/sweeps/{config.sweep_name}"
 
         # Auto-configure wandb if not set (similar to TrainTool)
-        if self.wandb == WandbConfig.Unconfigured():
-            self.wandb = auto_wandb_config(self.sweep_name)
+        if config.wandb == WandbConfig.Unconfigured():
+            config.wandb = auto_wandb_config(config.sweep_name)
 
         # Create sweep directory
-        os.makedirs(self.sweep_dir, exist_ok=True)
+        os.makedirs(config.sweep_dir, exist_ok=True)
 
         # Initialize logging
-        init_logging(run_dir=Path(self.sweep_dir))
+        init_logging(run_dir=Path(config.sweep_dir))
 
         logger.info("[SweepTool] " + "=" * 60)
-        logger.info(f"[SweepTool] Starting Bayesian optimization sweep: {self.sweep_name}")
-        logger.info(f"[SweepTool] Recipe: {self.recipe_module}.{self.train_entrypoint}")
-        logger.info(f"[SweepTool] Max trials: {self.max_trials}")
-        logger.info(f"[SweepTool] Batch size: {self.batch_size}")
-        logger.info(f"[SweepTool] Max parallel: {self.max_parallel}")
-        logger.info(f"[SweepTool] Poll interval: {self.poll_interval}s")
-        logger.info(f"[SweepTool] Dispatcher type: {self.dispatcher_type}")
+        logger.info(f"[SweepTool] Starting Bayesian optimization sweep: {config.sweep_name}")
+        logger.info(f"[SweepTool] Recipe: {config.recipe_module}.{config.train_entrypoint}")
+        logger.info(f"[SweepTool] Max trials: {config.max_trials}")
+        logger.info(f"[SweepTool] Batch size: {config.batch_size}")
+        logger.info(f"[SweepTool] Max parallel: {config.max_parallel}")
+        logger.info(f"[SweepTool] Poll interval: {config.poll_interval}s")
+        logger.info(f"[SweepTool] Dispatcher type: {config.dispatcher_type}")
         logger.info("[SweepTool] " + "=" * 60)
 
         # Check for resumption using cogweb
         resume = False
-        if self.sweep_server_uri:
+        if config.sweep_server_uri:
             try:
-                cogweb_client = CogwebClient.get_client(base_url=self.sweep_server_uri)
+                cogweb_client = CogwebClient.get_client(base_url=config.sweep_server_uri)
                 sweep_client = cogweb_client.sweep_client()
-                sweep_info = sweep_client.get_sweep(self.sweep_name)
+                sweep_info = sweep_client.get_sweep(config.sweep_name)
 
                 if not sweep_info.exists:
-                    logger.info(f"[SweepTool] Registering new sweep: {self.sweep_name}")
-                    sweep_client.create_sweep(self.sweep_name, self.wandb.project, self.wandb.entity, self.sweep_name)
+                    logger.info(f"[SweepTool] Registering new sweep: {config.sweep_name}")
+                    sweep_client.create_sweep(
+                        config.sweep_name, config.wandb.project, config.wandb.entity, config.sweep_name
+                    )
                     resume = False
                 else:
-                    logger.info(f"[SweepTool] Resuming existing sweep: {self.sweep_name}")
+                    logger.info(f"[SweepTool] Resuming existing sweep: {config.sweep_name}")
                     resume = True
             except Exception as e:
                 logger.warning(f"[SweepTool] Could not check sweep status via cogweb: {e}")
@@ -189,50 +203,51 @@ class SweepTool(Tool):
         except Exception:
             evaluator_prefix = None
 
-        store = WandbStore(entity=self.wandb.entity, project=self.wandb.project, evaluator_prefix=evaluator_prefix)
+        store = WandbStore(entity=config.wandb.entity, project=config.wandb.project, evaluator_prefix=evaluator_prefix)
 
         # Create dispatcher based on type
-        if self.dispatcher_type == DispatcherType.LOCAL:
-            dispatcher = LocalDispatcher(capture_output=self.capture_output)
-
-        elif self.dispatcher_type == DispatcherType.SKYPILOT:
+        if config.dispatcher_type == DispatcherType.LOCAL:
+            dispatcher = LocalDispatcher(capture_output=config.capture_output)
+        elif config.dispatcher_type == DispatcherType.SKYPILOT:
             dispatcher = SkypilotDispatcher()
-
-        elif self.dispatcher_type == DispatcherType.REMOTE_QUEUE:
+        elif config.dispatcher_type == DispatcherType.REMOTE_QUEUE:
             raise NotImplementedError("[SweepTool] Using RemoteQueueDispatcher for distributed execution")
-
         else:
-            raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
+            raise ValueError(f"Unsupported dispatcher type: {config.dispatcher_type}")
+
+        orchestrator_config = SweepOrchestratorConfig(
+            max_parallel=config.max_parallel,
+            poll_interval=config.poll_interval,
+            initial_wait=config.initial_wait,
+            metric_key=self.protein_config.metric,
+            cost_key=config.cost_key,
+            skip_evaluation=False,
+            stop_on_error=False,
+            resume=resume,
+        )
 
         # Create ProteinSweep orchestrator
         sweep = ProteinSweep(
-            experiment_id=self.sweep_name,
+            experiment_id=config.sweep_name,
             dispatcher=dispatcher,
             store=store,
+            sweep_config=orchestrator_config,
             protein_config=self.protein_config,
-            recipe_module=self.recipe_module,
-            train_entrypoint=self.train_entrypoint,
-            eval_entrypoint=self.eval_entrypoint,
-            max_trials=self.max_trials,
-            batch_size=self.batch_size,
-            gpus=self.gpus,
-            nodes=self.nodes,
-            train_overrides=self.train_overrides,
-            eval_overrides=self.eval_overrides,
-            max_parallel=self.max_parallel,
-            poll_interval=self.poll_interval,
-            initial_wait=self.initial_wait,
-            metric_key=self.protein_config.metric,
-            cost_key=self.cost_key,  # Pass the cost key if specified
-            skip_evaluation=False,  # We always evaluate
-            stop_on_error=False,  # Continue on errors
-            resume=resume,  # Pass resume flag for state recovery
+            recipe_module=config.recipe_module,
+            train_entrypoint=config.train_entrypoint,
+            eval_entrypoint=config.eval_entrypoint,
+            max_trials=config.max_trials,
+            batch_size=config.batch_size,
+            gpus=config.gpus,
+            nodes=config.nodes,
+            train_overrides=config.train_overrides,
+            eval_overrides=config.eval_overrides,
         )
 
         # Save configuration
-        config_path = os.path.join(self.sweep_dir, "sweep_config.json")
+        config_path = os.path.join(config.sweep_dir, "sweep_config.json")
         with open(config_path, "w") as f:
-            f.write(self.model_dump_json(indent=2))
+            f.write(config.model_dump_json(indent=2))
             logger.info(f"[SweepTool] Config saved to {config_path}")
 
         try:
@@ -249,12 +264,12 @@ class SweepTool(Tool):
             raise
         finally:
             # Final summary
-            final_runs = store.fetch_runs(filters={"group": self.sweep_name})
+            final_runs = store.fetch_runs(filters={"group": config.sweep_name})
 
             logger.info("[SweepTool] " + "=" * 60)
             logger.info("[SweepTool] SWEEP SUMMARY")
             logger.info("[SweepTool] " + "=" * 60)
-            logger.info(f"[SweepTool] Sweep name: {self.sweep_name}")
+            logger.info(f"[SweepTool] Sweep name: {config.sweep_name}")
             logger.info(f"[SweepTool] Total runs: {len(final_runs)}")
 
             # Show detailed status table

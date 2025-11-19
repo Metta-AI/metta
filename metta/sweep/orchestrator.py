@@ -14,6 +14,7 @@ from enum import Enum, auto
 from typing import Any, Callable, Optional
 
 from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
+from metta.sweep.config import SweepOrchestratorConfig
 from metta.sweep.models import JobDefinition, JobStatus
 from metta.sweep.protocols import Dispatcher, Store
 
@@ -243,14 +244,7 @@ class SweepOrchestrator(ABC):
         experiment_id: str,
         dispatcher: Dispatcher,
         store: Store,
-        max_parallel: int = 4,
-        poll_interval: float = 10.0,
-        initial_wait: float = 5.0,
-        metric_key: str = "score",
-        cost_key: Optional[str] = None,
-        skip_evaluation: bool = False,
-        stop_on_error: bool = False,
-        resume: bool = False,
+        config: "SweepOrchestratorConfig",
     ):
         """Initialize orchestrator with core dependencies.
 
@@ -258,28 +252,21 @@ class SweepOrchestrator(ABC):
             experiment_id: Unique identifier for this experiment
             dispatcher: Dispatcher for job execution
             store: Store for run data (e.g., WandB)
-            max_parallel: Maximum number of parallel trials
-            poll_interval: Seconds between state syncs
-            initial_wait: Seconds to wait before first sync
-            metric_key: Key in run summary to use as optimization metric
-            cost_key: Key in run summary to use as cost metric (optional)
-            skip_evaluation: If True, skip separate evaluation phase
-            stop_on_error: If True, stop experiment on any error
-            resume: If True, recover state from store on startup
+            config: Configuration for sweep orchestration
         """
         self.experiment_id = experiment_id
         self.dispatcher = dispatcher
         self.store = store
 
         # Configuration
-        self.max_parallel = max_parallel
-        self.poll_interval = poll_interval
-        self.initial_wait = initial_wait
-        self.metric_key = metric_key
-        self.cost_key = cost_key
-        self.skip_evaluation = skip_evaluation
-        self.stop_on_error = stop_on_error
-        self.resume = resume
+        self.max_parallel = config.max_parallel
+        self.poll_interval = config.poll_interval
+        self.initial_wait = config.initial_wait
+        self.metric_key = config.metric_key
+        self.cost_key = config.cost_key
+        self.skip_evaluation = config.skip_evaluation
+        self.stop_on_error = config.stop_on_error
+        self.resume = config.resume
 
         # Universal state - all strategies need these
         self.trials: dict[str, Trial] = {}
