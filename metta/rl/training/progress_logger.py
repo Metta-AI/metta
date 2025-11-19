@@ -109,7 +109,8 @@ def log_training_progress(
     else:
         steps_per_sec = train_pct = rollout_pct = stats_pct = 0.0
 
-    heart_value = metrics.get("env_agent/heart.gained", 0.0)
+    # Prefer the rolling-average metric to smooth out zero-y epochs; fall back to raw.
+    heart_value = metrics.get("env_agent/heart.gained.avg", metrics.get("env_agent/heart.gained", 0.0))
     heart_rate = metrics.get("env_agent/heart.gained.rate")
 
     if should_use_rich_console():
