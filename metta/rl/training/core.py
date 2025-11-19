@@ -232,13 +232,13 @@ class CoreTrainingLoop:
         training_env_id = context.training_env_id
         assert training_env_id is not None, "Training environment ID is required"
 
-        # Initialize shared loss data
-        shared_loss_mb_data = self.experience.give_me_empty_md_td()
-        for loss_name in self.losses.keys():
-            shared_loss_mb_data[loss_name] = self.experience.give_me_empty_md_td()
+        # # Initialize shared loss data # av delete
+        # shared_loss_mb_data = self.experience.give_me_empty_md_td()
+        # for loss_name in self.losses.keys():
+        #     shared_loss_mb_data[loss_name] = self.experience.give_me_empty_md_td()
 
         # Reset loss tracking
-        shared_loss_mb_data.zero_()
+        # shared_loss_mb_data.zero_()
         self.experience.reset_importance_sampling_ratios()
 
         for loss in self.losses.values():
@@ -254,6 +254,7 @@ class CoreTrainingLoop:
 
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
+                shared_loss_mb_data = self.experience.give_me_empty_md_td()
 
                 for _loss_name, loss_obj in self.losses.items():
                     loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
