@@ -226,28 +226,17 @@ class TinyHeartProtocolsVariant(MissionVariant):
             "energy": self.energy_cost,
         }
 
-        tiny_heart_protocols = [
+        tiny_protocols = [
             ProtocolConfig(
-                vibes=["heart_a"] * (i + 1),
+                vibes=[vibe] * (i + 1),
                 input_resources=tiny_inputs,
                 output_resources={"heart": i + 1},
             )
-            for i in range(4)
-        ]
-        tiny_redheart_protocols = [
-            ProtocolConfig(
-                vibes=["red-heart"] * (i + 1),
-                input_resources=tiny_inputs,
-                output_resources={"heart": i + 1},
-            )
+            for vibe in ("heart_a", "red-heart")
             for i in range(4)
         ]
 
-        assembler.protocols = [
-            *tiny_heart_protocols,
-            *tiny_redheart_protocols,
-            *assembler.protocols,
-        ]
+        assembler.protocols = [*tiny_protocols, *assembler.protocols]
 
 
 class VibeCheckMin2Variant(MissionVariant):
