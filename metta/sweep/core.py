@@ -14,7 +14,7 @@ from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
     # For type checking only; avoid runtime import cycles
-    from metta.sweep.tools import SweepTool
+    from metta.tools.sweep import SweepTool
 
 
 class Distribution(StrEnum):
@@ -263,7 +263,7 @@ def make_sweep(
 
     # Local imports to avoid circular dependencies
     from metta.sweep.protein_config import ProteinConfig, ProteinSettings
-    from metta.sweep.tools import SweepTool
+    from metta.tools.sweep import SweepTool
 
     protein_config = ProteinConfig(
         metric=objective,
@@ -353,7 +353,7 @@ def grid_search(
 
     # Local imports to avoid circular dependencies
     from metta.sweep.protein_config import ProteinConfig, ProteinSettings
-    from metta.sweep.tools import SweepTool
+    from metta.tools.sweep import SweepTool
 
     # Convert grid search parameters to categorical parameters for Protein
     # Grid search is emulated as Bayesian optimization with categorical choices

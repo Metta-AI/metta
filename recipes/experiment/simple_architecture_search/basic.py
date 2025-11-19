@@ -24,7 +24,7 @@ from metta.sweep.core import (
     grid_search,
 )
 from metta.tools.eval import EvaluateTool
-from metta.sweep.tools import SweepTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 

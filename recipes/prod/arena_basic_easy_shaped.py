@@ -24,7 +24,7 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.stub import StubTool
-from metta.sweep.tools import SweepTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 
@@ -237,6 +237,7 @@ def sweep(sweep_name: str) -> SweepTool:
             search_center=7.5e8,
         ),
     ]
+    train_overrides = {"evaluator.epoch_interval": 0}
 
     return make_sweep(
         name=sweep_name,
@@ -250,6 +251,7 @@ def sweep(sweep_name: str) -> SweepTool:
         objective="experience/rewards",
         cost_metric="metric/agent_step",
         parameters=parameters,
+        train_overrides=train_overrides,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.

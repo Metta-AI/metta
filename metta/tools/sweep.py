@@ -15,8 +15,8 @@ from metta.common.wandb.context import WandbConfig
 from metta.sweep.core import ParameterConfig
 from metta.sweep.dispatchers import LocalDispatcher, SkypilotDispatcher
 from metta.sweep.protein_config import ProteinConfig
+from metta.sweep.protein_sweep import ProteinSweep
 from metta.sweep.stores import WandbStore
-from metta.sweep.sweep import ProteinSweep
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)

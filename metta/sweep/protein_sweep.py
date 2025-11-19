@@ -5,9 +5,9 @@ import random
 import string
 from typing import Optional
 
-from metta.sweep.experiment import SweepOrchestrator, Trial, TrialState
 from metta.sweep.models import JobDefinition
 from metta.sweep.optimizer.protein import ProteinOptimizer
+from metta.sweep.orchestrator import SweepOrchestrator, Trial, TrialState
 from metta.sweep.protein_config import ProteinConfig
 from metta.sweep.protocols import Dispatcher, Store
 from metta.sweep.utils import create_eval_job, create_training_job
