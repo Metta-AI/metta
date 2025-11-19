@@ -41,6 +41,7 @@ evalScheduler:
   replicaCount: 1
   env:
     POLL_INTERVAL: "300"
+    EVAL_GIT_HASH: "main"
     DD_TRACE_ENABLED: "true"
   resources:
     requests:

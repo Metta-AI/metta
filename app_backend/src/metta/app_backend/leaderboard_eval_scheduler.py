@@ -214,7 +214,7 @@ def main() -> None:
             stats_client=stats_client,
             repo_root=str(repo_root),
             poll_interval_seconds=poll_interval,
-            eval_git_hash=eval_git_hash,
+            eval_git_hash=None if eval_git_hash == "main" else eval_git_hash,
         )
         scheduler.run()
     finally:
