@@ -16,7 +16,6 @@ from metta.app_backend.leaderboard_constants import (
     EVALS_DONE_KEY,
     REMOTE_JOB_ID_KEY,
     SUBMITTED_KEY,
-    V0_LEADERBOARD_NAME_TAG_KEY,
 )
 from metta.app_backend.metta_repo import TaskStatus
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
@@ -48,30 +47,6 @@ class LeaderboardEvalScheduler:
         self._repo_root = repo_root
         self._poll_interval_seconds = poll_interval_seconds
         self._eval_git_hash = eval_git_hash
-
-    def _get_per_sim_scores(self, policy_version_id: uuid.UUID) -> dict[str, float]:
-        rows = self._stats_client.sql_query(
-            query=f"""
-SELECT
-    et1.value,
-    AVG(epm.value / ep.num_agents) as avg_reward_per_agent
-FROM episode_policies ep
-JOIN episodes e ON e.id = ep.episode_id
-JOIN episode_policy_metrics epm ON epm.episode_internal_id = e.internal_id
-    AND epm.pv_internal_id = (SELECT internal_id FROM policy_versions WHERE id = '{policy_version_id}')
-JOIN episode_tags et1 ON et1.episode_id = e.id
-WHERE ep.policy_version_id = '{policy_version_id}'
-    AND epm.metric_name = 'reward'
-    AND et1.key = '{V0_LEADERBOARD_NAME_TAG_KEY}'
-GROUP BY et1.value
-ORDER BY et1.value
-"""
-        ).rows
-        return {leaderboard_name: score for leaderboard_name, score in rows}
-
-    def get_leaderboard_score(self, policy_version_id: uuid.UUID) -> float:
-        scores = self._get_per_sim_scores(policy_version_id).values()
-        return sum(scores) / len(scores)
 
     def _fetch_unscheduled_policy_versions(self) -> list[uuid.UUID]:
         """Get submitted policy versions that still need evals or whose prior eval failed."""

@@ -98,7 +98,7 @@ class LeaderboardEntry(BaseModel):
     policy_version: PolicyVersionRow
     policy_name: str
     user_id: str
-    score: float
+    scores: dict[str, float]
 
 
 logger = logging.getLogger(name="metta_repo")
@@ -738,38 +738,26 @@ class MettaRepo:
 
             return id
 
-    async def get_leaderboard_entries(
+    async def get_avg_per_agent_score_by_tag(
         self,
-        leaderboard_tag_key: str,
+        tag_key: str,
         user_id: str | None = None,
+        policy_version_id: uuid.UUID | None = None,
     ) -> list[LeaderboardEntry]:
-        """Fetch leaderboard entries optionally filtered by policy user ID."""
+        """Fetch average per-agent scores per tag with optional filters."""
+        params: list[Any] = [tag_key]
         user_filter_clause = ""
-        params: list[Any] = [leaderboard_tag_key]
+        policy_filter_clause = ""
+
         if user_id is not None:
             user_filter_clause = "AND pol.user_id = %s"
             params.append(user_id)
 
+        if policy_version_id is not None:
+            policy_filter_clause = "AND pv.id = %s"
+            params.append(policy_version_id)
+
         query = f"""
-WITH per_sim AS (
-    SELECT
-        ep.policy_version_id,
-        pv.internal_id,
-        et.value AS leaderboard_name,
-        AVG(epm.value / ep.num_agents) AS avg_reward_per_agent
-    FROM episode_policies ep
-    JOIN episodes e ON e.id = ep.episode_id
-    JOIN policy_versions pv ON pv.id = ep.policy_version_id
-    JOIN policies pol ON pol.id = pv.policy_id
-    JOIN episode_policy_metrics epm
-        ON epm.episode_internal_id = e.internal_id
-        AND epm.pv_internal_id = pv.internal_id
-    JOIN episode_tags et ON et.episode_id = e.id
-    WHERE epm.metric_name = 'reward'
-      AND et.key = %s
-      {user_filter_clause}
-    GROUP BY ep.policy_version_id, pv.internal_id, et.value
-)
 SELECT
     pv.id AS policy_version_id,
     pv.internal_id,
@@ -782,10 +770,20 @@ SELECT
     pv.created_at,
     pol.name AS policy_name,
     pol.user_id,
-    AVG(per_sim.avg_reward_per_agent) AS leaderboard_score
-FROM per_sim
-JOIN policy_versions pv ON pv.id = per_sim.policy_version_id
+    et.value AS leaderboard_name,
+    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent
+FROM episode_policies ep
+JOIN episodes e ON e.id = ep.episode_id
+JOIN policy_versions pv ON pv.id = ep.policy_version_id
 JOIN policies pol ON pol.id = pv.policy_id
+JOIN episode_policy_metrics epm
+    ON epm.episode_internal_id = e.internal_id
+    AND epm.pv_internal_id = pv.internal_id
+JOIN episode_tags et ON et.episode_id = e.id
+WHERE epm.metric_name = 'reward'
+  AND et.key = %s
+  {user_filter_clause}
+  {policy_filter_clause}
 GROUP BY
     pv.id,
     pv.internal_id,
@@ -797,8 +795,9 @@ GROUP BY
     pv.attributes,
     pv.created_at,
     pol.name,
-    pol.user_id
-ORDER BY leaderboard_score DESC, pv.created_at DESC
+    pol.user_id,
+    et.value
+ORDER BY pv.created_at DESC, pol.user_id, pv.id, et.value
 """
 
         async with self.connect() as con:
@@ -806,25 +805,30 @@ ORDER BY leaderboard_score DESC, pv.created_at DESC
                 await cur.execute(query, params)
                 rows = await cur.fetchall()
 
-        entries: list[LeaderboardEntry] = []
+        entries_by_policy: dict[uuid.UUID, LeaderboardEntry] = {}
         for row in rows:
-            policy_version = PolicyVersionRow(
-                id=row["policy_version_id"],
-                internal_id=row["internal_id"],
-                policy_id=row["policy_id"],
-                version=row["version"],
-                s3_path=row["s3_path"],
-                git_hash=row["git_hash"],
-                policy_spec=row["policy_spec"] or {},
-                attributes=row["attributes"] or {},
-                created_at=row["created_at"],
-            )
-            entries.append(
-                LeaderboardEntry(
+            policy_version_id_value = row["policy_version_id"]
+            entry = entries_by_policy.get(policy_version_id_value)
+            if entry is None:
+                policy_version = PolicyVersionRow(
+                    id=row["policy_version_id"],
+                    internal_id=row["internal_id"],
+                    policy_id=row["policy_id"],
+                    version=row["version"],
+                    s3_path=row["s3_path"],
+                    git_hash=row["git_hash"],
+                    policy_spec=row["policy_spec"] or {},
+                    attributes=row["attributes"] or {},
+                    created_at=row["created_at"],
+                )
+                entry = LeaderboardEntry(
                     policy_version=policy_version,
                     policy_name=row["policy_name"],
                     user_id=row["user_id"],
-                    score=row["leaderboard_score"],
+                    scores={},
                 )
-            )
-        return entries
+                entries_by_policy[policy_version_id_value] = entry
+
+            entry.scores[row["leaderboard_name"]] = row["avg_reward_per_agent"]
+
+        return list(entries_by_policy.values())
