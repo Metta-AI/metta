@@ -13,9 +13,9 @@ from metta.app_backend.clients.stats_client import (
     StatsClient,
 )
 from metta.app_backend.leaderboard_constants import (
-    EVALS_DONE_KEY,
-    REMOTE_JOB_ID_KEY,
-    SUBMITTED_KEY,
+    COGAMES_SUBMITTED_PV_KEY,
+    LEADERBOARD_EVAL_DONE_PV_KEY,
+    LEADERBOARD_JOB_ID_PV_KEY,
 )
 from metta.app_backend.metta_repo import TaskStatus
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
@@ -55,13 +55,13 @@ class LeaderboardEvalScheduler:
 SELECT DISTINCT pv.id
 FROM policy_versions pv
 JOIN policy_version_tags pvt ON pv.id = pvt.policy_version_id
-WHERE pvt.key = '{SUBMITTED_KEY}'
+WHERE pvt.key = '{COGAMES_SUBMITTED_PV_KEY}'
 AND pvt.value = 'true'
 AND NOT EXISTS (
     SELECT 1
     FROM policy_version_tags pvt2
     WHERE pvt2.policy_version_id = pv.id
-    AND pvt2.key = '{REMOTE_JOB_ID_KEY}'
+    AND pvt2.key = '{LEADERBOARD_JOB_ID_PV_KEY}'
 )"""
         ).rows
         unprocessed: list[uuid.UUID] = [row[0] for row in rows]
@@ -83,7 +83,7 @@ AND NOT EXISTS (
         )
         logger.info("Successfully scheduled eval for policy: %s: %s", policy_version_id, eval_task.id)
         eval_task_id = eval_task.id
-        self._stats_client.update_policy_version_tags(policy_version_id, {REMOTE_JOB_ID_KEY: str(eval_task_id)})
+        self._stats_client.update_policy_version_tags(policy_version_id, {LEADERBOARD_JOB_ID_PV_KEY: str(eval_task_id)})
         logger.info("Successfully marked policy version %s as scheduled", policy_version_id)
         return eval_task.id
 
@@ -96,16 +96,16 @@ SELECT pv.id,
 FROM policy_versions pv
 JOIN policy_version_tags submit_tag
     ON pv.id = submit_tag.policy_version_id
-    AND submit_tag.key = '{SUBMITTED_KEY}'
+    AND submit_tag.key = '{COGAMES_SUBMITTED_PV_KEY}'
     AND submit_tag.value = 'true'
 JOIN policy_version_tags job_tag
     ON pv.id = job_tag.policy_version_id
-    AND job_tag.key = '{REMOTE_JOB_ID_KEY}'
+    AND job_tag.key = '{LEADERBOARD_JOB_ID_PV_KEY}'
 LEFT JOIN eval_tasks_view task
     ON task.id = job_tag.value::BIGINT
 LEFT JOIN policy_version_tags done_tag
     ON pv.id = done_tag.policy_version_id
-    AND done_tag.key = '{EVALS_DONE_KEY}'
+    AND done_tag.key = '{LEADERBOARD_EVAL_DONE_PV_KEY}'
 WHERE (done_tag.value IS NULL OR done_tag.value != 'true')
 """
         ).rows
@@ -127,7 +127,7 @@ WHERE (done_tag.value IS NULL OR done_tag.value != 'true')
         logger.info("Marking %d successful remote jobs as complete", len(completed_jobs))
         for job in completed_jobs:
             logger.info("Marking policy version %s as leaderboard eval complete", job.policy_version_id)
-            self._stats_client.update_policy_version_tags(job.policy_version_id, {EVALS_DONE_KEY: "true"})
+            self._stats_client.update_policy_version_tags(job.policy_version_id, {LEADERBOARD_EVAL_DONE_PV_KEY: "true"})
 
     @trace("eval_scheduler.run_cycle")
     def run_cycle(self) -> None:
