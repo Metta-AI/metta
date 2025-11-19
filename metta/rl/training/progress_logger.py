@@ -30,7 +30,7 @@ def _format_epoch_time(seconds: float) -> str:
     return f"{minutes}:{secs:02d}"
 
 
-def _create_progress_table(epoch: int, run_name: str | None) -> Table:
+def _create_progress_table(epoch: int, run_name: Optional[str]) -> Table:
     if run_name:
         title = f"[bold cyan]{run_name} · Training Progress - Epoch {epoch}[/bold cyan]"
     else:
@@ -51,9 +51,9 @@ def log_rich_progress(
     train_pct: float,
     rollout_pct: float,
     stats_pct: float,
-    run_name: str | None,
-    heart_value: float | None,
-    heart_rate: float | None,
+    run_name: Optional[str],
+    heart_value: Optional[float],
+    heart_rate: Optional[float],
     epoch_time: float,
 ) -> None:
     """Render training progress in a rich table."""
@@ -99,8 +99,8 @@ def log_training_progress(
     train_time: float,
     rollout_time: float,
     stats_time: float,
-    run_name: str | None,
-    metrics: Dict[str, float] | None,
+    run_name: Optional[str],
+    metrics: Optional[Dict[str, float]],
 ) -> None:
     """Log training progress with timing breakdown and optional metrics."""
 
@@ -116,11 +116,7 @@ def log_training_progress(
     heart_value = None
     heart_rate = None
     if metrics:
-        heart_value = (
-            metrics.get("env_agent/heart.gained.avg")
-            or metrics.get("env_agent/heart.gained")
-            or metrics.get("overview/heart.gained")
-        )
+        heart_value = metrics.get("env_agent/heart.gained")
         heart_rate = metrics.get("env_agent/heart.gained.rate")
 
     if should_use_rich_console():
