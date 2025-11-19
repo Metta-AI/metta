@@ -177,17 +177,24 @@ def make_curriculum(
             # Best-effort; if the config does not support labels, leave it as default.
             pass
 
+        # Set stats rewards directly (can't use curriculum buckets for dict keys with dots)
+        # Reward for gaining resources (not just having them) to avoid rewarding initial inventory
+        if not mission_env.game.agent.rewards.stats:
+            mission_env.game.agent.rewards.stats = {}
+        # Set small rewards for resource collection - reward agents for gaining resources
+        # These are fixed values since curriculum buckets can't handle dict keys with dots
+        mission_env.game.agent.rewards.stats.setdefault("carbon.gained", 0.01)
+        mission_env.game.agent.rewards.stats.setdefault("oxygen.gained", 0.01)
+        mission_env.game.agent.rewards.stats.setdefault("germanium.gained", 0.01)
+        mission_env.game.agent.rewards.stats.setdefault("silicon.gained", 0.01)
+
         mission_tasks = cc.bucketed(mission_env)
 
         # Add curriculum buckets for learning progress
         mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
+        # Note: stats rewards with dots in key names can't be set via curriculum buckets
+        # We use inventory rewards for heart which get converted to stats internally
         mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
-
-        # Add buckets for small resource rewards to encourage resource collection
-        mission_tasks.add_bucket("game.agent.rewards.inventory.carbon", [0.0, 0.01, 0.02, 0.05])
-        mission_tasks.add_bucket("game.agent.rewards.inventory.oxygen", [0.0, 0.01, 0.02, 0.05])
-        mission_tasks.add_bucket("game.agent.rewards.inventory.germanium", [0.0, 0.01, 0.02, 0.05])
-        mission_tasks.add_bucket("game.agent.rewards.inventory.silicon", [0.0, 0.01, 0.02, 0.05])
 
         all_mission_tasks.append(mission_tasks)
 
