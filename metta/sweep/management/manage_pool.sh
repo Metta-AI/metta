@@ -306,7 +306,7 @@ launch_workers() {
 
 # Show status of workers and queue
 show_status() {
-    local group="${1:-}"
+    local group=""
     local show_sky=true
     local show_db=true
 
