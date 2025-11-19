@@ -462,6 +462,7 @@ def evaluate_cmd(
     mission_set: Optional[str] = typer.Option(
         None,
         "--mission-set",
+        "-S",
         help="Predefined mission set: eval_missions, integrated_evals, spanning_evals, diagnostic_evals, all",
     ),
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
@@ -521,6 +522,10 @@ def evaluate_cmd(
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
+
+        # Default to 4 cogs for mission sets unless explicitly specified
+        if cogs is None:
+            cogs = 4
 
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
