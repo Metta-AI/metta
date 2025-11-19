@@ -166,13 +166,13 @@ def query_logs(
         "total_count": total_count,
         "logs": [
             {
-                "timestamp": log.attributes.timestamp.isoformat() if log.attributes.timestamp else None,
-                "service": log.attributes.service,
-                "source": log.attributes.source,
-                "host": log.attributes.host,
-                "tags": log.attributes.tags if hasattr(log.attributes, "tags") else [],
-                "message": log.attributes.message,
-                "status": log.attributes.status if hasattr(log.attributes, "status") else None,
+                "timestamp": log.attributes.timestamp.isoformat() if hasattr(log.attributes, "timestamp") and log.attributes.timestamp else None,
+                "service": getattr(log.attributes, "service", None),
+                "source": getattr(log.attributes, "source", None),
+                "host": getattr(log.attributes, "host", None),
+                "tags": getattr(log.attributes, "tags", []),
+                "message": getattr(log.attributes, "message", ""),
+                "status": getattr(log.attributes, "status", None),
             }
             for log in (response.data if hasattr(response, "data") else [])
         ],
