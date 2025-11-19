@@ -148,6 +148,15 @@ releases:
         command: "kubectl"
         args: ["create", "namespace", "orchestrator", "--dry-run=client"]
 
+  - name: match-scheduler
+    chart: ./match-scheduler
+    version: 0.1.0
+    namespace: observatory
+    hooks:
+      - events: ["presync"]
+        command: "kubectl"
+        args: ["create", "namespace", "observatory", "--dry-run=client"]
+
   - name: home
     chart: ./home
     version: 0.1.0
