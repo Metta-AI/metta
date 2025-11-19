@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import ExitStack
 from typing import Sequence
 
-from metta.common.policy_loader import policy_spec_from_s3_submission
+from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.runner import SimulationRunConfig
 from metta.tools.multi_policy_eval import MultiPolicyEvalTool
