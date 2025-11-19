@@ -31,22 +31,21 @@ class K8sPodManager(AbstractContainerManager):
         machine_token: str,
     ) -> dict:
         pod_name = self._format_container_name()
-        metadata = {
-            "name": pod_name,
-            "labels": {
-                "app": "eval-worker",
-                "created-by": "eval-task-orchestrator",
-            },
-            "annotations": {
-                # Prevent Karpenter/EKS consolidation from evicting workers for underuse.
-                "karpenter.sh/do-not-evict": "true",
-            },
-        }
 
         return {
             "apiVersion": "v1",
             "kind": "Pod",
-            "metadata": metadata,
+            "metadata": {
+                "name": pod_name,
+                "labels": {
+                    "app": "eval-worker",
+                    "created-by": "eval-task-orchestrator",
+                },
+                "annotations": {
+                    # Prevent Karpenter/EKS consolidation from evicting workers for underuse.
+                    "karpenter.sh/do-not-disrupt": "true",
+                },
+            },
             "spec": {
                 "restartPolicy": "Never",
                 "serviceAccountName": os.getenv("KUBERNETES_SERVICE_ACCOUNT", f"orchestrator-{self._namespace}"),
