@@ -4,10 +4,10 @@ import logging
 from typing import override
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
-from cogames.cogs_vs_clips.variants import TinyHeartProtocolsVariant
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import EVALS
-from mettagrid.config.mettagrid_config import AssemblerConfig, ProtocolConfig
+from cogames.cogs_vs_clips.variants import TinyHeartProtocolsVariant
+from mettagrid.config.mettagrid_config import AssemblerConfig
 
 logger = logging.getLogger(__name__)
 
