@@ -4,6 +4,18 @@
 
 set -e # Exit on error, but allow commands that might fail
 
+# First, update the log collection config with run-specific tags
+# This must happen in the run phase when METTA_RUN_ID and SKYPILOT_TASK_ID are available
+if [ -f "$(dirname "$0")/update_datadog_log_config.sh" ]; then
+  echo "[DATADOG] Updating log collection config with run-specific tags..."
+  bash "$(dirname "$0")/update_datadog_log_config.sh"
+elif [ -f "./devops/skypilot/config/lifecycle/update_datadog_log_config.sh" ]; then
+  echo "[DATADOG] Updating log collection config with run-specific tags..."
+  bash ./devops/skypilot/config/lifecycle/update_datadog_log_config.sh
+else
+  echo "[DATADOG] WARNING: update_datadog_log_config.sh not found, skipping config update"
+fi
+
 # Try multiple possible locations for the agent binary
 AGENT_BINARY=""
 for path in \
@@ -70,13 +82,13 @@ if ps -p "$AGENT_PID" > /dev/null; then
     echo "[DATADOG] Status output:"
     cat /tmp/datadog-agent-status.log 2>/dev/null || echo "  (no status output)"
   fi
-  
+
   # Verify log collection config exists and show contents
   if [ -f "/etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml" ]; then
     echo "[DATADOG] Log collection config found: /etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml"
     echo "[DATADOG] Config file contents (first 20 lines):"
     head -20 "/etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml" | sed 's/^/  /'
-    
+
     # Check if agent can see the config
     if "$AGENT_BINARY" configcheck > /tmp/datadog-configcheck.log 2>&1; then
       if grep -q "skypilot_training" /tmp/datadog-configcheck.log 2>/dev/null; then
@@ -92,7 +104,7 @@ if ps -p "$AGENT_PID" > /dev/null; then
     echo "[DATADOG] Checking what config files exist:"
     ls -la /etc/datadog-agent/conf.d/*/conf.yaml 2>/dev/null | head -10 | sed 's/^/  /' || echo "  (no config files found)"
   fi
-  
+
   # Check if log files exist and have content
   if [ -f "/tmp/training_logs/training_combined.log" ]; then
     LOG_SIZE=$(stat -f%z /tmp/training_logs/training_combined.log 2>/dev/null || stat -c%s /tmp/training_logs/training_combined.log 2>/dev/null || echo "0")
