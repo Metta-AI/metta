@@ -38,7 +38,10 @@ cortex = ["py.typed", "**/*.cu", "**/*.cpp", "**/*.cuh", "**/*.h", "**/*.hpp"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "cuda: marks tests that require CUDA",
+]
 # Slow cortex tests are module-skipped by default.
 # Set RUN_SLOW_CORTEX_TESTS=1 to enable them when running pytest.
 
