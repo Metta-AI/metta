@@ -211,9 +211,15 @@ scp -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/nu
   "$SCRIPT_DIR/setup-ami.sh" ubuntu@"$PUBLIC_IP":/tmp/setup-ami.sh
 
 echo "  Running setup script (this will take 10-15 minutes)..."
+echo "  Log file: /tmp/ami-setup.log"
 ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ubuntu@"$PUBLIC_IP" \
-  "bash /tmp/setup-ami.sh"
+  "sudo bash /tmp/setup-ami.sh 2>&1 | sudo tee /tmp/ami-setup.log"
+
+# Copy log file back for debugging
+echo "  Copying setup log..."
+scp -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  ubuntu@"$PUBLIC_IP":/tmp/ami-setup.log "$SCRIPT_DIR/ami-setup-$(date +%Y%m%d-%H%M%S).log" || echo "  Warning: Could not retrieve setup log"
 
 echo "  Rebooting instance to activate NVIDIA drivers..."
 ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \

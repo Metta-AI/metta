@@ -21,33 +21,50 @@ set -euo pipefail
 echo "=========================================="
 echo "Researcher Sandbox AMI Setup"
 echo "=========================================="
+echo "Start time: $(date)"
 echo ""
 
-# Ensure running as ubuntu user
-if [ "$USER" != "ubuntu" ]; then
-  echo "Error: This script must be run as 'ubuntu' user"
+# Ensure running as root (cloud-init runs as root)
+if [ "$EUID" -ne 0 ]; then
+  echo "Error: This script must be run as root"
   exit 1
 fi
 
-# Update system
-echo "[1/7] Updating system packages..."
-sudo apt-get update
-sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+# Function to log with timestamps
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+}
+
+# Function to handle errors
+error_exit() {
+  log "ERROR: $1"
+  exit 1
+}
+
+# Update system and install build tools
+log "[1/9] Updating system packages and installing build tools..."
+sudo apt-get update || error_exit "apt-get update failed"
+sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y || error_exit "apt-get upgrade failed"
+# Install build tools required for:
+# - build-essential: C/C++ compiler for pufferlib-core and pybind11
+# - python3-dev: Python development headers for building extensions
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential python3-dev || error_exit "build tools installation failed"
+log "System packages updated and build tools installed successfully"
 
 # Install Docker
-echo "[2/7] Installing Docker..."
+log "[2/9] Installing Docker..."
 if ! command -v docker &> /dev/null; then
-  curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-  sudo sh /tmp/get-docker.sh
-  sudo usermod -aG docker ubuntu
+  curl -fsSL https://get.docker.com -o /tmp/get-docker.sh || error_exit "Failed to download Docker install script"
+  sudo sh /tmp/get-docker.sh || error_exit "Docker installation failed"
+  sudo usermod -aG docker ubuntu || error_exit "Failed to add ubuntu to docker group"
   rm /tmp/get-docker.sh
-  echo "Docker installed successfully"
+  log "Docker installed successfully"
 else
-  echo "Docker already installed"
+  log "Docker already installed"
 fi
 
 # Install NVIDIA drivers
-echo "[3/7] Installing NVIDIA GPU drivers..."
+echo "[3/9] Installing NVIDIA GPU drivers..."
 if ! command -v nvidia-smi &> /dev/null; then
   sudo apt-get install -y nvidia-driver-535 nvidia-utils-535
   echo "NVIDIA drivers installed (will be active after reboot)"
@@ -57,14 +74,10 @@ else
 fi
 
 # Install NVIDIA Container Toolkit
-echo "[4/7] Installing NVIDIA Container Toolkit..."
+echo "[4/9] Installing NVIDIA Container Toolkit..."
 if ! dpkg -l | grep -q nvidia-container-toolkit; then
-  distribution=$(
-    . /etc/os-release
-    echo $ID$VERSION_ID
-  )
   curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-  curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list \
+  curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
     | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
     | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
   sudo apt-get update
@@ -77,52 +90,94 @@ else
 fi
 
 # Install uv and git
-echo "[5/7] Installing uv and git..."
+log "[5/9] Installing uv and git..."
 sudo apt-get install -y git
-if ! command -v uv &> /dev/null; then
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  # Add uv to PATH for current session
-  export PATH="$HOME/.cargo/bin:$PATH"
-  echo "uv installed successfully"
+if ! su - ubuntu -c "command -v uv" &> /dev/null; then
+  su - ubuntu -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+  log "uv installed successfully"
 else
-  echo "uv already installed"
-  export PATH="$HOME/.cargo/bin:$PATH"
+  log "uv already installed"
+fi
+
+# Install Bazel (required for building mettagrid C++ code)
+log "[6/9] Installing Bazel..."
+if ! command -v bazel &> /dev/null; then
+  # Detect architecture
+  ARCH=$(uname -m)
+  if [ "$ARCH" = "x86_64" ]; then
+    BAZEL_ARCH="amd64"
+  elif [ "$ARCH" = "aarch64" ]; then
+    BAZEL_ARCH="arm64"
+  else
+    error_exit "Unsupported architecture: $ARCH"
+  fi
+
+  # Install Bazelisk which automatically manages Bazel versions
+  sudo wget -O /usr/local/bin/bazel https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-${BAZEL_ARCH}
+  sudo chmod +x /usr/local/bin/bazel
+  log "Bazel installed successfully"
+else
+  log "Bazel already installed"
+fi
+
+# Install Nim (required for building mettascope in mettagrid)
+log "[7/9] Installing Nim compiler..."
+if ! command -v nim &> /dev/null; then
+  # Install Nim from binary release (choosenim has reliability issues)
+  NIM_VERSION="2.2.2"
+  ARCH=$(uname -m)
+  if [ "$ARCH" = "x86_64" ]; then
+    NIM_ARCH="x64"
+  elif [ "$ARCH" = "aarch64" ]; then
+    NIM_ARCH="arm64"
+  else
+    error_exit "Unsupported architecture for Nim: $ARCH"
+  fi
+
+  cd /tmp
+  wget https://nim-lang.org/download/nim-${NIM_VERSION}-linux_${NIM_ARCH}.tar.xz
+  tar xf nim-${NIM_VERSION}-linux_${NIM_ARCH}.tar.xz
+  sudo mv nim-${NIM_VERSION} /opt/nim
+  sudo ln -s /opt/nim/bin/nim /usr/local/bin/nim
+  sudo ln -s /opt/nim/bin/nimble /usr/local/bin/nimble
+  rm nim-${NIM_VERSION}-linux_${NIM_ARCH}.tar.xz
+  cd - > /dev/null
+
+  log "Nim installed successfully"
+else
+  log "Nim already installed"
 fi
 
 # Install cogames and mettagrid packages
-echo "[6/7] Installing cogames and mettagrid..."
-cd /home/ubuntu
+log "[8/9] Installing cogames and mettagrid..."
 
-# Create Python environment with uv
-if [ ! -d "sandbox-env" ]; then
-  echo "Creating Python 3.12 environment..."
-  ~/.cargo/bin/uv init -p 3.12 sandbox-env
-  cd sandbox-env
+# Create Python environment with uv (run as ubuntu user)
+if [ ! -d "/home/ubuntu/sandbox-env" ]; then
+  log "Creating Python 3.12 environment..."
+  su - ubuntu -c 'cd ~ && /home/ubuntu/.local/bin/uv init -p 3.12 sandbox-env'
 
   # Install cogames CLI as a tool
-  echo "Installing cogames CLI..."
-  ~/.cargo/bin/uv tool install cogames
+  log "Installing cogames CLI..."
+  su - ubuntu -c 'cd ~/sandbox-env && /home/ubuntu/.local/bin/uv tool install cogames'
 
   # Install mettagrid in the venv
-  echo "Installing mettagrid package..."
-  ~/.cargo/bin/uv pip install mettagrid
-
-  cd /home/ubuntu
+  log "Installing mettagrid package..."
+  su - ubuntu -c 'cd ~/sandbox-env && /home/ubuntu/.local/bin/uv add mettagrid'
 
   # Add venv activation to bashrc
-  cat >> /home/ubuntu/.bashrc << 'BASHRC_EOF'
+  su - ubuntu -c 'cat >> ~/.bashrc << '"'"'BASHRC_EOF'"'"'
 
 # Activate sandbox Python environment
 source ~/sandbox-env/.venv/bin/activate
-BASHRC_EOF
+BASHRC_EOF'
 
-  echo "Python environment created and configured"
+  log "Python environment created and configured"
 else
-  echo "sandbox-env already exists"
+  log "sandbox-env already exists"
 fi
 
 # Create welcome message
-echo "[7/7] Creating welcome message..."
+log "[9/9] Creating welcome message..."
 cat > /home/ubuntu/README.txt << 'EOF'
 ========================================
 Softmax Research Sandbox
