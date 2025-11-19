@@ -204,6 +204,12 @@ class DatadogAgentSetup(SetupModule):
                     log_config = """# Custom log collection for SkyPilot jobs
 logs:
   - type: file
+    path: /tmp/datadog-agent.log
+    service: datadog-agent
+    source: datadog-agent
+    sourcecategory: monitoring
+    
+  - type: file
     path: /tmp/*.log
     service: skypilot-job
     source: custom
