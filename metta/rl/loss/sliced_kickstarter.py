@@ -3,12 +3,13 @@ from typing import TYPE_CHECKING, Any
 import torch
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
-from torchrl.data import Composite, UnboundedContinuous
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -17,13 +18,17 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
-class KickstarterConfig(LossConfig):
+class SlicedKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
-    student_forward: bool = Field(default=False)  # use this if you need to forward student during train (eg if no PPO)
-    teacher_lead_prob: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
+    student_forward: bool = Field(default=True)  # probably always true for sliced_kickstarter
+    teacher_lead_prob: float = Field(default=1.0, ge=0, le=1.0)  # set to 1 since we slice teacher lead separately
+
+    # remainder of the sum below is left for the PPO loss to use
+    student_led_proportion: float = Field(default=0.2, ge=0, le=1.0)
+    teacher_led_proportion: float = Field(default=0.5, ge=0, le=1.0)
 
     def create(
         self,
@@ -33,9 +38,9 @@ class KickstarterConfig(LossConfig):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ) -> "Kickstarter":
+    ) -> "SlicedKickstarter":
         """Create Kickstarter loss instance."""
-        return Kickstarter(
+        return SlicedKickstarter(
             policy,
             trainer_cfg,
             vec_env,
@@ -45,7 +50,7 @@ class KickstarterConfig(LossConfig):
         )
 
 
-class Kickstarter(Loss):
+class SlicedKickstarter(Loss):
     """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
     value against the student's using a KL divergence and MSE loss respectively.
     """
@@ -53,6 +58,10 @@ class Kickstarter(Loss):
     __slots__ = (
         "teacher_policy",
         "student_forward",
+        "rollout_batch_size",
+        "stud_mask",
+        "teacher_mask",
+        "ppo_mask",
     )
 
     def __init__(
@@ -83,10 +92,14 @@ class Kickstarter(Loss):
 
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
         logits_f32 = UnboundedContinuous(shape=torch.Size([num_actions]), dtype=torch.float32)
+        boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
 
         return Composite(
             teacher_logits=logits_f32,
             teacher_values=scalar_f32,
+            stud_mask=boolean,
+            teacher_mask=boolean,
+            ppo_mask=boolean,
         )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
@@ -98,6 +111,13 @@ class Kickstarter(Loss):
             td["teacher_values"] = teacher_td["values"]
             self.policy.forward(td)
 
+        if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
+            self._create_slices(td.batch_size.numel())
+
+        td["stud_mask"] = self.stud_mask
+        td["teacher_mask"] = self.teacher_mask
+        td["ppo_mask"] = self.ppo_mask
+
         # Store experience
         env_slice = context.training_env_id
         if env_slice is None:
@@ -106,7 +126,7 @@ class Kickstarter(Loss):
 
         if torch.rand(1) < self.cfg.teacher_lead_prob:
             # overwrite student actions w teacher actions with some probability. anneal this.
-            td["actions"] = teacher_actions
+            td["actions"][self.teacher_mask] = teacher_actions[self.teacher_mask]  # slice - teacher led
 
     def run_train(
         self,
@@ -114,19 +134,43 @@ class Kickstarter(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-        minibatch = shared_loss_data["sampled_mb"]
-        B, TT = minibatch.batch_size
+        minibatch, indices = sequential_sample(self.replay, mb_idx)
+        # slice - minus teacher led minus student led
+        train_stud_mask = minibatch["stud_mask"][:, 0]
+        train_teacher_mask = minibatch["teacher_mask"][:, 0]
+        train_ppo_mask = minibatch["ppo_mask"][:, 0]
+
+        shared_loss_data["sampled_mb"] = minibatch
+
+        # cut down all of shared_loss_data to just the ppo mask before passing out to PPO losses
+        shared_loss_data = shared_loss_data[train_ppo_mask]
+
+        # slice - minus teacher led minus student led
+        shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
+        # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
 
         # Student forward pass
-        if self.student_forward:  # leave to false if also running PPO since it forwards student during train
-            student_td, _, _ = prepare_policy_forward_td(minibatch, self.policy.get_agent_experience_spec(), clone=True)
-            student_td = self.policy(student_td, action=None)
+        # leave to false if also running PPO since it forwards student during train
+        if self.student_forward:
+            student_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
+            flat_actions = minibatch["actions"].reshape(B * TT, -1)
+            self.policy.reset_memory()
+            student_td = self.policy.forward(student_td, action=flat_actions)
+            student_td = student_td.reshape(B, TT)
+            shared_loss_data["policy_td"] = student_td[train_ppo_mask]  # this is for passing to PPO losses
         else:
-            student_td = shared_loss_data["policy_td"].reshape(B * TT)  # shared_loss_data is populated by PPO
+            student_td = shared_loss_data["policy_td"]  # shared_loss_data is populated by PPO
+
+        minibatch = minibatch[train_teacher_mask | train_stud_mask]
+        student_td = student_td[train_teacher_mask | train_stud_mask]
+
+        sliced_b, sliced_tt = minibatch.batch_size
+        minibatch = minibatch.reshape(sliced_b * sliced_tt)
+        student_td = student_td.reshape(sliced_b * sliced_tt)
 
         # action loss
         temperature = self.cfg.temperature
-        teacher_logits = minibatch["teacher_logits"].reshape(B * TT, -1).detach()
+        teacher_logits = minibatch["teacher_logits"]
         student_logits = student_td["logits"]
         teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
         student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
@@ -136,8 +180,8 @@ class Kickstarter(Loss):
         )
 
         # value loss
-        teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).reshape(B * TT).detach()
-        student_value = student_td["values"].to(dtype=torch.float32)
+        teacher_value = minibatch["teacher_values"].detach()
+        student_value = student_td["values"]
         ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
         loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
@@ -148,3 +192,29 @@ class Kickstarter(Loss):
         self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
 
         return loss, shared_loss_data, False
+
+    def on_train_phase_end(self, context: ComponentContext | None = None) -> None:
+        self._update_slices()
+        super().on_train_phase_end(context)
+
+    def _create_slices(self, B: int) -> None:
+        self.rollout_batch_size = B
+        stud_led_count = int(B * self.cfg.student_led_proportion)
+        stud_slice = slice(0, stud_led_count)
+        teacher_led_count = int(B * self.cfg.teacher_led_proportion)
+        teacher_slice = slice(stud_led_count, stud_led_count + teacher_led_count)
+        ppo_count = B - stud_led_count - teacher_led_count
+        if ppo_count < 1:
+            raise ValueError("PPO count error in sliced Kickstarter loss. Bad proportions.")
+        ppo_slice = slice(stud_led_count + teacher_led_count, B)
+
+        self.stud_mask = torch.zeros(B, dtype=torch.bool)
+        self.stud_mask[stud_slice] = True
+        self.teacher_mask = torch.zeros(B, dtype=torch.bool)
+        self.teacher_mask[teacher_slice] = True
+        self.ppo_mask = torch.zeros(B, dtype=torch.bool)
+        self.ppo_mask[ppo_slice] = True
+
+    def _update_slices(self) -> None:
+        # we count on the hyperparmeter scheduler to update the cfg proportions
+        self._create_slices(self.rollout_batch_size)

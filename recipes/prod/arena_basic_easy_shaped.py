@@ -14,6 +14,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -103,7 +104,17 @@ def train(
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
-    trainer_cfg = TrainerConfig()
+    losses_config = LossesConfig()
+    losses_config.sliced_kickstarter.enabled = True
+    losses_config.sliced_kickstarter.teacher_uri = (
+        "s3://softmax-public/policies/av.ppo_divorced.mb.11.18.01/av.ppo_divorced.mb.11.18.01:v7500.mpt"
+    )
+    losses_config.sliced_kickstarter.student_led_proportion = 0.2
+    losses_config.sliced_kickstarter.teacher_led_proportion = 0.5
+    losses_config.ppo_critic.sample_enabled = False
+    losses_config.ppo_critic.train_forward_enabled = False
+    losses_config.ppo_critic.rollout_forward_enabled = False
+    trainer_cfg = TrainerConfig(losses=losses_config)
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()

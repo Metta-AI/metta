@@ -12,6 +12,7 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
 from metta.rl.loss.ppo_critic import PPOCriticConfig
+from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
 
@@ -34,11 +35,14 @@ class LossesConfig(Config):
     supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
     kickstarter: KickstarterConfig = Field(default_factory=lambda: KickstarterConfig(enabled=False))
+    sliced_kickstarter: SlicedKickstarterConfig = Field(default_factory=lambda: SlicedKickstarterConfig(enabled=False))
 
     def _configs(self) -> dict[str, LossConfig]:
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
         # also, the way it's setup doesn't let the experimenter give names to losses.
         loss_configs: dict[str, LossConfig] = {}
+        if self.sliced_kickstarter.enabled:
+            loss_configs["sliced_kickstarter"] = self.sliced_kickstarter
         if self.supervisor.enabled:
             loss_configs["action_supervisor"] = self.supervisor
         if self.ppo_critic.enabled:
