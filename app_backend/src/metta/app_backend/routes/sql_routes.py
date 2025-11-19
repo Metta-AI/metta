@@ -47,7 +47,7 @@ class AIQueryResponse(BaseModel):
 def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
     """Create SQL query router with the provided MettaRepo instance."""
     router = APIRouter(prefix="/sql", tags=["sql"])
-    user_or_token = Depends(create_user_or_token_dependency(metta_repo))
+    user_or_token = Depends(create_user_or_token_dependency())
 
     @router.get("/tables", response_model=List[TableInfo])
     @timed_route("list_tables")

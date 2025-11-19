@@ -21,7 +21,6 @@ class TaskTracker:
 
         # Task creation order for efficient cleanup
         self._task_creation_order = deque()  # (timestamp, task_id) pairs
-        self._removals_since_compact = 0
 
         # Performance tracking
         self._completion_history = deque(maxlen=1000)  # Recent completion scores
@@ -104,35 +103,11 @@ class TaskTracker:
                 self._cached_total_completions -= completion_count
 
             self._task_memory.pop(task_id, None)
-            self._removals_since_compact += 1
-            self._maybe_compact_creation_order()
+            # Note: We don't remove from creation_order for performance - cleanup handles this
 
             # Invalidate cache if removal makes it invalid
             if self._cache_valid:
                 self._cache_valid = False
-
-    def _maybe_compact_creation_order(self) -> None:
-        """Periodically rebuild the creation deque to drop stale task IDs."""
-        if not self._task_creation_order:
-            return
-
-        live_task_ids = set(self._task_memory.keys())
-
-        # Trigger compaction sparingly: only after a number of removals and
-        # when stored entries significantly exceed live tasks.
-        if self._removals_since_compact < 32:
-            return
-
-        if len(self._task_creation_order) <= max(len(live_task_ids) * 2, self.max_memory_tasks * 2):
-            return
-
-        new_order = deque()
-        for timestamp, tid in self._task_creation_order:
-            if tid in live_task_ids:
-                new_order.append((timestamp, tid))
-
-        self._task_creation_order = new_order
-        self._removals_since_compact = 0
 
     def get_global_stats(self) -> Dict[str, float]:
         """Get global performance statistics."""

@@ -22,7 +22,7 @@ export const YamlScalar: FC<{
     "mettagrid.map_builder",
     "metta.map",
     "metta.cogworks",
-    "experiments.recipes",
+    "recipes.experiment",
     "cogames.cogs_vs_clips",
   ];
 

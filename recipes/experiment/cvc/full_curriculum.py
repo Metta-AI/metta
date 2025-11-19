@@ -262,8 +262,8 @@ def train(
     resolved_eval_variants = cogs_v_clips._resolve_eval_variants(variants, eval_variants)
     eval_suite = cogs_v_clips.make_eval_suite(
         num_cogs=num_cogs,
-        difficulty=eval_difficulty,
-        variants=resolved_eval_variants,
+        eval_difficulty=eval_difficulty,
+        eval_variants=resolved_eval_variants,
     )
 
     evaluator_cfg = EvaluatorConfig(
@@ -288,9 +288,9 @@ def evaluate(
     return EvaluateTool(
         simulations=cogs_v_clips.make_eval_suite(
             num_cogs=num_cogs,
-            difficulty=difficulty,
-            subset=subset,
-            variants=variants,
+            eval_difficulty=difficulty,
+            eval_missions=subset,
+            eval_variants=variants,
         ),
         policy_uris=policy_uris,
     )

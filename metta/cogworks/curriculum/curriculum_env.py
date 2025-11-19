@@ -70,6 +70,7 @@ class CurriculumEnv(PufferEnv):
         self._env.set_mg_config(self._current_task.get_env_cfg())
         obs, info = self._env.reset(*args, **kwargs)
 
+        # Invalidate stats cache on reset
         self._stats_cache_valid = False
 
         # Only log curriculum stats on reset if cache is invalid or this is first reset
@@ -98,8 +99,10 @@ class CurriculumEnv(PufferEnv):
             self._current_task = self._curriculum.get_task()
             self._env.set_mg_config(self._current_task.get_env_cfg())
 
+            # Invalidate stats cache when task changes
             self._stats_cache_valid = False
 
+        # Add curriculum stats to info for logging (batched)
         self._stats_update_counter += 1
         self._add_curriculum_stats_to_info(infos)
 

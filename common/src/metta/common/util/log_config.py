@@ -2,10 +2,12 @@ import functools
 import logging
 import os
 import sys
+import warnings
 from datetime import datetime
 from pathlib import Path
 
 import rich.traceback
+from pydantic.warnings import UnsupportedFieldAttributeWarning
 from rich.console import Console
 from rich.logging import RichHandler
 
@@ -235,3 +237,23 @@ def should_use_rich_console() -> bool:
         return False
 
     return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
+def init_suppress_warnings() -> None:
+    warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning, module="pydantic")
+    # Suppress deprecation warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
+
+    # Silence PyTorch distributed elastic warning about redirects on MacOS/Windows
+    logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
+
+
+def init_mettagrid_system_environment() -> None:
+    """Initialize environment variables for headless operation."""
+    os.environ.setdefault("GLFW_PLATFORM", "osmesa")  # Use OSMesa as the GLFW backend
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+    os.environ.setdefault("DISPLAY", "")

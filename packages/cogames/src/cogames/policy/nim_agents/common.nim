@@ -102,16 +102,11 @@ type
   Features* = object
     group*: int
     frozen*: int
-    reservedForFutureUse*: int
-    agentVisitationCounts*: int
-    converting*: int
     episodeCompletionPct*: int
     lastAction*: int
-    lastActionArg*: int
     lastReward*: int
     vibe*: int
     compass*: int
-    orientation*: int
     tag*: int
     cooldownRemaining*: int
     clipped*: int
@@ -376,26 +371,16 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.group = feature.id
       of "agent:frozen":
         result.features.frozen = feature.id
-      of "agent:reserved_for_future_use":
-        result.features.reservedForFutureUse = feature.id
-      of "agent:visitation_counts":
-        result.features.agentVisitationCounts = feature.id
-      of "converting":
-        result.features.converting = feature.id
       of "episode_completion_pct":
         result.features.episodeCompletionPct = feature.id
       of "last_action":
         result.features.lastAction = feature.id
-      of "last_action_arg":
-        result.features.lastActionArg = feature.id
       of "last_reward":
         result.features.lastReward = feature.id
       of "vibe":
         result.features.vibe = feature.id
       of "agent:compass":
         result.features.compass = feature.id
-      of "agent:orientation":
-        result.features.orientation = feature.id
       of "tag":
         result.features.tag = feature.id
       of "cooldown_remaining":
@@ -744,9 +729,6 @@ proc isWalkable*(cfg: Config, map: Table[Location, seq[FeatureValue]], loc: Loca
     for featureValue in map[loc]:
       if featureValue.featureId == cfg.features.tag:
         # Its something that blocks movement.
-        return false
-      if featureValue.featureId == cfg.features.orientation:
-        # Its the agent's orientation, so an agent can't move through it.
         return false
       if featureValue.featureId == cfg.features.group:
         # If the group there, then its an agent.
