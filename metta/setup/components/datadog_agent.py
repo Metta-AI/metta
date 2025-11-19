@@ -88,7 +88,7 @@ class DatadogAgentSetup(SetupModule):
         env["DD_HOSTNAME"] = hostname
 
         # Set tags from SkyPilot environment variables
-        tags = env.get("DD_TAGS", "").split(" ")
+        tags = [t for t in env.get("DD_TAGS", "").split(" ") if t.strip()]  # Filter empty strings
         for env_var, tag in [
             ("METTA_RUN_ID", "metta_run_id"),
             ("SKYPILOT_TASK_ID", "skypilot_task_id"),
