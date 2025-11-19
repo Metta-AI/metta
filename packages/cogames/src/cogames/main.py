@@ -9,7 +9,7 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Literal, Optional, TypeVar
+from typing import Any, Literal, Optional, TypeVar
 
 import typer
 import yaml  # type: ignore[import]
@@ -41,6 +41,7 @@ from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.cli.utils import init_suppress_warnings
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
+from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.renderer.renderer import RenderMode
@@ -191,6 +192,13 @@ def play_cmd(
     policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: RenderMode = typer.Option("gui", "--render", "-r", help="Render mode"),  # noqa: B008
+    seed: int = typer.Option(42, "--seed", help="Seed for the simulator and policy", min=0),
+    map_seed: Optional[int] = typer.Option(
+        None,
+        "--map-seed",
+        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        min=0,
+    ),
     print_cvc_config: bool = typer.Option(
         False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
     ),
@@ -213,6 +221,16 @@ def play_cmd(
             console.print(f"[red]Error printing config: {exc}[/red]")
             raise typer.Exit(1) from exc
 
+    # Optionally override MapGen seed so maps are reproducible across runs.
+    # This uses --map-seed if provided, otherwise reuses the main --seed.
+    from mettagrid.mapgen.mapgen import MapGen
+
+    effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
+    if effective_map_seed is not None:
+        map_builder = getattr(env_cfg.game, "map_builder", None)
+        if isinstance(map_builder, MapGen.Config) and map_builder.seed is None:
+            map_builder.seed = effective_map_seed
+
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
     console.print(f"Max Steps: {steps}, Render: {render}")
@@ -228,7 +246,7 @@ def play_cmd(
         console,
         env_cfg=env_cfg,
         policy_spec=policy_spec,
-        seed=42,
+        seed=seed,
         render_mode=render,
         game_name=resolved_mission,
         save_replay=save_replay_dir,
@@ -334,6 +352,12 @@ def train_cmd(
         help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
     ),
     seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
+    map_seed: Optional[int] = typer.Option(
+        None,
+        "--map-seed",
+        help="Optional MapGen seed override for procedural maps (for deterministic map layouts)",
+        min=0,
+    ),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
     num_workers: Optional[int] = typer.Option(
@@ -371,6 +395,29 @@ def train_cmd(
 
     policy_spec = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
+
+    # Optional MapGen seed override for deterministic procedural maps during training.
+    # We keep this opt-in (via --map-seed) to avoid reducing map diversity by default.
+
+    if map_seed is not None:
+
+        def _maybe_seed(cfg: Any) -> None:
+            mb = getattr(cfg.game, "map_builder", None)
+            if isinstance(mb, MapGen.Config) and mb.seed is None:
+                mb.seed = map_seed
+
+        if env_cfg is not None:
+            _maybe_seed(env_cfg)
+
+        if supplier is not None:
+            base_supplier = supplier
+
+            def _seeded_supplier() -> Any:
+                cfg = base_supplier()
+                _maybe_seed(cfg)
+                return cfg
+
+            supplier = _seeded_supplier
 
     try:
         train_module.train(
@@ -437,6 +484,13 @@ def evaluate_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    seed: int = typer.Option(42, "--seed", help="Base random seed for evaluation", min=0),
+    map_seed: Optional[int] = typer.Option(
+        None,
+        "--map-seed",
+        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        min=0,
+    ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
         None,
         "--format",
@@ -469,6 +523,17 @@ def evaluate_cmd(
 
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
+    # Optionally override MapGen seed so maps are reproducible across runs.
+    # This uses --map-seed if provided, otherwise reuses the main --seed.
+    from mettagrid.mapgen.mapgen import MapGen
+
+    effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
+    if effective_map_seed is not None:
+        for _, env_cfg in selected_missions:
+            map_builder = getattr(env_cfg.game, "map_builder", None)
+            if isinstance(map_builder, MapGen.Config):
+                map_builder.seed = effective_map_seed
+
     policy_specs = get_policy_specs_with_proportions(ctx, policies)
 
     console.print(
@@ -482,6 +547,7 @@ def evaluate_cmd(
         proportions=[spec.proportion for spec in policy_specs],
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
+        seed=seed,
         output_format=format_,
         save_replay=save_replay_dir,
     )
