@@ -430,7 +430,7 @@ proc step*(
     if not agent.sosOverride:
       for feats in map.values:
         for fv in feats:
-          if fv.featureId == agent.cfg.features.remainingUses and fv.value == 1:
+          if fv.featureId == agent.cfg.features.remainingUses and fv.value <= 2:
             agent.sosOverride = true
             break
         if agent.sosOverride:
