@@ -1,23 +1,23 @@
 #!/usr/bin/env -S uv run
-"""Submit variants_curriculum and full_curriculum experiments.
+"""Submit mission-variant curriculum experiments.
 
 This script submits:
-1. Variants curriculum experiments:
+1. Variants curriculum experiments (all_variants_per_mission=True):
    - For each mission in DEFAULT_CURRICULUM_MISSIONS: all variants on that single mission (10 runs)
    - All variants on all DEFAULT_CURRICULUM_MISSIONS (1 run)
-2. Full curriculum experiment:
-   - All maps, standard variant
+2. Full curriculum experiment (all_variants_per_mission=False):
+   - All maps, standard variant (no variants)
 """
 
 from recipes.experiment import cogs_v_clips
-from recipes.experiment.cvc import full_curriculum, variants_curriculum
+from recipes.experiment.cvc import mission_variant_curriculum
 
 # Default curriculum missions
 DEFAULT_MISSIONS = cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS
 
 
 def submit_variants_experiments():
-    """Submit variants_curriculum experiments."""
+    """Submit variants curriculum experiments (all_variants_per_mission=True)."""
     print("=" * 80)
     print("Submitting Variants Curriculum Experiments")
     print("=" * 80)
@@ -28,34 +28,38 @@ def submit_variants_experiments():
         print(f"  {i}. {mission}")
         # Sanitize mission name for run name (replace special chars)
         safe_mission_name = mission.replace("_", "-")
-        variants_curriculum.experiment(
+        mission_variant_curriculum.experiment(
             base_missions=[mission],
             run_name=f"variants_curriculum_{safe_mission_name}_all_variants",
             skip_git_check=True,
+            all_variants_per_mission=True,
         )
 
     # 2. All variants on all DEFAULT_CURRICULUM_MISSIONS
     print(f"\nSubmitting: All variants on all {len(DEFAULT_MISSIONS)} DEFAULT_CURRICULUM_MISSIONS")
-    variants_curriculum.experiment(
+    mission_variant_curriculum.experiment(
         base_missions=DEFAULT_MISSIONS,
         run_name="variants_curriculum_all_default_missions_all_variants",
         skip_git_check=True,
+        all_variants_per_mission=True,
     )
 
     print(f"\n✓ All {len(DEFAULT_MISSIONS) + 1} variants_curriculum experiments submitted!")
 
 
 def submit_full_curriculum_experiment():
-    """Submit full_curriculum experiment with all maps, standard variant (no variants)."""
+    """Submit full curriculum experiment with all maps, standard variant (no variants)."""
     print("\n" + "=" * 80)
     print("Submitting Full Curriculum Experiment")
     print("=" * 80)
 
     print("\nSubmitting: All maps, standard variant (no variants - base missions only)")
     # No variants means standard/base missions only (this is the default)
-    full_curriculum.experiment(
+    mission_variant_curriculum.experiment(
         run_name="full_curriculum_all_maps_standard",
         skip_git_check=True,
+        all_variants_per_mission=False,
+        variants=None,  # Explicitly no variants
     )
 
     print("\n✓ Full curriculum experiment submitted!")

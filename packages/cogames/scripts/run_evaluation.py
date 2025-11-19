@@ -236,27 +236,13 @@ def _run_case(
                 )
             )
         return out
-    except Exception:
-        return [
-            EvalResult(
-                agent=agent_config.label,
-                experiment=exp_name,
-                num_cogs=num_cogs,
-                difficulty=variant_name or "base",
-                clip_period=clip_period,
-                total_reward=0.0,
-                avg_reward_per_agent=0.0,
-                hearts_assembled=0,
-                heart_gained=0.0,
-                avg_heart_gained_per_agent=0.0,
-                steps_taken=0,
-                max_steps=max_steps,
-                success=False,
-                seed_used=seed + i,
-                run_index=i + 1,
-            )
-            for i in range(runs_per_case)
-        ]
+    except Exception as e:
+        # Log the error but exclude failed runs from results
+        # This prevents zero-reward results from being included when runs actually failed
+        logger.warning(
+            f"Failed to run case: {exp_name} | {variant_name or 'base'} | {num_cogs} agent(s) - {e}"
+        )
+        return []  # Return empty list to exclude failed runs from results
 
 
 def run_evaluation(
