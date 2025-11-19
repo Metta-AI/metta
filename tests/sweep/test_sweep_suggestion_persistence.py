@@ -4,9 +4,9 @@ import logging
 from unittest.mock import MagicMock
 
 from metta.sweep.models import JobTypes, RunInfo
-from metta.sweep.stores import WandbStore
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
+from metta.sweep.stores import WandbStore
 
 logger = logging.getLogger(__name__)
 

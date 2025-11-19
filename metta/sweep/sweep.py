@@ -3,14 +3,14 @@
 import logging
 import random
 import string
-from typing import Any, Optional
+from typing import Optional
 
-from metta.sweep.models import JobDefinition
-from metta.sweep.utils import create_training_job, create_eval_job
 from metta.sweep.experiment import SweepOrchestrator, Trial, TrialState
+from metta.sweep.models import JobDefinition
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ProteinConfig
 from metta.sweep.protocols import Dispatcher, Store
+from metta.sweep.utils import create_eval_job, create_training_job
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class ProteinSweep(SweepOrchestrator):
         nodes: int = 1,
         train_overrides: Optional[dict] = None,
         eval_overrides: Optional[dict] = None,
-        **kwargs
+        **kwargs,
     ):
         """Initialize Protein sweep.
 
@@ -80,7 +80,6 @@ class ProteinSweep(SweepOrchestrator):
 
     def setup(self) -> None:
         """Initialize the Protein optimizer."""
-        from metta.sweep.optimizer.protein import ProteinOptimizer
 
         self.optimizer = ProteinOptimizer(self.protein_config)
         logger.info(f"Initialized Protein optimizer for metric: {self.protein_config.metric}")
@@ -92,9 +91,9 @@ class ProteinSweep(SweepOrchestrator):
                 if trial_id.startswith(f"{self.experiment_id}_trial_"):
                     try:
                         # Handle both formats: "exp_trial_14" and "exp_trial_14_abc"
-                        trial_part = trial_id.split('_trial_')[-1]
+                        trial_part = trial_id.split("_trial_")[-1]
                         # Split by underscore to get the number part (before hash if present)
-                        trial_num_str = trial_part.split('_')[0]
+                        trial_num_str = trial_part.split("_")[0]
                         trial_num = int(trial_num_str)
                         self.trial_counter = max(self.trial_counter, trial_num)
                     except (ValueError, IndexError):
@@ -116,9 +115,9 @@ class ProteinSweep(SweepOrchestrator):
             trial = self.trials[trial_id]
             # Create observation in format Protein expects
             observation = {
-                'suggestion': trial.params,  # The parameters that were tried
-                'score': obs.score,
-                'cost': obs.cost,
+                "suggestion": trial.params,  # The parameters that were tried
+                "score": obs.score,
+                "cost": obs.cost,
             }
             observations.append(observation)
 
@@ -133,12 +132,12 @@ class ProteinSweep(SweepOrchestrator):
         for suggestion in suggestions:
             self.trial_counter += 1
             # Generate a 3-character random hash to avoid ID collisions
-            hash_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=3))
+            hash_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=3))
             trial_id = f"{self.experiment_id}_trial_{self.trial_counter}_{hash_suffix}"
 
             trial = Trial(
                 id=trial_id,
-                params=suggestion  # Suggestion is the parameter dict
+                params=suggestion,  # Suggestion is the parameter dict
             )
             trials.append(trial)
 

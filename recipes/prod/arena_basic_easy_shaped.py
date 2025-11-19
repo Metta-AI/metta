@@ -256,6 +256,7 @@ def sweep(sweep_name: str) -> SweepTool:
         num_parallel_trials=4,
     )
 
+
 def sweep_quick(sweep_name: str) -> SweepTool:
     parameters = [
         SP.LEARNING_RATE,
@@ -264,7 +265,7 @@ def sweep_quick(sweep_name: str) -> SweepTool:
         SP.PPO_VF_COEF,
         SP.ADAM_EPS,
     ]
-    train_overrides = {'trainer.total_timesteps': 75_000}
+    train_overrides = {"trainer.total_timesteps": 75_000}
 
     return make_sweep(
         name=sweep_name,

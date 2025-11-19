@@ -293,7 +293,7 @@ def make_sweep(
 
     # Add cost_key if specified
     if cost_metric is not None:
-        tool_kwargs['cost_key'] = cost_metric
+        tool_kwargs["cost_key"] = cost_metric
 
     return SweepTool(**tool_kwargs)
 
@@ -406,6 +406,6 @@ def grid_search(
 
     # Add cost_key if specified
     if cost_metric is not None:
-        tool_kwargs['cost_key'] = cost_metric
+        tool_kwargs["cost_key"] = cost_metric
 
     return SweepTool(**tool_kwargs)
