@@ -48,6 +48,7 @@ def evaluate(
     seed: int = 42,
     output_format: Optional[Literal["yaml", "json"]] = None,
     save_replay: Optional[str] = None,
+    parallel_agents: bool = False,
 ) -> MissionResultsSummary:
     if not missions:
         raise ValueError("At least one mission must be provided for evaluation.")
@@ -93,6 +94,7 @@ def evaluate(
                 seed=seed,
                 progress_callback=_progress_callback,
                 save_replay=save_replay,
+                parallel_agents=parallel_agents,
             )
         mission_results.append(rollout_payload)
         # Collect replay paths from this mission

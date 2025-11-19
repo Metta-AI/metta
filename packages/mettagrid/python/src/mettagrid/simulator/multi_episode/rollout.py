@@ -61,6 +61,7 @@ def multi_episode_rollout(
     progress_callback: Optional[ProgressCallback] = None,
     save_replay: Optional[str] = None,
     max_action_time_ms: int | None = None,
+    parallel_agents: bool = False,
 ) -> MultiEpisodeRolloutResult:
     """
     Runs rollout for multiple episodes, randomizing agent assignments for each episode in proportions
@@ -105,6 +106,7 @@ def multi_episode_rollout(
             agent_policies,
             max_action_time_ms=max_action_time_ms,
             event_handlers=handlers,
+            parallel_agents=parallel_agents,
         )
 
         rollout.run_until_done()
