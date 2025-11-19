@@ -3,7 +3,7 @@ from typing import Any, Literal, override
 
 import numpy as np
 
-from cogames.cogs_vs_clips.mission import MissionVariant
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.mapgen import MapGen, MapGenConfig
@@ -374,29 +374,63 @@ class MapGenVariant(EnvNodeVariant[MapGenConfig]):
         return map_builder
 
 
+class MapSeedVariant(MapGenVariant):
+    """Variant that sets the MapGen seed for deterministic map generation.
+
+    This is primarily meant for programmatic control from experiments / pipelines:
+
+        mission = base_mission.with_variants([MapSeedVariant(seed=1234)])
+        env_cfg = mission.make_env()
+
+    """
+
+    name: str = "map_seed"
+    description: str = "Set MapGen seed for deterministic map generation."
+    seed: int
+
+    @override
+    def modify_node(self, node: MapGenConfig) -> None:
+        node.seed = int(self.seed)
+
+
 class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
+    @override
+    def compat(self, mission: Mission) -> bool:
+        env = mission.make_env()
+        if not isinstance(env.game.map_builder, MapGen.Config):
+            return False
+        instance = env.game.map_builder.instance
+        if not isinstance(instance, BaseHub.Config):
+            return False
+        if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
+            return True
+        if isinstance(instance, MachinaArena.Config):
+            return True
+        return False
+
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> BaseHubConfig:
-        map_builder = env.game.map_builder
-        if not isinstance(map_builder, MapGen.Config):
-            raise TypeError("BaseHubVariant can only be applied to MapGen.Config builders")
-        instance = map_builder.instance
+        assert isinstance(env.game.map_builder, MapGen.Config)
+        instance = env.game.map_builder.instance
+
         if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
             return instance.scene
+
         elif isinstance(instance, MachinaArena.Config):
             return instance.hub
-        else:
-            raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
+
+        raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
 
 
 class MachinaArenaVariant(EnvNodeVariant[MachinaArenaConfig]):
+    def compat(self, mission: Mission) -> bool:
+        env = mission.make_env()
+        return isinstance(env.game.map_builder, MapGen.Config) and isinstance(
+            env.game.map_builder.instance, MachinaArena.Config
+        )
+
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> MachinaArenaConfig:
-        map_builder = env.game.map_builder
-        if not isinstance(map_builder, MapGen.Config):
-            raise TypeError("MachinaArenaVariant can only be applied to MapGen.Config builders")
-        instance = map_builder.instance
-        if isinstance(instance, MachinaArena.Config):
-            return instance
-        else:
-            raise TypeError("MachinaArenaVariant can only be applied to MachinaArena.Config scenes")
+        assert isinstance(env.game.map_builder, MapGen.Config)
+        assert isinstance(env.game.map_builder.instance, MachinaArena.Config)
+        return env.game.map_builder.instance

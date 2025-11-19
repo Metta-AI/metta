@@ -36,7 +36,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
     router = APIRouter(prefix="/sweeps", tags=["sweeps"])
 
     # Create the user-or-token authentication dependency
-    user_or_token = Depends(create_user_or_token_dependency(metta_repo))
+    user_or_token = Depends(create_user_or_token_dependency())
 
     @router.post("/{sweep_name}/create_sweep", response_model=SweepCreateResponse)
     @timed_http_handler

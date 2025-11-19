@@ -1,4 +1,4 @@
-from typing import Any, Type, TypeVar
+from typing import Type, TypeVar
 
 import httpx
 from pydantic import BaseModel
@@ -38,32 +38,26 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
 
 class BaseAppBackendClient:
     def __init__(self, backend_url: str = PROD_STATS_SERVER_URI, machine_token: str | None = None) -> None:
-        self._http_client = httpx.AsyncClient(
+        self._http_client = httpx.Client(
             base_url=backend_url,
             timeout=30.0,
         )
 
         self._machine_token = machine_token or get_machine_token(backend_url)
 
-    async def __aenter__(self):
-        return self
+    def close(self):
+        self._http_client.close()
 
-    async def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
-        await self.close()
-
-    async def close(self):
-        await self._http_client.aclose()
-
-    async def _make_request(self, response_type: Type[T], method: str, url: str, **kwargs):
+    def _make_request(self, response_type: Type[T], method: str, url: str, **kwargs) -> T:
         headers = remove_none_values({"X-Auth-Token": self._machine_token})
-        response = await self._http_client.request(method, url, headers=headers, **kwargs)
+        response = self._http_client.request(method, url, headers=headers, **kwargs)
         response.raise_for_status()
         return response_type.model_validate(response.json())
 
-    async def _validate_authenticated(self) -> str:
+    def _validate_authenticated(self) -> str:
         from metta.app_backend.server import WhoAmIResponse
 
-        auth_user = await self._make_request(WhoAmIResponse, "GET", "/whoami")
+        auth_user = self._make_request(WhoAmIResponse, "GET", "/whoami")
         if auth_user.user_email in ["unknown", None]:
             raise NotAuthenticatedError(f"Not authenticated. User: {auth_user.user_email}")
         return auth_user.user_email

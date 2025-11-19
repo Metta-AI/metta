@@ -116,6 +116,10 @@ class StatsReporterConfig(Config):
     dormant_neuron_threshold: float = 1e-6
     """Threshold for considering a neuron dormant based on mean absolute weight magnitude."""
     rolling_window: int = Field(default=20, ge=1, description="Number of epochs for metric rolling averages")
+    default_zero_metrics: tuple[str, ...] = Field(
+        default_factory=lambda: ("env_agent/heart.gained",),
+        description="Environment metrics that should be logged as 0 when missing.",
+    )
 
 
 class StatsReporterState(Config):
@@ -329,6 +333,13 @@ class StatsReporter(TrainerComponent):
             experience=experience,
             trainer_config=trainer_cfg,
         )
+
+        # Ensure certain env metrics always exist (e.g., env_agent/heart.gained) so rolling
+        # averages and wandb logs see zeros instead of missing keys.
+        env_stats = processed.setdefault("environment_stats", {})
+        if isinstance(env_stats, dict):
+            for key in self._config.default_zero_metrics:
+                env_stats.setdefault(key, 0.0)
 
         # Collect curriculum stats at epoch level (centralized)
         curriculum_stats = self._collect_curriculum_stats()

@@ -18,7 +18,6 @@ from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
-from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sweep import SweepTool
@@ -149,18 +148,6 @@ def evaluate(
     return EvaluateTool(
         simulations=sims,
         policy_uris=normalized_policy_uris,
-    )
-
-
-def evaluate_remote(
-    policy_uri: str,
-    eval_simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> EvalRemoteTool:
-    """Remote evaluation with sparse reward environments."""
-    sims = list(eval_simulations) if eval_simulations is not None else simulations()
-    return EvalRemoteTool(
-        simulations=sims,
-        policy_uri=policy_uri,
     )
 
 
