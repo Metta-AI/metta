@@ -27,16 +27,31 @@ class LeaderboardMatchScheduler:
         stats_client: StatsClient,
         repo_root: str,
         poll_interval_seconds: float = DEFAULT_POLL_INTERVAL_SECONDS,
+        eval_git_hash: str | None = None,
     ):
         self._stats_client = stats_client
         self._repo_root = repo_root
         self._poll_interval_seconds = poll_interval_seconds
+        self._eval_git_hash = eval_git_hash
 
     @trace("match_scheduler.fetch_unprocessed_policies")
     def _fetch_unprocessed_policies(self) -> list[uuid.UUID]:
         """Get all the policy versions that are submitted through cogames but not scheduled for a match"""
-        # TODO: implement, use the stats_client.sql_query endpoint to get policy_version ids
-        return []
+        rows = self._stats_client.sql_query(
+            query="""
+SELECT DISTINCT pv.id
+FROM policy_versions pv
+JOIN policy_version_tags pvt ON pv.id = pvt.policy_version_id
+WHERE pvt.key = 'cogames-submitted'
+AND pvt.value = 'true'
+AND NOT EXISTS (
+    SELECT 1
+    FROM policy_version_tags pvt2
+    WHERE pvt2.policy_version_id = pv.id
+    AND pvt2.key = 'v0-leaderboard-match-remote-job-id'
+)"""
+        ).rows
+        return [row[0] for row in rows]
 
     @trace("match_scheduler.schedule_match")
     def _schedule_match(self, policy_version_id: uuid.UUID) -> int:
@@ -49,6 +64,7 @@ class LeaderboardMatchScheduler:
         eval_task = self._stats_client.create_eval_task(
             TaskCreateRequest(
                 command=" ".join(command_parts),
+                git_hash=self._eval_git_hash,
             )
         )
         logger.info("Successfully scheduled match for policy: %s: %s", policy_version_id, eval_task.id)
@@ -103,18 +119,20 @@ def main() -> None:
 
     backend_url = os.environ.get("BACKEND_URL", PROD_STATS_SERVER_URI)
     machine_token = os.environ.get("MACHINE_TOKEN")
+    eval_git_hash = os.environ.get("EVAL_GIT_HASH")
     poll_interval = float(os.environ.get("POLL_INTERVAL", DEFAULT_POLL_INTERVAL_SECONDS))
     repo_root = get_repo_root()
 
     logger.info("Backend URL: %s", backend_url)
     logger.info("Repo root: %s", repo_root)
 
-    stats_client = create_stats_client(backend_url, machine_token)
+    stats_client = create_stats_client(backend_url, machine_token) if machine_token else StatsClient.create(backend_url)
     try:
         scheduler = LeaderboardMatchScheduler(
             stats_client=stats_client,
             repo_root=str(repo_root),
             poll_interval_seconds=poll_interval,
+            eval_git_hash=eval_git_hash,
         )
         scheduler.run()
     finally:

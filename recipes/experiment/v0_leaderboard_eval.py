@@ -66,12 +66,28 @@ def simulations() -> Sequence[SimulationRunConfig]:
     combat_env = basic_env.model_copy()
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
     return [
-        SimulationRunConfig(env=basic_env, num_episodes=1),
-        SimulationRunConfig(env=combat_env, num_episodes=1),
+        SimulationRunConfig(
+            env=basic_env,
+            num_episodes=1,
+            episode_tags={
+                "name": "basic",
+                "category": "arena",
+                "v0-leaderboard": "true",
+            },
+        ),
+        SimulationRunConfig(
+            env=combat_env,
+            num_episodes=1,
+            episode_tags={
+                "name": "combat",
+                "category": "arena",
+                "v0-leaderboard": "true",
+            },
+        ),
     ]
 
 
-# ./tools/run.py recipes.experiment.v0_leaderboard_eval.run policy_version_id=8bf4f06c-fbd3-4678-af4f-0bf875c2edff
+# ./tools/run.py recipes.experiment.v0_leaderboard_eval.run policy_version_id=127fb5d8-b530-4b27-9a60-9cf4e6be6365
 def run(policy_version_id: str, stats_server_uri: str | None = None) -> MultiPolicyVersionEvalTool:
     if (api_url := stats_server_uri or auto_stats_server_uri()) is None:
         raise ValueError("stats_server_uri is required")
@@ -80,8 +96,8 @@ def run(policy_version_id: str, stats_server_uri: str | None = None) -> MultiPol
         simulations=simulations(),
         policy_version_ids=[
             policy_version_id,
-            "3847e542-d57c-41a6-9e56-76c07866f2b7",  # nishad-test-baseline-scripted-3
-            "d781b02a-a421-49ed-a66d-c781219af930",  # nishad-test-baseline-scripted-2
+            "4f00146e-7a14-4b5d-b15e-6068f1b82de6",  # nishad-test-baseline-scripted-3
+            "3e9fca78-f179-47d8-bb56-63108a3ff7d3",  # nishad-test-baseline-scripted-2
         ],
         primary_policy_version_id=policy_version_id,
         verbose=True,
