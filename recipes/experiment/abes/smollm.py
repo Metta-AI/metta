@@ -66,7 +66,7 @@ def _smollm_config(
 
     # Environment configuration
     env_updates = {
-        "forward_pass_minibatch_target_size": 4096,
+        "forward_pass_minibatch_target_size": 8192,
         "auto_workers": False,
         "num_workers": 1,
         "async_factor": 1,
