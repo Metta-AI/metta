@@ -183,6 +183,17 @@ class DatadogAgentSetup(SetupModule):
                             config_updates.append(f"tags: {tags_list}")
                             info(f"Set tags in Datadog config: {tags_list}")
 
+                    # Build log tags for log collection config (same tags as host tags)
+                    log_tags_for_config = []
+                    for env_var, tag in [
+                        ("METTA_RUN_ID", "metta_run_id"),
+                        ("SKYPILOT_TASK_ID", "skypilot_task_id"),
+                        ("SKYPILOT_NODE_RANK", "node_rank"),
+                        ("SKYPILOT_NUM_NODES", "num_nodes"),
+                    ]:
+                        if value := os.environ.get(env_var):
+                            log_tags_for_config.append(f"{tag}:{value}")
+
                     # Append any updates to config file
                     if config_updates:
                         with open(config_file, "a") as f:
@@ -194,6 +205,28 @@ class DatadogAgentSetup(SetupModule):
                         # But we can't restart here (no systemd in Docker), so the run-phase script will handle it
                         if "logs_enabled: true" in config_updates:
                             info("logs_enabled set - agent will be restarted in run phase to pick up changes")
+                    
+                    # Also add log collection config directly to main datadog.yaml for reliability
+                    # This ensures logs are collected even if the separate config file isn't picked up
+                    try:
+                        with open(config_file, "r") as f:
+                            main_config = f.read()
+                        
+                        # Check if logs section already exists in main config
+                        if "logs:" not in main_config and log_tags_for_config:
+                            # Add basic log collection to main config
+                            with open(config_file, "a") as f:
+                                f.write("\n# Log collection configuration\n")
+                                f.write("logs:\n")
+                                f.write("  - type: file\n")
+                                f.write("    path: /tmp/training_logs/training_combined.log\n")
+                                f.write("    service: skypilot-training\n")
+                                f.write("    source: training\n")
+                                tags_list = ", ".join([f'"{tag}"' for tag in log_tags_for_config])
+                                f.write(f"    tags: [{tags_list}]\n")
+                                info("Added log collection to main datadog.yaml")
+                    except Exception as e:
+                        warning(f"Could not add logs to main config: {e}")
                 except Exception as e:
                     warning(f"Could not update Datadog config file: {e}")
 
@@ -201,8 +234,9 @@ class DatadogAgentSetup(SetupModule):
             try:
                 conf_d_dir = "/etc/datadog-agent/conf.d"
                 if os.path.exists(conf_d_dir):
-                    # Create custom log collection config
-                    custom_logs_dir = os.path.join(conf_d_dir, "custom_logs.d")
+                    # Use standard integration directory name (not custom_logs.d)
+                    # Datadog agent automatically scans conf.d subdirectories
+                    custom_logs_dir = os.path.join(conf_d_dir, "custom_logs")
                     os.makedirs(custom_logs_dir, exist_ok=True)
 
                     # Build tags list for log configuration
