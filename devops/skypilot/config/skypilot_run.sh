@@ -253,10 +253,14 @@ run_cmd() {
   # Ensure files are readable/writable by Datadog agent (dd-agent user)
   chmod 666 "$TRAINING_STDOUT_LOG" "$TRAINING_STDERR_LOG" "$TRAINING_COMBINED_LOG"
 
-  # Start training with simple file redirection (reliable, works with set -o pipefail)
-  # Redirect stdout and stderr to separate files for Datadog collection
+  # Start training with simple file redirection (most reliable)
+  # Ensure Python output is unbuffered for real-time logging
+  export PYTHONUNBUFFERED=1
+  # Temporarily disable pipefail to avoid issues, then re-enable it
+  set +o pipefail
   setsid "${cmd[@]}" > "$TRAINING_STDOUT_LOG" 2> "$TRAINING_STDERR_LOG" &
   export CMD_PID=$!
+  set -o pipefail
 
   # Merge logs in background for combined log (non-blocking, won't break training if it fails)
   (
@@ -305,6 +309,23 @@ run_cmd() {
       tail -20 "$TRAINING_STDERR_LOG" || true
     fi
     exit 1
+  fi
+
+  # Wait a bit and check if logs are being written (training is actually running)
+  sleep 5
+  if [ -f "$TRAINING_STDOUT_LOG" ] || [ -f "$TRAINING_STDERR_LOG" ]; then
+    STDOUT_SIZE=$(wc -c < "$TRAINING_STDOUT_LOG" 2>/dev/null || echo 0)
+    STDERR_SIZE=$(wc -c < "$TRAINING_STDERR_LOG" 2>/dev/null || echo 0)
+    echo "[INFO] Log files after 5s - stdout: ${STDOUT_SIZE} bytes, stderr: ${STDERR_SIZE} bytes"
+    if [ "$STDOUT_SIZE" -gt 0 ] || [ "$STDERR_SIZE" -gt 0 ]; then
+      echo "[INFO] Training is producing output"
+    else
+      echo "[WARN] Training process is running but not producing output yet"
+      if [ -f "$TRAINING_STDERR_LOG" ]; then
+        echo "[INFO] First 10 lines of stderr:"
+        head -10 "$TRAINING_STDERR_LOG" || true
+      fi
+    fi
   fi
 
   start_monitors
