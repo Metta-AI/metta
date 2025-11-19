@@ -65,7 +65,9 @@ uv run cogames play -m easy_mode -p random
 ```
 
 `easy_mode` uses three variants to simplify training:
-- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon, energy)
+
+- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
+  energy)
 - `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
 - `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
 
