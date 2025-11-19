@@ -220,7 +220,7 @@ jobs:
           pnpm run lint
 
   python-tests:
-    name: "Tests - Python"
+    name: "Tests - Python + mypy"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -248,7 +248,7 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run Python tests and benchmarks
+      - name: Run mypy, Python tests, and benchmarks
         shell: bash
         run: |
           set -eo pipefail
