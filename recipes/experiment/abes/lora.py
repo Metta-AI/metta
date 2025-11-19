@@ -7,7 +7,7 @@ from typing import Optional
 from metta.agent.policies.smollm import SmolLLMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.tools.sweep import SweepTool
+from metta.sweep.tools import SweepTool
 from metta.tools.train import TrainTool
 from recipes.experiment.abes import smollm as smollm_recipe
 from recipes.prod.arena_basic_easy_shaped import (

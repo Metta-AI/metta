@@ -9,7 +9,7 @@ from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
-from metta.tools.sweep import SweepTool
+from metta.sweep.tools import SweepTool
 from metta.tools.train import TrainTool
 from recipes.experiment.arena import (
     make_curriculum,

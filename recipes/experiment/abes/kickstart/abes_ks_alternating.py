@@ -26,7 +26,7 @@ from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sweep import SweepTool
+from metta.sweep.tools import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 
