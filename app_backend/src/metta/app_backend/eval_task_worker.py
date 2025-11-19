@@ -23,7 +23,6 @@ from datetime import datetime
 import boto3
 from ddtrace.trace import tracer
 
-from gitta import get_latest_commit
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.metta_repo import EvalTaskRow, FinishedTaskStatus
 from metta.app_backend.routes.eval_task_routes import TaskFinishRequest
@@ -33,7 +32,7 @@ from metta.common.tool.tool import ToolResult
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.file import local_copy
-from metta.common.util.git_repo import REPO_SLUG, REPO_URL
+from metta.common.util.git_repo import REPO_URL
 from metta.common.util.log_config import init_suppress_warnings
 
 logger = logging.getLogger(__name__)
@@ -164,9 +163,10 @@ class SimTaskExecutor(AbstractTaskExecutor):
         self,
         task: EvalTaskRow,
     ) -> TaskResult:
-        git_hash = task.git_hash or await get_latest_commit(REPO_SLUG, branch="main")
+        if not task.git_hash:
+            raise RuntimeError(f"Git hash not found for task {task.id}")
 
-        self._setup_versioned_checkout(git_hash)
+        self._setup_versioned_checkout(task.git_hash)
 
         cmd = task.command.split(" ")
 
