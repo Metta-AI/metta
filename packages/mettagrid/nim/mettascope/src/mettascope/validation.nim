@@ -611,7 +611,7 @@ proc validateReplaySchema*(data: JsonNode, issues: var seq[ValidationIssue]) =
       field: "version"
     ))
 
-  validatePositiveInt(data["num_agents"], "num_agents", issues)
+  validateNonNegativeNumber(data["num_agents"], "num_agents", issues)
   validateNonNegativeNumber(data["max_steps"], "max_steps", issues)
 
   # Validate map_size.
@@ -673,11 +673,6 @@ proc validateReplaySchema*(data: JsonNode, issues: var seq[ValidationIssue]) =
   # Objects validation.
   let objects = data["objects"]
   validateType(objects, "array", "objects", issues)
-  if objects.kind == JArray and objects.len == 0:
-    issues.add(ValidationIssue(
-      message: "'objects' must not be empty",
-      field: "objects"
-    ))
   if objects.kind == JArray:
     for obj in objects.getElems():
       if obj.kind != JObject:
