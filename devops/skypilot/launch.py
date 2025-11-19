@@ -2,18 +2,15 @@
 # ruff: noqa: E402
 # ^ Imports must come after warnings.filterwarnings() to suppress Pydantic warnings from SkyPilot
 
-import copy
 import json
 import logging
-import re
 import subprocess
 import warnings
-from typing import Annotated, Any, Literal, Optional
+from typing import Annotated, Literal, Optional
 
 import typer
-from sky import exceptions
-from sky.utils.common_utils import check_cluster_name_is_valid
 
+from devops.skypilot.utils.task_helpers import display_task_summary, patch_task, validate_task_name
 from metta.common.util.log_config import init_logging
 
 # Suppress Pydantic warnings from SkyPilot dependencies before importing sky
@@ -23,8 +20,7 @@ import sky
 import yaml
 
 import gitta as git
-from devops.skypilot.utils.job_helpers import (
-    display_task_summary,
+from devops.skypilot.utils.task_helpers import (
     launch_task,
     set_task_secrets,
 )
@@ -35,24 +31,6 @@ from metta.common.util.text_styles import red
 from metta.tools.utils.auto_config import auto_run_name
 
 logger = logging.getLogger("devops.skypilot.launch")
-
-
-def _validate_sky_task_name(run_name: str) -> bool:
-    """Validate that we will meet Sky's task naming requirements."""
-    pattern = r"^[a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?$"
-    valid = bool(re.match(pattern, run_name))
-
-    try:
-        check_cluster_name_is_valid(run_name)
-    except exceptions.InvalidClusterNameError:
-        print(red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"))
-        print("Sky task names must:")
-        print("  - Start with a letter (not a number)")
-        print("  - Contain only letters, numbers, dashes, underscores, or dots")
-        print("  - End with a letter or number")
-        print()
-
-    return valid
 
 
 def _validate_run_tool(module_path: str, args: list) -> bool:
@@ -107,42 +85,6 @@ def check_git_state(commit_hash: str) -> str | None:
     return None
 
 
-def patch_task(
-    task: sky.Task,
-    cpus: int | None,
-    gpus: int | None,
-    nodes: int | None,
-    no_spot: bool = False,
-) -> None:
-    overrides: dict[str, Any] = {}
-    if cpus:
-        overrides["cpus"] = cpus
-    if overrides:
-        task.set_resources_override(overrides)
-    if nodes:
-        task.num_nodes = nodes
-
-    new_resources_list: list[sky.Resources] = list(task.resources)
-
-    if gpus:
-        new_resources_list = []
-        for res in list(task.resources):
-            if not isinstance(res.accelerators, dict):
-                # shouldn't happen with our current config
-                raise Exception(f"Unexpected accelerator type: {res.accelerators}, {type(res.accelerators)}")
-
-            patched_accelerators = copy.deepcopy(res.accelerators)
-            patched_accelerators = {gpu_type: gpus for gpu_type in patched_accelerators.keys()}
-            new_resources = res.copy(accelerators=patched_accelerators)
-            new_resources_list.append(new_resources)
-
-    if no_spot:
-        new_resources_list = [res.copy(use_spot=False) for res in new_resources_list]
-
-    if gpus or no_spot:
-        task.set_resources(type(task.resources)(new_resources_list))
-
-
 app = typer.Typer(
     rich_markup_mode="rich",
 )
@@ -160,11 +102,11 @@ def main(
     ],
     # Launch-specific flags
     run_id: Annotated[Optional[str], typer.Option("--run", help="Run ID for the job")] = None,
-    git_ref: Optional[str] = None,
-    gpus: Optional[int] = None,
-    nodes: Optional[int] = None,
-    cpus: Optional[int] = None,
-    dry_run: Annotated[bool, typer.Option(help="Show job summary without launching")] = False,
+    git_ref: Annotated[Optional[str], typer.Option(help="Git reference to check out in the job")] = None,
+    gpus: Annotated[Optional[int], typer.Option(help="Number of GPUs to use")] = None,
+    nodes: Annotated[Optional[int], typer.Option(help="Number of nodes to use")] = None,
+    cpus: Annotated[Optional[int], typer.Option(help="Number of CPUs to use")] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show job summary without launching")] = False,
     dump_config: Annotated[
         Optional[Literal["json", "yaml"]],
         typer.Option(help="Dump task configuration in specified format and exit"),
@@ -184,25 +126,26 @@ def main(
         typer.Option(
             "-t",
             "--max-runtime-hours",
-            help="Maximum job runtime in hours before automatic termination (supports decimals, e.g., 1.5 = 90 minutes)",
+            help="Maximum job runtime in hours before automatic termination (supports decimals, e.g. 1.5 = 90 minutes)",
         ),
     ] = None,
-    skip_git_check: Annotated[bool, typer.Option(help="Skip git state validation and GitHub API calls")] = False,
-    confirm: Annotated[bool, typer.Option(help="Show confirmation prompt")] = False,
+    skip_git_check: Annotated[
+        bool, typer.Option("--skip-git-check", help="Skip git state validation and GitHub API calls")
+    ] = False,
+    confirm: Annotated[bool, typer.Option("--confirm", help="Show confirmation prompt")] = False,
     github_pat: Annotated[
         Optional[str], typer.Option(help="GitHub PAT token for posting status updates (repo scope)")
     ] = None,
     discord_webhook_url: Annotated[
         Optional[str], typer.Option(help="Discord webhook URL for status update channel")
     ] = None,
-    run_ci_tests: Annotated[bool, typer.Option(help="Run NCCL and job restart tests")] = False,
+    run_ci_tests: Annotated[bool, typer.Option("--run-ci-tests", help="Run NCCL and job restart tests")] = False,
     tool_args: Annotated[
         Optional[list[str]], typer.Argument(help="Tool arguments. Will be passed to tools/run.py.")
     ] = None,
 ):
     """
-
-    Main entry point for launch.py.
+    Launch a tool using SkyPilot. Tool arguments are the same as those passed to tools/run.py.
 
     [bold green]Examples:[/bold green]
 
@@ -249,7 +192,7 @@ def main(
 
     cd_repo_root()
 
-    # check that the parsed args.git_ref provides a valid commit hash
+    # check that the parsed --git-ref provides a valid commit hash
     if git_ref:
         commit_hash = git.resolve_git_ref(git_ref)
         if not commit_hash:
@@ -279,27 +222,28 @@ def main(
         raise typer.Exit(1)
 
     # Validate the provided run name
-    if not _validate_sky_task_name(run_id):
+    if not validate_task_name(run_id):
         raise typer.Exit(1)
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
     task._user_specified_yaml = None
 
-    # Prepare environment variables including status parameters
-    env_updates: dict[str, str] = dict(
-        METTA_RUN_ID=run_id,
-        METTA_MODULE_PATH=module_path,
-        METTA_ARGS=" ".join(filtered_args),
-        METTA_GIT_REF=commit_hash,
-        TEST_JOB_RESTART="true" if run_ci_tests else "false",
-        TEST_NCCL="true" if run_ci_tests else "false",
+    # Configure environment variables
+    task.update_envs(
+        dict(
+            METTA_RUN_ID=run_id,
+            METTA_MODULE_PATH=module_path,
+            METTA_ARGS=" ".join(filtered_args),
+            METTA_GIT_REF=commit_hash,
+            TEST_JOB_RESTART="true" if run_ci_tests else "false",
+            TEST_NCCL="true" if run_ci_tests else "false",
+        )
     )
     if heartbeat_timeout_seconds:
-        env_updates["HEARTBEAT_TIMEOUT"] = str(heartbeat_timeout_seconds)
+        task.update_envs({"HEARTBEAT_TIMEOUT": str(heartbeat_timeout_seconds)})
     if max_runtime_hours:
-        env_updates["MAX_RUNTIME_HOURS"] = str(max_runtime_hours)
+        task.update_envs({"MAX_RUNTIME_HOURS": str(max_runtime_hours)})
 
-    task = task.update_envs(env_updates)
     task.name = run_id
     task.validate_name()
 

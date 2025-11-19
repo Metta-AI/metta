@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import warnings
+from typing import Optional
 
 # Suppress Pydantic warnings from SkyPilot dependencies before importing sky
 # SkyPilot v0.10.3.post2 with Pydantic 2.12.3 generates UnsupportedFieldAttributeWarning
@@ -23,7 +24,7 @@ import yaml
 
 import gitta as git
 from devops.skypilot.utils.cost_monitor import get_instance_cost
-from devops.skypilot.utils.job_helpers import set_task_secrets
+from devops.skypilot.utils.task_helpers import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.retry import retry_function
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
@@ -214,7 +215,7 @@ def print_cost_info(hourly_cost, num_gpus):
         print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
 
 
-def check_cluster_status(cluster_name: str) -> str:
+def check_cluster_status(cluster_name: str) -> Optional[str]:
     """Check the status of a specific cluster.
 
     Returns:
