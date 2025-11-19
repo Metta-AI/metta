@@ -174,6 +174,17 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to submit policy: {str(e)}") from e
 
+    @router.post("/files/upload", response_model=str)
+    @timed_route("upload_file")
+    async def upload_file(file: UploadFile) -> str:
+        """Upload a DuckDB file to S3."""
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".duckdb") as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+
+        return temp_file_path
+
     @router.post("/episodes/bulk_upload", response_model=BulkEpisodeUploadResponse)
     @timed_route("bulk_upload_episodes")
     async def bulk_upload_episodes(
