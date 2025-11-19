@@ -36,6 +36,8 @@ spec:
         env:
         - name: BACKEND_URL
           value: {{ default .Values.env.BACKEND_URL $msEnv.BACKEND_URL | quote }}
+        - name: EVAL_GIT_HASH
+          value: {{ default .Values.env.EVAL_GIT_HASH $msEnv.EVAL_GIT_HASH | quote }}
         - name: POLL_INTERVAL
           value: {{ default .Values.env.POLL_INTERVAL $msEnv.POLL_INTERVAL | quote }}
         - name: KUBERNETES_NAMESPACE
