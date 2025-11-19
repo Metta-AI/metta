@@ -164,7 +164,7 @@ def _resolve_nim_root() -> tuple[Optional[Path], list[Path]]:
 
     current = package_root
     for _ in range(8):
-        candidate = current / "packages" / "mettagrid" / "nim" / "mettascope"
+        candidate = current / "mettagrid" / "nim" / "mettascope"
         search_paths.append(candidate)
         if candidate.exists():
             return candidate, search_paths
