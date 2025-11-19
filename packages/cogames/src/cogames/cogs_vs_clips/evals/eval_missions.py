@@ -90,18 +90,20 @@ class EvalVariant(MissionVariant):
 
         # Global quality-of-life tweaks for evals
         # 1) Double agent inventory caps for core resources and gear
-        try:
-            limits = env.game.agent.resource_limits
-            for key in ("carbon", "oxygen", "germanium", "silicon"):
-                if key in limits and isinstance(limits[key], int):
-                    limits[key] = limits[key] * 2
-            for key in ("decoder", "modulator", "scrambler", "resonator"):
-                if key in limits and isinstance(limits[key], int):
-                    limits[key] = limits[key] * 2
-            if "energy" in limits and isinstance(limits["energy"], int):
-                limits["energy"] = limits["energy"] * 2
-        except Exception:
-            pass
+        for limit in env.game.agent.resource_limits.values():
+            for resource in (
+                "carbon",
+                "oxygen",
+                "germanium",
+                "silicon",
+                "decoder",
+                "modulator",
+                "scrambler",
+                "resonator",
+                "energy",
+            ):
+                if resource in limit.resources:
+                    limit.limit = limit.limit * 2
 
         # 2) Reduce depletion speed: double max_uses for extractors that are finite
         for obj_name in (

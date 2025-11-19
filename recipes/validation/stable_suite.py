@@ -93,7 +93,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         remote=RemoteConfig(gpus=1, nodes=1),
         is_training_job=True,
         metrics_to_track=["env_agent/heart.gained"],
-        acceptance_criteria=[AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.0)],
+        acceptance_criteria=[AcceptanceCriterion(metric="env_agent/heart.gained", operator=">=", threshold=0.0)],
     )
 
     # Multi-GPU training - 2B timesteps

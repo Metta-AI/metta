@@ -12,6 +12,7 @@ from metta.common.wandb.context import WandbConfig
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.random_agent import RandomAgentPolicy
@@ -43,10 +44,11 @@ class PlayTool(Tool):
         """Load a policy from a URI using CheckpointManager and return AgentPolicy instances."""
         logger.info(f"Loading policy from URI: {policy_uri}")
 
-        # Load policy from URI
-        policy: MettaPolicy = CheckpointManager.load_from_uri(policy_uri, policy_env_info, device)
+        policy_spec = CheckpointManager.policy_spec_from_uri(policy_uri, device=str(device))
+        policy: MettaPolicy = initialize_or_load_policy(policy_env_info, policy_spec)
+        if hasattr(policy, "initialize_to_environment"):
+            policy.initialize_to_environment(policy_env_info, device)
         policy.eval()
-        policy.initialize_to_environment(policy_env_info, device)
 
         # Create AgentPolicy instances for each agent
         return [policy.agent_policy(agent_id) for agent_id in range(policy_env_info.num_agents)]

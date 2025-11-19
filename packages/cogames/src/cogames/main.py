@@ -458,6 +458,11 @@ def evaluate_cmd(
         "-m",
         help="Missions to evaluate (supports wildcards, e.g., --mission training_facility.*)",
     ),
+    mission_set: Optional[str] = typer.Option(
+        None,
+        "--mission-set",
+        help="Predefined mission set: eval_missions, integrated_evals, spanning_evals, diagnostic_evals, all",
+    ),
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -500,6 +505,22 @@ def evaluate_cmd(
         ),
     ),
 ) -> None:
+    # Handle mission set expansion
+    if mission_set and missions:
+        console.print("[red]Error: Cannot use both --mission-set and --mission[/red]")
+        raise typer.Exit(1)
+
+    if mission_set:
+        from cogames.cli.mission import load_mission_set
+
+        try:
+            mission_objs = load_mission_set(mission_set)
+            missions = [m.full_name() for m in mission_objs]
+            console.print(f"[cyan]Using mission set '{mission_set}' ({len(missions)} missions)[/cyan]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
     # Optionally override MapGen seed so maps are reproducible across runs.
@@ -615,11 +636,11 @@ def submit_cmd(
         "-p",
         help=f"Policy specification: {policy_arg_example}",
     ),
-    name: Optional[str] = typer.Option(
-        None,
+    name: str = typer.Option(
+        ...,
         "--name",
         "-n",
-        help="Optional name for the submission",
+        help="Policy name for the submission",
     ),
     include_files: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
