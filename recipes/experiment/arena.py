@@ -119,10 +119,12 @@ def train_shaped(rewards: bool = True) -> TrainTool:
 
 def evaluate(
     policy_uris: str | Sequence[str] | None = None,
+    stats_server_uri: str | None = None,
 ) -> EvaluateTool:
     return EvaluateTool(
         simulations=simulations(),
         policy_uris=policy_uris,
+        stats_server_uri=stats_server_uri,
     )
 
 
