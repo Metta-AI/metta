@@ -32,6 +32,7 @@ class ObservatoryWriter(BaseModel):
     stats_client: StatsClient
     policy_version_ids: list[str]
     primary_policy_version_id: str | None = None
+    skip_duckdb_upload: bool = False
 
     def write(self, rollout_results: list[SimulationRunResult]):
         write_eval_results_to_observatory(
@@ -39,6 +40,7 @@ class ObservatoryWriter(BaseModel):
             rollout_results=rollout_results,
             stats_client=self.stats_client,
             primary_policy_version_id=self.primary_policy_version_id,
+            skip_duckdb_upload=self.skip_duckdb_upload,
         )
 
 
