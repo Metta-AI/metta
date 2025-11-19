@@ -148,7 +148,7 @@ def train_with_checkpoints(
         "uv",
         "run",
         "./tools/run.py",
-        "recipes.prod.cvc.small_maps.train",
+        "recipes.prod.cvc.fixed_maps.train",
         f"run={checkpoint_dir.name}",
         f"num_cogs={num_cogs}",
         f"mission={mission}",  # Train on specific mission
@@ -364,7 +364,6 @@ def run_tournament(
         simulations=[simulation_config],
         replay_dir=None,  # No replay recording for tournament
         seed=seed,
-        enable_replays=False,
         on_progress=progress_callback,
     )
 
@@ -373,9 +372,9 @@ def run_tournament(
 
     # Convert multi_episode_rollout results to GameResult format
     game_results = []
-    for episode_id in range(len(rollout_result.stats)):
-        episode_stats = rollout_result.stats[episode_id]
-        episode_assignments = rollout_result.assignments[episode_id]
+    for episode_id, episode in enumerate(rollout_result.episodes):
+        episode_stats = episode.stats
+        episode_assignments = episode.assignments
 
         game_stats = episode_stats.get("game", {})
         total_hearts = float(game_stats.get("chest.heart.amount", 0.0))
