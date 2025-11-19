@@ -400,6 +400,7 @@ def train_cmd(
     # We keep this opt-in (via --map-seed) to avoid reducing map diversity by default.
 
     if map_seed is not None:
+
         def _maybe_seed(cfg: Any) -> None:
             mb = getattr(cfg.game, "map_builder", None)
             if isinstance(mb, MapGen.Config) and mb.seed is None:
