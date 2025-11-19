@@ -173,6 +173,13 @@ class DatadogAgentSetup(SetupModule):
                     if "logs_enabled:" not in config_content:
                         config_updates.append("logs_enabled: true")
                         info("Enabled log collection in Datadog config")
+                    
+                    # Add logs_config section for better reliability (recommended by Datadog docs)
+                    if "logs_config:" not in config_content:
+                        config_updates.append("logs_config:")
+                        config_updates.append("  auto_multi_line_detection: true")
+                        config_updates.append("  force_use_http: true")
+                        info("Added logs_config section to Datadog config")
 
                     # Set tags if not already configured
                     if tags and "tags:" not in config_content:
@@ -234,9 +241,9 @@ class DatadogAgentSetup(SetupModule):
             try:
                 conf_d_dir = "/etc/datadog-agent/conf.d"
                 if os.path.exists(conf_d_dir):
-                    # Use standard integration directory name (not custom_logs.d)
-                    # Datadog agent automatically scans conf.d subdirectories
-                    custom_logs_dir = os.path.join(conf_d_dir, "custom_logs")
+                    # Use standard Datadog integration directory format: <name>.d
+                    # The .d suffix is required for Datadog to recognize the integration
+                    custom_logs_dir = os.path.join(conf_d_dir, "skypilot_training.d")
                     os.makedirs(custom_logs_dir, exist_ok=True)
 
                     # Build tags list for log configuration
