@@ -87,7 +87,7 @@ def _summarize(stage: str, success: bool, output: str) -> List[str]:
 
     if stage == "python-tests-and-benchmarks":
         if "mypy type checking failed" in output:
-            lines.append("- `mypy` type checking failed. Re-run locally: `metta ci --stage python-tests-and-benchmarks`.")
+            lines.append("- `mypy` type checking failed. Re-run: `metta ci --stage python-tests-and-benchmarks`.")
         failures = _extract_python_failures(output)
         commands = _extract_re_run_commands(output)
         if failures:
