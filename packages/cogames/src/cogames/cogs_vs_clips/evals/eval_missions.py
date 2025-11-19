@@ -6,7 +6,7 @@ from typing import override
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import EVALS
-from mettagrid.config.mettagrid_config import ProtocolConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, ProtocolConfig
 
 logger = logging.getLogger(__name__)
 
@@ -60,22 +60,38 @@ class EvalVariant(MissionVariant):
         env.game.protocol_details_obs = True
         # Make HEART crafting feasible with a single agent using the heart glyph
         assembler_obj = env.game.objects.get("assembler")
-        if assembler_obj is not None and hasattr(assembler_obj, "first_heart_cost"):
-            # Set small single-agent recipe and prepend explicit heart/red-heart entries
-            if hasattr(assembler_obj, "recipes"):
-                tiny = ProtocolConfig(
-                    input_resources={
-                        "carbon": 2,
-                        "oxygen": 2,
-                        "germanium": 1,
-                        "silicon": 3,
-                        "energy": 2,
-                    },
-                    output_resources={"heart": 1},
+        if isinstance(assembler_obj, AssemblerConfig):
+            # Set small single-agent protocols and prepend explicit heart/red-heart variants
+            tiny_inputs = {
+                "carbon": 2,
+                "oxygen": 2,
+                "germanium": 1,
+                "silicon": 3,
+                "energy": 2,
+            }
+
+            tiny_heart_protocols = [
+                ProtocolConfig(
+                    vibes=["heart_a"] * (i + 1),
+                    input_resources=tiny_inputs,
+                    output_resources={"heart": i + 1},
                 )
-                heart_recipes = [(["heart_a"] * (i + 1), tiny) for i in range(4)]
-                redheart_recipes = [(["red-heart"] * (i + 1), tiny) for i in range(4)]
-                assembler_obj.recipes = [*heart_recipes, *redheart_recipes, *assembler_obj.recipes]
+                for i in range(4)
+            ]
+            tiny_redheart_protocols = [
+                ProtocolConfig(
+                    vibes=["red-heart"] * (i + 1),
+                    input_resources=tiny_inputs,
+                    output_resources={"heart": i + 1},
+                )
+                for i in range(4)
+            ]
+
+            assembler_obj.protocols = [
+                *tiny_heart_protocols,
+                *tiny_redheart_protocols,
+                *assembler_obj.protocols,
+            ]
 
         if self.max_uses_charger is not None and "charger" in env.game.objects:
             env.game.objects["charger"].max_uses = self.max_uses_charger

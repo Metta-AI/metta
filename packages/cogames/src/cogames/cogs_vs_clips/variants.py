@@ -178,15 +178,21 @@ class HeartChorusVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        env.game.agent.rewards.stats = {
-            "heart.gained": 1.0,
-            "chest.heart.deposited": 1.0,
-            "chest.heart.withdrawn": -1.0,
-            "inventory.diversity.ge.2": 0.17,
-            "inventory.diversity.ge.3": 0.18,
-            "inventory.diversity.ge.4": 0.60,
-            "inventory.diversity.ge.5": 0.97,
-        }
+        # Supplemental shaping: keep the base rewards (e.g., chest.heart.amount)
+        # and add heart-centric/collection bonuses on top.
+        rewards = dict(env.game.agent.rewards.stats)
+        rewards.update(
+            {
+                "heart.gained": 1.0,
+                "chest.heart.deposited": 1.0,
+                "chest.heart.withdrawn": -1.0,
+                "inventory.diversity.ge.2": 0.17,
+                "inventory.diversity.ge.3": 0.18,
+                "inventory.diversity.ge.4": 0.60,
+                "inventory.diversity.ge.5": 0.97,
+            }
+        )
+        env.game.agent.rewards.stats = rewards
 
 
 class VibeCheckMin2Variant(MissionVariant):
