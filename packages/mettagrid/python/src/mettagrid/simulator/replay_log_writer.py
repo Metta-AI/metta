@@ -8,10 +8,9 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
-from metta.common.util.file import http_url, write_data
 from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.simulator.simulator import Simulation
+from mettagrid.simulator.utils import METTASCOPE_REPLAY_URL_PREFIX, http_url, write_data
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 logger = logging.getLogger("ReplayLogWriter")
