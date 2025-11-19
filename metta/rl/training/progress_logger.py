@@ -35,19 +35,6 @@ def _format_epoch_time(seconds: float) -> str:
     return " ".join(parts)
 
 
-def _create_progress_table(epoch: int, run_name: str | None) -> Table:
-    if run_name:
-        title = f"[bold cyan]{run_name} · Training Progress - Epoch {epoch}[/bold cyan]"
-    else:
-        title = f"[bold cyan]Training Progress - Epoch {epoch}[/bold cyan]"
-
-    table = Table(title=title, show_header=True, header_style="bold magenta")
-    table.add_column("Metrics", style="cyan", justify="left")
-    table.add_column("Progress", style="green", justify="right")
-    table.add_column("Values", style="yellow", justify="left")
-    return table
-
-
 def log_rich_progress(
     epoch: int,
     agent_step: int,
@@ -64,7 +51,15 @@ def log_rich_progress(
     """Render training progress in a rich table."""
 
     console = get_console()
-    table = _create_progress_table(epoch, run_name)
+    title = (
+        f"[bold cyan]{run_name} · Training Progress - Epoch {epoch}[/bold cyan]"
+        if run_name
+        else f"[bold cyan]Training Progress - Epoch {epoch}[/bold cyan]"
+    )
+    table = Table(title=title, show_header=True, header_style="bold magenta")
+    table.add_column("Metrics", style="cyan", justify="left")
+    table.add_column("Progress", style="green", justify="right")
+    table.add_column("Values", style="yellow", justify="left")
 
     total_steps_str = _format_total_steps(total_timesteps)
     progress_pct = (agent_step / total_timesteps) * 100 if total_timesteps > 0 else 0.0
