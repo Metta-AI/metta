@@ -241,7 +241,7 @@ def upload_submission(
     try:
         with open(zip_path, "rb") as f:
             files = {"file": ("submission.zip", f, "application/zip")}
-            data = {"name": submission_name}
+            data = {"name": submission_name, "tags": '{"cogames-submitted":"true"}'}
 
             headers = {"X-Auth-Token": token}
 

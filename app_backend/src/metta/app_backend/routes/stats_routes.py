@@ -1,3 +1,4 @@
+import json
 import tempfile
 import uuid
 from typing import Annotated, Any
@@ -122,7 +123,12 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/policies/submit", response_model=UUIDResponse)
     @timed_route("submit_policy")
-    async def submit_policy(file: UploadFile, name: str = Form(...), user: str = user_or_token) -> UUIDResponse:
+    async def submit_policy(
+        file: UploadFile,
+        name: str = Form(...),
+        tags: str | None = Form(None),
+        user: str = user_or_token,
+    ) -> UUIDResponse:
         if not file.filename or not file.filename.endswith(".zip"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -162,6 +168,19 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             ) from e
 
         try:
+            parsed_tags: dict[str, str] = {}
+            if tags:
+                try:
+                    parsed_tags = json.loads(tags)
+                    if not isinstance(parsed_tags, dict):
+                        raise ValueError("tags must be a JSON object")
+                    # Coerce values to strings
+                    parsed_tags = {k: str(v) for k, v in parsed_tags.items()}
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid tags payload: {str(e)}"
+                    ) from e
+
             policy_id = await stats_repo.upsert_policy(name=name, user_id=user, attributes={})
             policy_version_id = await stats_repo.create_policy_version(
                 policy_id=policy_id,
@@ -170,7 +189,11 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 policy_spec={},
                 attributes={},
             )
+            if parsed_tags:
+                await stats_repo.upsert_policy_version_tags(policy_version_id, parsed_tags)
             return UUIDResponse(id=policy_version_id)
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to submit policy: {str(e)}") from e
 
