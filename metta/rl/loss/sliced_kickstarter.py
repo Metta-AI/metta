@@ -204,7 +204,7 @@ class SlicedKickstarter(Loss):
         teacher_led_count = int(B * self.cfg.teacher_led_proportion)
         teacher_slice = slice(stud_led_count, stud_led_count + teacher_led_count)
         ppo_count = B - stud_led_count - teacher_led_count
-        if ppo_count < 1:
+        if ppo_count < 0:
             raise ValueError("PPO count error in sliced Kickstarter loss. Bad proportions.")
         ppo_slice = slice(stud_led_count + teacher_led_count, B)
 

@@ -109,8 +109,6 @@ def train(
     losses_config.sliced_kickstarter.teacher_uri = (
         "s3://softmax-public/policies/av.ppo_divorced.mb.11.18.01/av.ppo_divorced.mb.11.18.01:v7500.mpt"
     )
-    losses_config.sliced_kickstarter.student_led_proportion = 0.2
-    losses_config.sliced_kickstarter.teacher_led_proportion = 0.5
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.rollout_forward_enabled = False

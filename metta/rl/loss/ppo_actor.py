@@ -112,13 +112,27 @@ class PPOActor(Loss):
             print(f"ppo_actor found gamma: {gamma}")
             print(f"gamma shape: {gamma.shape}")
             print(f"gamma type: {type(gamma)}")
-            gamma = gamma.flatten()[0].item()
+            gamma_flat = gamma.flatten()
+            if gamma_flat.numel() > 0:
+                gamma = gamma_flat[0].item()
+            else:
+                gamma = 0
+            # else:
+            #     # If gamma is empty, minibatch is likely empty - return early
+            #     return self._zero_tensor, shared_loss_data, False
         else:
             raise ValueError("ppo_actor could not find gamma in shared_loss_data")
 
         gae_lambda = shared_loss_data.get("gae_lambda", None)
         if gae_lambda is not None:
-            gae_lambda = gae_lambda.flatten()[0].item()
+            gae_lambda_flat = gae_lambda.flatten()
+            if gae_lambda_flat.numel() > 0:
+                gae_lambda = gae_lambda_flat[0].item()
+            else:
+                gae_lambda = 0
+            # else:
+            #     # If gae_lambda is empty, minibatch is likely empty - return early
+            #     return self._zero_tensor, shared_loss_data, False
         else:
             raise ValueError("ppo_actor could not find gae_lambda in shared_loss_data")
 
