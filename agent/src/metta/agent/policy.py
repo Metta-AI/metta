@@ -22,6 +22,7 @@ from metta.agent.components.obs_shim import (
     ObsShimTokensConfig,
 )
 from metta.common.util.file import write_file
+from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
@@ -49,9 +50,6 @@ class PolicyArchitecture(Config):
 
         AgentClass = load_symbol(self.class_path)
         return AgentClass(policy_env_info, self)  # type: ignore[misc]
-
-
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
 
 
 class Policy(TrainablePolicy, nn.Module):
