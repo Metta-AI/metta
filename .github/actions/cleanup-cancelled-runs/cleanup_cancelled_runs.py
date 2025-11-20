@@ -162,9 +162,19 @@ def main():
 
     # Get all recent runs to check for superseding runs
     # Increased to 300 to catch older cancelled runs that might still be showing red X's
+    # get_runs() returns runs in reverse chronological order (newest first)
     print("Fetching recent workflow runs...")
     all_runs = list(workflow.get_runs()[:300])
     print(f"Found {len(all_runs)} recent workflow runs")
+    if all_runs:
+        oldest_run = all_runs[-1]
+        newest_run = all_runs[0]
+        print(
+            f"Run date range: newest={newest_run.created_at.strftime('%Y-%m-%d %H:%M:%S')} "
+            f"(run #{newest_run.run_number}), "
+            f"oldest={oldest_run.created_at.strftime('%Y-%m-%d %H:%M:%S')} "
+            f"(run #{oldest_run.run_number})"
+        )
 
     # Get cancelled runs
     cancelled_runs = [run for run in all_runs if run.conclusion == "cancelled"]
