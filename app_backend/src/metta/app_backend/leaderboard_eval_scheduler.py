@@ -33,10 +33,17 @@ DEFAULT_MAX_LEADERBOARD_ATTEMPTS = 5
 
 
 @dataclass(frozen=True)
+class PolicyAttemptInfo:
+    policy_version_id: uuid.UUID
+    attempts: int
+
+
+@dataclass(frozen=True)
 class PolicyRemoteJobStatus:
     policy_version_id: uuid.UUID
     job_id: int
     status: TaskStatus | None
+    attempts: int
 
 
 class LeaderboardEvalScheduler:
@@ -54,16 +61,21 @@ class LeaderboardEvalScheduler:
         self._eval_git_hash = eval_git_hash
         self._max_attempts = max_attempts
 
-    def _fetch_unscheduled_policy_versions(self) -> list[uuid.UUID]:
+    def _fetch_unscheduled_policy_versions(self) -> list[PolicyAttemptInfo]:
         """Get submitted policy versions that still need evals or whose prior eval failed."""
         rows = self._stats_client.sql_query(
             query=f"""
-SELECT DISTINCT pv.id
+SELECT DISTINCT
+    pv.id,
+    COALESCE(attempt_tag.value::INT, 0) AS attempts
 FROM policy_versions pv
 JOIN policy_version_tags pvt ON pv.id = pvt.policy_version_id
 LEFT JOIN policy_version_tags done_tag
     ON pv.id = done_tag.policy_version_id
     AND done_tag.key = '{LEADERBOARD_EVAL_DONE_PV_KEY}'
+LEFT JOIN policy_version_tags attempt_tag
+    ON pv.id = attempt_tag.policy_version_id
+    AND attempt_tag.key = '{LEADERBOARD_ATTEMPTS_PV_KEY}'
 WHERE pvt.key = '{COGAMES_SUBMITTED_PV_KEY}'
 AND pvt.value = 'true'
 AND (
@@ -77,32 +89,10 @@ AND NOT EXISTS (
     AND pvt2.key = '{LEADERBOARD_JOB_ID_PV_KEY}'
 )"""
         ).rows
-        unprocessed: list[uuid.UUID] = [row[0] for row in rows]
-        return unprocessed
-
-    def _get_attempt_count(self, policy_version_id: uuid.UUID) -> int:
-        response = self._stats_client.sql_query(
-            query=f"""
-SELECT value
-FROM policy_version_tags
-WHERE policy_version_id = '{policy_version_id}'
-AND key = '{LEADERBOARD_ATTEMPTS_PV_KEY}'
-LIMIT 1
-"""
-        )
-        if not response.rows:
-            return 0
-        raw_value = response.rows[0][0]
-        try:
-            return int(raw_value)
-        except (TypeError, ValueError):
-            logger.warning(
-                "Found invalid %s tag '%s' for policy version %s; treating as 0 attempts",
-                LEADERBOARD_ATTEMPTS_PV_KEY,
-                raw_value,
-                policy_version_id,
-            )
-            return 0
+        return [
+            PolicyAttemptInfo(policy_version_id=row[0], attempts=int(row[1]) if row[1] is not None else 0)
+            for row in rows
+        ]
 
     def _mark_policy_version_canceled(self, policy_version_id: uuid.UUID, attempts: int) -> None:
         final_attempts = max(attempts, self._max_attempts)
@@ -120,8 +110,7 @@ LIMIT 1
         )
 
     @trace("eval_scheduler.schedule_eval")
-    def _schedule_eval(self, policy_version_id: uuid.UUID) -> Optional[int]:
-        attempts = self._get_attempt_count(policy_version_id)
+    def _schedule_eval(self, policy_version_id: uuid.UUID, attempts: int) -> Optional[int]:
         if attempts >= self._max_attempts:
             self._mark_policy_version_canceled(policy_version_id, attempts)
             return None
@@ -161,7 +150,8 @@ LIMIT 1
             query=f"""
 SELECT pv.id,
     job_tag.value::BIGINT AS job_id,
-    task.status
+    task.status,
+    COALESCE(attempt_tag.value::INT, 0) AS attempts
 FROM policy_versions pv
 JOIN policy_version_tags submit_tag
     ON pv.id = submit_tag.policy_version_id
@@ -175,6 +165,9 @@ LEFT JOIN eval_tasks_view task
 LEFT JOIN policy_version_tags done_tag
     ON pv.id = done_tag.policy_version_id
     AND done_tag.key = '{LEADERBOARD_EVAL_DONE_PV_KEY}'
+LEFT JOIN policy_version_tags attempt_tag
+    ON pv.id = attempt_tag.policy_version_id
+    AND attempt_tag.key = '{LEADERBOARD_ATTEMPTS_PV_KEY}'
 WHERE (
     done_tag.value IS NULL
     OR done_tag.value NOT IN ('{LEADERBOARD_EVAL_DONE_VALUE}', '{LEADERBOARD_EVAL_CANCELED_VALUE}')
@@ -182,7 +175,7 @@ WHERE (
 """
         ).rows
         remote_jobs: list[PolicyRemoteJobStatus] = []
-        for policy_version_id, job_id, status in rows:
+        for policy_version_id, job_id, status, attempts in rows:
             if job_id is None:
                 continue
             remote_jobs.append(
@@ -190,6 +183,7 @@ WHERE (
                     policy_version_id=policy_version_id,
                     job_id=int(job_id),
                     status=status,
+                    attempts=int(attempts) if attempts is not None else 0,
                 )
             )
         return remote_jobs
@@ -213,11 +207,18 @@ WHERE (
         needs_rescheduling = [j for j in remote_jobs if j.status in ("error", "canceled", "system_error", None)]
         logger.info("Found %d remote jobs that need to be rescheduled", len(needs_rescheduling))
 
-        for policy_version_id in [r.policy_version_id for r in needs_rescheduling] + unscheduled:
+        for job in needs_rescheduling:
             try:
-                self._schedule_eval(policy_version_id)
+                self._schedule_eval(job.policy_version_id, job.attempts)
             except Exception:
-                logger.error("Failed to schedule eval for policy: %s", policy_version_id, exc_info=True)
+                logger.error("Failed to reschedule eval for policy: %s", job.policy_version_id, exc_info=True)
+                continue
+
+        for submission in unscheduled:
+            try:
+                self._schedule_eval(submission.policy_version_id, submission.attempts)
+            except Exception:
+                logger.error("Failed to schedule eval for policy: %s", submission.policy_version_id, exc_info=True)
                 continue
 
     def run(self) -> None:
