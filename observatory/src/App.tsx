@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
-import { ServerRepo, Repo } from './repo'
+import { Repo } from './repo'
 import { SQLQuery } from './SQLQuery'
 import { EvalTasks } from './EvalTasks/index'
 import { Leaderboard } from './Leaderboard'
 import { config } from './config'
+import clsx from 'clsx'
 
 // CSS for navigation
 const NAV_CSS = `
@@ -82,7 +83,7 @@ function App() {
     const initializeRepo = async () => {
       const serverUrl = config.apiBaseUrl
       try {
-        const repo = new ServerRepo(serverUrl)
+        const repo = new Repo(serverUrl)
 
         // Get current user
         const userInfo = await repo.whoami()
@@ -177,14 +178,14 @@ function App() {
             <div className="nav-tabs">
               <Link
                 to="/eval-tasks"
-                className={`nav-tab ${location.pathname.startsWith('/eval-task') ? 'active' : ''}`}
+                className={clsx('nav-tab', location.pathname.startsWith('/eval-task') && 'active')}
               >
                 Evaluate Policies
               </Link>
-              <Link to="/leaderboard" className={`nav-tab ${location.pathname === '/leaderboard' ? 'active' : ''}`}>
+              <Link to="/leaderboard" className={clsx('nav-tab', location.pathname === '/leaderboard' && 'active')}>
                 Leaderboard
               </Link>
-              <Link to="/sql-query" className={`nav-tab ${location.pathname === '/sql-query' ? 'active' : ''}`}>
+              <Link to="/sql-query" className={clsx('nav-tab', location.pathname === '/sql-query' && 'active')}>
                 SQL Query
               </Link>
             </div>

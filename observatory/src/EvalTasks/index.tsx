@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, Fragment, FC } from 'react'
-import { Repo, EvalTask, TaskAttempt, TaskFilters } from '../repo'
+import { FC, useCallback, useEffect, useState } from 'react'
+import { EvalTask, Repo, TaskFilters } from '../repo'
+import { TaskRow } from './TaskRow'
 
 interface Props {
   repo: Repo
@@ -14,11 +15,6 @@ export const EvalTasks: FC<Props> = ({ repo }) => {
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [filters, setFilters] = useState<TaskFilters>({})
-
-  // UI state
-  const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set())
-  const [taskAttempts, setTaskAttempts] = useState<Map<number, TaskAttempt[]>>(new Map())
-  const [loadingAttempts, setLoadingAttempts] = useState<Set<number>>(new Set())
 
   // Form state
   const [command, setCommand] = useState('')
@@ -91,54 +87,7 @@ export const EvalTasks: FC<Props> = ({ repo }) => {
     }
   }
 
-  // Toggle task expansion
-  const toggleTaskExpansion = async (taskId: number) => {
-    const newExpanded = new Set(expandedTasks)
-
-    if (newExpanded.has(taskId)) {
-      newExpanded.delete(taskId)
-    } else {
-      newExpanded.add(taskId)
-      // Load attempts if not already loaded
-      if (!taskAttempts.has(taskId) && !loadingAttempts.has(taskId)) {
-        setLoadingAttempts(new Set(loadingAttempts).add(taskId))
-        try {
-          const response = await repo.getTaskAttempts(taskId)
-          setTaskAttempts(new Map(taskAttempts).set(taskId, response.attempts))
-        } catch (err) {
-          console.error('Failed to load attempts:', err)
-        } finally {
-          setLoadingAttempts((prev) => {
-            const next = new Set(prev)
-            next.delete(taskId)
-            return next
-          })
-        }
-      }
-    }
-
-    setExpandedTasks(newExpanded)
-  }
-
   // Render helpers
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'done':
-        return '#28a745'
-      case 'error':
-      case 'system_error':
-        return '#dc3545'
-      case 'unprocessed':
-        return '#6c757d'
-      case 'running':
-        return '#17a2b8'
-      case 'canceled':
-        return '#ffc107'
-      default:
-        return '#6c757d'
-    }
-  }
-
   const renderFilterInput = (value: string, onChange: (value: string) => void, placeholder: string = 'Filter...') => {
     return (
       <input
@@ -219,7 +168,7 @@ export const EvalTasks: FC<Props> = ({ repo }) => {
       >
         <h3 className="mt-0 mb-5">Create New Task</h3>
 
-        <div className="flex gap-4 items-end">
+        <div className="flex gap-2 items-end">
           <div className="flex-1">
             <label className="block mb-1 text-sm font-medium">Command</label>
             <input
@@ -227,23 +176,24 @@ export const EvalTasks: FC<Props> = ({ repo }) => {
               value={command}
               onChange={(e) => setCommand(e.target.value)}
               placeholder="Enter command to execute"
+              className="box-border"
               style={{
                 width: '100%',
                 padding: '10px 12px',
                 borderRadius: '6px',
                 border: '1px solid #d1d5db',
-                fontSize: '14px',
               }}
             />
           </div>
 
-          <div style={{ flex: '0 0 250px' }}>
+          <div>
             <label className="block mb-1 text-sm font-medium">Git Hash (optional)</label>
             <input
               type="text"
               value={gitHash}
               onChange={(e) => setGitHash(e.target.value)}
               placeholder="Git commit hash"
+              className="box-border"
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -279,7 +229,7 @@ export const EvalTasks: FC<Props> = ({ repo }) => {
         <div className="overflow-x-auto">
           <table className="w-full border-collapse table-fixed">
             <thead>
-              <tr style={{ backgroundColor: '#f8f9fa', textAlign: 'left' }}>
+              <tr className="bg-gray-100 text-left">
                 <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '5%' }}>ID</th>
                 <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '30%' }}>
                   Command
@@ -308,137 +258,9 @@ export const EvalTasks: FC<Props> = ({ repo }) => {
               </tr>
             </thead>
             <tbody>
-              {tasks.map((task) => {
-                const isExpanded = expandedTasks.has(task.id)
-                const attempts = taskAttempts.get(task.id) || []
-                const hasMultipleAttempts = (task.attempt_number || 0) > 0
-
-                return (
-                  <Fragment key={task.id}>
-                    <tr
-                      style={{
-                        borderBottom: '1px solid #dee2e6',
-                        cursor: hasMultipleAttempts ? 'pointer' : 'default',
-                      }}
-                      onClick={() => hasMultipleAttempts && toggleTaskExpansion(task.id)}
-                    >
-                      <td className="p-3">
-                        {hasMultipleAttempts && (
-                          <span style={{ marginRight: '8px', fontSize: '12px', color: '#6c757d' }}>
-                            {isExpanded ? '▼' : '▶'}
-                          </span>
-                        )}
-                        {task.id}
-                      </td>
-                      <td className="p-3 text-sm truncate text-wrap" title={task.command}>
-                        {task.command}
-                      </td>
-                      <td className="p-3">
-                        <span
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            backgroundColor: getStatusColor(task.status),
-                            color: 'white',
-                            fontSize: '12px',
-                          }}
-                        >
-                          {task.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-sm truncate" title={task.user_id}>
-                        {task.user_id}
-                      </td>
-                      <td className="p-3 text-sm">{task.assignee || '-'}</td>
-                      <td className="p-3 text-sm">{(task.attempt_number || 0) + 1}</td>
-                      <td className="p-3 text-sm">{new Date(task.created_at).toLocaleString()}</td>
-                      <td className="p-3 text-sm">
-                        {task.output_log_path ? (
-                          <a
-                            href={repo.getTaskLogUrl(task.id, 'output')}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            style={{ color: '#007bff', textDecoration: 'none' }}
-                          >
-                            View
-                          </a>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                    </tr>
-                    {isExpanded && hasMultipleAttempts && (
-                      <tr>
-                        <td colSpan={8} style={{ padding: '15px', backgroundColor: '#f8f9fa' }}>
-                          <h4 style={{ marginTop: 0, marginBottom: '10px' }}>Attempt History</h4>
-                          {loadingAttempts.has(task.id) ? (
-                            <div>Loading attempts...</div>
-                          ) : (
-                            <table style={{ width: '100%', fontSize: '13px' }}>
-                              <thead>
-                                <tr style={{ borderBottom: '1px solid #dee2e6' }}>
-                                  <th className="p-2 text-left">Attempt</th>
-                                  <th className="p-2 text-left">Status</th>
-                                  <th className="p-2 text-left">Assignee</th>
-                                  <th className="p-2 text-left">Assigned</th>
-                                  <th className="p-2 text-left">Started</th>
-                                  <th className="p-2 text-left">Finished</th>
-                                  <th className="p-2 text-left">Logs</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {attempts.map((attempt) => (
-                                  <tr key={attempt.id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                                    <td className="p-2">{attempt.attempt_number + 1}</td>
-                                    <td className="p-2">
-                                      <span
-                                        style={{
-                                          padding: '2px 6px',
-                                          borderRadius: '3px',
-                                          backgroundColor: getStatusColor(attempt.status),
-                                          color: 'white',
-                                          fontSize: '11px',
-                                        }}
-                                      >
-                                        {attempt.status}
-                                      </span>
-                                    </td>
-                                    <td className="p-2">{attempt.assignee || '-'}</td>
-                                    <td className="p-2">
-                                      {attempt.assigned_at ? new Date(attempt.assigned_at).toLocaleString() : '-'}
-                                    </td>
-                                    <td className="p-2">
-                                      {attempt.started_at ? new Date(attempt.started_at).toLocaleString() : '-'}
-                                    </td>
-                                    <td className="p-2">
-                                      {attempt.finished_at ? new Date(attempt.finished_at).toLocaleString() : '-'}
-                                    </td>
-                                    <td className="p-2">
-                                      {attempt.output_log_path ? (
-                                        <a
-                                          href={repo.getTaskLogUrl(task.id, 'output')}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          style={{ color: '#007bff', textDecoration: 'none' }}
-                                        >
-                                          View
-                                        </a>
-                                      ) : (
-                                        '-'
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
+              {tasks.map((task) => (
+                <TaskRow key={task.id} task={task} repo={repo} />
+              ))}
             </tbody>
           </table>
           {tasks.length === 0 && (
