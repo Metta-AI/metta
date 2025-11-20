@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy import AgentStepMixin, MultiAgentPolicy, StatefulAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 from .baseline_agent import BaselineAgentPolicyImpl
@@ -65,7 +65,7 @@ class StarterAgentPolicyImpl(BaselineAgentPolicyImpl):
         return super()._find_any_needed_extractor(s)
 
 
-class StarterPolicy(MultiAgentPolicy):
+class StarterPolicy(AgentStepMixin, MultiAgentPolicy):
     short_names = ["scripted_starter", "starter", "starter_agent"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[StarterHyperparameters] = None):
@@ -73,8 +73,17 @@ class StarterPolicy(MultiAgentPolicy):
         self._hyperparams: StarterHyperparameters = hyperparams or StarterHyperparameters()
         self._agent_policies: dict[int, StatefulAgentPolicy[SimpleAgentState]] = {}
 
-    def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[SimpleAgentState]:
+    def _ensure_agent_policy(self, agent_id: int) -> StatefulAgentPolicy[SimpleAgentState]:
         if agent_id not in self._agent_policies:
             impl = StarterAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams)
-            self._agent_policies[agent_id] = StatefulAgentPolicy(impl, self._policy_env_info, agent_id=agent_id)
+            wrapper = StatefulAgentPolicy(impl, self._policy_env_info, agent_id=agent_id)
+            wrapper.reset()
+            self._agent_policies[agent_id] = wrapper
         return self._agent_policies[agent_id]
+
+    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
+        return self._ensure_agent_policy(agent_id).step(obs)
+
+    def agent_reset(self, agent_id: int, simulation=None) -> None:
+        if agent_id in self._agent_policies:
+            self._agent_policies[agent_id].reset()

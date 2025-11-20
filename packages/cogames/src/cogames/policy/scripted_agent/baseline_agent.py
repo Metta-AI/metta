@@ -18,7 +18,7 @@ from typing import Callable, Optional, Tuple, Union
 
 from mettagrid.config.mettagrid_config import CardinalDirection, CardinalDirections
 from mettagrid.config.vibes import VIBE_BY_NAME
-from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
+from mettagrid.policy.policy import AgentStepMixin, MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
@@ -1182,7 +1182,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 # ============================================================================
 
 
-class BaselinePolicy(MultiAgentPolicy):
+class BaselinePolicy(AgentStepMixin, MultiAgentPolicy):
     short_names = ["cvc_simple", "scripted_baseline", "baseline", "simple_baseline"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[BaselineHyperparameters] = None):
@@ -1190,14 +1190,23 @@ class BaselinePolicy(MultiAgentPolicy):
         self._agent_policies: dict[int, StatefulAgentPolicy[SimpleAgentState]] = {}
         self._hyperparams = hyperparams or BaselineHyperparameters()
 
-    def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[SimpleAgentState]:
+    def _ensure_agent_policy(self, agent_id: int) -> StatefulAgentPolicy[SimpleAgentState]:
         if agent_id not in self._agent_policies:
-            self._agent_policies[agent_id] = StatefulAgentPolicy(
+            policy = StatefulAgentPolicy(
                 BaselineAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
                 self._policy_env_info,
                 agent_id=agent_id,
             )
+            policy.reset()
+            self._agent_policies[agent_id] = policy
         return self._agent_policies[agent_id]
+
+    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
+        return self._ensure_agent_policy(agent_id).step(obs)
+
+    def agent_reset(self, agent_id: int, simulation=None) -> None:
+        if agent_id in self._agent_policies:
+            self._agent_policies[agent_id].reset()
 
 
 RESOURCE_VIBE_ALIASES: dict[str, str] = {

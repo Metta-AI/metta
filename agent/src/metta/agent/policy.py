@@ -23,7 +23,7 @@ from metta.agent.components.obs_shim import (
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, AgentStepMixin, MultiAgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryABCMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -49,7 +49,7 @@ class PolicyArchitecture(Config):
         return AgentClass(policy_env_info, self)  # type: ignore[misc]
 
 
-class Policy(TrainablePolicy, nn.Module):
+class Policy(AgentStepMixin, TrainablePolicy, nn.Module):
     """Abstract base class defining the interface that all policies must implement.
 
     This class provides both the PyTorch nn.Module interface for training
@@ -94,36 +94,16 @@ class Policy(TrainablePolicy, nn.Module):
         """Return the nn.Module representing the policy."""
         return self
 
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Return an AgentPolicy adapter for the specified agent index."""
-        return _SingleAgentAdapter(self, agent_id)
+    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
+        td = self._obs_to_td(obs, self.device)
+        self(td)
+        action_index = int(td["actions"][0].item())
+        return self._policy_env_info.actions.actions()[action_index]
 
-
-class _SingleAgentAdapter(AgentPolicy):
-    """Adapter to provide AgentPolicy interface for a single agent from a multi-agent Policy."""
-
-    def __init__(self, policy: "Policy", agent_id: int):
-        super().__init__(policy._policy_env_info)
-        self._policy = policy
-        self._agent_id = agent_id
-        self._actions_by_id = self._policy_env_info.actions.actions()
-
-    def step(self, obs: AgentObservation) -> Action:
-        """Get action from Policy."""
-        # Convert observation to tensor dict format
-        td = self._obs_to_td(obs, self._policy.device)
-
-        # Get action from policy
-        self._policy(td)
-        return self._actions_by_id[int(td["actions"][0].item())]
-
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
-        """Reset policy state if needed."""
-        self._policy.reset_memory()
+    def agent_reset(self, agent_id: int, simulation: Optional[Simulation] = None) -> None:
+        self.reset_memory()
 
     def _obs_to_td(self, obs: AgentObservation, device: torch.device) -> TensorDict:
-        """Convert AgentObservation to TensorDict."""
-
         obs_tensor = obs_to_obs_tensor(obs, self._policy_env_info.observation_space.shape, device)
 
         td = TensorDict(

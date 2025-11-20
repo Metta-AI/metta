@@ -7,10 +7,8 @@ import torch.nn as nn
 import pufferlib.pytorch
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig
-from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import AgentStepMixin, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action as MettaGridAction
 from mettagrid.simulator import AgentObservation as MettaGridObservation
 
 logger = logging.getLogger("mettagrid.policy.token_policy")
@@ -125,26 +123,7 @@ class TokenPolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class TokenAgentPolicyImpl(AgentPolicy):
-    """Per-agent policy utilising the shared token encoder network."""
-
-    def __init__(self, net: TokenPolicyNet, device: torch.device, num_actions: int):
-        self._net = net
-        self._device = device
-        self._num_actions = num_actions
-
-    def step(self, obs: MettaGridObservation) -> MettaGridAction:
-        obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
-
-        with torch.no_grad():
-            self._net.eval()
-            logits, _ = self._net.forward_eval(obs_tensor)
-            dist = torch.distributions.Categorical(logits=logits)
-            action = dist.sample().item()
-            return dtype_actions.type(action)
-
-
-class TokenPolicy(TrainablePolicy):
+class TokenPolicy(AgentStepMixin, TrainablePolicy):
     """Feed-forward token encoder baseline derived from Metta's token-based basic policy."""
 
     short_names = ["token"]
@@ -160,12 +139,19 @@ class TokenPolicy(TrainablePolicy):
         self._net = TokenPolicyNet(features, actions_cfg).to(device)
         self._device = device
         self._num_actions = len(actions_cfg.actions())
+        self._actions = policy_env_info.actions.actions()
 
     def network(self) -> nn.Module:
         return self._net
 
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return TokenAgentPolicyImpl(self._net, self._device, self._num_actions)
+    def agent_step(self, agent_id: int, obs: MettaGridObservation):
+        obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
+        with torch.no_grad():
+            self._net.eval()
+            logits, _ = self._net.forward_eval(obs_tensor)
+            dist = torch.distributions.Categorical(logits=logits)
+            action_index = dist.sample().item()
+        return self._actions[action_index]
 
     def is_recurrent(self) -> bool:
         return False

@@ -7,7 +7,7 @@ import torch.nn as nn
 from einops import rearrange
 
 import pufferlib.pytorch
-from mettagrid.policy.policy import AgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl, TrainablePolicy
+from mettagrid.policy.policy import AgentStepMixin, AgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import LSTMState, LSTMStateDict
 from mettagrid.simulator import Action as MettaGridAction
@@ -231,7 +231,7 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
             return action, new_state.detach() if new_state is not None else None
 
 
-class LSTMPolicy(TrainablePolicy):
+class LSTMPolicy(AgentStepMixin, TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
     short_names = ["lstm"]
@@ -243,13 +243,26 @@ class LSTMPolicy(TrainablePolicy):
         self._net = LSTMPolicyNet(policy_env_info).to(self._device)
         self._agent_policy = LSTMAgentPolicy(self._net, self._device, policy_env_info)
         self._agent_policy._device = self._device
+        self._agent_wrappers: dict[int, StatefulAgentPolicy[LSTMState]] = {}
 
     def network(self) -> nn.Module:
         return self._net
 
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Create a StatefulPolicy wrapper for a specific agent."""
-        return StatefulAgentPolicy(self._agent_policy, self._policy_env_info, agent_id=agent_id)
+    def _get_agent_wrapper(self, agent_id: int) -> StatefulAgentPolicy[LSTMState]:
+        wrapper = self._agent_wrappers.get(agent_id)
+        if wrapper is None:
+            wrapper = StatefulAgentPolicy(self._agent_policy, self._policy_env_info, agent_id=agent_id)
+            wrapper.reset()
+            self._agent_wrappers[agent_id] = wrapper
+        return wrapper
+
+    def agent_step(self, agent_id: int, obs: MettaGridObservation) -> MettaGridAction:
+        return self._get_agent_wrapper(agent_id).step(obs)
+
+    def agent_reset(self, agent_id: int, simulation=None) -> None:
+        wrapper = self._agent_wrappers.get(agent_id)
+        if wrapper is not None:
+            wrapper.reset()
 
     def is_recurrent(self) -> bool:
         return True
@@ -260,6 +273,7 @@ class LSTMPolicy(TrainablePolicy):
         # Update the agent policy's reference to the network
         self._agent_policy._net = self._net
         self._agent_policy._device = self._device
+        self._agent_wrappers.clear()
 
     def save_policy_data(self, checkpoint_path: str) -> None:
         torch.save(self._net.state_dict(), checkpoint_path)

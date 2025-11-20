@@ -58,6 +58,19 @@ class AgentPolicy:
         raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
 
 
+class AgentStepMixin:
+    """Mixin providing a shared AgentPolicy adapter for MultiAgentPolicy subclasses."""
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        return _AgentPolicyView(self, agent_id)
+
+    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
+        raise NotImplementedError
+
+    def agent_reset(self, agent_id: int, simulation: Optional[Simulation] = None) -> None:
+        pass
+
+
 class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     """Abstract base class for multi-agent policies.
 
@@ -76,17 +89,8 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
 
-    @abstractmethod
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            An AgentPolicy instance for this agent
-        """
-        ...
+    def agent_policy(self, agent_id: int) -> AgentPolicy:  # pragma: no cover - default mixin overrides
+        raise NotImplementedError("MultiAgentPolicy subclasses must provide agent_policy or inherit AgentStepMixin")
 
     def load_policy_data(self, policy_data_path: str) -> None:
         """Load policy data from a file.
@@ -126,7 +130,7 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
 
 
-class NimMultiAgentPolicy(MultiAgentPolicy):
+class NimMultiAgentPolicy(AgentStepMixin, MultiAgentPolicy):
     """Base class for Nim-backed multi-agent policies."""
 
     def __init__(
@@ -169,8 +173,9 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         self._invoke_step_batch(self._single_agent_id, self._full_obs_buffer, self._full_action_buffer)
         return int(self._full_action_buffer[agent_id])
 
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return _NimAgentPolicy(self, agent_id)
+    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
+        action_index = self.step_single(agent_id, obs)
+        return Action(name=self.policy_env_info.action_names[action_index])
 
     def _invoke_step_batch(
         self,
@@ -212,19 +217,6 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
 
         if needs_scatter:
             raw_actions[...] = action_buffer[agent_ids]
-
-
-class _NimAgentPolicy(AgentPolicy):
-    """Lightweight proxy that delegates to the shared Nim multi-policy."""
-
-    def __init__(self, parent: NimMultiAgentPolicy, agent_id: int):
-        super().__init__(parent.policy_env_info)
-        self._parent = parent
-        self._agent_id = agent_id
-
-    def step(self, obs: AgentObservation) -> Action:
-        action_index = self._parent.step_single(self._agent_id, obs)
-        return Action(name=self.policy_env_info.action_names[action_index])
 
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
@@ -388,3 +380,18 @@ class PolicySpec(BaseModel):
         if self.data_path:
             parts.append(Path(self.data_path).name)
         return "-".join(parts)
+
+
+class _AgentPolicyView(AgentPolicy):
+    """Default AgentPolicy adapter that delegates to AgentStepMixin implementations."""
+
+    def __init__(self, parent: AgentStepMixin, agent_id: int):
+        super().__init__(parent.policy_env_info)
+        self._parent = parent
+        self._agent_id = agent_id
+
+    def step(self, obs: AgentObservation) -> Action:
+        return self._parent.agent_step(self._agent_id, obs)
+
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
+        self._parent.agent_reset(self._agent_id, simulation)

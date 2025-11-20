@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
-from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy import AgentStepMixin, MultiAgentPolicy, StatefulAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
@@ -431,7 +431,7 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
 # ============================================================================
 
 
-class UnclippingPolicy(MultiAgentPolicy):
+class UnclippingPolicy(AgentStepMixin, MultiAgentPolicy):
     """Multi-agent policy wrapper for UnclippingAgent.
 
     This class wraps UnclippingAgent to work with the policy interface.
@@ -445,11 +445,20 @@ class UnclippingPolicy(MultiAgentPolicy):
         self._agent_policies: dict[int, StatefulAgentPolicy[UnclippingAgentState]] = {}
         self._hyperparams = hyperparams or UnclippingHyperparameters()
 
-    def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[UnclippingAgentState]:
+    def _ensure_agent_policy(self, agent_id: int) -> StatefulAgentPolicy[UnclippingAgentState]:
         if agent_id not in self._agent_policies:
-            self._agent_policies[agent_id] = StatefulAgentPolicy(
+            wrapper = StatefulAgentPolicy(
                 UnclippingAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
                 self._policy_env_info,
                 agent_id=agent_id,
             )
+            wrapper.reset()
+            self._agent_policies[agent_id] = wrapper
         return self._agent_policies[agent_id]
+
+    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
+        return self._ensure_agent_policy(agent_id).step(obs)
+
+    def agent_reset(self, agent_id: int, simulation=None) -> None:
+        if agent_id in self._agent_policies:
+            self._agent_policies[agent_id].reset()
