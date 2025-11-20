@@ -654,7 +654,14 @@ class MettaRepo:
             async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
                 await cur.execute(
                     """
-                    SELECT pv.id, pv.policy_id, pv.created_at, p.name, p.created_at AS policy_created_at, pv.version
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        user_id,
+                        p.name,
+                        pv.version
                     FROM policy_versions AS pv, policies AS p
                     WHERE pv.policy_id = p.id AND p.user_id = %s
                     ORDER BY pv.created_at DESC, pv.version DESC
