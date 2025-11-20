@@ -201,6 +201,43 @@ def test_doxascope_end_to_end(doxascope_env):
     assert (analysis_dir / "training_history.png").exists()
 
 
+# Mock classes for logging test
+class CortexTD:
+    def __init__(self, mem_0, mem_1, mem_size=16):
+        # Simulate what CortexTD would store for current rollout state
+        # We'll put the memory vectors in _rollout_store_leaves style
+        # Leaf 1: the memory vector
+        self._rollout_store_leaves = [
+            # Assume capacity 10, shape (16,)
+            torch.zeros((10, mem_size), dtype=torch.float32)
+        ]
+
+        # Populate store at slots 0 and 1
+        self._rollout_store_leaves[0][0] = mem_0
+        self._rollout_store_leaves[0][1] = mem_1
+
+        # Map agent IDs to slots
+        self._rollout_id2slot = {0: 0, 1: 1}
+
+        # Also set current state for direct lookup test
+        # Let's assume agent 0 is in the current batch at pos 0, agent 1 at pos 1
+        self._rollout_current_env_ids = torch.tensor([0, 1], dtype=torch.long)
+        # For simplicity, we use a list that optree can flatten
+        self._rollout_current_state = [
+            torch.stack([mem_0, mem_1])  # Stacked batch
+        ]
+
+
+class MockPolicy:
+    def __init__(self, mem_0, mem_1):
+        self.components = {"cortex": CortexTD(mem_0, mem_1)}
+
+
+class MockAdapter:
+    def __init__(self, policy):
+        self._policy = policy
+
+
 def test_logger_agent_alignment():
     """Verify DoxascopeLogger logs per-agent memory aligned with the correct agent positions using Cortex mock."""
 
@@ -212,56 +249,19 @@ def test_logger_agent_alignment():
     num_agents = 2
 
     # Build grid_objects for env with agent_ids 0, 1
+    # DoxascopeLogger matches objects with type_name starting with "agent"
     env_grid_objects = {
-        1: {"type": 0, "agent_id": 0, "r": 0, "c": 0},
-        2: {"type": 0, "agent_id": 1, "r": 0, "c": 1},
+        1: {"type_name": "agent.policy", "agent_id": 0, "r": 0, "c": 0},
+        2: {"type_name": "agent.policy", "agent_id": 1, "r": 0, "c": 1},
     }
 
     # Create mock memory vectors for each agent
-    # Size 16, all 0.1s for agent 0, all 0.2s for agent 1
     mem_size = 16
     mem_0 = torch.full((mem_size,), 0.1, dtype=torch.float32)
     mem_1 = torch.full((mem_size,), 0.2, dtype=torch.float32)
 
-    # Mock CortexTD component
-    class MockCortexTD:
-        def __init__(self):
-            # Simulate what CortexTD would store for current rollout state
-            # We'll put the memory vectors in _rollout_store_leaves style
-            # Leaf 1: the memory vector
-            self._rollout_store_leaves = [
-                # Assume capacity 10, shape (16,)
-                torch.zeros((10, mem_size), dtype=torch.float32)
-            ]
-
-            # Populate store at slots 0 and 1
-            self._rollout_store_leaves[0][0] = mem_0
-            self._rollout_store_leaves[0][1] = mem_1
-
-            # Map agent IDs to slots
-            self._rollout_id2slot = {0: 0, 1: 1}
-
-            # Also set current state for direct lookup test (optional, but mimics real usage)
-            # Let's assume agent 0 is in the current batch at pos 0, agent 1 at pos 1
-            self._rollout_current_env_ids = torch.tensor([0, 1], dtype=torch.long)
-            # Construct a simplified TensorDict-like structure if needed,
-            # but our logger uses optree flattening on the state.
-            # For simplicity in this test, we'll rely on _rollout_current_state being a simple dict or object
-            # that optree can flatten. A list of tensors works.
-            self._rollout_current_state = [
-                torch.stack([mem_0, mem_1])  # Stacked batch
-            ]
-
-    class MockPolicy:
-        def __init__(self):
-            self.components = {"cortex": MockCortexTD()}
-
-    class MockAdapter:
-        def __init__(self, policy):
-            self._policy = policy
-
     # Create a single shared policy and adapters for each agent
-    shared_policy = MockPolicy()
+    shared_policy = MockPolicy(mem_0, mem_1)
     policies = [MockAdapter(shared_policy), MockAdapter(shared_policy)]
 
     # Log one timestep
