@@ -311,8 +311,6 @@ class BucketedTaskGenerator(TaskGenerator):
 
         # Get task from the child generator
         mg_config = self._child_generator.get_task(task_id)
-        if self._config.label is not None:
-            mg_config.label += "|" + self._config.label
 
         # Apply the sampled bucket values as overrides
         return self._apply_overrides(mg_config, overrides)
