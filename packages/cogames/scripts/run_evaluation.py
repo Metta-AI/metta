@@ -347,11 +347,11 @@ def print_summary(results: List[EvalResult]):
             group_successes = sum(1 for r in group if r.success)
             avg_total_reward = sum(r.total_reward for r in group) / len(group)
             avg_reward_per_agent = sum(r.avg_reward_per_agent for r in group) / len(group)
-            logger.info(
-                f"  {key}: {group_successes}/{len(group)} "
-                f"({100 * group_successes / len(group):.1f}%) "
-                f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
-            )
+        logger.info(
+            f"  {key}: {group_successes}/{len(group)} "
+            f"({100 * group_successes / len(group):.1f}%) "
+            f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
+        )
 
     _summarize("agent", "Agent")
     _summarize("num_cogs", "Agent Count")
