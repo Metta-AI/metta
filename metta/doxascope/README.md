@@ -110,11 +110,9 @@ Enable doxascope during any evaluation by adding `doxascope_enabled=true`:
 uv run ./tools/run.py arena.evaluate policy_uri=<path> doxascope_enabled=true
 ```
 
-**Data Logging**: The `DoxascopeLogger` automatically detects LSTM states from:
-
-- Policy state buffers (`policy.state.lstm_h/lstm_c`)
-- Component buffers (e.g., `components['lstm_reset']`, `components['lstm']`)
-- Direct component methods (`component.get_memory()`)
+**Data Logging**: The `DoxascopeLogger` automatically detects agent memory states by inspecting the policy's `CortexTD`
+or `CortexStack` component. It extracts memory from the rollout buffer or internal storage, ensuring compatibility with
+the latest MettaGrid policy architecture.
 
 **Important**: Doxascope currently only supports **single-environment logging**. The doxascope recipe defaults to
 single-environment evaluation for this reason. Multi-environment setups are not currently supported.
@@ -258,7 +256,7 @@ uv run doxascope sweep <policy_name> <num_future_timesteps> [options]
 
 **Hyperparameter Sweep (`--sweep-type hyper`):**
 
-- `hidden_dim`: [128, 256, 512]
+- `hidden_dim`: [128, 256, 512, 1024]
 - `dropout_rate`: [0.2, 0.4, 0.6]
 - `lr`: [0.0001, 0.0005, 0.001]
 - Fixed: `activation_fn='gelu'`, `main_net_depth=3`, `processor_depth=1`
@@ -298,17 +296,6 @@ For a prediction offset of `k` timesteps, the agent's relative position `(dr, dc
 This creates `2k² + 2k + 1` reachable cells (no diagonal movement). Each cell is assigned a unique class ID based on a
 canonical sorted ordering: `(dr, dc)` sorted by row then column.
 
-**Example** (k=1):
-
-- Classes: 5 cells
-- Positions: [(-1,0), (0,-1), (0,0), (0,1), (1,0)]
-- Center (0,0) → class_id=2
-
-**Example** (k=2):
-
-- Classes: 13 cells
-- Includes all cells within Manhattan distance 2
-
 ### Data Splitting
 
 Training uses **file-level splitting** to prevent data leakage:
@@ -329,10 +316,6 @@ This ensures the model generalizes to new simulation runs, not just new timestep
 Loss is averaged across all prediction heads using standard cross-entropy.
 
 ## Troubleshooting
-
-**"No recurrent state found"**
-
-- Doxascope requires LSTM-based policies. Ensure your policy uses recurrent components.
 
 **Low accuracy near baseline**
 
