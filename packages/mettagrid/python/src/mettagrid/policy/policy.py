@@ -370,9 +370,15 @@ class TrainablePolicy(MultiAgentPolicy):
     def save_policy(self, destination: str | Path, *, policy_architecture) -> str:
         """Persist policy weights + architecture to a URI or filesystem path."""
 
-        path = Path(destination)
-        if path.suffix == "":
-            path = path.with_suffix(".mpt")
+        dest_str = str(destination)
+        if dest_str.startswith("s3://"):
+            if not dest_str.endswith(".mpt"):
+                dest_str = dest_str + ".mpt"
+            path = dest_str
+        else:
+            path = Path(destination)
+            if path.suffix == "":
+                path = path.with_suffix(".mpt")
 
         state_dict = self.network().state_dict()
         # Strip a leading "module." prefix (e.g., from DDP wrappers) for portability
@@ -382,15 +388,15 @@ class TrainablePolicy(MultiAgentPolicy):
         from metta.common.util.file import write_file
         from metta.rl.policy_artifact import save_policy_artifact_safetensors
 
-        if str(path).startswith("s3://"):
-            local_tmp = Path(path.name)
+        if isinstance(path, str) and path.startswith("s3://"):
+            local_tmp = Path(Path(path).name)
             save_policy_artifact_safetensors(
                 local_tmp,
                 policy_architecture=policy_architecture,
                 state_dict=state_dict,
             )
-            write_file(str(path), str(local_tmp))
-            return str(path)
+            write_file(path, str(local_tmp))
+            return path
 
         path = path.expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
