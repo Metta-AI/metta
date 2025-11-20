@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Optional
 
 from metta.rl.policy_artifact import load_policy_artifact
-
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
