@@ -248,6 +248,7 @@ def init_suppress_warnings() -> None:
 
     # Silence PyTorch distributed elastic warning about redirects on MacOS/Windows
     logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def init_mettagrid_system_environment() -> None:

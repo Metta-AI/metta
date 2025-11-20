@@ -1,4 +1,11 @@
+# need this to import and call init_suppress_warnings first
+# ruff: noqa: E402
+
 """Client for sweep coordination API."""
+
+from metta.common.util.log_config import init_suppress_warnings
+
+init_suppress_warnings()
 
 from typing import Optional
 
@@ -10,7 +17,7 @@ from metta.app_backend.routes.sweep_routes import (
     SweepInfo,
 )
 from metta.common.util.constants import DEV_STATS_SERVER_URI
-from metta.common.util.log_config import init_logging, init_suppress_warnings
+from metta.common.util.log_config import init_logging
 
 
 class SweepClient:
@@ -76,7 +83,6 @@ def generate_run_id_for_sweep(
 if __name__ == "__main__":
     # Example usage
     init_logging()
-    init_suppress_warnings()
     client = SweepClient()
 
     # Initialize a sweep

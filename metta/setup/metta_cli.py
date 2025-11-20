@@ -1,4 +1,9 @@
 #!/usr/bin/env -S uv run
+# need this to import and call init_suppress_warnings first
+# ruff: noqa: E402
+from metta.common.util.log_config import init_suppress_warnings
+
+init_suppress_warnings()
 import concurrent.futures
 import re
 import subprocess
@@ -15,7 +20,7 @@ from rich.table import Table
 
 import gitta as git
 from metta.common.util.fs import get_repo_root
-from metta.common.util.log_config import init_logging, init_suppress_warnings
+from metta.common.util.log_config import init_logging
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.tools.book import app as book_app
@@ -816,5 +821,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     init_logging()
-    init_suppress_warnings()
     main()

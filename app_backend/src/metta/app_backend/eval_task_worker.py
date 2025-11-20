@@ -1,4 +1,6 @@
 #!/usr/bin/env -S uv run
+# need this to import and call init_suppress_warnings first
+# ruff: noqa: E402
 """
 Runs eval tasks inside a Docker container.
 
@@ -7,6 +9,10 @@ Runs eval tasks inside a Docker container.
 - Processes tasks one at a time
 - Reports success/failure back
 """
+
+from metta.common.util.log_config import init_suppress_warnings
+
+init_suppress_warnings()
 
 import asyncio
 import json
@@ -33,7 +39,6 @@ from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.file import local_copy
 from metta.common.util.git_repo import REPO_URL
-from metta.common.util.log_config import init_suppress_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -355,7 +360,6 @@ def init_logging():
 
 async def main() -> None:
     init_logging()
-    init_suppress_warnings()
     init_tracing()
 
     backend_url = os.environ["BACKEND_URL"]

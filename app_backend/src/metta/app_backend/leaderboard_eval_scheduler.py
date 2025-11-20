@@ -1,4 +1,11 @@
 #!/usr/bin/env -S uv run
+# need this to import and call init_suppress_warnings first
+# ruff: noqa: E402
+
+from metta.common.util.log_config import init_suppress_warnings
+
+init_suppress_warnings()
+
 import logging
 import os
 import sys
@@ -24,7 +31,6 @@ from metta.app_backend.metta_repo import TaskStatus
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.fs import get_repo_root
-from metta.common.util.log_config import init_suppress_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -251,7 +257,6 @@ def create_stats_client(backend_url: str, machine_token: Optional[str]) -> Stats
 
 def main() -> None:
     init_logging()
-    init_suppress_warnings()
     init_tracing()
 
     backend_url = os.environ.get("BACKEND_URL", PROD_STATS_SERVER_URI)

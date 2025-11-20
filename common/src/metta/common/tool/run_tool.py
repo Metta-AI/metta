@@ -1,6 +1,12 @@
 #!/usr/bin/env -S uv run
+# need this to import and call init_suppress_warnings first
+# ruff: noqa: E402
 """Runner that takes a function that creates a ToolConfig,
 invokes the function, and then runs the tool defined by the config."""
+
+from metta.common.util.log_config import init_suppress_warnings
+
+init_suppress_warnings()
 
 import argparse
 import copy
@@ -23,7 +29,7 @@ from metta.common.tool import Tool
 from metta.common.tool.recipe_registry import recipe_registry
 from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
 from metta.common.tool.tool_registry import tool_registry
-from metta.common.util.log_config import init_logging, init_mettagrid_system_environment, init_suppress_warnings
+from metta.common.util.log_config import init_logging, init_mettagrid_system_environment
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.rl.system_config import seed_everything
 from mettagrid.base_config import Config
@@ -479,7 +485,6 @@ constructor/function vs configuration overrides based on introspection.
 
     # Initialize logging and environment
     init_logging()
-    init_suppress_warnings()
     init_mettagrid_system_environment()
 
     # Enforce: unknown long options (starting with '-') are considered runner flags and not tool args.

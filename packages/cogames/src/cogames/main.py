@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+# need this to import and call init_suppress_warnings first
 # ruff: noqa: E402
 
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
