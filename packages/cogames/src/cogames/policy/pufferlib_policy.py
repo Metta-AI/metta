@@ -8,35 +8,28 @@ This bridges checkpoints produced by PufferLib training (state_dict of
 
 from __future__ import annotations
 
-from typing import Any, Optional, Union
+from typing import Any, Optional, Sequence, Union
 
-import numpy as np
 import torch
 
-import pufferlib.models
-import pufferlib.pytorch
-from mettagrid.mettagrid_c import dtype_observations
+import pufferlib.models  # type: ignore[import-untyped]
+import pufferlib.pytorch  # type: ignore[import-untyped]
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
 
 
 class _ShimEnv:
-    """Minimal object that provides the fields PufferLib policies expect."""
-
     def __init__(self, policy_env_info: PolicyEnvInterface):
         self.single_observation_space = policy_env_info.observation_space
         self.single_action_space = policy_env_info.action_space
-        # Some PufferLib helpers look for these aliases
         self.observation_space = self.single_observation_space
         self.action_space = self.single_action_space
-        self.env = self  # For policies that access env.env.observation_space
+        self.env = self
         self.num_agents = policy_env_info.num_agents
 
 
 class _PufferlibCogsNet(pufferlib.models.Default):
-    """Matches the simple PufferLib CoGames policy architecture."""
-
     def __init__(self, env: _ShimEnv, hidden_size: int = 256):
         super().__init__(env, hidden_size=hidden_size)
         self.register_buffer("_inv_scale", torch.tensor(1.0 / 255.0), persistent=False)
@@ -47,9 +40,20 @@ class _PufferlibCogsNet(pufferlib.models.Default):
         return self.encoder(flattened)
 
 
-class _PufferlibCogsAgent(AgentPolicy):
-    """Per-agent wrapper that samples actions from the shared network."""
+_OBS_PAD_VALUE = 255.0
 
+
+def _pack_observation(obs: AgentObservation, num_tokens: int, token_dim: int, device: torch.device) -> torch.Tensor:
+    buffer = torch.full((num_tokens, token_dim), fill_value=_OBS_PAD_VALUE, device=device, dtype=torch.float32)
+    for idx, token in enumerate(obs.tokens):
+        if idx >= num_tokens:
+            break
+        raw = torch.as_tensor(token.raw_token, device=device, dtype=buffer.dtype)
+        buffer[idx, : raw.numel()] = raw
+    return buffer
+
+
+class _PufferlibCogsAgent(AgentPolicy):
     def __init__(self, net: _PufferlibCogsNet, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
         self._net = net
@@ -57,25 +61,13 @@ class _PufferlibCogsAgent(AgentPolicy):
         self._action_names = policy_env_info.action_names
         self._num_tokens, self._token_dim = policy_env_info.observation_space.shape
 
-    def _to_tensor(self, obs: Union[AgentObservation, torch.Tensor, np.ndarray, list[Any]]) -> torch.Tensor:
+    def _to_tensor(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> torch.Tensor:
         if isinstance(obs, AgentObservation):
-            buffer = torch.full(
-                (self._num_tokens, self._token_dim),
-                fill_value=np.array(255, dtype=dtype_observations).item(),
-                device=self._device,
-                dtype=torch.float32,
-            )
-            for idx, token in enumerate(obs.tokens):
-                if idx >= self._num_tokens:
-                    break
-                raw = token.raw_token
-                buffer[idx, : len(raw)] = torch.tensor(raw, device=self._device, dtype=buffer.dtype)
-            return buffer
-
+            return _pack_observation(obs, self._num_tokens, self._token_dim, self._device)
         return torch.as_tensor(obs, device=self._device)
 
-    def step(self, obs: Union[AgentObservation, torch.Tensor, np.ndarray, list[Any]]) -> Action:
-        obs_tensor = self._to_tensor(obs)
+    def step(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> Action:
+        obs_tensor = self._to_tensor(obs).to(dtype=torch.float32)
         if obs_tensor.ndim == 2:  # Single agent observation
             obs_tensor = obs_tensor.unsqueeze(0)
 
