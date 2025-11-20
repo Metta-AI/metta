@@ -39,7 +39,7 @@ from devops.stable.state import (
 )
 from metta.common.util.fs import get_repo_root
 from metta.common.util.text_styles import bold, cyan, green, yellow
-from metta.jobs.job_api import submit_monitor_and_report
+from metta.jobs.job_api import monitor_jobs_until_complete, submit_monitor_and_report
 from metta.jobs.job_config import JobConfig
 from metta.jobs.job_manager import ExitCode, JobManager
 from metta.jobs.job_state import JobStatus
@@ -478,9 +478,9 @@ def step_job_validation(
     # Now wait for ALL jobs in the group (including already-running ones)
     print("\nWaiting for all jobs to complete...")
     all_job_names = [job_config.name for job_config in job_configs]
-    submit_monitor_and_report(
-        job_manager,
+    monitor_jobs_until_complete(
         all_job_names,
+        job_manager,
         title=f"Release Validation: {state_version}",
         group=state_version,
         no_interactive=no_interactive,
