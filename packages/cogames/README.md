@@ -18,9 +18,9 @@ missions requires multiple cogs working in tandem.
 <img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
 <br>
 
-There are many mission configurations available, with different map sizes, resource and station layouts, and game
-rules. Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description of the game mechanics. Overall,
-Cogs vs Clips aims to present rich environments with:
+There are many mission configurations available, with different map sizes, resource and station layouts, and game rules.
+Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description of the game mechanics. Overall, Cogs vs
+Clips aims to present rich environments with:
 
 - **Resource management**: Energy, materials (carbon, oxygen, germanium, silicon), and crafted components
 - **Station-based interactions**: Different stations provide unique capabilities (extractors, assemblers, chargers,
@@ -30,9 +30,9 @@ Cogs vs Clips aims to present rich environments with:
 - **Required multi-agent cooperation**: Agents must coordinate to efficiently use shared resources and stations, while
   only communicating through movement and emotes (❤️, 🔄, 💯, etc.)
 
-Once your policy is successfully assembling hearts, submit it to our Alignment League Benchmark. ALB evaluates how
-your policy plays with other policies in the pool through running multi-policy, multi-agent games. Our focal metric is
-VORP (Value Over Replacement Policy), an estimate of how much your agent improves team performance in scoring hearts.
+Once your policy is successfully assembling hearts, submit it to our Alignment League Benchmark. ALB evaluates how your
+policy plays with other policies in the pool through running multi-policy, multi-agent games. Our focal metric is VORP
+(Value Over Replacement Policy), an estimate of how much your agent improves team performance in scoring hearts.
 
 You will need to link a Github account. After submission, you will be able to view results on how your policy performed
 in various evals with other players by logging in on the [ALB page](https://www.softmax.com/alignmentleague).
@@ -86,7 +86,6 @@ three variants to simplify training:
 - `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
 - `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
 
-
 ```bash
 # Play an episode yourself
 cogames tutorial
@@ -100,7 +99,6 @@ cogames eval -set integrated_evals -p baseline
 # Train with an LSTM policy on easy_mode
 cogames train -m easy_mode -p lstm
 ```
-
 
 ## Play, Train, and Eval
 
@@ -141,8 +139,8 @@ and manually play alongside them.
 
 Train a policy on a mission.
 
-By default, our `stateless` policy architecture will be used. But as is explained above, you can select a
-different policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
+By default, our `stateless` policy architecture will be used. But as is explained above, you can select a different
+policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
 
 Any policy provided must implement the `TrainablePolicy` interface, which you can find in
 `cogames/policy/interfaces.py`.
@@ -153,8 +151,8 @@ You can continue training an already-initialized policy by also supplying a path
 cogames train -m [MISSION] -p path/to/policy.py:train_dir/my_checkpoint.pt
 ```
 
-Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through
-those environments:
+Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those
+environments:
 
 ```
 cogames train -m training_facility_1 -m training_facility_2 -p stateless
@@ -282,6 +280,7 @@ modifications.
 You will be able to provide your specified `--output` path as the `MISSION` argument to other `cogames` commands.
 
 ## Policy Submission
+
 ### `cogames login`
 
 Make sure you have authenticated before submitting a policy.
@@ -289,6 +288,7 @@ Make sure you have authenticated before submitting a policy.
 ### `cogames submit -p [POLICY] -n [NAME]`
 
 **Options:**
+
 - `--include-files`: Can be specified multiple times, such as --include-files file1.py --include-files dir1/
 - `–-dry-run`: Validates the policy works for submission without uploading it
 
