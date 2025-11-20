@@ -2,11 +2,11 @@
 
 import subprocess
 import sys
-from pathlib import Path
 
 from pydantic import Field
 
 from metta.common.tool import Tool
+from metta.common.util.file import local_copy
 
 
 class CogamesEvalTool(Tool):
@@ -31,67 +31,41 @@ class CogamesEvalTool(Tool):
     format: str = Field(default="json", description="Output format (json or yaml)")
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        # Determine if we need to download from S3
-        if self.policy_uri.startswith("s3://"):
-            # Download from S3 to temp location
-            checkpoint_dir = Path("/tmp/cogames_eval_checkpoints")
-            checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            checkpoint_file = checkpoint_dir / "checkpoint.pt"
+        # Use local_copy context manager to handle both local and S3 URIs
+        # For S3, it downloads to temp and cleans up automatically
+        # For local files, it just yields the path
+        try:
+            with local_copy(self.policy_uri) as local_path:
+                # Build cogames eval command
+                policy_arg = f"{self.policy_class}:{local_path}"
+                eval_cmd = [
+                    "cogames",
+                    "eval",
+                    "--mission",
+                    self.mission,
+                    "--policy",
+                    policy_arg,
+                    "--episodes",
+                    str(self.episodes),
+                    "--format",
+                    self.format,
+                ]
 
-            print(f"Downloading from {self.policy_uri}", flush=True)
-            download_cmd = ["aws", "s3", "cp", self.policy_uri, str(checkpoint_file)]
-            download_result = subprocess.run(download_cmd, capture_output=True, text=True, timeout=60)
+                for variant in self.variant:
+                    eval_cmd.extend(["--variant", variant])
 
-            if download_result.returncode != 0:
-                print(f"S3 download failed: {download_result.stderr}", file=sys.stderr, flush=True)
-                return download_result.returncode
+                if self.cogs:
+                    eval_cmd.extend(["--cogs", str(self.cogs)])
 
-            print(f"Downloaded checkpoint to {checkpoint_file}", flush=True)
-            local_path = checkpoint_file
-        elif self.policy_uri.startswith("file://"):
-            # Use local file directly
-            local_path = Path(self.policy_uri[7:])  # Remove "file://" prefix
-            if not local_path.exists():
-                print(f"Policy file not found: {local_path}", file=sys.stderr, flush=True)
-                return 1
-        else:
-            # Assume it's a direct local path
-            local_path = Path(self.policy_uri)
-            if not local_path.exists():
-                print(f"Policy file not found: {local_path}", file=sys.stderr, flush=True)
-                return 1
+                print(f"Evaluating: {' '.join(eval_cmd)}", flush=True)
 
-        # Build cogames eval command
-        policy_arg = f"{self.policy_class}:{local_path}"
-        eval_cmd = [
-            "cogames",
-            "eval",
-            "--mission",
-            self.mission,
-            "--policy",
-            policy_arg,
-            "--episodes",
-            str(self.episodes),
-            "--format",
-            self.format,
-        ]
+                # Run evaluation
+                result = subprocess.run(eval_cmd, capture_output=False, text=True)
+                return result.returncode
 
-        for variant in self.variant:
-            eval_cmd.extend(["--variant", variant])
-
-        if self.cogs:
-            eval_cmd.extend(["--cogs", str(self.cogs)])
-
-        print(f"Evaluating: {' '.join(eval_cmd)}", flush=True)
-
-        # Run evaluation
-        result = subprocess.run(eval_cmd, capture_output=False, text=True)
-
-        # Clean up temp file if we downloaded from S3
-        if self.policy_uri.startswith("s3://"):
-            local_path.unlink(missing_ok=True)
-
-        return result.returncode
+        except Exception as e:
+            print(f"Failed to access policy: {e}", file=sys.stderr, flush=True)
+            return 1
 
 
 def cogames_eval(**overrides) -> CogamesEvalTool:

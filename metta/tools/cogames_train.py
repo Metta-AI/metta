@@ -7,6 +7,7 @@ from pathlib import Path
 from pydantic import Field
 
 from metta.common.tool import Tool
+from metta.common.util.file import write_file
 
 
 def find_latest_checkpoint(checkpoints_dir: Path, mission_name: str) -> Path | None:
@@ -109,14 +110,12 @@ class CogamesTrainTool(Tool):
             print(f"Found checkpoint: {checkpoint_path}", flush=True)
             print(f"Uploading to {self.s3_uri}", flush=True)
 
-            upload_cmd = ["aws", "s3", "cp", str(checkpoint_path), self.s3_uri]
-            upload_result = subprocess.run(upload_cmd, capture_output=True, text=True, timeout=60)
-
-            if upload_result.returncode != 0:
-                print(f"S3 upload failed: {upload_result.stderr}", file=sys.stderr, flush=True)
-                return upload_result.returncode
-
-            print(f"Successfully uploaded checkpoint to {self.s3_uri}", flush=True)
+            try:
+                write_file(self.s3_uri, str(checkpoint_path), content_type="application/octet-stream")
+                print(f"Successfully uploaded checkpoint to {self.s3_uri}", flush=True)
+            except Exception as e:
+                print(f"S3 upload failed: {e}", file=sys.stderr, flush=True)
+                return 1
 
         return 0
 
