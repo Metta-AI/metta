@@ -8,6 +8,8 @@ import json
 import logging
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Any, Literal, Optional, TypeVar
 
@@ -16,6 +18,8 @@ import yaml  # type: ignore[import]
 from click.core import ParameterSource
 from packaging.version import Version
 from rich import box
+from rich.panel import Panel
+from rich.prompt import Prompt
 from rich.table import Table
 
 from cogames import evaluate as evaluate_module
@@ -85,6 +89,121 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
     callback=lambda: discover_and_register_policies("cogames.policy"),
 )
+
+
+@app.command(name="tutorial", help="Print instructions on how to play CvC and runs cogames play --mission tutorial")
+def tutorial_cmd(
+    ctx: typer.Context,
+) -> None:
+    """Run the CoGames tutorial."""
+    # Suppress logs during tutorial to keep instructions visible
+    logging.getLogger().setLevel(logging.ERROR)
+
+    console.print(
+        Panel.fit(
+            "[bold cyan]MISSION BRIEFING: Tutorial Sector[/bold cyan]\n\n"
+            "Welcome, Cognitive. This simulation mirrors frontline HEART ops.\n"
+            "We will launch the Mettascope visual interface now.\n\n"
+            "When you are ready to deploy, press Enter below.",
+            title="Mission Briefing",
+            border_style="green",
+        )
+    )
+
+    Prompt.ask("[dim]Press Enter to launch simulation[/dim]", default="", show_default=False)
+    console.print("[dim]Initializing Mettascope...[/dim]")
+
+    # Load tutorial mission
+    from cogames.cogs_vs_clips.tutorial_missions import TutorialMission
+
+    # Create environment config
+    env_cfg = TutorialMission.make_env()
+    # Force 1 agent for tutorial
+    env_cfg.game.num_agents = 1
+
+    def run_tutorial_steps():
+        # Wait a moment for the window to appear
+        time.sleep(3)
+
+        tutorial_steps = (
+            {
+                "title": "Step 1 — Interface & Controls",
+                "lines": (
+                    "Left Pane (Intel): Shows details for selected objects (Stations, Tiles, Cogs).",
+                    "Right Pane (Vibe Deck): Select icons here to change your Cog's broadcast resonance.",
+                    "Zoom/Pan: Scroll or pinch to zoom the arena; drag to pan.",
+                    "Click your Cog (or their portrait) to focus the camera on them.",
+                ),
+            },
+            {
+                "title": "Step 2 — Movement & Energy",
+                "lines": (
+                    "Use WASD or Arrow Keys to move your Cog.",
+                    "Every move costs Energy. Watch your battery bar on the Cog or in the HUD.",
+                    "If low, rest (skip turn) or find a Charger [yellow]+[/yellow].",
+                ),
+            },
+            {
+                "title": "Step 3 — Extraction",
+                "lines": (
+                    "Primary interaction mode is WALKING INTO things.",
+                    "Locate an Extractor station:",
+                    "  [yellow]C[/yellow] (Carbon), [yellow]O[/yellow] (Oxygen),",
+                    "  [yellow]G[/yellow] (Germanium), [yellow]S[/yellow] (Silicon).",
+                    "Walk into it to extract resources.",
+                    "Note: Silicon ([yellow]S[/yellow]) costs 20 energy!",
+                ),
+            },
+            {
+                "title": "Step 4 — Crafting (Assembler)",
+                "lines": (
+                    "Click the central Assembler [yellow]&[/yellow] to see the HEART recipe in the Left Pane.",
+                    "Set your Vibe (Right Pane) to match the requirement (usually [red]heart_a[/red]).",
+                    "Walk into the Assembler to craft. Inputs are taken from your inventory instantly.",
+                ),
+            },
+            {
+                "title": "Step 5 — Deposit (Chest)",
+                "lines": (
+                    "Go to the Chest [yellow]C[/yellow] (usually near the center).",
+                    "Switch your Vibe to [red]heart_b[/red] (Deposit Mode).",
+                    "Walk into the Chest to deposit the HEART and complete the objective.",
+                    "Note: To pull resources out of the Chest, you must vibe the matching resource *_a protocol.",
+                ),
+            },
+        )
+
+        for idx, step in enumerate(tutorial_steps):
+            console.print()
+            console.print(f"[bold cyan]{step['title']}[/bold cyan]")
+            console.print()
+            for line in step["lines"]:
+                console.print(f"  • {line}")
+            console.print()
+            if idx < len(tutorial_steps) - 1:
+                Prompt.ask("[dim]Press Enter for next step[/dim]", default="", show_default=False)
+
+        console.print(
+            "[bold green]REFERENCE DOSSIERS[/bold green]\n"
+            "- [link=packages/cogames/MISSION.md]MISSION.md[/link]: Machina VII deployment orders.\n"
+            "- [link=packages/cogames/README.md]README.md[/link]: System overview and CLI quick start.\n"
+            "- [link=packages/cogames/TECHNICAL_MANUAL.md]TECHNICAL_MANUAL.md[/link]: FACE sensor/command schematics."
+        )
+        console.print()
+        console.print("[dim]Tutorial briefing complete. Good luck, Cognitive.[/dim]")
+
+    # Start tutorial interaction in a background thread
+    tutorial_thread = threading.Thread(target=run_tutorial_steps, daemon=True)
+    tutorial_thread.start()
+
+    # Run play (blocks main thread)
+    play_module.play(
+        console,
+        env_cfg=env_cfg,
+        policy_spec=get_policy_spec(ctx, "noop"),  # Default to noop, assuming human control
+        game_name="tutorial",
+        render_mode="gui",
+    )
 
 
 @app.command("missions", help="List all available missions, or describe a specific mission")
