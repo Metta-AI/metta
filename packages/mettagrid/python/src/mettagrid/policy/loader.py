@@ -32,7 +32,7 @@ def initialize_or_load_policy(
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
     artifact = None
-    if policy_spec.data_path:
+    if policy_spec.data_path and Path(policy_spec.data_path).suffix == ".mpt":
         try:
             artifact = load_policy_artifact(policy_spec.data_path)
         except Exception:
@@ -54,6 +54,9 @@ def initialize_or_load_policy(
             except Exception:
                 if isinstance(artifact.policy, MultiAgentPolicy):
                     policy = artifact.policy
+        # If artifact exists but has no payloads, fall back to the policy loader
+        elif policy_spec.data_path:
+            policy.load_policy_data(policy_spec.data_path)
     elif policy_spec.data_path:
         policy.load_policy_data(policy_spec.data_path)
 
