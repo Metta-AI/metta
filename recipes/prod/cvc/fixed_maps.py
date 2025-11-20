@@ -71,22 +71,6 @@ def sweep(sweep_name: str) -> SweepTool:
             search_center=1e9,
         ),
 
-        # Batch size parameters (important for schedule-free)
-        SP.param(
-            "trainer.batch_size",
-            D.UNIFORM_POW2,
-            min=32768,
-            max=262144,
-            search_center=65536,
-        ),
-        SP.param(
-            "trainer.minibatch_size",
-            D.UNIFORM_POW2,
-            min=2048,
-            max=16384,
-            search_center=8192,
-        ),
-
         # Discount factor
         SP.param(
             "trainer.losses.ppo.gamma",
