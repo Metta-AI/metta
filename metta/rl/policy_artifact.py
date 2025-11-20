@@ -230,14 +230,6 @@ class PolicyArtifact:
                 policy.initialize_to_environment(policy_env_info, device)
 
             ordered_state = OrderedDict(self.state_dict.items())
-
-            # Handle checkpoint saved from DDP without the policy attribute prefix
-            if ordered_state and not next(iter(ordered_state)).startswith("_sequential_network"):
-                if hasattr(policy, "_sequential_network"):
-                    ordered_state = OrderedDict(
-                        (f"_sequential_network.module.{k}", v) for k, v in ordered_state.items()
-                    )
-
             missing, unexpected = policy.load_state_dict(ordered_state, strict=strict)
             if strict and (missing or unexpected):
                 msg = f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}"
@@ -414,8 +406,6 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
             if not isinstance(loaded_state, MutableMapping):
                 msg = "Loaded safetensors state_dict is not a mutable mapping"
                 raise TypeError(msg)
-            if loaded_state and all(k.startswith("module.") for k in loaded_state.keys()):
-                loaded_state = {k.removeprefix("module."): v for k, v in loaded_state.items()}
             state_dict = loaded_state
 
         elif manifest.get("has_policy"):

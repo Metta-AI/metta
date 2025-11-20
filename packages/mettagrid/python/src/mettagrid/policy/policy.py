@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn
 from pydantic import BaseModel, Field
 
+from metta.common.util.file import write_file
+from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from mettagrid.mettagrid_c import dtype_actions, dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
@@ -370,24 +372,16 @@ class TrainablePolicy(MultiAgentPolicy):
     def save_policy(self, destination: str | Path, *, policy_architecture) -> str:
         """Persist policy weights + architecture to a URI or filesystem path."""
 
-        from metta.common.util.file import write_file
-        from metta.rl.policy_artifact import save_policy_artifact_safetensors
-
         path = Path(destination)
         if path.suffix == "":
             path = path.with_suffix(".mpt")
-
-        state_dict = self.state_dict()
-        # Strip a leading "module." prefix (e.g., from DDP wrappers) for portability
-        if state_dict and all(k.startswith("module.") for k in state_dict.keys()):
-            state_dict = {k.removeprefix("module."): v for k, v in state_dict.items()}
 
         if str(path).startswith("s3://"):
             local_tmp = Path(path.name)
             save_policy_artifact_safetensors(
                 local_tmp,
                 policy_architecture=policy_architecture,
-                state_dict=state_dict,
+                state_dict=self.network().state_dict(),
             )
             write_file(str(path), str(local_tmp))
             return str(path)
@@ -397,7 +391,7 @@ class TrainablePolicy(MultiAgentPolicy):
         save_policy_artifact_safetensors(
             path,
             policy_architecture=policy_architecture,
-            state_dict=state_dict,
+            state_dict=self.network().state_dict(),
         )
         return f"file://{path.resolve()}"
 
