@@ -47,13 +47,10 @@ def initialize_or_load_policy(
         if artifact.state_dict is not None:
             policy.load_state_dict(artifact.state_dict, strict=False)
         elif artifact.policy is not None:
-            try:
+            if isinstance(artifact.policy, MultiAgentPolicy):
+                policy = artifact.policy
+            else:
                 policy.load_state_dict(artifact.policy.state_dict(), strict=False)
-            except Exception:
-                if isinstance(artifact.policy, MultiAgentPolicy):
-                    policy = artifact.policy
-                else:
-                    raise
         else:
             msg = f"Artifact {policy_spec.data_path} contained no usable payload"
             raise ValueError(msg)
