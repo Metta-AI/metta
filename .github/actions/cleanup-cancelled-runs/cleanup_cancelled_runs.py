@@ -149,7 +149,15 @@ def main():
 
     # Filter to only superseded runs
     print("Identifying superseded runs...")
-    superseded_runs = [run for run in cancelled_runs if is_superseded_run(run, all_runs)]
+    superseded_runs = []
+    for run in cancelled_runs:
+        is_superseded = is_superseded_run(run, all_runs)
+        branch_info = f"branch={run.head_branch or 'None'}, sha={run.head_sha[:8] if run.head_sha else 'None'}"
+        if is_superseded:
+            superseded_runs.append(run)
+            print(f"  ✓ Run #{run.run_number} ({branch_info}) is superseded")
+        else:
+            print(f"  ✗ Run #{run.run_number} ({branch_info}) is NOT superseded (no newer non-cancelled run found)")
 
     print(f"Identified {len(superseded_runs)} as superseded (will delete)")
     print(f"Keeping {len(cancelled_runs) - len(superseded_runs)} cancelled runs (not superseded)")
