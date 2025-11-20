@@ -1,6 +1,7 @@
 """GUI renderer using mettascope."""
 
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Optional
@@ -12,6 +13,8 @@ from mettagrid.simulator import Action
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 METTASCOPE_REPLAY_URL_PREFIX = "https://metta-ai.github.io/metta/mettascope/mettascope.html?replay="
+
+logger = logging.getLogger(__name__)
 
 
 class MettascopeRenderer(Renderer):
@@ -134,13 +137,13 @@ class MettascopeRenderer(Renderer):
                 if not action_name:
                     continue
 
-                print(f"DEBUG: Setting action '{action_name}' for agent {action.agent_id}")
+                logger.debug("Setting action '%s' for agent %s", action_name, action.agent_id)
                 try:
                     self._sim.agent(action.agent_id).set_action(Action(name=action_name))
                 except KeyError as e:
-                    print(f"ERROR: Unknown action '{action_name}' - {e}")
+                    logger.error("Unknown action '%s' - %s", action_name, e)
                     available_actions = [a for a in self._sim.action_ids.keys() if "change_vibe" in a]
-                    print(f"Available change_vibe actions: {available_actions}")
+                    logger.error("Available change_vibe actions: %s", available_actions)
                     continue
 
 

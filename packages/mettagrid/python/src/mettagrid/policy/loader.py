@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
@@ -41,6 +41,11 @@ def initialize_or_load_policy(
         policy.load_policy_data(policy_spec.data_path)
 
     if not isinstance(policy, MultiAgentPolicy):
+        if isinstance(policy, AgentPolicy):
+            raise TypeError(
+                f"Policy {policy_spec.class_path} is an AgentPolicy, but should be a MultiAgentPolicy "
+                f"(which returns AgentPolicy via `agent_policy`)"
+            )
         raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
 
     return policy

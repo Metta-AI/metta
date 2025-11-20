@@ -21,49 +21,41 @@ type ViewConfig = {
   emptyMessage: string
 }
 
+const REFRESH_INTERVAL_MS = 10_000
+
 const STYLES = `
 .leaderboard-page {
+  padding: 24px;
   min-height: calc(100vh - 60px);
-  padding: 32px 24px 48px;
-  background: #f6f7fb;
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #fff;
+  color: #0f172a;
 }
 
 .leaderboard-card {
-  max-width: 1100px;
+  max-width: 1000px;
   margin: 0 auto;
   background: #fff;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 10px 15px rgba(15, 23, 42, 0.03);
-  padding: 24px 28px 32px;
+  border: 1px solid #e0e7ff;
+  border-radius: 10px;
+  padding: 20px 24px 28px;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
 }
 
 .leaderboard-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
   margin-bottom: 16px;
 }
 
 .leaderboard-title {
-  font-size: 28px;
-  color: #0f172a;
-  margin: 0 0 6px;
-}
-
-.leaderboard-description,
-.leaderboard-view-subtitle {
   margin: 0;
-  color: #475569;
-  font-size: 15px;
-}
-
-.leaderboard-view-subtitle {
-  font-size: 14px;
-  margin-top: 6px;
+  font-size: 24px;
 }
 
 .leaderboard-toggle {
@@ -72,50 +64,55 @@ const STYLES = `
 }
 
 .toggle-button {
-  border: 1px solid #d1d5db;
-  border-radius: 999px;
-  padding: 8px 18px;
-  background: #f9fafb;
-  font-weight: 500;
-  color: #374151;
+  border: 1px solid #cbd5f5;
+  border-radius: 4px;
+  background: #fff;
+  padding: 6px 12px;
+  font-size: 14px;
   cursor: pointer;
-  transition: all 0.15s ease;
 }
 
 .toggle-button.active {
   background: #1d4ed8;
-  border-color: #1d4ed8;
   color: #fff;
+  border-color: #1d4ed8;
 }
 
 .section-state {
-  border: 1px dashed #cbd5f5;
-  border-radius: 12px;
-  padding: 24px;
-  text-align: center;
-  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 16px;
   font-size: 14px;
+  color: #475569;
+  text-align: center;
 }
 
 .section-state.error {
-  border-color: #fecdd3;
-  color: #be123c;
-  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
 }
 
 .leaderboard-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 14px;
 }
 
-.leaderboard-table thead th {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #94a3b8;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 10px 6px;
+.leaderboard-table th {
   text-align: left;
+  padding: 8px 4px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+  background: #f9fafc;
+}
+
+.leaderboard-table td {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 10px 4px;
+  vertical-align: top;
 }
 
 .policy-row {
@@ -127,15 +124,9 @@ const STYLES = `
   background: #f8fafc;
 }
 
-.policy-row td {
-  padding: 12px 6px;
-  border-bottom: 1px solid #f1f5f9;
-}
-
 .policy-title {
-  font-size: 16px;
   font-weight: 600;
-  color: #0f172a;
+  margin-bottom: 4px;
 }
 
 .policy-meta {
@@ -144,73 +135,134 @@ const STYLES = `
 }
 
 .policy-details-row td {
-  padding: 16px;
   background: #f8fafc;
+  border-bottom: none;
 }
 
 .policy-details {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  padding: 12px 0;
 }
 
-.detail-section h4 {
-  margin: 0 0 8px;
-  font-size: 13px;
-  color: #475569;
+.detail-block {
+  font-size: 14px;
+}
+
+.detail-heading {
+  margin: 0 0 4px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-}
-
-.score-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 8px;
-}
-
-.score-pill {
-  border-radius: 10px;
-  background: #fff;
-  border: 1px solid #cbd5f5;
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.score-pill span:first-of-type {
-  font-size: 12px;
   color: #475569;
 }
 
-.score-pill span:last-of-type {
-  font-size: 15px;
-  color: #0f172a;
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.score-table th,
+.score-table td {
+  border: 1px solid #e2e8f0;
+  padding: 6px;
+}
+
+.score-table th {
+  background: #f3f4f6;
+  color: #475569;
   font-weight: 600;
 }
 
 .tag-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
-.tag-pill {
-  background: #eef2ff;
-  border-radius: 999px;
-  padding: 4px 10px;
+.tag {
+  border: 1px solid #cbd5f5;
+  border-radius: 4px;
+  padding: 2px 8px;
   font-size: 12px;
-  color: #3730a3;
+  background: #eef2ff;
+  color: #1d4ed8;
+}
+
+.metadata-inline {
+  font-size: 13px;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.command-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.command-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.command-item-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.copy-command {
+  border: 1px solid #cbd5f5;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.copy-command:hover {
+  border-color: #94a3b8;
+}
+
+.copy-command.copied {
+  border-color: #1d4ed8;
+  background: #eef2ff;
+}
+
+.copy-command code {
+  flex: 1;
+  font-size: 12px;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.copy-command-status {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1d4ed8;
+  white-space: nowrap;
 }
 
 .loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(29, 78, 216, 0.2);
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(15, 23, 42, 0.2);
   border-top-color: #1d4ed8;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin: 8px auto;
+  margin: 0 auto 8px;
 }
 
 @keyframes spin {
@@ -238,6 +290,11 @@ const formatScore = (value: number | null): string => {
   return value.toFixed(2)
 }
 
+const formatSimulationLabel = (identifier: string): string => {
+  const parts = identifier.split(':')
+  return parts[parts.length - 1] || identifier
+}
+
 const createInitialSectionState = (): SectionState => ({
   entries: [],
   loading: true,
@@ -249,6 +306,7 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
   const [personalLeaderboard, setPersonalLeaderboard] = useState<SectionState>(() => createInitialSectionState())
   const [view, setView] = useState<ViewKey>('public')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set())
+  const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
 
   const viewConfigs: Record<ViewKey, ViewConfig> = {
     public: {
@@ -271,7 +329,7 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
   useEffect(() => {
     let ignore = false
     const load = async () => {
-      setPublicLeaderboard((prev) => ({ ...prev, loading: true, error: null }))
+      setPublicLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
       try {
         const response = await repo.getPublicLeaderboard()
         if (!ignore) {
@@ -284,15 +342,20 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
       }
     }
     load()
+    const intervalId =
+      typeof window !== 'undefined' ? window.setInterval(() => void load(), REFRESH_INTERVAL_MS) : undefined
     return () => {
       ignore = true
+      if (typeof window !== 'undefined' && intervalId !== undefined) {
+        window.clearInterval(intervalId)
+      }
     }
   }, [repo])
 
   useEffect(() => {
     let ignore = false
     const load = async () => {
-      setPersonalLeaderboard((prev) => ({ ...prev, loading: true, error: null }))
+      setPersonalLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
       try {
         const response = await repo.getPersonalLeaderboard()
         if (!ignore) {
@@ -305,8 +368,13 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
       }
     }
     load()
+    const intervalId =
+      typeof window !== 'undefined' ? window.setInterval(() => void load(), REFRESH_INTERVAL_MS) : undefined
     return () => {
       ignore = true
+      if (typeof window !== 'undefined' && intervalId !== undefined) {
+        window.clearInterval(intervalId)
+      }
     }
   }, [repo])
 
@@ -321,6 +389,34 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
       return next
     })
   }
+
+  const copyCommandToClipboard = async (command: string, label: string): Promise<void> => {
+    if (typeof navigator === 'undefined' || typeof navigator.clipboard === 'undefined') {
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(command)
+      setCopiedCommand(label)
+      if (typeof window !== 'undefined') {
+        window.setTimeout(() => {
+          setCopiedCommand((previous) => (previous === label ? null : previous))
+        }, 2000)
+      }
+    } catch (error) {
+      console.error('Failed to copy command to clipboard:', error)
+    }
+  }
+
+  const renderCopyableCommand = (command: string, commandKey: string) => (
+    <button
+      type="button"
+      className={`copy-command ${copiedCommand === commandKey ? 'copied' : ''}`}
+      onClick={() => void copyCommandToClipboard(command, commandKey)}
+    >
+      <code>{command}</code>
+      <span className="copy-command-status">{copiedCommand === commandKey ? 'Copied!' : 'Copy'}</span>
+    </button>
+  )
 
   const renderContent = (state: SectionState, config: ViewConfig) => {
     if (state.loading) {
@@ -357,6 +453,8 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
             const isExpanded = expandedRows.has(rowKey)
             const scoreEntries = Object.entries(entry.scores).sort(([a], [b]) => a.localeCompare(b))
             const tagEntries = Object.entries(policyVersion.tags).sort(([a], [b]) => a.localeCompare(b))
+            const evaluateCommand = `./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_version_id=${policyId}`
+            const playCommand = `./tools/run.py recipes.experiment.v0_leaderboard.play policy_version_id=${policyId}`
             return (
               <Fragment key={`${config.sectionKey}-${policyId}`}>
                 <tr className="policy-row" onClick={() => toggleRow(rowKey)}>
@@ -375,38 +473,59 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
                   <tr className="policy-details-row">
                     <td colSpan={3}>
                       <div className="policy-details">
-                        <div className="detail-section">
-                          <h4>Scores by Simulation</h4>
+                        <div className="detail-block">
+                          <div className="detail-heading">Scores by Simulation</div>
                           {scoreEntries.length === 0 ? (
                             <div className="policy-meta">No simulation scores available.</div>
                           ) : (
-                            <div className="score-grid">
-                              {scoreEntries.map(([simName, scoreValue]) => (
-                                <div className="score-pill" key={`${policyId}-${simName}`}>
-                                  <span>{simName}</span>
-                                  <span>{scoreValue.toFixed(2)}</span>
-                                </div>
-                              ))}
-                            </div>
+                            <table className="score-table">
+                              <thead>
+                                <tr>
+                                  <th>Simulation</th>
+                                  <th>Score</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {scoreEntries.map(([simName, scoreValue]) => (
+                                  <tr key={`${policyId}-${simName}`}>
+                                    <td>{formatSimulationLabel(simName)}</td>
+                                    <td>{scoreValue.toFixed(2)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           )}
                         </div>
-                        <div className="detail-section">
-                          <h4>Tags</h4>
+                        <div className="detail-block">
+                          <div className="detail-heading">Policy version ID</div>
+                          <div className="metadata-inline">{policyVersion.id}</div>
+                        </div>
+                        <div className="detail-block">
+                          <div className="detail-heading">Tags</div>
                           {tagEntries.length === 0 ? (
                             <div className="policy-meta">No tags for this policy version.</div>
                           ) : (
                             <div className="tag-list">
                               {tagEntries.map(([key, value]) => (
-                                <span key={`${policyId}-${key}-${value}`} className="tag-pill">
+                                <span key={`${policyId}-${key}-${value}`} className="tag">
                                   {key}: {value}
                                 </span>
                               ))}
                             </div>
                           )}
                         </div>
-                        <div className="detail-section">
-                          <h4>Policy version</h4>
-                          <div className="policy-meta">ID: {policyVersion.id}</div>
+                        <div className="detail-block">
+                          <div className="detail-heading">Run and Play</div>
+                          <div className="command-list">
+                            <div className="command-item">
+                              <div className="command-item-label">Evaluate</div>
+                              {renderCopyableCommand(evaluateCommand, `${policyId}-evaluate`)}
+                            </div>
+                            <div className="command-item">
+                              <div className="command-item-label">Play</div>
+                              {renderCopyableCommand(playCommand, `${policyId}-play`)}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </td>
