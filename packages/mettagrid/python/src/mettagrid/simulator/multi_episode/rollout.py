@@ -111,8 +111,8 @@ def multi_episode_rollout(
 
         replay_path = None
         if episode_replay_writer is not None:
-            all_replay_paths = episode_replay_writer.get_written_replay_paths()
-            replay_path = all_replay_paths[0] if all_replay_paths else None
+            all_replay_paths = episode_replay_writer.get_written_replay_urls()
+            replay_path = None if not all_replay_paths else list(all_replay_paths.values())[0]
 
         result = EpisodeRolloutResult(
             assignments=assignments.copy(),
