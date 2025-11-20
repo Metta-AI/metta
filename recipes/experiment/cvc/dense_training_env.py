@@ -1,4 +1,4 @@
-"""George training missions with single-use resources."""
+"""Dense training missions with single-use resources."""
 
 from __future__ import annotations
 
@@ -58,8 +58,8 @@ class MaxStepsVariant(MissionVariant):
         env.game.max_steps = self.max_steps
 
 
-GeorgeTraining4Agents = Mission(
-    name="george_training_4agents",
+DenseTraining4Agents = Mission(
+    name="dense_training_4agents",
     description="Machinatrainer4agents map with single-use resources.",
     site=MACHINA_1,
     variants=[
@@ -70,8 +70,8 @@ GeorgeTraining4Agents = Mission(
     **_single_use_extractor_kwargs(),
 )
 
-GeorgeTraining4AgentsBase = Mission(
-    name="george_training_4agentsbase",
+DenseTraining4AgentsBase = Mission(
+    name="dense_training_4agentsbase",
     description="Machinatrainer4agentsbase map with single-use resources.",
     site=MACHINA_1,
     variants=[
@@ -82,8 +82,8 @@ GeorgeTraining4AgentsBase = Mission(
     **_single_use_extractor_kwargs(),
 )
 
-GeorgeTrainingBig = Mission(
-    name="george_training_big",
+DenseTrainingBig = Mission(
+    name="dense_training_big",
     description="Machinatrainerbig map with single-use resources.",
     site=MACHINA_1,
     variants=[
@@ -94,8 +94,8 @@ GeorgeTrainingBig = Mission(
     **_single_use_extractor_kwargs(),
 )
 
-GeorgeTrainingSmall = Mission(
-    name="george_training_small",
+DenseTrainingSmall = Mission(
+    name="dense_training_small",
     description="Machinatrainersmall map with single-use resources.",
     site=MACHINA_1,
     variants=[
@@ -106,24 +106,24 @@ GeorgeTrainingSmall = Mission(
     **_single_use_extractor_kwargs(),
 )
 
-GEORGE_TRAINING_MISSIONS: list[Mission] = [
-    GeorgeTraining4Agents,
-    GeorgeTraining4AgentsBase,
-    GeorgeTrainingBig,
-    GeorgeTrainingSmall,
+DENSE_TRAINING_MISSIONS: list[Mission] = [
+    DenseTraining4Agents,
+    DenseTraining4AgentsBase,
+    DenseTrainingBig,
+    DenseTrainingSmall,
 ]
 
 
 def get_config() -> MettaGridConfig:
-    """Allow `cogames play -m path/to/george_training.py`."""
-    return GEORGE_TRAINING_MISSIONS[0].make_env()
+    """Allow `cogames play -m path/to/dense_training_env.py`."""
+    return DENSE_TRAINING_MISSIONS[0].make_env()
 
 
 __all__ = [
-    "GEORGE_TRAINING_MISSIONS",
-    "GeorgeTraining4Agents",
-    "GeorgeTraining4AgentsBase",
-    "GeorgeTrainingBig",
-    "GeorgeTrainingSmall",
+    "DENSE_TRAINING_MISSIONS",
+    "DenseTraining4Agents",
+    "DenseTraining4AgentsBase",
+    "DenseTrainingBig",
+    "DenseTrainingSmall",
     "get_config",
 ]

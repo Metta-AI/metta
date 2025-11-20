@@ -1,6 +1,6 @@
 """Dense curriculum for CoGs vs Clips with resource reduction levels.
 
-This curriculum uses george_training maps with varying resource density levels:
+This curriculum uses dense_training maps with varying resource density levels:
 - Each map has 10 levels of resource density (1-10)
 - Level 10 = full resources (100%)
 - Level 1 = minimal resources (10%)
@@ -15,7 +15,6 @@ import time
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-from cogames.cogs_vs_clips.george_training import GEORGE_TRAINING_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from cogames.map_utils.resource_reducer import reduce_map_resources
 from metta.cogworks.curriculum.curriculum import (
@@ -31,12 +30,13 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from recipes.experiment.cvc.dense_training_env import DENSE_TRAINING_MISSIONS
 
 
 class ResourceReductionVariant(MissionVariant):
     """Apply resource reduction to a map based on difficulty level.
 
-    This variant should be applied BEFORE the MapVariant in george_training missions,
+    This variant should be applied BEFORE the MapVariant in dense_training missions,
     or it should specify the map_name directly.
 
     Attributes:
@@ -78,10 +78,10 @@ class ResourceReductionVariant(MissionVariant):
 
 # Map names for reference
 MAP_NAMES = [
-    "george_training_4agents",
-    "george_training_4agentsbase",
-    "george_training_big",
-    "george_training_small",
+    "dense_training_4agents",
+    "dense_training_4agentsbase",
+    "dense_training_big",
+    "dense_training_small",
 ]
 
 
@@ -112,14 +112,14 @@ def make_dense_curriculum(
     all_mission_tasks = []
 
     # Filter missions based on num_cogs
-    missions_to_use = GEORGE_TRAINING_MISSIONS
+    missions_to_use = DENSE_TRAINING_MISSIONS
     if not use_all_maps:
         # Only use big/small maps for 24-agent training
         missions_to_use = [
-            m for m in GEORGE_TRAINING_MISSIONS if m.name in {"george_training_big", "george_training_small"}
+            m for m in DENSE_TRAINING_MISSIONS if m.name in {"dense_training_big", "dense_training_small"}
         ]
 
-    # Process each mission from george_training
+    # Process each mission from dense_training
     for base_mission in missions_to_use:
         # Extract the map name from the base mission's MapVariant
         map_name = None
@@ -236,10 +236,10 @@ def train(
         losses=LossesConfig(),
     )
 
-    # Create eval suite with the george training missions
+    # Create eval suite with the dense training missions
     # Build eval simulations for each mission at full resource level (10)
     eval_simulations = []
-    for mission in GEORGE_TRAINING_MISSIONS:
+    for mission in DENSE_TRAINING_MISSIONS:
         env = mission.make_env()
         sim = SimulationConfig(
             suite="dense_curriculum",
@@ -265,7 +265,7 @@ def evaluate(
     resource_level: int = 10,
     variants: Optional[Sequence[str]] = None,
 ) -> EvaluateTool:
-    """Evaluate policies on george training missions.
+    """Evaluate policies on dense training missions.
 
     Args:
         policy_uris: Policy URIs to evaluate
@@ -278,7 +278,7 @@ def evaluate(
     """
     simulations = []
 
-    for mission in GEORGE_TRAINING_MISSIONS:
+    for mission in DENSE_TRAINING_MISSIONS:
         # Extract map name and other variants
         map_name = None
         other_variants = []
@@ -322,7 +322,7 @@ def evaluate(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission_name: str = "george_training_4agents",
+    mission_name: str = "dense_training_4agents",
     resource_level: int = 10,
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
@@ -348,19 +348,19 @@ def play(
 
         Play a different map:
             uv run ./tools/run.py recipes.experiment.cvc.dense_curriculum.play \\
-                mission_name=george_training_big resource_level=3
+                mission_name=dense_training_big resource_level=3
     """
     # Find the mission
     mission = None
-    for m in GEORGE_TRAINING_MISSIONS:
+    for m in DENSE_TRAINING_MISSIONS:
         if m.name == mission_name:
             mission = m
             break
 
     if mission is None:
         raise ValueError(
-            f"Mission '{mission_name}' not found in GEORGE_TRAINING_MISSIONS. "
-            f"Available missions: {[m.name for m in GEORGE_TRAINING_MISSIONS]}"
+            f"Mission '{mission_name}' not found in DENSE_TRAINING_MISSIONS. "
+            f"Available missions: {[m.name for m in DENSE_TRAINING_MISSIONS]}"
         )
 
     # Extract map name and other variants
