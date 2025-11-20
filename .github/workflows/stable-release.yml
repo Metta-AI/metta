@@ -139,6 +139,8 @@ jobs:
           OBSERVATORY_TOKEN: ${{ secrets.OBSERVATORY_TOKEN }}
           SKYPILOT_SERVICE_ACCOUNT_TOKEN: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASANA_TOKEN: ${{ secrets.ASANA_TOKEN }}
+          ASANA_PROJECT_ID: ${{ secrets.ASANA_PROJECT_ID }}
 
       - name: Send Discord notification on success
         if: success()
