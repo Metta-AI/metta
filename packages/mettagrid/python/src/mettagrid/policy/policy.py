@@ -18,46 +18,6 @@ from mettagrid.simulator import Action, AgentObservation, Simulation
 StateType = TypeVar("StateType")
 
 
-class AgentPolicy:
-    """Base class for per-agent policies.
-
-    AgentPolicy represents the interface for controlling a single agent.
-    It provides the step() method that produces actions from observations.
-    This is what play.py and evaluation code use directly.
-    """
-
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        self._policy_env_info = policy_env_info
-
-    @property
-    def policy_env_info(self) -> PolicyEnvInterface:
-        return self._policy_env_info
-
-    def step(self, obs: AgentObservation) -> Action:
-        """Get action given an observation.
-
-        Args:
-            obs: The observation for this agent
-
-        Returns:
-            The action to take
-        """
-        raise NotImplementedError("Subclasses must implement step()")
-
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
-        """Reset the policy state. Default implementation does nothing."""
-        pass
-
-    def step_batch(self, _raw_observations, raw_actions) -> None:
-        """Optional fast-path for policies that consume raw buffers.
-
-        Policies that support raw NumPy pointers should override this method.
-        The default implementation raises so callers get a clear error if a
-        policy without batch support is used in a context that requires it."""
-
-        raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
-
-
 class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     """Abstract base class for multi-agent policies.
 
@@ -75,9 +35,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     def __init__(self, policy_env_info: PolicyEnvInterface, **kwargs: Any):
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
-
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return _AgentPolicyView(self, agent_id)
 
     @abstractmethod
     def agent_step(self, agent_id: int, obs: AgentObservation) -> Action: ...
@@ -374,17 +331,3 @@ class PolicySpec(BaseModel):
             parts.append(Path(self.data_path).name)
         return "-".join(parts)
 
-
-class _AgentPolicyView(AgentPolicy):
-    """Default AgentPolicy adapter that delegates to its owning MultiAgentPolicy."""
-
-    def __init__(self, parent: MultiAgentPolicy, agent_id: int):
-        super().__init__(parent.policy_env_info)
-        self._parent = parent
-        self._agent_id = agent_id
-
-    def step(self, obs: AgentObservation) -> Action:
-        return self._parent.agent_step(self._agent_id, obs)
-
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
-        self._parent.agent_reset(self._agent_id, simulation)
