@@ -16,10 +16,9 @@ from __future__ import annotations
 import random
 from typing import Callable, Optional, Tuple, Union
 
-from cogames.policy import StatefulPolicyImpl
 from mettagrid.config.mettagrid_config import CardinalDirection, CardinalDirections
 from mettagrid.config.vibes import VIBE_BY_NAME
-from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation

@@ -515,7 +515,9 @@ def format_job_status_line(job_state: JobState, show_duration: bool = True) -> s
     return line
 
 
-def report_on_jobs(job_manager: JobManager, job_names: list[str], title: str = "Jobs Summary") -> None:
+def report_on_jobs(
+    job_manager: JobManager, job_names: list[str], title: str = "Jobs Summary", dump_failed_logs: bool = False
+) -> None:
     """Report on job results with summary and details.
 
     Shared reporting function used by both CI and stable release validation.
@@ -525,6 +527,7 @@ def report_on_jobs(job_manager: JobManager, job_names: list[str], title: str = "
         job_manager: JobManager instance
         job_names: List of job names to report on
         title: Title for the report
+        dump_failed_logs: If True, dump full log file contents for failed jobs (useful for CI)
     """
     print("\n" + "=" * 80)
     print(title)
@@ -553,7 +556,7 @@ def report_on_jobs(job_manager: JobManager, job_names: list[str], title: str = "
 
     # Show each job with detailed acceptance criteria and training artifacts
     for job_state in jobs:
-        display = format_job_with_acceptance(job_state)
+        display = format_job_with_acceptance(job_state, dump_failed_logs=dump_failed_logs)
         print(display)
         print()
 
@@ -612,13 +615,34 @@ def _extract_error_context(logs_path: str | None) -> list[str]:
         return []
 
 
-def format_job_with_acceptance(job_state: JobState) -> str:
+def _read_full_log(logs_path: str | None) -> list[str]:
+    """Read entire log file contents.
+
+    Returns all lines from the log file for full output in CI mode.
+    """
+    if not logs_path:
+        return []
+
+    try:
+        log_file = Path(logs_path)
+        if not log_file.exists():
+            return []
+
+        lines = log_file.read_text(errors="ignore").splitlines()
+        return lines
+
+    except Exception:
+        return []
+
+
+def format_job_with_acceptance(job_state: JobState, dump_failed_logs: bool = False) -> str:
     """Format job status integrated with acceptance criteria.
 
     Composes job_monitor primitives with job-level acceptance logic.
 
     Args:
         job_state: Job state with status, metrics and acceptance
+        dump_failed_logs: If True, include full log file contents for failed jobs (useful for CI)
 
     Returns:
         Multi-line formatted string with job status + acceptance + artifacts
@@ -725,5 +749,19 @@ def format_job_with_acceptance(job_state: JobState) -> str:
     if job_state.logs_path:
         artifact_str = _format_artifact_with_color(job_state.logs_path)
         lines.append(f"  {artifact_str}")
+
+    # Dump full log file for failed jobs in non-interactive mode (CI)
+    if dump_failed_logs and not job_state.is_successful and job_state.logs_path:
+        lines.append("")
+        lines.append("  " + "=" * 70)
+        lines.append(f"  FULL LOG OUTPUT: {job_state.logs_path}")
+        lines.append("  " + "=" * 70)
+        log_content = _read_full_log(job_state.logs_path)
+        if log_content:
+            for line in log_content:
+                lines.append(f"  {line}")
+        else:
+            lines.append("  (Log file not found or empty)")
+        lines.append("  " + "=" * 70)
 
     return "\n".join(lines)

@@ -1,3 +1,4 @@
+import logging
 import netrc
 import os
 import re
@@ -14,6 +15,8 @@ from sky.server.common import RequestId, get_server_url
 import gitta as git
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
+
+logger = logging.getLogger(__name__)
 
 
 def get_devops_skypilot_dir() -> Path:
@@ -287,11 +290,14 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
             else:
                 job_data[job_id] = {"status": "UNKNOWN", "name": "", "submitted": "", "duration": "", "raw_line": ""}
 
-    except sky.exceptions.ClusterNotUpError:
-        # Jobs controller not up
+    except sky.exceptions.ClusterNotUpError as e:
+        # Jobs controller not up - treat as temporary API issue
+        logger.warning(f"SkyPilot API error: {e}")
         for job_id in job_ids:
             job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": "Jobs controller not up"}
     except Exception as e:
+        # API/network errors - will timeout after error_timeout_s if persistent
+        logger.warning(f"SkyPilot API error: {e}")
         for job_id in job_ids:
             job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": str(e)}
 
