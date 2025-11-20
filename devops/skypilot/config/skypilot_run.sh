@@ -33,6 +33,7 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
 echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
+echo "  - METTA_ARGS_JSON: ${METTA_ARGS_JSON:-'NOT SET'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 # Master-only: Collect SkyPilot latency
@@ -215,9 +216,39 @@ run_cmd() {
   # Build the command as an array
   local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 
-  # Add args if METTA_ARGS is not empty
-  if [ -n "${METTA_ARGS:-}" ]; then
-    cmd+=(${METTA_ARGS}) # split on spaces
+  if [ -n "${METTA_ARGS_JSON:-}" ]; then
+    if ! mapfile -t parsed_args < <(python - <<'PY'
+import json
+import os
+import sys
+
+args_json = os.environ.get("METTA_ARGS_JSON", "[]")
+try:
+    raw_args = json.loads(args_json)
+except json.JSONDecodeError as exc:
+    sys.stderr.write(f"[ERROR] Failed to parse METTA_ARGS_JSON: {exc}\n")
+    sys.exit(1)
+
+if not isinstance(raw_args, list):
+    sys.stderr.write(f"[ERROR] METTA_ARGS_JSON must decode to a list, got {type(raw_args).__name__}\n")
+    sys.exit(1)
+
+for arg in raw_args:
+    if not isinstance(arg, str):
+        sys.stderr.write(
+            f"[ERROR] METTA_ARGS_JSON items must be strings, got {type(arg).__name__}: {arg!r}\n"
+        )
+        sys.exit(1)
+    print(arg)
+PY
+); then
+      echo "[ERROR] Failed to decode METTA_ARGS_JSON, aborting" >&2
+      exit "$EXIT_FAILURE"
+    fi
+    cmd+=("${parsed_args[@]}")
+  elif [ -n "${METTA_ARGS:-}" ]; then
+    # Fallback for legacy deployments; will still split on spaces
+    cmd+=(${METTA_ARGS})
   fi
 
   echo "[INFO] Running command: ${cmd[*]}"

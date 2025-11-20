@@ -268,6 +268,7 @@ Examples:
         METTA_RUN_ID=run_id,
         METTA_MODULE_PATH=module_path,
         METTA_ARGS=" ".join(filtered_args),
+        METTA_ARGS_JSON=json.dumps(filtered_args),
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
