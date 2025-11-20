@@ -162,12 +162,14 @@ def _split_class_and_data(raw: str) -> tuple[str, Optional[str]]:
 
 
 def _split_fraction(raw: str) -> tuple[str, float]:
+    """Split off an optional trailing ':PROPORTION' suffix while leaving class/data intact."""
+
     fraction = 1.0
-    idx = raw.rfind(POLICY_ARG_DELIMITER)
-    if idx == -1:
+    if POLICY_ARG_DELIMITER not in raw:
         return raw, fraction
 
-    candidate = raw[idx + 1 :].strip()
+    head, candidate = raw.rsplit(POLICY_ARG_DELIMITER, 1)
+    candidate = candidate.strip()
     if not candidate:
         return raw, fraction
 
@@ -179,4 +181,4 @@ def _split_fraction(raw: str) -> tuple[str, float]:
     if parsed <= 0:
         raise ValueError("Policy proportion must be a positive number.")
 
-    return raw[:idx], parsed
+    return head, parsed
