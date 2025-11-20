@@ -68,17 +68,14 @@ proc hasKnownCharger(agent: RaceCarAgent): bool =
 
 proc bumpGearPrereqs(agent: RaceCarAgent, gearFeature: int) =
   ## Raise resource targets to craft the gear needed for unclipping.
-  case gearFeature
-  of agent.cfg.features.invDecoder:  # decoder crafted from carbon
+  if gearFeature == agent.cfg.features.invDecoder:  # decoder crafted from carbon
     agent.carbonTarget = max(agent.carbonTarget, 20)
-  of agent.cfg.features.invModulator:  # modulator crafted from oxygen
+  elif gearFeature == agent.cfg.features.invModulator:  # modulator crafted from oxygen
     agent.oxygenTarget = max(agent.oxygenTarget, 20)
-  of agent.cfg.features.invResonator:  # resonator crafted from silicon
+  elif gearFeature == agent.cfg.features.invResonator:  # resonator crafted from silicon
     agent.siliconTarget = max(agent.siliconTarget, 15)
-  of agent.cfg.features.invScrambler:  # scrambler crafted from germanium
+  elif gearFeature == agent.cfg.features.invScrambler:  # scrambler crafted from germanium
     agent.germaniumTarget = max(agent.germaniumTarget, 5)
-  else:
-    discard
 
 proc log(message: string) =
   when defined(debug):
