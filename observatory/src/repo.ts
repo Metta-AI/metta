@@ -1,3 +1,5 @@
+import { config } from './config'
+
 export type TokenInfo = {
   id: string
   name: string
@@ -189,8 +191,6 @@ export type LeaderboardPolicyEntry = {
 export type LeaderboardPoliciesResponse = {
   entries: LeaderboardPolicyEntry[]
 }
-
-import { config } from './config'
 
 export type TableInfo = {
   table_name: string

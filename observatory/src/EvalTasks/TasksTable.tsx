@@ -1,8 +1,9 @@
-import { FC, Ref, useCallback, useEffect, useImperativeHandle, useState } from 'react'
-import { PaginatedEvalTasksResponse, Repo, TaskFilters } from '../repo'
-import { TaskRow } from './TaskRow'
+import { FC, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+
 import { Button } from '../components/Button'
 import { Input } from '../components/Input'
+import { PaginatedEvalTasksResponse, Repo, TaskFilters } from '../repo'
+import { TaskRow } from './TaskRow'
 
 const pageSize = 50
 
@@ -21,7 +22,11 @@ const TH: FC<{
   children: React.ReactNode
   style?: React.CSSProperties
 }> = ({ children, style }) => {
-  return <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', ...(style || {}) }}>{children}</th>
+  return (
+    <th className="py-3 px-2 border-b border-b-gray-400" style={style}>
+      {children}
+    </th>
+  )
 }
 
 export const TasksTable: FC<{
@@ -32,6 +37,7 @@ export const TasksTable: FC<{
   const [tasksResponse, setTasksResponse] = useState<PaginatedEvalTasksResponse | undefined>()
   const currentPage = tasksResponse?.page || 1
   const [filters, setFilters] = useState<TaskFilters>({})
+  const isInitialMount = useRef(true)
 
   // Load tasks
   const loadTasks = useCallback(
@@ -44,26 +50,26 @@ export const TasksTable: FC<{
         setError(`Failed to load tasks: ${err.message}`)
       }
     },
-    [filters]
+    [repo, setError, filters]
   )
 
   useImperativeHandle(ref, () => ({
     loadTasks,
   }))
 
-  // Initial load and when filters change
+  // Initial load and filter changes (with 300ms debounce for filter changes)
   useEffect(() => {
-    loadTasks(1)
-  }, [loadTasks])
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      loadTasks(1)
+      return
+    }
 
-  // Reload when filters change
-  useEffect(() => {
     const timeoutId = setTimeout(() => {
       loadTasks(1)
     }, 300)
     return () => clearTimeout(timeoutId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters])
+  }, [loadTasks])
 
   // Auto-refresh every 5 seconds
   useEffect(() => {
@@ -71,8 +77,7 @@ export const TasksTable: FC<{
       loadTasks(currentPage)
     }, 5000)
     return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, filters])
+  }, [loadTasks, currentPage])
 
   const renderStatusDropdown = (value: string, onChange: (value: string) => void) => {
     return (
@@ -156,9 +161,7 @@ export const TasksTable: FC<{
             ))}
           </tbody>
         </table>
-        {tasksResponse.tasks.length === 0 && (
-          <div style={{ padding: '20px', textAlign: 'center', color: '#6c757d' }}>No tasks found</div>
-        )}
+        {tasksResponse.tasks.length === 0 && <div className="p-5 text-center text-gray-500">No tasks found</div>}
       </div>
 
       {/* Pagination */}

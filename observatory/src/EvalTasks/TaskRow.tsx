@@ -1,7 +1,8 @@
 import clsx from 'clsx'
 import { FC, Fragment, useState } from 'react'
-import { EvalTask, Repo, TaskAttempt } from '../repo'
+
 import { TaskBadge } from '../components/TaskBadge'
+import { EvalTask, Repo, TaskAttempt } from '../repo'
 
 export const TaskRow: FC<{ task: EvalTask; repo: Repo }> = ({ task, repo }) => {
   const [isExpanded, setIsExpanded] = useState(false)

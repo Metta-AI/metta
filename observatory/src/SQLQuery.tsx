@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
-import { Repo, TableInfo, TableSchema, SQLQueryResponse } from './repo'
+import { useEffect, useState } from 'react'
+
 import { AIQueryBuilder } from './AIQueryBuilder'
+import { Repo, SQLQueryResponse, TableInfo, TableSchema } from './repo'
 
 interface QueryHistoryItem {
   query: string

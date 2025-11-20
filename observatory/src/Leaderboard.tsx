@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
+
 import type { LeaderboardPolicyEntry, Repo } from './repo'
 
 type LeaderboardProps = {

@@ -1,7 +1,8 @@
 import { FC, useState } from 'react'
-import { Repo } from '../repo'
-import { Input } from '../components/Input'
+
 import { Button } from '../components/Button'
+import { Input } from '../components/Input'
+import { Repo } from '../repo'
 
 export const CreateTaskForm: FC<{
   repo: Repo
