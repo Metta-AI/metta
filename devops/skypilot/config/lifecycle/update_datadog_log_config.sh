@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Update Datadog log collection config with run-specific tags
-# This must run in the run phase when METTA_RUN_ID and SKYPILOT_TASK_ID are available
+# Update log config with tags
 
 set -e
 
@@ -8,10 +7,10 @@ CONF_D_DIR="/etc/datadog-agent/conf.d"
 CUSTOM_LOGS_DIR="${CONF_D_DIR}/skypilot_training.d"
 LOG_CONFIG_FILE="${CUSTOM_LOGS_DIR}/conf.yaml"
 
-# Ensure directory exists
+# Create directory
 mkdir -p "$CUSTOM_LOGS_DIR"
 
-# Build tags list for log configuration
+# Build tags list
 LOG_TAGS=()
 if [ -n "${METTA_RUN_ID:-}" ]; then
   LOG_TAGS+=("metta_run_id:${METTA_RUN_ID}")
@@ -26,23 +25,22 @@ if [ -n "${SKYPILOT_NUM_NODES:-}" ]; then
   LOG_TAGS+=("num_nodes:${SKYPILOT_NUM_NODES}")
 fi
 
-# Format tags as YAML list (with real newlines, not literal '\n')
+# Format tags as YAML
 TAGS_YAML=""
 if [ ${#LOG_TAGS[@]} -gt 0 ]; then
   TAGS_LINES=""
   for tag in "${LOG_TAGS[@]}"; do
-    # Append a line like:       - "metta_run_id:run123"
     TAGS_LINES+=$'      - "'$tag$'"\n'
   done
   TAGS_YAML=$'    tags:\n'"${TAGS_LINES}"
 fi
 
-# Ensure log directory and files exist
+# Create log directory
 TRAINING_LOG_DIR="/tmp/training_logs"
 mkdir -p "$TRAINING_LOG_DIR"
 chmod 777 "$TRAINING_LOG_DIR"
 
-# We only use combined log now, as stdout/stderr are tee'd into it
+# Create combined log file
 for log_file in "training_combined.log"; do
   log_path="${TRAINING_LOG_DIR}/${log_file}"
   if [ ! -f "$log_path" ]; then
@@ -51,10 +49,8 @@ for log_file in "training_combined.log"; do
   chmod 666 "$log_path"
 done
 
-# Create/update log collection config
+# Create log config
 cat > "$LOG_CONFIG_FILE" <<EOF
-# Custom log collection for SkyPilot jobs
-# Updated during run phase with run-specific tags
 logs:
   - type: file
     path: /tmp/datadog-agent.log
@@ -70,6 +66,6 @@ ${TAGS_YAML}
 ${TAGS_YAML}
 EOF
 
-# Set proper permissions
+# Set file permissions
 chmod 644 "$LOG_CONFIG_FILE"
 
