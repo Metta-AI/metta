@@ -1,19 +1,6 @@
-"""CoGames policy module - re-exports from mettagrid.policy."""
+"""CoGames policy package.
 
-from mettagrid.policy.policy import (
-    AgentPolicy,
-    PolicySpec,
-    StatefulAgentPolicy,
-    StatefulPolicyImpl,
-    TrainablePolicy,
-)
-from mettagrid.policy.policy import MultiAgentPolicy as Policy
-
-__all__ = [
-    "AgentPolicy",
-    "Policy",
-    "PolicySpec",
-    "StatefulAgentPolicy",
-    "StatefulPolicyImpl",
-    "TrainablePolicy",
-]
+Concrete policy implementations live in the submodules (e.g. scripted_agent,
+nim_agents). Import the canonical interfaces directly from mettagrid, e.g.:
+``from mettagrid.policy.policy import MultiAgentPolicy``.
+"""

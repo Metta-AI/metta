@@ -174,12 +174,12 @@ You can also specify multiple missions with `*` wildcards:
 ### Custom Policy Architectures
 
 To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as StatelessPolicy). To
-supply your own, you will want to extend `cogames.policy.Policy`.
+supply your own, extend the canonical `mettagrid.policy.policy.MultiAgentPolicy` base class.
 
 ```python
-from mettagrid.policy.policy import MultiAgentPolicy as Policy
+from mettagrid.policy.policy import MultiAgentPolicy
 
-class MyPolicy(Policy):
+class MyPolicy(MultiAgentPolicy):
     def __init__(self, observation_space, action_space):
         self.network = MyNetwork(observation_space, action_space)
 
