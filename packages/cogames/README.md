@@ -72,7 +72,7 @@ cogames submissions
 # Show current leaderboard
 cogames leaderboard
 
-# Show version info (cogames, mettagrid, pufferlib-core)
+# Show version info for the installed tooling stack
 cogames version
 ```
 
