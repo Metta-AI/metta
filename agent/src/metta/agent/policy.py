@@ -22,7 +22,6 @@ from metta.agent.components.obs_shim import (
     ObsShimTokensConfig,
 )
 from metta.common.util.file import write_file
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
@@ -108,6 +107,9 @@ class Policy(TrainablePolicy, nn.Module):
         policy_architecture: PolicyArchitecture | None = None,
     ) -> str:
         """Persist the policy using the safetensors artifact format."""
+
+        # Local import avoids circular dependency when this module is imported from policy_artifact.
+        from metta.rl.policy_artifact import save_policy_artifact_safetensors
 
         if policy_architecture is None:
             msg = "policy_architecture is required to save a policy"
