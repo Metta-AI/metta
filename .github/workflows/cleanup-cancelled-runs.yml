@@ -6,8 +6,9 @@ on:
   workflow_run:
     workflows: ["Test and Benchmark"]
     types: [completed]
-    branches:
-      - main
+    # Temporarily removed branches filter for testing - will restore before merge
+    # branches:
+    #   - main
 
 # Explicit concurrency settings to prevent cancellation
 # Each cleanup run gets a unique group based on the triggering workflow run ID
