@@ -33,6 +33,7 @@ class Rollout:
         self._renderer: Optional[Renderer] = None
         self._timeout_counts: list[int] = [0] * len(policies)
         self._pass_sim_to_policies = pass_sim_to_policies  # Whether to pass the simulation to the policies
+
         # Attach renderer if specified
         if render_mode is not None:
             self._renderer = create_renderer(render_mode)
@@ -56,7 +57,7 @@ class Rollout:
             start_time = time.time()
             action = self._policies[i].step(self._agents[i].observation)
             end_time = time.time()
-            if (end_time - start_time) > self._max_action_time_ms:
+            if (end_time - start_time) * 1000.0 > self._max_action_time_ms:
                 logger.warning(
                     f"Action took {end_time - start_time} seconds, exceeding max of {self._max_action_time_ms}ms"
                 )

@@ -1,6 +1,14 @@
 import pandas as pd
 import wandb
-from wandb.apis.public.runs import Run
+from typing import TYPE_CHECKING
+
+# Type-only import to avoid fragile runtime dependency on internal wandb modules
+if TYPE_CHECKING:
+    # Best-effort import for modern wandb; adjust if your type checker uses a different path
+    from wandb.sdk.wandb_run import Run  # type: ignore[attr-defined]
+else:
+    # At runtime we don't need the concrete Run type; this keeps imports robust
+    Run = object  # type: ignore[misc]
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 

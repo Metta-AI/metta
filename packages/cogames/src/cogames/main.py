@@ -630,6 +630,18 @@ def evaluate_cmd(
             "Each replay will be saved with a unique UUID-based filename."
         ),
     ),
+    parallel_policy: bool = typer.Option(
+        False,
+        "--parallel-policy",
+        help="Run agent policy computation in parallel subprocesses (experimental)",
+    ),
+    jobs: int = typer.Option(
+        0,
+        "--jobs",
+        "-j",
+        help="Number of parallel episodes to run (0 = sequential, >0 = parallel)",
+        min=0,
+    ),
 ) -> None:
     # Handle mission set expansion
     if mission_set and missions:
@@ -679,7 +691,9 @@ def evaluate_cmd(
         episodes=episodes,
         seed=seed,
         output_format=format_,
-        save_replay=save_replay_dir,
+        save_replay=str(save_replay_dir) if save_replay_dir else None,
+        parallel_policy=parallel_policy,
+        jobs=jobs,
     )
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Optional, Sequence
 
 import numpy as np
@@ -61,6 +62,7 @@ def multi_episode_rollout(
     progress_callback: Optional[ProgressCallback] = None,
     save_replay: Optional[str] = None,
     max_action_time_ms: int | None = None,
+    jobs: int = 0,
 ) -> MultiEpisodeRolloutResult:
     """
     Runs rollout for multiple episodes, randomizing agent assignments for each episode in proportions
@@ -86,11 +88,16 @@ def multi_episode_rollout(
 
     episode_results: list[EpisodeRolloutResult] = []
 
-    rng = np.random.default_rng(seed)
-    for episode_idx in range(episodes):
-        rng.shuffle(assignments)
+    max_workers = jobs if jobs > 0 else 1
+
+    def _run_episode(episode_idx: int) -> EpisodeRolloutResult:
+        """Run a single episode."""
+        episode_rng = np.random.default_rng(seed + episode_idx)
+        episode_assignments = assignments.copy()
+        episode_rng.shuffle(episode_assignments)
         agent_policies: list[AgentPolicy] = [
-            policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
+            policies[episode_assignments[agent_id]].agent_policy(agent_id)
+            for agent_id in range(env_cfg.game.num_agents)
         ]
 
         # Create a new replay writer for each episode if save_replay is provided
@@ -105,25 +112,65 @@ def multi_episode_rollout(
             agent_policies,
             max_action_time_ms=max_action_time_ms,
             event_handlers=handlers,
+            seed=seed + episode_idx,
         )
 
         rollout.run_until_done()
 
-        replay_path = None
+        replay_path: str | None = None
         if episode_replay_writer is not None:
-            replay_path = episode_replay_writer.get_written_replay_paths()[0]
+            paths = episode_replay_writer.get_written_replay_paths()
+            if paths:
+                replay_path = paths[0]
 
-        result = EpisodeRolloutResult(
-            assignments=assignments.copy(),
+        return EpisodeRolloutResult(
+            assignments=episode_assignments.copy(),
             rewards=np.array(rollout._sim.episode_rewards, dtype=float),
             action_timeouts=np.array(rollout.timeout_counts, dtype=float),
             stats=rollout._sim.episode_stats,
             replay_path=replay_path,
         )
 
-        episode_results.append(result)
+    if max_workers > 1 and episodes > 1:
+        # Parallel episode execution
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_idx = {executor.submit(_run_episode, idx): idx for idx in range(episodes)}
+            for future in as_completed(future_to_idx):
+                episode_idx = future_to_idx[future]
+                try:
+                    result = future.result()
+                    episode_results.append(result)
+                    if progress_callback is not None:
+                        progress_callback(episode_idx)
+                except Exception as e:
+                    import logging
 
-        if progress_callback is not None:
-            progress_callback(episode_idx)
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Episode {episode_idx} failed: {e}")
+                    # Create error result
+                    episode_rng = np.random.default_rng(seed + episode_idx)
+                    error_assignments = assignments.copy()
+                    episode_rng.shuffle(error_assignments)
+
+                    error_stats: EpisodeStats = {
+                        "game": {},
+                        "agent": [{} for _ in range(env_cfg.game.num_agents)],
+                    }
+                    episode_results.append(
+                        EpisodeRolloutResult(
+                            assignments=error_assignments,
+                            rewards=np.zeros(env_cfg.game.num_agents, dtype=float),
+                            action_timeouts=np.zeros(env_cfg.game.num_agents, dtype=float),
+                            stats=error_stats,
+                            replay_path=None,
+                        )
+                    )
+    else:
+        # Sequential episode execution
+        for episode_idx in range(episodes):
+            result = _run_episode(episode_idx)
+            episode_results.append(result)
+            if progress_callback is not None:
+                progress_callback(episode_idx)
 
     return MultiEpisodeRolloutResult(episodes=episode_results)
