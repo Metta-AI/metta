@@ -3,20 +3,35 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
+from pydantic import Field
 from torch import nn
 
+from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policy import Policy
+from metta.agent.policy import Policy, PolicyArchitecture
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_pt
+from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.base_config import Config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+
+
+class _DummyActionComponentConfig(ComponentConfig):
+    name: str = "dummy_action"
+
+    def make_component(self, env=None) -> nn.Module:  # pragma: no cover - simple stub
+        return nn.Identity()
+
+
+class DummyPolicyArchitecture(PolicyArchitecture):
+    class_path: str = "tests.helpers.fast_train_tool.DummyPolicy"
+    action_probs_config: Config = Field(default_factory=_DummyActionComponentConfig)
 
 
 class DummyPolicy(Policy, nn.Module):
@@ -76,7 +91,11 @@ class FastCheckpointTrainTool(TrainTool):
 
         policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.mpt"
         policy = DummyPolicy(epoch)
-        save_policy_artifact_pt(policy_path, policy=policy)
+        save_policy_artifact_safetensors(
+            policy_path,
+            policy_architecture=DummyPolicyArchitecture(),
+            state_dict=policy.state_dict(),
+        )
 
         return 0
 

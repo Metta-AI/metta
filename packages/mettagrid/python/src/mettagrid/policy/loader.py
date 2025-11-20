@@ -158,10 +158,6 @@ def _maybe_load_policy_artifact(
     if path.suffix.lower() != ".mpt":
         return None
 
-    load_from_checkpoint = getattr(policy_class, "load_from_checkpoint", None)
-    if callable(load_from_checkpoint):
-        return load_from_checkpoint(str(path), policy_env_info)
-
     artifact = load_policy_artifact(path)
     init_kwargs = policy_spec.init_kwargs or {}
     device_arg = init_kwargs.get("device", "cpu")

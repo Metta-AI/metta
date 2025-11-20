@@ -12,7 +12,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
-from metta.rl.policy_artifact import save_policy_artifact_pt
+from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 
@@ -21,10 +21,19 @@ def checkpoint_filename(run: str, epoch: int) -> str:
     return f"{run}:v{epoch}.mpt"
 
 
-def create_checkpoint(tmp_path: Path, filename: str, policy: MockAgent) -> Path:
+def create_checkpoint(
+    tmp_path: Path,
+    filename: str,
+    policy: MockAgent,
+    architecture: PolicyArchitecture,
+) -> Path:
     checkpoint_path = tmp_path / filename
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-    save_policy_artifact_pt(checkpoint_path, policy=policy)
+    save_policy_artifact_safetensors(
+        checkpoint_path,
+        policy_architecture=architecture,
+        state_dict=policy.state_dict(),
+    )
     return checkpoint_path
 
 
@@ -60,20 +69,20 @@ def test_system_cfg():
 
 
 class TestFileURIs:
-    def test_load_single_file_uri(self, tmp_path: Path, mock_policy):
-        ckpt = create_checkpoint(tmp_path, checkpoint_filename("run", 5), mock_policy)
+    def test_load_single_file_uri(self, tmp_path: Path, mock_policy, mock_policy_architecture):
+        ckpt = create_checkpoint(tmp_path, checkpoint_filename("run", 5), mock_policy, mock_policy_architecture)
         uri = f"file://{ckpt}"
         artifact = CheckpointManager.load_artifact_from_uri(uri)
-        assert artifact.policy is not None
+        assert artifact.state_dict is not None
 
-    def test_load_from_directory(self, tmp_path: Path, mock_policy):
+    def test_load_from_directory(self, tmp_path: Path, mock_policy, mock_policy_architecture):
         ckpt_dir = tmp_path / "run" / "checkpoints"
-        create_checkpoint(ckpt_dir, checkpoint_filename("run", 3), mock_policy)
-        latest = create_checkpoint(ckpt_dir, checkpoint_filename("run", 7), mock_policy)
+        create_checkpoint(ckpt_dir, checkpoint_filename("run", 3), mock_policy, mock_policy_architecture)
+        latest = create_checkpoint(ckpt_dir, checkpoint_filename("run", 7), mock_policy, mock_policy_architecture)
 
         uri = f"file://{ckpt_dir}"
         artifact = CheckpointManager.load_artifact_from_uri(uri)
-        assert artifact.policy is not None
+        assert artifact.state_dict is not None
         assert Path(uri[7:]).is_dir()
         assert latest.exists()
 
@@ -84,8 +93,13 @@ class TestFileURIs:
 
 class TestS3URIs:
     @patch("metta.rl.checkpoint_manager.local_copy")
-    def test_s3_download(self, mock_local_copy, mock_policy, tmp_path: Path):
-        checkpoint_file = create_checkpoint(tmp_path, checkpoint_filename("run", 12), mock_policy)
+    def test_s3_download(self, mock_local_copy, mock_policy, mock_policy_architecture, tmp_path: Path):
+        checkpoint_file = create_checkpoint(
+            tmp_path,
+            checkpoint_filename("run", 12),
+            mock_policy,
+            mock_policy_architecture,
+        )
 
         mock_local_copy.return_value.__enter__ = Mock(return_value=str(checkpoint_file))
         mock_local_copy.return_value.__exit__ = Mock(return_value=None)
@@ -93,7 +107,7 @@ class TestS3URIs:
         uri = "s3://bucket/run/checkpoints/run:v12.mpt"
         artifact = CheckpointManager.load_artifact_from_uri(uri)
 
-        assert artifact.policy is not None
+        assert artifact.state_dict is not None
 
     def test_key_and_version_parsing(self):
         key, version = key_and_version("s3://bucket/foo/checkpoints/foo:v9.mpt")
@@ -106,7 +120,11 @@ class TestCheckpointManagerOperations:
         manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
         ckpt_path = manager.checkpoint_dir / checkpoint_filename("demo", 1)
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-        save_policy_artifact_pt(ckpt_path, policy=mock_policy)
+        save_policy_artifact_safetensors(
+            ckpt_path,
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_policy.state_dict(),
+        )
         assert ckpt_path.exists()
 
     def test_latest_checkpoint_sorted(self, test_system_cfg, mock_policy, mock_policy_architecture):
@@ -114,14 +132,18 @@ class TestCheckpointManagerOperations:
         for epoch in [1, 3]:
             ckpt_path = manager.checkpoint_dir / checkpoint_filename("demo", epoch)
             ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-            save_policy_artifact_pt(ckpt_path, policy=mock_policy)
+            save_policy_artifact_safetensors(
+                ckpt_path,
+                policy_architecture=mock_policy_architecture,
+                state_dict=mock_policy.state_dict(),
+            )
 
         uri = manager.get_latest_checkpoint()
         assert uri is not None
         assert uri.endswith(":v3.mpt")
 
-    def test_normalize_uri(self, tmp_path: Path):
+    def test_normalize_uri(self, tmp_path: Path, mock_policy_architecture):
         path = tmp_path / "model.mpt"
-        create_checkpoint(tmp_path, path.name, MockAgent())
+        create_checkpoint(tmp_path, path.name, MockAgent(), mock_policy_architecture)
         normalized = CheckpointManager.normalize_uri(str(path))
         assert normalized == f"file://{path}"

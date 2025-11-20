@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 import typer
+from pydantic import Field
 from rich.table import Table
 
 from cogames.cli.base import console
@@ -18,12 +19,30 @@ default_checkpoint_dir = Path("train_dir")
 
 POLICY_ARG_DELIMITER = ":"
 
+policy_arg_w_proportion_example = POLICY_ARG_DELIMITER.join(
+    (
+        "[blue]CLASS[/blue]",
+        "[cyan]DATA[/cyan]",
+        "[light_slate_grey]:PROPORTION[/light_slate_grey]",
+    )
+)
 policy_arg_example = POLICY_ARG_DELIMITER.join(
     (
         "[blue]CLASS[/blue]",
         "[cyan]DATA[/cyan]",
     )
 )
+
+
+class PolicySpecWithProportion(PolicySpec):
+    proportion: float = Field(default=1.0, description="Proportion of total agents to assign to this policy")
+
+    def to_policy_spec(self) -> PolicySpec:
+        return PolicySpec(
+            class_path=self.class_path,
+            data_path=self.data_path,
+            init_kwargs=self.init_kwargs,
+        )
 
 
 def list_checkpoints():
@@ -41,12 +60,19 @@ def list_checkpoints():
         console.print()
 
 
-def describe_policy_arg():
-    console.print("To specify a [bold cyan]-p [POLICY][/bold cyan], follow this format: " + policy_arg_example)
+def describe_policy_arg(with_proportion: bool):
+    console.print(
+        "To specify a [bold cyan]-p [POLICY][/bold cyan], follow this format: "
+        + (policy_arg_example if not with_proportion else policy_arg_w_proportion_example)
+    )
     subcommand_parts = [
         "[blue]CLASS[/blue]: shorthand (e.g. 'stateless', 'random') or fully qualified class path.",
         "[cyan]DATA[/cyan]: optional checkpoint path.",
     ]
+    if with_proportion:
+        subcommand_parts.append(
+            "[light_slate_grey]PROPORTION[/light_slate_grey]: optional float specifying the population share."
+        )
     console.print("\n" + "\n".join([f"  - {part}" for part in subcommand_parts]) + "\n")
 
 
@@ -63,13 +89,13 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
         console.print("[yellow]Missing: --policy / -p[/yellow]\n")
     else:
         try:
-            return _parse_policy_spec(spec=policy_arg)
+            return _parse_policy_spec(spec=policy_arg).to_policy_spec()
         except (ValueError, ModuleNotFoundError) as e:
             translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]\n")
 
     list_checkpoints()
-    describe_policy_arg()
+    describe_policy_arg(with_proportion=False)
 
     if policy_arg is not None:
         console.print("\n" + ctx.get_usage())
@@ -78,7 +104,9 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
     raise typer.Exit(0)
 
 
-def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> list[PolicySpec]:
+def get_policy_specs_with_proportions(
+    ctx: typer.Context, policy_args: Optional[list[str]]
+) -> list[PolicySpecWithProportion]:
     if not policy_args:
         console.print(ctx.get_help())
         console.print("[yellow]Supply at least one: --policy / -p[/yellow]\n")
@@ -91,7 +119,7 @@ def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> li
             console.print()
 
     list_checkpoints()
-    describe_policy_arg()
+    describe_policy_arg(with_proportion=True)
 
     if policy_args:
         console.print("\n" + ctx.get_usage())
@@ -99,23 +127,28 @@ def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> li
     raise typer.Exit(0)
 
 
-def _parse_policy_spec(spec: str) -> PolicySpec:
+def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     """Parse a policy CLI option into its components."""
 
     raw = spec.strip()
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
 
-    class_part, data_part = _split_class_and_data(raw)
+    raw_without_fraction, fraction = _split_fraction(raw)
+    if not raw_without_fraction:
+        raise ValueError("Policy specification missing class path.")
+
+    class_part, data_part = _split_class_and_data(raw_without_fraction)
     if not class_part:
         raise ValueError("Policy class path cannot be empty.")
 
     resolved_class_path = resolve_policy_class_path(class_part)
     resolved_policy_data = resolve_policy_data_path(data_part)
 
-    return PolicySpec(
+    return PolicySpecWithProportion(
         class_path=resolved_class_path,
         data_path=resolved_policy_data,
+        proportion=fraction,
     )
 
 
@@ -126,3 +159,24 @@ def _split_class_and_data(raw: str) -> tuple[str, Optional[str]]:
     class_part, data_part = raw.split(POLICY_ARG_DELIMITER, 1)
     data_part = data_part.strip() or None
     return class_part.strip(), data_part
+
+
+def _split_fraction(raw: str) -> tuple[str, float]:
+    fraction = 1.0
+    idx = raw.rfind(POLICY_ARG_DELIMITER)
+    if idx == -1:
+        return raw, fraction
+
+    candidate = raw[idx + 1 :].strip()
+    if not candidate:
+        return raw, fraction
+
+    try:
+        parsed = float(candidate)
+    except ValueError:
+        return raw, fraction
+
+    if parsed <= 0:
+        raise ValueError("Policy proportion must be a positive number.")
+
+    return raw[:idx], parsed

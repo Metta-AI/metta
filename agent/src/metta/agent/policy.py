@@ -51,6 +51,9 @@ class PolicyArchitecture(Config):
         return AgentClass(policy_env_info, self)  # type: ignore[misc]
 
 
+from metta.rl.policy_artifact import save_policy_artifact_safetensors
+
+
 class Policy(TrainablePolicy, nn.Module):
     """Abstract base class defining the interface that all policies must implement.
 
@@ -111,8 +114,6 @@ class Policy(TrainablePolicy, nn.Module):
         if policy_architecture is None:
             msg = "policy_architecture is required to save a policy"
             raise ValueError(msg)
-
-        from metta.rl.policy_artifact import save_policy_artifact_safetensors
 
         dest_str = str(destination)
         is_remote = dest_str.startswith("s3://")

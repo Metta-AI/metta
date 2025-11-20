@@ -8,7 +8,7 @@ import zipfile
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import TYPE_CHECKING, Any, Mapping, MutableMapping
 from zipfile import BadZipFile
 
 import torch
@@ -16,10 +16,15 @@ from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy import PolicyArchitecture
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
+
+if TYPE_CHECKING:
+    from metta.agent.policy import Policy
+else:  # pragma: no cover - runtime duck typing is sufficient
+    Policy = Any
 
 
 def _component_config_to_manifest(component: ComponentConfig) -> dict[str, Any]:
@@ -270,56 +275,27 @@ def save_policy_artifact_safetensors(
     )
 
 
-def save_policy_artifact_pt(
-    path: str | Path,
-    *,
-    policy: Policy,
-) -> PolicyArtifact:
-    """Persist a policy object with torch.save (.pt)."""
-    return _save_policy_artifact(path, policy=policy, include_policy=True)
-
-
 def _save_policy_artifact(
     path: str | Path,
     *,
-    policy: Policy | None = None,
     policy_architecture: PolicyArchitecture | None = None,
     state_dict: Mapping[str, torch.Tensor] | None = None,
-    include_policy: bool = False,
     detach_buffers: bool = True,
 ) -> PolicyArtifact:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     has_state_input = state_dict is not None
-    if not has_state_input and policy is not None and policy_architecture is not None:
-        state_dict = policy.state_dict()
-
-    has_state_input = state_dict is not None
-
     if has_state_input and policy_architecture is None:
         msg = "policy_architecture is required when saving weights"
         raise ValueError(msg)
-
-    if not has_state_input and not include_policy:
-        msg = "Saving requires weights/architecture or include_policy=True with a policy"
+    if not has_state_input:
+        msg = "Saving requires weights and a policy_architecture"
         raise ValueError(msg)
 
     artifact_state: MutableMapping[str, torch.Tensor] | None = None
     if has_state_input:
         artifact_state = _to_safetensors_state_dict(state_dict or {}, detach_buffers)
-
-    policy_payload: bytes | None = None
-    if include_policy:
-        if policy is None:
-            msg = "include_policy=True requires a policy instance"
-            raise ValueError(msg)
-        if has_state_input:
-            msg = "include_policy=True cannot be combined with weights/state_dict"
-            raise ValueError(msg)
-        buffer = io.BytesIO()
-        torch.save(policy, buffer)
-        policy_payload = buffer.getvalue()
 
     # Atomic save: write to temporary file first, then move to final destination
     with tempfile.NamedTemporaryFile(
@@ -340,9 +316,6 @@ def _save_policy_artifact(
                         policy_architecture_to_string(policy_architecture),
                     )
 
-                if policy_payload is not None:
-                    archive.writestr("policy.pt", policy_payload)
-
             # Atomic move: this operation is atomic on most filesystems
             temp_path.replace(output_path)
 
@@ -354,7 +327,6 @@ def _save_policy_artifact(
     return PolicyArtifact(
         policy_architecture=policy_architecture if artifact_state is not None else None,
         state_dict=artifact_state,
-        policy=policy if include_policy else None,
     )
 
 
@@ -397,18 +369,6 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
             if loaded_state and all(k.startswith("module.") for k in loaded_state.keys()):
                 loaded_state = {k.removeprefix("module."): v for k, v in loaded_state.items()}
             state_dict = loaded_state
-
-        elif "policy.pt" in names:
-            buffer = io.BytesIO(archive.read("policy.pt"))
-            loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
-
-            if _is_puffer_state_dict(loaded_policy):
-                policy = load_pufferlib_checkpoint(loaded_policy, device="cpu")
-            else:
-                if not isinstance(loaded_policy, Policy):
-                    msg = "Loaded policy payload is not a Policy instance"
-                    raise TypeError(msg)
-                policy = loaded_policy
 
     if architecture is None and state_dict is None and policy is None:
         msg = f"Policy artifact {input_path} contained no usable payload"

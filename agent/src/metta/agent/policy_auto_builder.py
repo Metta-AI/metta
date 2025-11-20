@@ -11,7 +11,6 @@ from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.policy_artifact import load_policy_artifact
 from mettagrid.base_config import Config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
@@ -137,15 +136,6 @@ class PolicyAutoBuilder(Policy):
         for _, value in self.components.items():
             if hasattr(value, "reset_memory"):
                 value.reset_memory()
-
-    @classmethod
-    def load_from_checkpoint(cls, checkpoint_path: str, policy_env_info: PolicyEnvInterface):
-        """Instantiate from a self-describing policy artifact (.mpt)."""
-
-        device = torch.device("cpu")
-        artifact = load_policy_artifact(checkpoint_path)
-        policy = artifact.instantiate(policy_env_info, device=device, strict=True)
-        return policy
 
     @property
     def total_params(self):
