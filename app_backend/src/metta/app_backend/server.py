@@ -1,4 +1,10 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
+
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 
 import asyncio
 import logging
@@ -51,8 +57,6 @@ def setup_logging():
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-
-    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     # Configure scorecard performance logger specifically
     scorecard_logger = logging.getLogger("dashboard_performance")
