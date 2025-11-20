@@ -21,6 +21,8 @@ type ViewConfig = {
   emptyMessage: string
 }
 
+const REFRESH_INTERVAL_MS = 10_000
+
 const STYLES = `
 .leaderboard-page {
   padding: 24px;
@@ -327,7 +329,7 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
   useEffect(() => {
     let ignore = false
     const load = async () => {
-      setPublicLeaderboard((prev) => ({ ...prev, loading: true, error: null }))
+      setPublicLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
       try {
         const response = await repo.getPublicLeaderboard()
         if (!ignore) {
@@ -340,15 +342,20 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
       }
     }
     load()
+    const intervalId =
+      typeof window !== 'undefined' ? window.setInterval(() => void load(), REFRESH_INTERVAL_MS) : undefined
     return () => {
       ignore = true
+      if (typeof window !== 'undefined' && intervalId !== undefined) {
+        window.clearInterval(intervalId)
+      }
     }
   }, [repo])
 
   useEffect(() => {
     let ignore = false
     const load = async () => {
-      setPersonalLeaderboard((prev) => ({ ...prev, loading: true, error: null }))
+      setPersonalLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
       try {
         const response = await repo.getPersonalLeaderboard()
         if (!ignore) {
@@ -361,8 +368,13 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
       }
     }
     load()
+    const intervalId =
+      typeof window !== 'undefined' ? window.setInterval(() => void load(), REFRESH_INTERVAL_MS) : undefined
     return () => {
       ignore = true
+      if (typeof window !== 'undefined' && intervalId !== undefined) {
+        window.clearInterval(intervalId)
+      }
     }
   }, [repo])
 
