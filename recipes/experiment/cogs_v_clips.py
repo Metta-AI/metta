@@ -19,6 +19,7 @@ from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
+    DiscreteRandomConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
@@ -266,17 +267,22 @@ def train(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
+    bc_policy_uri: Optional[str] = None,
+    bc_teacher_lead_prob: float = 1.0,
+    use_lp: bool = True,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
     if mission is not None:
         training_missions = [mission]
 
+    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
     curriculum = curriculum or make_curriculum(
         num_cogs=num_cogs,
         missions=training_missions,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
+        algorithm_config=cur_alg,
     )
 
     trainer_cfg = TrainerConfig(
@@ -295,11 +301,24 @@ def train(
         simulations=eval_suite,
     )
 
-    return TrainTool(
+    tt = TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
     )
+
+    if bc_policy_uri is not None:
+        tt.trainer.losses.supervisor.enabled = True
+        tt.trainer.losses.ppo.enabled = False
+        tt.trainer.losses.ppo_actor.enabled = False
+        tt.trainer.losses.ppo_critic.enabled = True
+        tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
+        tt.trainer.losses.ppo_critic.sample_enabled = False
+        tt.trainer.losses.ppo_critic.train_forward_enabled = False
+        tt.training_env.supervisor.policy = bc_policy_uri
+        tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+
+    return tt
 
 
 def train_variants(

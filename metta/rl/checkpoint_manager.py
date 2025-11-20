@@ -429,11 +429,4 @@ class CheckpointPolicy(MultiAgentPolicy):
         raise ValueError(msg)
 
     def __getattr__(self, name: str):
-        # Avoid infinite recursion during pickling/unpickling (e.g., torch.distributed
-        # broadcast_object_list) when _policy is not yet populated.
-        if name.startswith("__"):
-            raise AttributeError(name)
-        policy = self.__dict__.get("_policy")
-        if policy is None:
-            raise AttributeError(name)
-        return getattr(policy, name)
+        return getattr(self._policy, name)
