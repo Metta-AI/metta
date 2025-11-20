@@ -7,7 +7,13 @@ import torch.nn as nn
 from einops import rearrange
 
 import pufferlib.pytorch
-from mettagrid.policy.policy import AgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl, TrainablePolicy
+from mettagrid.policy.policy import (
+    AgentPolicy,
+    StatefulAgentPolicy,
+    StatefulPolicyImpl,
+    TrainablePolicy,
+    _load_state_dict_from_checkpoint,
+)
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import LSTMState, LSTMStateDict
 from mettagrid.simulator import Action as MettaGridAction
@@ -255,7 +261,8 @@ class LSTMPolicy(TrainablePolicy):
         return True
 
     def load_policy_data(self, checkpoint_path: str) -> None:
-        self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))
+        state_dict = _load_state_dict_from_checkpoint(checkpoint_path, map_location=self._device)
+        self._net.load_state_dict(state_dict)
         self._net = self._net.to(self._device)
         # Update the agent policy's reference to the network
         self._agent_policy._net = self._net

@@ -8,7 +8,7 @@ import pufferlib.pytorch
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig
 from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, TrainablePolicy, _load_state_dict_from_checkpoint
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action as MettaGridAction
 from mettagrid.simulator import AgentObservation as MettaGridObservation
@@ -171,7 +171,7 @@ class TokenPolicy(TrainablePolicy):
         return False
 
     def load_policy_data(self, checkpoint_path: str) -> None:
-        state_dict = torch.load(checkpoint_path, map_location=self._device)
+        state_dict = _load_state_dict_from_checkpoint(checkpoint_path, map_location=self._device)
         self._net.load_state_dict(state_dict)
         self._net = self._net.to(self._device)
 

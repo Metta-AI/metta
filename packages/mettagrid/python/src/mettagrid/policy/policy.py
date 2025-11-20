@@ -1,13 +1,16 @@
 """Base policy classes and interfaces."""
 
 import ctypes
+import zipfile
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Generic, Mapping, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
+import torch
 import torch.nn as nn
 from pydantic import BaseModel, Field
+from safetensors.torch import load as load_safetensors
 
 from mettagrid.mettagrid_c import dtype_actions, dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -357,18 +360,52 @@ class TrainablePolicy(MultiAgentPolicy):
 
         Default implementation loads PyTorch state dict.
         """
-        import torch
-
-        self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu"))
+        state_dict = _load_state_dict_from_checkpoint(policy_data_path, map_location="cpu")
+        self.network().load_state_dict(state_dict)
 
     def save_policy_data(self, policy_data_path: str) -> None:
         """Save network weights to file.
 
         Default implementation uses torch.save.
         """
-        import torch
-
         torch.save(self.network().state_dict(), policy_data_path)
+
+
+def _load_state_dict_from_checkpoint(
+    checkpoint_path: str,
+    *,
+    map_location: torch.device | str | None = "cpu",
+) -> Mapping[str, torch.Tensor]:
+    """Load a state_dict from either a legacy .pt file or a safetensors-based artifact."""
+
+    path = Path(checkpoint_path)
+    errors: list[Exception] = []
+
+    # 1) Legacy torch.save state_dict
+    try:
+        payload = torch.load(path, map_location=map_location)
+        if isinstance(payload, Mapping):
+            return payload
+        errors.append(TypeError("torch.load payload is not a state_dict mapping"))
+    except Exception as exc:
+        errors.append(exc)
+
+    # 2) New safetensors zip artifact (.mpt)
+    if zipfile.is_zipfile(path):
+        try:
+            with zipfile.ZipFile(path, mode="r") as archive:
+                if "weights.safetensors" in archive.namelist():
+                    weights_blob = archive.read("weights.safetensors")
+                    state = load_safetensors(weights_blob)
+                    if isinstance(state, Mapping):
+                        return state
+                    errors.append(TypeError("safetensors payload is not a state_dict mapping"))
+        except Exception as exc:
+            errors.append(exc)
+
+    # If nothing worked, surface the collected context
+    msg = "; ".join({str(err) for err in errors}) or "unknown checkpoint format"
+    raise RuntimeError(f"Failed to load checkpoint '{checkpoint_path}': {msg}")
 
 
 class PolicySpec(BaseModel):

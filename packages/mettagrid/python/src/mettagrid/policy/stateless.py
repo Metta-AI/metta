@@ -7,7 +7,7 @@ import torch.nn as nn
 import pufferlib.pytorch
 from mettagrid.config.mettagrid_config import ActionsConfig
 from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, TrainablePolicy, _load_state_dict_from_checkpoint
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action as MettaGridAction
 from mettagrid.simulator import AgentObservation as MettaGridObservation
@@ -96,7 +96,7 @@ class StatelessPolicy(TrainablePolicy):
 
     def load_policy_data(self, checkpoint_path: str) -> None:
         device = next(self._net.parameters()).device
-        state_dict = torch.load(checkpoint_path, map_location=device)
+        state_dict = _load_state_dict_from_checkpoint(checkpoint_path, map_location=device)
         self._net.load_state_dict(state_dict)
         self._net = self._net.to(device)
 
