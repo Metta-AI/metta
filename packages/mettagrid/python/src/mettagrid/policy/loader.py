@@ -74,26 +74,36 @@ def initialize_or_load_policy(
         policy = hooked_policy
     else:
         artifact = _maybe_load_artifact(policy_spec)
-        init_kwargs = policy_spec.init_kwargs or {}
-        init_kwargs = _maybe_inject_config(policy_class, init_kwargs, artifact)
-
-        try:
-            policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
-        except TypeError as e:
-            raise TypeError(
-                f"Failed initializing policy {policy_spec.class_path} with kwargs {init_kwargs}: {e}"
-            ) from e
-
         if artifact is not None:
             if artifact.policy is not None and isinstance(artifact.policy, MultiAgentPolicy):
-                # If the artifact already contains a policy instance, prefer it
                 policy = artifact.policy
+            elif artifact.policy_architecture is not None:
+                policy = artifact.policy_architecture.make_policy(policy_env_info)
+                with_state = artifact.state_dict or (artifact.policy.state_dict() if artifact.policy else None)
+                if with_state:
+                    missing, unexpected = policy.load_state_dict(with_state, strict=False)
+                    if missing or unexpected:
+                        raise RuntimeError(f"Checkpoint load issues. Missing: {missing}, Unexpected: {unexpected}")
             elif artifact.state_dict is not None:
+                # Fall back to requested policy class with raw state dict
+                init_kwargs = _maybe_inject_config(policy_class, policy_spec.init_kwargs or {}, artifact)
+                policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
                 policy.load_state_dict(artifact.state_dict)
-            elif artifact.policy is not None:
-                policy.load_state_dict(artifact.policy.state_dict())
-        elif policy_spec.data_path:
-            policy.load_policy_data(policy_spec.data_path)
+            else:
+                raise ValueError("Artifact contained no policy, architecture, or state dict")
+        else:
+            init_kwargs = policy_spec.init_kwargs or {}
+            init_kwargs = _maybe_inject_config(policy_class, init_kwargs, None)
+
+            try:
+                policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
+            except TypeError as e:
+                raise TypeError(
+                    f"Failed initializing policy {policy_spec.class_path} with kwargs {init_kwargs}: {e}"
+                ) from e
+
+            if policy_spec.data_path:
+                policy.load_policy_data(policy_spec.data_path)
 
     if not isinstance(policy, MultiAgentPolicy):
         raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
