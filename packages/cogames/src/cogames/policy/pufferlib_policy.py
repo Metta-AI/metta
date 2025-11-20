@@ -8,13 +8,17 @@ This bridges checkpoints produced by PufferLib training (state_dict of
 
 from __future__ import annotations
 
+from typing import Any, Optional, Union
+
+import numpy as np
 import torch
 
 import pufferlib.models
 import pufferlib.pytorch
-from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.mettagrid_c import dtype_observations
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action, AgentObservation
 
 
 class _ShimEnv:
@@ -50,9 +54,28 @@ class _PufferlibCogsAgent(AgentPolicy):
         super().__init__(policy_env_info)
         self._net = net
         self._device = next(net.parameters()).device
+        self._action_names = policy_env_info.action_names
+        self._num_tokens, self._token_dim = policy_env_info.observation_space.shape
 
-    def step(self, obs):
-        obs_tensor = torch.as_tensor(obs, device=self._device)
+    def _to_tensor(self, obs: Union[AgentObservation, torch.Tensor, np.ndarray, list[Any]]) -> torch.Tensor:
+        if isinstance(obs, AgentObservation):
+            buffer = torch.full(
+                (self._num_tokens, self._token_dim),
+                fill_value=np.array(255, dtype=dtype_observations).item(),
+                device=self._device,
+                dtype=torch.float32,
+            )
+            for idx, token in enumerate(obs.tokens):
+                if idx >= self._num_tokens:
+                    break
+                raw = token.raw_token
+                buffer[idx, : len(raw)] = torch.tensor(raw, device=self._device, dtype=buffer.dtype)
+            return buffer
+
+        return torch.as_tensor(obs, device=self._device)
+
+    def step(self, obs: Union[AgentObservation, torch.Tensor, np.ndarray, list[Any]]) -> Action:
+        obs_tensor = self._to_tensor(obs)
         if obs_tensor.ndim == 2:  # Single agent observation
             obs_tensor = obs_tensor.unsqueeze(0)
 
@@ -60,7 +83,8 @@ class _PufferlibCogsAgent(AgentPolicy):
             self._net.eval()
             logits, _ = self._net.forward_eval(obs_tensor)
             action, _, _ = pufferlib.pytorch.sample_logits(logits)
-        return dtype_actions.type(int(action.item()))
+        action_idx = max(0, min(int(action.item()), len(self._action_names) - 1))
+        return Action(name=self._action_names[action_idx])
 
 
 class PufferlibCogsPolicy(TrainablePolicy):
@@ -73,7 +97,7 @@ class PufferlibCogsPolicy(TrainablePolicy):
         policy_env_info: PolicyEnvInterface,
         *,
         hidden_size: int = 256,
-        device: str | torch.device | None = None,
+        device: Optional[Union[str, torch.device]] = None,
     ):
         super().__init__(policy_env_info)
         shim_env = _ShimEnv(policy_env_info)
