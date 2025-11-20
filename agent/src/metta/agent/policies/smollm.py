@@ -24,7 +24,7 @@ class SmolLLMConfig(PolicyArchitecture):
 
     model_name: str = "HuggingFaceTB/SmolLM2-135M"
     max_sequence_length: int = 32
-    torch_dtype: Literal["float32", "float16", "bfloat16"] = "bfloat16"
+    dtype: Literal["float32", "float16", "bfloat16"] = "bfloat16"
     attn_implementation: Optional[str] = "flash_attention_2"
     mem_len: int = 128
 
@@ -54,15 +54,15 @@ class SmolLLMConfig(PolicyArchitecture):
             "float16": torch.float16,
             "bfloat16": torch.bfloat16,
         }
-        if self.torch_dtype == "auto":
+        if self.dtype == "auto":
             return None
-        return mapping[self.torch_dtype]
+        return mapping[self.dtype]
 
     def build_components(self) -> List[ComponentConfig]:
         stack_cfg = build_hf_stack_config(
             self.model_name,
             trust_remote_code=True,
-            torch_dtype=self._resolve_dtype(),
+            dtype=self._resolve_dtype(),
             attn_implementation=self.attn_implementation,
             mem_len=int(self.mem_len),
             compile_blocks=False,
@@ -99,7 +99,7 @@ class SmolLLMConfig(PolicyArchitecture):
                 out_features=hf_hidden,
                 stack_cfg=stack_cfg,
                 key_prefix="cortex_state",
-                dtype=self.torch_dtype,
+                dtype=self.dtype,
             ),
             MLPConfig(
                 in_key="core",

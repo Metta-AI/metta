@@ -49,7 +49,7 @@ def _smollm_config(
     policy_config = {
         "model_name": model_name or "HuggingFaceTB/SmolLM-360M",
         "attn_implementation": "flash_attention_2",
-        "torch_dtype": "bfloat16",
+        "dtype": "bfloat16",
         "mem_len": int(mem_len) if mem_len is not None else 16,
     }
 

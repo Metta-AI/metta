@@ -58,6 +58,7 @@ def build_hf_stack_config(
     model_name: str,
     *,
     trust_remote_code: bool = False,
+    dtype: Optional[torch.dtype] = None,
     torch_dtype: Optional[torch.dtype] = None,
     device: Optional[str | torch.device] = None,
     attn_implementation: Optional[str] = None,
@@ -66,10 +67,11 @@ def build_hf_stack_config(
     compile_blocks: bool = False,
 ) -> CortexStackConfig:
     """Load a HF CausalLM (LLaMA) and return CortexStackConfig wrapping its layers."""
+    dtype_arg = dtype if dtype is not None else torch_dtype
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         trust_remote_code=trust_remote_code,
-        torch_dtype=torch_dtype,
+        torch_dtype=dtype_arg,
         attn_implementation=attn_implementation,
     )
     if device is not None:
@@ -90,6 +92,7 @@ def build_hf_stack(
     model_name: str,
     *,
     trust_remote_code: bool = False,
+    dtype: Optional[torch.dtype] = None,
     torch_dtype: Optional[torch.dtype] = None,
     device: Optional[str | torch.device] = None,
     attn_implementation: Optional[str] = None,
@@ -101,6 +104,7 @@ def build_hf_stack(
     stack_cfg = build_hf_stack_config(
         model_name,
         trust_remote_code=trust_remote_code,
+        dtype=dtype,
         torch_dtype=torch_dtype,
         device=device,
         attn_implementation=attn_implementation,
