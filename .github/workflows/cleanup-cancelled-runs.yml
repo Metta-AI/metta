@@ -23,8 +23,6 @@ permissions:
 jobs:
   cleanup-cancelled-runs:
     name: "Cleanup Cancelled Runs"
-    # The workflow_run trigger already filters by branch (main), so we always run
-    # The debug step below will help us understand the context if needed
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:

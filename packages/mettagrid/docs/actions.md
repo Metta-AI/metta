@@ -113,27 +113,8 @@ Example action names:
 
 ## Policy Action Emission
 
-### Basic Policy Interface
-
-Policies should implement the `AgentPolicy.step()` method which takes an observation and returns an action:
-
-```python
-from mettagrid.policy.policy import AgentPolicy
-from mettagrid.simulator import AgentObservation, Action
-
-class MyPolicy(AgentPolicy):
-    def step(self, obs: AgentObservation) -> Action:
-        # Your policy logic here
-        action_id = self.select_action(obs)
-        action_name = self.policy_env_info.action_names[action_id]
-        return Action(name=action_name)
-```
-
-> `AgentPolicy` is appropriate for use in `play` and `evaluate`, but not `train`.
-
-### Batch Action Emission
-
-For training and efficient batch processing, policies should implement `MultiAgentPolicy.step_batch()`:
+Policies should subclass `MultiAgentPolicy`. For training, where batch processing is most important, the `step_batch`
+method will be called.
 
 ```python
 from mettagrid.policy.policy import MultiAgentPolicy
