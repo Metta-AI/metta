@@ -19,6 +19,7 @@ It tells `uv run` what dependencies to install when running this script directly
 import os
 import sys
 
+# pyright: ignore[reportMissingImports]
 from github import Github
 
 
@@ -107,6 +108,7 @@ def main():
     print(f"Max deletions per run: {max_deletions}")
 
     # Initialize GitHub client
+    # pyright: ignore[reportMissingImports]
     from github import Auth
 
     g = Github(auth=Auth.Token(github_token))
