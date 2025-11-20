@@ -156,6 +156,11 @@ class ActionSupervisedAndCritic(Loss):
         # Initialize advantages tensor for critic training
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 
+        # Pre-allocate buffers to avoid memory leaks from repeated allocations
+        self._teacher_obs_buffer = None
+        self._teacher_actions_buffer = None
+        self._rollout_count = 0
+
         # Register state attributes for checkpointing
         self.register_state_attr("advantages")
 
@@ -176,6 +181,8 @@ class ActionSupervisedAndCritic(Loss):
         """Run rollout: student forward pass + teacher inference."""
         if not self.rollout_forward_enabled:
             return
+
+        self._rollout_count += 1
 
         # Student forward pass
         with torch.no_grad():
@@ -206,39 +213,38 @@ class ActionSupervisedAndCritic(Loss):
                 # Reshape to (num_envs, num_agents, num_tokens, token_dim)
                 num_tokens = env_obs.shape[1]
                 token_dim = env_obs.shape[2]
+
+                # MEMORY LEAK FIX: Lazy allocate buffers once, reuse them
+                expected_shape = (num_envs, num_agents, num_tokens, token_dim)
+                if self._teacher_obs_buffer is None or self._teacher_obs_buffer.shape != expected_shape:
+                    self._teacher_obs_buffer = np.zeros(expected_shape, dtype=np.uint8)
+                    self._teacher_actions_buffer = np.zeros((num_envs, num_agents), dtype=np.int32)
+
+                # Reshape and copy to pre-allocated buffer
                 env_obs_reshaped = env_obs.reshape(num_envs, num_agents, num_tokens, token_dim)
 
-                # Convert to numpy
-                env_obs_np = env_obs_reshaped.cpu().numpy()
+                # GPU -> CPU transfer - copy directly to buffer
+                np.copyto(self._teacher_obs_buffer, env_obs_reshaped.cpu().numpy(), casting="unsafe")
 
-                # Process each environment separately
-                all_teacher_actions = []
+                # Clear the reshaped view to free memory
+                del env_obs_reshaped
+
+                # Process each environment separately - reuse action buffer
                 for env_idx in range(num_envs):
-                    # Get observations for this environment (all agents)
-                    # Shape: (num_agents, num_tokens, token_dim)
-                    obs_for_env = env_obs_np[env_idx].astype(np.uint8, copy=False)
+                    # Get view into pre-allocated buffer (no copy)
+                    obs_for_env = self._teacher_obs_buffer[env_idx]
 
-                    # Ensure contiguous
+                    # Ensure contiguous (should already be)
                     if not obs_for_env.flags["C_CONTIGUOUS"]:
                         obs_for_env = np.ascontiguousarray(obs_for_env)
+                        self._teacher_obs_buffer[env_idx] = obs_for_env
 
-                    # Prepare action buffer for this environment (must be int32)
-                    actions_np = np.zeros(num_agents, dtype=np.int32)
+                    # Call directly into actions buffer (no append to list!)
+                    self.teacher_policy.step_batch(obs_for_env, self._teacher_actions_buffer[env_idx])
 
-                    # Call teacher's step_batch for this environment
-                    self.teacher_policy.step_batch(obs_for_env, actions_np)
-
-                    # Collect actions
-                    all_teacher_actions.append(actions_np)
-
-                # Stack all actions: (num_envs, num_agents)
-                actions_stacked = np.stack(all_teacher_actions, axis=0)
-
-                # Flatten back to match original batch structure: (batch_size,)
-                teacher_actions_flat = actions_stacked.reshape(batch_size)
-
-                # Convert to torch
-                teacher_actions = torch.from_numpy(teacher_actions_flat).to(device=td.device, dtype=torch.long)
+                # Flatten and convert to torch - copy from buffer
+                teacher_actions_flat = self._teacher_actions_buffer.reshape(batch_size)
+                teacher_actions = torch.from_numpy(teacher_actions_flat.copy()).to(device=td.device, dtype=torch.long)
 
                 td["teacher_actions"] = teacher_actions
 
@@ -247,6 +253,8 @@ class ActionSupervisedAndCritic(Loss):
                 teacher_td, B, TT = prepare_policy_forward_td(td, self.teacher_policy_spec, clone=True)
                 teacher_td = self.teacher_policy(teacher_td, action=None)
                 td["teacher_actions"] = teacher_td["actions"]
+                # MEMORY LEAK FIX: Delete temporary tensordict
+                del teacher_td
             else:
                 # Fallback: use student actions (no supervision)
                 td["teacher_actions"] = td["actions"].clone().to(torch.long)
@@ -263,6 +271,10 @@ class ActionSupervisedAndCritic(Loss):
             # Save td["action"] into replay buffer but overwrite with teacher actions for environment
             # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
             td["actions"] = td["teacher_actions"]
+
+        # MEMORY LEAK FIX: Periodically clear GPU cache
+        if torch.cuda.is_available() and self._rollout_count % 100 == 0:
+            torch.cuda.empty_cache()
 
     def run_train(
         self,
