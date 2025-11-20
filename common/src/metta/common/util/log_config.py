@@ -209,7 +209,6 @@ def _init_console_logging() -> None:
         os.environ["COLUMNS"] = "200"
 
     rich.traceback.install(show_locals=False)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 # Safe to be called repeatedly, but if it is called with different run_dirs, it will add multiple file output handlers
@@ -239,7 +238,7 @@ def should_use_rich_console() -> bool:
     return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
 
-def init_suppress_warnings() -> None:
+def suppress_noisy_logs() -> None:
     warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning, module="pydantic")
     # Suppress deprecation warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -248,6 +247,11 @@ def init_suppress_warnings() -> None:
 
     # Silence PyTorch distributed elastic warning about redirects on MacOS/Windows
     logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
+    warnings.filterwarnings(
+        "ignore",
+        message=r".*Redirects are currently not supported in Windows or MacOs.*",
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def init_mettagrid_system_environment() -> None:
