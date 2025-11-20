@@ -116,16 +116,38 @@ if ps -p "$AGENT_PID" > /dev/null; then
   if [ "$CONFIG_FIXED" = true ]; then
     echo "[DATADOG] Restarting agent to pick up logs_enabled fix..."
     pkill -f "datadog-agent.*run" || true
-    sleep 3
+    sleep 5  # Give it time to fully stop
     nohup "$AGENT_BINARY" run > /tmp/datadog-agent.log 2>&1 &
     AGENT_PID=$!
-    sleep 3
+    sleep 5  # Give agent time to start
     if ! ps -p "$AGENT_PID" > /dev/null 2>&1; then
       echo "[DATADOG] ⚠️ Agent failed to restart after config fix"
     else
       echo "[DATADOG] ✓ Agent restarted successfully after config fix"
+      echo "[DATADOG] Waiting for Logs Agent component to initialize (this can take 10-20 seconds)..."
+      # Wait for Logs Agent to start - check every 5 seconds, up to 30 seconds
+      LOGS_AGENT_STARTED=false
+      for i in {1..6}; do
+        sleep 5
+        if "$AGENT_BINARY" status > /tmp/datadog-agent-status-check.log 2>&1; then
+          if grep -q "Logs Agent" /tmp/datadog-agent-status-check.log 2>/dev/null && \
+             ! grep -q "Logs Agent is not running" /tmp/datadog-agent-status-check.log 2>/dev/null; then
+            echo "[DATADOG] ✓ Logs Agent component started after ${i}0 seconds"
+            LOGS_AGENT_STARTED=true
+            break
+          fi
+        fi
+      done
+      if [ "$LOGS_AGENT_STARTED" = false ]; then
+        echo "[DATADOG] ⚠️ Logs Agent component did not start after 30 seconds"
+        echo "[DATADOG] Checking agent logs for Logs Agent errors..."
+        grep -i "log.*agent\|log.*collection\|tail.*error" /tmp/datadog-agent.log 2>/dev/null | tail -10 | sed 's/^/  /' || echo "  (no Logs Agent errors found)"
+      fi
     fi
   fi
+
+  # Wait a bit more for Logs Agent to fully initialize before checking status
+  sleep 5
 
   # Try to verify status and log collection
   if "$AGENT_BINARY" status > /tmp/datadog-agent-status.log 2>&1; then
@@ -196,14 +218,37 @@ if ps -p "$AGENT_PID" > /dev/null; then
         echo "[DATADOG] ✓ dd-agent user can read the log file"
       else
         echo "[DATADOG] ⚠️ CRITICAL: dd-agent user CANNOT read the log file (permission issue!)"
-        echo "[DATADOG] Fixing permissions..."
-        chmod 666 "/tmp/training_logs/training_combined.log" || true
-        chmod 777 "/tmp/training_logs" || true
+        echo "[DATADOG] Current file permissions:"
+        ls -la "/tmp/training_logs/training_combined.log" | sed 's/^/  /'
+        echo "[DATADOG] Fixing permissions (trying multiple methods)..."
+        
+        # Method 1: Make file world-readable
+        chmod 666 "/tmp/training_logs/training_combined.log" 2>/dev/null || true
+        chmod 777 "/tmp/training_logs" 2>/dev/null || true
+        
+        # Method 2: If that didn't work, try with explicit o+r
+        if ! sudo -u dd-agent test -r "/tmp/training_logs/training_combined.log" 2>/dev/null; then
+          chmod o+r "/tmp/training_logs/training_combined.log" 2>/dev/null || true
+          chmod o+x "/tmp/training_logs" 2>/dev/null || true
+        fi
+        
+        # Method 3: Try changing ownership if we're root
+        if [ "$(id -u)" = "0" ]; then
+          chown dd-agent:dd-agent "/tmp/training_logs/training_combined.log" 2>/dev/null || true
+        fi
+        
         # Verify fix worked
+        sleep 1
         if sudo -u dd-agent test -r "/tmp/training_logs/training_combined.log" 2>/dev/null; then
           echo "[DATADOG] ✓ Permissions fixed, dd-agent can now read the file"
+          echo "[DATADOG] Final file permissions:"
+          ls -la "/tmp/training_logs/training_combined.log" | sed 's/^/  /'
         else
           echo "[DATADOG] ⚠️ Permissions fix failed - this will prevent log collection!"
+          echo "[DATADOG] Final file permissions:"
+          ls -la "/tmp/training_logs/training_combined.log" | sed 's/^/  /'
+          echo "[DATADOG] dd-agent user info:"
+          id dd-agent | sed 's/^/  /' || echo "  (could not get dd-agent user info)"
         fi
       fi
     else
@@ -213,21 +258,29 @@ if ps -p "$AGENT_PID" > /dev/null; then
     echo "[DATADOG] WARNING: Training log file not found: /tmp/training_logs/training_combined.log"
   fi
 
-  # Check agent's own logs for errors
+  # Check agent's own logs for errors, especially Logs Agent related
   if [ -f /tmp/datadog-agent.log ]; then
-    echo "[DATADOG] Checking agent logs for errors..."
+    echo "[DATADOG] Checking agent logs for Logs Agent errors..."
+    
+    # Check specifically for Logs Agent startup errors
+    if grep -qi "logs.*agent.*not.*running\|log.*receiver.*not.*provided\|logs.*agent.*error\|log.*collection.*error" /tmp/datadog-agent.log 2>/dev/null; then
+      echo "[DATADOG] ⚠️ Found Logs Agent errors in agent log:"
+      grep -i "logs.*agent.*not.*running\|log.*receiver.*not.*provided\|logs.*agent.*error\|log.*collection.*error" /tmp/datadog-agent.log | tail -10 | sed 's/^/  /'
+    fi
+    
+    # Check for general errors
     ERROR_COUNT=$(grep -i "error\|warn\|fail" /tmp/datadog-agent.log 2>/dev/null | wc -l || echo "0")
     if [ "$ERROR_COUNT" -gt 0 ]; then
-      echo "[DATADOG] ⚠️ Found ${ERROR_COUNT} error/warning lines in agent log:"
-      grep -i "error\|warn\|fail" /tmp/datadog-agent.log | tail -20 | sed 's/^/  /'
+      echo "[DATADOG] Found ${ERROR_COUNT} total error/warning lines in agent log (showing last 10):"
+      grep -i "error\|warn\|fail" /tmp/datadog-agent.log | tail -10 | sed 's/^/  /'
     else
       echo "[DATADOG] ✓ No obvious errors in agent log"
     fi
-
-    # Check specifically for log collection errors
-    if grep -qi "log.*collection\|tail.*error\|cannot.*read.*log" /tmp/datadog-agent.log 2>/dev/null; then
-      echo "[DATADOG] ⚠️ Found log collection errors in agent log:"
-      grep -i "log.*collection\|tail.*error\|cannot.*read.*log" /tmp/datadog-agent.log | tail -10 | sed 's/^/  /'
+    
+    # Check specifically for log collection/tailing errors
+    if grep -qi "tail.*error\|cannot.*read.*log\|permission.*denied.*log" /tmp/datadog-agent.log 2>/dev/null; then
+      echo "[DATADOG] ⚠️ Found log file access errors in agent log:"
+      grep -i "tail.*error\|cannot.*read.*log\|permission.*denied.*log" /tmp/datadog-agent.log | tail -10 | sed 's/^/  /'
     fi
   fi
 

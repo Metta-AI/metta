@@ -31,7 +31,15 @@ chmod 777 "$TRAINING_LOG_DIR"
 
 TRAINING_COMBINED_LOG="$TRAINING_LOG_DIR/training_combined.log"
 touch "$TRAINING_COMBINED_LOG"
+# Ensure file is readable by dd-agent user (Datadog agent runs as dd-agent)
 chmod 666 "$TRAINING_COMBINED_LOG"
+# Also ensure directory is executable by all (needed for dd-agent to access the file)
+chmod o+x "$TRAINING_LOG_DIR" 2>/dev/null || true
+# If running as root, try to set ownership to dd-agent if it exists
+if [ "$(id -u)" = "0" ] && id dd-agent >/dev/null 2>&1; then
+  chown dd-agent:dd-agent "$TRAINING_COMBINED_LOG" 2>/dev/null || true
+  chown dd-agent:dd-agent "$TRAINING_LOG_DIR" 2>/dev/null || true
+fi
 
 echo "[INFO] Logging training output to: $TRAINING_COMBINED_LOG"
 
