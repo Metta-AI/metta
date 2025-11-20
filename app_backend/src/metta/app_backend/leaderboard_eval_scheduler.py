@@ -71,7 +71,7 @@ AND NOT EXISTS (
     def _schedule_eval(self, policy_version_id: uuid.UUID) -> int:
         logger.info("Scheduling eval for policy: %s", policy_version_id)
         command_parts = [
-            "uv run tools/run.py recipes.experiment.v0_leaderboard_eval.run",
+            "uv run tools/run.py recipes.experiment.v0_leaderboard.evaluate",
             f"policy_version_id={str(policy_version_id)}",
             f"stats_server_uri={self._stats_client._backend_url}",
         ]

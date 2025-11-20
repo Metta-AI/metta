@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "config/observation_features.hpp"
-#include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"

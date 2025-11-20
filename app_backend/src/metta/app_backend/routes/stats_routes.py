@@ -68,6 +68,10 @@ class CompleteBulkUploadRequest(BaseModel):
     upload_id: uuid.UUID
 
 
+class MyPolicyVersionsResponse(BaseModel):
+    entries: list[PublicPolicyVersionRow]
+
+
 def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     """Create a stats router with the given StatsRepo instance."""
     router = APIRouter(prefix="/stats", tags=["stats"])
@@ -332,7 +336,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/policies/my-versions")
     @timed_route("get_my_policy_versions")
-    async def get_my_policy_versions(user: str = user_or_token) -> list[PublicPolicyVersionRow]:
+    async def get_my_policy_versions(user: str = user_or_token) -> MyPolicyVersionsResponse:
         """
         Get all policy versions for the current user.
 
@@ -340,7 +344,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         """
         try:
             policy_versions = await stats_repo.get_user_policy_versions(user)
-            return policy_versions
+            return MyPolicyVersionsResponse(entries=policy_versions)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get policy versions: {str(e)}") from e
 
