@@ -17,19 +17,7 @@ import pufferlib.models  # type: ignore[import-untyped]
 import pufferlib.pytorch  # type: ignore[import-untyped]
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action, AgentObservation
-
-
-class _PufferlibCogsNet(pufferlib.models.Default):
-    def __init__(self, env: SimpleNamespace, hidden_size: int = 256):
-        super().__init__(env, hidden_size=hidden_size)
-        self.register_buffer("_inv_scale", torch.tensor(1.0 / 255.0), persistent=False)
-
-    def encode_observations(self, observations, state=None):
-        batch_size = observations.shape[0]
-        flattened = observations.view(batch_size, -1).float() * self._inv_scale
-        return self.encoder(flattened)
-
+from mettagrid.simulator import Action, AgentObservation, Simulation
 
 _OBS_PAD_VALUE = 255.0
 
@@ -44,42 +32,7 @@ def _pack_observation(obs: AgentObservation, num_tokens: int, token_dim: int, de
     return buffer
 
 
-class PufferlibAgent(AgentPolicy):
-    def __init__(
-        self,
-        net: _PufferlibCogsNet,
-        action_names: Sequence[str],
-        num_tokens: int,
-        token_dim: int,
-        device: torch.device,
-        policy_env_info: PolicyEnvInterface,
-    ):
-        super().__init__(policy_env_info)
-        self._net = net
-        self._action_names = action_names
-        self._num_tokens = num_tokens
-        self._token_dim = token_dim
-        self._device = device
-
-    def _to_tensor(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> torch.Tensor:
-        if isinstance(obs, AgentObservation):
-            return _pack_observation(obs, self._num_tokens, self._token_dim, self._device)
-        return torch.as_tensor(obs, device=self._device)
-
-    def step(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> Action:
-        obs_tensor = self._to_tensor(obs).to(dtype=torch.float32)
-        if obs_tensor.ndim == 2:
-            obs_tensor = obs_tensor.unsqueeze(0)
-
-        with torch.no_grad():
-            self._net.eval()
-            logits, _ = self._net.forward_eval(obs_tensor)
-            sampled, _, _ = pufferlib.pytorch.sample_logits(logits)
-        action_idx = max(0, min(int(sampled.item()), len(self._action_names) - 1))
-        return Action(name=self._action_names[action_idx])
-
-
-class PufferlibCogsPolicy(TrainablePolicy):
+class PufferlibCogsPolicy(TrainablePolicy, AgentPolicy):
     """Loads and runs checkpoints trained with PufferLib's CoGames policy."""
 
     short_names = ["pufferlib", "pufferlib_cogs"]
@@ -91,7 +44,8 @@ class PufferlibCogsPolicy(TrainablePolicy):
         hidden_size: int = 256,
         device: Optional[Union[str, torch.device]] = None,
     ):
-        super().__init__(policy_env_info)
+        TrainablePolicy.__init__(self, policy_env_info)
+        AgentPolicy.__init__(self, policy_env_info)
         shim_env = SimpleNamespace(
             single_observation_space=policy_env_info.observation_space,
             single_action_space=policy_env_info.action_space,
@@ -100,7 +54,7 @@ class PufferlibCogsPolicy(TrainablePolicy):
             num_agents=policy_env_info.num_agents,
         )
         shim_env.env = shim_env
-        self._net = _PufferlibCogsNet(shim_env, hidden_size=hidden_size)
+        self._net = pufferlib.models.Default(shim_env, hidden_size=hidden_size)  # type: ignore[arg-type]
         if device is not None:
             self._net = self._net.to(torch.device(device))
         self._action_names = policy_env_info.action_names
@@ -111,17 +65,14 @@ class PufferlibCogsPolicy(TrainablePolicy):
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:  # type: ignore[override]
-        return PufferlibAgent(
-            net=self._net,
-            action_names=self._action_names,
-            num_tokens=self._num_tokens,
-            token_dim=self._token_dim,
-            device=self._device,
-            policy_env_info=self.policy_env_info,
-        )
+        return self
 
     def is_recurrent(self) -> bool:
         return False
+
+    def reset(self, simulation: Optional[Simulation] = None) -> None:  # type: ignore[override]
+        # No internal state to reset; signature satisfies AgentPolicy and MultiAgentPolicy
+        return None
 
     def load_policy_data(self, policy_data_path: str) -> None:
         state = torch.load(policy_data_path, map_location=next(self._net.parameters()).device)
@@ -130,3 +81,20 @@ class PufferlibCogsPolicy(TrainablePolicy):
 
     def save_policy_data(self, policy_data_path: str) -> None:
         torch.save(self._net.state_dict(), policy_data_path)
+
+    def _to_tensor(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> torch.Tensor:
+        if isinstance(obs, AgentObservation):
+            return _pack_observation(obs, self._num_tokens, self._token_dim, self._device)
+        return torch.as_tensor(obs, device=self._device)
+
+    def step(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> Action:  # type: ignore[override]
+        obs_tensor = self._to_tensor(obs).to(dtype=torch.float32) * (1.0 / 255.0)
+        if obs_tensor.ndim == 2:
+            obs_tensor = obs_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            self._net.eval()
+            logits, _ = self._net.forward_eval(obs_tensor)
+            sampled, _, _ = pufferlib.pytorch.sample_logits(logits)
+        action_idx = max(0, min(int(sampled.item()), len(self._action_names) - 1))
+        return Action(name=self._action_names[action_idx])
