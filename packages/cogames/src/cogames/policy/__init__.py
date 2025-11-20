@@ -9,10 +9,13 @@ from mettagrid.policy.policy import (
 )
 from mettagrid.policy.policy import MultiAgentPolicy as Policy
 
+from .pufferlib_policy import PufferlibCogsPolicy
+
 __all__ = [
     "AgentPolicy",
     "Policy",
     "PolicySpec",
+    "PufferlibCogsPolicy",
     "StatefulAgentPolicy",
     "StatefulPolicyImpl",
     "TrainablePolicy",
