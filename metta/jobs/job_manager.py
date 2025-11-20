@@ -27,7 +27,8 @@ class ExitCode:
 
 # SkyPilot job statuses that indicate the job is still running
 # Per SkyPilot docs: PENDING, STARTING, RUNNING, RECOVERING
-SKYPILOT_RUNNING_STATUSES = frozenset({"PENDING", "STARTING", "RUNNING", "RECOVERING"})
+# ERROR is included as a transient state (API errors, network issues) - don't treat as terminal
+SKYPILOT_RUNNING_STATUSES = frozenset({"PENDING", "STARTING", "RUNNING", "RECOVERING", "ERROR"})
 
 
 class JobManager:
@@ -615,6 +616,9 @@ class JobManager:
         def monitor_loop():
             # For reattached jobs, fetch metrics immediately; for new jobs, wait full interval
             last_metrics_fetch = -self.metrics_fetch_interval_s if fetch_immediately else 0.0
+            error_since = None  # Track when ERROR state started
+            error_timeout_s = 120  # 2 minutes - fail job if stuck in ERROR this long
+            last_logged_status = None
 
             try:
                 while True:
@@ -626,13 +630,44 @@ class JobManager:
                             break
                         status = job_state.skypilot_status
 
+                    # Log status changes for debugging
+                    if status != last_logged_status:
+                        logger.debug(f"[MONITOR] {job_name} status: {last_logged_status} -> {status}")
+                        last_logged_status = status
+
                     if not status:
                         # Wait for shared monitor to populate status
                         time.sleep(1.0)
                         continue
 
+                    # Track ERROR state duration
+                    if status == "ERROR":
+                        if error_since is None:
+                            error_since = time.time()
+                            logger.info(
+                                f"[MONITOR] {job_name} entered ERROR state (will timeout after {error_timeout_s}s)"
+                            )
+                        elif time.time() - error_since > error_timeout_s:
+                            logger.error(
+                                f"[MONITOR] {job_name} stuck in ERROR state for {error_timeout_s}s - "
+                                "treating as permanent failure"
+                            )
+                            # Mark as failed with special exit code
+                            with Session(self._engine) as session:
+                                job_state = session.get(JobState, job_name)
+                                if job_state:
+                                    self._update_job_status(job_state, JobStatus.COMPLETED)
+                                    job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                                    job_state.exit_code = -3  # Special code for ERROR timeout
+                                    session.add(job_state)
+                                    session.commit()
+                            break
+                    else:
+                        error_since = None  # Reset if we exit ERROR state
+
                     # Check if terminal state reached
                     if status and status not in SKYPILOT_RUNNING_STATUSES:
+                        logger.info(f"[MONITOR] {job_name} reached terminal state: {status}")
                         self._handle_remote_job_completion(job_name, status, job_id)
                         break
 
