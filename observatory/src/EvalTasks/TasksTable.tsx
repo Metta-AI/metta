@@ -1,11 +1,27 @@
 import { FC, Ref, useCallback, useEffect, useImperativeHandle, useState } from 'react'
 import { PaginatedEvalTasksResponse, Repo, TaskFilters } from '../repo'
 import { TaskRow } from './TaskRow'
+import { Button } from '../components/Button'
+import { Input } from '../components/Input'
 
 const pageSize = 50
 
 export type TasksTableHandle = {
   loadTasks: (page: number) => void
+}
+
+const FilterInput: FC<{
+  value: string
+  onChange: (value: string) => void
+}> = ({ value, onChange }) => {
+  return <Input value={value} onChange={onChange} placeholder="Filter..." size="sm" />
+}
+
+const TH: FC<{
+  children: React.ReactNode
+  style?: React.CSSProperties
+}> = ({ children, style }) => {
+  return <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', ...(style || {}) }}>{children}</th>
 }
 
 export const TasksTable: FC<{
@@ -18,25 +34,27 @@ export const TasksTable: FC<{
   const [filters, setFilters] = useState<TaskFilters>({})
 
   // Load tasks
-  const loadTasks = useCallback(async (page: number) => {
-    try {
-      const response = await repo.getEvalTasksPaginated(page, pageSize, filters)
-      setTasksResponse(response)
-    } catch (err: any) {
-      console.error('Failed to load tasks:', err)
-      setError(`Failed to load tasks: ${err.message}`)
-    }
-  }, [])
+  const loadTasks = useCallback(
+    async (page: number) => {
+      try {
+        const response = await repo.getEvalTasksPaginated(page, pageSize, filters)
+        setTasksResponse(response)
+      } catch (err: any) {
+        console.error('Failed to load tasks:', err)
+        setError(`Failed to load tasks: ${err.message}`)
+      }
+    },
+    [filters]
+  )
 
   useImperativeHandle(ref, () => ({
     loadTasks,
   }))
 
-  // Initial load
+  // Initial load and when filters change
   useEffect(() => {
     loadTasks(1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [loadTasks])
 
   // Reload when filters change
   useEffect(() => {
@@ -55,27 +73,6 @@ export const TasksTable: FC<{
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, filters])
-
-  // Render helpers
-  const renderFilterInput = (value: string, onChange: (value: string) => void, placeholder: string = 'Filter...') => {
-    return (
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          padding: '4px 8px',
-          fontSize: '12px',
-          border: '1px solid #d1d5db',
-          borderRadius: '4px',
-          marginTop: '4px',
-        }}
-      />
-    )
-  }
 
   const renderStatusDropdown = (value: string, onChange: (value: string) => void) => {
     return (
@@ -116,29 +113,41 @@ export const TasksTable: FC<{
         <table className="w-full border-collapse table-fixed">
           <thead>
             <tr className="bg-gray-100 text-left">
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '5%' }}>ID</th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '30%' }}>
+              <TH>ID</TH>
+              <TH style={{ width: '30%' }}>
                 Command
-                {renderFilterInput(filters.command || '', (value) => setFilters({ ...filters, command: value }))}
-              </th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                <FilterInput
+                  value={filters.command || ''}
+                  onChange={(value) => setFilters({ ...filters, command: value })}
+                />
+              </TH>
+              <TH>
                 Status
                 {renderStatusDropdown(filters.status || '', (value) => setFilters({ ...filters, status: value }))}
-              </th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '12%' }}>
+              </TH>
+              <TH>
                 User
-                {renderFilterInput(filters.user_id || '', (value) => setFilters({ ...filters, user_id: value }))}
-              </th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '12%' }}>
+                <FilterInput
+                  value={filters.user_id || ''}
+                  onChange={(value) => setFilters({ ...filters, user_id: value })}
+                />
+              </TH>
+              <TH>
                 Assignee
-                {renderFilterInput(filters.assignee || '', (value) => setFilters({ ...filters, assignee: value }))}
-              </th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '8%' }}>Attempts</th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '15%' }}>
+                <FilterInput
+                  value={filters.assignee || ''}
+                  onChange={(value) => setFilters({ ...filters, assignee: value })}
+                />
+              </TH>
+              <TH>Attempts</TH>
+              <TH>
                 Created
-                {renderFilterInput(filters.created_at || '', (value) => setFilters({ ...filters, created_at: value }))}
-              </th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '8%' }}>Logs</th>
+                <FilterInput
+                  value={filters.created_at || ''}
+                  onChange={(value) => setFilters({ ...filters, created_at: value })}
+                />
+              </TH>
+              <TH>Logs</TH>
             </tr>
           </thead>
           <tbody>
@@ -155,23 +164,15 @@ export const TasksTable: FC<{
       {/* Pagination */}
       {tasksResponse.total_pages > 1 && (
         <div className="flex gap-2 justify-center py-5">
-          <button
-            onClick={() => loadTasks(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="px-3 py-2 border border-gray-300 rounded-md cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100"
-          >
+          <Button onClick={() => loadTasks(currentPage - 1)} disabled={currentPage === 1}>
             Previous
-          </button>
+          </Button>
           <span className="px-3 py-2">
             Page {currentPage} of {tasksResponse.total_pages}
           </span>
-          <button
-            onClick={() => loadTasks(currentPage + 1)}
-            disabled={currentPage === tasksResponse.total_pages}
-            className="px-3 py-2 border border-gray-300 rounded-md cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100"
-          >
+          <Button onClick={() => loadTasks(currentPage + 1)} disabled={currentPage === tasksResponse.total_pages}>
             Next
-          </button>
+          </Button>
         </div>
       )}
     </div>
