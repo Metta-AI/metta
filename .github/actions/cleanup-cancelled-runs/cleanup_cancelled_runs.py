@@ -26,8 +26,9 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
     """
     Check if a cancelled run was superseded by a newer run.
 
-    Heuristic: If there's a newer successful/in-progress run on the same branch/ref,
-    the cancelled run was likely superseded by concurrency settings.
+    Heuristic: If there's any newer run (whether still running or already finished)
+    on the same branch/ref that wasn't itself cancelled, we treat the older cancelled
+    run as superseded by concurrency settings.
     """
     ref_key = cancelled_run.head_branch or cancelled_run.head_sha
     cancelled_created = cancelled_run.created_at  # PyGithub always returns datetime objects
@@ -44,12 +45,15 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
         if run.created_at > cancelled_created:
             newer_runs.append(run)
 
-    # Check if any newer run is successful or in-progress
-    has_newer_successful_run = any(
-        run.conclusion == "success" or run.status == "in_progress" or run.status == "queued" for run in newer_runs
+    # Treat as superseded if any newer run is still running/queued, or if it completed
+    # (regardless of success) and wasn't itself cancelled. This catches the concurrency
+    # chain even when the replacement run fails due to a legitimate error.
+    has_newer_non_cancelled_run = any(
+        run.status in ("in_progress", "queued") or (run.conclusion and run.conclusion != "cancelled")
+        for run in newer_runs
     )
 
-    return len(newer_runs) > 0 and has_newer_successful_run
+    return len(newer_runs) > 0 and has_newer_non_cancelled_run
 
 
 def main():
