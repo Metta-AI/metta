@@ -13,6 +13,8 @@ from pathlib import Path
 from sky.server.common import get_server_url
 from sqlmodel import Session
 
+from metta.common.util.text_styles import cyan, green, magenta, red
+from metta.jobs.job_config import MetricsSource
 from metta.jobs.job_manager import JobManager
 from metta.jobs.job_state import JobState, JobStatus
 
@@ -24,8 +26,9 @@ class JobDisplay:
         self._start_time = time.time()
 
     def _should_show_training_artifacts(self, job_name: str) -> bool:
+        """Check if job has training artifacts (WandB runs, checkpoints)."""
         job_state = self.job_manager.get_job_state(job_name)
-        return job_state.config.is_training_job if job_state else False
+        return job_state.config.metrics_source == MetricsSource.WANDB if job_state else False
 
     def _get_display_name(self, job_name: str) -> str:
         """Strip prefix for cleaner display by taking everything after the last dot.
@@ -566,8 +569,6 @@ def _format_artifact_with_color(uri: str) -> str:
 
     Helper for format_job_with_acceptance to add colors to artifact links.
     """
-    from metta.common.util.text_styles import cyan, magenta
-
     result = format_artifact_link(uri)
     if uri.startswith("wandb://") or uri.startswith("s3://") or uri.startswith("file://"):
         return magenta(result)
@@ -647,8 +648,6 @@ def format_job_with_acceptance(job_state: JobState, dump_failed_logs: bool = Fal
     Returns:
         Multi-line formatted string with job status + acceptance + artifacts
     """
-    from metta.common.util.text_styles import green, red
-
     lines = []
 
     # Job status line using primitive
@@ -735,15 +734,15 @@ def format_job_with_acceptance(job_state: JobState, dump_failed_logs: bool = Fal
                 else:
                     lines.append(f"    • {criterion.metric}: (target: {criterion.operator} {criterion.threshold})")
 
-    # Artifacts (only show for training jobs)
-    if job_state.config.is_training_job:
-        if job_state.wandb_url:
-            artifact_str = _format_artifact_with_color(job_state.wandb_url)
-            lines.append(f"  {artifact_str}")
+    # Artifacts - show WandB URL only if metrics_source is WANDB
+    if job_state.wandb_url and job_state.config.metrics_source == MetricsSource.WANDB:
+        artifact_str = _format_artifact_with_color(job_state.wandb_url)
+        lines.append(f"  {artifact_str}")
 
-        if job_state.checkpoint_uri:
-            artifact_str = _format_artifact_with_color(job_state.checkpoint_uri)
-            lines.append(f"  {artifact_str}")
+    # Show checkpoint URI if available (independent of metrics source)
+    if job_state.checkpoint_uri:
+        artifact_str = _format_artifact_with_color(job_state.checkpoint_uri)
+        lines.append(f"  {artifact_str}")
 
     # Always show log path for debugging
     if job_state.logs_path:

@@ -11,7 +11,10 @@ from recipes.validation.stable_suite import get_stable_jobs
 
 def ci_job(name: str, cmd: list[str], timeout_s: int = 1800) -> JobConfig:
     """Create a CI job that runs a shell command."""
-    return JobConfig(name=name, module="__unused__", timeout_s=timeout_s, metadata={"cmd": cmd})
+    import shlex
+
+    cmd_string = shlex.join(cmd)
+    return JobConfig(name=name, cmd=cmd_string, timeout_s=timeout_s)
 
 
 def get_all_jobs(version: str) -> list[JobConfig]:

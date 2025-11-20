@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import os
-import shlex
 import signal
 import subprocess
 import time
@@ -170,16 +169,10 @@ class Job(ABC):
     def run_name(self) -> str | None:
         """Extract WandB run name from job config args if present.
 
-        Only applicable for training jobs. Returns None for non-training jobs
-        or if run= is not specified in args.
+        Returns None if run is not specified in args.
         """
-        if not self.config.is_training_job:
-            return None
-        # Look for run=<name> in args
-        for arg in self.config.args:
-            if arg.startswith("run="):
-                return arg.split("=", 1)[1]
-        return None
+        # Check if 'run' key exists in args dict
+        return self.config.args.get("run")
 
     @property
     def exit_code(self) -> int | None:
@@ -198,14 +191,7 @@ class LocalJob(Job):
     ):
         super().__init__(config.name, log_dir, config.timeout_s, config)
         self.cwd = cwd or get_repo_root()
-        if "cmd" in config.metadata:
-            cmd = config.metadata["cmd"]
-            if isinstance(cmd, str):
-                cmd = shlex.split(cmd)
-            self.cmd = cmd
-        else:
-            self.cmd = ["uv", "run", "./tools/run.py", config.module]
-            self.cmd.extend(config.args)
+        self.cmd = config.build_command()
 
         self._proc: Optional[subprocess.Popen] = None
         self._exit_code: Optional[int] = None
@@ -358,7 +344,9 @@ class RemoteJob(Job):
         if not config.remote and not job_id:
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
-        arg_list = config.args
+        # Convert args dict to list of "key=value" strings for launch.py
+        arg_list = [f"{k}={v}" for k, v in config.args.items()]
+
         if config.remote:
             base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
             if not config.remote.spot:
@@ -366,7 +354,7 @@ class RemoteJob(Job):
         else:
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
-        self.module = config.module
+        self.recipe = config.recipe
         self.args = arg_list
         self.base_args = base_args
         self.skip_git_check = skip_git_check
@@ -399,7 +387,7 @@ class RemoteJob(Job):
         cmd = [
             "devops/skypilot/launch.py",
             *self.base_args,
-            self.module,
+            self.recipe,
         ]
 
         # Only pass run= for training jobs (they use WandB for experiment tracking)
@@ -466,8 +454,8 @@ class RemoteJob(Job):
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Only generate run_name for training jobs (they use WandB)
-            run_name = self._generate_run_name() if self.config.is_training_job else None
+            # Only generate run_name if 'run' is specified in args (training jobs)
+            run_name = self._generate_run_name() if self.config.args.get("run") else None
             request_id, job_id, _ = retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,

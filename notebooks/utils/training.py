@@ -39,32 +39,37 @@ def launch_training(
             f"Curriculum {curriculum} not found. Available environments: {load_available_environments()}"
         )
 
-    cmd_args = remove_none_values(
+    # Build launch.py flags
+    launch_flags = remove_none_values(
         {
             "nodes": num_nodes,
-            "gpu": num_gpus,
-            "cpu": num_cpus,
-            "no_spot": no_spot,
-            "git_ref": git_ref,
-            "skip_git_check": skip_git_check,
-            "dry_run": dry_run,
+            "gpus": num_gpus,
+            "cpus": num_cpus,
+            "no-spot": no_spot,
+            "git-ref": git_ref,
+            "skip-git-check": skip_git_check,
+            "dry-run": dry_run,
         }
     )
 
-    cmd = [
-        "./devops/skypilot/launch.py",
-        "train",
-        f"run={run_name}",
-        *[f"--{k}={v}" for k, v in cmd_args.items()],
-    ]
+    # Build tool args
+    tool_args = ["train", f"run={run_name}"]
 
     if curriculum:
-        cmd.append(f"training_env.curriculum={curriculum}")
+        tool_args.append(f"training_env.curriculum={curriculum}")
     if wandb_tags:
-        cmd.append(f"+wandb.tags={json.dumps(wandb_tags)}")
+        tool_args.append(f"+wandb.tags={json.dumps(wandb_tags)}")
 
     if additional_args:
-        cmd.extend(additional_args)
+        tool_args.extend(additional_args)
+
+    # Build launch.py command using --tool flag
+    cmd = [
+        "./devops/skypilot/launch.py",
+        "--tool",
+        *tool_args,
+        *[f"--{k}={v}" for k, v in launch_flags.items()],
+    ]
 
     print(f"Launching training job: {run_name}")
     print(f"Command: {' '.join(cmd)}")

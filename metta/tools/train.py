@@ -174,7 +174,7 @@ class TrainTool(Tool):
             return 130  # Standard exit code for Ctrl+C
 
         except Exception as e:
-            logger.error(f"Training failed with exception: {e}", exc_info=True)
+            logger.error(f"Training failed with exception: {e}")
             return 1
 
         finally:
