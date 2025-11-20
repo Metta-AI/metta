@@ -5,6 +5,7 @@ from cogames.cogs_vs_clips.machina_missions_trainer import MACHINA_TRAINER_MISSI
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import EASY_MODE, HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
+from cogames.cogs_vs_clips.training_missions import MACHINA_TRAINING_MISSIONS
 from cogames.cogs_vs_clips.variants import (
     ClipHubStationsVariant,
     ClipPeriodOnVariant,
@@ -131,6 +132,7 @@ MISSIONS: list[Mission] = [
     *INTEGRATED_EVAL_MISSIONS,
     *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
     *MACHINA_TRAINER_MISSIONS,
+    *MACHINA_TRAINING_MISSIONS,
 ]
 
 
