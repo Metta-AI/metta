@@ -153,7 +153,7 @@ class CortexTD(nn.Module):
     def initialize_to_environment(self, _policy_env_info: Any, device: torch.device) -> Optional[str]:
         return None
 
-    def _ensure_template_primed(self, *, B: int, device: torch.device, dtype: torch.dtype) -> None:
+    def _init_template_if_needed(self, *, B: int, device: torch.device, dtype: torch.dtype) -> None:
         if self._state_treedef is None:
             s1 = self._zero_step_init_state(batch=B, device=device, dtype=dtype)
             self._adopt_template_from_state(s1)
@@ -205,7 +205,7 @@ class CortexTD(nn.Module):
         TT = int(td["bptt"][0].item())
         B = int(td["batch"][0].item())
 
-        self._ensure_template_primed(B=B, device=device, dtype=storage_dtype)
+        self._init_template_if_needed(B=B, device=device, dtype=storage_dtype)
 
         if TT <= 0 or B <= 0:
             raise ValueError("'bptt' and 'batch' must be positive integers")
