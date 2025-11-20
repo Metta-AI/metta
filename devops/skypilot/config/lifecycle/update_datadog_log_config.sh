@@ -26,14 +26,15 @@ if [ -n "${SKYPILOT_NUM_NODES:-}" ]; then
   LOG_TAGS+=("num_nodes:${SKYPILOT_NUM_NODES}")
 fi
 
-# Format tags as YAML list
+# Format tags as YAML list (with real newlines, not literal '\n')
 TAGS_YAML=""
 if [ ${#LOG_TAGS[@]} -gt 0 ]; then
   TAGS_LINES=""
   for tag in "${LOG_TAGS[@]}"; do
-    TAGS_LINES="${TAGS_LINES}      - \"${tag}\"\n"
+    # Append a line like:       - "metta_run_id:run123"
+    TAGS_LINES+=$'      - "'$tag$'"\n'
   done
-  TAGS_YAML="    tags:\n${TAGS_LINES}"
+  TAGS_YAML=$'    tags:\n'"${TAGS_LINES}"
 fi
 
 # Ensure log directory and files exist
