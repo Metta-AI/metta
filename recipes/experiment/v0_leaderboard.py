@@ -12,9 +12,13 @@ from metta.tools.utils.auto_config import auto_stats_server_uri
 logger = logging.getLogger(__name__)
 
 
-# Baseline UUIDs
-THINKY_UUID = "4f00146e-7a14-4b5d-b15e-6068f1b82de6"
-LADYBUG_UUID = "3e9fca78-f179-47d8-bb56-63108a3ff7d3"
+# Whatever `thinky` resolves to in the policy shorthand registry.
+# Likely cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy.
+THINKY_UUID = "674fc022-5f1f-41e5-ab9e-551fa329b723"
+
+# Whatever `ladybug` resolves to in the policy shorthand registry.
+# Likely cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy
+LADYBUG_UUID = "5a491d05-7fb7-41a0-a250-fe476999edcd"
 
 
 def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
