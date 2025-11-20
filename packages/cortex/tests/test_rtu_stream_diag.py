@@ -359,7 +359,6 @@ def test_triton_streaming_diag_forward_and_grad_parity(with_resets: bool) -> Non
     assert torch.allclose(h1_pt, h1_tr, rtol=2e-5, atol=1e-6)
     assert torch.allclose(h2_pt, h2_tr, rtol=2e-5, atol=1e-6)
 
-
     names = ["nu_log", "theta_log", "w1", "w2", "x"]
     tolerances = {
         "nu_log": (5e-4, 2e-5),

@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 FlatKey = str
 
+
 def _td_flatten(td: TensorDictBase) -> Tuple[Iterable[Any], tuple]:
     keys = tuple(td.keys())
     children = [td.get(k) for k in keys]
