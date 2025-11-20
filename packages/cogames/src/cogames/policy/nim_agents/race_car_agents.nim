@@ -170,7 +170,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   # Randomize the offsets4 for each agent, so they take different directions.
   var offsets4 = Offsets4
   result.random.shuffle(offsets4)
-  result.offsets4 = offsets4
+  result.offsets4 = @offsets4
 
   result.exploreLocations = @[
     Location(x: -7, y: 0),
