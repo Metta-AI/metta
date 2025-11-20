@@ -155,12 +155,12 @@ def train(
             ),
             HyperUpdateRule(
                 loss_instance_name="sliced_kickstarter",
-                attr_path="student_led_proportion",
+                attr_path="teacher_led_proportion",
                 mode="progress",
                 style="linear",
                 start_value=0.80,
                 end_value=0.0,
-                # start_agent_step=30_000_000,
+                start_agent_step=0,
                 end_agent_step=500_000_000,
             ),
             HyperUpdateRule(
@@ -170,7 +170,7 @@ def train(
                 style="linear",
                 start_value=0.10,
                 end_value=0.7,
-                start_agent_step=30_000_000,
+                start_agent_step=0,
                 end_agent_step=500_000_000,
             ),
             HyperUpdateRule(

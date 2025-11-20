@@ -190,6 +190,8 @@ class SlicedKickstarter(Loss):
         self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
         self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
         self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
+        self.loss_tracker["ks_teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
+        self.loss_tracker["ks_student_led_proportion"].append(float(self.cfg.student_led_proportion))
 
         return loss, shared_loss_data, False
 
