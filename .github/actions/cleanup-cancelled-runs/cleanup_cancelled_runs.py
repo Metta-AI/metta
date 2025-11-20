@@ -19,8 +19,7 @@ It tells `uv run` what dependencies to install when running this script directly
 import os
 import sys
 
-# pyright: ignore[reportMissingImports]
-from github import Github
+from github import Github  # pyright: ignore[reportMissingImports]
 
 
 def is_superseded_run(cancelled_run, all_runs) -> bool:
@@ -68,6 +67,28 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
         if run.created_at > cancelled_created:
             newer_runs.append(run)
 
+    # Debug logging for matching
+    if newer_runs:
+        print(f"    Found {len(newer_runs)} newer run(s) on same branch:")
+        for nr in newer_runs[:5]:  # Show first 5 newer runs
+            nr_branch = nr.head_branch or "None"
+            nr_sha = nr.head_sha[:8] if nr.head_sha else "None"
+            nr_status = nr.status
+            nr_conclusion = nr.conclusion or "None"
+            nr_created = nr.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            print(
+                f"      - Run #{nr.run_number}: branch={nr_branch}, sha={nr_sha}, "
+                f"status={nr_status}, conclusion={nr_conclusion}, created={nr_created}"
+            )
+        if len(newer_runs) > 5:
+            print(f"      ... and {len(newer_runs) - 5} more newer runs")
+    else:
+        cancelled_sha_short = cancelled_sha[:8] if cancelled_sha else "None"
+        print(
+            f"    No newer runs found on same branch "
+            f"(cancelled branch={cancelled_branch}, cancelled_sha={cancelled_sha_short})"
+        )
+
     # Treat as superseded if any newer run is still running/queued, or if it completed
     # (regardless of success) and wasn't itself cancelled. This catches the concurrency
     # chain even when the replacement run fails due to a legitimate error.
@@ -75,6 +96,17 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
         run.status in ("in_progress", "queued") or (run.conclusion and run.conclusion != "cancelled")
         for run in newer_runs
     )
+
+    # Debug logging for superseded determination
+    if newer_runs:
+        non_cancelled_newer = [
+            r
+            for r in newer_runs
+            if r.status in ("in_progress", "queued") or (r.conclusion and r.conclusion != "cancelled")
+        ]
+        print(f"    Non-cancelled newer runs: {len(non_cancelled_newer)}/{len(newer_runs)}")
+        if not has_newer_non_cancelled_run:
+            print(f"    ⚠️ All {len(newer_runs)} newer run(s) were also cancelled - not superseding")
 
     return len(newer_runs) > 0 and has_newer_non_cancelled_run
 
@@ -108,8 +140,7 @@ def main():
     print(f"Max deletions per run: {max_deletions}")
 
     # Initialize GitHub client
-    # pyright: ignore[reportMissingImports]
-    from github import Auth
+    from github import Auth  # pyright: ignore[reportMissingImports]
 
     g = Github(auth=Auth.Token(github_token))
     repo = g.get_repo(github_repository)
@@ -130,13 +161,24 @@ def main():
     print(f"Found workflow ID: {workflow.id}")
 
     # Get all recent runs to check for superseding runs
+    # Increased to 300 to catch older cancelled runs that might still be showing red X's
     print("Fetching recent workflow runs...")
-    all_runs = list(workflow.get_runs()[:100])
+    all_runs = list(workflow.get_runs()[:300])
     print(f"Found {len(all_runs)} recent workflow runs")
 
     # Get cancelled runs
     cancelled_runs = [run for run in all_runs if run.conclusion == "cancelled"]
     print(f"Found {len(cancelled_runs)} cancelled runs")
+    if cancelled_runs:
+        print("Cancelled runs details:")
+        for run in cancelled_runs:
+            branch_info = run.head_branch or "None"
+            sha_info = run.head_sha[:8] if run.head_sha else "None"
+            created_info = run.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            print(
+                f"  - Run #{run.run_number}: branch={branch_info}, sha={sha_info}, "
+                f"created={created_info}, url={run.html_url}"
+            )
 
     if len(cancelled_runs) == 0:
         print("No cancelled runs to process")
@@ -149,9 +191,19 @@ def main():
 
     # Filter to only superseded runs
     print("Identifying superseded runs...")
-    superseded_runs = [run for run in cancelled_runs if is_superseded_run(run, all_runs)]
+    superseded_runs = []
+    for run in cancelled_runs:
+        branch_display = run.head_branch or "None"
+        sha_display = run.head_sha[:8] if run.head_sha else "None"
+        print(f"\nChecking Run #{run.run_number} (branch={branch_display}, sha={sha_display}):")
+        is_superseded = is_superseded_run(run, all_runs)
+        if is_superseded:
+            superseded_runs.append(run)
+            print("  ✓ SUPERSEDED - will delete")
+        else:
+            print("  ✗ NOT SUPERSEDED - keeping (no newer non-cancelled run found)")
 
-    print(f"Identified {len(superseded_runs)} as superseded (will delete)")
+    print(f"\nSummary: Identified {len(superseded_runs)} as superseded (will delete)")
     print(f"Keeping {len(cancelled_runs) - len(superseded_runs)} cancelled runs (not superseded)")
 
     # Limit to max-deletions to prevent rate limits
