@@ -17,6 +17,8 @@ from recipes.prod.arena_basic_easy_shaped import (
     play,
     replay,
     simulations,
+)
+from recipes.prod.arena_basic_easy_shaped import (
     sweep as _arena_sweep,
 )
 from recipes.prod.arena_basic_easy_shaped import (
@@ -84,9 +86,7 @@ def train(
     policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
     """Train SmolLLM with optimized defaults for memory-constrained environments."""
-    policy_config, trainer_updates, env_updates, _num_agents = _smollm_config(
-        model_name, mem_len
-    )
+    policy_config, trainer_updates, env_updates, _num_agents = _smollm_config(model_name, mem_len)
 
     if policy_architecture is None:
         policy_architecture = SmolLLMConfig(**policy_config)

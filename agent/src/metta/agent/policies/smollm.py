@@ -26,7 +26,7 @@ class SmolLLMConfig(PolicyArchitecture):
     max_sequence_length: int = 32
     # HF loading/runtime
     torch_dtype: Literal["float32", "float16", "bfloat16"] = "bfloat16"
-    attn_implementation: Optional[str] = 'flash_attention_2'  # e.g., "flash_attention_2"
+    attn_implementation: Optional[str] = "flash_attention_2"  # e.g., "flash_attention_2"
     mem_len: int = 128  # rolling KV cache length; 0 = unbounded
 
     tokens_key: str = "smollm_tokens"
@@ -99,8 +99,8 @@ class SmolLLMConfig(PolicyArchitecture):
             CortexTDConfig(
                 in_key="obs_latent_attn",
                 out_key="core",
-                d_hidden=hf_hidden,            # input dim to stack = LLM embed dim
-                out_features=hf_hidden,        # out_features = LLM embed dim
+                d_hidden=hf_hidden,  # input dim to stack = LLM embed dim
+                out_features=hf_hidden,  # out_features = LLM embed dim
                 stack_cfg=stack_cfg,
                 key_prefix="cortex_state",
                 dtype=self.torch_dtype,

@@ -160,8 +160,6 @@ class CortexTD(nn.Module):
         self._rollout_current_state: Optional[TensorDict] = None
         self._rollout_current_env_ids: Optional[torch.Tensor] = None  # Long[Br]
 
-
-
     # Hook called by PolicyAutoBuilder after moving the module to the runtime device.
     def initialize_to_environment(self, _policy_env_info: Any, device: torch.device) -> Optional[str]:
         return None
@@ -195,8 +193,6 @@ class CortexTD(nn.Module):
         leaves, _ = optree.tree_flatten(state, namespace="torch")
         if self._state_treedef is None or len(leaves) != len(self._leaf_shapes):
             self._adopt_template_from_state(state)
-
-    
 
     def _resolve_dtype(self, dtype_str: str) -> torch.dtype:
         s = str(dtype_str).lower()

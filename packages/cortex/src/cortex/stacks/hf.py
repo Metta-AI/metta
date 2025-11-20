@@ -51,9 +51,7 @@ def build_llama_stack_from_model(
     compile_blocks: bool = False,
 ) -> CortexStack:
     """Build a CortexStack instance wrapping LLaMA decoder layers."""
-    stack_cfg = build_llama_stack_config_from_model(
-        model, mem_len=mem_len, compile_blocks=compile_blocks
-    )
+    stack_cfg = build_llama_stack_config_from_model(model, mem_len=mem_len, compile_blocks=compile_blocks)
     return CortexStack(stack_cfg)
 
 
@@ -87,9 +85,7 @@ def build_hf_stack_config(
         # Optionally truncate to the first N layers for quicker experiments
         model.model.layers = model.model.layers[:num_layers]  # type: ignore[attr-defined]
 
-    return build_llama_stack_config_from_model(
-        model, mem_len=mem_len, compile_blocks=compile_blocks
-    )
+    return build_llama_stack_config_from_model(model, mem_len=mem_len, compile_blocks=compile_blocks)
 
 
 def build_hf_stack(
