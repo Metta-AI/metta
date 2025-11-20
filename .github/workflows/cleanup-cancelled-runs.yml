@@ -13,10 +13,10 @@ on:
     # Manual trigger for testing on feature branches
 
 # Explicit concurrency settings to prevent cancellation
-# Each cleanup run gets a unique group based on the triggering workflow run ID
+# Each cleanup run gets a unique group based on the triggering workflow run ID or manual trigger
 # cancel-in-progress: false ensures this workflow never gets cancelled
 concurrency:
-  group: cleanup-cancelled-runs-${{ github.event.workflow_run.id }}
+  group: cleanup-cancelled-runs-${{ github.event.workflow_run.id || github.run_id }}
   cancel-in-progress: false
 
 permissions:
@@ -36,11 +36,17 @@ jobs:
     steps:
       - name: Debug workflow run context
         run: |
-          echo "Event: ${{ github.event.workflow_run.event }}"
-          echo "Head branch: ${{ github.event.workflow_run.head_branch }}"
-          echo "Head commit message: ${{ github.event.workflow_run.head_commit.message }}"
-          echo "Actor: ${{ github.event.workflow_run.actor.login }}"
-          echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Event name: ${{ github.event_name }}"
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "Triggering workflow event: ${{ github.event.workflow_run.event }}"
+            echo "Head branch: ${{ github.event.workflow_run.head_branch }}"
+            echo "Head commit message: ${{ github.event.workflow_run.head_commit.message }}"
+            echo "Actor: ${{ github.event.workflow_run.actor.login }}"
+            echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          else
+            echo "Manual trigger from branch: ${{ github.ref_name }}"
+            echo "Commit: ${{ github.sha }}"
+          fi
 
       - name: Checkout code
         uses: actions/checkout@v4
