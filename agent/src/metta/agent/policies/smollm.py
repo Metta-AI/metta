@@ -15,6 +15,7 @@ from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.policy import PolicyArchitecture
+from metta.agent.utils import resolve_torch_dtype
 
 
 class SmolLLMConfig(PolicyArchitecture):
@@ -49,14 +50,7 @@ class SmolLLMConfig(PolicyArchitecture):
             self.action_probs_config = self.action_probs_config.model_copy(update={"in_key": self.logits_key})
 
     def _resolve_dtype(self) -> Optional[torch.dtype]:
-        mapping = {
-            "float32": torch.float32,
-            "float16": torch.float16,
-            "bfloat16": torch.bfloat16,
-        }
-        if self.dtype == "auto":
-            return None
-        return mapping[self.dtype]
+        return resolve_torch_dtype(self.dtype)
 
     def build_components(self) -> List[ComponentConfig]:
         stack_cfg = build_hf_stack_config(

@@ -15,6 +15,7 @@ from tensordict import TensorDict, TensorDictBase
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.utils import resolve_torch_dtype
 
 logger = logging.getLogger(__name__)
 
@@ -125,10 +126,10 @@ class CortexTD(nn.Module):
         self.out_features: Optional[int] = config.out_features
         self.key_prefix: str = config.key_prefix
 
-        self._storage_dtype: torch.dtype = self._resolve_dtype(config.dtype)
+        self._storage_dtype: torch.dtype = resolve_torch_dtype(config.dtype)
         compute_override = getattr(config, "compute_dtype", None)
         self._compute_dtype: Optional[torch.dtype] = (
-            self._resolve_dtype(compute_override) if compute_override is not None else None
+            resolve_torch_dtype(compute_override) if compute_override is not None else None
         )
 
         self._state_treedef: Optional[Any] = None
@@ -180,13 +181,6 @@ class CortexTD(nn.Module):
         leaves, _ = optree.tree_flatten(state, namespace="torch")
         if self._state_treedef is None or len(leaves) != len(self._leaf_shapes):
             self._adopt_template_from_state(state)
-
-    def _resolve_dtype(self, dtype_str: Optional[str]) -> torch.dtype:
-        if dtype_str is None:
-            return torch.float32
-        s = str(dtype_str).lower()
-        mapping = {"float16": torch.float16, "fp16": torch.float16, "bfloat16": torch.bfloat16, "bf16": torch.bfloat16}
-        return mapping.get(s, torch.float32)
 
     def _resolve_compute_dtype(self, caller_dtype: torch.dtype) -> torch.dtype:
         if self._compute_dtype is not None:
