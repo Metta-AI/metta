@@ -115,7 +115,7 @@ DENSE_TRAINING_MISSIONS: list[Mission] = [
 
 
 def get_config() -> MettaGridConfig:
-    """Allow `cogames play -m path/to/dense_training_env.py`."""
+    """Allow `cogames play -m path/to/dense_training_curriculum.py`."""
     return DENSE_TRAINING_MISSIONS[0].make_env()
 
 
