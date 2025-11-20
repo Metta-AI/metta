@@ -134,34 +134,49 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
 
-    parts = [part.strip() for part in raw.split(POLICY_ARG_DELIMITER)]
-    if len(parts) > 3:
-        raise ValueError(f"Policy specification must include at most two '{POLICY_ARG_DELIMITER}' separated values.")
+    raw_without_fraction, fraction = _split_fraction(raw)
+    if not raw_without_fraction:
+        raise ValueError("Policy specification missing class path.")
 
-    raw_class_path = parts[0]
-    raw_policy_data = parts[1] if len(parts) > 1 else None
-    raw_fraction = parts[2] if len(parts) > 2 else None
-
-    if not raw_class_path:
+    class_part, data_part = _split_class_and_data(raw_without_fraction)
+    if not class_part:
         raise ValueError("Policy class path cannot be empty.")
 
-    if not raw_fraction:
-        fraction = 1.0
-    else:
-        try:
-            fraction = float(raw_fraction)
-        except ValueError as exc:
-            raise ValueError(f"Invalid proportion value '{raw_fraction}'.") from exc
-
-        if fraction <= 0:
-            raise ValueError("Policy proportion must be a positive number.")
-
-    # It isn't strictly necessary to resolve these here, but doing so enables nicer error messages
-    resolved_class_path = resolve_policy_class_path(raw_class_path)
-    resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
+    resolved_class_path = resolve_policy_class_path(class_part)
+    resolved_policy_data = resolve_policy_data_path(data_part)
 
     return PolicySpecWithProportion(
         class_path=resolved_class_path,
         data_path=resolved_policy_data,
         proportion=fraction,
     )
+
+
+def _split_fraction(raw: str) -> tuple[str, float]:
+    fraction = 1.0
+    idx = raw.rfind(POLICY_ARG_DELIMITER)
+    if idx == -1:
+        return raw, fraction
+
+    candidate = raw[idx + 1 :].strip()
+    if not candidate:
+        return raw, fraction
+
+    try:
+        parsed = float(candidate)
+    except ValueError:
+        return raw, fraction
+
+    if parsed <= 0:
+        raise ValueError("Policy proportion must be a positive number.")
+
+    return raw[:idx], parsed
+
+
+def _split_class_and_data(raw: str) -> tuple[str, Optional[str]]:
+    if POLICY_ARG_DELIMITER not in raw:
+        return raw.strip(), None
+
+    class_part, data_part = raw.split(POLICY_ARG_DELIMITER, 1)
+    data_part = data_part.strip() or None
+    return class_part.strip(), data_part

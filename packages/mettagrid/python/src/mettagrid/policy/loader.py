@@ -10,6 +10,9 @@ import re
 from pathlib import Path
 from typing import Optional
 
+import torch
+
+from metta.rl.policy_artifact import load_policy_artifact
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
@@ -29,6 +32,12 @@ def initialize_or_load_policy(
     """
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+
+    artifact_policy = _maybe_load_policy_artifact(policy_env_info, policy_spec, policy_class)
+    if artifact_policy is not None:
+        if not isinstance(artifact_policy, MultiAgentPolicy):
+            raise TypeError("Loaded policy artifact did not produce a MultiAgentPolicy")
+        return artifact_policy
 
     try:
         policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
@@ -82,24 +91,30 @@ _NOT_CHECKPOINT_PATTERNS = (
     r"model_\d{6}\.pt",  # matches model_000001.pt etc
 )
 
+_CHECKPOINT_GLOBS = ("*.pt", "*.mpt")
+
 
 def find_policy_checkpoints(checkpoints_path: Path, env_name: Optional[str] = None) -> list[Path]:
-    checkpoints = []
+    def _collect(path: Path) -> list[Path]:
+        matches: list[Path] = []
+        for pattern in _CHECKPOINT_GLOBS:
+            matches.extend(path.glob(pattern))
+        return matches
+
+    checkpoints: list[Path] = []
     if env_name:
-        # Try to find the final checkpoint
-        # PufferLib saves checkpoints in data_dir/env_name/
         checkpoint_dir = checkpoints_path / env_name
         if checkpoint_dir.exists():
-            checkpoints = checkpoint_dir.glob("*.pt")
+            checkpoints = _collect(checkpoint_dir)
 
-    # Fallback: also check directly in checkpoints_path
     if not checkpoints and checkpoints_path.exists():
-        checkpoints = checkpoints_path.glob("*.pt")
-    return [
-        p
-        for p in sorted(checkpoints, key=lambda c: c.stat().st_mtime)
-        if not any(re.fullmatch(pattern, p.name) for pattern in _NOT_CHECKPOINT_PATTERNS)
+        checkpoints = _collect(checkpoints_path)
+
+    filtered = [
+        p for p in checkpoints if not any(re.fullmatch(pattern, p.name) for pattern in _NOT_CHECKPOINT_PATTERNS)
     ]
+
+    return sorted(filtered, key=lambda c: c.stat().st_mtime)
 
 
 def resolve_policy_data_path(
@@ -121,13 +136,39 @@ def resolve_policy_data_path(
     if path.is_dir():
         checkpoints = find_policy_checkpoints(path)
         if not checkpoints:
-            raise FileNotFoundError(f"No checkpoint files (*.pt) found in directory: {path}")
+            raise FileNotFoundError(f"No checkpoint files (*.pt/*.mpt) found in directory: {path}")
         return str(checkpoints[-1])
 
     if path.exists():  # Non-pt extension but present
         return str(path)
 
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
+
+
+def _maybe_load_policy_artifact(
+    policy_env_info: PolicyEnvInterface,
+    policy_spec: PolicySpec,
+    policy_class,
+) -> MultiAgentPolicy | None:
+    data_path = policy_spec.data_path
+    if not data_path:
+        return None
+
+    path = Path(data_path).expanduser()
+    if path.suffix.lower() != ".mpt":
+        return None
+
+    load_from_checkpoint = getattr(policy_class, "load_from_checkpoint", None)
+    if callable(load_from_checkpoint):
+        return load_from_checkpoint(str(path), policy_env_info)
+
+    artifact = load_policy_artifact(path)
+    init_kwargs = policy_spec.init_kwargs or {}
+    device_arg = init_kwargs.get("device", "cpu")
+    device = device_arg if isinstance(device_arg, torch.device) else torch.device(device_arg)
+    strict = bool(init_kwargs.get("strict", True))
+
+    return artifact.instantiate(policy_env_info, device=device, strict=strict)
 
 
 @functools.cache
