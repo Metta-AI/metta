@@ -51,6 +51,36 @@ class DatadogAgentSetup(SetupModule):
     def _get_dd_api_key(self) -> str | None:
         return os.environ.get("DD_API_KEY") or get_secretsmanager_secret("datadog/api-key", require_exists=False)
 
+    def _sanitize_hostname(self) -> str:
+        """Sanitize hostname to be RFC1123 compliant."""
+        raw_hostname = (
+            os.environ.get("SKYPILOT_TASK_ID")
+            or os.environ.get("METTA_RUN_ID")
+            or os.environ.get("HOSTNAME")
+            or "skypilot-job"
+        )
+        hostname = raw_hostname.lower().replace("_", "-")[:63]
+        hostname = hostname.rstrip("-")
+        if not hostname or not hostname[0].isalnum():
+            hostname = "skypilot-" + hostname
+        hostname = hostname.rstrip("-")
+        if not hostname or len(hostname) < 3:
+            hostname = "skypilot-job"
+        return hostname
+
+    def _build_tags(self) -> list[str]:
+        """Build tags list from environment variables."""
+        tags = []
+        for env_var, tag in [
+            ("METTA_RUN_ID", "metta_run_id"),
+            ("SKYPILOT_TASK_ID", "skypilot_task_id"),
+            ("SKYPILOT_NODE_RANK", "node_rank"),
+            ("SKYPILOT_NUM_NODES", "num_nodes"),
+        ]:
+            if value := os.environ.get(env_var):
+                tags.append(f"{tag}:{value}")
+        return tags
+
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Getting Datadog API key...")
         try:
@@ -70,41 +100,10 @@ class DatadogAgentSetup(SetupModule):
         env["DD_VERSION"] = os.environ.get("DD_VERSION", os.environ.get("METTA_GIT_REF", "unknown"))
         env["DD_TRACE_ENABLED"] = os.environ.get("DD_TRACE_ENABLED", "true")
         env["DD_LOGS_ENABLED"] = os.environ.get("DD_LOGS_ENABLED", "true")
+        env["DD_HOSTNAME"] = self._sanitize_hostname()
 
-        # Set hostname for Docker environments (required for agent to start)
-        # Use SKYPILOT_TASK_ID if available, otherwise use METTA_RUN_ID, fallback to hostname
-        # Must be RFC1123 compliant: lowercase, numbers, hyphens only, max 63 chars, no underscores
-        raw_hostname = (
-            os.environ.get("SKYPILOT_TASK_ID")
-            or os.environ.get("METTA_RUN_ID")
-            or os.environ.get("HOSTNAME")
-            or "skypilot-job"
-        )
-        # Sanitize hostname: replace underscores with hyphens, lowercase, truncate to 63 chars
-        hostname = raw_hostname.lower().replace("_", "-")[:63]
-        # Remove trailing hyphens (RFC1123: must not end with hyphen)
-        hostname = hostname.rstrip("-")
-        # Ensure it starts with alphanumeric
-        if not hostname or not hostname[0].isalnum():
-            hostname = "skypilot-" + hostname
-        # Ensure it doesn't end with hyphen after prefix addition
-        hostname = hostname.rstrip("-")
-        # Final safety check: if empty or too short, use fallback
-        if not hostname or len(hostname) < 3:
-            hostname = "skypilot-job"
-        env["DD_HOSTNAME"] = hostname
-
-        # Set tags from SkyPilot environment variables
-        tags = [t for t in env.get("DD_TAGS", "").split(" ") if t.strip()]  # Filter empty strings
-        for env_var, tag in [
-            ("METTA_RUN_ID", "metta_run_id"),
-            ("SKYPILOT_TASK_ID", "skypilot_task_id"),
-            ("SKYPILOT_NODE_RANK", "node_rank"),
-            ("SKYPILOT_NUM_NODES", "num_nodes"),
-        ]:
-            if value := os.environ.get(env_var):
-                tags.append(f"{tag}:{value}")
-
+        tags = [t for t in env.get("DD_TAGS", "").split(" ") if t.strip()]
+        tags.extend(self._build_tags())
         if tags:
             env["DD_TAGS"] = " ".join(tags)
 
@@ -160,26 +159,8 @@ class DatadogAgentSetup(SetupModule):
 
                     config_updates = []
 
-                    # Set hostname if not already configured
                     if "hostname:" not in config_content:
-                        raw_hostname = (
-                            os.environ.get("SKYPILOT_TASK_ID")
-                            or os.environ.get("METTA_RUN_ID")
-                            or os.environ.get("HOSTNAME")
-                            or "skypilot-job"
-                        )
-                        # Sanitize hostname: replace underscores with hyphens, lowercase, truncate to 63 chars
-                        hostname = raw_hostname.lower().replace("_", "-")[:63]
-                        # Remove trailing hyphens (RFC1123: must not end with hyphen)
-                        hostname = hostname.rstrip("-")
-                        # Ensure it starts with alphanumeric
-                        if not hostname or not hostname[0].isalnum():
-                            hostname = "skypilot-" + hostname
-                        # Ensure it doesn't end with hyphen after prefix addition
-                        hostname = hostname.rstrip("-")
-                        # Final safety check: if empty or too short, use fallback
-                        if not hostname or len(hostname) < 3:
-                            hostname = "skypilot-job"
+                        hostname = self._sanitize_hostname()
                         config_updates.append(f"hostname: {hostname}")
                         info(f"Set hostname in Datadog config: {hostname}")
 
@@ -204,16 +185,7 @@ class DatadogAgentSetup(SetupModule):
                             config_updates.append(f"tags: {tags_list}")
                             info(f"Set tags in Datadog config: {tags_list}")
 
-                    # Build log tags for log collection config (same tags as host tags)
-                    log_tags_for_config = []
-                    for env_var, tag in [
-                        ("METTA_RUN_ID", "metta_run_id"),
-                        ("SKYPILOT_TASK_ID", "skypilot_task_id"),
-                        ("SKYPILOT_NODE_RANK", "node_rank"),
-                        ("SKYPILOT_NUM_NODES", "num_nodes"),
-                    ]:
-                        if value := os.environ.get(env_var):
-                            log_tags_for_config.append(f"{tag}:{value}")
+                    log_tags_for_config = self._build_tags()
 
                     # Append any updates to config file
                     if config_updates:
@@ -226,20 +198,6 @@ class DatadogAgentSetup(SetupModule):
                         # But we can't restart here (no systemd in Docker), so the run-phase script will handle it
                         if "logs_enabled: true" in config_updates:
                             info("logs_enabled set - agent will be restarted in run phase to pick up changes")
-
-                    # Also add log collection config directly to main datadog.yaml for reliability
-                    # This ensures logs are collected even if the separate config file isn't picked up
-                    try:
-                        with open(config_file, "r") as f:
-                            main_config = f.read()
-
-                        # Check if logs section already exists in main config
-                        # Note: Datadog agent reads logs from conf.d/*.d/conf.yaml files, not from main datadog.yaml
-                        # So we don't add logs here - they're in the separate config file
-                        # But we ensure logs_enabled is set above
-                        pass
-                    except Exception as e:
-                        warning(f"Could not add logs to main config: {e}")
                 except Exception as e:
                     warning(f"Could not update Datadog config file: {e}")
 
@@ -252,16 +210,7 @@ class DatadogAgentSetup(SetupModule):
                     custom_logs_dir = os.path.join(conf_d_dir, "skypilot_training.d")
                     os.makedirs(custom_logs_dir, exist_ok=True)
 
-                    # Build tags list for log configuration
-                    log_tags = []
-                    for env_var, tag in [
-                        ("METTA_RUN_ID", "metta_run_id"),
-                        ("SKYPILOT_TASK_ID", "skypilot_task_id"),
-                        ("SKYPILOT_NODE_RANK", "node_rank"),
-                        ("SKYPILOT_NUM_NODES", "num_nodes"),
-                    ]:
-                        if value := os.environ.get(env_var):
-                            log_tags.append(f"{tag}:{value}")
+                    log_tags = self._build_tags()
 
                     # Format tags as YAML list
                     tags_yaml = ""
