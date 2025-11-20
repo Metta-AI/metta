@@ -110,12 +110,11 @@ To specify a `MISSION`, you can:
 - Use a path to a mission configuration file, e.g. `path/to/mission.yaml`.
 - Alternatively, specify a set of missions with `-set` or `-S`.
 
-To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][:PROPORTION]`:
+To specify a `POLICY`, provide an argument with up to two parts `CLASS[:DATA]`:
 
 - `CLASS`: Use a policy shorthand or full path from the registry given by `cogames policies`, e.g. `lstm` or
   `cogames.policy.random.RandomPolicy`.
 - `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
-- `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
 
 ### `cogames play -m [MISSION] -p [POLICY]`
 

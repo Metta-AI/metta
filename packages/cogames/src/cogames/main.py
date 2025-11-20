@@ -45,9 +45,8 @@ from cogames.cli.mission import (
 )
 from cogames.cli.policy import (
     get_policy_spec,
-    get_policy_specs_with_proportions,
+    get_policy_specs,
     policy_arg_example,
-    policy_arg_w_proportion_example,
 )
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command, validate_policy_command
 from cogames.curricula import make_rotation
@@ -601,7 +600,7 @@ def evaluate_cmd(
         None,
         "--policy",
         "-p",
-        help=f"Policies to evaluate: ({policy_arg_w_proportion_example}...)",
+        help=f"Policies to evaluate: ({policy_arg_example}...)",
     ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(
@@ -665,7 +664,7 @@ def evaluate_cmd(
             if isinstance(map_builder, MapGen.Config):
                 map_builder.seed = effective_map_seed
 
-    policy_specs = get_policy_specs_with_proportions(ctx, policies)
+    policy_specs = get_policy_specs(ctx, policies)
 
     console.print(
         f"[cyan]Preparing evaluation for {len(policy_specs)} policies across {len(selected_missions)} mission(s)[/cyan]"
@@ -674,8 +673,7 @@ def evaluate_cmd(
     evaluate_module.evaluate(
         console,
         missions=selected_missions,
-        policy_specs=[spec.to_policy_spec() for spec in policy_specs],
-        proportions=[spec.proportion for spec in policy_specs],
+        policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
         seed=seed,

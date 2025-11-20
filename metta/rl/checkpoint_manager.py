@@ -396,19 +396,19 @@ class CheckpointPolicy(MultiAgentPolicy):
         if architecture is None:
             raise ValueError("policy_architecture is required to save policy")
 
+        dest_str = str(destination)
+        is_remote = dest_str.startswith("s3://")
+        local_destination: str | Path = destination
+        if is_remote:
+            local_destination = Path(Path(dest_str).name)
+
         saver = getattr(self._policy, "save_policy", None)
         base_saver = getattr(saver, "__func__", None) if saver else None
         use_fallback = saver is None or base_saver is TrainablePolicy.save_policy  # type: ignore[attr-defined]
 
         if use_fallback:
-            dest_str = str(destination)
-            is_remote = dest_str.startswith("s3://")
-
-            if is_remote:
-                local_path = Path(Path(dest_str).name)
-            else:
-                local_path = Path(destination).expanduser()
-                local_path.parent.mkdir(parents=True, exist_ok=True)
+            local_path = Path(local_destination).expanduser()
+            local_path.parent.mkdir(parents=True, exist_ok=True)
 
             save_policy_artifact_safetensors(
                 local_path,
@@ -422,7 +422,11 @@ class CheckpointPolicy(MultiAgentPolicy):
 
             return f"file://{local_path.resolve()}"
 
-        return saver(destination, policy_architecture=architecture)
+        result = saver(local_destination, policy_architecture=architecture)
+        if is_remote:
+            write_file(dest_str, str(Path(local_destination)))
+            return dest_str
+        return result
 
     def __getattr__(self, name: str):
         return getattr(self._policy, name)

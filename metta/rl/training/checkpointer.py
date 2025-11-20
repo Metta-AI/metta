@@ -1,8 +1,6 @@
 """Policy checkpoint management component."""
 
 import logging
-from pathlib import Path
-from types import MethodType
 from typing import Optional
 
 import torch
@@ -11,11 +9,9 @@ from pydantic import Field
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -100,7 +96,6 @@ class Checkpointer(TrainerComponent):
                 missing, unexpected = policy.load_state_dict(state_dict, strict=True)
                 if missing or unexpected:
                     raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
-                policy = self._ensure_save_capable(policy)
                 if self._distributed.is_master():
                     self._latest_policy_uri = normalized_uri
                     logger.info("Loaded policy from %s", normalized_uri)
@@ -110,13 +105,12 @@ class Checkpointer(TrainerComponent):
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
             spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
             policy = initialize_or_load_policy(policy_env_info, spec)
-            policy = self._ensure_save_capable(policy)
             self._latest_policy_uri = normalized_uri
             logger.info("Loaded policy from %s", normalized_uri)
             return policy
 
         logger.info("Creating new policy for training run")
-        return self._ensure_save_capable(self._policy_architecture.make_policy(policy_env_info))
+        return self._policy_architecture.make_policy(policy_env_info)
 
     def get_latest_policy_uri(self) -> Optional[str]:
         """Return the most recent checkpoint URI."""
@@ -149,33 +143,8 @@ class Checkpointer(TrainerComponent):
             return policy.module  # type: ignore[return-value]
         return policy
 
-    def _ensure_save_capable(self, policy: Policy) -> Policy:
-        """Attach an artifact-based saver if missing or using the generic PT saver."""
-        save_method = getattr(policy, "save_policy", None)
-        needs_wrapper = save_method is None
-
-        if not needs_wrapper:
-            underlying = getattr(save_method, "__func__", None)
-            needs_wrapper = underlying is TrainablePolicy.save_policy  # type: ignore[attr-defined]
-
-        if not needs_wrapper:
-            return policy
-
-        def save_policy(self: Policy, destination: str | Path, *, policy_architecture: PolicyArchitecture) -> str:
-            path = Path(destination).expanduser()
-            path.parent.mkdir(parents=True, exist_ok=True)
-            save_policy_artifact_safetensors(
-                path,
-                policy_architecture=policy_architecture,
-                state_dict=self.state_dict(),
-            )
-            return f"file://{path.resolve()}"
-
-        policy.save_policy = MethodType(save_policy, policy)  # type: ignore[attr-defined]
-        return policy
-
     def _save_policy(self, epoch: int) -> None:
-        policy = self._ensure_save_capable(self._policy_to_save())
+        policy = self._policy_to_save()
 
         filename = f"{self._checkpoint_manager.run_name}:v{epoch}.mpt"
         checkpoint_dir = self._checkpoint_manager.checkpoint_dir

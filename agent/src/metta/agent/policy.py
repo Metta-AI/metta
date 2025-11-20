@@ -4,6 +4,7 @@ This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.
 implement the required methods that MettaAgent depends on."""
 
 from abc import abstractmethod
+from pathlib import Path
 from typing import ClassVar, List, Optional
 
 import torch
@@ -20,6 +21,7 @@ from metta.agent.components.obs_shim import (
     ObsShimTokens,
     ObsShimTokensConfig,
 )
+from metta.common.util.file import write_file
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
@@ -97,6 +99,36 @@ class Policy(TrainablePolicy, nn.Module):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy adapter for the specified agent index."""
         return _SingleAgentAdapter(self, agent_id)
+
+    def save_policy(
+        self,
+        destination: str | Path,
+        *,
+        policy_architecture: PolicyArchitecture | None = None,
+    ) -> str:
+        """Persist the policy using the safetensors artifact format."""
+
+        if policy_architecture is None:
+            msg = "policy_architecture is required to save a policy"
+            raise ValueError(msg)
+
+        from metta.rl.policy_artifact import save_policy_artifact_safetensors
+
+        dest_str = str(destination)
+        is_remote = dest_str.startswith("s3://")
+        local_path = Path(Path(dest_str).name) if is_remote else Path(destination).expanduser()
+
+        save_policy_artifact_safetensors(
+            local_path,
+            policy_architecture=policy_architecture,
+            state_dict=self.state_dict(),
+        )
+
+        if is_remote:
+            write_file(dest_str, str(local_path))
+            return dest_str
+
+        return f"file://{local_path.resolve()}"
 
 
 class _SingleAgentAdapter(AgentPolicy):
