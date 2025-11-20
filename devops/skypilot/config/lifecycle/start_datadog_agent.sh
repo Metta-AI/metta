@@ -71,6 +71,19 @@ sleep 2
 if ps -p "$AGENT_PID" > /dev/null; then
   echo "[DATADOG] Agent started successfully (PID: $AGENT_PID)"
 
+  # Debug info: Connectivity and Config
+  DD_SITE_VAL=${DD_SITE:-datadoghq.com}
+  echo "[DATADOG] Debug Info:"
+  echo "[DATADOG]   DD_SITE: $DD_SITE_VAL"
+  echo "[DATADOG]   DD_API_KEY: ${DD_API_KEY:0:5}.......${DD_API_KEY: -5}"
+  
+  # Basic connectivity check
+  if curl -s --connect-timeout 5 https://google.com > /dev/null; then
+      echo "[DATADOG]   Egress check: OK (can reach google.com)"
+  else
+      echo "[DATADOG]   Egress check: FAILED (cannot reach google.com)"
+  fi
+
   # Wait a bit more for agent to fully initialize
   sleep 3
 
