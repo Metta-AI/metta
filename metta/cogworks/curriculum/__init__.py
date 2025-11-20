@@ -1,10 +1,18 @@
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from __future__ import annotations
 
-from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
-from .curriculum_env import CurriculumEnv
-from .learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
-from .stats import SliceAnalyzer, StatsLogger
-from .task_generator import (
+from typing import TYPE_CHECKING
+
+from metta.cogworks.curriculum.curriculum import (
+    Curriculum,
+    CurriculumConfig,
+    CurriculumTask,
+)
+from metta.cogworks.curriculum.learning_progress_algorithm import (
+    LearningProgressAlgorithm,
+    LearningProgressConfig,
+)
+from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
+from metta.cogworks.curriculum.task_generator import (
     AnyTaskGeneratorConfig,
     BucketedTaskGenerator,
     SingleTaskGenerator,
@@ -13,7 +21,10 @@ from .task_generator import (
     TaskGeneratorConfig,
     TaskGeneratorSet,
 )
-from .task_tracker import TaskTracker
+from metta.cogworks.curriculum.task_tracker import TaskTracker
+
+if TYPE_CHECKING:
+    from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
 
 __all__ = [
     "Curriculum",
@@ -57,3 +68,13 @@ def merge(task_generator_configs: list[AnyTaskGeneratorConfig]) -> TaskGenerator
 def env_curriculum(mg_config: MettaGridConfig) -> CurriculumConfig:
     """Create a curriculum configuration from an MettaGridConfig."""
     return CurriculumConfig(task_generator=SingleTaskGenerator.Config(env=mg_config))
+
+
+def __getattr__(name: str):
+    """Lazily import CurriculumEnv to avoid loading pufferlib at package import."""
+    if name == "CurriculumEnv":
+        from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
+
+        globals()["CurriculumEnv"] = CurriculumEnv
+        return CurriculumEnv
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
