@@ -7,6 +7,8 @@ from typing import Optional
 
 from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action
+from mettagrid.simulator.interface import AgentObservation
 
 from .baseline_agent import BaselineAgentPolicyImpl
 from .types import BaselineHyperparameters, ExtractorInfo, Phase, SimpleAgentState

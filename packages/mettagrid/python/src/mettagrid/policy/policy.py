@@ -80,8 +80,7 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         return _AgentPolicyView(self, agent_id)
 
     @abstractmethod
-    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
-        ...
+    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action: ...
 
     def agent_reset(self, agent_id: int, simulation: Optional[Simulation] = None) -> None:
         pass
