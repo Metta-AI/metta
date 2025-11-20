@@ -1,7 +1,6 @@
 """Policy checkpoint management component."""
 
 import logging
-from pathlib import Path
 from typing import Optional
 
 import torch
@@ -10,7 +9,6 @@ from pydantic import Field
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -66,57 +64,16 @@ class Checkpointer(TrainerComponent):
         candidate_uri: Optional[str] = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
         load_device = torch.device(self._distributed.config.device)
 
-        # Distributed: master loads once, broadcasts payload; workers rebuild locally.
-        if self._distributed.is_distributed:
-            normalized_uri = (
-                CheckpointManager.normalize_uri(candidate_uri)
-                if self._distributed.is_master() and candidate_uri
-                else None
-            )
-            normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
-
-            if normalized_uri:
-                spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
-                payload = None
-                if self._distributed.is_master():
-                    loaded_policy = initialize_or_load_policy(policy_env_info, spec)
-                    loaded_policy = self._ensure_save_capable(loaded_policy)
-                    state_dict = {k: v.cpu() for k, v in loaded_policy.state_dict().items()}
-                    arch = getattr(loaded_policy, "_policy_architecture", self._policy_architecture)
-                    action_count = len(policy_env_info.actions.actions())
-                    payload = (state_dict, arch, action_count, normalized_uri)
-                state_dict, arch, action_count, normalized_uri = self._distributed.broadcast_from_master(payload)
-
-                local_action_count = len(policy_env_info.actions.actions())
-                if local_action_count != action_count:
-                    msg = f"Action space mismatch on resume: master={action_count}, rank={local_action_count}"
-                    raise ValueError(msg)
-
-                policy = arch.make_policy(policy_env_info).to(load_device)
-                if hasattr(policy, "initialize_to_environment"):
-                    policy.initialize_to_environment(policy_env_info, load_device)
-                missing, unexpected = policy.load_state_dict(state_dict, strict=True)
-                if missing or unexpected:
-                    raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
-                policy = self._ensure_save_capable(policy)
-                if self._distributed.is_master():
-                    self._latest_policy_uri = normalized_uri
-                    logger.info("Loaded policy from %s", normalized_uri)
-                return policy
-
-        # Non-distributed or fallthrough: load locally (fail hard on errors)
         if candidate_uri:
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
             spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
             policy = initialize_or_load_policy(policy_env_info, spec)
-            policy = self._ensure_save_capable(policy)
             self._latest_policy_uri = normalized_uri
             logger.info("Loaded policy from %s", normalized_uri)
             return policy
 
         logger.info("Creating new policy for training run")
-        fresh_policy = self._policy_architecture.make_policy(policy_env_info)
-        return self._ensure_save_capable(fresh_policy)
+        return self._policy_architecture.make_policy(policy_env_info)
 
     def get_latest_policy_uri(self) -> Optional[str]:
         """Return the most recent checkpoint URI."""
@@ -149,26 +106,8 @@ class Checkpointer(TrainerComponent):
             return policy.module  # type: ignore[return-value]
         return policy
 
-    def _ensure_save_capable(self, policy: Policy) -> Policy:
-        """Attach a save_policy method if missing so saving is uniform."""
-        if hasattr(policy, "save_policy"):
-            return policy
-
-        def save_policy(self, destination: str | Path, *, policy_architecture: PolicyArchitecture) -> str:
-            path = Path(destination).expanduser()
-            path.parent.mkdir(parents=True, exist_ok=True)
-            save_policy_artifact_safetensors(
-                path,
-                policy_architecture=policy_architecture,
-                state_dict=self.state_dict(),
-            )
-            return f"file://{path.resolve()}"
-
-        policy.save_policy = save_policy.__get__(policy, policy.__class__)  # type: ignore[attr-defined]
-        return policy
-
     def _save_policy(self, epoch: int) -> None:
-        policy = self._ensure_save_capable(self._policy_to_save())
+        policy = self._policy_to_save()
 
         filename = f"{self._checkpoint_manager.run_name}:v{epoch}.mpt"
         checkpoint_dir = self._checkpoint_manager.checkpoint_dir
