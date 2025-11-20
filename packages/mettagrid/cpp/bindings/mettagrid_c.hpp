@@ -29,7 +29,6 @@
 
 // Forward declarations of existing C++ classes
 class Grid;
-class EventManager;
 class StatsTracker;
 class ActionHandler;
 class Action;
@@ -114,7 +113,6 @@ private:
   GameConfig _game_config;
 
   std::unique_ptr<Grid> _grid;
-  std::unique_ptr<EventManager> _event_manager;
 
   Actions _actions;
   std::vector<Action> _action_handlers;                              // All actions from all handlers

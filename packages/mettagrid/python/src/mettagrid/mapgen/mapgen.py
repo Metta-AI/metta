@@ -335,6 +335,16 @@ class MapGen(MapBuilder[MapGenConfig]):
                     return self._wrap_with_instance_id(scene_config, 0)
                 return scene_config
             else:
+                # If instance_scene_factories is empty but instance is a MapBuilderConfig,
+                # prerendering should have happened. This is a fallback for edge cases.
+                if isinstance(self.config.instance, MapBuilderConfig):
+                    # Prerender on the fly as a fallback
+                    instance_map_builder = self.config.instance.create()
+                    if not isinstance(instance_map_builder, MapBuilder):
+                        raise ValueError("instance must be a MapBuilder")
+                    instance_map = instance_map_builder.build()
+                    instance_grid = instance_map.grid
+                    return CopyGrid.Config(grid=instance_grid)
                 assert isinstance(self.config.instance, SceneConfig), (
                     "Internal logic error: instance is not a scene but we don't have prebuilt instances either"
                 )
