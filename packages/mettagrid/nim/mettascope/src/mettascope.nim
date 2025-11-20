@@ -91,6 +91,7 @@ find "/UI/Main":
       )
       if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
         fitFullMap(worldMapPanel)
+      adjustPanelForResize(worldMapPanel)
       bxy.translate(worldMapPanel.rect.xy.vec2 * window.contentScale)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
