@@ -17,6 +17,7 @@ from rich.console import Console
 from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
 from cogames.cli.policy import PolicySpec, get_policy_spec
+from metta.rl.policy_artifact import load_policy_artifact
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
 DEFAULT_VALIDATION_MISSION = "vanilla"
@@ -64,16 +65,21 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
 def validate_checkpoint_loadable(checkpoint_path: Path, console: Console) -> bool:
     """Eagerly load a checkpoint to verify archive structure.
 
-    Some `.mpt` bundles can have malformed zip layouts (e.g., top-level
-    `weights.safetensors`), which only surface when `torch.load` is called.
-    Dry-runs should fail fast on such cases before packaging/submission.
+    - `.pt` files: exercised via `torch.load`.
+    - `.mpt` artifacts: exercised via `load_policy_artifact`, which checks for
+      required members like `weights.safetensors` + architecture.
+
+    Dry-runs should fail fast on malformed archives before packaging/submission.
     """
 
     console.print("[yellow]Validating checkpoint can be loaded...[/yellow]")
 
     try:
-        torch.load(checkpoint_path, map_location="cpu")
-    except Exception as error:  # torch raises multiple runtime errors for archive issues
+        if checkpoint_path.suffix == ".mpt":
+            load_policy_artifact(checkpoint_path)
+        else:
+            torch.load(checkpoint_path, map_location="cpu")
+    except Exception as error:  # surface any archive/format issues
         console.print(f"[red]✗ Checkpoint load failed:[/red] {error}")
         return False
 

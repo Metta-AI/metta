@@ -4,16 +4,34 @@ from __future__ import annotations
 
 import functools
 import importlib
+import inspect
 import os
 import pkgutil
 import re
 from pathlib import Path
 from typing import Optional
 
+from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
+
+
+def _maybe_load_artifact(policy_spec: PolicySpec) -> Optional[PolicyArtifact]:
+    if policy_spec.data_path and Path(policy_spec.data_path).suffix == ".mpt":
+        return load_policy_artifact(policy_spec.data_path)
+    return None
+
+
+def _maybe_inject_config(policy_class, init_kwargs: dict, artifact: Optional[PolicyArtifact]) -> dict:
+    if artifact is None or artifact.policy_architecture is None:
+        return init_kwargs
+
+    signature = inspect.signature(policy_class.__init__)
+    if "config" in signature.parameters and "config" not in init_kwargs:
+        return {**init_kwargs, "config": artifact.policy_architecture}
+    return init_kwargs
 
 
 def initialize_or_load_policy(
@@ -22,7 +40,7 @@ def initialize_or_load_policy(
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
-    Expects PolicySpec to have local paths, shorthand or fully-specified. But should not have remote paths (e.g. s3://).
+    Supports either plain state-dict checkpoints (.pt) or Metta artifacts (.mpt).
 
     Returns:
         Initialized policy instance
@@ -30,14 +48,22 @@ def initialize_or_load_policy(
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
-    try:
-        policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
-    except TypeError as e:
-        raise TypeError(
-            f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"
-        ) from e
+    artifact = _maybe_load_artifact(policy_spec)
+    init_kwargs = policy_spec.init_kwargs or {}
+    init_kwargs = _maybe_inject_config(policy_class, init_kwargs, artifact)
 
-    if policy_spec.data_path:
+    try:
+        policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
+    except TypeError as e:
+        raise TypeError(f"Failed initializing policy {policy_spec.class_path} with kwargs {init_kwargs}: {e}") from e
+
+    if artifact is not None:
+        # Prefer state dict from artifact; fall back to embedded policy if present
+        if artifact.state_dict is not None:
+            policy.load_state_dict(artifact.state_dict)
+        elif artifact.policy is not None:
+            policy.load_state_dict(artifact.policy.state_dict())
+    elif policy_spec.data_path:
         policy.load_policy_data(policy_spec.data_path)
 
     if not isinstance(policy, MultiAgentPolicy):
