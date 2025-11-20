@@ -69,7 +69,7 @@ class EvaluateTool(Tool):
             JOIN policies p ON pv.policy_id = p.id
             WHERE p.name = '{metadata["run_name"]}' AND pv.attributes->>'epoch' = '{metadata["epoch"]}'"""
         )
-        if result.rows is None:
+        if result.rows is None or len(result.rows) == 0:
             return None
         return MyPolicyMetadata(
             policy_name=metadata["run_name"],
@@ -89,7 +89,11 @@ class EvaluateTool(Tool):
             stats_client = StatsClient.create(self.stats_server_uri)
             policy_metadata = self._get_policy_metadata(normalized_uri, stats_client)
 
-            if policy_metadata is not None:
+            if policy_metadata is None:
+                logger.info(
+                    "Policy not found in Observatory database. Evaluation will proceed without Observatory integration."
+                )
+            else:
                 observatory_writer = ObservatoryWriter(
                     stats_client=stats_client,
                     policy_version_ids=[policy_metadata.policy_version_id],
