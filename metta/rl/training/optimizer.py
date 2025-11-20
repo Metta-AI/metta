@@ -13,13 +13,10 @@ logger = logging.getLogger(__name__)
 def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimizer:
     """Create optimizer and load state if available."""
     optimizer_type = cfg.type
-    params = list(policy.parameters())
-    if not params:
-        raise ValueError("Loaded policy has zero trainable parameters; aborting optimizer creation.")
 
     if optimizer_type == "adam":
         optimizer = torch.optim.Adam(
-            params,
+            policy.parameters(),
             lr=cfg.learning_rate,
             betas=(cfg.beta1, cfg.beta2),
             eps=cfg.eps,
@@ -27,7 +24,7 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
         )
     elif optimizer_type == "muon":
         optimizer = ForeachMuon(
-            params,
+            policy.parameters(),
             lr=cfg.learning_rate,
             betas=(cfg.beta1, cfg.beta2),
             eps=cfg.eps,
@@ -35,7 +32,7 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
         )
     elif optimizer_type == "adamw_schedulefree":
         optimizer = schedulefree.AdamWScheduleFree(
-            params,
+            policy.parameters(),
             lr=cfg.learning_rate,
             betas=(cfg.beta1, cfg.beta2),
             eps=cfg.eps,
@@ -44,7 +41,7 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
         )
     elif optimizer_type == "sgd_schedulefree":
         optimizer = schedulefree.SGDScheduleFree(
-            params,
+            policy.parameters(),
             lr=cfg.learning_rate,
             momentum=cfg.momentum,
             weight_decay=cfg.weight_decay,
