@@ -62,13 +62,13 @@ proc generateTerrainMap(): TileMap {.measure.} =
   # Fill the asteroid map with ground (true).
   for y in 0 ..< replay.mapSize[1]:
     for x in 0 ..< replay.mapSize[0]:
-      asteroidMap[y * width + x] = true
+      asteroidMap[y * width + x] = false
 
   # Walk the walls and generate a map of which tiles are present.
   for obj in replay.objects:
     if obj.typeName == "wall":
       let pos = obj.location.at(0)
-      asteroidMap[pos.y * width + pos.x] = false
+      asteroidMap[pos.y * width + pos.x] = true
 
   # Generate the tile edges.
   for i in 0 ..< terrainMap.indexData.len:
