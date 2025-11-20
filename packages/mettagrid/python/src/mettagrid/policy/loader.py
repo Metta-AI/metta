@@ -10,37 +10,11 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact
+from metta.rl.policy_artifact import load_policy_artifact
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
-
-
-def _maybe_load_artifact(policy_spec: PolicySpec) -> Optional[PolicyArtifact]:
-    if not policy_spec.data_path:
-        return None
-    try:
-        return load_policy_artifact(policy_spec.data_path)
-    except Exception:
-        return None
-
-
-def _call_policy_loader_hook(policy_class, policy_env_info: PolicyEnvInterface, data_path: Optional[str]):
-    """Let policies own their loading if they provide a hook.
-
-    If the policy class defines a `load_from_checkpoint(path, env_info)` callable
-    returning a MultiAgentPolicy, it is used and bypasses generic loading.
-    """
-
-    if data_path is None:
-        return None
-
-    loader = getattr(policy_class, "load_from_checkpoint", None)
-    if callable(loader):
-        return loader(data_path, policy_env_info)
-
-    return None
 
 
 def initialize_or_load_policy(
@@ -49,7 +23,7 @@ def initialize_or_load_policy(
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
-    Supports policy-defined loaders, Metta artifacts, or plain state dicts.
+    Expects PolicySpec to have local paths, shorthand or fully-specified. But should not have remote paths (e.g. s3://).
 
     Returns:
         Initialized policy instance
@@ -57,38 +31,33 @@ def initialize_or_load_policy(
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
-    # 1) Policy-owned loader (if provided)
-    hooked_policy = _call_policy_loader_hook(policy_class, policy_env_info, policy_spec.data_path)
-    if hooked_policy is not None:
-        policy = hooked_policy
-    else:
-        artifact = _maybe_load_artifact(policy_spec)
-        if artifact is not None:
-            if artifact.policy is not None and isinstance(artifact.policy, MultiAgentPolicy):
-                policy = artifact.policy
-            elif artifact.policy_architecture is not None:
-                policy = artifact.policy_architecture.make_policy(policy_env_info)
-                if artifact.state_dict is not None:
-                    policy.load_state_dict(artifact.state_dict, strict=False)
-                elif artifact.policy is not None:
-                    policy.load_state_dict(artifact.policy.state_dict(), strict=False)
-            elif artifact.state_dict is not None:
-                policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
-                policy.load_state_dict(artifact.state_dict, strict=False)
-            else:
-                raise ValueError("Artifact contained no policy, architecture, or state dict")
-        else:
-            init_kwargs = policy_spec.init_kwargs or {}
+    artifact = None
+    if policy_spec.data_path:
+        try:
+            artifact = load_policy_artifact(policy_spec.data_path)
+        except Exception:
+            artifact = None
 
+    try:
+        policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
+    except TypeError as e:
+        raise TypeError(
+            f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"
+        ) from e
+
+    if artifact is not None:
+        if artifact.state_dict is not None:
+            policy.load_state_dict(artifact.state_dict, strict=False)
+        elif artifact.policy is not None:
             try:
-                policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
-            except TypeError as e:
-                raise TypeError(
-                    f"Failed initializing policy {policy_spec.class_path} with kwargs {init_kwargs}: {e}"
-                ) from e
-
-            if policy_spec.data_path:
-                policy.load_policy_data(policy_spec.data_path)
+                policy.load_state_dict(artifact.policy.state_dict(), strict=False)
+            except Exception:
+                # If loading fails, fall back to using the embedded policy when compatible
+                if isinstance(artifact.policy, MultiAgentPolicy):
+                    policy = artifact.policy
+        # Otherwise leave as initialized
+    elif policy_spec.data_path:
+        policy.load_policy_data(policy_spec.data_path)
 
     if not isinstance(policy, MultiAgentPolicy):
         raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
@@ -134,17 +103,17 @@ _NOT_CHECKPOINT_PATTERNS = (
 
 
 def find_policy_checkpoints(checkpoints_path: Path, env_name: Optional[str] = None) -> list[Path]:
-    checkpoints: list[Path] = []
+    checkpoints = []
     if env_name:
         # Try to find the final checkpoint
         # PufferLib saves checkpoints in data_dir/env_name/
         checkpoint_dir = checkpoints_path / env_name
         if checkpoint_dir.exists():
-            checkpoints = list(checkpoint_dir.glob("*.pt"))
+            checkpoints = checkpoint_dir.glob("*.pt")
 
     # Fallback: also check directly in checkpoints_path
     if not checkpoints and checkpoints_path.exists():
-        checkpoints = list(checkpoints_path.glob("*.pt"))
+        checkpoints = checkpoints_path.glob("*.pt")
     return [
         p
         for p in sorted(checkpoints, key=lambda c: c.stat().st_mtime)
