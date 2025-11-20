@@ -215,7 +215,8 @@ run_cmd() {
   # Build the command as an array
   local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 
-  if ! mapfile -t parsed_args < <(python - <<'PY'
+  if ! mapfile -t parsed_args < <(
+    python - << 'PY'
 import json
 import os
 import sys
