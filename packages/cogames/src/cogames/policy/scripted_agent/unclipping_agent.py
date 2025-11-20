@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
-from mettagrid.policy.policy import AgentStepMixin, MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
@@ -431,7 +431,7 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
 # ============================================================================
 
 
-class UnclippingPolicy(AgentStepMixin, MultiAgentPolicy):
+class UnclippingPolicy(MultiAgentPolicy):
     """Multi-agent policy wrapper for UnclippingAgent.
 
     This class wraps UnclippingAgent to work with the policy interface.

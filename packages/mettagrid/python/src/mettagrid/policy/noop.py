@@ -3,11 +3,11 @@
 import numpy as np
 
 from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.policy.policy import AgentStepMixin, MultiAgentPolicy
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
-class NoopPolicy(AgentStepMixin, MultiAgentPolicy):
+class NoopPolicy(MultiAgentPolicy):
     """Policy that always selects the noop action when available."""
 
     short_names = ["noop"]

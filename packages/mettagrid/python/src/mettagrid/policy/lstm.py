@@ -7,7 +7,7 @@ import torch.nn as nn
 from einops import rearrange
 
 import pufferlib.pytorch
-from mettagrid.policy.policy import AgentStepMixin, AgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import LSTMState, LSTMStateDict
 from mettagrid.simulator import Action as MettaGridAction
@@ -231,7 +231,7 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
             return action, new_state.detach() if new_state is not None else None
 
 
-class LSTMPolicy(AgentStepMixin, TrainablePolicy):
+class LSTMPolicy(TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
     short_names = ["lstm"]

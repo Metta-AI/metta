@@ -2,11 +2,11 @@
 
 import random
 
-from mettagrid.policy.policy import AgentStepMixin, MultiAgentPolicy
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
-class RandomMultiAgentPolicy(AgentStepMixin, MultiAgentPolicy):
+class RandomMultiAgentPolicy(MultiAgentPolicy):
     """Random multi-agent policy that samples actions uniformly from the action space."""
 
     short_names = ["random"]

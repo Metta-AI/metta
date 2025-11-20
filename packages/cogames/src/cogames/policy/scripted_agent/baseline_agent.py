@@ -18,7 +18,7 @@ from typing import Callable, Optional, Tuple, Union
 
 from mettagrid.config.mettagrid_config import CardinalDirection, CardinalDirections
 from mettagrid.config.vibes import VIBE_BY_NAME
-from mettagrid.policy.policy import AgentStepMixin, MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
+from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
@@ -1182,7 +1182,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 # ============================================================================
 
 
-class BaselinePolicy(AgentStepMixin, MultiAgentPolicy):
+class BaselinePolicy(MultiAgentPolicy):
     short_names = ["cvc_simple", "scripted_baseline", "baseline", "simple_baseline"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[BaselineHyperparameters] = None):

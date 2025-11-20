@@ -58,19 +58,6 @@ class AgentPolicy:
         raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
 
 
-class AgentStepMixin:
-    """Mixin providing a shared AgentPolicy adapter for MultiAgentPolicy subclasses."""
-
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return _AgentPolicyView(self, agent_id)
-
-    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
-        raise NotImplementedError
-
-    def agent_reset(self, agent_id: int, simulation: Optional[Simulation] = None) -> None:
-        pass
-
-
 class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     """Abstract base class for multi-agent policies.
 
@@ -89,8 +76,15 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
 
-    def agent_policy(self, agent_id: int) -> AgentPolicy:  # pragma: no cover - default mixin overrides
-        raise NotImplementedError("MultiAgentPolicy subclasses must provide agent_policy or inherit AgentStepMixin")
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        return _AgentPolicyView(self, agent_id)
+
+    @abstractmethod
+    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
+        ...
+
+    def agent_reset(self, agent_id: int, simulation: Optional[Simulation] = None) -> None:
+        pass
 
     def load_policy_data(self, policy_data_path: str) -> None:
         """Load policy data from a file.
@@ -130,7 +124,7 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
 
 
-class NimMultiAgentPolicy(AgentStepMixin, MultiAgentPolicy):
+class NimMultiAgentPolicy(MultiAgentPolicy):
     """Base class for Nim-backed multi-agent policies."""
 
     def __init__(
@@ -383,9 +377,9 @@ class PolicySpec(BaseModel):
 
 
 class _AgentPolicyView(AgentPolicy):
-    """Default AgentPolicy adapter that delegates to AgentStepMixin implementations."""
+    """Default AgentPolicy adapter that delegates to its owning MultiAgentPolicy."""
 
-    def __init__(self, parent: AgentStepMixin, agent_id: int):
+    def __init__(self, parent: MultiAgentPolicy, agent_id: int):
         super().__init__(parent.policy_env_info)
         self._parent = parent
         self._agent_id = agent_id

@@ -7,7 +7,7 @@ import torch.nn as nn
 import pufferlib.pytorch
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig
-from mettagrid.policy.policy import AgentStepMixin, TrainablePolicy
+from mettagrid.policy.policy import TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import AgentObservation as MettaGridObservation
 
@@ -123,7 +123,7 @@ class TokenPolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class TokenPolicy(AgentStepMixin, TrainablePolicy):
+class TokenPolicy(TrainablePolicy):
     """Feed-forward token encoder baseline derived from Metta's token-based basic policy."""
 
     short_names = ["token"]

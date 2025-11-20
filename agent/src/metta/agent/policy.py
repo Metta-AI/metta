@@ -23,7 +23,7 @@ from metta.agent.components.obs_shim import (
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
-from mettagrid.policy.policy import AgentPolicy, AgentStepMixin, MultiAgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryABCMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -49,7 +49,7 @@ class PolicyArchitecture(Config):
         return AgentClass(policy_env_info, self)  # type: ignore[misc]
 
 
-class Policy(AgentStepMixin, TrainablePolicy, nn.Module):
+class Policy(TrainablePolicy, nn.Module):
     """Abstract base class defining the interface that all policies must implement.
 
     This class provides both the PyTorch nn.Module interface for training

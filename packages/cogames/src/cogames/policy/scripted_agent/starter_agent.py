@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from mettagrid.policy.policy import AgentStepMixin, MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 from .baseline_agent import BaselineAgentPolicyImpl
@@ -65,7 +65,7 @@ class StarterAgentPolicyImpl(BaselineAgentPolicyImpl):
         return super()._find_any_needed_extractor(s)
 
 
-class StarterPolicy(AgentStepMixin, MultiAgentPolicy):
+class StarterPolicy(MultiAgentPolicy):
     short_names = ["scripted_starter", "starter", "starter_agent"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[StarterHyperparameters] = None):

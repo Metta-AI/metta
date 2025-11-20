@@ -6,7 +6,7 @@ import torch.nn as nn
 
 import pufferlib.pytorch
 from mettagrid.config.mettagrid_config import ActionsConfig
-from mettagrid.policy.policy import AgentStepMixin, TrainablePolicy
+from mettagrid.policy.policy import TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import AgentObservation as MettaGridObservation
 
@@ -46,7 +46,7 @@ class StatelessPolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class StatelessPolicy(AgentStepMixin, TrainablePolicy):
+class StatelessPolicy(TrainablePolicy):
     """Stateless feedforward policy."""
 
     short_names = ["stateless"]
