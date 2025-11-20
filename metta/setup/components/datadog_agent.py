@@ -82,9 +82,16 @@ class DatadogAgentSetup(SetupModule):
         )
         # Sanitize hostname: replace underscores with hyphens, lowercase, truncate to 63 chars
         hostname = raw_hostname.lower().replace("_", "-")[:63]
+        # Remove trailing hyphens (RFC1123: must not end with hyphen)
+        hostname = hostname.rstrip("-")
         # Ensure it starts with alphanumeric
-        if not hostname[0].isalnum():
+        if not hostname or not hostname[0].isalnum():
             hostname = "skypilot-" + hostname
+        # Ensure it doesn't end with hyphen after prefix addition
+        hostname = hostname.rstrip("-")
+        # Final safety check: if empty or too short, use fallback
+        if not hostname or len(hostname) < 3:
+            hostname = "skypilot-job"
         env["DD_HOSTNAME"] = hostname
 
         # Set tags from SkyPilot environment variables
@@ -163,9 +170,16 @@ class DatadogAgentSetup(SetupModule):
                         )
                         # Sanitize hostname: replace underscores with hyphens, lowercase, truncate to 63 chars
                         hostname = raw_hostname.lower().replace("_", "-")[:63]
+                        # Remove trailing hyphens (RFC1123: must not end with hyphen)
+                        hostname = hostname.rstrip("-")
                         # Ensure it starts with alphanumeric
-                        if not hostname[0].isalnum():
+                        if not hostname or not hostname[0].isalnum():
                             hostname = "skypilot-" + hostname
+                        # Ensure it doesn't end with hyphen after prefix addition
+                        hostname = hostname.rstrip("-")
+                        # Final safety check: if empty or too short, use fallback
+                        if not hostname or len(hostname) < 3:
+                            hostname = "skypilot-job"
                         config_updates.append(f"hostname: {hostname}")
                         info(f"Set hostname in Datadog config: {hostname}")
 
