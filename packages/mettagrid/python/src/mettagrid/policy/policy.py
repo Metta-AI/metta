@@ -376,36 +376,23 @@ def _load_state_dict_from_checkpoint(
     *,
     map_location: torch.device | str | None = "cpu",
 ) -> Mapping[str, torch.Tensor]:
-    """Load a state_dict from either a legacy .pt file or a safetensors-based artifact."""
+    """Load a state_dict from either legacy .pt or safetensors-in-zip (.mpt) files."""
 
     path = Path(checkpoint_path)
-    errors: list[Exception] = []
 
-    # 1) Legacy torch.save state_dict
-    try:
-        payload = torch.load(path, map_location=map_location)
-        if isinstance(payload, Mapping):
-            return payload
-        errors.append(TypeError("torch.load payload is not a state_dict mapping"))
-    except Exception as exc:
-        errors.append(exc)
-
-    # 2) New safetensors zip artifact (.mpt)
     if zipfile.is_zipfile(path):
-        try:
-            with zipfile.ZipFile(path, mode="r") as archive:
-                if "weights.safetensors" in archive.namelist():
-                    weights_blob = archive.read("weights.safetensors")
-                    state = load_safetensors(weights_blob)
-                    if isinstance(state, Mapping):
-                        return state
-                    errors.append(TypeError("safetensors payload is not a state_dict mapping"))
-        except Exception as exc:
-            errors.append(exc)
+        with zipfile.ZipFile(path, "r") as archive:
+            if "weights.safetensors" in archive.namelist():
+                state = load_safetensors(archive.read("weights.safetensors"))
+                if isinstance(state, Mapping):
+                    return state
+                raise TypeError("weights.safetensors is not a state_dict mapping")
 
-    # If nothing worked, surface the collected context
-    msg = "; ".join({str(err) for err in errors}) or "unknown checkpoint format"
-    raise RuntimeError(f"Failed to load checkpoint '{checkpoint_path}': {msg}")
+    payload = torch.load(path, map_location=map_location)
+    if isinstance(payload, Mapping):
+        return payload
+
+    raise RuntimeError(f"Unsupported checkpoint format for '{checkpoint_path}'")
 
 
 class PolicySpec(BaseModel):
