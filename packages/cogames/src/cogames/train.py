@@ -277,6 +277,7 @@ def train(
         use_rnn=use_rnn,
         torch_deterministic=True,
         cpu_offload=False,
+        min_lr_ratio=0.0,
         optimizer=optimizer,
         anneal_lr=True,
         precision="float32",
