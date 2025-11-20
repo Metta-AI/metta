@@ -267,7 +267,26 @@ proc step*(
 
     let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
 
+    # Parse the tokens into a vision map.
+    var visible: Table[Location, seq[FeatureValue]]
+    for token in 0 ..< numTokens:
+      let locationPacked = observations[token * sizeToken]
+      let featureId = observations[token * sizeToken + 1]
+      let value = observations[token * sizeToken + 2]
+      if locationPacked == 255 and featureId == 255 and value == 255:
+        break
+      var location: Location
+      if locationPacked != 0xFF:
+        location.y = (locationPacked shr 4).int - 5
+        location.x = (locationPacked and 0x0F).int - 5
+      if location notin visible:
+        visible[location] = @[]
+      visible[location].add(FeatureValue(featureId: featureId.int, value: value.int))
+
     proc doAction(action: int) {.measure.} =
+
+      # Get last action from observations, in case something else moved us.
+      agent.lastActions.add(agent.cfg.getLastAction(visible))
 
       # Stuck prevention: if last 2 actions are left, right and this is left.
       if agent.lastActions.len >= 2 and
@@ -307,39 +326,22 @@ proc step*(
           doAction(agent.cfg.actions.noop.int32)
           return
 
-      agent.lastActions.add(action)
       agentAction[] = action.int32
 
-    # Parse the tokens into a vision map.
-    var map: Table[Location, seq[FeatureValue]]
-    for token in 0 ..< numTokens:
-      let locationPacked = observations[token * sizeToken]
-      let featureId = observations[token * sizeToken + 1]
-      let value = observations[token * sizeToken + 2]
-      if locationPacked == 255 and featureId == 255 and value == 255:
-        break
-      var location: Location
-      if locationPacked != 0xFF:
-        location.y = (locationPacked shr 4).int - 5
-        location.x = (locationPacked and 0x0F).int - 5
-      if location notin map:
-        map[location] = @[]
-      map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
-
-    updateMap(agent, map)
+    updateMap(agent, visible)
 
     let
-      vibe = agent.cfg.getVibe(map, Location(x: 0, y: 0))
-      invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
-      invCarbon = agent.cfg.getInventory(map, agent.cfg.features.invCarbon)
-      invOxygen = agent.cfg.getInventory(map, agent.cfg.features.invOxygen)
-      invGermanium = agent.cfg.getInventory(map, agent.cfg.features.invGermanium)
-      invSilicon = agent.cfg.getInventory(map, agent.cfg.features.invSilicon)
-      invHeart = agent.cfg.getInventory(map, agent.cfg.features.invHeart)
-      invDecoder = agent.cfg.getInventory(map, agent.cfg.features.invDecoder)
-      invModulator = agent.cfg.getInventory(map, agent.cfg.features.invModulator)
-      invResonator = agent.cfg.getInventory(map, agent.cfg.features.invResonator)
-      invScrambler = agent.cfg.getInventory(map, agent.cfg.features.invScrambler)
+      vibe = agent.cfg.getVibe(visible, Location(x: 0, y: 0))
+      invEnergy = agent.cfg.getInventory(visible, agent.cfg.features.invEnergy)
+      invCarbon = agent.cfg.getInventory(visible, agent.cfg.features.invCarbon)
+      invOxygen = agent.cfg.getInventory(visible, agent.cfg.features.invOxygen)
+      invGermanium = agent.cfg.getInventory(visible, agent.cfg.features.invGermanium)
+      invSilicon = agent.cfg.getInventory(visible, agent.cfg.features.invSilicon)
+      invHeart = agent.cfg.getInventory(visible, agent.cfg.features.invHeart)
+      invDecoder = agent.cfg.getInventory(visible, agent.cfg.features.invDecoder)
+      invModulator = agent.cfg.getInventory(visible, agent.cfg.features.invModulator)
+      invResonator = agent.cfg.getInventory(visible, agent.cfg.features.invResonator)
+      invScrambler = agent.cfg.getInventory(visible, agent.cfg.features.invScrambler)
 
     log &"vibe:{vibe} H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 

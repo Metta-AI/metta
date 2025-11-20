@@ -3,7 +3,6 @@
 import logging
 import os
 import subprocess
-from functools import partial
 from pathlib import Path
 
 from pydantic import Field
@@ -14,7 +13,6 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.runner import run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
@@ -42,25 +40,21 @@ class ReplayTool(Tool):
     def invoke(self, args: dict[str, str]) -> int | None:
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri) if self.policy_uri else None
         policy_spec = self._build_policy_spec(normalized_uri)
-        policy_initializers = [partial(initialize_or_load_policy, policy_spec=policy_spec)]
 
         simulation_run = self.sim.to_simulation_run_config()
 
         simulation_results = run_simulations(
-            policy_initializers=policy_initializers,
+            policy_specs=[policy_spec],
             simulations=[simulation_run],
             replay_dir=self.replay_dir,
             seed=self.system.seed,
-            enable_replays=True,
         )
 
         result = simulation_results[0]
-        replay_urls = result.replay_urls
-        if not replay_urls:
-            logger.error("No replay URLs found in simulation results", exc_info=True)
+        replay_url = result.results.episodes[0].replay_path
+        if not replay_url:
+            logger.error("No replay path found in simulation results", exc_info=True)
             return 1
-
-        replay_url = next(iter(replay_urls.values()))
 
         if self.launch_viewer:
             launch_mettascope(replay_url)

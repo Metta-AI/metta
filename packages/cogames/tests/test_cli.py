@@ -8,7 +8,7 @@ cogames_root = Path(__file__).parent.parent
 
 
 def test_missions_list_command():
-    """Test that 'cogames missions' lists all available missions."""
+    """Test that 'cogames missions' lists only top-level missions."""
     result = subprocess.run(
         ["uv", "run", "cogames", "missions"],
         cwd=cogames_root,
@@ -22,6 +22,7 @@ def test_missions_list_command():
     # Check that the output contains expected content
     output = result.stdout
     assert "training_facility" in output
+    assert "training_facility.harvest" not in output
     assert "Cogs" in output
     assert "Map Size" in output
 
@@ -44,6 +45,23 @@ def test_missions_describe_command():
     assert "Mission Configuration:" in output
     assert "Number of agents:" in output
     assert "Available Actions:" in output
+
+
+def test_missions_list_for_specific_site():
+    """Test that a positional site argument lists only that site's missions."""
+    result = subprocess.run(
+        ["uv", "run", "cogames", "missions", "training_facility"],
+        cwd=cogames_root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, f"Command failed with stderr: {result.stderr}"
+
+    output = result.stdout
+    assert "training_facility.harvest" in output
+    assert "hello_world." not in output
 
 
 def test_missions_nonexistent_mission():

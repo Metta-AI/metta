@@ -169,7 +169,7 @@ Recipes are organized into two categories:
       - Longer training jobs (100M-2B timesteps), multi-GPU (1-16 GPUs)
       - Tracks end-to-end performance metrics (SPS, learning curves)
       - Acceptance criteria for SPS and training outcomes
-  - Examples: `arena_basic_easy_shaped`, `cvc.small_maps`
+  - Examples: `arena_basic_easy_shaped`, `cvc.fixed_maps`
 
 - **`recipes/experiment/`**: Work-in-progress recipes
   - No stability guarantees

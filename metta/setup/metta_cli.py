@@ -15,6 +15,7 @@ from rich.table import Table
 
 import gitta as git
 from metta.common.util.fs import get_repo_root
+from metta.common.util.log_config import init_logging, init_suppress_warnings
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.tools.book import app as book_app
@@ -558,11 +559,10 @@ def cmd_publish(
             info(f"Pushing {package} as child repo...")
             subprocess.run([f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"], check=True)
     except subprocess.CalledProcessError as exc:
-        error(
-            f"Failed to publish: {exc}. {tag_name} was still published to {remote}."
+        warning(
+            f"Failed to push child repo: {exc}. {tag_name} was still published to {remote}."
             + " Use --no-repo to skip pushing to github repo."
         )
-        raise typer.Exit(exc.returncode) from exc
 
     if publish_mettagrid_after:
         info("")
@@ -815,4 +815,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    init_logging()
+    init_suppress_warnings()
     main()

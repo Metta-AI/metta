@@ -11,7 +11,26 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from recipes.experiment.arena import mettagrid
+from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
+
+
+@pytest.fixture
+def real_checkpoint_uri(tmp_path):
+    trainer_cfg, training_env_cfg, policy_cfg, system_cfg = create_minimal_training_setup(tmp_path)
+    checkpoint_manager = run_fast_train_tool(
+        run_name="eval_tool_real_checkpoint",
+        system_cfg=system_cfg,
+        trainer_cfg=trainer_cfg,
+        training_env_cfg=training_env_cfg,
+        policy_cfg=policy_cfg,
+    )
+    latest = checkpoint_manager.get_latest_checkpoint()
+    assert latest is not None
+    return latest, system_cfg.model_copy(deep=True)
 
 
 class TestNewPolicySystem:
@@ -39,33 +58,35 @@ class TestNewPolicySystem:
         env_config = eb.make_navigation(num_agents=2)
         sim_run_config = SimulationRunConfig(env=env_config)
 
-        def _mock_policy_initializer(policy_env_info):
-            agent = MockAgent(policy_env_info)
-            agent.eval()
-            return agent
-
+        policy_spec = PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
         results = run_simulations(
-            policy_initializers=[_mock_policy_initializer],
+            policy_specs=[policy_spec],
             simulations=[sim_run_config],
             replay_dir=None,
             seed=0,
-            enable_replays=False,
         )
 
         assert results
         assert results[0].run.num_episodes == sim_run_config.num_episodes
 
-    def test_eval_tool_with_policy_uris(self):
-        """Test EvaluateTool with policy URIs."""
+    def test_eval_tool_with_policy_uris(self, real_checkpoint_uri):
+        """Test EvaluateTool can build policies from a real checkpoint URI."""
+        checkpoint_uri, system_cfg = real_checkpoint_uri
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
         eval_tool = EvaluateTool(
             simulations=[sim_config],
-            policy_uris=["mock://test_policy"],
+            policy_uris=[checkpoint_uri],
+            system=system_cfg,
         )
 
         assert eval_tool.simulations[0].name == "test_arena"
-        assert eval_tool.policy_uris == ["mock://test_policy"]
+        assert eval_tool.policy_uris == [checkpoint_uri]
+
+        policy_spec = eval_tool._build_policy_spec(checkpoint_uri)
+        env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+        policy = initialize_or_load_policy(env_info, policy_spec)
+        assert policy.agent_policy(0) is not None
 
     def test_policy_loading_interface(self):
         """Test that policy loading functions work with versioned URIs."""

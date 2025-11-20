@@ -1,25 +1,27 @@
+from __future__ import annotations
+
 import logging
 import uuid
-from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, Type, TypeVar
 
 import httpx
 from pydantic import BaseModel
 
 from metta.app_backend.clients.base_client import NotAuthenticatedError, get_machine_token
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse, TasksResponse
+from metta.app_backend.metta_repo import EvalTaskRow, PolicyVersionRow
+from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TasksResponse
+from metta.app_backend.routes.leaderboard_routes import (
+    LeaderboardPoliciesResponse,
+)
 from metta.app_backend.routes.sql_routes import SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
-    EpisodeCreate,
-    EpisodeResponse,
-    EpochCreate,
-    EpochResponse,
+    BulkEpisodeUploadResponse,
+    CompleteBulkUploadRequest,
+    MyPolicyVersionsResponse,
     PolicyCreate,
-    PolicyIdResponse,
-    PolicyResponse,
-    TrainingRunCreate,
-    TrainingRunResponse,
+    PolicyVersionCreate,
+    PresignedUploadUrlResponse,
+    UUIDResponse,
 )
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import PROD_STATS_SERVER_URI
@@ -29,176 +31,7 @@ logger = logging.getLogger("stats_client")
 T = TypeVar("T", bound=BaseModel)
 
 
-class StatsClient(ABC):
-    @abstractmethod
-    def __init__(self, backend_url: str = PROD_STATS_SERVER_URI, machine_token: str | None = None):
-        pass
-
-    @abstractmethod
-    def __enter__(self):
-        pass
-
-    @abstractmethod
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
-        pass
-
-    @abstractmethod
-    def close(self):
-        pass
-
-    @abstractmethod
-    def create_training_run(
-        self,
-        name: str,
-        attributes: dict[str, str] | None = None,
-        url: str | None = None,
-        description: str | None = None,
-        tags: list[str] | None = None,
-    ) -> TrainingRunResponse:
-        pass
-
-    @abstractmethod
-    def create_epoch(
-        self,
-        run_id: uuid.UUID,
-        start_training_epoch: int,
-        end_training_epoch: int,
-        attributes: dict[str, Any] | None = None,
-    ) -> EpochResponse:
-        pass
-
-    @abstractmethod
-    def create_policy(
-        self,
-        name: str,
-        description: str | None = None,
-        url: str | None = None,
-        epoch_id: uuid.UUID | None = None,
-    ) -> PolicyResponse:
-        pass
-
-    @abstractmethod
-    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
-        pass
-
-    @abstractmethod
-    def create_task(self, request: TaskCreateRequest) -> TaskResponse:
-        pass
-
-    @abstractmethod
-    def record_episode(
-        self,
-        *,
-        agent_policies: dict[int, uuid.UUID],
-        agent_metrics: dict[int, dict[str, float]],
-        primary_policy_id: uuid.UUID,
-        sim_suite: str,
-        env_name: str,
-        stats_epoch: uuid.UUID | None = None,
-        replay_url: str | None = None,
-        attributes: dict[str, Any] | None = None,
-        eval_task_id: uuid.UUID | None = None,
-        tags: list[str] | None = None,
-        thumbnail_url: str | None = None,
-    ) -> EpisodeResponse:
-        pass
-
-    @abstractmethod
-    def sql_query(self, query: str) -> SQLQueryResponse:
-        pass
-
-    @staticmethod
-    def create(stats_server_uri: Optional[str]) -> "StatsClient":
-        if stats_server_uri is None:
-            return NoopStatsClient()
-
-        machine_token = get_machine_token(stats_server_uri)
-        if machine_token is None:
-            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
-        stats_client = HttpStatsClient(backend_url=stats_server_uri, machine_token=machine_token)
-        stats_client._validate_authenticated()
-        return stats_client
-
-
-# TODO: REMOVE THIS
-class NoopStatsClient(StatsClient):
-    def __init__(self):
-        self.id = uuid.uuid1()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
-        pass
-
-    def close(self):
-        pass
-
-    def create_training_run(
-        self,
-        name: str,
-        attributes: dict[str, str] | None = None,
-        url: str | None = None,
-        description: str | None = None,
-        tags: list[str] | None = None,
-    ) -> TrainingRunResponse:
-        return TrainingRunResponse(id=self.id)
-
-    def create_epoch(
-        self,
-        run_id: uuid.UUID,
-        start_training_epoch: int,
-        end_training_epoch: int,
-        attributes: dict[str, Any] | None = None,
-    ) -> EpochResponse:
-        return EpochResponse(id=self.id)
-
-    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
-        pass
-
-    def create_task(self, request: TaskCreateRequest) -> TaskResponse:
-        return TaskResponse(
-            id=self.id,
-            policy_id=uuid.uuid4(),
-            sim_suite="default_suite",
-            status="unprocessed",
-            created_at=datetime.now(),
-            attributes={},
-            retries=0,
-            updated_at=datetime.now(),
-        )
-
-    def record_episode(
-        self,
-        *,
-        agent_policies: dict[int, uuid.UUID],
-        agent_metrics: dict[int, dict[str, float]],
-        primary_policy_id: uuid.UUID,
-        sim_suite: str,
-        env_name: str,
-        stats_epoch: uuid.UUID | None = None,
-        replay_url: str | None = None,
-        attributes: dict[str, Any] | None = None,
-        eval_task_id: uuid.UUID | None = None,
-        tags: list[str] | None = None,
-        thumbnail_url: str | None = None,
-    ) -> EpisodeResponse:
-        return EpisodeResponse(id=self.id)
-
-    def create_policy(
-        self,
-        name: str,
-        description: str | None = None,
-        url: str | None = None,
-        epoch_id: uuid.UUID | None = None,
-    ) -> PolicyResponse:
-        return PolicyResponse(id=self.id)
-
-    def sql_query(self, query: str) -> SQLQueryResponse:
-        return SQLQueryResponse(columns=[], rows=[], row_count=0)
-
-
-class HttpStatsClient(StatsClient):
+class StatsClient:
     """Synchronous wrapper around AsyncStatsClient using httpx sync client."""
 
     def __init__(self, backend_url: str = PROD_STATS_SERVER_URI, machine_token: str | None = None):
@@ -234,100 +67,29 @@ class HttpStatsClient(StatsClient):
             raise NotAuthenticatedError(f"Not authenticated. User: {auth_user.user_email}")
         return auth_user.user_email
 
-    def get_policy_ids(self, policy_names: list[str]) -> PolicyIdResponse:
-        return self._make_sync_request(
-            PolicyIdResponse, "GET", "/stats/policies/ids", params={"policy_names": policy_names}
-        )
-
-    def create_training_run(
-        self,
-        name: str,
-        attributes: dict[str, str] | None = None,
-        url: str | None = None,
-        description: str | None = None,
-        tags: list[str] | None = None,
-    ) -> TrainingRunResponse:
-        data = TrainingRunCreate(
-            name=name,
-            attributes=attributes or {},
-            url=url,
-            description=description,
-            tags=tags,
-        )
-        return self._make_sync_request(
-            TrainingRunResponse, "POST", "/stats/training-runs", json=data.model_dump(mode="json")
-        )
-
-    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
-        headers = remove_none_values({"X-Auth-Token": self._machine_token})
-        response = self._http_client.request(
-            "PATCH", f"/stats/training-runs/{run_id}/status", headers=headers, json={"status": status}
-        )
-        response.raise_for_status()
-
-    def create_epoch(
-        self,
-        run_id: uuid.UUID,
-        start_training_epoch: int,
-        end_training_epoch: int,
-        attributes: dict[str, Any] | None = None,
-    ) -> EpochResponse:
-        data = EpochCreate(
-            start_training_epoch=start_training_epoch,
-            end_training_epoch=end_training_epoch,
-            attributes=attributes or {},
-        )
-        return self._make_sync_request(
-            EpochResponse, "POST", f"/stats/training-runs/{run_id}/epochs", json=data.model_dump(mode="json")
-        )
-
     def create_policy(
-        self,
-        name: str,
-        description: str | None = None,
-        url: str | None = None,
-        epoch_id: uuid.UUID | None = None,
-    ) -> PolicyResponse:
-        data = PolicyCreate(
-            name=name,
-            description=description,
-            url=url,
-            epoch_id=epoch_id,
-        )
-        return self._make_sync_request(PolicyResponse, "POST", "/stats/policies", json=data.model_dump(mode="json"))
+        self, name: str, attributes: dict[str, Any] | None = None, is_system_policy: bool = False
+    ) -> UUIDResponse:
+        data = PolicyCreate(name=name, attributes=attributes or {}, is_system_policy=is_system_policy)
+        return self._make_sync_request(UUIDResponse, "POST", "/stats/policies", json=data.model_dump(mode="json"))
 
-    def record_episode(
+    def create_policy_version(
         self,
-        *,
-        agent_policies: dict[int, uuid.UUID],
-        agent_metrics: dict[int, dict[str, float]],
-        primary_policy_id: uuid.UUID,
-        sim_suite: str,
-        env_name: str,
-        stats_epoch: uuid.UUID | None = None,
-        replay_url: str | None = None,
+        policy_id: uuid.UUID,
+        policy_spec: dict[str, Any],
+        git_hash: str | None = None,
         attributes: dict[str, Any] | None = None,
-        eval_task_id: uuid.UUID | None = None,
-        tags: list[str] | None = None,
-        thumbnail_url: str | None = None,
-    ) -> EpisodeResponse:
-        data = EpisodeCreate(
-            agent_policies=agent_policies,
-            agent_metrics=agent_metrics,
-            primary_policy_id=primary_policy_id,
-            stats_epoch=stats_epoch,
-            sim_suite=sim_suite,
-            env_name=env_name,
-            replay_url=replay_url,
-            attributes=attributes or {},
-            eval_task_id=eval_task_id,
-            tags=tags,
-            thumbnail_url=thumbnail_url,
+    ) -> UUIDResponse:
+        data = PolicyVersionCreate(git_hash=git_hash, policy_spec=policy_spec, attributes=attributes or {})
+        return self._make_sync_request(
+            UUIDResponse, "POST", f"/stats/policies/{policy_id}/versions", json=data.model_dump(mode="json")
         )
-        return self._make_sync_request(EpisodeResponse, "POST", "/stats/episodes", json=data.model_dump(mode="json"))
 
-    def create_task(self, request: TaskCreateRequest) -> TaskResponse:
-        return self._make_sync_request(TaskResponse, "POST", "/tasks", json=request.model_dump(mode="json"))
+    def get_policy_version(self, policy_version_id: uuid.UUID) -> PolicyVersionRow:
+        return self._make_sync_request(PolicyVersionRow, "GET", f"/stats/policies/versions/{policy_version_id}")
+
+    def create_eval_task(self, request: TaskCreateRequest) -> EvalTaskRow:
+        return self._make_sync_request(EvalTaskRow, "POST", "/tasks", json=request.model_dump(mode="json"))
 
     def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
         params = filters.model_dump(mode="json", exclude_none=True) if filters else {}
@@ -335,3 +97,80 @@ class HttpStatsClient(StatsClient):
 
     def sql_query(self, query: str) -> SQLQueryResponse:
         return self._make_sync_request(SQLQueryResponse, "POST", "/sql/query", json={"query": query})
+
+    def bulk_upload_episodes(self, duckdb_path: str) -> BulkEpisodeUploadResponse:
+        """Upload a DuckDB file containing episode stats using presigned URL approach.
+
+        This method:
+        1. Requests a presigned URL from the backend
+        2. Uploads the DuckDB file directly to S3 using the presigned URL
+        3. Notifies the backend to process the uploaded file
+
+        The backend will then process the file from S3 and write aggregated episodes to the database.
+        """
+        # Step 1: Get presigned URL
+        presigned_response = self._make_sync_request(
+            PresignedUploadUrlResponse, "POST", "/stats/episodes/bulk_upload/presigned-url"
+        )
+
+        # Step 2: Upload file directly to S3 using presigned URL
+        with open(duckdb_path, "rb") as f:
+            # Use a plain HTTP client for S3 upload (no auth headers needed)
+            s3_response = httpx.put(
+                presigned_response.upload_url,
+                content=f,
+                headers={"Content-Type": "application/octet-stream"},
+                timeout=300.0,  # 5 minute timeout for large files
+            )
+            s3_response.raise_for_status()
+
+        # Step 3: Notify backend to process the uploaded file
+
+        completion_request = CompleteBulkUploadRequest(upload_id=presigned_response.upload_id)
+        completion_response = self._make_sync_request(
+            BulkEpisodeUploadResponse,
+            "POST",
+            "/stats/episodes/bulk_upload/complete",
+            json=completion_request.model_dump(mode="json"),
+        )
+
+        return completion_response
+
+    def update_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> UUIDResponse:
+        """Update tags for a specific policy version in Observatory."""
+        return self._make_sync_request(
+            UUIDResponse, "PUT", f"/stats/policies/versions/{policy_version_id}/tags", json=tags
+        )
+
+    def get_leaderboard_policies_v2(self) -> LeaderboardPoliciesResponse:
+        return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2")
+
+    def get_my_policy_versions(self) -> MyPolicyVersionsResponse:
+        return self._make_sync_request(
+            MyPolicyVersionsResponse,
+            "GET",
+            "/stats/policies/my-versions",
+        )
+
+    def get_leaderboard_policies_v2_users_me(self) -> LeaderboardPoliciesResponse:
+        return self._make_sync_request(
+            LeaderboardPoliciesResponse,
+            "GET",
+            "/leaderboard/v2/users/me",
+        )
+
+    def get_leaderboard_policies_v2_for_policy(self, policy_version_id: uuid.UUID) -> LeaderboardPoliciesResponse:
+        return self._make_sync_request(
+            LeaderboardPoliciesResponse,
+            "GET",
+            f"/leaderboard/v2/policy/{policy_version_id}",
+        )
+
+    @staticmethod
+    def create(stats_server_uri: str) -> "StatsClient":
+        machine_token = get_machine_token(stats_server_uri)
+        if machine_token is None:
+            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
+        stats_client = StatsClient(backend_url=stats_server_uri, machine_token=machine_token)
+        stats_client._validate_authenticated()
+        return stats_client

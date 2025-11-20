@@ -92,6 +92,12 @@ EVALS: List[Tuple[str, str, int]] = [
     ("easy_medium_hearts", "", NUM_COGS),
     ("easy_small_hearts", "flakey", NUM_COGS),
     ("easy_hearts_training", "buggy", NUM_COGS),  # No/invalid recipes available.
+    # Missions from missions.py
+    ("harvest", "", NUM_COGS),
+    ("repair", "", 2),  # repair uses 2 cogs
+    ("easy_hearts_training_facility", "", NUM_COGS),
+    ("easy_hearts_hello_world", "", NUM_COGS),
+    ("hello_world_unclip", "", NUM_COGS),
 ]
 
 
@@ -118,10 +124,12 @@ def _load_all_missions() -> Dict[str, Mission]:
         "cogames.cogs_vs_clips.evals.eval_missions",
         "cogames.cogs_vs_clips.evals.integrated_evals",
         "cogames.cogs_vs_clips.evals.spanning_evals",
+        "cogames.cogs_vs_clips.missions",
     ):
         try:
             mod = import_module(mod_name)
-            eval_list = getattr(mod, "EVAL_MISSIONS", [])
+            # missions.py uses MISSIONS, others use EVAL_MISSIONS
+            eval_list = getattr(mod, "MISSIONS", getattr(mod, "EVAL_MISSIONS", []))
             missions.extend(eval_list)
         except Exception:
             pass
@@ -162,10 +170,11 @@ def _ensure_vibe_supports_gear(env_cfg) -> None:
         pass
 
 
-def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], num_cogs: int, seed: int) -> None:
+def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], num_cogs: int, seed: int) -> float:
     start = time.perf_counter()
     try:
         if experiment_name not in mission_map:
+            print(f"{tag:<6} {experiment_name:<40} {'MISSION NOT FOUND':>6}")
             return 0.0
 
         base_mission = mission_map[experiment_name]
@@ -212,6 +221,7 @@ def main() -> None:
     fix_logger()
     na.start_measure()
     mission_map = _load_all_missions()
+    print(f"Loaded {len(mission_map)} missions")
     print("tag .. map name ............................... harts/A .. time")
     start = time.perf_counter()
     total_hpa = 0.0

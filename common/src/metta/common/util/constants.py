@@ -8,7 +8,7 @@ from metta.common.util.lazypath import LazyPath
 # Repo root path calculation
 REPO_ROOT = Path(__file__).resolve().parents[5]  # Navigate up to repo root
 
-OBSERVATORY_AUTH_SERVER_URL = "https://observatory.softmax-research.net/api"
+OBSERVATORY_AUTH_SERVER_URL = "https://softmax.com/api"
 PROD_STATS_SERVER_URI = "https://api.observatory.softmax-research.net"
 DEV_STATS_SERVER_URI = "http://localhost:8000"
 PROD_OBSERVATORY_FRONTEND_URL = "https://observatory.softmax-research.net"
@@ -18,7 +18,6 @@ METTA_WANDB_ENTITY = "metta-research"
 METTA_GITHUB_ORGANIZATION = "Metta-AI"
 METTA_GITHUB_REPO = "metta"
 DEV_METTASCOPE_FRONTEND_URL = "http://localhost:8000"
-METTASCOPE_REPLAY_URL_PREFIX = "https://metta-ai.github.io/metta/mettascope/mettascope.html?replay="
 METTA_AWS_ACCOUNT_ID = "751442549699"
 METTA_AWS_REGION = "us-east-1"
 METTA_SKYPILOT_URL = "skypilot-api.softmax-research.net"
