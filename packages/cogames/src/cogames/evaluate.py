@@ -103,10 +103,15 @@ def evaluate(
                         self._wrapped_agent_policies: dict[int, AgentPolicy] = {}
 
                     def agent_policy(self, agent_id: int) -> AgentPolicy:
-                        if agent_id not in self._wrapped_agent_policies:
-                            base_policy = self._wrapped.agent_policy(agent_id)
-                            self._wrapped_agent_policies[agent_id] = PerAgentSubprocessWrapper(base_policy, self._pool)
-                        return self._wrapped_agent_policies[agent_id]
+                        if not hasattr(self, '_lock'):
+                            import threading
+                            self._lock = threading.Lock()
+                        
+                        with self._lock:
+                            if agent_id not in self._wrapped_agent_policies:
+                                base_policy = self._wrapped.agent_policy(agent_id)
+                                self._wrapped_agent_policies[agent_id] = PerAgentSubprocessWrapper(base_policy, self._pool)
+                            return self._wrapped_agent_policies[agent_id]
 
                     def reset(self) -> None:
                         self._wrapped.reset()
