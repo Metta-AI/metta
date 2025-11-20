@@ -95,7 +95,7 @@ if ps -p "$AGENT_PID" > /dev/null; then
   # CRITICAL: Verify logs_enabled is set in main config
   MAIN_CONFIG="/etc/datadog-agent/datadog.yaml"
   CONFIG_FIXED=false
-  
+
   # Check for environment variable override first (DD_LOGS_ENABLED takes precedence)
   if [ -n "${DD_LOGS_ENABLED:-}" ]; then
     if [ "${DD_LOGS_ENABLED}" != "true" ]; then
@@ -109,7 +109,7 @@ if ps -p "$AGENT_PID" > /dev/null; then
   else
     echo "[DATADOG] DD_LOGS_ENABLED not set in environment (will use config file)"
   fi
-  
+
   if [ -f "$MAIN_CONFIG" ]; then
     if grep -q "logs_enabled: true" "$MAIN_CONFIG" 2>/dev/null; then
       echo "[DATADOG] ✓ logs_enabled: true found in main config"
@@ -127,7 +127,7 @@ if ps -p "$AGENT_PID" > /dev/null; then
         echo "[DATADOG] Changed logs_enabled from false to true"
         CONFIG_FIXED=true
       fi
-      
+
       # Verify the change was written correctly
       if [ "$CONFIG_FIXED" = true ]; then
         if grep -q "logs_enabled: true" "$MAIN_CONFIG" 2>/dev/null; then
@@ -148,7 +148,7 @@ if ps -p "$AGENT_PID" > /dev/null; then
     echo "[DATADOG] Restarting agent to pick up logs_enabled fix..."
     pkill -f "datadog-agent.*run" || true
     sleep 5  # Give it time to fully stop
-    
+
     # Start agent with explicit DD_LOGS_ENABLED=true to ensure logs are enabled
     # This environment variable takes precedence over config file
     export DD_LOGS_ENABLED="true"
@@ -181,7 +181,7 @@ if ps -p "$AGENT_PID" > /dev/null; then
       fi
     fi
   fi
-  
+
   # After restart, verify the agent actually sees logs_enabled: true
   if [ "$CONFIG_FIXED" = true ]; then
     sleep 10  # Wait for agent to fully initialize
@@ -195,7 +195,7 @@ if ps -p "$AGENT_PID" > /dev/null; then
         grep -i "log" /tmp/datadog-configcheck-verify.log | head -10 | sed 's/^/  /' || echo "  (no log-related config found)"
       fi
     fi
-    
+
     # Also check agent logs for the "logs-agent disabled" message
     if [ -f /tmp/datadog-agent.log ]; then
       if grep -q "logs-agent disabled" /tmp/datadog-agent.log 2>/dev/null; then
