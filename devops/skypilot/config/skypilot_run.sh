@@ -32,7 +32,6 @@ echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
 echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
-echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
 echo "  - METTA_ARGS_JSON: ${METTA_ARGS_JSON:-'NOT SET'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
@@ -216,13 +215,12 @@ run_cmd() {
   # Build the command as an array
   local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 
-  if [ -n "${METTA_ARGS_JSON:-}" ]; then
-    if ! mapfile -t parsed_args < <(python - <<'PY'
+  if ! mapfile -t parsed_args < <(python - <<'PY'
 import json
 import os
 import sys
 
-args_json = os.environ.get("METTA_ARGS_JSON", "[]")
+args_json = os.environ.get("METTA_ARGS_JSON") or "[]"
 try:
     raw_args = json.loads(args_json)
 except json.JSONDecodeError as exc:
@@ -241,15 +239,11 @@ for arg in raw_args:
         sys.exit(1)
     print(arg)
 PY
-); then
-      echo "[ERROR] Failed to decode METTA_ARGS_JSON, aborting" >&2
-      exit "$EXIT_FAILURE"
-    fi
-    cmd+=("${parsed_args[@]}")
-  elif [ -n "${METTA_ARGS:-}" ]; then
-    # Fallback for legacy deployments; will still split on spaces
-    cmd+=(${METTA_ARGS})
+  ); then
+    echo "[ERROR] Failed to decode METTA_ARGS_JSON, aborting" >&2
+    exit "$EXIT_FAILURE"
   fi
+  cmd+=("${parsed_args[@]}")
 
   echo "[INFO] Running command: ${cmd[*]}"
 
