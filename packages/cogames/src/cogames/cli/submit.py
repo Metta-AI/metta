@@ -110,8 +110,7 @@ def copy_files_maintaining_structure(files: list[Path], dest_dir: Path, console:
 def validate_policy_spec(policy_spec: PolicySpec) -> None:
     """Validate policy works.
 
-    Loads the policy and runs a single ste on a mock environment.
-    Returns True if validation succeeds, False otherwise.
+    Loads the policy and runs a single step on a mock environment.
     """
     env = MettaGridConfig.EmptyRoom(num_agents=1)
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env)
@@ -121,11 +120,6 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
 
 
 def validate_policy_command(ctx: typer.Context, policy: str) -> None:
-    """Validate policy works.
-
-    Loads the policy and runs a single ste on a mock environment.
-    Returns True if validation succeeds, False otherwise.
-    """
     policy_spec = get_policy_spec(ctx, policy)
     validate_policy_spec(policy_spec)
     console.print("[green]Policy validated successfully[/green]")
