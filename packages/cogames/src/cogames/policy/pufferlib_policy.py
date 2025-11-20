@@ -44,6 +44,41 @@ def _pack_observation(obs: AgentObservation, num_tokens: int, token_dim: int, de
     return buffer
 
 
+class _PufferlibAgent(AgentPolicy):
+    def __init__(
+        self,
+        net: _PufferlibCogsNet,
+        action_names: Sequence[str],
+        num_tokens: int,
+        token_dim: int,
+        device: torch.device,
+        policy_env_info: PolicyEnvInterface,
+    ):
+        super().__init__(policy_env_info)
+        self._net = net
+        self._action_names = action_names
+        self._num_tokens = num_tokens
+        self._token_dim = token_dim
+        self._device = device
+
+    def _to_tensor(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> torch.Tensor:
+        if isinstance(obs, AgentObservation):
+            return _pack_observation(obs, self._num_tokens, self._token_dim, self._device)
+        return torch.as_tensor(obs, device=self._device)
+
+    def step(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> Action:
+        obs_tensor = self._to_tensor(obs).to(dtype=torch.float32)
+        if obs_tensor.ndim == 2:
+            obs_tensor = obs_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            self._net.eval()
+            logits, _ = self._net.forward_eval(obs_tensor)
+            sampled, _, _ = pufferlib.pytorch.sample_logits(logits)
+        action_idx = max(0, min(int(sampled.item()), len(self._action_names) - 1))
+        return Action(name=self._action_names[action_idx])
+
+
 class PufferlibCogsPolicy(TrainablePolicy):
     """Loads and runs checkpoints trained with PufferLib's CoGames policy."""
 
@@ -73,34 +108,16 @@ class PufferlibCogsPolicy(TrainablePolicy):
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:  # type: ignore[override]
-        net = self._net
         policy_env_info = self.policy_env_info
-        action_names = policy_env_info.action_names
         num_tokens, token_dim = policy_env_info.observation_space.shape
-        device = next(net.parameters()).device
-
-        class _Agent(AgentPolicy):
-            def __init__(self) -> None:
-                super().__init__(policy_env_info)
-
-            def _to_tensor(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> torch.Tensor:
-                if isinstance(obs, AgentObservation):
-                    return _pack_observation(obs, num_tokens, token_dim, device)
-                return torch.as_tensor(obs, device=device)
-
-            def step(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> Action:
-                obs_tensor = self._to_tensor(obs).to(dtype=torch.float32)
-                if obs_tensor.ndim == 2:
-                    obs_tensor = obs_tensor.unsqueeze(0)
-
-                with torch.no_grad():
-                    net.eval()
-                    logits, _ = net.forward_eval(obs_tensor)
-                    sampled, _, _ = pufferlib.pytorch.sample_logits(logits)
-                action_idx = max(0, min(int(sampled.item()), len(action_names) - 1))
-                return Action(name=action_names[action_idx])
-
-        return _Agent()
+        return _PufferlibAgent(
+            net=self._net,
+            action_names=policy_env_info.action_names,
+            num_tokens=num_tokens,
+            token_dim=token_dim,
+            device=next(self._net.parameters()).device,
+            policy_env_info=policy_env_info,
+        )
 
     def is_recurrent(self) -> bool:
         return False
