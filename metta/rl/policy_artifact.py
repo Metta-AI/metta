@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import io
-import json
 import pickle
 import tempfile
 import zipfile
@@ -324,21 +323,6 @@ def _save_policy_artifact(
 
         try:
             with zipfile.ZipFile(temp_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-                # Manifest
-                class_path = None
-                if policy_architecture is not None and hasattr(policy_architecture, "class_path"):
-                    class_path = getattr(policy_architecture, "class_path", None)
-                if class_path is None and policy is not None:
-                    class_path = f"{policy.__class__.__module__}.{policy.__class__.__name__}"
-
-                manifest = {
-                    "version": 1,
-                    "class_path": class_path,
-                    "has_state_dict": artifact_state is not None,
-                    "has_policy": policy_payload is not None,
-                }
-                archive.writestr("manifest.json", json.dumps(manifest))
-
                 if artifact_state is not None and policy_architecture is not None:
                     weights_blob = save_safetensors(artifact_state)
                     archive.writestr("weights.safetensors", weights_blob)
@@ -392,12 +376,7 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
     with zipfile.ZipFile(input_path, mode="r") as archive:
         names = set(archive.namelist())
 
-        if "manifest.json" not in names:
-            raise ValueError(f"Policy artifact {input_path} is missing manifest.json")
-
-        manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
-
-        if manifest.get("has_state_dict"):
+        if "modelarchitecture.txt" in names and "weights.safetensors" in names:
             architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
             architecture = policy_architecture_from_string(architecture_blob)
 
@@ -406,9 +385,11 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
             if not isinstance(loaded_state, MutableMapping):
                 msg = "Loaded safetensors state_dict is not a mutable mapping"
                 raise TypeError(msg)
+            if loaded_state and all(k.startswith("module.") for k in loaded_state.keys()):
+                loaded_state = {k.removeprefix("module."): v for k, v in loaded_state.items()}
             state_dict = loaded_state
 
-        elif manifest.get("has_policy"):
+        elif "policy.pt" in names:
             buffer = io.BytesIO(archive.read("policy.pt"))
             loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
 
@@ -419,7 +400,9 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
                     msg = "Loaded policy payload is not a Policy instance"
                     raise TypeError(msg)
                 policy = loaded_policy
-        else:
-            raise ValueError(f"Policy artifact {input_path} contained no payloads")
+
+    if architecture is None and state_dict is None and policy is None:
+        msg = f"Policy artifact {input_path} contained no usable payload"
+        raise ValueError(msg)
 
     return PolicyArtifact(policy_architecture=architecture, state_dict=state_dict, policy=policy)

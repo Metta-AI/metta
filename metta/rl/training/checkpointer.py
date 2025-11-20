@@ -152,6 +152,13 @@ class Checkpointer(TrainerComponent):
 
         uri = policy.save_policy(local_path, policy_architecture=self._policy_architecture)
 
+        if getattr(self._checkpoint_manager, "_remote_prefix", None):
+            remote_uri = f"{self._checkpoint_manager._remote_prefix}/{filename}"
+            from metta.common.util.file import write_file
+
+            write_file(remote_uri, str(local_path))
+            uri = remote_uri
+
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
         try:

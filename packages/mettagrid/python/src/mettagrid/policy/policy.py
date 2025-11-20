@@ -109,6 +109,34 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         """
         pass  # Default: no-op for policies without learnable parameters
 
+    def save_policy(self, destination: str | Path, *, policy_architecture=None) -> str:
+        """Generic saver: writes state_dict with torch.save; supports s3:// or local.
+
+        Policies with custom artifact needs should override. This keeps a default
+        vanilla PyTorch path for policies lacking a bespoke saver.
+        """
+
+        import torch  # local import to avoid circular during module import
+
+        from metta.common.util.file import write_file
+
+        dest_str = str(destination)
+        if dest_str.startswith("s3://"):
+            if not dest_str.endswith(".pt"):
+                dest_str = dest_str + ".pt"
+            local_tmp = Path(Path(dest_str).name)
+            torch.save(self.state_dict(), local_tmp)
+            write_file(dest_str, str(local_tmp))
+            return dest_str
+
+        path = Path(destination)
+        if path.suffix == "":
+            path = path.with_suffix(".pt")
+        path = path.expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.state_dict(), path)
+        return f"file://{path.resolve()}"
+
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
         return self._policy_env_info
@@ -370,9 +398,15 @@ class TrainablePolicy(MultiAgentPolicy):
     def save_policy(self, destination: str | Path, *, policy_architecture) -> str:
         """Persist policy weights + architecture to a URI or filesystem path."""
 
-        path = Path(destination)
-        if path.suffix == "":
-            path = path.with_suffix(".mpt")
+        dest_str = str(destination)
+        if dest_str.startswith("s3://"):
+            if not dest_str.endswith(".mpt"):
+                dest_str = dest_str + ".mpt"
+            path = dest_str
+        else:
+            path = Path(destination)
+            if path.suffix == "":
+                path = path.with_suffix(".mpt")
 
         state_dict = self.network().state_dict()
         # Strip a leading "module." prefix (e.g., from DDP wrappers) for portability
@@ -382,15 +416,15 @@ class TrainablePolicy(MultiAgentPolicy):
         from metta.common.util.file import write_file
         from metta.rl.policy_artifact import save_policy_artifact_safetensors
 
-        if str(path).startswith("s3://"):
-            local_tmp = Path(path.name)
+        if isinstance(path, str) and path.startswith("s3://"):
+            local_tmp = Path(Path(path).name)
             save_policy_artifact_safetensors(
                 local_tmp,
                 policy_architecture=policy_architecture,
                 state_dict=state_dict,
             )
-            write_file(str(path), str(local_tmp))
-            return str(path)
+            write_file(path, str(local_tmp))
+            return path
 
         path = path.expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
