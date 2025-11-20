@@ -352,8 +352,7 @@ const formatSimulationLabel = (identifier: string): string => {
 const getEvalStatus = (tags: Record<string, string>): EvalStatusInfo => {
   const attemptValue = tags[LEADERBOARD_ATTEMPTS_TAG]
   const parsedAttempts = attemptValue !== undefined ? Number(attemptValue) : null
-  const attempts =
-    typeof parsedAttempts === 'number' && Number.isFinite(parsedAttempts) ? parsedAttempts : null
+  const attempts = typeof parsedAttempts === 'number' && Number.isFinite(parsedAttempts) ? parsedAttempts : null
   const doneValue = tags[LEADERBOARD_DONE_TAG]
   if (doneValue === LEADERBOARD_CANCELED_VALUE) {
     return { attempts, status: 'canceled', label: 'Canceled' }
@@ -587,9 +586,7 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
                           </div>
                         </div>
                         <div className="detail-block">
-                          {tagEntries.length === 0 ? (
-                            null
-                          ) : (
+                          {tagEntries.length === 0 ? null : (
                             <div className="tag-list">
                               {tagEntries.map(([key, value]) => (
                                 <span key={`${policyId}-${key}-${value}`} className="tag">
