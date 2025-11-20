@@ -18,11 +18,12 @@ It tells `uv run` what dependencies to install when running this script directly
 
 import os
 import sys
+from typing import Any, Sequence
 
 from github import Github  # pyright: ignore[reportMissingImports]
 
 
-def is_superseded_run(cancelled_run, all_runs) -> bool:
+def is_superseded_run(cancelled_run: Any, all_runs: Sequence[Any]) -> bool:
     """
     Check if a cancelled run was superseded by a newer run.
 
@@ -151,8 +152,16 @@ def main():
     print("Fetching workflow information...")
     workflows = repo.get_workflows()
     workflow = None
+    workflow_file_input = workflow_file.strip()
+    workflow_basename = os.path.basename(workflow_file_input)
+    candidate_paths = {workflow_file_input}
+    if not workflow_file_input.startswith(".github/"):
+        candidate_paths.add(f".github/workflows/{workflow_file_input}")
+
     for wf in workflows:
-        if wf.path.endswith(workflow_file):
+        wf_path = wf.path
+        wf_basename = os.path.basename(wf_path)
+        if wf_path in candidate_paths or wf_basename == workflow_basename:
             workflow = wf
             break
 
