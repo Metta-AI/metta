@@ -82,7 +82,7 @@ const groupedConfigMakersSchema = z.record(
   z.array(configMakerSchema).optional()
 );
 
-type GroupedConfigMakers = z.infer<typeof groupedConfigMakersSchema>;
+export type GroupedConfigMakers = z.infer<typeof groupedConfigMakersSchema>;
 
 export async function listConfigMakers(): Promise<GroupedConfigMakers> {
   return await fetchApi(`${API_URL}/configs`, groupedConfigMakersSchema);
