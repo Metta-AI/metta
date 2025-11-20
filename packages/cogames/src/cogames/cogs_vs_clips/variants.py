@@ -4,6 +4,8 @@ from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
 from cogames.cogs_vs_clips.procedural import BaseHubVariant, MachinaArenaVariant
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig, ResourceLimitsConfig
+from mettagrid.map_builder.map_builder import MapBuilderConfig
+from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import DEFAULT_EXTRACTORS as HUB_EXTRACTORS
 from mettagrid.mapgen.scenes.building_distributions import DistributionConfig, DistributionType
 
@@ -178,15 +180,62 @@ class HeartChorusVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        env.game.agent.rewards.stats = {
-            "heart.gained": 1.0,
-            "chest.heart.deposited": 1.0,
-            "chest.heart.withdrawn": -1.0,
-            "inventory.diversity.ge.2": 0.17,
-            "inventory.diversity.ge.3": 0.18,
-            "inventory.diversity.ge.4": 0.60,
-            "inventory.diversity.ge.5": 0.97,
+        # Supplemental shaping: keep the base rewards (e.g., chest.heart.amount)
+        # and add heart-centric/collection bonuses on top.
+        rewards = dict(env.game.agent.rewards.stats)
+        rewards.update(
+            {
+                "heart.gained": 1.0,
+                "chest.heart.deposited": 1.0,
+                "chest.heart.withdrawn": -1.0,
+                "inventory.diversity.ge.2": 0.17,
+                "inventory.diversity.ge.3": 0.18,
+                "inventory.diversity.ge.4": 0.60,
+                "inventory.diversity.ge.5": 0.97,
+            }
+        )
+        env.game.agent.rewards.stats = rewards
+
+
+class TinyHeartProtocolsVariant(MissionVariant):
+    """Prepend low-cost heart/red-heart assembler protocols for easy hearts."""
+
+    name: str = "tiny_heart_protocols"
+    description: str = "Prepend low-cost heart/red-heart assembler protocols."
+
+    # Allow customization if ever needed; defaults match prior inline block.
+    carbon_cost: int = 2
+    oxygen_cost: int = 2
+    germanium_cost: int = 1
+    silicon_cost: int = 3
+    energy_cost: int = 2
+
+    @override
+    def modify_env(self, mission, env) -> None:
+        assembler = env.game.objects.get("assembler")
+        if not isinstance(assembler, AssemblerConfig):
+            raise TypeError("Expected 'assembler' to be AssemblerConfig")
+
+        tiny_inputs = {
+            "carbon": self.carbon_cost,
+            "oxygen": self.oxygen_cost,
+            "germanium": self.germanium_cost,
+            "silicon": self.silicon_cost,
+            "energy": self.energy_cost,
         }
+
+        tiny_protocols = [
+            ProtocolConfig(
+                vibes=[vibe] * (i + 1),
+                input_resources=tiny_inputs,
+                output_resources={"heart": i + 1},
+            )
+            for vibe in ("heart_a", "red-heart")
+            for i in range(4)
+        ]
+        tiny_keys = {(tuple(p.vibes), p.min_agents) for p in tiny_protocols}
+        existing = [p for p in assembler.protocols if (tuple(p.vibes), p.min_agents) not in tiny_keys]
+        assembler.protocols = [*tiny_protocols, *existing]
 
 
 class VibeCheckMin2Variant(MissionVariant):
@@ -217,7 +266,13 @@ class Small50Variant(MissionVariant):
     description: str = "Set map size to 50x50 for quick runs."
 
     def modify_env(self, mission, env) -> None:
-        env.game.map_builder = env.game.map_builder.model_copy(update={"width": 50, "height": 50})
+        map_builder = env.game.map_builder
+        # Only set width/height if instance is a SceneConfig, not a MapBuilderConfig
+        # When instance is a MapBuilderConfig, width and height must be None
+        if isinstance(map_builder, MapGen.Config) and isinstance(map_builder.instance, MapBuilderConfig):
+            # Skip setting width/height for MapBuilderConfig instances
+            return
+        env.game.map_builder = map_builder.model_copy(update={"width": 50, "height": 50})
 
 
 class CogToolsOnlyVariant(MissionVariant):
@@ -603,6 +658,7 @@ VARIANTS: list[MissionVariant] = [
     SolarFlareVariant(),
     SuperChargedVariant(),
     TraderVariant(),
+    TinyHeartProtocolsVariant(),
     VibeCheckMin2Variant(),
     *DIFFICULTY_VARIANTS,
 ]

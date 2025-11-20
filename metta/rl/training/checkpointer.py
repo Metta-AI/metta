@@ -63,28 +63,55 @@ class Checkpointer(TrainerComponent):
     ) -> Policy:
         """Load the latest policy checkpoint or create a new policy."""
 
-        policy: Optional[Policy] = None
-        candidate_uri: Optional[str] = policy_uri
+        candidate_uri: Optional[str] = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
+        load_device = torch.device(self._distributed.config.device)
 
-        if candidate_uri is None:
-            candidate_uri = self._checkpoint_manager.get_latest_checkpoint()
+        # Distributed: master loads once, broadcasts payload; workers rebuild locally.
+        if self._distributed.is_distributed:
+            normalized_uri = (
+                CheckpointManager.normalize_uri(candidate_uri)
+                if self._distributed.is_master() and candidate_uri
+                else None
+            )
+            normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
-        if self._distributed.is_master() and candidate_uri:
-            normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
-            try:
-                load_device = torch.device(self._distributed.config.device)
+            if normalized_uri:
                 spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
-                policy = initialize_or_load_policy(policy_env_info, spec)
-                policy = self._ensure_save_capable(policy)
-                self._latest_policy_uri = normalized_uri
-                logger.info("Loaded policy from %s", normalized_uri)
-            except FileNotFoundError:
-                logger.warning("Policy checkpoint %s not found; training will start fresh", normalized_uri)
-            except Exception as exc:  # pragma: no cover - defensive guard
-                logger.warning("Failed to load policy from %s: %s", normalized_uri, exc)
+                payload = None
+                if self._distributed.is_master():
+                    loaded_policy = initialize_or_load_policy(policy_env_info, spec)
+                    loaded_policy = self._ensure_save_capable(loaded_policy)
+                    state_dict = {k: v.cpu() for k, v in loaded_policy.state_dict().items()}
+                    arch = getattr(loaded_policy, "_policy_architecture", self._policy_architecture)
+                    action_count = len(policy_env_info.actions.actions())
+                    payload = (state_dict, arch, action_count, normalized_uri)
+                state_dict, arch, action_count, normalized_uri = self._distributed.broadcast_from_master(payload)
 
-        policy = self._distributed.broadcast_from_master(policy)
-        if policy is not None:
+                local_action_count = len(policy_env_info.actions.actions())
+                if local_action_count != action_count:
+                    msg = f"Action space mismatch on resume: master={action_count}, rank={local_action_count}"
+                    raise ValueError(msg)
+
+                policy = arch.make_policy(policy_env_info).to(load_device)
+                if hasattr(policy, "initialize_to_environment"):
+                    policy.initialize_to_environment(policy_env_info, load_device)
+                missing, unexpected = policy.load_state_dict(state_dict, strict=True)
+                if missing or unexpected:
+                    raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+                policy = self._ensure_save_capable(policy)
+                if self._distributed.is_master():
+                    self._latest_policy_uri = normalized_uri
+                    logger.info("Loaded policy from %s", normalized_uri)
+                return policy
+
+        # Non-distributed or fallthrough: load locally (fail hard on errors)
+        if candidate_uri:
+            normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
+            spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+            policy = initialize_or_load_policy(policy_env_info, spec)
+            policy = self._ensure_save_capable(policy)
+            self._latest_policy_uri = normalized_uri
+            logger.info("Loaded policy from %s", normalized_uri)
             return policy
 
         logger.info("Creating new policy for training run")

@@ -3,7 +3,8 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from metta.app_backend.leaderboard_constants import V0_LEADERBOARD_NAME_TAG_KEY
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.leaderboard_constants import COGAMES_SUBMITTED_PV_KEY, LEADERBOARD_SIM_NAME_EPISODE_KEY
 from metta.app_backend.metta_repo import MettaRepo
 
 
@@ -12,7 +13,7 @@ async def _create_policy_with_scores(
     user_id: str,
     policy_name: str,
     sim_scores: list[dict[str, float]],
-) -> None:
+) -> uuid.UUID:
     policy_id = await stats_repo.upsert_policy(name=policy_name, user_id=user_id, attributes={})
     policy_version_id = await stats_repo.create_policy_version(
         policy_id=policy_id,
@@ -32,10 +33,28 @@ async def _create_policy_with_scores(
                 attributes={},
                 eval_task_id=None,
                 thumbnail_url=None,
-                tags=[(V0_LEADERBOARD_NAME_TAG_KEY, sim_name)],
+                tags=[(LEADERBOARD_SIM_NAME_EPISODE_KEY, sim_name)],
                 policy_versions=[(policy_version_id, 1)],
                 policy_metrics=[(policy_version_id, "reward", reward)],
             )
+
+    return policy_version_id
+
+
+async def _create_policy_version(
+    stats_repo: MettaRepo,
+    user_id: str,
+    policy_name: str,
+) -> uuid.UUID:
+    policy_id = await stats_repo.upsert_policy(name=policy_name, user_id=user_id, attributes={})
+    policy_version_id = await stats_repo.create_policy_version(
+        policy_id=policy_id,
+        s3_path=None,
+        git_hash=None,
+        policy_spec={},
+        attributes={},
+    )
+    return policy_version_id
 
 
 @pytest.mark.asyncio
@@ -102,3 +121,125 @@ async def test_leaderboard_and_me_routes(
         "arena-basic": 20.0,
         "arena-combat": 10.0,
     }
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_v2_route_returns_tags_and_scores(
+    isolated_stats_repo: MettaRepo,
+    isolated_stats_client: StatsClient,
+) -> None:
+    user = "leaderboard@example.com"
+    policy_version_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        user,
+        "leaderboard-policy",
+        [
+            {
+                "arena-basic": 10.0,
+                "arena-combat": 20.0,
+            },
+            {
+                "arena-basic": 30.0,
+                "arena-combat": 0.0,
+            },
+        ],
+    )
+    await isolated_stats_repo.upsert_policy_version_tags(policy_version_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
+
+    empty_policy_version_id = await _create_policy_version(isolated_stats_repo, user, "pending-policy")
+    await isolated_stats_repo.upsert_policy_version_tags(empty_policy_version_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
+
+    response = isolated_stats_client.get_leaderboard_policies_v2()
+    entries = response.entries
+    assert [entry.policy_version.id for entry in entries] == [policy_version_id, empty_policy_version_id]
+
+    populated_entry = entries[0]
+    expected_scores = {
+        f"{LEADERBOARD_SIM_NAME_EPISODE_KEY}:arena-basic": 20.0,
+        f"{LEADERBOARD_SIM_NAME_EPISODE_KEY}:arena-combat": 10.0,
+    }
+    assert populated_entry.scores == expected_scores
+    assert populated_entry.avg_score == pytest.approx(15.0)
+    assert populated_entry.policy_version.tags == {COGAMES_SUBMITTED_PV_KEY: "true"}
+    assert populated_entry.policy_version.user_id == user
+
+    empty_entry = entries[1]
+    assert empty_entry.scores == {}
+    assert empty_entry.avg_score is None
+    assert empty_entry.policy_version.tags == {COGAMES_SUBMITTED_PV_KEY: "true"}
+    assert empty_entry.policy_version.user_id == user
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_v2_filters_by_policy_version_id(
+    isolated_stats_repo: MettaRepo,
+    isolated_stats_client: StatsClient,
+) -> None:
+    user = "policy-filter@example.com"
+    matching_pv_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        user,
+        "filter-policy",
+        [
+            {
+                "arena-basic": 5.0,
+            }
+        ],
+    )
+    await isolated_stats_repo.upsert_policy_version_tags(matching_pv_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
+
+    other_pv_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        user,
+        "other-policy",
+        [
+            {
+                "arena-basic": 9.0,
+            }
+        ],
+    )
+    await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
+
+    response = isolated_stats_client.get_leaderboard_policies_v2_for_policy(matching_pv_id)
+    assert len(response.entries) == 1
+    assert response.entries[0].policy_version.id == matching_pv_id
+    assert response.entries[0].policy_version.user_id == user
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_v2_users_me_route_filters_by_user(
+    isolated_stats_repo: MettaRepo,
+    isolated_stats_client: StatsClient,
+) -> None:
+    user = "policy-owner@example.com"
+    other_user = "other@example.com"
+    owned_pv_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        user,
+        "owned-policy",
+        [
+            {
+                "arena-basic": 8.0,
+            }
+        ],
+    )
+    await isolated_stats_repo.upsert_policy_version_tags(owned_pv_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
+
+    other_pv_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        other_user,
+        "other-policy",
+        [
+            {
+                "arena-basic": 14.0,
+            }
+        ],
+    )
+    await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
+
+    isolated_stats_client._test_user_email = user  # type: ignore[attr-defined]
+    response = isolated_stats_client.get_leaderboard_policies_v2_users_me()
+    entries = response.entries
+    assert len(entries) == 1
+    assert entries[0].policy_version.id == owned_pv_id
+    assert entries[0].policy_version.user_id == user

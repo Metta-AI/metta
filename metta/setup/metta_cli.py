@@ -559,11 +559,10 @@ def cmd_publish(
             info(f"Pushing {package} as child repo...")
             subprocess.run([f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"], check=True)
     except subprocess.CalledProcessError as exc:
-        error(
-            f"Failed to publish: {exc}. {tag_name} was still published to {remote}."
+        warning(
+            f"Failed to push child repo: {exc}. {tag_name} was still published to {remote}."
             + " Use --no-repo to skip pushing to github repo."
         )
-        raise typer.Exit(exc.returncode) from exc
 
     if publish_mettagrid_after:
         info("")
