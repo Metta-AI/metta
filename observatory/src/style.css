@@ -3,3 +3,9 @@
 /* no preflight for now */
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
+
+body {
+    font-family: Arial, sans-serif;
+    padding: 0;
+    margin: 0;
+}

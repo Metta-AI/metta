@@ -1,14 +1,11 @@
-import { FC, useRef, useState } from 'react'
+import { FC, useContext, useRef, useState } from 'react'
 
-import { Repo } from '../repo'
+import { AppContext } from '../AppContext'
 import { CreateTaskForm } from './CreateTaskForm'
 import { TasksTable, TasksTableHandle } from './TasksTable'
 
-interface Props {
-  repo: Repo
-}
-
-export const EvalTasks: FC<Props> = ({ repo }) => {
+export const EvalTasks: FC = () => {
+  const { repo } = useContext(AppContext)
   const tasksTableRef = useRef<TasksTableHandle | null>(null)
   const [error, setError] = useState<string | null>(null)
 

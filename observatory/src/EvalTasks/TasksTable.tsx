@@ -1,4 +1,4 @@
-import { FC, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { FC, PropsWithChildren, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 
 import { Button } from '../components/Button'
 import { Input } from '../components/Input'
@@ -18,10 +18,39 @@ const FilterInput: FC<{
   return <Input value={value} onChange={onChange} placeholder="Filter..." size="sm" />
 }
 
-const TH: FC<{
-  children: React.ReactNode
-  style?: React.CSSProperties
-}> = ({ children, style }) => {
+const StatusDropdown: FC<{ value: string; onChange: (value: string) => void }> = ({ value, onChange }) => {
+  return (
+    <select
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        width: '100%',
+        padding: '4px 8px',
+        fontSize: '12px',
+        border: '1px solid #d1d5db',
+        borderRadius: '4px',
+        marginTop: '4px',
+        backgroundColor: '#fff',
+        cursor: 'pointer',
+      }}
+    >
+      <option value="">All</option>
+      <option value="unprocessed">Unprocessed</option>
+      <option value="running">Running</option>
+      <option value="done">Done</option>
+      <option value="error">Error</option>
+      <option value="system_error">System Error</option>
+      <option value="canceled">Canceled</option>
+    </select>
+  )
+}
+
+const TH: FC<
+  PropsWithChildren<{
+    style?: React.CSSProperties
+  }>
+> = ({ children, style }) => {
   return (
     <th className="py-3 px-2 border-b border-b-gray-400" style={style}>
       {children}
@@ -79,34 +108,6 @@ export const TasksTable: FC<{
     return () => clearInterval(interval)
   }, [loadTasks, currentPage])
 
-  const renderStatusDropdown = (value: string, onChange: (value: string) => void) => {
-    return (
-      <select
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          padding: '4px 8px',
-          fontSize: '12px',
-          border: '1px solid #d1d5db',
-          borderRadius: '4px',
-          marginTop: '4px',
-          backgroundColor: '#fff',
-          cursor: 'pointer',
-        }}
-      >
-        <option value="">All</option>
-        <option value="unprocessed">Unprocessed</option>
-        <option value="running">Running</option>
-        <option value="done">Done</option>
-        <option value="error">Error</option>
-        <option value="system_error">System Error</option>
-        <option value="canceled">Canceled</option>
-      </select>
-    )
-  }
-
   if (!tasksResponse) {
     return <div>Loading tasks...</div>
   }
@@ -128,7 +129,10 @@ export const TasksTable: FC<{
               </TH>
               <TH>
                 Status
-                {renderStatusDropdown(filters.status || '', (value) => setFilters({ ...filters, status: value }))}
+                <StatusDropdown
+                  value={filters.status || ''}
+                  onChange={(value) => setFilters({ ...filters, status: value })}
+                />
               </TH>
               <TH>
                 User

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { FC, useContext, useEffect, useState } from 'react'
 
 import { AIQueryBuilder } from './AIQueryBuilder'
-import { Repo, SQLQueryResponse, TableInfo, TableSchema } from './repo'
+import { AppContext } from './AppContext'
+import { SQLQueryResponse, TableInfo, TableSchema } from './repo'
 
 interface QueryHistoryItem {
   query: string
@@ -403,17 +404,14 @@ const SQL_QUERY_CSS = `
   }
 `
 
-interface Props {
-  repo: Repo
-}
-
 type QueryState =
   | { type: 'idle' }
   | { type: 'loading' }
   | { type: 'success'; data: SQLQueryResponse }
   | { type: 'error'; error: string }
 
-export function SQLQuery({ repo }: Props) {
+export const SQLQuery: FC = () => {
+  const { repo } = useContext(AppContext)
   const [tables, setTables] = useState<TableInfo[]>([])
   const [selectedTable, setSelectedTable] = useState<string | null>(null)
   const [tableSchema, setTableSchema] = useState<TableSchema | null>(null)
