@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from metta.rl.policy_artifact import load_policy_artifact
+
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
@@ -52,10 +53,8 @@ def initialize_or_load_policy(
             try:
                 policy.load_state_dict(artifact.policy.state_dict(), strict=False)
             except Exception:
-                # If loading fails, fall back to using the embedded policy when compatible
                 if isinstance(artifact.policy, MultiAgentPolicy):
                     policy = artifact.policy
-        # Otherwise leave as initialized
     elif policy_spec.data_path:
         policy.load_policy_data(policy_spec.data_path)
 
