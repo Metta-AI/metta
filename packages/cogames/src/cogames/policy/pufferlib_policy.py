@@ -44,7 +44,7 @@ def _pack_observation(obs: AgentObservation, num_tokens: int, token_dim: int, de
     return buffer
 
 
-class _PufferlibAgent(AgentPolicy):
+class PufferlibAgent(AgentPolicy):
     def __init__(
         self,
         net: _PufferlibCogsNet,
@@ -103,20 +103,21 @@ class PufferlibCogsPolicy(TrainablePolicy):
         self._net = _PufferlibCogsNet(shim_env, hidden_size=hidden_size)
         if device is not None:
             self._net = self._net.to(torch.device(device))
+        self._action_names = policy_env_info.action_names
+        self._num_tokens, self._token_dim = policy_env_info.observation_space.shape
+        self._device = next(self._net.parameters()).device
 
     def network(self) -> torch.nn.Module:  # type: ignore[override]
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:  # type: ignore[override]
-        policy_env_info = self.policy_env_info
-        num_tokens, token_dim = policy_env_info.observation_space.shape
-        return _PufferlibAgent(
+        return PufferlibAgent(
             net=self._net,
-            action_names=policy_env_info.action_names,
-            num_tokens=num_tokens,
-            token_dim=token_dim,
-            device=next(self._net.parameters()).device,
-            policy_env_info=policy_env_info,
+            action_names=self._action_names,
+            num_tokens=self._num_tokens,
+            token_dim=self._token_dim,
+            device=self._device,
+            policy_env_info=self.policy_env_info,
         )
 
     def is_recurrent(self) -> bool:
