@@ -1,13 +1,14 @@
 # Scripted Agent Policies
 
-Two baseline scripted agent implementations for CoGames evaluation and ablation studies.
+Three teaching-friendly scripted agent implementations for CoGames evaluation and ablation studies.
 
 ## Overview
 
-This package provides two progressively capable scripted agents:
+This package provides three progressively capable scripted agents:
 
 1. **BaselineAgent** - Core functionality: exploration, resource gathering, heart assembly (single/multi-agent)
 2. **UnclippingAgent** - Extends BaselineAgent with extractor unclipping capability
+3. **StarterAgent** - Lightweight, tutorial-friendly flow for README and quick demos
 
 ## Architecture
 
@@ -17,7 +18,8 @@ This package provides two progressively capable scripted agents:
 scripted_agent/
 ├── baseline_agent.py            # Base agent + BaselinePolicy wrapper
 ├── unclipping_agent.py          # Unclipping extension + UnclippingPolicy wrapper
-├── navigator.py                 # Pathfinding utilities (shared)
+├── starter_agent.py             # Minimal if/else agent for docs and demos
+├── pathfinding.py               # Pathfinding utilities (shared)
 └── README.md                    # This file
 ```
 
@@ -125,6 +127,26 @@ uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --va
 uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 4
 ```
 
+### 3. StarterAgent
+
+**Purpose**: Intro-friendly agent that mirrors the high-level flow described in docs.
+
+**Decision tree**:
+
+1. Low energy → go recharge
+2. Carrying a heart → deliver it
+3. Have all recipe inputs → assemble
+4. Otherwise → gather missing resources in a fixed order (carbon, oxygen, germanium, silicon)
+
+**Usage (good README snippet)**:
+
+```bash
+uv run cogames play --mission evals.extractor_hub_30 -p scripted_starter --steps 600 --cogs 1
+```
+
+**Why it exists**: Shows the simplest possible if/else controller that still completes missions, ideal for external
+readers who want a tiny, readable starting point before diving into the full Baseline/Unclipping logic.
+
 ## Shared Components
 
 ### Phase System
@@ -143,7 +165,7 @@ class Phase(Enum):
 
 ### Navigation
 
-Shared `navigator.py` module provides:
+Shared `pathfinding.py` module provides:
 
 - **BFS pathfinding** with occupancy grid
 - **Greedy fallback** when path blocked
