@@ -29,17 +29,39 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
     Heuristic: If there's any newer run (whether still running or already finished)
     on the same branch/ref that wasn't itself cancelled, we treat the older cancelled
     run as superseded by concurrency settings.
+
+    For main branch, we match any run on main (including merge_queue synthetic branches)
+    since they all represent commits to the same branch.
     """
-    ref_key = cancelled_run.head_branch or cancelled_run.head_sha
+    cancelled_branch = cancelled_run.head_branch
+    cancelled_sha = cancelled_run.head_sha
     cancelled_created = cancelled_run.created_at  # PyGithub always returns datetime objects
+
+    # For main branch, match any run on main (including merge_queue branches)
+    # For other branches, match exact branch name or SHA
+    is_main_branch = cancelled_branch == "main" or (
+        cancelled_branch and cancelled_branch.startswith("gh-readonly-queue/main/")
+    )
 
     # Find newer runs on the same branch/ref
     newer_runs = []
     for run in all_runs:
         if run.id == cancelled_run.id:
             continue
-        if (run.head_branch or run.head_sha) != ref_key:
-            continue
+
+        # Match logic: for main, accept any main branch run; otherwise match exact branch/SHA
+        run_branch = run.head_branch
+        run_sha = run.head_sha
+
+        if is_main_branch:
+            # For main, match if the run is also on main (including merge_queue)
+            run_is_main = run_branch == "main" or (run_branch and run_branch.startswith("gh-readonly-queue/main/"))
+            if not run_is_main:
+                continue
+        else:
+            # For non-main branches, match exact branch or SHA
+            if (run_branch or run_sha) != (cancelled_branch or cancelled_sha):
+                continue
 
         # PyGithub datetime objects can be compared directly
         if run.created_at > cancelled_created:
