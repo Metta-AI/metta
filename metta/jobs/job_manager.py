@@ -398,6 +398,28 @@ class JobManager:
         # Note: Active job cleanup happens in monitor thread's finally block
         return True
 
+    def _finalize_job_completion(self, job_state: JobState) -> None:
+        """Fetch final metrics and evaluate acceptance criteria for a completed job.
+
+        This method should be called after a job reaches terminal state and has been
+        marked as COMPLETED with an exit code set. It handles the final steps:
+        - Fetching final metrics from wandb
+        - Evaluating acceptance criteria
+
+        Args:
+            job_state: JobState object (must be attached to an active session)
+        """
+        # Fetch final metrics
+        if job_state.config.metrics_to_track and job_state.wandb_run_id:
+            logger.debug(f"Fetching final metrics for {job_state.name}")
+            job_state.fetch_and_update_metrics()
+
+        # Evaluate acceptance criteria
+        if job_state.config.acceptance_criteria:
+            job_state.acceptance_passed = job_state.evaluate_acceptance()
+        else:
+            job_state.acceptance_passed = None
+
     def _handle_remote_job_completion(self, job_name: str, status: str, job_id: int) -> bool:
         """Handle completion of a remote job.
 
@@ -433,16 +455,8 @@ class JobManager:
                 f"exit_code={exit_code}, job_id={job_id})"
             )
 
-            # Fetch final metrics
-            if job_state.config.metrics_to_track and job_state.wandb_run_id:
-                logger.debug(f"Fetching final metrics for {job_name}")
-                job_state.fetch_and_update_metrics()
-
-            # Evaluate acceptance criteria
-            if job_state.config.acceptance_criteria:
-                job_state.acceptance_passed = job_state.evaluate_acceptance()
-            else:
-                job_state.acceptance_passed = None
+            # Fetch metrics and evaluate acceptance
+            self._finalize_job_completion(job_state)
 
             session.add(job_state)
             session.commit()
@@ -554,28 +568,71 @@ class JobManager:
                             # Reset retry delay on success
                             retry_delay = 5.0
 
+                            # Log what we got back from SkyPilot
+                            logger.debug(f"[BATCH_STATUS] Received {len(statuses)} status updates: {statuses}")
+
                             # Update database with statuses
                             with Session(self._engine) as session:
                                 for job_id, status_info in statuses.items():
                                     job_name = remote_jobs.get(job_id)
                                     if not job_name:
+                                        logger.warning(f"[BATCH_STATUS] Got status for unknown job_id={job_id}")
                                         continue
 
                                     status = status_info.get("status")
+                                    logger.debug(
+                                        f"[BATCH_STATUS] Processing job_id={job_id}, job_name={job_name}, "
+                                        f"status={status}, status_info={status_info}"
+                                    )
+
                                     if status:
                                         job_state = session.get(JobState, job_name)
                                         if job_state:
                                             prev_status = job_state.skypilot_status
+                                            prev_job_status = job_state.status
+
+                                            # Always log status for debugging
+                                            logger.debug(
+                                                f"[BATCH_STATUS] Job {job_name}: "
+                                                f"prev_sky_status={prev_status}, new_sky_status={status}, "
+                                                f"prev_job_status={prev_job_status}"
+                                            )
+
                                             if prev_status != status:
                                                 logger.info(
                                                     f"[STATUS_UPDATE] Job {job_name} (job_id={job_id}): "
                                                     f"prev_status={prev_status} -> new_status={status}, "
                                                     f"full_status_info={status_info}"
                                                 )
+
+                                            # Update skypilot status
                                             job_state.skypilot_status = status
+
+                                            # Store job_id if not already set
+                                            if not job_state.job_id:
+                                                job_state.job_id = str(job_id)
+
+                                            # Check if job reached terminal state
+                                            is_terminal = status not in SKYPILOT_RUNNING_STATUSES
+                                            is_running = job_state.status == JobStatus.RUNNING
+                                            if is_terminal and is_running:
+                                                logger.info(
+                                                    f"[STATUS_TERMINAL] Job {job_name} reached terminal "
+                                                    f"state: {status}, marking as completed"
+                                                )
+                                                self._update_job_status(job_state, JobStatus.COMPLETED)
+                                                job_state.exit_code = self._map_skypilot_status_to_exit_code(status)
+                                                job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+
+                                                # Fetch metrics and evaluate acceptance
+                                                self._finalize_job_completion(job_state)
+
                                             session.add(job_state)
+                                        else:
+                                            logger.warning(f"[BATCH_STATUS] Job {job_name} not found in database")
 
                                 session.commit()
+                                logger.debug("[BATCH_STATUS] Database committed successfully")
 
                         except Exception as e:
                             logger.warning(f"Shared status monitor failed (will retry in {retry_delay:.0f}s): {e}")
