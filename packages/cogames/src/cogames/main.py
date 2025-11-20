@@ -26,6 +26,7 @@ from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
+from cogames.cli.leaderboard import leaderboard_cmd, submissions_cmd
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
@@ -568,14 +569,327 @@ def make_mission_cmd(
         game.save_mission_config(env_cfg, output)
         console.print(f"[green]Mission configuration saved to {output}[/green]")
 
-    except Exception as exc:
-        console.print(f"[red]Error creating mission: {exc}[/red]")
-        raise typer.Exit(1) from exc
+@app.command(
+    name="evaluate",
+    help="Evaluate one or more policies on one or more missions",
+)
+@app.command("eval", hidden=True)
+def evaluate_cmd(
+    ctx: typer.Context,
+    missions: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--mission",
+        "-m",
+        help="Missions to evaluate (supports wildcards, e.g., --mission training_facility.*)",
+    ),
+    mission_set: Optional[str] = typer.Option(
+        None,
+        "--mission-set",
+        "-S",
+        help="Predefined mission set: eval_missions, integrated_evals, spanning_evals, diagnostic_evals, all",
+    ),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
+    policies: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--policy",
+        "-p",
+        help=f"Policies to evaluate: ({policy_arg_w_proportion_example}...)",
+    ),
+    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
+    action_timeout_ms: int = typer.Option(
+        250,
+        "--action-timeout-ms",
+        help="Max milliseconds afforded to generate each action before noop is used by default",
+        min=1,
+    ),
+    steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    seed: int = typer.Option(42, "--seed", help="Base random seed for evaluation", min=0),
+    map_seed: Optional[int] = typer.Option(
+        None,
+        "--map-seed",
+        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        min=0,
+    ),
+    format_: Optional[Literal["yaml", "json"]] = typer.Option(
+        None,
+        "--format",
+        help="Output results in YAML or JSON format",
+    ),
+    save_replay_dir: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--save-replay-dir",
+        help=(
+            "Directory to save replays. Directory will be created if it doesn't exist. "
+            "Each replay will be saved with a unique UUID-based filename."
+        ),
+    ),
+) -> None:
+    # Handle mission set expansion
+    if mission_set and missions:
+        console.print("[red]Error: Cannot use both --mission-set and --mission[/red]")
+        raise typer.Exit(1)
+
+    if mission_set:
+        from cogames.cli.mission import load_mission_set
+
+        try:
+            mission_objs = load_mission_set(mission_set)
+            missions = [m.full_name() for m in mission_objs]
+            console.print(f"[cyan]Using mission set '{mission_set}' ({len(missions)} missions)[/cyan]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+
+        # Default to 4 cogs for mission sets unless explicitly specified
+        if cogs is None:
+            cogs = 4
+
+    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
+
+    # Optionally override MapGen seed so maps are reproducible across runs.
+    # This uses --map-seed if provided, otherwise reuses the main --seed.
+    from mettagrid.mapgen.mapgen import MapGen
+
+    effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
+    if effective_map_seed is not None:
+        for _, env_cfg in selected_missions:
+            map_builder = getattr(env_cfg.game, "map_builder", None)
+            if isinstance(map_builder, MapGen.Config):
+                map_builder.seed = effective_map_seed
+
+    policy_specs = get_policy_specs_with_proportions(ctx, policies)
+
+    console.print(
+        f"[cyan]Preparing evaluation for {len(policy_specs)} policies across {len(selected_missions)} mission(s)[/cyan]"
+    )
+
+    evaluate_module.evaluate(
+        console,
+        missions=selected_missions,
+        policy_specs=[spec.to_policy_spec() for spec in policy_specs],
+        proportions=[spec.proportion for spec in policy_specs],
+        action_timeout_ms=action_timeout_ms,
+        episodes=episodes,
+        seed=seed,
+        output_format=format_,
+        save_replay=save_replay_dir,
+    )
 
 
 @app.command("version", help="Show version information")
 def version_cmd() -> None:
-    """Show version information."""
+    def public_version(dist_name: str) -> str:
+        return str(Version(importlib.metadata.version(dist_name)).public)
+
+    table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
+    table.add_column("", justify="right", style="bold cyan")
+    table.add_column("", justify="right")
+
+    for dist_name in ["mettagrid", "pufferlib-core", "cogames"]:
+        table.add_row(dist_name, public_version(dist_name))
+
+    console.print(table)
+
+
+@app.command(name="policies", help="Show default policies and their shorthand names")
+def policies_cmd() -> None:
+    policy_registry = get_policy_registry()
+    table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
+    table.add_column("", justify="left", style="bold cyan")
+    table.add_column("", justify="right")
+
+    for policy_name, policy_path in policy_registry.items():
+        table.add_row(policy_name, policy_path)
+    table.add_row("custom", "path.to.your.PolicyClass")
+
+    console.print(table)
+
+
+@app.command(name="login", help="Authenticate with CoGames server")
+def login_cmd(
+    server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--server",
+        "-s",
+        help="CoGames server URL",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Get a new token even if one already exists",
+    ),
+    timeout: int = typer.Option(
+        300,
+        "--timeout",
+        "-t",
+        help="Authentication timeout in seconds",
+        min=1,
+    ),
+) -> None:
+    from urllib.parse import urlparse
+
+    # Check if we already have a token
+    from cogames.auth import BaseCLIAuthenticator
+
+    temp_auth = BaseCLIAuthenticator(
+        token_file_name="cogames.yaml",
+        token_storage_key="login_tokens",
+    )
+
+    if temp_auth.has_saved_token(server) and not force:
+        console.print(f"[green]Already authenticated with {urlparse(server).hostname}[/green]")
+        return
+
+    # Perform authentication
+    console.print(f"[cyan]Authenticating with {server}...[/cyan]")
+    if perform_login(auth_server_url=server, force=force, timeout=timeout):
+        console.print("[green]Authentication successful![/green]")
+    else:
+        console.print("[red]Authentication failed![/red]")
+        raise typer.Exit(1)
+
+
+app.command(name="submissions", help="List your submissions on the leaderboard")(submissions_cmd)
+
+app.command(
+    name="leaderboard",
+    help="Show leaderboard entries (public or your submissions) with per-sim scores",
+)(leaderboard_cmd)
+
+
+@app.command(name="submit", help="Submit a policy to CoGames competitions")
+def submit_cmd(
+    ctx: typer.Context,
+    policy: str = typer.Option(
+        ...,
+        "--policy",
+        "-p",
+        help=f"Policy specification: {policy_arg_example}",
+    ),
+    name: str = typer.Option(
+        ...,
+        "--name",
+        "-n",
+        help="Policy name for the submission",
+    ),
+    include_files: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--include-files",
+        "-f",
+        help="Files or directories to include in submission (can be specified multiple times)",
+    ),
+    login_server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--login-server",
+        help="Login/authentication server URL",
+    ),
+    server: str = typer.Option(
+        DEFAULT_SUBMIT_SERVER,
+        "--server",
+        "-s",
+        help="Submission server URL",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Run validation only without submitting",
+    ),
+    skip_validation: bool = typer.Option(
+        False,
+        "--skip-validation",
+        help="Skip policy validation in isolated environment",
+    ),
+) -> None:
+    """Submit a policy to CoGames competitions.
+
+    This command validates your policy, creates a submission package,
+    and uploads it to the CoGames server.
+
+    The policy will be tested in an isolated environment before submission
+    (unless --skip-validation is used).
+    """
+    submit_command(
+        ctx=ctx,
+        policy=policy,
+        name=name,
+        include_files=include_files,
+        login_server=login_server,
+        server=server,
+        dry_run=dry_run,
+        skip_validation=skip_validation,
+    )
+
+
+@app.command(name="docs", help="Print documentation")
+def docs_cmd(
+    doc_name: Optional[str] = typer.Argument(None, help="Document name to print"),
+) -> None:
+    """Print a documentation file.
+
+    Available documents:
+      - readme: README.md - CoGames overview and documentation
+      - mission: MISSION.md - Mission briefing for Machina VII Deployment
+      - technical_manual: TECHNICAL_MANUAL.md - Technical manual for Cogames
+      - scripted_agent: Scripted agent policy documentation
+      - evals: Evaluation missions documentation
+      - mapgen: Cogs vs Clips map generation documentation
+    """
+    # Hardcoded mapping of document names to file paths and descriptions
+    package_root = Path(__file__).parent.parent.parent
+    docs_map: dict[str, tuple[Path, str]] = {
+        "readme": (package_root / "README.md", "CoGames overview and documentation"),
+        "mission": (package_root / "MISSION.md", "Mission briefing for Machina VII Deployment"),
+        "technical_manual": (package_root / "TECHNICAL_MANUAL.md", "Technical manual for Cogames"),
+        "scripted_agent": (
+            Path(__file__).parent / "policy" / "scripted_agent" / "README.md",
+            "Scripted agent policy documentation",
+        ),
+        "evals": (
+            Path(__file__).parent / "cogs_vs_clips" / "evals" / "README.md",
+            "Evaluation missions documentation",
+        ),
+        "mapgen": (
+            Path(__file__).parent / "cogs_vs_clips" / "cogs_vs_clips_mapgen.md",
+            "Cogs vs Clips map generation documentation",
+        ),
+    }
+
+    # If no argument provided, show available documents
+    if doc_name is None:
+        from rich.table import Table
+
+        console.print("\n[bold cyan]Available Documents:[/bold cyan]\n")
+        table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, padding=(0, 1))
+        table.add_column("Document", style="blue", no_wrap=True)
+        table.add_column("Description", style="white")
+
+        for name, (_, description) in sorted(docs_map.items()):
+            table.add_row(name, description)
+
+        console.print(table)
+        console.print("\nUsage: [bold]cogames docs <document_name>[/bold]")
+        console.print("Example: [bold]cogames docs mission[/bold]")
+        return
+
+    if doc_name not in docs_map:
+        available = ", ".join(sorted(docs_map.keys()))
+        console.print(f"[red]Error: Unknown document '{doc_name}'[/red]")
+        console.print(f"\nAvailable documents: {available}")
+        raise typer.Exit(1)
+
+    doc_path, _ = docs_map[doc_name]
+
+    if not doc_path.exists():
+        console.print(f"[red]Error: Document file not found: {doc_path}[/red]")
+        raise typer.Exit(1)
+
     try:
         console.print(f"cogames: {importlib.metadata.version('cogames')}")
         console.print(f"mettagrid: {importlib.metadata.version('mettagrid')}")
