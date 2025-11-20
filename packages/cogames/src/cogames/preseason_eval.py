@@ -129,12 +129,15 @@ def evaluate_preseason(
 
         all_results.append((scenario["name"], rollout_result))
 
-    # Build summaries
-    # Need num_policies=2 because scenarios 2 and 3 have 2 policies (candidate + baseline)
-    summaries = build_multi_episode_rollout_summaries(
-        [result for _, result in all_results],
-        num_policies=2,
-    )
+    # Build summaries - each scenario needs its own summary with correct num_policies
+    summaries = []
+    for (_scenario_name, result), scenario_def in zip(all_results, scenarios, strict=True):
+        num_policies_in_scenario = len(scenario_def["policies"])
+        scenario_summary = build_multi_episode_rollout_summaries(
+            [result],
+            num_policies=num_policies_in_scenario,
+        )[0]  # Get first (and only) summary
+        summaries.append(scenario_summary)
 
     # Display results
     _display_preseason_results(console, candidate_policy_spec, scenarios, summaries, output_format)
