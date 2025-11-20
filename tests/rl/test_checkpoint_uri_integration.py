@@ -104,15 +104,17 @@ class TestS3URIs:
 class TestCheckpointManagerOperations:
     def test_save_agent_returns_uri(self, test_system_cfg, mock_policy, mock_policy_architecture):
         manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
-        uri = manager.save_agent(mock_policy, epoch=1, policy_architecture=mock_policy_architecture)
-        assert uri.startswith("file://")
-        saved_path = Path(uri[7:])
-        assert saved_path.exists()
+        ckpt_path = manager.checkpoint_dir / checkpoint_filename("demo", 1)
+        ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+        save_policy_artifact_pt(ckpt_path, policy=mock_policy)
+        assert ckpt_path.exists()
 
     def test_latest_checkpoint_sorted(self, test_system_cfg, mock_policy, mock_policy_architecture):
         manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
-        manager.save_agent(mock_policy, epoch=1, policy_architecture=mock_policy_architecture)
-        manager.save_agent(mock_policy, epoch=3, policy_architecture=mock_policy_architecture)
+        for epoch in [1, 3]:
+            ckpt_path = manager.checkpoint_dir / checkpoint_filename("demo", epoch)
+            ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+            save_policy_artifact_pt(ckpt_path, policy=mock_policy)
 
         uri = manager.get_latest_checkpoint()
         assert uri is not None

@@ -177,6 +177,14 @@ class TaskGeneratorSet(TaskGenerator):
         )
         weights: list[float] = Field(default_factory=list, description="Weights for sampling each task generator")
 
+        @field_validator("task_generators")
+        @classmethod
+        def validate_task_generators(cls, v):
+            """Ensure at least one task generator is provided."""
+            if not v:
+                raise ValueError("TaskGeneratorSet must have at least one task generator")
+            return v
+
         @field_validator("weights")
         @classmethod
         def validate_weights(cls, v, info):
@@ -201,6 +209,8 @@ class TaskGeneratorSet(TaskGenerator):
         self._weights = self._config.weights if self._config.weights else [1.0] * len(self._sub_task_generators)
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+        if not self._sub_task_generators:
+            raise ValueError("TaskGeneratorSet has no task generators to sample from")
         chosen_generator = rng.choices(self._sub_task_generators, weights=self._weights)[0]
         result = chosen_generator.get_task(task_id)
 

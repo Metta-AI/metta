@@ -11,6 +11,7 @@ from mettagrid.config.mettagrid_config import (
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
+    ResourceLimitsConfig,
     WallConfig,
 )
 from mettagrid.simulator import Action, Simulation
@@ -35,7 +36,13 @@ def create_basic_config() -> GameConfig:
         num_agents=1,
         obs=ObsConfig(width=7, height=7, num_tokens=50),
         max_steps=100,
-        agent=AgentConfig(freeze_duration=0, resource_limits={"ore": 10, "wood": 10}),
+        agent=AgentConfig(
+            freeze_duration=0,
+            resource_limits={
+                "ore": ResourceLimitsConfig(limit=10, resources=["ore"]),
+                "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
+            },
+        ),
         actions=ActionsConfig(move=MoveActionConfig(), noop=NoopActionConfig()),
         objects={"wall": WallConfig()},
     )
@@ -189,7 +196,12 @@ class TestResourceRequirements:
             max_steps=basic_config.max_steps,
             obs=basic_config.obs,
             agent=AgentConfig(
-                freeze_duration=0, resource_limits={"ore": 10, "wood": 10}, initial_inventory={"ore": 5, "wood": 3}
+                freeze_duration=0,
+                resource_limits={
+                    "ore": ResourceLimitsConfig(limit=10, resources=["ore"]),
+                    "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
+                },
+                initial_inventory={"ore": 5, "wood": 3},
             ),
             actions=ActionsConfig(
                 move=MoveActionConfig(enabled=True, consumed_resources={"ore": 1}), noop=NoopActionConfig()

@@ -40,6 +40,10 @@ class K8sPodManager(AbstractContainerManager):
                     "app": "eval-worker",
                     "created-by": "eval-task-orchestrator",
                 },
+                "annotations": {
+                    # Prevent Karpenter/EKS consolidation from evicting workers for underuse.
+                    "karpenter.sh/do-not-disrupt": "true",
+                },
             },
             "spec": {
                 "restartPolicy": "Never",

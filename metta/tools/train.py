@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Optional
 
 import torch
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -80,17 +80,6 @@ class TrainTool(Tool):
     disable_macbook_optimize: bool = False
     sandbox: bool = False
 
-    @model_validator(mode="after")
-    def validate_fields(self) -> "TrainTool":
-        if self.evaluator.epoch_interval != 0:
-            if self.evaluator.epoch_interval < self.checkpointer.epoch_interval:
-                raise ValueError(
-                    "evaluator.epoch_interval must be at least as large as checkpointer.epoch_interval "
-                    "to ensure policies are saved before evaluation"
-                )
-
-        return self
-
     def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:
             assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
@@ -111,6 +100,19 @@ class TrainTool(Tool):
         if self.sandbox:
             self._apply_sandbox_config()
             logger.info("Running in sandbox mode (fast validation: 1M steps, epoch-1 checkpoints/evals)")
+
+        # Ensure we checkpoint whenever we evaluate by making checkpointer.epoch_interval
+        # a divisor of evaluator.epoch_interval
+        if self.evaluator.epoch_interval != 0:
+            if self.evaluator.epoch_interval % self.checkpointer.epoch_interval != 0:
+                logger.warning(
+                    "evaluator.epoch_interval (%d) is not a multiple of checkpointer.epoch_interval (%d). "
+                    "Adjusting checkpointer.epoch_interval to %d to ensure checkpoints occur during evaluations.",
+                    self.evaluator.epoch_interval,
+                    self.checkpointer.epoch_interval,
+                    self.evaluator.epoch_interval,
+                )
+                self.checkpointer.epoch_interval = self.evaluator.epoch_interval
 
         if self.evaluator and self.evaluator.evaluate_local:
             # suppress NCCL watchdog timeouts while ranks wait for master to complete evals

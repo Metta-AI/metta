@@ -14,6 +14,7 @@ from cogames.cli.mission import find_mission, parse_variants
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
+from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -28,7 +29,7 @@ from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
-DEFAULT_CURRICULUM_MISSIONS: tuple[str, ...] = (
+DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "extractor_hub_30",
     "extractor_hub_50",
     "extractor_hub_70",
@@ -39,13 +40,13 @@ DEFAULT_CURRICULUM_MISSIONS: tuple[str, ...] = (
     "energy_starved",
     "divide_and_conquer",
     "go_together",
-)
+]
 
-COORDINATION_MISSIONS: tuple[str, ...] = (
+COORDINATION_MISSIONS: list[str] = [
     "go_together",
     "divide_and_conquer",
     "collect_resources_spread",
-)
+]
 
 PROC_MAP_MISSIONS: tuple[str, ...] = tuple(
     f"hello_world{MAP_MISSION_DELIMITER}{mission}"
@@ -180,12 +181,12 @@ def make_training_env(
     mission_template = _resolve_mission_template(mission)
 
     variant_names = _normalize_variant_names(variants=variants)
-    mission = _prepare_mission(
+    prepared_mission = _prepare_mission(
         mission_template,
         num_cogs=num_cogs,
         variant_names=variant_names,
     )
-    env = mission.make_env()
+    env = prepared_mission.make_env()
 
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
     change_vibe_action = getattr(env.game.actions, "change_vibe", None)
@@ -204,17 +205,17 @@ def make_training_env(
 
 def make_curriculum(
     num_cogs: int = 4,
-    base_missions: Optional[list[str]] = None,
+    missions: Optional[list[str]] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
 ) -> CurriculumConfig:
     """Create a curriculum for CoGs vs Clips training."""
-    if base_missions is None:
-        base_missions = list(DEFAULT_CURRICULUM_MISSIONS)
+    if missions is None:
+        missions = list(DEFAULT_CURRICULUM_MISSIONS)
 
     all_mission_tasks = []
-    for mission_name in base_missions:
+    for mission_name in missions:
         mission_env = make_training_env(
             num_cogs=num_cogs,
             mission=mission_name,
@@ -223,7 +224,6 @@ def make_curriculum(
         mission_tasks = cc.bucketed(mission_env)
 
         mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
-        mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
 
         all_mission_tasks.append(mission_tasks)
 
@@ -248,26 +248,21 @@ def make_curriculum(
 def train(
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
+    mission: Optional[str] = None,
     base_missions: Optional[list[str]] = None,
     enable_detailed_slice_logging: bool = False,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
-    mission: str | None = None,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
-
+    training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
     if mission is not None:
-        return train_single_mission(
-            mission=mission,
-            num_cogs=num_cogs,
-            variants=variants,
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
-    resolved_curriculum = curriculum or make_curriculum(
+        training_missions = [mission]
+
+    curriculum = curriculum or make_curriculum(
         num_cogs=num_cogs,
-        base_missions=base_missions,
+        missions=training_missions,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
     )
@@ -289,8 +284,61 @@ def train(
 
     return TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
+    )
+
+
+def train_variants(
+    num_cogs: int = 4,
+    base_missions: Optional[list[str]] = None,
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+) -> TrainTool:
+    """Create a training tool with curriculum tasks for all variants.
+
+    Loads all available variants and creates a curriculum task for each one,
+    merging them into a single curriculum.
+    """
+    if base_missions is None:
+        base_missions = list(DEFAULT_CURRICULUM_MISSIONS)
+
+    # Create tasks for each variant
+    all_variant_tasks = []
+    for variant in VARIANTS:
+        for mission_name in base_missions:
+            mission = _resolve_mission_template(mission_name)
+            if not variant.compat(mission):
+                continue
+            mission_env = mission.make_env()
+            mission_tasks = cc.bucketed(mission_env)
+            all_variant_tasks.append(mission_tasks)
+
+    # Merge all variant tasks
+    merged_tasks = cc.merge(all_variant_tasks)
+
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=2000,
+            max_slice_axes=4,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
+
+    curriculum = merged_tasks.to_curriculum(
+        num_active_tasks=1500,
+        algorithm_config=algorithm_config,
+    )
+
+    return train(
+        num_cogs=num_cogs,
+        curriculum=curriculum,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
     )
 
 
@@ -310,21 +358,12 @@ def train_single_mission(
 
     curriculum_cfg = cc.env_curriculum(env)
 
-    trainer_cfg = TrainerConfig(
-        losses=LossesConfig(),
-    )
-
-    resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
-    eval_suite = make_eval_suite(
+    return train(
         num_cogs=num_cogs,
-        difficulty=eval_difficulty,
-        variants=resolved_eval_variants,
-    )
-
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum_cfg),
-        evaluator=EvaluatorConfig(simulations=eval_suite),
+        curriculum=curriculum_cfg,
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
     )
 
 
@@ -379,9 +418,6 @@ def play_training_env(
         num_cogs=num_cogs,
         variants=variants,
     )
-
-
-# Convenience entrypoints ----------------------------------------------------
 
 
 def train_coordination(
@@ -443,6 +479,7 @@ __all__ = [
     "make_training_env",
     "make_curriculum",
     "train",
+    "train_variants",
     "train_single_mission",
     "evaluate",
     "play",

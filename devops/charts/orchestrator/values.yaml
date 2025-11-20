@@ -35,3 +35,22 @@ resources:
 datadog:
   enabled: true
   env: "production"
+
+evalScheduler:
+  enabled: true
+  replicaCount: 1
+  env:
+    POLL_INTERVAL: "60"
+    EVAL_GIT_HASH: "main"
+    DD_TRACE_ENABLED: "true"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 1000m
+      memory: 4Gi
+  datadog:
+    enabled: true
+    env: "production"
+    service: "leaderboard-eval-scheduler"

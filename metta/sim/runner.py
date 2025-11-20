@@ -4,7 +4,8 @@ from typing import Callable, Sequence
 from pydantic import BaseModel, ConfigDict, Field
 
 from mettagrid import MettaGridConfig
-from mettagrid.policy.policy import MultiAgentPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 
@@ -29,23 +30,26 @@ class SimulationRunResult(BaseModel):
     results: MultiEpisodeRolloutResult
 
 
-MultiAgentPolicyInitializer = Callable[[PolicyEnvInterface], MultiAgentPolicy]
-
-
 def run_simulations(
-    policy_initializers: Sequence[MultiAgentPolicyInitializer],
+    *,
+    policy_specs: Sequence[PolicySpec],
     simulations: Sequence[SimulationRunConfig],
     replay_dir: str | None,
     seed: int,
     on_progress: Callable[[str], None] = lambda x: None,
 ) -> list[SimulationRunResult]:
+    if not policy_specs:
+        raise ValueError("At least one policy spec is required")
+
     simulation_rollouts: list[SimulationRunResult] = []
 
     for i, simulation in enumerate(simulations):
         proportions = simulation.proportions
 
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
-        multi_agent_policies: list[MultiAgentPolicy] = [pi(env_interface) for pi in policy_initializers]
+        multi_agent_policies: list[MultiAgentPolicy] = [
+            initialize_or_load_policy(env_interface, spec) for spec in policy_specs
+        ]
 
         on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
         rollout_result = multi_episode_rollout(
