@@ -11,11 +11,12 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Optional, TypeVar
+from typing import Any, Literal, Optional, TypeVar
 
 import typer
 import yaml  # type: ignore[import]
 from click.core import ParameterSource
+from packaging.version import Version
 from rich import box
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -31,6 +32,7 @@ from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
     get_mission_name_and_config,
+    get_mission_names_and_configs,
     list_evals,
     list_missions,
     list_variants,
@@ -49,6 +51,7 @@ from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.renderer.renderer import RenderMode
+from mettagrid.simulator import Simulator
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -204,232 +207,87 @@ def tutorial_cmd(
 
 
 @app.command("missions", help="List all available missions, or describe a specific mission")
-def missions_cmd(
+@app.command("games", hidden=True)
+@app.command("mission", hidden=True)
+def games_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission (optional)"),
-) -> None:
-    """List all missions or describe a specific one."""
-    if mission:
-        resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission)
-        describe_mission(resolved_mission, env_cfg, mission_cfg)
-    else:
-        # Show table of all missions
-        console.print("[bold]Available Missions[/bold]")
-        list_missions(console)
-        console.print()
-        console.print("Run [green]cogames missions --mission [NAME][/green] for details.")
-
-
-@app.command("evals", help="List all available evaluations")
-def evals_cmd(
-    ctx: typer.Context,
-) -> None:
-    """List all evaluations."""
-    list_evals(console)
-
-
-@app.command("variants", help="List all available variants")
-def variants_cmd(
-    ctx: typer.Context,
-) -> None:
-    """List all variants."""
-    list_variants(console)
-
-
-@app.command("policies", help="List all available policies")
-def policies_cmd(
-    ctx: typer.Context,
-) -> None:
-    """List all available policies."""
-    registry = get_policy_registry()
-
-    table = Table(title="Available Policies", box=box.ROUNDED)
-    table.add_column("Name", style="cyan")
-    table.add_column("Class", style="green")
-    table.add_column("Description")
-
-    for name, entry in registry.list_policies().items():
-        table.add_row(name, entry.cls.__name__, entry.description or "")
-
-    console.print(table)
-
-
-@app.command(name="train", help="Train a policy on a mission")
-def train_cmd(
-    ctx: typer.Context,
-    mission: list[str] = typer.Option(..., "--mission", "-m", help="Name of the mission (can be used multiple times)"),  # noqa: B008
-    policy: str = typer.Option(..., "--policy", "-p", help=f"Policy ({policy_arg_example})"),  # noqa: B008
-    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),  # noqa: B008
+    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--variant",
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    steps: int = typer.Option(10000, "--steps", "-s", help="Number of training steps"),  # noqa: B008
-    device: str = typer.Option("auto", "--device", "-d", help="Device to use (auto, cpu, cuda, mps)"),  # noqa: B008
-    batch_size: int = typer.Option(4096, "--batch-size", "-b", help="Batch size per update"),  # noqa: B008
-    num_workers: Optional[int] = typer.Option(None, "--num-workers", "-w", help="Number of worker processes"),  # noqa: B008
-    seed: int = typer.Option(42, "--seed", help="Random seed"),  # noqa: B008
-    wandb_project: str = typer.Option("cogames", "--wandb-project", help="W&B project name"),  # noqa: B008
-    wandb_entity: Optional[str] = typer.Option(None, "--wandb-entity", help="W&B entity/team name"),  # noqa: B008
-    wandb_group: Optional[str] = typer.Option(None, "--wandb-group", help="W&B run group"),  # noqa: B008
-    wandb_name: Optional[str] = typer.Option(None, "--wandb-name", help="W&B run name"),  # noqa: B008
-    checkpoint_dir: Path = typer.Option(  # noqa: B008
-        Path("train_dir"), "--checkpoint-dir", help="Directory to save checkpoints"
+    format_: Optional[Literal["yaml", "json"]] = typer.Option(
+        None, "--format", help="Output mission configuration in YAML or JSON."
     ),
-    eval_interval: Optional[int] = typer.Option(  # noqa: B008
-        None, "--eval-interval", help="Steps between evaluations (default: 10% of total steps)"
-    ),
-    save_interval: Optional[int] = typer.Option(  # noqa: B008
-        None, "--save-interval", help="Steps between checkpoints (default: 20% of total steps)"
-    ),
-) -> None:
-    # Resolve device
-    device_str = resolve_training_device(device)
-    console.print(f"[cyan]Training on {device_str}[/cyan]")
-
-    # Create curriculum from missions
-    # Parse missions, variants, and cogs
-    # We need to handle the fact that cogs/variant are applied to ALL missions if provided once,
-    # or we'd need a complex syntax. For now, apply to all.
-
-    task_names = mission  # Renamed for clarity
-
-    # Create rotation
-    try:
-        rotation = make_rotation(task_names, variant, cogs, seed=seed)
-    except ValueError as exc:
-        console.print(f"[red]Error creating curriculum: {exc}[/red]")
-        raise typer.Exit(1) from exc
-
-    console.print(f"Training curriculum: {[t.name for t in rotation.tasks]}")
-
-    # Setup policy
-    policy_spec = get_policy_spec(ctx, policy)
-
-    # Train
-    train_module.train(
-        console,
-        rotation=rotation,
-        policy_spec=policy_spec,
-        total_steps=steps,
-        device=device_str,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        seed=seed,
-        wandb_project=wandb_project,
-        wandb_entity=wandb_entity,
-        wandb_group=wandb_group,
-        wandb_name=wandb_name,
-        checkpoint_dir=checkpoint_dir,
-        eval_interval=eval_interval,
-        save_interval=save_interval,
-    )
-
-
-@app.command(name="eval", help="Evaluate a policy on a mission")
-def eval_cmd(
-    ctx: typer.Context,
-    mission: list[str] = typer.Option(..., "--mission", "-m", help="Name of the mission (can be used multiple times)"),  # noqa: B008
-    policy: list[str] = typer.Option(..., "--policy", "-p", help=f"Policy ({policy_arg_w_proportion_example})"),  # noqa: B008
-    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),  # noqa: B008
-    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+    save: Optional[Path] = typer.Option(  # noqa: B008
         None,
-        "--variant",
-        "-v",
-        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+        "--save",
+        "-s",
+        help="Save mission configuration to file (YAML or JSON)",
     ),
-    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of episodes per mission"),  # noqa: B008
-    steps: int = typer.Option(1000, "--steps", "-s", help="Max steps per episode"),  # noqa: B008
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file for results (json/yaml)"),  # noqa: B008
-    format: Optional[str] = typer.Option(None, "--format", "-f", help="Output format (json/yaml)"),  # noqa: A002, B008
-    seed: int = typer.Option(42, "--seed", help="Random seed"),  # noqa: B008
-    render: RenderMode = typer.Option("none", "--render", "-r", help="Render mode"),  # noqa: B008
-    action_timeout_ms: int = typer.Option(  # noqa: B008
-        250, "--action-timeout-ms", help="Timeout per action in ms (for mettascope)"
-    ),
+    print_cvc_config: bool = typer.Option(False, "--print-cvc-config", help="Print Mission config (CVC config)"),
+    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig"),
+    site: Optional[str] = typer.Argument(None, help="Site to list missions for (e.g., training_facility)"),
 ) -> None:
-    # Parse policies
-    policy_specs = get_policy_specs_with_proportions(ctx, policy)
+    if mission is None:
+        list_missions(site)
+        return
 
-    # Create rotation
-    try:
-        rotation = make_rotation(mission, variant, cogs, seed=seed)
-    except ValueError as exc:
-        console.print(f"[red]Error creating evaluation set: {exc}[/red]")
-        raise typer.Exit(1) from exc
+    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
 
-    # Run evaluation
-    results = evaluate_module.evaluate(
-        console,
-        rotation=rotation,
-        policy_specs=policy_specs,
-        num_episodes=episodes,
-        max_steps=steps,
-        seed=seed,
-        render_mode=render,
-    )
+    if print_cvc_config or print_mg_config:
+        try:
+            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
+        except Exception as exc:
+            console.print(f"[red]Error printing config: {exc}[/red]")
+            raise typer.Exit(1) from exc
 
-    # Output results
-    if output or format:
-        # Serialize results
-        results_dict = results.to_dict()
+    if save is not None:
+        try:
+            game.save_mission_config(env_cfg, save)
+            console.print(f"[green]Mission configuration saved to: {save}[/green]")
+        except ValueError as exc:  # pragma: no cover - user input
+            console.print(f"[red]Error saving configuration: {exc}[/red]")
+            raise typer.Exit(1) from exc
+        return
 
-        # Determine format
-        fmt = format
-        if not fmt and output:
-            if output.suffix in (".json", ".yaml", ".yml"):
-                fmt = output.suffix.lstrip(".")
+    if format_ is not None:
+        try:
+            data = env_cfg.model_dump(mode="json")
+            if format_ == "json":
+                console.print(json.dumps(data, indent=2))
             else:
-                fmt = "json"
+                console.print(yaml.safe_dump(data, sort_keys=False))
+        except Exception as exc:  # pragma: no cover - serialization errors
+            console.print(f"[red]Error formatting configuration: {exc}[/red]")
+            raise typer.Exit(1) from exc
+        return
 
-        if not fmt:
-            fmt = "json"
-
-        if fmt == "json":
-            content = json.dumps(results_dict, indent=2)
-        elif fmt in ("yaml", "yml"):
-            content = yaml.dump(results_dict, sort_keys=False)
-        else:
-            console.print(f"[red]Unknown format: {fmt}[/red]")
-            raise typer.Exit(1)
-
-        if output:
-            output.write_text(content)
-            console.print(f"[green]Results saved to {output}[/green]")
-        else:
-            console.print(content)
-    else:
-        # Print table
-        evaluate_module.print_results(console, results)
+    try:
+        describe_mission(resolved_mission, env_cfg, mission_cfg)
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
-@app.command(name="login", help="Login to CoGames server")
-def login_cmd(
-    ctx: typer.Context,
-    server: str = typer.Option(DEFAULT_COGAMES_SERVER, "--server", help="CoGames server URL"),  # noqa: B008
-    force: bool = typer.Option(False, "--force", "-f", help="Force re-login"),  # noqa: B008
-) -> None:
-    perform_login(server, force=force)
+@app.command("evals", help="List all eval missions")
+def evals_cmd() -> None:
+    list_evals()
 
 
-@app.command(name="submit", help="Submit a policy to the leaderboard")
-def submit_cmd(
-    ctx: typer.Context,
-    policy: str = typer.Argument(..., help=f"Policy ({policy_arg_example})"),  # noqa: B008
-    mission: str = typer.Option(..., "--mission", "-m", help="Mission to submit for"),  # noqa: B008
-    server: str = typer.Option(DEFAULT_SUBMIT_SERVER, "--server", help="Submission server URL"),  # noqa: B008
-) -> None:
-    policy_spec = get_policy_spec(ctx, policy)
-    submit_command(console, policy_spec, mission, server)
+@app.command("variants", help="List all available mission variants")
+def variants_cmd() -> None:
+    list_variants()
 
 
 @app.command(name="describe", help="Describe a mission and its configuration")
 def describe_cmd(
     ctx: typer.Context,
-    mission: str = typer.Argument(..., help="Mission name (e.g., hello_world.open_world)"),  # noqa: B008
-    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),  # noqa: B008
+    mission: str = typer.Argument(..., help="Mission name (e.g., hello_world.open_world)"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--variant",
@@ -444,28 +302,28 @@ def describe_cmd(
 @app.command(name="play", help="Play a game")
 def play_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),  # noqa: B008
-    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),  # noqa: B008
+    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--variant",
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),  # noqa: B008
-    steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),  # noqa: B008
+    policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: RenderMode = typer.Option("gui", "--render", "-r", help="Render mode"),  # noqa: B008
-    seed: int = typer.Option(42, "--seed", help="Seed for the simulator and policy", min=0),  # noqa: B008
-    map_seed: Optional[int] = typer.Option(  # noqa: B008
+    seed: int = typer.Option(42, "--seed", help="Seed for the simulator and policy", min=0),
+    map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
         help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
         min=0,
     ),
-    print_cvc_config: bool = typer.Option(  # noqa: B008
+    print_cvc_config: bool = typer.Option(
         False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
     ),
-    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),  # noqa: B008
+    print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),
     save_replay_dir: Optional[Path] = typer.Option(  # noqa: B008
         None,
         "--save-replay-dir",
@@ -486,6 +344,7 @@ def play_cmd(
 
     # Optionally override MapGen seed so maps are reproducible across runs.
     # This uses --map-seed if provided, otherwise reuses the main --seed.
+    from mettagrid.mapgen.mapgen import MapGen
 
     effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
     if effective_map_seed is not None:
@@ -519,6 +378,7 @@ def play_cmd(
 def replay_cmd(
     replay_path: Path = typer.Argument(..., help="Path to the replay file"),  # noqa: B008
 ) -> None:
+    """Replay a saved game using MettaScope visualization tool."""
     if not replay_path.exists():
         console.print(f"[red]Error: Replay file not found: {replay_path}[/red]")
         raise typer.Exit(1)
@@ -545,29 +405,166 @@ def replay_cmd(
 
 @app.command("make-mission", help="Create a new mission configuration")
 @app.command("make-game", hidden=True)
-def make_mission_cmd(
+def make_mission(
     ctx: typer.Context,
-    base_mission: str = typer.Option("training_facility_1", "--mission", "-m", help="Base mission to modify"),  # noqa: B008
-    agents: int = typer.Option(2, "--agents", "-a", help="Number of agents"),  # noqa: B008
-    width: int = typer.Option(10, "--width", "-w", help="Map width"),  # noqa: B008
-    height: int = typer.Option(10, "--height", "-h", help="Map height"),  # noqa: B008
-    output: Path = typer.Option(Path("mission.yaml"), "--output", "-o", help="Output file path"),  # noqa: B008
+    base_mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Base mission to start configuring from"),
+    num_agents: Optional[int] = typer.Option(None, "--agents", "-a", help="Number of agents", min=1),
+    width: Optional[int] = typer.Option(None, "--width", "-w", help="Map width", min=1),
+    height: Optional[int] = typer.Option(None, "--height", "-h", help="Map height", min=1),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
     try:
-        # Load base mission
-        _, env_cfg, _ = get_mission_name_and_config(ctx, base_mission)
+        resolved_mission, env_cfg, _ = get_mission_name_and_config(ctx, base_mission)
 
-        # Modify configuration
-        env_cfg.game.num_agents = agents
+        # Update map dimensions if explicitly provided and supported
+        if width is not None:
+            if not hasattr(env_cfg.game.map_builder, "width"):
+                console.print("[yellow]Warning: Map builder does not support custom width. Ignoring --width.[/yellow]")
+            else:
+                env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
 
-        # Update map size if possible
-        if hasattr(env_cfg.game, "map_builder") and hasattr(env_cfg.game.map_builder, "width"):
-            env_cfg.game.map_builder.width = width
-            env_cfg.game.map_builder.height = height
+        if height is not None:
+            if not hasattr(env_cfg.game.map_builder, "height"):
+                console.print(
+                    "[yellow]Warning: Map builder does not support custom height. Ignoring --height.[/yellow]"
+                )
+            else:
+                env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
 
-        # Save
-        game.save_mission_config(env_cfg, output)
-        console.print(f"[green]Mission configuration saved to {output}[/green]")
+        if num_agents is not None:
+            env_cfg.game.num_agents = num_agents
+
+        # Validate the environment configuration
+
+        _ = Simulator().new_simulation(env_cfg)
+
+        if output:
+            game.save_mission_config(env_cfg, output)
+            console.print(f"[green]Modified {resolved_mission} configuration saved to: {output}[/green]")
+        else:
+            console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
+
+    except Exception as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+@app.command(name="train", help="Train a policy on a mission")
+def train_cmd(
+    ctx: typer.Context,
+    missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa: B008
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
+    policy: str = typer.Option("lstm", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    checkpoints_path: str = typer.Option(
+        "./train_dir",
+        "--checkpoints",
+        help="Path to save training data",
+    ),
+    steps: int = typer.Option(10_000_000_000, "--steps", "-s", help="Number of training steps", min=1),
+    device: str = typer.Option(
+        "auto",
+        "--device",
+        help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
+    ),
+    seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
+    map_seed: Optional[int] = typer.Option(
+        None,
+        "--map-seed",
+        help="Optional MapGen seed override for procedural maps (for deterministic map layouts)",
+        min=0,
+    ),
+    batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
+    minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
+    num_workers: Optional[int] = typer.Option(
+        None,
+        "--num-workers",
+        help="Number of worker processes (defaults to number of CPU cores)",
+        min=1,
+    ),
+    parallel_envs: Optional[int] = typer.Option(
+        None,
+        "--parallel-envs",
+        help="Number of parallel environments",
+        min=1,
+    ),
+    vector_batch_size: Optional[int] = typer.Option(
+        None,
+        "--vector-batch-size",
+        help="Override vectorized environment batch size",
+        min=1,
+    ),
+    log_outputs: bool = typer.Option(False, "--log-outputs", help="Log training outputs"),
+) -> None:
+    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
+    if len(selected_missions) == 1:
+        mission_name, env_cfg = selected_missions[0]
+        supplier = None
+        console.print(f"Training on mission: {mission_name}\n")
+    elif len(selected_missions) > 1:
+        env_cfg = None
+        supplier = make_rotation(selected_missions)
+        console.print("Training on missions:\n" + "\n".join(f"- {m}" for m, _ in selected_missions) + "\n")
+    else:
+        # Should not get here
+        raise ValueError("Please specify at least one mission")
+
+    policy_spec = get_policy_spec(ctx, policy)
+    torch_device = resolve_training_device(console, device)
+
+    # Optional MapGen seed override for deterministic procedural maps during training.
+    # We keep this opt-in (via --map-seed) to avoid reducing map diversity by default.
+
+    if map_seed is not None:
+
+        def _maybe_seed(cfg: Any) -> None:
+            mb = getattr(cfg.game, "map_builder", None)
+            if isinstance(mb, MapGen.Config) and mb.seed is None:
+                mb.seed = map_seed
+
+        if env_cfg is not None:
+            _maybe_seed(env_cfg)
+
+        if supplier is not None:
+            base_supplier = supplier
+
+            def _seeded_supplier() -> Any:
+                cfg = base_supplier()
+                _maybe_seed(cfg)
+                return cfg
+
+            supplier = _seeded_supplier
+
+    try:
+        train_module.train(
+            env_cfg=env_cfg,
+            policy_class_path=policy_spec.class_path,
+            initial_weights_path=policy_spec.data_path,
+            device=torch_device,
+            num_steps=steps,
+            checkpoints_path=Path(checkpoints_path),
+            seed=seed,
+            batch_size=batch_size,
+            minibatch_size=minibatch_size,
+            vector_num_workers=num_workers,
+            vector_num_envs=parallel_envs,
+            vector_batch_size=vector_batch_size,
+            env_cfg_supplier=supplier,
+            missions_arg=missions,
+            log_outputs=log_outputs,
+        )
+
+    except ValueError as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
+
 
 @app.command(
     name="evaluate",
@@ -682,7 +679,7 @@ def evaluate_cmd(
     )
 
 
-@app.command("version", help="Show version information")
+@app.command(name="version", help="Show version information")
 def version_cmd() -> None:
     def public_version(dist_name: str) -> str:
         return str(Version(importlib.metadata.version(dist_name)).public)
@@ -891,11 +888,11 @@ def docs_cmd(
         raise typer.Exit(1)
 
     try:
-        console.print(f"cogames: {importlib.metadata.version('cogames')}")
-        console.print(f"mettagrid: {importlib.metadata.version('mettagrid')}")
-        console.print(f"pufferlib: {importlib.metadata.version('pufferlib')}")
+        content = doc_path.read_text()
+        console.print(content)
     except Exception as exc:
-        console.print(f"[red]Error retrieving version info: {exc}[/red]")
+        console.print(f"[red]Error reading document: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 if __name__ == "__main__":
