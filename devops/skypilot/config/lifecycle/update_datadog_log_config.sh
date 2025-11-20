@@ -50,7 +50,7 @@ for log_file in "training_combined.log"; do
 done
 
 # Create log config
-cat > "$LOG_CONFIG_FILE" <<EOF
+cat > "$LOG_CONFIG_FILE" << EOF
 logs:
   - type: file
     path: /tmp/datadog-agent.log
@@ -68,4 +68,3 @@ EOF
 
 # Set file permissions
 chmod 644 "$LOG_CONFIG_FILE"
-

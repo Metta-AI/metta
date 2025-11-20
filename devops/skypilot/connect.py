@@ -84,8 +84,8 @@ def main():
 
     print("Looking up jobs controller...")
     try:
-    jobs_controller_name = get_jobs_controller_name()
-    full_command = shlex.join(["ssh", "-t", jobs_controller_name, inner_ssh_command])
+        jobs_controller_name = get_jobs_controller_name()
+        full_command = shlex.join(["ssh", "-t", jobs_controller_name, inner_ssh_command])
         print(f"Connecting via jobs controller: {bold(full_command)}")
         subprocess.run(full_command, shell=True, check=False)
     except (ValueError, Exception) as e:

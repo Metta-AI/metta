@@ -2,7 +2,7 @@
 # Start Datadog agent daemon
 # Non-fatal script
 
-set +e  # Don't exit on error
+set +e # Don't exit on error
 
 # Update log config
 if [ -f "$(dirname "$0")/update_datadog_log_config.sh" ]; then
@@ -29,7 +29,7 @@ if [ -z "$AGENT_BINARY" ]; then
   if [ -n "$FOUND_BINARY" ] && [ -f "$FOUND_BINARY" ]; then
     AGENT_BINARY="$FOUND_BINARY"
   else
-    exit 0  # Agent not found, skip silently
+    exit 0 # Agent not found, skip silently
   fi
 fi
 
@@ -52,15 +52,15 @@ AGENT_PID=$!
 sleep 2
 
 if ! ps -p "$AGENT_PID" > /dev/null 2>&1; then
-  exit 0  # Agent failed
+  exit 0 # Agent failed
 fi
 
 # Set logs_enabled in config
 MAIN_CONFIG="/etc/datadog-agent/datadog.yaml"
-if [ -f "$MAIN_CONFIG" ] && ! grep -q "logs_enabled: true" "$MAIN_CONFIG" 2>/dev/null; then
-  if grep -q "logs_enabled: false" "$MAIN_CONFIG" 2>/dev/null; then
+if [ -f "$MAIN_CONFIG" ] && ! grep -q "logs_enabled: true" "$MAIN_CONFIG" 2> /dev/null; then
+  if grep -q "logs_enabled: false" "$MAIN_CONFIG" 2> /dev/null; then
     sed -i 's/logs_enabled: false/logs_enabled: true/' "$MAIN_CONFIG"
-  elif ! grep -q "logs_enabled:" "$MAIN_CONFIG" 2>/dev/null; then
+  elif ! grep -q "logs_enabled:" "$MAIN_CONFIG" 2> /dev/null; then
     echo "logs_enabled: true" >> "$MAIN_CONFIG"
   fi
 
@@ -71,7 +71,7 @@ if [ -f "$MAIN_CONFIG" ] && ! grep -q "logs_enabled: true" "$MAIN_CONFIG" 2>/dev
   NEW_AGENT_PID=$!
   sleep 2
   if ! ps -p "$NEW_AGENT_PID" > /dev/null 2>&1; then
-    true  # Non-fatal restart failure
+    true # Non-fatal restart failure
   fi
 fi
 

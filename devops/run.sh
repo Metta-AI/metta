@@ -34,11 +34,11 @@ touch "$TRAINING_COMBINED_LOG"
 # Ensure file is readable by dd-agent user (Datadog agent runs as dd-agent)
 chmod 666 "$TRAINING_COMBINED_LOG"
 # Also ensure directory is executable by all (needed for dd-agent to access the file)
-chmod o+x "$TRAINING_LOG_DIR" 2>/dev/null || true
+chmod o+x "$TRAINING_LOG_DIR" 2> /dev/null || true
 # If running as root, try to set ownership to dd-agent if it exists
-if [ "$(id -u)" = "0" ] && id dd-agent >/dev/null 2>&1; then
-  chown dd-agent:dd-agent "$TRAINING_COMBINED_LOG" 2>/dev/null || true
-  chown dd-agent:dd-agent "$TRAINING_LOG_DIR" 2>/dev/null || true
+if [ "$(id -u)" = "0" ] && id dd-agent > /dev/null 2>&1; then
+  chown dd-agent:dd-agent "$TRAINING_COMBINED_LOG" 2> /dev/null || true
+  chown dd-agent:dd-agent "$TRAINING_LOG_DIR" 2> /dev/null || true
 fi
 
 echo "[INFO] Logging training output to: $TRAINING_COMBINED_LOG"
@@ -53,7 +53,7 @@ uv run torchrun \
   --node-rank=$NODE_INDEX \
   tools/run.py \
   "$@" 2>&1 | tee -a "$TRAINING_COMBINED_LOG"
-EXIT_CODE=${PIPESTATUS[0]}   # real torchrun exit code
+EXIT_CODE=${PIPESTATUS[0]} # real torchrun exit code
 set -e
 
 if [[ $EXIT_CODE -eq 0 ]]; then

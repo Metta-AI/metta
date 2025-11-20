@@ -185,8 +185,6 @@ class DatadogAgentSetup(SetupModule):
                             config_updates.append(f"tags: {tags_list}")
                             info(f"Set tags in Datadog config: {tags_list}")
 
-                    log_tags_for_config = self._build_tags()
-
                     # Append any updates to config file
                     if config_updates:
                         with open(config_file, "a") as f:
