@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, Depends, Form, HTTPException, UploadFile, s
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo, PolicyVersionRow
+from metta.app_backend.metta_repo import MettaRepo, PolicyVersionRow, PublicPolicyVersionRow
 from metta.app_backend.route_logger import timed_route
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
@@ -52,6 +52,24 @@ class BulkEpisodeUploadResponse(BaseModel):
 
     episodes_created: int
     duckdb_s3_uri: str
+
+
+class PresignedUploadUrlResponse(BaseModel):
+    """Response containing presigned URL for direct S3 upload."""
+
+    upload_url: str
+    s3_key: str
+    upload_id: uuid.UUID
+
+
+class CompleteBulkUploadRequest(BaseModel):
+    """Request to complete a bulk upload."""
+
+    upload_id: uuid.UUID
+
+
+class MyPolicyVersionsResponse(BaseModel):
+    entries: list[PublicPolicyVersionRow]
 
 
 def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
@@ -174,38 +192,59 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to submit policy: {str(e)}") from e
 
-    @router.post("/episodes/bulk_upload", response_model=BulkEpisodeUploadResponse)
-    @timed_route("bulk_upload_episodes")
-    async def bulk_upload_episodes(
-        file: UploadFile,
+    @router.post("/episodes/bulk_upload/presigned-url", response_model=PresignedUploadUrlResponse)
+    @timed_route("get_bulk_upload_presigned_url")
+    async def get_bulk_upload_presigned_url(user: str = user_or_token) -> PresignedUploadUrlResponse:
+        """Generate a presigned URL for direct S3 upload of episode stats DuckDB file."""
+        try:
+            # Generate unique upload ID
+            upload_id = uuid.uuid4()
+            s3_key = f"episodes/{upload_id}.duckdb"
+
+            # Generate presigned URL (uses IAM role from service account)
+            from botocore.config import Config
+
+            session = aioboto3.Session()
+            async with session.client("s3", config=Config(signature_version="s3v4")) as s3_client:  # type: ignore
+                presigned_url = await s3_client.generate_presigned_url(
+                    "put_object",
+                    Params={
+                        "Bucket": OBSERVATORY_S3_BUCKET,
+                        "Key": s3_key,
+                        "ContentType": "application/octet-stream",
+                    },
+                    ExpiresIn=3600,  # 1 hour expiration
+                )
+
+            return PresignedUploadUrlResponse(upload_url=presigned_url, s3_key=s3_key, upload_id=upload_id)
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate presigned URL: {str(e)}") from e
+
+    @router.post("/episodes/bulk_upload/complete", response_model=BulkEpisodeUploadResponse)
+    @timed_route("complete_bulk_upload")
+    async def complete_bulk_upload(
+        request: CompleteBulkUploadRequest,
         user: str = user_or_token,
     ) -> BulkEpisodeUploadResponse:
-        """Upload a DuckDB file with episode stats, store it in S3, and write aggregated episodes to the database.
+        """Complete the bulk upload by processing the DuckDB file from S3.
 
-        The DuckDB file should contain tables matching the schema in episode_stats_db.py:
-        - episodes: episode metadata
-        - episode_tags: tags for each episode
-        - episode_agent_policies: policy assignments per agent
-        - episode_agent_metrics: metrics per agent
-
-        This route will:
-        1. Store the DuckDB file in S3
-        2. Aggregate agent-level metrics to policy-level metrics
-        3. Write episodes to the main database with aggregated data
+        This endpoint is called after the client has uploaded the DuckDB file to S3 using the presigned URL.
+        It downloads the file from S3, processes it, and writes aggregated episodes to the database.
         """
         try:
-            # Save uploaded file to a temporary location
+            upload_id = request.upload_id
+            s3_key = f"episodes/{upload_id}.duckdb"
+            s3_uri = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
+
+            # Download DuckDB file from S3 to a temporary location
             with tempfile.NamedTemporaryFile(delete=False, suffix=".duckdb") as temp_file:
-                content = await file.read()
-                temp_file.write(content)
                 temp_file_path = temp_file.name
 
-            # Upload DuckDB file to S3
-            s3_key = f"episodes/{uuid.uuid4()}.duckdb"
             session = aioboto3.Session()
             async with session.client("s3") as s3_client:  # type: ignore
-                await s3_client.upload_file(temp_file_path, OBSERVATORY_S3_BUCKET, s3_key)
-            s3_uri = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
+                # Download file
+                await s3_client.download_file(OBSERVATORY_S3_BUCKET, s3_key, temp_file_path)
 
             # Read episodes from DuckDB and aggregate
             from metta.app_backend.episode_stats_db import (
@@ -293,6 +332,20 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             return BulkEpisodeUploadResponse(episodes_created=episodes_created, duckdb_s3_uri=s3_uri)
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to bulk upload episodes: {str(e)}") from e
+            raise HTTPException(status_code=500, detail=f"Failed to complete bulk upload: {str(e)}") from e
+
+    @router.get("/policies/my-versions")
+    @timed_route("get_my_policy_versions")
+    async def get_my_policy_versions(user: str = user_or_token) -> MyPolicyVersionsResponse:
+        """
+        Get all policy versions for the current user.
+
+        This route is used on https://softmax.com/alignmentleague to get the polices for the current user.
+        """
+        try:
+            policy_versions = await stats_repo.get_user_policy_versions(user)
+            return MyPolicyVersionsResponse(entries=policy_versions)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get policy versions: {str(e)}") from e
 
     return router

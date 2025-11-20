@@ -2,7 +2,7 @@
 {{- $msEnv := (.Values.evalScheduler.env | default dict) }}
 {{- $msResources := (.Values.evalScheduler.resources | default dict) }}
 {{- $msDatadog := (.Values.evalScheduler.datadog | default dict) }}
-{{- $msName := printf "%s-eval-scheduler" (include "orchestrator.fullname" .) }}
+{{- $msName := "leaderboard-eval-scheduler"}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,6 +36,8 @@ spec:
         env:
         - name: BACKEND_URL
           value: {{ default .Values.env.BACKEND_URL $msEnv.BACKEND_URL | quote }}
+        - name: EVAL_GIT_HASH
+          value: {{ default .Values.env.EVAL_GIT_HASH $msEnv.EVAL_GIT_HASH | quote }}
         - name: POLL_INTERVAL
           value: {{ default .Values.env.POLL_INTERVAL $msEnv.POLL_INTERVAL | quote }}
         - name: KUBERNETES_NAMESPACE

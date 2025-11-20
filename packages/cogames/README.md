@@ -49,6 +49,28 @@ cogames play -m training_facility_1 -p stateless:train_dir/policy.pt
 cogames eval -m machina_1 -p stateless:./train_dir/policy.pt
 ```
 
+## Easy Mode - Best for getting started
+
+The `easy_mode` mission is designed as a simplified training environment perfect for getting started:
+
+```bash
+# Train with an LSTM policy on the easy_mode mission
+uv run cogames train -m easy_mode -p lstm
+
+# Or use the stateless policy
+uv run cogames train -m easy_mode -p stateless
+
+# Play the easy_mode mission
+uv run cogames play -m easy_mode -p random
+```
+
+`easy_mode` uses three variants to simplify training:
+
+- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
+  energy)
+- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
+- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
+
 ## Commands
 
 Most commands are of the form `cogames <command> -p [MISSION] -p [POLICY] [OPTIONS]`
@@ -227,6 +249,42 @@ modifications.
 - `--output PATH`: Save to file
 
 You will be able to provide your specified `--output` path as the `MISSION` argument to other `cogames` commmands.
+
+### `cogames submit -p POLICY --name NAME --include-files CHECKPOINT`
+
+Package your policy and upload it to the Observatory leaderboard. A typical invocation looks like:
+
+```bash
+cogames submit -p stateless:train_dir/policy.pt --name my_great_policy --include-files train_dir/policy.pt
+```
+
+What this does:
+
+1. Verifies you are authenticated (`cogames login`).
+2. Validates your policy in an isolated sandbox unless `--skip-validation` is passed.
+3. Bundles the provided checkpoint and supporting files into a zip archive.
+4. Uploads and submits the bundle
+
+Options:
+
+- `--include-files`: Repeat for each file or directory that needs to ship with your policy.
+- `--dry-run`: Run validation and packaging without uploading (zip is deleted afterwards).
+
+### `cogames submissions`
+
+After submitting, you can inspect your leaderboard entries directly from the CLI:
+
+```bash
+cogames submissions
+```
+
+### `cogames leaderboard`
+
+Shows you the current leaderboard
+
+```bash
+cogames leaderboard
+```
 
 ### `cogames version`
 
