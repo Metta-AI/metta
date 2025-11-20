@@ -1,33 +1,46 @@
 # CoGames: A Game Environment for the Alignment League Benchmark
 
-CoGames is the game environment for Softmax’s [Alignment League Benchmark (ALB)](https://www.softmax.com/alignmentleague) — a suite of multi-agent games designed to measure how well AI agents align, coordinate, and collaborate with others (both AIs and humans).
+CoGames is the game environment for Softmax's
+[Alignment League Benchmark (ALB)](https://www.softmax.com/alignmentleague) — a suite of multi-agent games designed to
+measure how well AI agents align, coordinate, and collaborate with others (both AIs and humans).
 
-The first ALB game, Cogs vs Clips, is implemented entirely within the CoGames environment. You can create your own policy and submit it to our benchmark/pool.
+The first ALB game, Cogs vs Clips, is implemented entirely within the CoGames environment. You can create your own
+policy and submit it to our benchmark/pool.
 
 ## The game: Cogs vs Clips
 
-Cogs vs Clips is a cooperative production-and-survival game where teams of AI agents (“Cogs”) work together on the asteroid Machina VII. Their mission: Produce and protect **HEARTs** (Holon Enabled Agent Replication Templates) by gathering resources, operating machinery, and assembling components. Success is impossible alone! Completing these missions requires multiple cogs working in tandem.
+Cogs vs Clips is a cooperative production-and-survival game where teams of AI agents ("Cogs") work together on the
+asteroid Machina VII. Their mission: Produce and protect **HEARTs** (Holon Enabled Agent Replication Templates) by
+gathering resources, operating machinery, and assembling components. Success is impossible alone! Completing these
+missions requires multiple cogs working in tandem.
 
 <p align="middle">
 <img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
 <br>
 
-There are many mission configurations available, with different map sizes, resource and station layouts, and game rules. Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description of the game mechanics. Overall, Cogs vs Clips aims to present rich environments with:
+There are many mission configurations available, with different map sizes, resource and station layouts, and game
+rules. Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description of the game mechanics. Overall,
+Cogs vs Clips aims to present rich environments with:
 
 - **Resource management**: Energy, materials (carbon, oxygen, germanium, silicon), and crafted components
 - **Station-based interactions**: Different stations provide unique capabilities (extractors, assemblers, chargers,
   chests)
 - **Sparse rewards**: Agents receive rewards only upon successfully crafting target items (hearts)
 - **Partial observability**: Agents have limited visibility of the environment
-- **Required multi-agent cooperation**: Agents must coordinate to efficiently use shared resources and stations, while only communicating through movement and emotes (❤️, 🔄, 💯, etc.)
+- **Required multi-agent cooperation**: Agents must coordinate to efficiently use shared resources and stations, while
+  only communicating through movement and emotes (❤️, 🔄, 💯, etc.)
 
-Once your policy is successfully assembling hearts, submit it to our Alignment League Benchmark. ALB evaluates how your policy plays with other policies in the pool through running multi-policy, multi-agent games. Our focal metric is VORP (Value Over Replacement Policy), an estimate of how much your agent improves team performance in scoring hearts.
+Once your policy is successfully assembling hearts, submit it to our Alignment League Benchmark. ALB evaluates how
+your policy plays with other policies in the pool through running multi-policy, multi-agent games. Our focal metric is
+VORP (Value Over Replacement Policy), an estimate of how much your agent improves team performance in scoring hearts.
 
-You will need to link a Github account. After submission, you will be able to view results on how your policy performed in various evals with other players by logging in on the [ALB page](https://www.softmax.com/alignmentleague).
+You will need to link a Github account. After submission, you will be able to view results on how your policy performed
+in various evals with other players by logging in on the [ALB page](https://www.softmax.com/alignmentleague).
 
 ## Quick Start
 
-Upon installation, try playing cogames with our default starter policies as Cogs. Use `cogames policies` to see a full list of default policies.
+Upon installation, try playing cogames with our default starter policies as Cogs. Use `cogames policies` to see a full
+list of default policies.
 
 ```bash
 # We recommend using a virtual env
@@ -65,7 +78,8 @@ cogames version
 
 ## Easy Mode - Best for getting started
 
-Let’s walk through playing an easy mission in Cogs vs. Clips, then training a simple starter policy. `easy_mode` uses three variants to simplify training:
+Let's walk through playing an easy mission in Cogs vs. Clips, then training a simple starter policy. `easy_mode` uses
+three variants to simplify training:
 
 - `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
   energy)
@@ -100,7 +114,8 @@ To specify a `MISSION`, you can:
 
 To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][:PROPORTION]`:
 
-- `CLASS`: Use a policy shorthand or full path from the registry given by `cogames policies`, e.g. `lstm` or `cogames.policy.random.RandomPolicy`.
+- `CLASS`: Use a policy shorthand or full path from the registry given by `cogames policies`, e.g. `lstm` or
+  `cogames.policy.random.RandomPolicy`.
 - `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
 - `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
 
@@ -110,7 +125,8 @@ Play an episode of the specified mission.
 
 Cogs' actions are determined by the provided policy, except if you take over their actions manually.
 
-If not specified, this command will use the `noop`-policy agent -- do not be surprised if when you play you don't see other agents moving around! Just provide a different policy, like `random`.
+If not specified, this command will use the `noop`-policy agent -- do not be surprised if when you play you don't see
+other agents moving around! Just provide a different policy, like `random`.
 
 **Options:**
 
@@ -223,7 +239,8 @@ for step in range(1000):
 
 Evaluate one or more policies on one or more missions.
 
-We provide a set of eval missions which you can use instead of missions `-m`. Specify `-set` or `-S` among: `eval_missions`, `integrated_evals`, `spanning_evals`, `diagnostic_evals`, `all`.
+We provide a set of eval missions which you can use instead of missions `-m`. Specify `-set` or `-S` among:
+`eval_missions`, `integrated_evals`, `spanning_evals`, `diagnostic_evals`, `all`.
 
 You can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy populations.
 
@@ -275,7 +292,8 @@ Make sure you have authenticated before submitting a policy.
 - `--include-files`: Can be specified multiple times, such as --include-files file1.py --include-files dir1/
 - `–-dry-run`: Validates the policy works for submission without uploading it
 
-When a new policy is submitted, it is queued up for evals with other policies, both randomly selected and designated policies for the Alignment League Benchmark.
+When a new policy is submitted, it is queued up for evals with other policies, both randomly selected and designated
+policies for the Alignment League Benchmark.
 
 Visit the [ALB](https://www.softmax.com/alignmentleague) page and log in to see how your policies perform!
 
