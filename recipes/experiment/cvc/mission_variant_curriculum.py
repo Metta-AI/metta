@@ -9,6 +9,7 @@ This replaces both variants_curriculum.py and full_curriculum.py.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import time
 from typing import Optional, Sequence
@@ -338,13 +339,23 @@ def make_curriculum(
     # Resolve mission sets to actual mission names
     base_missions = resolve_missions(base_missions)
 
-    # Handle comma-separated string for variants
+    # Handle comma-separated string or JSON string for variants
     if isinstance(variants, str):
-        variants = [v.strip() for v in variants.split(",") if v.strip()]
+        # Try parsing as JSON first (for command-line JSON lists)
+        try:
+            variants = json.loads(variants)
+        except (json.JSONDecodeError, TypeError):
+            # Fall back to comma-separated string
+            variants = [v.strip() for v in variants.split(",") if v.strip()]
 
-    # Handle comma-separated string for exclude_variants
+    # Handle comma-separated string or JSON string for exclude_variants
     if isinstance(exclude_variants, str):
-        exclude_variants = [v.strip() for v in exclude_variants.split(",") if v.strip()]
+        # Try parsing as JSON first (for command-line JSON lists)
+        try:
+            exclude_variants = json.loads(exclude_variants)
+        except (json.JSONDecodeError, TypeError):
+            # Fall back to comma-separated string
+            exclude_variants = [v.strip() for v in exclude_variants.split(",") if v.strip()]
 
     # Determine which variants to use
     if variants is None:
@@ -429,6 +440,9 @@ def make_curriculum(
                     # Initialize stats rewards dict if needed (for bucket overrides to work)
                     if not mission_env.game.agent.rewards.stats:
                         mission_env.game.agent.rewards.stats = {}
+                    # Initialize chest.heart.deposited key (treated as single key with dots, not nested)
+                    if "chest.heart.deposited" not in mission_env.game.agent.rewards.stats:
+                        mission_env.game.agent.rewards.stats["chest.heart.deposited"] = 0.0
                     # Initialize stats_max dict if needed
                     if not mission_env.game.agent.rewards.stats_max:
                         mission_env.game.agent.rewards.stats_max = {}
@@ -522,6 +536,9 @@ def make_curriculum(
             # Initialize stats rewards dict if needed (for bucket overrides to work)
             if not mission_env.game.agent.rewards.stats:
                 mission_env.game.agent.rewards.stats = {}
+            # Initialize chest.heart.deposited key (treated as single key with dots, not nested)
+            if "chest.heart.deposited" not in mission_env.game.agent.rewards.stats:
+                mission_env.game.agent.rewards.stats["chest.heart.deposited"] = 0.0
             # Initialize stats_max dict if needed
             if not mission_env.game.agent.rewards.stats_max:
                 mission_env.game.agent.rewards.stats_max = {}
@@ -598,13 +615,23 @@ def make_eval_suite_from_curriculum(
     # Resolve mission sets to actual mission names (same logic as make_curriculum)
     base_missions = resolve_missions(base_missions)
 
-    # Handle comma-separated string for variants
+    # Handle comma-separated string or JSON string for variants
     if isinstance(variants, str):
-        variants = [v.strip() for v in variants.split(",") if v.strip()]
+        # Try parsing as JSON first (for command-line JSON lists)
+        try:
+            variants = json.loads(variants)
+        except (json.JSONDecodeError, TypeError):
+            # Fall back to comma-separated string
+            variants = [v.strip() for v in variants.split(",") if v.strip()]
 
-    # Handle comma-separated string for exclude_variants
+    # Handle comma-separated string or JSON string for exclude_variants
     if isinstance(exclude_variants, str):
-        exclude_variants = [v.strip() for v in exclude_variants.split(",") if v.strip()]
+        # Try parsing as JSON first (for command-line JSON lists)
+        try:
+            exclude_variants = json.loads(exclude_variants)
+        except (json.JSONDecodeError, TypeError):
+            # Fall back to comma-separated string
+            exclude_variants = [v.strip() for v in exclude_variants.split(",") if v.strip()]
 
     # Determine which variants to use (same logic as make_curriculum)
     if variants is None:
@@ -887,12 +914,14 @@ def experiment(
     if all_variants_per_mission:
         cmd.append("all_variants_per_mission=True")
         if exclude_variants:
-            exclude_str = ",".join(exclude_variants)
+            # Use JSON format for lists to avoid parsing issues
+            exclude_str = json.dumps(exclude_variants)
             cmd.append(f"exclude_variants={exclude_str}")
     else:
         cmd.append("all_variants_per_mission=False")
         if variants:
-            variants_str = ",".join(variants)
+            # Use JSON format for lists to avoid parsing issues
+            variants_str = json.dumps(variants)
             cmd.append(f"variants={variants_str}")
 
     if additional_args:
