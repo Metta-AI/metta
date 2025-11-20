@@ -6,9 +6,11 @@ from pathlib import Path
 from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
+import torch
 import torch.nn as nn
 from pydantic import BaseModel, Field
 
+from metta.common.util.file import write_file
 from mettagrid.mettagrid_c import dtype_actions, dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
@@ -375,10 +377,6 @@ class TrainablePolicy(MultiAgentPolicy):
 
         Policies with custom artifact needs should override this.
         """
-
-        import torch
-
-        from metta.common.util.file import write_file
 
         dest_str = str(destination)
         if dest_str.startswith("s3://"):

@@ -10,13 +10,9 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
-from metta.common.util.file import local_copy, write_file
+from metta.common.util.file import local_copy
 from metta.common.util.uri import ParsedURI
-from metta.rl.policy_artifact import (
-    PolicyArtifact,
-    load_policy_artifact,
-    save_policy_artifact_safetensors,
-)
+from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
@@ -395,38 +391,13 @@ class CheckpointPolicy(MultiAgentPolicy):
         *,
         policy_architecture: PolicyArchitecture | None = None,
     ) -> str:
-        """Persist the wrapped policy to a URI or filesystem path."""
+        """Persist the wrapped policy to a URI or filesystem path using unified artifact saver."""
         architecture = policy_architecture or self._policy_architecture
         if architecture is None:
             raise ValueError("policy_architecture is required to save policy")
 
-        parsed = ParsedURI.parse(str(destination))
-        # Resolve destination and write locally first
-        if parsed.scheme in ("", "file") or parsed.local_path:
-            path = parsed.local_path or Path(str(destination)).expanduser()
-            path.parent.mkdir(parents=True, exist_ok=True)
-            save_policy_artifact_safetensors(
-                path,
-                policy_architecture=architecture,
-                state_dict=self._policy.state_dict(),
-            )
-            return f"file://{path.resolve()}"
-
-        if parsed.scheme == "s3":
-            # Write locally (same filename) into checkpoint_dir, then upload
-            filename = Path(parsed.canonical).name
-            local_path = Path.cwd() / filename
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-            save_policy_artifact_safetensors(
-                local_path,
-                policy_architecture=architecture,
-                state_dict=self._policy.state_dict(),
-            )
-            write_file(parsed.canonical, str(local_path))
-            return parsed.canonical
-
-        msg = f"Unsupported destination scheme for saving policy: {parsed.scheme or 'file'}"
-        raise ValueError(msg)
+        # Delegate to underlying policy's saver
+        return self._policy.save_policy(destination, policy_architecture=architecture)
 
     def __getattr__(self, name: str):
         return getattr(self._policy, name)
