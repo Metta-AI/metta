@@ -32,49 +32,33 @@ type
 
     bump: bool
     offsets4: seq[Location]  # 4 cardinal but random for each agent
-    sosOverride: bool        # panic mode for single_use_swarm: go straight to deposits
     seenAssembler: bool
     seenChest: bool
     exploreLocations: seq[Location]
+    pendingUnclip: Option[Location]
+    pendingUnclipTag: int
+    pendingGearFeature: int
+    pendingGearResource: int
+    pendingGearTag: int
+    pendingHeartVibes: int
+    singleUseMode: bool
 
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
 
-# Map clipped extractor -> required gear inventory feature id.
-proc gearForTag(agent: RaceCarAgent, tagId: int): Option[int] =
+  GearPlan = tuple[gearFeature: int, resourceFeature: int, resourceTag: int]
+
+proc gearPlanForTag(agent: RaceCarAgent, tagId: int): Option[GearPlan] =
+  ## Map a clipped extractor tag to the gear item and its crafting resource/tag.
   if tagId == agent.cfg.tags.oxygenExtractor:
-    return some(agent.cfg.features.invDecoder)
+    return some((agent.cfg.features.invDecoder, agent.cfg.features.invCarbon, agent.cfg.tags.carbonExtractor))
   if tagId == agent.cfg.tags.carbonExtractor:
-    return some(agent.cfg.features.invModulator)
+    return some((agent.cfg.features.invModulator, agent.cfg.features.invOxygen, agent.cfg.tags.oxygenExtractor))
   if tagId == agent.cfg.tags.germaniumExtractor:
-    return some(agent.cfg.features.invResonator)
+    return some((agent.cfg.features.invResonator, agent.cfg.features.invSilicon, agent.cfg.tags.siliconExtractor))
   if tagId == agent.cfg.tags.siliconExtractor:
-    return some(agent.cfg.features.invScrambler)
-  none(int)
-
-proc isClipped(agent: RaceCarAgent, features: seq[FeatureValue]): bool =
-  for fv in features:
-    if fv.featureId == agent.cfg.features.clipped and fv.value > 0:
-      return true
-  false
-
-proc hasKnownCharger(agent: RaceCarAgent): bool =
-  for loc, feats in agent.map.pairs:
-    for fv in feats:
-      if fv.featureId == agent.cfg.features.tag and fv.value == agent.cfg.tags.charger:
-        return true
-  false
-
-proc bumpGearPrereqs(agent: RaceCarAgent, gearFeature: int) =
-  ## Raise resource targets to craft the gear needed for unclipping.
-  if gearFeature == agent.cfg.features.invDecoder:  # decoder crafted from carbon
-    agent.carbonTarget = max(agent.carbonTarget, 20)
-  elif gearFeature == agent.cfg.features.invModulator:  # modulator crafted from oxygen
-    agent.oxygenTarget = max(agent.oxygenTarget, 20)
-  elif gearFeature == agent.cfg.features.invResonator:  # resonator crafted from silicon
-    agent.siliconTarget = max(agent.siliconTarget, 15)
-  elif gearFeature == agent.cfg.features.invScrambler:  # scrambler crafted from germanium
-    agent.germaniumTarget = max(agent.germaniumTarget, 5)
+    return some((agent.cfg.features.invScrambler, agent.cfg.features.invGermanium, agent.cfg.tags.germaniumExtractor))
+  none(GearPlan)
 
 proc log(message: string) =
   when defined(debug):
@@ -157,7 +141,7 @@ proc getActiveRecipe(agent: RaceCarAgent): RecipeInfo {.measure.} =
         result.scramblerCost = feature.value
 
 proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
-  ## Create a new raceCar agent, the fastest and the smartest agent.
+  ## Create a new racecar agent, the fastest and the smartest agent.
 
   var config = parseConfig(environmentConfig)
   result = RaceCarAgent(agentId: agentId, cfg: config)
@@ -169,30 +153,35 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   # Randomize the offsets4 for each agent, so they take different directions.
   var offsets4 = Offsets4
   result.random.shuffle(offsets4)
-  result.offsets4 = @offsets4
+  for i in 0 ..< offsets4.len:
+    offsets4[i] = offsets4[i]
 
   result.exploreLocations = @[
     Location(x: -7, y: 0),
     Location(x: 0, y: +7),
     Location(x: +7, y: 0),
     Location(x: 0, y: -7),
-    Location(x: -15, y: 0),
-    Location(x: 0, y: +15),
-    Location(x: +15, y: 0),
-    Location(x: 0, y: -15),
-    Location(x: -20, y: 0),
-    Location(x: 0, y: +20),
-    Location(x: +20, y: 0),
-    Location(x: 0, y: -20),
-    Location(x: -15, y: -15),
-    Location(x: -15, y: +15),
-    Location(x: +15, y: -15),
-    Location(x: +15, y: +15),
+    Location(x: -14, y: 0),
+    Location(x: 0, y: +14),
+    Location(x: +14, y: 0),
+    Location(x: 0, y: -14),
+    Location(x: -21, y: 0),
+    Location(x: 0, y: +21),
+    Location(x: +21, y: 0),
+    Location(x: 0, y: -21),
+    Location(x: -14, y: -14),
+    Location(x: -14, y: +14),
+    Location(x: +14, y: -14),
+    Location(x: +14, y: +14),
   ]
   result.random.shuffle(result.exploreLocations)
-
-  # Single-use swarm maps have max_uses==1; set SOS mode when detected later.
-  result.sosOverride = false
+  result.pendingUnclip = none(Location)
+  result.pendingUnclipTag = 0
+  result.pendingGearFeature = 0
+  result.pendingGearResource = 0
+  result.pendingGearTag = 0
+  result.pendingHeartVibes = 0
+  result.singleUseMode = false
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
   ## Update the big map with the small visible map.
@@ -305,6 +294,51 @@ proc getNearbyExtractor*(
     return some(closestLocation)
   return none(Location)
 
+proc isClipped(agent: RaceCarAgent, location: Location): bool =
+  ## Check if the given location is still marked clipped.
+  if location notin agent.map:
+    return false
+  for f in agent.map[location]:
+    if f.featureId == agent.cfg.features.clipped and f.value > 0:
+      return true
+  false
+
+proc refreshUnclipPlan(agent: RaceCarAgent) =
+  ## Detect clipped extractors and record the gear recipe needed to unclip.
+  if agent.pendingUnclip.isSome():
+    let loc = agent.pendingUnclip.get()
+    if not agent.isClipped(loc):
+      agent.pendingUnclip = none(Location)
+      agent.pendingGearFeature = 0
+      agent.pendingGearResource = 0
+      agent.pendingGearTag = 0
+      agent.pendingHeartVibes = 0
+
+  if agent.pendingUnclip.isSome():
+    return
+
+  for location, features in agent.map:
+    var clipped = false
+    var tag = -1
+    for f in features:
+      if f.featureId == agent.cfg.features.clipped and f.value > 0:
+        clipped = true
+      elif f.featureId == agent.cfg.features.tag:
+        tag = f.value
+      elif f.featureId == agent.cfg.features.remainingUses and f.value == 1:
+        agent.singleUseMode = true
+    if clipped and tag != -1:
+      let planOpt = agent.gearPlanForTag(tag)
+      if planOpt.isSome():
+        let plan = planOpt.get()
+        agent.pendingUnclip = some(location)
+        agent.pendingUnclipTag = tag
+        agent.pendingGearFeature = plan.gearFeature
+        agent.pendingGearResource = plan.resourceFeature
+        agent.pendingGearTag = plan.resourceTag
+        agent.pendingHeartVibes = 0
+        break
+
 proc step*(
   agent: RaceCarAgent,
   numAgents: int,
@@ -318,7 +352,26 @@ proc step*(
 
     let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
 
+    # Parse the tokens into a vision map.
+    var visible: Table[Location, seq[FeatureValue]]
+    for token in 0 ..< numTokens:
+      let locationPacked = observations[token * sizeToken]
+      let featureId = observations[token * sizeToken + 1]
+      let value = observations[token * sizeToken + 2]
+      if locationPacked == 255 and featureId == 255 and value == 255:
+        break
+      var location: Location
+      if locationPacked != 0xFF:
+        location.y = (locationPacked shr 4).int - 5
+        location.x = (locationPacked and 0x0F).int - 5
+      if location notin visible:
+        visible[location] = @[]
+      visible[location].add(FeatureValue(featureId: featureId.int, value: value.int))
+
     proc doAction(action: int) {.measure.} =
+
+      # Get last action from observations, in case something else moved us.
+      agent.lastActions.add(agent.cfg.getLastAction(visible))
 
       # Stuck prevention: if last 2 actions are left, right and this is left.
       if agent.lastActions.len >= 2 and
@@ -358,69 +411,23 @@ proc step*(
           doAction(agent.cfg.actions.noop.int32)
           return
 
-      agent.lastActions.add(action)
       agentAction[] = action.int32
 
-    # Parse the tokens into a vision map.
-    var map: Table[Location, seq[FeatureValue]]
-    for token in 0 ..< numTokens:
-      let locationPacked = observations[token * sizeToken]
-      let featureId = observations[token * sizeToken + 1]
-      let value = observations[token * sizeToken + 2]
-      if locationPacked == 255 and featureId == 255 and value == 255:
-        break
-      var location: Location
-      if locationPacked != 0xFF:
-        location.y = (locationPacked shr 4).int - 5
-        location.x = (locationPacked and 0x0F).int - 5
-      if location notin map:
-        map[location] = @[]
-      map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
-
-    updateMap(agent, map)
-
-    # Detect nearby clipped extractors to drive gear crafting/usage.
-    var clippedTarget: Option[Location]
-    var clippedGearFeature: Option[int]
-    for (loc, feats) in map.pairs:
-      var tagId = -1
-      for fv in feats:
-        if fv.featureId == agent.cfg.features.tag:
-          tagId = fv.value
-          break
-      if tagId == -1:
-        continue
-      if agent.isClipped(feats):
-        let gearFeature = agent.gearForTag(tagId)
-        if gearFeature.isSome():
-          clippedTarget = some(agent.location + loc)
-          clippedGearFeature = gearFeature
-          agent.bumpGearPrereqs(gearFeature.get())
-          break
-    
+    updateMap(agent, visible)
+    refreshUnclipPlan(agent)
 
     let
-      vibe = agent.cfg.getVibe(map, Location(x: 0, y: 0))
-      invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
-      invCarbon = agent.cfg.getInventory(map, agent.cfg.features.invCarbon)
-      invOxygen = agent.cfg.getInventory(map, agent.cfg.features.invOxygen)
-      invGermanium = agent.cfg.getInventory(map, agent.cfg.features.invGermanium)
-      invSilicon = agent.cfg.getInventory(map, agent.cfg.features.invSilicon)
-      invHeart = agent.cfg.getInventory(map, agent.cfg.features.invHeart)
-      invDecoder = agent.cfg.getInventory(map, agent.cfg.features.invDecoder)
-      invModulator = agent.cfg.getInventory(map, agent.cfg.features.invModulator)
-      invResonator = agent.cfg.getInventory(map, agent.cfg.features.invResonator)
-      invScrambler = agent.cfg.getInventory(map, agent.cfg.features.invScrambler)
-
-    # Detect single-use swarm (max_uses 1) to prioritize immediate harvest.
-    if not agent.sosOverride:
-      for feats in map.values:
-        for fv in feats:
-          if fv.featureId == agent.cfg.features.remainingUses and fv.value == 1:
-            agent.sosOverride = true
-            break
-        if agent.sosOverride:
-          break
+      vibe = agent.cfg.getVibe(visible, Location(x: 0, y: 0))
+      invEnergy = agent.cfg.getInventory(visible, agent.cfg.features.invEnergy)
+      invCarbon = agent.cfg.getInventory(visible, agent.cfg.features.invCarbon)
+      invOxygen = agent.cfg.getInventory(visible, agent.cfg.features.invOxygen)
+      invGermanium = agent.cfg.getInventory(visible, agent.cfg.features.invGermanium)
+      invSilicon = agent.cfg.getInventory(visible, agent.cfg.features.invSilicon)
+      invHeart = agent.cfg.getInventory(visible, agent.cfg.features.invHeart)
+      invDecoder = agent.cfg.getInventory(visible, agent.cfg.features.invDecoder)
+      invModulator = agent.cfg.getInventory(visible, agent.cfg.features.invModulator)
+      invResonator = agent.cfg.getInventory(visible, agent.cfg.features.invResonator)
+      invScrambler = agent.cfg.getInventory(visible, agent.cfg.features.invScrambler)
 
     log &"vibe:{vibe} H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
@@ -443,71 +450,40 @@ proc step*(
       agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost)
       agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost)
 
+    if activeRecipe.pattern.len > 1 and agent.pendingHeartVibes < activeRecipe.pattern.len:
+      # VibeCheck variants require multiple heart vibes; queue them up once the recipe is known.
+      agent.pendingHeartVibes = activeRecipe.pattern.len
+
+    let chargerLocation = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
+
     # Are we running low on energy?
-    if invEnergy < MaxEnergy div 4:
-      let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
-      if chargerNearby.isSome():
-        measurePush("charger nearby")
-        let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
+    if invEnergy < 60:
+      if chargerLocation.isSome():
+        measurePush("charger preemptive")
+        let action = agent.cfg.aStar(agent.location, chargerLocation.get(), agent.map)
         measurePop()
         if action.isSome():
           doAction(action.get().int32)
-          log "going to charger"
+          log "preemptive charge"
           return
-      elif not agent.hasKnownCharger():
-        # No charger seen yet and low on energy: take a short exploratory step only.
-        for offset in agent.offsets4:
-          let candidate = agent.location + offset
-          if not agent.cfg.isWalkable(agent.map, candidate):
-            continue
-          let stepAction = agent.cfg.aStar(agent.location, candidate, agent.map)
-          if stepAction.isSome():
-            doAction(stepAction.get().int32)
-            log "no charger known: probing for charger"
-            return
+      elif invEnergy < MaxEnergy div 3:
+        # No known charger; bias toward the origin to rediscover base stations.
+        let action = agent.cfg.aStar(agent.location, Location(x: 0, y: 0), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          log "retreating toward origin to hunt charger"
+          return
 
     # Charge opportunistically.
-    if invEnergy < MaxEnergy - 20:
-      let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
-      if chargerNearby.isSome():
-        if manhattan(agent.location, chargerNearby.get()) < 2:
-          measurePush("charge nearby")
-          let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
-          measurePop()
-          if action.isSome():
-            doAction(action.get().int32)
-            log "charge nearby might as well charge"
-            return
-
-    # If a clipped extractor is visible, ensure we have the right gear.
-    if clippedGearFeature.isSome():
-      let neededGear = clippedGearFeature.get()
-      let haveGear = agent.cfg.getInventory(map, neededGear)
-      # Only chase unclipping if extractor is nearby to avoid wasting time.
-      if clippedTarget.isNone() or manhattan(agent.location, clippedTarget.get()) > 4:
-        discard
-      elif haveGear == 0:
-        # Gather resources and craft gear at assembler using gear vibe.
-        if vibe != agent.cfg.vibes.gear:
-          doAction(agent.cfg.actions.vibeGear.int32)
-          log "switching to gear vibe to craft unclipping tool"
+    if invEnergy < MaxEnergy - 20 and chargerLocation.isSome():
+      if manhattan(agent.location, chargerLocation.get()) < 2:
+        measurePush("charge nearby")
+        let action = agent.cfg.aStar(agent.location, chargerLocation.get(), agent.map)
+        measurePop()
+        if action.isSome():
+          doAction(action.get().int32)
+          log "charge nearby might as well charge"
           return
-        let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
-        if assemblerNearby.isSome():
-          let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
-          if action.isSome():
-            doAction(action.get().int32)
-            log "heading to assembler to craft gear"
-            return
-      else:
-        # We have the gear—go unclip the extractor.
-        if clippedTarget.isSome():
-          let target = clippedTarget.get()
-          let action = agent.cfg.aStar(agent.location, target, agent.map)
-          if action.isSome():
-            doAction(action.get().int32)
-            log "moving to clipped extractor to unclip"
-            return
 
     # Deposit heart into the chest.
     if invHeart > 0:
@@ -534,26 +510,77 @@ proc step*(
           log "going to chest"
           return
 
+    if agent.pendingUnclip.isSome():
+      let gearCount = if agent.pendingGearFeature != 0: agent.cfg.getInventory(visible, agent.pendingGearFeature) else: 0
+      let gearResourceCount = if agent.pendingGearResource != 0: agent.cfg.getInventory(visible, agent.pendingGearResource) else: 0
+
+      # Ensure we actively gather the resource needed to craft the gear item.
+      case agent.pendingGearResource
+      of agent.cfg.features.invCarbon:
+        agent.carbonTarget = max(agent.carbonTarget, 1)
+      of agent.cfg.features.invOxygen:
+        agent.oxygenTarget = max(agent.oxygenTarget, 1)
+      of agent.cfg.features.invGermanium:
+        agent.germaniumTarget = max(agent.germaniumTarget, 1)
+      of agent.cfg.features.invSilicon:
+        agent.siliconTarget = max(agent.siliconTarget, 1)
+      else:
+        discard
+
+      # Craft the gear if we have the prerequisite resource.
+      if agent.pendingGearFeature != 0 and gearCount == 0 and gearResourceCount > 0:
+        if vibe != agent.cfg.vibes.gear:
+          doAction(agent.cfg.actions.vibeGear.int32)
+          log "setting gear vibe to craft unclipping item"
+          return
+        let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+        if assemblerNearby.isSome():
+          let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "moving to assembler to craft unclipping gear"
+            return
+
+      # Deliver gear to the clipped extractor.
+      if agent.pendingGearFeature != 0 and gearCount > 0:
+        let targetLoc = agent.pendingUnclip.get()
+        if vibe != agent.cfg.vibes.gear:
+          doAction(agent.cfg.actions.vibeGear.int32)
+          log "vibing gear before unclipping"
+          return
+        let action = agent.cfg.aStar(agent.location, targetLoc, agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          log "heading to clipped extractor to unclip"
+          return
+        if agent.location == targetLoc:
+          doAction(agent.cfg.actions.vibeGear.int32)
+          log "using gear on clipped extractor"
+          return
+
     if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
       # We have all the resources we need, so we can build a heart.
       log "trying to build a heart"
+
+      let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+      if activeRecipe.pattern.len > 1 and agent.pendingHeartVibes == 0:
+        agent.pendingHeartVibes = activeRecipe.pattern.len
+
+      if assemblerNearby.isSome() and manhattan(agent.location, assemblerNearby.get()) <= 1 and activeRecipe.pattern.len > 1 and agent.pendingHeartVibes > 0:
+        if vibe != agent.cfg.vibes.heartA:
+          doAction(agent.cfg.actions.vibeHeartA.int32)
+          log "priming heart vibe for multi-vibe recipe"
+          return
+        agent.pendingHeartVibes -= 1
+        doAction(agent.cfg.actions.vibeHeartA.int32)
+        log "stacking extra heart vibe at assembler"
+        return
 
       if vibe != agent.cfg.vibes.heartA:
         doAction(agent.cfg.actions.vibeHeartA.int32)
         log "vibing heart for assembler"
         return
 
-      # In single-use swarm, prioritize nearest assembler or chest immediately.
-      if agent.sosOverride:
-        let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-        if chestNearby.isSome():
-          let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
-          if action.isSome():
-            doAction(action.get().int32)
-            log "sos deposit at chest"
-            return
-
-      let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
       if assemblerNearby.isSome():
         measurePush("assembler nearby")
         let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
@@ -562,6 +589,50 @@ proc step*(
           doAction(action.get().int32)
           log "going to assembler to build heart"
           return
+
+    if agent.singleUseMode and invHeart == 0:
+      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if chestNearby.isSome():
+        if invCarbon > agent.carbonTarget and agent.carbonTarget > 0:
+          if vibe != agent.cfg.vibes.carbonB:
+            doAction(agent.cfg.actions.vibeCarbonB.int32)
+            log "single-use: vibing carbon to stash extras"
+            return
+          let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "single-use: banking extra carbon"
+            return
+        if invOxygen > agent.oxygenTarget and agent.oxygenTarget > 0:
+          if vibe != agent.cfg.vibes.oxygenB:
+            doAction(agent.cfg.actions.vibeOxygenB.int32)
+            log "single-use: vibing oxygen to stash extras"
+            return
+          let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "single-use: banking extra oxygen"
+            return
+        if invGermanium > agent.germaniumTarget and agent.germaniumTarget > 0:
+          if vibe != agent.cfg.vibes.germaniumB:
+            doAction(agent.cfg.actions.vibeGermaniumB.int32)
+            log "single-use: vibing germanium to stash extras"
+            return
+          let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "single-use: banking extra germanium"
+            return
+        if invSilicon > agent.siliconTarget and agent.siliconTarget > 0:
+          if vibe != agent.cfg.vibes.siliconB:
+            doAction(agent.cfg.actions.vibeSiliconB.int32)
+            log "single-use: vibing silicon to stash extras"
+            return
+          let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "single-use: banking extra silicon"
+            return
 
     # Dump excess resources.
     let atMaxInventory = invCarbon + invOxygen + invGermanium + invSilicon >= MaxResourceInventory
