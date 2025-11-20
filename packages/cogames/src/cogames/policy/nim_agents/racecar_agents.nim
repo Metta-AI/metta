@@ -68,14 +68,17 @@ proc hasKnownCharger(agent: RaceCarAgent): bool =
 
 proc bumpGearPrereqs(agent: RaceCarAgent, gearFeature: int) =
   ## Raise resource targets to craft the gear needed for unclipping.
-  if gearFeature == agent.cfg.features.invDecoder:  # decoder crafted from carbon
+  case gearFeature
+  of agent.cfg.features.invDecoder:  # decoder crafted from carbon
     agent.carbonTarget = max(agent.carbonTarget, 20)
-  elif gearFeature == agent.cfg.features.invModulator:  # modulator crafted from oxygen
+  of agent.cfg.features.invModulator:  # modulator crafted from oxygen
     agent.oxygenTarget = max(agent.oxygenTarget, 20)
-  elif gearFeature == agent.cfg.features.invResonator:  # resonator crafted from silicon
+  of agent.cfg.features.invResonator:  # resonator crafted from silicon
     agent.siliconTarget = max(agent.siliconTarget, 15)
-  elif gearFeature == agent.cfg.features.invScrambler:  # scrambler crafted from germanium
+  of agent.cfg.features.invScrambler:  # scrambler crafted from germanium
     agent.germaniumTarget = max(agent.germaniumTarget, 5)
+  else:
+    discard
 
 proc log(message: string) =
   when defined(debug):
@@ -170,7 +173,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   # Randomize the offsets4 for each agent, so they take different directions.
   var offsets4 = Offsets4
   result.random.shuffle(offsets4)
-  result.offsets4 = @offsets4
+  result.offsets4 = offsets4
 
   result.exploreLocations = @[
     Location(x: -7, y: 0),
@@ -427,7 +430,7 @@ proc step*(
     if not agent.sosOverride:
       for feats in map.values:
         for fv in feats:
-          if fv.featureId == agent.cfg.features.remainingUses and fv.value <= 2:
+          if fv.featureId == agent.cfg.features.remainingUses and fv.value == 1:
             agent.sosOverride = true
             break
         if agent.sosOverride:
@@ -572,49 +575,6 @@ proc step*(
     let avgResource = (invCarbon + invOxygen + invGermanium + invSilicon) div 4
     if atMaxInventory:
       log "at max inventory"
-
-    block considerDumpAll:
-      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-      if chestNearby.isNone():
-        break considerDumpAll
-      let totalResourceInventory = invCarbon + invOxygen + invGermanium + invSilicon
-      if totalResourceInventory == 0:
-        break considerDumpAll
-      let chestLoc = chestNearby.get()
-      let mostlyGermanium = invGermanium * 100 div totalResourceInventory >= 65
-      var resourceTypesToDump = 0
-      if invCarbon > agent.carbonTarget + PutCarbonAmount:
-        inc resourceTypesToDump
-      if invOxygen > agent.oxygenTarget + PutOxygenAmount:
-        inc resourceTypesToDump
-      if invGermanium > agent.germaniumTarget + PutGermaniumAmount:
-        inc resourceTypesToDump
-      if invSilicon > agent.siliconTarget + PutSiliconAmount:
-        inc resourceTypesToDump
-      var chestLoad = 0
-      let chestFeatures = [
-        agent.cfg.features.invCarbon,
-        agent.cfg.features.invOxygen,
-        agent.cfg.features.invGermanium,
-        agent.cfg.features.invSilicon,
-      ]
-      for featureId in chestFeatures:
-        chestLoad += agent.cfg.getInventory(agent.map, featureId, chestLoc)
-      let chestNearFull = chestLoad >= MaxResourceInventory - 15
-      let dumpAllWorthwhile = (mostlyGermanium and invGermanium >= PutGermaniumAmount * 8 and resourceTypesToDump >= 1) or
-        (chestNearFull and resourceTypesToDump >= 2)
-      if dumpAllWorthwhile:
-        if vibe != agent.cfg.vibes.default:
-          doAction(agent.cfg.actions.vibeDefault.int32)
-          log "switching to neutral to dump all resources at chest"
-          return
-        measurePush("dump all resources at chest")
-        let action = agent.cfg.aStar(agent.location, chestLoc, agent.map)
-        measurePop()
-        if action.isSome():
-          doAction(action.get().int32)
-          log "heading to chest for dump-all drop"
-          return
 
     if atMaxInventory and invCarbon > avgResource and invCarbon > agent.carbonTarget + PutCarbonAmount:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
