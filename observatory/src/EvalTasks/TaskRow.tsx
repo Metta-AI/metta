@@ -50,7 +50,7 @@ export const TaskRow: FC<{ task: EvalTask; repo: Repo }> = ({ task, repo }) => {
           {task.command}
         </td>
         <td className="p-3">
-          <TaskBadge status={task.status} />
+          <TaskBadge task={task} />
         </td>
         <td className="p-3 text-sm truncate" title={task.user_id}>
           {task.user_id}
@@ -98,7 +98,7 @@ export const TaskRow: FC<{ task: EvalTask; repo: Repo }> = ({ task, repo }) => {
                     <tr key={attempt.id} style={{ borderBottom: '1px solid #e0e0e0' }}>
                       <td className="p-2">{attempt.attempt_number + 1}</td>
                       <td className="p-2">
-                        <TaskBadge status={attempt.status} size="small" />
+                        <TaskBadge task={attempt} size="small" />
                       </td>
                       <td className="p-2">{attempt.assignee || '-'}</td>
                       <td className="p-2">

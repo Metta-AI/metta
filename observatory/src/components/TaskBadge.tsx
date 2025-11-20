@@ -1,6 +1,8 @@
+import clsx from 'clsx'
 import { FC } from 'react'
 
-import { TaskStatus } from '../repo'
+import { EvalTask, TaskAttempt, TaskStatus } from '../repo'
+import { Tooltip } from './Tooltip'
 
 function getStatusColor(status: TaskStatus) {
   switch (status) {
@@ -20,18 +22,28 @@ function getStatusColor(status: TaskStatus) {
   }
 }
 
-export const TaskBadge: FC<{ status: TaskStatus; size?: 'small' | 'medium' }> = ({ status, size = 'medium' }) => {
-  return (
+export const TaskBadge: FC<{ task: EvalTask | TaskAttempt; size?: 'small' | 'medium' }> = ({
+  task,
+  size = 'medium',
+}) => {
+  const errorReason = task.status_details?.error_reason
+  const result = (
     <span
+      className={clsx(
+        size === 'small' ? 'text-xs py-0.5 px-1.5 rounded-sm' : 'text-xs px-2 py-1 rounded-[3px]',
+        'text-white',
+        errorReason && 'cursor-pointer'
+      )}
       style={{
-        padding: size === 'small' ? '2px 6px' : '4px 8px',
-        borderRadius: size === 'small' ? '3px' : '4px',
-        backgroundColor: getStatusColor(status),
-        color: 'white',
-        fontSize: size === 'small' ? '11px' : '12px',
+        backgroundColor: getStatusColor(task.status),
       }}
     >
-      {status}
+      {task.status}
     </span>
   )
+  if (errorReason) {
+    return <Tooltip render={() => <div className="text-xs max-w-md">{errorReason}</div>}>{result}</Tooltip>
+  } else {
+    return result
+  }
 }

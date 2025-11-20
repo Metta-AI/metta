@@ -52,6 +52,11 @@ export type EvalTaskCreateRequest = {
 
 export type TaskStatus = 'unprocessed' | 'running' | 'canceled' | 'done' | 'error' | 'system_error'
 
+type TaskStatusMixin = {
+  status: TaskStatus
+  status_details: Record<string, any> | null
+}
+
 export type EvalTask = {
   // eval_tasks table columns
   id: number
@@ -66,14 +71,12 @@ export type EvalTask = {
 
   // Latest attempt columns (from JOIN)
   attempt_number: number | null
-  status: TaskStatus
-  status_details: Record<string, any> | null
   assigned_at: string | null
   assignee: string | null
   started_at: string | null
   finished_at: string | null
   output_log_path: string | null
-}
+} & TaskStatusMixin
 
 export type TaskAttempt = {
   id: number
@@ -84,9 +87,7 @@ export type TaskAttempt = {
   started_at: string | null
   finished_at: string | null
   output_log_path: string | null
-  status: TaskStatus
-  status_details: Record<string, any> | null
-}
+} & TaskStatusMixin
 
 export type EvalTasksResponse = {
   tasks: EvalTask[]
