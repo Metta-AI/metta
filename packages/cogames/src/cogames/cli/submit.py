@@ -7,8 +7,10 @@ import tempfile
 import uuid
 import zipfile
 from pathlib import Path
+from typing import Optional
 
 import httpx
+import torch
 import typer
 from rich.console import Console
 
@@ -57,6 +59,26 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
         validated_paths.append(path)
 
     return validated_paths
+
+
+def validate_checkpoint_loadable(checkpoint_path: Path, console: Console) -> bool:
+    """Eagerly load a checkpoint to verify archive structure.
+
+    Some `.mpt` bundles can have malformed zip layouts (e.g., top-level
+    `weights.safetensors`), which only surface when `torch.load` is called.
+    Dry-runs should fail fast on such cases before packaging/submission.
+    """
+
+    console.print("[yellow]Validating checkpoint can be loaded...[/yellow]")
+
+    try:
+        torch.load(checkpoint_path, map_location="cpu")
+    except Exception as error:  # torch raises multiple runtime errors for archive issues
+        console.print(f"[red]✗ Checkpoint load failed:[/red] {error}")
+        return False
+
+    console.print("[green]✓ Checkpoint loadable[/green]")
+    return True
 
 
 def create_temp_validation_env(console: Console) -> Path:
@@ -362,6 +384,8 @@ def submit_command(
     if policy_spec.data_path:
         files_to_include.append(policy_spec.data_path)
 
+    checkpoint_path: Optional[Path] = Path(policy_spec.data_path) if policy_spec.data_path else None
+
     # Add user-specified include files
     if include_files:
         files_to_include.extend(include_files)
@@ -377,6 +401,11 @@ def submit_command(
         validated_paths = validate_paths(files_to_include, console)
     except (ValueError, FileNotFoundError):
         return
+
+    if dry_run and checkpoint_path:
+        if not validate_checkpoint_loadable(checkpoint_path, console):
+            console.print("\n[red]Submission aborted due to checkpoint load failure.[/red]")
+            return
 
     console.print("\n[bold]Files to include:[/bold]")
     for path in validated_paths:
