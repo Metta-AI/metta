@@ -128,6 +128,7 @@ def train(
     steps: int = 10000,
     variant: str | list[str] | None = None,
     checkpoints: str = "./train_dir",
+    device: str = "cuda",
     s3_uri: str | None = None,
 ) -> CogamesTrainTool:
     """Train a cogames policy.
@@ -137,6 +138,7 @@ def train(
         steps: Number of training steps
         variant: Mission variant(s) - single string or list of strings
         checkpoints: Local checkpoints directory
+        device: Device to train on (cuda, cpu, or auto)
         s3_uri: Optional S3 URI to upload checkpoint after training
     """
     # Convert variant to list if single string provided
@@ -152,6 +154,7 @@ def train(
         steps=steps,
         variant=variant_list,
         checkpoints=checkpoints,
+        device=device,
         s3_uri=s3_uri,
     )
 

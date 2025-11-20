@@ -47,6 +47,7 @@ class CogamesTrainTool(Tool):
     policy: str = Field(default="lstm", description="Policy type")
     seed: int = Field(default=42, description="Random seed")
     cogs: int | None = Field(default=None, description="Number of cogs (agents)")
+    device: str = Field(default="cuda", description="Device to train on (cuda, cpu, or auto)")
     s3_uri: str | None = Field(
         default=None, description="S3 URI to upload checkpoint (e.g., s3://bucket/path/checkpoint.pt)"
     )
@@ -69,6 +70,8 @@ class CogamesTrainTool(Tool):
             self.policy,
             "--seed",
             str(self.seed),
+            "--device",
+            self.device,
         ]
 
         for variant in self.variant:
