@@ -1,3 +1,8 @@
+# ruff: noqa: E402
+# need this to import and call suppress_noisy_logs first
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 import time
 from typing import Any, Dict
 from unittest import mock
