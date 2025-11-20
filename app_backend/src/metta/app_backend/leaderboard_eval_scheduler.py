@@ -14,7 +14,10 @@ from metta.app_backend.clients.stats_client import (
 )
 from metta.app_backend.leaderboard_constants import (
     COGAMES_SUBMITTED_PV_KEY,
+    LEADERBOARD_ATTEMPTS_PV_KEY,
+    LEADERBOARD_EVAL_CANCELED_VALUE,
     LEADERBOARD_EVAL_DONE_PV_KEY,
+    LEADERBOARD_EVAL_DONE_VALUE,
     LEADERBOARD_JOB_ID_PV_KEY,
 )
 from metta.app_backend.metta_repo import TaskStatus
@@ -26,6 +29,7 @@ from metta.common.util.log_config import init_suppress_warnings
 logger = logging.getLogger(__name__)
 
 DEFAULT_POLL_INTERVAL_SECONDS = 60.0
+DEFAULT_MAX_LEADERBOARD_ATTEMPTS = 5
 
 
 @dataclass(frozen=True)
@@ -42,11 +46,13 @@ class LeaderboardEvalScheduler:
         repo_root: str,
         poll_interval_seconds: float = DEFAULT_POLL_INTERVAL_SECONDS,
         eval_git_hash: Optional[str] = None,
+        max_attempts: int = DEFAULT_MAX_LEADERBOARD_ATTEMPTS,
     ):
         self._stats_client = stats_client
         self._repo_root = repo_root
         self._poll_interval_seconds = poll_interval_seconds
         self._eval_git_hash = eval_git_hash
+        self._max_attempts = max_attempts
 
     def _fetch_unscheduled_policy_versions(self) -> list[uuid.UUID]:
         """Get submitted policy versions that still need evals or whose prior eval failed."""
@@ -55,8 +61,15 @@ class LeaderboardEvalScheduler:
 SELECT DISTINCT pv.id
 FROM policy_versions pv
 JOIN policy_version_tags pvt ON pv.id = pvt.policy_version_id
+LEFT JOIN policy_version_tags done_tag
+    ON pv.id = done_tag.policy_version_id
+    AND done_tag.key = '{LEADERBOARD_EVAL_DONE_PV_KEY}'
 WHERE pvt.key = '{COGAMES_SUBMITTED_PV_KEY}'
 AND pvt.value = 'true'
+AND (
+    done_tag.value IS NULL
+    OR done_tag.value NOT IN ('{LEADERBOARD_EVAL_DONE_VALUE}', '{LEADERBOARD_EVAL_CANCELED_VALUE}')
+)
 AND NOT EXISTS (
     SELECT 1
     FROM policy_version_tags pvt2
@@ -67,8 +80,52 @@ AND NOT EXISTS (
         unprocessed: list[uuid.UUID] = [row[0] for row in rows]
         return unprocessed
 
+    def _get_attempt_count(self, policy_version_id: uuid.UUID) -> int:
+        response = self._stats_client.sql_query(
+            query=f"""
+SELECT value
+FROM policy_version_tags
+WHERE policy_version_id = '{policy_version_id}'
+AND key = '{LEADERBOARD_ATTEMPTS_PV_KEY}'
+LIMIT 1
+"""
+        )
+        if not response.rows:
+            return 0
+        raw_value = response.rows[0][0]
+        try:
+            return int(raw_value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Found invalid %s tag '%s' for policy version %s; treating as 0 attempts",
+                LEADERBOARD_ATTEMPTS_PV_KEY,
+                raw_value,
+                policy_version_id,
+            )
+            return 0
+
+    def _mark_policy_version_canceled(self, policy_version_id: uuid.UUID, attempts: int) -> None:
+        final_attempts = max(attempts, self._max_attempts)
+        logger.info(
+            "Marking policy version %s as canceled after %d attempts",
+            policy_version_id,
+            final_attempts,
+        )
+        self._stats_client.update_policy_version_tags(
+            policy_version_id,
+            {
+                LEADERBOARD_EVAL_DONE_PV_KEY: LEADERBOARD_EVAL_CANCELED_VALUE,
+                LEADERBOARD_ATTEMPTS_PV_KEY: str(final_attempts),
+            },
+        )
+
     @trace("eval_scheduler.schedule_eval")
-    def _schedule_eval(self, policy_version_id: uuid.UUID) -> int:
+    def _schedule_eval(self, policy_version_id: uuid.UUID) -> Optional[int]:
+        attempts = self._get_attempt_count(policy_version_id)
+        if attempts >= self._max_attempts:
+            self._mark_policy_version_canceled(policy_version_id, attempts)
+            return None
+
         logger.info("Scheduling eval for policy: %s", policy_version_id)
         command_parts = [
             "uv run tools/run.py recipes.experiment.v0_leaderboard.evaluate",
@@ -83,8 +140,20 @@ AND NOT EXISTS (
         )
         logger.info("Successfully scheduled eval for policy: %s: %s", policy_version_id, eval_task.id)
         eval_task_id = eval_task.id
-        self._stats_client.update_policy_version_tags(policy_version_id, {LEADERBOARD_JOB_ID_PV_KEY: str(eval_task_id)})
-        logger.info("Successfully marked policy version %s as scheduled", policy_version_id)
+        total_attempts = attempts + 1
+        self._stats_client.update_policy_version_tags(
+            policy_version_id,
+            {
+                LEADERBOARD_JOB_ID_PV_KEY: str(eval_task_id),
+                LEADERBOARD_ATTEMPTS_PV_KEY: str(total_attempts),
+            },
+        )
+        logger.info(
+            "Successfully marked policy version %s as scheduled (attempt %d/%d)",
+            policy_version_id,
+            total_attempts,
+            self._max_attempts,
+        )
         return eval_task.id
 
     def _fetch_scheduled_but_incomplete_jobs(self) -> list[PolicyRemoteJobStatus]:
@@ -106,7 +175,10 @@ LEFT JOIN eval_tasks_view task
 LEFT JOIN policy_version_tags done_tag
     ON pv.id = done_tag.policy_version_id
     AND done_tag.key = '{LEADERBOARD_EVAL_DONE_PV_KEY}'
-WHERE (done_tag.value IS NULL OR done_tag.value != 'true')
+WHERE (
+    done_tag.value IS NULL
+    OR done_tag.value NOT IN ('{LEADERBOARD_EVAL_DONE_VALUE}', '{LEADERBOARD_EVAL_CANCELED_VALUE}')
+)
 """
         ).rows
         remote_jobs: list[PolicyRemoteJobStatus] = []
@@ -127,7 +199,9 @@ WHERE (done_tag.value IS NULL OR done_tag.value != 'true')
         logger.info("Marking %d successful remote jobs as complete", len(completed_jobs))
         for job in completed_jobs:
             logger.info("Marking policy version %s as leaderboard eval complete", job.policy_version_id)
-            self._stats_client.update_policy_version_tags(job.policy_version_id, {LEADERBOARD_EVAL_DONE_PV_KEY: "true"})
+            self._stats_client.update_policy_version_tags(
+                job.policy_version_id, {LEADERBOARD_EVAL_DONE_PV_KEY: LEADERBOARD_EVAL_DONE_VALUE}
+            )
 
     @trace("eval_scheduler.run_cycle")
     def run_cycle(self) -> None:
