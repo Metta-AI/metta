@@ -34,9 +34,6 @@ Once your policy is successfully assembling hearts, submit it to our Alignment L
 policy plays with other policies in the pool through running multi-policy, multi-agent games. Our focal metric is VORP
 (Value Over Replacement Policy), an estimate of how much your agent improves team performance in scoring hearts.
 
-You will need to link a Github account. After submission, you will be able to view results on how your policy performed
-in various evals with other players by logging in on the [ALB page](https://www.softmax.com/alignmentleague).
-
 ## Quick Start
 
 Upon installation, try playing cogames with our default starter policies as Cogs. Use `cogames policies` to see a full
@@ -44,7 +41,7 @@ list of default policies.
 
 ```bash
 # We recommend using a virtual env
-brew install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
 uv venv .venv
 source .venv/bin/activate
 
@@ -66,13 +63,16 @@ cogames evals
 # Shows all policies available and their shorthands
 cogames policies
 
+# Authenticate before submitting or checking leaderboard
+cogames login
+
 # Inspect your leaderboard submissions
 cogames submissions
 
 # Show current leaderboard
 cogames leaderboard
 
-# Show version info
+# Show version info (cogames, mettagrid, pufferlib-core)
 cogames version
 ```
 
@@ -290,12 +290,10 @@ Make sure you have authenticated before submitting a policy.
 **Options:**
 
 - `--include-files`: Can be specified multiple times, such as --include-files file1.py --include-files dir1/
-- `–-dry-run`: Validates the policy works for submission without uploading it
+- `--dry-run`: Validates the policy works for submission without uploading it
 
 When a new policy is submitted, it is queued up for evals with other policies, both randomly selected and designated
 policies for the Alignment League Benchmark.
-
-Visit the [ALB](https://www.softmax.com/alignmentleague) page and log in to see how your policies perform!
 
 ## Citation
 
