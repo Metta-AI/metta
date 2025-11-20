@@ -72,54 +72,43 @@ class Checkpointer(TrainerComponent):
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
-                try:
-                    spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
-                    payload = None
-                    if self._distributed.is_master():
-                        loaded_policy = initialize_or_load_policy(policy_env_info, spec)
-                        loaded_policy = self._ensure_save_capable(loaded_policy)
-                        state_dict = {k: v.cpu() for k, v in loaded_policy.state_dict().items()}
-                        arch = getattr(loaded_policy, "_policy_architecture", self._policy_architecture)
-                        action_count = len(policy_env_info.actions.actions())
-                        payload = (state_dict, arch, action_count, normalized_uri)
-                    state_dict, arch, action_count, normalized_uri = self._distributed.broadcast_from_master(payload)
+                spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+                payload = None
+                if self._distributed.is_master():
+                    loaded_policy = initialize_or_load_policy(policy_env_info, spec)
+                    loaded_policy = self._ensure_save_capable(loaded_policy)
+                    state_dict = {k: v.cpu() for k, v in loaded_policy.state_dict().items()}
+                    arch = getattr(loaded_policy, "_policy_architecture", self._policy_architecture)
+                    action_count = len(policy_env_info.actions.actions())
+                    payload = (state_dict, arch, action_count, normalized_uri)
+                state_dict, arch, action_count, normalized_uri = self._distributed.broadcast_from_master(payload)
 
-                    local_action_count = len(policy_env_info.actions.actions())
-                    if local_action_count != action_count:
-                        raise ValueError(f"Action space mismatch on resume: master={action_count}, rank={local_action_count}")
+                local_action_count = len(policy_env_info.actions.actions())
+                if local_action_count != action_count:
+                    msg = f"Action space mismatch on resume: master={action_count}, rank={local_action_count}"
+                    raise ValueError(msg)
 
-                    policy = arch.make_policy(policy_env_info).to(load_device)
-                    if hasattr(policy, "initialize_to_environment"):
-                        policy.initialize_to_environment(policy_env_info, load_device)
-                    missing, unexpected = policy.load_state_dict(state_dict, strict=True)
-                    if missing or unexpected:
-                        raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
-                    policy = self._ensure_save_capable(policy)
-                    if self._distributed.is_master():
-                        self._latest_policy_uri = normalized_uri
-                        logger.info("Loaded policy from %s", normalized_uri)
-                    return policy
-                except FileNotFoundError:
-                    if self._distributed.is_master():
-                        logger.warning("Policy checkpoint %s not found; training will start fresh", normalized_uri)
-                except Exception as exc:  # pragma: no cover
-                    if self._distributed.is_master():
-                        logger.warning("Failed to load policy from %s: %s", normalized_uri, exc)
+                policy = arch.make_policy(policy_env_info).to(load_device)
+                if hasattr(policy, "initialize_to_environment"):
+                    policy.initialize_to_environment(policy_env_info, load_device)
+                missing, unexpected = policy.load_state_dict(state_dict, strict=True)
+                if missing or unexpected:
+                    raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+                policy = self._ensure_save_capable(policy)
+                if self._distributed.is_master():
+                    self._latest_policy_uri = normalized_uri
+                    logger.info("Loaded policy from %s", normalized_uri)
+                return policy
 
-        # Non-distributed or fallthrough: load locally
+        # Non-distributed or fallthrough: load locally (fail hard on errors)
         if candidate_uri:
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
-            try:
-                spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
-                policy = initialize_or_load_policy(policy_env_info, spec)
-                policy = self._ensure_save_capable(policy)
-                self._latest_policy_uri = normalized_uri
-                logger.info("Loaded policy from %s", normalized_uri)
-                return policy
-            except FileNotFoundError:
-                logger.warning("Policy checkpoint %s not found; training will start fresh", normalized_uri)
-            except Exception as exc:  # pragma: no cover
-                logger.warning("Failed to load policy from %s: %s", normalized_uri, exc)
+            spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+            policy = initialize_or_load_policy(policy_env_info, spec)
+            policy = self._ensure_save_capable(policy)
+            self._latest_policy_uri = normalized_uri
+            logger.info("Loaded policy from %s", normalized_uri)
+            return policy
 
         logger.info("Creating new policy for training run")
         fresh_policy = self._policy_architecture.make_policy(policy_env_info)
