@@ -6,10 +6,60 @@ for blocking bugs before creating a stable release.
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Optional
 
 import asana as asana_sdk
+
+
+def _get_asana_credentials() -> tuple[Optional[str], Optional[str]]:
+    """Get Asana credentials from AWS Secrets Manager or environment variables.
+
+    Returns:
+        Tuple of (token, project_id) or (None, None) if not available
+    """
+    # Try AWS Secrets Manager first
+    try:
+        from softmax.aws.secrets_manager import get_secretsmanager_secret
+
+        secret_str = get_secretsmanager_secret("asana/atlas_app", require_exists=False)
+        if secret_str:
+            secret_data = json.loads(secret_str)
+
+            # Try various field names for token and project_id
+            token = (
+                secret_data.get("token")
+                or secret_data.get("ASANA_TOKEN")
+                or secret_data.get("access_token")
+                or secret_data.get("personal_access_token")
+            )
+            project_id = (
+                secret_data.get("project_id")
+                or secret_data.get("ASANA_PROJECT_ID")
+                or secret_data.get("atlas_project_id")
+            )
+
+            if token and project_id:
+                print("✓ Using Asana credentials from AWS Secrets Manager")
+                return token, project_id
+            elif secret_str:
+                print("⚠️  Asana secret found but missing token or project_id fields")
+                print(f"    Available fields: {', '.join(secret_data.keys())}")
+    except ImportError:
+        # softmax module not available - will fall back to env vars
+        pass
+    except Exception as e:
+        print(f"⚠️  Could not fetch Asana credentials from AWS Secrets Manager: {e}")
+
+    # Fall back to environment variables
+    token = os.getenv("ASANA_TOKEN")
+    project_id = os.getenv("ASANA_PROJECT_ID")
+
+    if token and project_id:
+        print("✓ Using Asana credentials from environment variables")
+
+    return token, project_id
 
 
 def check_blockers() -> Optional[bool]:
@@ -21,8 +71,7 @@ def check_blockers() -> Optional[bool]:
         None if check is inconclusive (Asana unavailable or SDK missing)
     """
 
-    token = os.getenv("ASANA_TOKEN")
-    project_id = os.getenv("ASANA_PROJECT_ID")
+    token, project_id = _get_asana_credentials()
 
     if not (token and project_id):
         return None  # Asana not configured
