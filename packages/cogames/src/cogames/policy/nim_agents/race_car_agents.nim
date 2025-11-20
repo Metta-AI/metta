@@ -604,9 +604,8 @@ proc step*(
       for featureId in chestFeatures:
         chestLoad += agent.cfg.getInventory(agent.map, featureId, chestLoc)
       let chestNearFull = chestLoad >= MaxResourceInventory - 15
-      let dumpAllWorthwhile = (mostlyGermanium and invGermanium >= PutGermaniumAmount * 6 and resourceTypesToDump >= 1) or
-        (chestNearFull and resourceTypesToDump >= 1) or
-        (resourceTypesToDump >= 3 and totalResourceInventory >= MaxResourceInventory div 2)
+      let dumpAllWorthwhile = (mostlyGermanium and invGermanium >= PutGermaniumAmount * 8 and resourceTypesToDump >= 1) or
+        (chestNearFull and resourceTypesToDump >= 2)
       if dumpAllWorthwhile:
         if vibe != agent.cfg.vibes.default:
           doAction(agent.cfg.actions.vibeDefault.int32)
