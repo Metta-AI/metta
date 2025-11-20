@@ -7,7 +7,6 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
@@ -114,13 +113,7 @@ class Checkpointer(TrainerComponent):
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         local_path = checkpoint_dir / filename
 
-        local_uri = policy.save_policy(local_path, policy_architecture=self._policy_architecture)
-
-        uri = local_uri
-        if getattr(self._checkpoint_manager, "_remote_prefix", None):
-            remote_uri = f"{self._checkpoint_manager._remote_prefix}/{filename}"
-            write_file(remote_uri, str(local_path))
-            uri = remote_uri
+        uri = policy.save_policy(local_path, policy_architecture=self._policy_architecture)
 
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
