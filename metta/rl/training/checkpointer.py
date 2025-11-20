@@ -63,6 +63,43 @@ class Checkpointer(TrainerComponent):
         candidate_uri: Optional[str] = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
         load_device = torch.device(self._distributed.config.device)
 
+        # Distributed: master loads once, broadcasts state_dict + architecture; workers rebuild locally.
+        if self._distributed.is_distributed:
+            normalized_uri = (
+                CheckpointManager.normalize_uri(candidate_uri)
+                if self._distributed.is_master() and candidate_uri
+                else None
+            )
+            normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
+
+            if normalized_uri:
+                spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+                payload = None
+                if self._distributed.is_master():
+                    loaded_policy = initialize_or_load_policy(policy_env_info, spec)
+                    state_dict = {k: v.cpu() for k, v in loaded_policy.state_dict().items()}
+                    arch = getattr(loaded_policy, "_policy_architecture", self._policy_architecture)
+                    action_count = len(policy_env_info.actions.actions())
+                    payload = (state_dict, arch, action_count, normalized_uri)
+
+                state_dict, arch, action_count, normalized_uri = self._distributed.broadcast_from_master(payload)
+
+                local_action_count = len(policy_env_info.actions.actions())
+                if local_action_count != action_count:
+                    msg = f"Action space mismatch on resume: master={action_count}, rank={local_action_count}"
+                    raise ValueError(msg)
+
+                policy = arch.make_policy(policy_env_info).to(load_device)
+                if hasattr(policy, "initialize_to_environment"):
+                    policy.initialize_to_environment(policy_env_info, load_device)
+                missing, unexpected = policy.load_state_dict(state_dict, strict=True)
+                if missing or unexpected:
+                    raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+                if self._distributed.is_master():
+                    self._latest_policy_uri = normalized_uri
+                    logger.info("Loaded policy from %s", normalized_uri)
+                return policy
+
         if candidate_uri:
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
             spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
