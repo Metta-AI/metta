@@ -137,6 +137,11 @@ def main():
     # Get cancelled runs
     cancelled_runs = [run for run in all_runs if run.conclusion == "cancelled"]
     print(f"Found {len(cancelled_runs)} cancelled runs")
+    if cancelled_runs:
+        for run in cancelled_runs:
+            branch_info = run.head_branch or "None"
+            sha_info = run.head_sha[:8] if run.head_sha else "None"
+            print(f"  - Run #{run.run_number}: branch={branch_info}, sha={sha_info}")
 
     if len(cancelled_runs) == 0:
         print("No cancelled runs to process")
@@ -149,10 +154,19 @@ def main():
 
     # Filter to only superseded runs
     print("Identifying superseded runs...")
-    superseded_runs = [run for run in cancelled_runs if is_superseded_run(run, all_runs)]
+    superseded_runs = []
+    for run in cancelled_runs:
+        is_superseded = is_superseded_run(run, all_runs)
+        if is_superseded:
+            superseded_runs.append(run)
+            print(f"  ✓ Run #{run.run_number}: SUPERSEDED - will delete")
+        else:
+            print(f"  ✗ Run #{run.run_number}: NOT SUPERSEDED - keeping")
 
-    print(f"Identified {len(superseded_runs)} as superseded (will delete)")
-    print(f"Keeping {len(cancelled_runs) - len(superseded_runs)} cancelled runs (not superseded)")
+    not_superseded_count = len(cancelled_runs) - len(superseded_runs)
+    print(
+        f"\nSummary: {len(superseded_runs)} superseded (will delete), {not_superseded_count} not superseded (keeping)"
+    )
 
     # Limit to max-deletions to prevent rate limits
     runs_to_delete = superseded_runs[:max_deletions]
