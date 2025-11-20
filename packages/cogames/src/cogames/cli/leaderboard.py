@@ -55,7 +55,6 @@ def _load_token(login_server: str) -> str | None:
 
 
 def _fetch_leaderboard(server: str, path: str, token: str) -> dict[str, Any]:
-    console.print(f"[cyan]Fetching leaderboard data from {path}...[/cyan]")
     try:
         response = httpx.get(
             f"{server}{path}",

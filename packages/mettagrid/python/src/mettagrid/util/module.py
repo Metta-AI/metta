@@ -16,14 +16,15 @@ def load_symbol(full_name: str):
         module_name = ".".join(parts[:i])
         try:
             module = importlib.import_module(module_name)
+        except ImportError as e:
+            last_error = e
+            continue
+        try:
             # Navigate through the remaining attributes
             value = module
             for attr_name in parts[i:]:
                 value = getattr(value, attr_name)
             return value
-        except ImportError as e:
-            last_error = e
-            continue
         except AttributeError:
             continue
 
