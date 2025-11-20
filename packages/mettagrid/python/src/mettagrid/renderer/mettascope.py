@@ -16,6 +16,7 @@ METTASCOPE_REPLAY_URL_PREFIX = "https://metta-ai.github.io/metta/mettascope/mett
 
 logger = logging.getLogger(__name__)
 
+
 class MettascopeRenderer(Renderer):
     """Renderer for GUI mode using mettascope."""
 
