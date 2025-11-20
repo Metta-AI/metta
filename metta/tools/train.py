@@ -122,13 +122,6 @@ class TrainTool(Tool):
         distributed_helper = DistributedHelper(self.system)
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
-        if self.trainer.behavior_cloning.policy_uri is not None:
-            self.trainer.losses.supervisor.enabled = True
-            self.trainer.losses.ppo.enabled = False
-            self.training_env.supervisor.policy = self.trainer.behavior_cloning.policy_uri
-            self.training_env.supervisor.policy_data_path = self.trainer.behavior_cloning.policy_data_uri
-            self.trainer.losses.supervisor.teacher_lead_prob = self.trainer.behavior_cloning.teacher_lead_prob
-
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
 
