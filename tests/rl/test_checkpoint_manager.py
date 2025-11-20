@@ -20,6 +20,16 @@ from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action, AgentObservation, ObservationToken
+
+
+def _dummy_observation(env_info: PolicyEnvInterface) -> AgentObservation:
+    feature = env_info.obs_features[0]
+    tokens = [
+        ObservationToken(feature=feature, location=(0, 0), value=0, raw_token=(255, 0, 0))
+        for _ in range(env_info.observation_space.shape[0])
+    ]
+    return AgentObservation(agent_id=0, tokens=tokens)
 
 
 class MockActionComponentConfig(ComponentConfig):
@@ -191,7 +201,8 @@ class TestBasicSaveLoad:
         spec = CheckpointManager.policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
-        assert policy.agent_policy(0) is not None
+        action = policy.agent_step(0, _dummy_observation(env_info))
+        assert isinstance(action, Action)
 
     def test_checkpoint_policy_remains_callable(
         self,

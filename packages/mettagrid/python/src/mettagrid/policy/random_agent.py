@@ -16,6 +16,3 @@ class RandomMultiAgentPolicy(MultiAgentPolicy):
 
     def agent_step(self, agent_id: int, obs):
         return random.choice(self.policy_env_info.actions.actions())
-
-    def agent_policies(self, num_agents: int):
-        return [self.agent_policy(i) for i in range(num_agents)]

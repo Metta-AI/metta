@@ -6,7 +6,7 @@ from tensordict import TensorDict
 from metta.agent.policy import Policy
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig
-from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, ObservationToken
 
@@ -55,26 +55,13 @@ def test_policy_implements_network_method():
     assert isinstance(network, torch.nn.Module)
 
 
-def test_policy_implements_agent_policy_method():
-    """Verify Policy implements agent_policy() method."""
+def test_policy_implements_agent_step_method():
+    """Verify Policy exposes agent_step() that returns an Action."""
     actions = ActionsConfig()
     from mettagrid.config.mettagrid_config import MettaGridConfig
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
     policy = SimplePolicy(actions, policy_env_info)
-
-    agent_policy = policy.agent_policy(agent_id=0)
-    assert isinstance(agent_policy, AgentPolicy)
-
-
-def test_agent_policy_adapter_step():
-    """Verify the AgentPolicy adapter can step."""
-    actions = ActionsConfig()
-    from mettagrid.config.mettagrid_config import MettaGridConfig
-
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
-    policy = SimplePolicy(actions, policy_env_info)
-    agent_policy = policy.agent_policy(agent_id=0)
 
     # Create a simple observation (single agent, token-based)
     # Create mock feature spec for padding tokens
@@ -83,21 +70,20 @@ def test_agent_policy_adapter_step():
     obs = AgentObservation(agent_id=0, tokens=tokens)
 
     # Get action
-    action = agent_policy.step(obs)
+    action = policy.agent_step(agent_id=0, obs=obs)
     assert isinstance(action, Action)
 
 
-def test_agent_policy_adapter_reset():
-    """Verify the AgentPolicy adapter can reset."""
+def test_agent_reset_invokes_policy_memory_reset():
+    """Verify agent_reset() delegates to reset_memory."""
     actions = ActionsConfig()
     from mettagrid.config.mettagrid_config import MettaGridConfig
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
     policy = SimplePolicy(actions, policy_env_info)
-    agent_policy = policy.agent_policy(agent_id=0)
 
     # Should not raise
-    agent_policy.reset()
+    policy.agent_reset(agent_id=0)
 
 
 def test_policy_has_actions_config():

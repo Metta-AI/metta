@@ -9,7 +9,7 @@ import numpy as np
 import torch.nn as nn
 from pydantic import BaseModel, Field
 
-from mettagrid.mettagrid_c import dtype_actions, dtype_observations
+from mettagrid.mettagrid_c import dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -169,15 +169,8 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
             raw_actions[...] = action_buffer[agent_ids]
 
 
-class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
-    """AgentPolicy wrapper that manages internal state (e.g., for RNNs).
-
-    This wraps a stateful policy implementation and maintains the state
-    across step() calls, providing a stateless AgentPolicy interface.
-
-    StateType can be any type representing the agent's internal state.
-    For example, Tuple[torch.Tensor, torch.Tensor] for LSTM hidden states.
-    """
+class StatefulAgentPolicy(Generic[StateType]):
+    """Helper that maintains per-agent state for stateful implementations."""
 
     def __init__(
         self,
@@ -191,13 +184,10 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
             base_policy: The underlying stateful policy implementation
             policy_env_info: The policy environment information
         """
-        super().__init__(policy_env_info)
         self._base_policy = base_policy
         self._state: Optional[StateType] = None
         self._agent_id = agent_id
         self._agent_states: dict[int, StateType] = {}
-        self._action_name_to_index = {name: idx for idx, name in enumerate(policy_env_info.action_names)}
-        self._simulation: Simulation | None = None
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action and update hidden state."""
@@ -214,20 +204,6 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         self._agent_states.clear()
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
-
-    def step_batch(self, _raw_observations, raw_actions) -> None:
-        sim = self._simulation
-        assert sim is not None, "reset() must be called before step_batch()"
-
-        for agent_idx, obs in enumerate(sim.observations()):
-            state = self._agent_states.get(agent_idx) or self._base_policy.initial_agent_state()
-            action, new_state = self._base_policy.step_with_state(obs, state)
-            self._agent_states[agent_idx] = new_state
-            assert isinstance(action, Action), "Policies must return mettagrid.simulator.Action instances"
-            raw_actions[agent_idx] = dtype_actions.type(self._action_name_to_index[action.name])
-
-        if self._agent_id is not None and self._agent_id in self._agent_states:
-            self._state = self._agent_states[self._agent_id]
 
 
 class StatefulPolicyImpl(Generic[StateType]):
@@ -265,11 +241,7 @@ class StatefulPolicyImpl(Generic[StateType]):
 
 
 class TrainablePolicy(MultiAgentPolicy):
-    """Abstract base class for trainable policies.
-
-    TrainablePolicy extends Policy and manages a neural network that can be trained.
-    It creates per-agent AgentPolicy instances that share the same network.
-    """
+    """Abstract base class for trainable policies."""
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
@@ -277,21 +249,6 @@ class TrainablePolicy(MultiAgentPolicy):
     @abstractmethod
     def network(self) -> nn.Module:
         """Get the underlying neural network for training."""
-        ...
-
-    @abstractmethod
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        This must be overridden by trainable policies to return
-        per-agent policy instances.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            An AgentPolicy instance for this agent
-        """
         ...
 
     def load_policy_data(self, policy_data_path: str) -> None:
@@ -330,4 +287,3 @@ class PolicySpec(BaseModel):
         if self.data_path:
             parts.append(Path(self.data_path).name)
         return "-".join(parts)
-

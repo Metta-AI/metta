@@ -14,6 +14,7 @@ from metta.tools.train import TrainTool
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import AgentObservation, ObservationToken
 from recipes.experiment.arena import mettagrid
 from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
 
@@ -86,7 +87,14 @@ class TestNewPolicySystem:
         policy_spec = eval_tool._build_policy_spec(checkpoint_uri)
         env_info = PolicyEnvInterface.from_mg_cfg(env_config)
         policy = initialize_or_load_policy(env_info, policy_spec)
-        assert policy.agent_policy(0) is not None
+        feature = env_info.obs_features[0]
+        tokens = [
+            ObservationToken(feature=feature, location=(0, 0), value=0, raw_token=(255, 0, 0))
+            for _ in range(env_info.observation_space.shape[0])
+        ]
+        obs = AgentObservation(agent_id=0, tokens=tokens)
+        action = policy.agent_step(0, obs)
+        assert action is not None
 
     def test_policy_loading_interface(self):
         """Test that policy loading functions work with versioned URIs."""

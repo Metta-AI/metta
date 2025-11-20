@@ -20,7 +20,7 @@ from metta.rl.policy_artifact import (
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -382,9 +382,6 @@ class CheckpointPolicy(MultiAgentPolicy):
     @property
     def display_name(self) -> str:
         return self._display_name
-
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return self._policy.agent_policy(agent_id)
 
     def __call__(self, *args, **kwargs):
         return self._policy(*args, **kwargs)

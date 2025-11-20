@@ -1,10 +1,10 @@
 import logging
 import time
-from typing import Optional
+from typing import Optional, Tuple
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.envs.stats_tracker import StatsTracker
-from mettagrid.policy.policy import AgentPolicy
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.renderer.renderer import Renderer, RenderMode, create_renderer
 from mettagrid.simulator import Simulator, SimulatorEventHandler
 from mettagrid.util.stats_writer import StatsWriter
@@ -18,7 +18,7 @@ class Rollout:
     def __init__(
         self,
         config: MettaGridConfig,
-        policies: list[AgentPolicy],
+        controllers: list[Tuple[MultiAgentPolicy, int]],
         max_action_time_ms: int | None = 10000,
         render_mode: Optional[RenderMode] = None,
         seed: int = 0,
@@ -27,11 +27,13 @@ class Rollout:
         stats_writer: Optional[StatsWriter] = None,
     ):
         self._config = config
-        self._policies = policies
+        if len(controllers) != config.game.num_agents:
+            raise ValueError("Number of controllers must match number of agents")
+        self._controllers = controllers
         self._simulator = Simulator()
         self._max_action_time_ms: int = max_action_time_ms or 10000
         self._renderer: Optional[Renderer] = None
-        self._timeout_counts: list[int] = [0] * len(policies)
+        self._timeout_counts: list[int] = [0] * len(controllers)
         self._pass_sim_to_policies = pass_sim_to_policies  # Whether to pass the simulation to the policies
         # Attach renderer if specified
         if render_mode is not None:
@@ -47,14 +49,14 @@ class Rollout:
         self._agents = self._sim.agents()
 
         # Reset policies and create agent policies if needed
-        for policy in self._policies:
-            policy.reset()
+        for policy, agent_id in self._controllers:
+            policy.agent_reset(agent_id, self._sim if self._pass_sim_to_policies else None)
 
     def step(self) -> None:
         """Execute one step of the rollout."""
-        for i in range(len(self._policies)):
+        for i, (policy, agent_id) in enumerate(self._controllers):
             start_time = time.time()
-            action = self._policies[i].step(self._agents[i].observation)
+            action = policy.agent_step(agent_id, self._agents[i].observation)
             end_time = time.time()
             if (end_time - start_time) > self._max_action_time_ms:
                 logger.warning(
