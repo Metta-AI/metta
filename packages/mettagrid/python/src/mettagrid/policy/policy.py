@@ -6,9 +6,12 @@ from pathlib import Path
 from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
+import torch
 import torch.nn as nn
 from pydantic import BaseModel, Field
 
+from metta.common.util.file import write_file
+from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from mettagrid.mettagrid_c import dtype_actions, dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
@@ -357,8 +360,6 @@ class TrainablePolicy(MultiAgentPolicy):
 
         Default implementation loads PyTorch state dict.
         """
-        import torch
-
         self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu"))
 
     def save_policy_data(self, policy_data_path: str) -> None:
@@ -366,9 +367,33 @@ class TrainablePolicy(MultiAgentPolicy):
 
         Default implementation uses torch.save.
         """
-        import torch
-
         torch.save(self.network().state_dict(), policy_data_path)
+
+    def save_policy(self, destination: str | Path, *, policy_architecture) -> str:
+        """Persist policy weights + architecture to a URI or filesystem path."""
+
+        path = Path(destination)
+        if path.suffix == "":
+            path = path.with_suffix(".mpt")
+
+        if str(path).startswith("s3://"):
+            local_tmp = Path(path.name)
+            save_policy_artifact_safetensors(
+                local_tmp,
+                policy_architecture=policy_architecture,
+                state_dict=self.network().state_dict(),
+            )
+            write_file(str(path), str(local_tmp))
+            return str(path)
+
+        path = path.expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        save_policy_artifact_safetensors(
+            path,
+            policy_architecture=policy_architecture,
+            state_dict=self.network().state_dict(),
+        )
+        return f"file://{path.resolve()}"
 
 
 class PolicySpec(BaseModel):
