@@ -93,10 +93,11 @@ def stats_client(test_client: TestClient) -> StatsClient:
     client = create_test_stats_client(test_client, machine_token="dummy_token")
     # Override the request method to add X-Auth-Request-Email header
     original_request = client._http_client.request
+    client._test_user_email = "test_user@example.com"
 
     def request_with_auth(method: str, url: str, **kwargs):
         headers = kwargs.get("headers", {})
-        headers["X-Auth-Request-Email"] = "test_user@example.com"
+        headers["X-Auth-Request-Email"] = getattr(client, "_test_user_email", "test_user@example.com")
         kwargs["headers"] = headers
         return original_request(method, url, **kwargs)
 
@@ -137,10 +138,11 @@ def isolated_stats_client(isolated_test_client: TestClient) -> StatsClient:
     client = create_test_stats_client(isolated_test_client, machine_token="dummy_token")
     # Override the request method to add X-Auth-Request-Email header
     original_request = client._http_client.request
+    client._test_user_email = "test_user@example.com"
 
     def request_with_auth(method: str, url: str, **kwargs):
         headers = kwargs.get("headers", {})
-        headers["X-Auth-Request-Email"] = "test_user@example.com"
+        headers["X-Auth-Request-Email"] = getattr(client, "_test_user_email", "test_user@example.com")
         kwargs["headers"] = headers
         return original_request(method, url, **kwargs)
 

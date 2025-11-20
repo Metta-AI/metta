@@ -2,7 +2,7 @@ import logging
 from typing import Sequence
 
 from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
-from metta.app_backend.leaderboard_constants import V0_LEADERBOARD_NAME_TAG_KEY
+from metta.app_backend.leaderboard_constants import LEADERBOARD_SIM_NAME_EPISODE_KEY
 from metta.sim.runner import SimulationRunConfig
 from metta.tools.multi_versioned_policy_eval import MultiPolicyVersionEvalTool
 from metta.tools.utils.auto_config import auto_stats_server_uri
@@ -32,7 +32,7 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
         num_episodes=num_episodes,
         proportions=[1.0, 0.0, 0.0],
         episode_tags={
-            V0_LEADERBOARD_NAME_TAG_KEY: "machina1-self-play",
+            LEADERBOARD_SIM_NAME_EPISODE_KEY: "machina1-self-play",
             "type": "self_play",
         },
     )
@@ -44,7 +44,7 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
         num_episodes=num_episodes,
         proportions=[1.0, 1.0, 0.0],
         episode_tags={
-            V0_LEADERBOARD_NAME_TAG_KEY: "machina1-with-thinky",
+            LEADERBOARD_SIM_NAME_EPISODE_KEY: "machina1-with-thinky",
             "type": "with_thinky",
         },
     )
@@ -56,7 +56,7 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
         num_episodes=num_episodes,
         proportions=[1.0, 0.0, 1.0],
         episode_tags={
-            V0_LEADERBOARD_NAME_TAG_KEY: "machina1-with-ladybug",
+            LEADERBOARD_SIM_NAME_EPISODE_KEY: "machina1-with-ladybug",
             "type": "with_ladybug",
         },
     )
@@ -64,10 +64,11 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
     return [sp_config, thinky_config, ladybug_config]
 
 
+# ./tools/run.py recipes.experiment.v0_leaderboard_eval.run policy_version_id=f32ca3a3-b6f0-479f-8105-27ce02b873cb
 def run(
     policy_version_id: str,
-    result_file_path: str,
-    eval_task_id: str,
+    result_file_path: str | None = None,
+    eval_task_id: str | None = None,
     stats_server_uri: str | None = None,
     seed: int = 50,
 ) -> MultiPolicyVersionEvalTool:
@@ -88,7 +89,7 @@ def run(
     ]
 
     tool = MultiPolicyVersionEvalTool(
-        result_file_path=result_file_path,
+        result_file_path=result_file_path or f"leaderboard_eval_{policy_version_id}.json",
         simulations=simulations(),
         policy_version_ids=policy_version_ids,
         primary_policy_version_id=policy_version_id,
