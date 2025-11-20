@@ -72,7 +72,7 @@ cogames submissions
 # Show current leaderboard
 cogames leaderboard
 
-# Show version info (cogames, mettagrid, pufferlib-core)
+# Show version info for the installed tooling stack
 cogames version
 ```
 
@@ -174,12 +174,12 @@ You can also specify multiple missions with `*` wildcards:
 ### Custom Policy Architectures
 
 To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as StatelessPolicy). To
-supply your own, you will want to extend `cogames.policy.Policy`.
+supply your own, extend the canonical `cogames.policy.MultiAgentPolicy` base class.
 
 ```python
-from cogames.policy import Policy
+from cogames.policy import MultiAgentPolicy
 
-class MyPolicy(Policy):
+class MyPolicy(MultiAgentPolicy):
     def __init__(self, observation_space, action_space):
         self.network = MyNetwork(observation_space, action_space)
 

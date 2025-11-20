@@ -15,6 +15,10 @@ from rich.console import Console
 from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
 from cogames.cli.policy import PolicySpec, get_policy_spec
+from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator.rollout import Rollout
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
 DEFAULT_VALIDATION_MISSION = "vanilla"
@@ -103,6 +107,25 @@ def copy_files_maintaining_structure(files: list[Path], dest_dir: Path, console:
             shutil.copy2(file_path, dest_path)
 
 
+def validate_policy_spec(policy_spec: PolicySpec) -> None:
+    """Validate policy works.
+
+    Loads the policy and runs a single step on a mock environment.
+    """
+    env = MettaGridConfig.EmptyRoom(num_agents=1)
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env)
+    policy = initialize_or_load_policy(policy_env_info, policy_spec)
+    rollout = Rollout(env, [policy.agent_policy(0)])
+    rollout.step()
+
+
+def validate_policy_command(ctx: typer.Context, policy: str) -> None:
+    policy_spec = get_policy_spec(ctx, policy)
+    validate_policy_spec(policy_spec)
+    console.print("[green]Policy validated successfully[/green]")
+    raise typer.Exit(0)
+
+
 def validate_policy_in_isolation(
     policy_spec: PolicySpec,
     include_files: list[Path],
@@ -136,13 +159,8 @@ def validate_policy_in_isolation(
             "uv",
             "run",
             "cogames",
-            "eval",
-            "--mission",
-            DEFAULT_VALIDATION_MISSION,
-            "--policy",
+            "validate-policy",
             policy_arg,
-            "--episodes",
-            str(VALIDATION_EPISODES),
         ]
 
         # Run in temp directory

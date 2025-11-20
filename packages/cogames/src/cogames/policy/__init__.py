@@ -1,22 +1,7 @@
-"""CoGames policy module - re-exports from mettagrid.policy."""
+"""Policy-related helpers."""
 
-from mettagrid.policy.policy import (
-    AgentPolicy,
-    PolicySpec,
-    StatefulAgentPolicy,
-    StatefulPolicyImpl,
-    TrainablePolicy,
-)
-from mettagrid.policy.policy import MultiAgentPolicy as Policy
+from mettagrid.policy.policy import MultiAgentPolicy
 
 from .pufferlib_policy import PufferlibCogsPolicy
 
-__all__ = [
-    "AgentPolicy",
-    "Policy",
-    "PolicySpec",
-    "PufferlibCogsPolicy",
-    "StatefulAgentPolicy",
-    "StatefulPolicyImpl",
-    "TrainablePolicy",
-]
+__all__ = ["MultiAgentPolicy", "PufferlibCogsPolicy"]
