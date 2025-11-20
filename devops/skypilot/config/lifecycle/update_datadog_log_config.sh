@@ -73,7 +73,3 @@ EOF
 # Set proper permissions
 chmod 644 "$LOG_CONFIG_FILE"
 
-echo "[DATADOG] Updated log collection config at ${LOG_CONFIG_FILE}"
-echo "[DATADOG] Tags: ${LOG_TAGS[*]}"
-echo "[DATADOG] Config file size: $(stat -f%z "$LOG_CONFIG_FILE" 2>/dev/null || stat -c%s "$LOG_CONFIG_FILE" 2>/dev/null || echo "unknown") bytes"
-

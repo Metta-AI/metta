@@ -5,19 +5,15 @@
 
 set +e  # Don't exit on error - Datadog is optional, training must continue
 
-# First, update the log collection config with run-specific tags
+# Update log collection config with run-specific tags
 # This must happen in the run phase when METTA_RUN_ID and SKYPILOT_TASK_ID are available
 if [ -f "$(dirname "$0")/update_datadog_log_config.sh" ]; then
-  echo "[DATADOG] Updating log collection config with run-specific tags..."
-  bash "$(dirname "$0")/update_datadog_log_config.sh" || echo "[DATADOG] WARNING: Config update failed, continuing"
+  bash "$(dirname "$0")/update_datadog_log_config.sh" || true
 elif [ -f "./devops/skypilot/config/lifecycle/update_datadog_log_config.sh" ]; then
-  echo "[DATADOG] Updating log collection config with run-specific tags..."
-  bash ./devops/skypilot/config/lifecycle/update_datadog_log_config.sh || echo "[DATADOG] WARNING: Config update failed, continuing"
-else
-  echo "[DATADOG] WARNING: update_datadog_log_config.sh not found, skipping config update"
+  bash ./devops/skypilot/config/lifecycle/update_datadog_log_config.sh || true
 fi
 
-# Try multiple possible locations for the agent binary
+# Find agent binary
 AGENT_BINARY=""
 for path in \
   "/opt/datadog-agent/bin/agent/agent" \
@@ -31,342 +27,59 @@ for path in \
 done
 
 if [ -z "$AGENT_BINARY" ]; then
-  echo "[DATADOG] Agent binary not found in any standard location, attempting to find it..."
-  # Try to find it anywhere
   FOUND_BINARY=$(find /opt /usr -name "agent" -type f -path "*/datadog-agent/*" 2> /dev/null | head -1)
   if [ -n "$FOUND_BINARY" ] && [ -f "$FOUND_BINARY" ]; then
     AGENT_BINARY="$FOUND_BINARY"
-    echo "[DATADOG] Found agent binary at: $AGENT_BINARY"
   else
-    echo "[DATADOG] Agent binary not found, skipping startup"
-    echo "[DATADOG] This may indicate the agent was not properly installed"
-    exit 0
+    exit 0  # Agent not found, skip silently
   fi
 fi
 
-# Check if agent is already running
+# Restart agent if already running to pick up latest config
 if pgrep -f "datadog-agent.*run" > /dev/null 2>&1; then
-  echo "[DATADOG] Agent is already running"
-  # Always restart to ensure it picks up latest config (logs_enabled, log collection config, etc.)
-  # This is safe because we're in the run phase and configs are already set
-  echo "[DATADOG] Restarting agent to ensure latest configuration is loaded..."
   pkill -f "datadog-agent.*run" || true
   sleep 2
 fi
 
-echo "[DATADOG] Starting Datadog agent daemon..."
-
 # Delay startup to prevent interference with training process initialization
 # This gives Ray/Torchrun time to bind ports and start up fully
-echo "[DATADOG] Waiting 60s for training to initialize before starting agent..."
 sleep 60
 
-# Ensure DD_LOGS_ENABLED is set to true for initial startup
-# This environment variable takes precedence over config file
+# CRITICAL: Set DD_LOGS_ENABLED=true - this environment variable takes precedence over config file
+# This ensures the Logs Agent component starts even if the config file has logs_enabled: false
 export DD_LOGS_ENABLED="true"
-echo "[DATADOG] Starting agent with DD_LOGS_ENABLED=true to ensure logs are enabled"
 
-# Start agent in background, redirect output to logs
+# Start agent with DD_LOGS_ENABLED=true to ensure Logs Agent component starts
 DD_LOGS_ENABLED=true nohup "$AGENT_BINARY" run > /tmp/datadog-agent.log 2>&1 &
 AGENT_PID=$!
 
-# Wait a moment and verify it started
 sleep 2
 
-if ps -p "$AGENT_PID" > /dev/null; then
-  echo "[DATADOG] Agent started successfully (PID: $AGENT_PID)"
+if ! ps -p "$AGENT_PID" > /dev/null 2>&1; then
+  exit 0  # Agent failed to start, skip silently
+fi
 
-  # Debug info: Connectivity and Config
-  DD_SITE_VAL=${DD_SITE:-datadoghq.com}
-  echo "[DATADOG] Debug Info:"
-  echo "[DATADOG]   DD_SITE: $DD_SITE_VAL"
-  echo "[DATADOG]   DD_API_KEY: ${DD_API_KEY:0:5}.......${DD_API_KEY: -5}"
-
-  # Basic connectivity check
-  if curl -s --connect-timeout 5 https://google.com > /dev/null; then
-      echo "[DATADOG]   Egress check: OK (can reach google.com)"
-  else
-      echo "[DATADOG]   Egress check: FAILED (cannot reach google.com)"
+# Ensure logs_enabled is set in config file (for next restart, though env var takes precedence)
+MAIN_CONFIG="/etc/datadog-agent/datadog.yaml"
+if [ -f "$MAIN_CONFIG" ] && ! grep -q "logs_enabled: true" "$MAIN_CONFIG" 2>/dev/null; then
+  if grep -q "logs_enabled: false" "$MAIN_CONFIG" 2>/dev/null; then
+    sed -i 's/logs_enabled: false/logs_enabled: true/' "$MAIN_CONFIG"
+  elif ! grep -q "logs_enabled:" "$MAIN_CONFIG" 2>/dev/null; then
+    echo "logs_enabled: true" >> "$MAIN_CONFIG"
   fi
 
-  # Wait a bit more for agent to fully initialize
-  sleep 5
-
-  # CRITICAL: Verify logs_enabled is set in main config
-  MAIN_CONFIG="/etc/datadog-agent/datadog.yaml"
-  CONFIG_FIXED=false
-
-  # Check for environment variable override first (DD_LOGS_ENABLED takes precedence)
-  if [ -n "${DD_LOGS_ENABLED:-}" ]; then
-    if [ "${DD_LOGS_ENABLED}" != "true" ]; then
-      echo "[DATADOG] ⚠️ CRITICAL: DD_LOGS_ENABLED environment variable is set to '${DD_LOGS_ENABLED}' (should be 'true')"
-      echo "[DATADOG] Setting DD_LOGS_ENABLED=true..."
-      export DD_LOGS_ENABLED="true"
-      CONFIG_FIXED=true
-    else
-      echo "[DATADOG] ✓ DD_LOGS_ENABLED=true found in environment"
-    fi
-  else
-    echo "[DATADOG] DD_LOGS_ENABLED not set in environment (will use config file)"
+  # If we updated the config, restart the agent to pick up the change
+  # (though DD_LOGS_ENABLED env var already ensures logs are enabled)
+  pkill -f "datadog-agent.*run" || true
+  sleep 3
+  DD_LOGS_ENABLED=true nohup "$AGENT_BINARY" run > /tmp/datadog-agent.log 2>&1 &
+  NEW_AGENT_PID=$!
+  sleep 2
+  if ! ps -p "$NEW_AGENT_PID" > /dev/null 2>&1; then
+    # Agent restart failed, but this is non-fatal - continue anyway
+    # The initial agent start (line 53) may still be running
+    true  # no-op, just for syntax
   fi
+fi
 
-  if [ -f "$MAIN_CONFIG" ]; then
-    if grep -q "logs_enabled: true" "$MAIN_CONFIG" 2>/dev/null; then
-      echo "[DATADOG] ✓ logs_enabled: true found in main config"
-    else
-      echo "[DATADOG] ⚠️ CRITICAL: logs_enabled: true NOT found in main config!"
-      echo "[DATADOG] Main config contents (grep for logs):"
-      grep -i "log" "$MAIN_CONFIG" | head -10 | sed 's/^/  /' || echo "  (no log-related config found)"
-      echo "[DATADOG] Attempting to fix by adding logs_enabled: true..."
-      if ! grep -q "logs_enabled:" "$MAIN_CONFIG" 2>/dev/null; then
-        echo "logs_enabled: true" >> "$MAIN_CONFIG"
-        echo "[DATADOG] Added logs_enabled: true to config"
-        CONFIG_FIXED=true
-      elif grep -q "logs_enabled: false" "$MAIN_CONFIG" 2>/dev/null; then
-        sed -i 's/logs_enabled: false/logs_enabled: true/' "$MAIN_CONFIG"
-        echo "[DATADOG] Changed logs_enabled from false to true"
-        CONFIG_FIXED=true
-      fi
-
-      # Verify the change was written correctly
-      if [ "$CONFIG_FIXED" = true ]; then
-        if grep -q "logs_enabled: true" "$MAIN_CONFIG" 2>/dev/null; then
-          echo "[DATADOG] ✓ Config file updated successfully"
-        else
-          echo "[DATADOG] ⚠️ WARNING: Config file update may have failed!"
-          echo "[DATADOG] Current logs_enabled line:"
-          grep "logs_enabled:" "$MAIN_CONFIG" | sed 's/^/  /' || echo "  (not found)"
-        fi
-      fi
-    fi
-  else
-    echo "[DATADOG] ⚠️ WARNING: Main config file not found: $MAIN_CONFIG"
-  fi
-
-  # If we fixed the config, restart the agent to pick up changes
-  if [ "$CONFIG_FIXED" = true ]; then
-    echo "[DATADOG] Restarting agent to pick up logs_enabled fix..."
-    pkill -f "datadog-agent.*run" || true
-    sleep 5  # Give it time to fully stop
-
-    # Start agent with explicit DD_LOGS_ENABLED=true to ensure logs are enabled
-    # This environment variable takes precedence over config file
-    export DD_LOGS_ENABLED="true"
-    echo "[DATADOG] Starting agent with DD_LOGS_ENABLED=true"
-    DD_LOGS_ENABLED=true nohup "$AGENT_BINARY" run > /tmp/datadog-agent.log 2>&1 &
-    AGENT_PID=$!
-    sleep 5  # Give agent time to start
-    if ! ps -p "$AGENT_PID" > /dev/null 2>&1; then
-      echo "[DATADOG] ⚠️ Agent failed to restart after config fix"
-    else
-      echo "[DATADOG] ✓ Agent restarted successfully after config fix"
-      echo "[DATADOG] Waiting for Logs Agent component to initialize (this can take 10-20 seconds)..."
-      # Wait for Logs Agent to start - check every 5 seconds, up to 30 seconds
-      LOGS_AGENT_STARTED=false
-      for i in {1..6}; do
-        sleep 5
-        if "$AGENT_BINARY" status > /tmp/datadog-agent-status-check.log 2>&1; then
-          if grep -q "Logs Agent" /tmp/datadog-agent-status-check.log 2>/dev/null && \
-             ! grep -q "Logs Agent is not running" /tmp/datadog-agent-status-check.log 2>/dev/null; then
-            echo "[DATADOG] ✓ Logs Agent component started after ${i}0 seconds"
-            LOGS_AGENT_STARTED=true
-            break
-          fi
-        fi
-      done
-      if [ "$LOGS_AGENT_STARTED" = false ]; then
-        echo "[DATADOG] ⚠️ Logs Agent component did not start after 30 seconds"
-        echo "[DATADOG] Checking agent logs for Logs Agent errors..."
-        grep -i "log.*agent\|log.*collection\|tail.*error" /tmp/datadog-agent.log 2>/dev/null | tail -10 | sed 's/^/  /' || echo "  (no Logs Agent errors found)"
-      fi
-    fi
-  fi
-
-  # After restart, verify the agent actually sees logs_enabled: true
-  if [ "$CONFIG_FIXED" = true ]; then
-    sleep 10  # Wait for agent to fully initialize
-    echo "[DATADOG] Verifying agent configuration..."
-    if "$AGENT_BINARY" configcheck > /tmp/datadog-configcheck-verify.log 2>&1; then
-      if grep -qi "logs_enabled.*true\|logs.*enabled.*true" /tmp/datadog-configcheck-verify.log 2>/dev/null; then
-        echo "[DATADOG] ✓ Agent configcheck shows logs are enabled"
-      else
-        echo "[DATADOG] ⚠️ WARNING: Agent configcheck doesn't show logs_enabled: true"
-        echo "[DATADOG] Configcheck output (grep for logs):"
-        grep -i "log" /tmp/datadog-configcheck-verify.log | head -10 | sed 's/^/  /' || echo "  (no log-related config found)"
-      fi
-    fi
-
-    # Also check agent logs for the "logs-agent disabled" message
-    if [ -f /tmp/datadog-agent.log ]; then
-      if grep -q "logs-agent disabled" /tmp/datadog-agent.log 2>/dev/null; then
-        echo "[DATADOG] ⚠️ CRITICAL: Agent log still shows 'logs-agent disabled' after restart!"
-        echo "[DATADOG] This suggests the config change didn't take effect."
-        echo "[DATADOG] Last 5 lines mentioning logs:"
-        grep -i "log.*agent\|logs.*enabled" /tmp/datadog-agent.log | tail -5 | sed 's/^/  /'
-      else
-        echo "[DATADOG] ✓ No 'logs-agent disabled' message in agent logs"
-      fi
-    fi
-  fi
-
-  # Wait a bit more for Logs Agent to fully initialize before checking status
-  sleep 5
-
-  # Try to verify status and log collection
-  if "$AGENT_BINARY" status > /tmp/datadog-agent-status.log 2>&1; then
-    echo "[DATADOG] Agent status: Running"
-    # Check if log collection is enabled
-    if grep -q "Logs Agent" /tmp/datadog-agent-status.log 2>/dev/null; then
-      echo "[DATADOG] Log collection appears to be enabled"
-      # Extract and show the full Logs Agent section - THIS IS CRITICAL
-      echo "[DATADOG] ===== Logs Agent Status (shows what files are being tailed) ====="
-      # Try to extract the Logs Agent section
-      if command -v awk >/dev/null 2>&1; then
-        awk '/Logs Agent/,/^===|^$/' /tmp/datadog-agent-status.log | head -100 | sed 's/^/  /' || \
-        grep -A 100 "Logs Agent" /tmp/datadog-agent-status.log | head -100 | sed 's/^/  /'
-      else
-        grep -A 100 "Logs Agent" /tmp/datadog-agent-status.log | head -100 | sed 's/^/  /'
-      fi
-      echo "[DATADOG] ================================================================="
-
-      # Check specifically if our log file is being tailed
-      if grep -q "training_combined.log" /tmp/datadog-agent-status.log 2>/dev/null; then
-        echo "[DATADOG] ✓ training_combined.log is being tailed by agent"
-      else
-        echo "[DATADOG] ⚠️ WARNING: training_combined.log NOT found in Logs Agent status!"
-        echo "[DATADOG] This means the agent is not tailing the file."
-      fi
-    else
-      echo "[DATADOG] ⚠️ WARNING: Could not verify log collection status"
-      echo "[DATADOG] Full status output (first 200 lines):"
-      head -200 /tmp/datadog-agent-status.log | sed 's/^/  /'
-    fi
-  else
-    echo "[DATADOG] Agent started but status check failed (may need more time)"
-    echo "[DATADOG] Status output:"
-    cat /tmp/datadog-agent-status.log 2>/dev/null || echo "  (no status output)"
-  fi
-
-  # Verify log collection config exists and show contents
-  if [ -f "/etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml" ]; then
-    echo "[DATADOG] Log collection config found: /etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml"
-    echo "[DATADOG] Config file contents (first 20 lines):"
-    head -20 "/etc/datadog-agent/conf.d/skypilot_training.d/conf.yaml" | sed 's/^/  /'
-
-    # Check if agent can see the config
-    if "$AGENT_BINARY" configcheck > /tmp/datadog-configcheck.log 2>&1; then
-      if grep -q "skypilot_training" /tmp/datadog-configcheck.log 2>/dev/null; then
-        echo "[DATADOG] ✓ Agent recognizes skypilot_training config"
-      else
-        echo "[DATADOG] ⚠️ Agent configcheck doesn't show skypilot_training config"
-        echo "[DATADOG] Configcheck output:"
-        cat /tmp/datadog-configcheck.log | head -30 | sed 's/^/  /'
-      fi
-    fi
-  else
-    echo "[DATADOG] WARNING: Log collection config not found!"
-    echo "[DATADOG] Checking what config files exist:"
-    ls -la /etc/datadog-agent/conf.d/*/conf.yaml 2>/dev/null | head -10 | sed 's/^/  /' || echo "  (no config files found)"
-  fi
-
-  # Check if log files exist and have content
-  if [ -f "/tmp/training_logs/training_combined.log" ]; then
-    LOG_SIZE=$(stat -f%z /tmp/training_logs/training_combined.log 2>/dev/null || stat -c%s /tmp/training_logs/training_combined.log 2>/dev/null || echo "0")
-    LOG_PERMS=$(stat -f "%A %N" /tmp/training_logs/training_combined.log 2>/dev/null || stat -c "%a %n" /tmp/training_logs/training_combined.log 2>/dev/null || echo "unknown")
-    echo "[DATADOG] Training log file exists: /tmp/training_logs/training_combined.log (size: ${LOG_SIZE} bytes, perms: ${LOG_PERMS})"
-
-    # CRITICAL: Test if dd-agent user can read it
-    if id dd-agent >/dev/null 2>&1; then
-      if sudo -u dd-agent test -r "/tmp/training_logs/training_combined.log" 2>/dev/null; then
-        echo "[DATADOG] ✓ dd-agent user can read the log file"
-      else
-        echo "[DATADOG] ⚠️ CRITICAL: dd-agent user CANNOT read the log file (permission issue!)"
-        echo "[DATADOG] Current file permissions:"
-        ls -la "/tmp/training_logs/training_combined.log" | sed 's/^/  /'
-        echo "[DATADOG] Fixing permissions (trying multiple methods)..."
-
-        # Method 1: Make file world-readable
-        chmod 666 "/tmp/training_logs/training_combined.log" 2>/dev/null || true
-        chmod 777 "/tmp/training_logs" 2>/dev/null || true
-
-        # Method 2: If that didn't work, try with explicit o+r
-        if ! sudo -u dd-agent test -r "/tmp/training_logs/training_combined.log" 2>/dev/null; then
-          chmod o+r "/tmp/training_logs/training_combined.log" 2>/dev/null || true
-          chmod o+x "/tmp/training_logs" 2>/dev/null || true
-        fi
-
-        # Method 3: Try changing ownership if we're root
-        if [ "$(id -u)" = "0" ]; then
-          chown dd-agent:dd-agent "/tmp/training_logs/training_combined.log" 2>/dev/null || true
-        fi
-
-        # Verify fix worked
-        sleep 1
-        if sudo -u dd-agent test -r "/tmp/training_logs/training_combined.log" 2>/dev/null; then
-          echo "[DATADOG] ✓ Permissions fixed, dd-agent can now read the file"
-          echo "[DATADOG] Final file permissions:"
-          ls -la "/tmp/training_logs/training_combined.log" | sed 's/^/  /'
-        else
-          echo "[DATADOG] ⚠️ Permissions fix failed - this will prevent log collection!"
-          echo "[DATADOG] Final file permissions:"
-          ls -la "/tmp/training_logs/training_combined.log" | sed 's/^/  /'
-          echo "[DATADOG] dd-agent user info:"
-          id dd-agent | sed 's/^/  /' || echo "  (could not get dd-agent user info)"
-        fi
-      fi
-    else
-      echo "[DATADOG] Note: dd-agent user not found (may be running as root, which is OK)"
-    fi
-  else
-    echo "[DATADOG] WARNING: Training log file not found: /tmp/training_logs/training_combined.log"
-  fi
-
-  # Check agent's own logs for errors, especially Logs Agent related
-  if [ -f /tmp/datadog-agent.log ]; then
-    echo "[DATADOG] Checking agent logs for Logs Agent errors..."
-
-    # Check specifically for Logs Agent startup errors
-    if grep -qi "logs.*agent.*not.*running\|log.*receiver.*not.*provided\|logs.*agent.*error\|log.*collection.*error" /tmp/datadog-agent.log 2>/dev/null; then
-      echo "[DATADOG] ⚠️ Found Logs Agent errors in agent log:"
-      grep -i "logs.*agent.*not.*running\|log.*receiver.*not.*provided\|logs.*agent.*error\|log.*collection.*error" /tmp/datadog-agent.log | tail -10 | sed 's/^/  /'
-    fi
-
-    # Check for general errors
-    ERROR_COUNT=$(grep -i "error\|warn\|fail" /tmp/datadog-agent.log 2>/dev/null | wc -l || echo "0")
-    if [ "$ERROR_COUNT" -gt 0 ]; then
-      echo "[DATADOG] Found ${ERROR_COUNT} total error/warning lines in agent log (showing last 10):"
-      grep -i "error\|warn\|fail" /tmp/datadog-agent.log | tail -10 | sed 's/^/  /'
-    else
-      echo "[DATADOG] ✓ No obvious errors in agent log"
-    fi
-
-    # Check specifically for log collection/tailing errors
-    if grep -qi "tail.*error\|cannot.*read.*log\|permission.*denied.*log" /tmp/datadog-agent.log 2>/dev/null; then
-      echo "[DATADOG] ⚠️ Found log file access errors in agent log:"
-      grep -i "tail.*error\|cannot.*read.*log\|permission.*denied.*log" /tmp/datadog-agent.log | tail -10 | sed 's/^/  /'
-    fi
-  fi
-
-  # Test connectivity to Datadog log intake
-  DD_SITE_VAL=${DD_SITE:-datadoghq.com}
-  LOG_INTAKE_HOST="intake.logs.${DD_SITE_VAL}"
-  echo "[DATADOG] Testing connectivity to Datadog log intake: ${LOG_INTAKE_HOST}:443"
-  if timeout 5 bash -c "echo > /dev/tcp/${LOG_INTAKE_HOST}/443" 2>/dev/null || \
-     timeout 5 nc -zvw3 "${LOG_INTAKE_HOST}" 443 2>&1 | grep -q "succeeded\|open"; then
-    echo "[DATADOG] ✓ Can reach Datadog log intake endpoint"
-  else
-    echo "[DATADOG] ⚠️ WARNING: Cannot reach Datadog log intake endpoint (network issue?)"
-  fi
-  else
-    echo "[DATADOG] WARNING: Agent process died immediately after startup (non-critical)"
-    echo "[DATADOG] Check logs: /tmp/datadog-agent.log"
-    if [ -f /tmp/datadog-agent.log ]; then
-      echo "[DATADOG] Last 20 lines of agent log:"
-      tail -20 /tmp/datadog-agent.log || true
-    fi
-    # Don't exit with error - Datadog failures shouldn't break training
-    exit 0
-  fi
-
-# Always exit successfully - Datadog is optional
 exit 0

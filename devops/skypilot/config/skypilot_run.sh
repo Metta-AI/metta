@@ -258,20 +258,6 @@ run_cmd() {
     exit 1
   fi
 
-  # Wait a bit and check if logs are being written (training is actually running)
-  sleep 5
-  if [ -f "$TRAINING_COMBINED_LOG" ]; then
-    LOG_SIZE=$(wc -c < "$TRAINING_COMBINED_LOG" 2>/dev/null || echo 0)
-    echo "[INFO] Combined log file size after 5s: ${LOG_SIZE} bytes"
-    if [ "$LOG_SIZE" -gt 0 ]; then
-      echo "[INFO] Training is producing output to log file"
-    else
-      echo "[WARN] Training process is running but log file is empty"
-    fi
-  else
-    echo "[WARN] Training log file not found yet (devops/run.sh should create it)"
-  fi
-
   start_monitors
   start_datadog_agent
 
