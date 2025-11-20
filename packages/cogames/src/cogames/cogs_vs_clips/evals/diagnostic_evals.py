@@ -14,6 +14,7 @@ from mettagrid.config.mettagrid_config import (
     ResourceLimitsConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
+from mettagrid.mapgen.mapgen import MapGen
 
 RESOURCE_NAMES: tuple[str, ...] = ("carbon", "oxygen", "germanium", "silicon")
 
@@ -28,7 +29,12 @@ def get_map(map_name: str) -> MapBuilderConfig:
     map_path = MAPS_DIR / normalized
     if not map_path.exists():
         raise FileNotFoundError(f"Diagnostic map not found: {map_path}")
-    return MapBuilderConfig.from_uri(str(map_path))
+    # Wrap AsciiMapBuilderConfig in MapGen.Config to match standard get_map() behavior
+    return MapGen.Config(
+        instance=MapBuilderConfig.from_uri(str(map_path)),
+        fixed_spawn_order=False,
+        instance_border_width=0,  # Don't add border - maps already have borders built in
+    )
 
 
 def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig], None]) -> Mission:
