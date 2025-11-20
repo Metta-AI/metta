@@ -21,6 +21,12 @@ type ViewConfig = {
   emptyMessage: string
 }
 
+type EvalStatusInfo = {
+  attempts: number | null
+  status: 'pending' | 'complete' | 'canceled'
+  label: string
+}
+
 const REFRESH_INTERVAL_MS = 10_000
 
 const STYLES = `
@@ -127,6 +133,49 @@ const STYLES = `
 .policy-title {
   font-weight: 600;
   margin-bottom: 4px;
+}
+
+.policy-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.policy-title-row .policy-title {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.policy-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+  margin-left: auto;
+}
+
+.policy-status-badge.pending {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5f5;
+}
+
+.policy-status-badge.complete {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+.policy-status-badge.canceled {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
 }
 
 .policy-meta {
@@ -271,6 +320,11 @@ const STYLES = `
   }
 }
 `
+const LEADERBOARD_SIM_VERSION = 'v0.1'
+const LEADERBOARD_ATTEMPTS_TAG = `leaderboard-attempts-${LEADERBOARD_SIM_VERSION}`
+const LEADERBOARD_DONE_TAG = `leaderboard-evals-done-${LEADERBOARD_SIM_VERSION}`
+const LEADERBOARD_DONE_VALUE = 'true'
+const LEADERBOARD_CANCELED_VALUE = 'canceled'
 
 const formatDate = (value: string | null): string => {
   if (!value) {
@@ -293,6 +347,20 @@ const formatScore = (value: number | null): string => {
 const formatSimulationLabel = (identifier: string): string => {
   const parts = identifier.split(':')
   return parts[parts.length - 1] || identifier
+}
+
+const getEvalStatus = (tags: Record<string, string>): EvalStatusInfo => {
+  const attemptValue = tags[LEADERBOARD_ATTEMPTS_TAG]
+  const parsedAttempts = attemptValue !== undefined ? Number(attemptValue) : null
+  const attempts = typeof parsedAttempts === 'number' && Number.isFinite(parsedAttempts) ? parsedAttempts : null
+  const doneValue = tags[LEADERBOARD_DONE_TAG]
+  if (doneValue === LEADERBOARD_CANCELED_VALUE) {
+    return { attempts, status: 'canceled', label: 'Canceled' }
+  }
+  if (doneValue === LEADERBOARD_DONE_VALUE) {
+    return { attempts, status: 'complete', label: 'Complete' }
+  }
+  return { attempts, status: 'pending', label: 'Pending' }
 }
 
 const createInitialSectionState = (): SectionState => ({
@@ -407,14 +475,14 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
     }
   }
 
-  const renderCopyableCommand = (command: string, commandKey: string) => (
+  const renderCopyableCommand = (command: string, commandKey: string, label: string) => (
     <button
       type="button"
       className={`copy-command ${copiedCommand === commandKey ? 'copied' : ''}`}
       onClick={() => void copyCommandToClipboard(command, commandKey)}
     >
       <code>{command}</code>
-      <span className="copy-command-status">{copiedCommand === commandKey ? 'Copied!' : 'Copy'}</span>
+      <span className="copy-command-status">{copiedCommand === commandKey ? 'Copied!' : label}</span>
     </button>
   )
 
@@ -453,13 +521,17 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
             const isExpanded = expandedRows.has(rowKey)
             const scoreEntries = Object.entries(entry.scores).sort(([a], [b]) => a.localeCompare(b))
             const tagEntries = Object.entries(policyVersion.tags).sort(([a], [b]) => a.localeCompare(b))
+            const evalStatus = getEvalStatus(policyVersion.tags)
             const evaluateCommand = `./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_version_id=${policyId}`
             const playCommand = `./tools/run.py recipes.experiment.v0_leaderboard.play policy_version_id=${policyId}`
             return (
               <Fragment key={`${config.sectionKey}-${policyId}`}>
                 <tr className="policy-row" onClick={() => toggleRow(rowKey)}>
                   <td>
-                    <div className="policy-title">{policyDisplay}</div>
+                    <div className="policy-title-row">
+                      <div className="policy-title">{policyDisplay}</div>
+                      <span className={`policy-status-badge ${evalStatus.status}`}>{evalStatus.label}</span>
+                    </div>
                     <div className="policy-meta">{policyVersion.user_id}</div>
                   </td>
                   <td>
@@ -474,7 +546,6 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
                     <td colSpan={3}>
                       <div className="policy-details">
                         <div className="detail-block">
-                          <div className="detail-heading">Scores by Simulation</div>
                           {scoreEntries.length === 0 ? (
                             <div className="policy-meta">No simulation scores available.</div>
                           ) : (
@@ -496,15 +567,26 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
                             </table>
                           )}
                         </div>
+                        {evalStatus.status === 'canceled' && (
+                          <div className="detail-block">
+                            <div className="detail-heading">Leaderboard Eval Status</div>
+                            <div className="policy-meta">
+                              Evaluations were automatically canceled after repeated failures.
+                            </div>
+                          </div>
+                        )}
                         <div className="detail-block">
-                          <div className="detail-heading">Policy version ID</div>
-                          <div className="metadata-inline">{policyVersion.id}</div>
+                          <div className="command-list">
+                            <div className="command-item">
+                              {renderCopyableCommand(evaluateCommand, `${policyId}-evaluate`, 'Evaluate')}
+                            </div>
+                            <div className="command-item">
+                              {renderCopyableCommand(playCommand, `${policyId}-play`, 'Play')}
+                            </div>
+                          </div>
                         </div>
                         <div className="detail-block">
-                          <div className="detail-heading">Tags</div>
-                          {tagEntries.length === 0 ? (
-                            <div className="policy-meta">No tags for this policy version.</div>
-                          ) : (
+                          {tagEntries.length === 0 ? null : (
                             <div className="tag-list">
                               {tagEntries.map(([key, value]) => (
                                 <span key={`${policyId}-${key}-${value}`} className="tag">
@@ -513,19 +595,6 @@ export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
                               ))}
                             </div>
                           )}
-                        </div>
-                        <div className="detail-block">
-                          <div className="detail-heading">Run and Play</div>
-                          <div className="command-list">
-                            <div className="command-item">
-                              <div className="command-item-label">Evaluate</div>
-                              {renderCopyableCommand(evaluateCommand, `${policyId}-evaluate`)}
-                            </div>
-                            <div className="command-item">
-                              <div className="command-item-label">Play</div>
-                              {renderCopyableCommand(playCommand, `${policyId}-play`)}
-                            </div>
-                          </div>
                         </div>
                       </div>
                     </td>

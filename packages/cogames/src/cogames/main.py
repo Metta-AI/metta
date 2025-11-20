@@ -1,11 +1,12 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
 # ruff: noqa: E402
 
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
-from cogames.cli.utils import init_suppress_warnings
+from cogames.cli.utils import suppress_noisy_logs
 
-init_suppress_warnings()
+suppress_noisy_logs()
 
 import importlib.metadata
 import importlib.util

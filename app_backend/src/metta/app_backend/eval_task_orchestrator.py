@@ -1,4 +1,6 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
 """
 Orchestrates containers to process eval tasks, one container per git hash.
 
@@ -8,6 +10,10 @@ This script:
 3. Dynamically creates workers for new git hashes
 4. Monitors container status and reports results
 """
+
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 
 import asyncio
 import logging
@@ -33,7 +39,6 @@ from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
-from metta.common.util.log_config import init_suppress_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -259,12 +264,9 @@ def init_logging():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-
 
 async def main() -> None:
     init_logging()
-    init_suppress_warnings()
     init_tracing()
 
     backend_url = os.environ.get("BACKEND_URL", DEV_STATS_SERVER_URI)
