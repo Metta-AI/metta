@@ -12,19 +12,28 @@ from metta.common.tool import Tool
 def find_latest_checkpoint(checkpoints_dir: Path, mission_name: str) -> Path | None:
     """Find the most recent checkpoint for the mission.
 
-    Checkpoints are in: checkpoints_dir/mission_name/*.pt
+    PufferLib may save checkpoints in either:
+    - checkpoints_dir/mission_name/*.pt (when env_name is set)
+    - checkpoints_dir/*.pt (direct save to data_dir)
+
+    This matches the behavior of mettagrid.policy.loader.find_policy_checkpoints().
     """
+    # First try mission subdirectory (PufferLib standard)
     mission_dir = checkpoints_dir / mission_name
-    if not mission_dir.exists():
-        return None
+    if mission_dir.exists():
+        checkpoints = list(mission_dir.glob("*.pt"))
+        if checkpoints:
+            checkpoints.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return checkpoints[0]
 
-    checkpoints = list(mission_dir.glob("*.pt"))
-    if not checkpoints:
-        return None
+    # Fallback: check root checkpoints directory
+    if checkpoints_dir.exists():
+        checkpoints = list(checkpoints_dir.glob("*.pt"))
+        if checkpoints:
+            checkpoints.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return checkpoints[0]
 
-    # Sort by modification time, return most recent
-    checkpoints.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return checkpoints[0]
+    return None
 
 
 class CogamesTrainTool(Tool):
