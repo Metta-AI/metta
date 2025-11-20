@@ -61,8 +61,13 @@ echo "[DATADOG] Starting Datadog agent daemon..."
 echo "[DATADOG] Waiting 60s for training to initialize before starting agent..."
 sleep 60
 
+# Ensure DD_LOGS_ENABLED is set to true for initial startup
+# This environment variable takes precedence over config file
+export DD_LOGS_ENABLED="true"
+echo "[DATADOG] Starting agent with DD_LOGS_ENABLED=true to ensure logs are enabled"
+
 # Start agent in background, redirect output to logs
-nohup "$AGENT_BINARY" run > /tmp/datadog-agent.log 2>&1 &
+DD_LOGS_ENABLED=true nohup "$AGENT_BINARY" run > /tmp/datadog-agent.log 2>&1 &
 AGENT_PID=$!
 
 # Wait a moment and verify it started
@@ -90,6 +95,21 @@ if ps -p "$AGENT_PID" > /dev/null; then
   # CRITICAL: Verify logs_enabled is set in main config
   MAIN_CONFIG="/etc/datadog-agent/datadog.yaml"
   CONFIG_FIXED=false
+  
+  # Check for environment variable override first (DD_LOGS_ENABLED takes precedence)
+  if [ -n "${DD_LOGS_ENABLED:-}" ]; then
+    if [ "${DD_LOGS_ENABLED}" != "true" ]; then
+      echo "[DATADOG] ⚠️ CRITICAL: DD_LOGS_ENABLED environment variable is set to '${DD_LOGS_ENABLED}' (should be 'true')"
+      echo "[DATADOG] Setting DD_LOGS_ENABLED=true..."
+      export DD_LOGS_ENABLED="true"
+      CONFIG_FIXED=true
+    else
+      echo "[DATADOG] ✓ DD_LOGS_ENABLED=true found in environment"
+    fi
+  else
+    echo "[DATADOG] DD_LOGS_ENABLED not set in environment (will use config file)"
+  fi
+  
   if [ -f "$MAIN_CONFIG" ]; then
     if grep -q "logs_enabled: true" "$MAIN_CONFIG" 2>/dev/null; then
       echo "[DATADOG] ✓ logs_enabled: true found in main config"
@@ -107,6 +127,17 @@ if ps -p "$AGENT_PID" > /dev/null; then
         echo "[DATADOG] Changed logs_enabled from false to true"
         CONFIG_FIXED=true
       fi
+      
+      # Verify the change was written correctly
+      if [ "$CONFIG_FIXED" = true ]; then
+        if grep -q "logs_enabled: true" "$MAIN_CONFIG" 2>/dev/null; then
+          echo "[DATADOG] ✓ Config file updated successfully"
+        else
+          echo "[DATADOG] ⚠️ WARNING: Config file update may have failed!"
+          echo "[DATADOG] Current logs_enabled line:"
+          grep "logs_enabled:" "$MAIN_CONFIG" | sed 's/^/  /' || echo "  (not found)"
+        fi
+      fi
     fi
   else
     echo "[DATADOG] ⚠️ WARNING: Main config file not found: $MAIN_CONFIG"
@@ -117,7 +148,12 @@ if ps -p "$AGENT_PID" > /dev/null; then
     echo "[DATADOG] Restarting agent to pick up logs_enabled fix..."
     pkill -f "datadog-agent.*run" || true
     sleep 5  # Give it time to fully stop
-    nohup "$AGENT_BINARY" run > /tmp/datadog-agent.log 2>&1 &
+    
+    # Start agent with explicit DD_LOGS_ENABLED=true to ensure logs are enabled
+    # This environment variable takes precedence over config file
+    export DD_LOGS_ENABLED="true"
+    echo "[DATADOG] Starting agent with DD_LOGS_ENABLED=true"
+    DD_LOGS_ENABLED=true nohup "$AGENT_BINARY" run > /tmp/datadog-agent.log 2>&1 &
     AGENT_PID=$!
     sleep 5  # Give agent time to start
     if ! ps -p "$AGENT_PID" > /dev/null 2>&1; then
@@ -142,6 +178,33 @@ if ps -p "$AGENT_PID" > /dev/null; then
         echo "[DATADOG] ⚠️ Logs Agent component did not start after 30 seconds"
         echo "[DATADOG] Checking agent logs for Logs Agent errors..."
         grep -i "log.*agent\|log.*collection\|tail.*error" /tmp/datadog-agent.log 2>/dev/null | tail -10 | sed 's/^/  /' || echo "  (no Logs Agent errors found)"
+      fi
+    fi
+  fi
+  
+  # After restart, verify the agent actually sees logs_enabled: true
+  if [ "$CONFIG_FIXED" = true ]; then
+    sleep 10  # Wait for agent to fully initialize
+    echo "[DATADOG] Verifying agent configuration..."
+    if "$AGENT_BINARY" configcheck > /tmp/datadog-configcheck-verify.log 2>&1; then
+      if grep -qi "logs_enabled.*true\|logs.*enabled.*true" /tmp/datadog-configcheck-verify.log 2>/dev/null; then
+        echo "[DATADOG] ✓ Agent configcheck shows logs are enabled"
+      else
+        echo "[DATADOG] ⚠️ WARNING: Agent configcheck doesn't show logs_enabled: true"
+        echo "[DATADOG] Configcheck output (grep for logs):"
+        grep -i "log" /tmp/datadog-configcheck-verify.log | head -10 | sed 's/^/  /' || echo "  (no log-related config found)"
+      fi
+    fi
+    
+    # Also check agent logs for the "logs-agent disabled" message
+    if [ -f /tmp/datadog-agent.log ]; then
+      if grep -q "logs-agent disabled" /tmp/datadog-agent.log 2>/dev/null; then
+        echo "[DATADOG] ⚠️ CRITICAL: Agent log still shows 'logs-agent disabled' after restart!"
+        echo "[DATADOG] This suggests the config change didn't take effect."
+        echo "[DATADOG] Last 5 lines mentioning logs:"
+        grep -i "log.*agent\|logs.*enabled" /tmp/datadog-agent.log | tail -5 | sed 's/^/  /'
+      else
+        echo "[DATADOG] ✓ No 'logs-agent disabled' message in agent logs"
       fi
     fi
   fi
