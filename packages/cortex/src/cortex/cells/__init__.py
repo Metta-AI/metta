@@ -3,7 +3,6 @@
 from cortex.cells.agalite import AGaLiTeCell
 from cortex.cells.base import MemoryCell
 
-# Import cells to register them
 from cortex.cells.conv import CausalConv1d
 from cortex.cells.core import AxonCell, AxonLayer
 from cortex.cells.hf_llama import HFLlamaLayerCell

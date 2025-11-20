@@ -74,10 +74,8 @@ class LayerwiseCache:
 class HFLlamaLayerConfig(CellConfig):
     """Config for the HF LLaMA layer wrapper; expects hf_layer, hf_submodel, hf_config set at runtime."""
 
-    # Tag used by the registry
     cell_type: str = "hf_llama_layer"
 
-    # Interface
     hidden_size: int | None = None
     mem_len: int = 0
 
@@ -91,8 +89,6 @@ class HFLlamaLayerCell(MemoryCell):
             raise ValueError("HFLlamaLayerConfig.hidden_size must be set")
         super().__init__(hidden_size=int(cfg.hidden_size))
         self.cfg = cfg
-
-        # Extra runtime objects (accepted via pydantic extra fields)
         hf_layer = getattr(cfg, "hf_layer", None)
         hf_submodel = getattr(cfg, "hf_submodel", None)
         hf_config = getattr(cfg, "hf_config", None)
@@ -101,11 +97,6 @@ class HFLlamaLayerCell(MemoryCell):
         if not isinstance(hf_submodel, nn.Module):
             raise ValueError("HFLlamaLayerConfig must include an 'hf_submodel' nn.Module (e.g., model.model)")
         self.hf_layer: nn.Module = hf_layer
-        # IMPORTANT: Do NOT register the entire HF submodel as a submodule here.
-        # Registering it would pull in parameters from all layers (embed/norm/other blocks)
-        # which are not used by this cell's forward, causing DDP to flag unused parameters.
-        # We only need rotary embeddings; keep a direct handle to that module instead.
-        # LlamaRotaryEmbedding carries buffers but no trainable parameters, so it is safe.
         rotary_emb = getattr(hf_submodel, "rotary_emb", None)
         if rotary_emb is None:
             raise ValueError("hf_submodel is missing 'rotary_emb'")
@@ -114,16 +105,13 @@ class HFLlamaLayerCell(MemoryCell):
 
         self.mem_len = int(cfg.mem_len)
 
-    # ---- state helpers ----
     def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
         if self.mem_len <= 0:
-            # No KV cache; keep only positions and segment positions
             pos = torch.zeros(batch, dtype=torch.long, device=device)
             seg_pos = torch.zeros(batch, dtype=torch.long, device=device)
             kv_len = torch.zeros(batch, dtype=torch.long, device=device)
             return TensorDict({"pos": pos, "seg_pos": seg_pos, "kv_len": kv_len}, batch_size=[batch])
 
-        # Infer KV shapes from config (robust across implementations)
         n_kv = int(getattr(self.hf_config, "num_key_value_heads", getattr(self.hf_config, "num_attention_heads", 1)))
         head_dim = int(
             getattr(
@@ -156,8 +144,6 @@ class HFLlamaLayerCell(MemoryCell):
             raise ValueError(f"resets must have shape {(B, T)}; got {r.shape}")
         return r
 
-    # No dynamic cache helpers needed with tensor-backed KV state
-
     def _prepare_layerwise_cache(
         self,
         state: TensorDict,
@@ -169,7 +155,6 @@ class HFLlamaLayerCell(MemoryCell):
     ) -> tuple[LayerwiseCache, int, torch.Tensor]:
         """Create cache and return (cache, layer_idx, kv_len)."""
         if "k" not in state.keys() or "v" not in state.keys():
-            # Should not happen for mem_len > 0, but fall back to init_state for robustness.
             state.update(self.init_state(batch=B, device=device, dtype=dtype))
 
         k = state.get("k")
@@ -206,9 +191,7 @@ class HFLlamaLayerCell(MemoryCell):
         device: torch.device,
     ) -> torch.Tensor:
         """Return additive mask [B,1,T,(P+T)] for dynamic semantics."""
-        # Past keys absolute start index currently in cache for this layer
-        abs_past_start = pos - past_len  # [B]
-        # Past tokens to mask due to prior segment start across calls
+        abs_past_start = pos - past_len
         n_invalid = torch.clamp(seg_pos - abs_past_start, min=0)
         n_invalid = torch.clamp(n_invalid, max=past_len)
 
@@ -216,18 +199,16 @@ class HFLlamaLayerCell(MemoryCell):
         k_idx = torch.arange(K, device=device).view(1, 1, -1).expand(B, T, -1)
         q_idx = torch.arange(T, device=device).view(1, -1)
 
-        # Earliest allowed key index per (b,t)
-        earliest_past = n_invalid.view(B, 1).expand(B, T)  # base if no reset yet
-        earliest_from_resets = past_len + last_reset_idx  # P + r, with r=-1 if no reset
+        earliest_past = n_invalid.view(B, 1).expand(B, T)
+        earliest_from_resets = past_len + last_reset_idx
         earliest_allowed = torch.where(last_reset_idx >= 0, earliest_from_resets, earliest_past)
 
-        # Latest allowed key index per (b,t) from causal structure
         latest_allowed = past_len + q_idx.expand(B, T)
 
         allowed = (k_idx >= earliest_allowed.unsqueeze(-1)) & (k_idx <= latest_allowed.unsqueeze(-1))
         neg_inf = torch.tensor(float("-inf"), device=device, dtype=dtype)
         mask = torch.where(allowed, torch.zeros((), device=device, dtype=dtype), neg_inf)
-        return mask.unsqueeze(1)  # [B,1,T,K]
+        return mask.unsqueeze(1)
 
     def _build_additive_mask_static(
         self,
@@ -235,16 +216,16 @@ class HFLlamaLayerCell(MemoryCell):
         B: int,
         T: int,
         mem_len: int,
-        kv_len: torch.Tensor,  # [B]
-        pos: torch.Tensor,  # [B]
-        seg_pos: torch.Tensor,  # [B]
-        last_reset_idx: torch.Tensor,  # [B,T] with -1 for no reset
+        kv_len: torch.Tensor,
+        pos: torch.Tensor,
+        seg_pos: torch.Tensor,
+        last_reset_idx: torch.Tensor,
         dtype: torch.dtype,
         device: torch.device,
     ) -> torch.Tensor:
         """Return additive mask [B,1,T,mem_len] implementing per‑timestep resets for static cache."""
         kv_len = kv_len.to(device=device)
-        abs_past_start = pos - kv_len  # [B]
+        abs_past_start = pos - kv_len
         n_invalid = torch.clamp(seg_pos - abs_past_start, min=0)
         n_invalid = torch.clamp(n_invalid, max=kv_len)
 
@@ -264,9 +245,8 @@ class HFLlamaLayerCell(MemoryCell):
         allowed = (k_idx >= earliest_allowed.unsqueeze(-1)) & (k_idx <= latest_allowed.unsqueeze(-1))
         neg_inf = torch.tensor(float("-inf"), device=device, dtype=dtype)
         mask = torch.where(allowed, torch.zeros((), device=device, dtype=dtype), neg_inf)
-        return mask.unsqueeze(1)  # [B,1,T,K]
+        return mask.unsqueeze(1)
 
-    # ---- forward ----
     def forward(
         self,
         x: Tensor,
@@ -275,12 +255,11 @@ class HFLlamaLayerCell(MemoryCell):
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
         is_step = x.dim() == 2
-        x_seq = x.unsqueeze(1) if is_step else x  # [B,1,H] or [B,T,H]
+        x_seq = x.unsqueeze(1) if is_step else x
         B, T, H = x_seq.shape
         device = x_seq.device
         dtype = x_seq.dtype
 
-        # Ensure state
         if (
             state is None
             or not isinstance(state, TensorDict)
@@ -289,27 +268,21 @@ class HFLlamaLayerCell(MemoryCell):
         ):
             state = self.init_state(batch=B, device=device, dtype=dtype)
 
-        # Normalize resets to [B,T]
         resets_bt = self._normalize_resets(resets, B, T, device)
 
-        # Positions and per-batch segment starts
         pos = state.get("pos") if "pos" in state.keys() else torch.zeros(B, dtype=torch.long, device=device)
         seg_pos = state.get("seg_pos") if "seg_pos" in state.keys() else pos.clone()
 
-        # Per-timestep last reset indices and additive mask implementing resets and causality
         last_reset_idx = self._build_last_reset_indices(resets_bt)
 
-        # Determine attention implementation (flash vs eager)
         attn_impl = getattr(self.hf_config, "_attn_implementation", None)
         if attn_impl is None:
             attn_impl = getattr(self.hf_config, "attn_implementation", None)
         use_flash = attn_impl == "flash_attention_2"
 
-        # Position ids account for segment resets when supported
         base_since_seg = (pos - seg_pos).view(B, 1).expand(B, T)
         ar = torch.arange(T, device=device).view(1, T).expand(B, T)
         if use_flash and T > 1:
-            # With FlashAttention and T>1 we ignore per‑timestep resets inside the chunk
             position_ids = base_since_seg + ar
         else:
             position_ids = torch.where(last_reset_idx >= 0, ar - last_reset_idx, base_since_seg + ar)
@@ -318,11 +291,9 @@ class HFLlamaLayerCell(MemoryCell):
         if self.mem_len > 0:
             td_state = cast(TensorDict, state)
             kv_len = td_state.get("kv_len") if "kv_len" in td_state else torch.zeros(B, dtype=torch.long, device=device)
-            # Build a lightweight cache for the model and populate this layer from TD state.
             cache, layer_idx, kv_len = self._prepare_layerwise_cache(state, B=B, T=T, dtype=dtype, device=device)
             past_len = int(kv_len[0].item()) if kv_len.numel() > 0 else 0
             if use_flash:
-                # FlashAttention path; ignore per‑timestep resets within chunk when T>1.
                 if T > 1 and resets is not None and torch.count_nonzero(resets) > 0:
                     warnings.warn(
                         "FlashAttention: ignoring per‑timestep resets within chunk when T>1; "
@@ -339,7 +310,6 @@ class HFLlamaLayerCell(MemoryCell):
                     use_cache=True,
                 )
             else:
-                # Eager path: build additive mask over dynamic context of length (past_len + T).
                 attention_mask = self._build_additive_mask(
                     B=B,
                     T=T,
@@ -359,16 +329,12 @@ class HFLlamaLayerCell(MemoryCell):
                     position_embeddings=position_embeddings,
                     use_cache=True,
                 )
-            # KV updated in place via bound references; ensure state keeps aliases
             state.set("k", cache.keys)
             state.set("v", cache.values)
-            # Update kv_len with clamp to mem_len
             new_kv_len = torch.full_like(kv_len, cache.kv_len)
             state.set("kv_len", new_kv_len)
         else:
-            # No KV cache
             if use_flash:
-                # For FlashAttention without cache, rely on causal behavior; ignore mid‑chunk resets
                 if T > 1 and resets is not None and torch.count_nonzero(resets) > 0:
                     warnings.warn(
                         "FlashAttention: ignoring per‑timestep resets within chunk when T>1; "
@@ -401,13 +367,9 @@ class HFLlamaLayerCell(MemoryCell):
                     use_cache=False,
                 )
 
-        # No explicit crop needed for StaticCache (fixed capacity)
-
         new_pos = pos + T
-        # Persist last segment start across calls (absolute index of the last reset within this chunk, if any)
         last_reset_in_chunk = last_reset_idx[:, -1]
         new_seg_pos = torch.where(last_reset_in_chunk >= 0, pos + last_reset_in_chunk, seg_pos)
-        # Compose output state
         if self.mem_len > 0:
             out_state = TensorDict(
                 {

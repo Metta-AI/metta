@@ -7,7 +7,6 @@ from typing import Optional
 import torch
 from transformers import AutoModelForCausalLM, PreTrainedModel
 
-# Local cell config
 from cortex.cells.hf_llama import HFLlamaLayerConfig  # noqa: F401
 from cortex.config import CortexStackConfig, PassThroughBlockConfig
 from cortex.stacks.base import CortexStack
@@ -82,7 +81,6 @@ def build_hf_stack_config(
         raise NotImplementedError(f"build_hf_stack currently supports LLaMA; got model_type={model_type}")
 
     if num_layers is not None and num_layers > 0:
-        # Optionally truncate to the first N layers for quicker experiments
         model.model.layers = model.model.layers[:num_layers]  # type: ignore[attr-defined]
 
     return build_llama_stack_config_from_model(model, mem_len=mem_len, compile_blocks=compile_blocks)

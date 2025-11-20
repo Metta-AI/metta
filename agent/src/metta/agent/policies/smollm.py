@@ -24,16 +24,14 @@ class SmolLLMConfig(PolicyArchitecture):
 
     model_name: str = "HuggingFaceTB/SmolLM2-135M"
     max_sequence_length: int = 32
-    # HF loading/runtime
     torch_dtype: Literal["float32", "float16", "bfloat16"] = "bfloat16"
-    attn_implementation: Optional[str] = "flash_attention_2"  # e.g., "flash_attention_2"
-    mem_len: int = 128  # rolling KV cache length; 0 = unbounded
+    attn_implementation: Optional[str] = "flash_attention_2"
+    mem_len: int = 128
 
     tokens_key: str = "smollm_tokens"
     logits_key: str = "smollm_logits"
     values_key: str = "values"
 
-    # Heads sizing
     _token_embed_dim: int = 8
     _fourier_freqs: int = 3
     _num_latents: int = 12
@@ -61,7 +59,6 @@ class SmolLLMConfig(PolicyArchitecture):
         return mapping[self.torch_dtype]
 
     def build_components(self) -> List[ComponentConfig]:
-        # Build HF-backed Cortex stack config and use its embedding dim for both input and output of the core.
         stack_cfg = build_hf_stack_config(
             self.model_name,
             trust_remote_code=True,
@@ -72,7 +69,6 @@ class SmolLLMConfig(PolicyArchitecture):
         )
         hf_hidden = int(stack_cfg.d_hidden)
 
-        # Feature tokenizer mirrors cortex policy
         feat_dim = self._token_embed_dim + (4 * self._fourier_freqs) + 1
 
         components: List[ComponentConfig] = [
@@ -99,8 +95,8 @@ class SmolLLMConfig(PolicyArchitecture):
             CortexTDConfig(
                 in_key="obs_latent_attn",
                 out_key="core",
-                d_hidden=hf_hidden,  # input dim to stack = LLM embed dim
-                out_features=hf_hidden,  # out_features = LLM embed dim
+                d_hidden=hf_hidden,
+                out_features=hf_hidden,
                 stack_cfg=stack_cfg,
                 key_prefix="cortex_state",
                 dtype=self.torch_dtype,

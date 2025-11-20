@@ -6,9 +6,6 @@ from cortex.stacks.hf import build_llama_stack_from_model
 from transformers import AutoModelForCausalLM, LlamaConfig, LlamaForCausalLM
 from transformers.cache_utils import DynamicCache
 
-# ---------------------------- Kernel-level tests ----------------------------
-# Skip this module entirely by default (slow).
-# Set RUN_SLOW_CORTEX_TESTS=1 to enable; otherwise keep skipped.
 _RUN_SLOW = os.getenv("RUN_SLOW_CORTEX_TESTS", "0").lower() in {"1", "true", "yes", "y", "on"}
 pytestmark = (
     pytest.mark.slow
@@ -58,17 +55,14 @@ def test_llama_stack_streaming_chunk_parity(chunk: int) -> None:
         vocab_size=128,
     )
     hf = LlamaForCausalLM(cfg).eval()
-    # Use a mem_len >= T to avoid trimming during chunked streaming
     stack = build_llama_stack_from_model(hf, mem_len=T, compile_blocks=False).eval()
 
     input_ids = torch.randint(0, cfg.vocab_size, (B, T))
     embeds = hf.model.embed_tokens(input_ids)
 
-    # Baseline full pass
     with torch.no_grad():
         ref_full = hf.model(inputs_embeds=embeds, use_cache=True).last_hidden_state
 
-    # HF streaming with DynamicCache
     cache = DynamicCache(config=hf.config)
     out_chunks = []
     with torch.no_grad():
@@ -80,7 +74,6 @@ def test_llama_stack_streaming_chunk_parity(chunk: int) -> None:
             t += chunk
         ref_stream = torch.cat(out_chunks, dim=1)
 
-    # Cortex streaming
     out_chunks = []
     st = None
     with torch.no_grad():
@@ -93,31 +86,26 @@ def test_llama_stack_streaming_chunk_parity(chunk: int) -> None:
             t += chunk
         out_stream = torch.cat(out_chunks, dim=1)
 
-    # Parity checks
     assert torch.allclose(ref_stream, ref_full, atol=1e-5, rtol=1e-5)
     assert torch.allclose(out_stream, ref_full, atol=1e-5, rtol=1e-5)
 
 
 def test_smollm_llama_parity_and_streaming() -> None:
-    # Download + larger model; enable only when explicitly requested
     if not torch.cuda.is_available():
         pytest.skip("CUDA required for SmolLM parity test (memory)")
 
     device = torch.device("cuda")
     dtype = torch.float16
 
-    # Define sequence length before building the stack so mem_len can match
     B, T = 1, 24
     name = "HuggingFaceTB/SmolLM-360M"
     hf = AutoModelForCausalLM.from_pretrained(name, torch_dtype=dtype).to(device).eval()
-    # Use a mem_len >= T to avoid trimming during chunked streaming
     stack = build_llama_stack_from_model(hf, mem_len=T, compile_blocks=False).to(device).eval()
     vocab = int(hf.config.vocab_size)
     torch.manual_seed(0)
     input_ids = torch.randint(0, vocab, (B, T), device=device)
     embeds = hf.model.embed_tokens(input_ids)
 
-    # streaming (chunk=8)
     chunk = 8
     cache = DynamicCache(config=hf.config)
     out_chunks = []
@@ -142,8 +130,6 @@ def test_smollm_llama_parity_and_streaming() -> None:
             t += chunk
         out_stream = torch.cat(out_chunks, dim=1)
 
-    # fp16 tolerances (allow drift on GPU)
-    # Compare Cortex streaming to HF streaming (HF streaming may diverge slightly from full in fp16)
     max_diff = (out_stream - ref_stream).abs().max().item()
     assert max_diff < 0.1, f"Cortex vs HF streaming max diff {max_diff}"
 
@@ -177,7 +163,6 @@ def test_llama_static_cache_updates_inplace() -> None:
         e = embeds[:, t : t + 1]
         _, st = stack(e, st)
 
-        # First layer state
         block0 = st.get("PassThroughBlock_0")
         cell = block0.get("HFLlamaLayerCell")
         assert all(k in cell.keys() for k in ("k", "v", "kv_len")), "Missing KV tensors in state"
@@ -238,22 +223,19 @@ def test_llama_per_timestep_resets_parity() -> None:
         vocab_size=128,
     )
     hf = LlamaForCausalLM(cfg).eval()
-    mem_len = T  # keep window large enough to avoid trimming
+    mem_len = T
     stack = build_llama_stack_from_model(hf, mem_len=mem_len, compile_blocks=False).eval()
 
     input_ids = torch.randint(0, cfg.vocab_size, (B, T))
     embeds = hf.model.embed_tokens(input_ids)
 
-    # Per‑timestep reset mask with different reset times per batch member
     resets_bt = torch.zeros(B, T, dtype=torch.long)
     resets_bt[0, 3] = 1
     resets_bt[1, 7] = 1
 
-    # HF reference: run each sequence independently and reset cache on resets
     with torch.no_grad():
         ref = _run_hf_stream_with_resets(hf, embeds, resets_bt)
 
-    # Cortex: run batch with per‑timestep reset mask
     out_chunks = []
     st = None
     with torch.no_grad():
@@ -270,7 +252,7 @@ def test_llama_per_timestep_resets_parity() -> None:
 def test_llama_mem_len_smaller_than_chunk_T_gt_M() -> None:
     torch.manual_seed(0)
     B, T, H = 2, 12, 32
-    mem_len = 5  # T > mem_len
+    mem_len = 5
     cfg = LlamaConfig(
         hidden_size=H,
         intermediate_size=H * 2,
@@ -285,11 +267,9 @@ def test_llama_mem_len_smaller_than_chunk_T_gt_M() -> None:
     input_ids = torch.randint(0, cfg.vocab_size, (B, T))
     embeds = hf.model.embed_tokens(input_ids)
 
-    # Baseline full pass (no mem_len constraint on HF side)
     with torch.no_grad():
         ref = hf.model(inputs_embeds=embeds, use_cache=True).last_hidden_state
 
-    # Cortex pass with mem_len < T; should run without error and produce sane outputs/shapes.
     with torch.no_grad():
         out, st = stack(embeds, None)
         out = hf.model.norm(out)
@@ -297,7 +277,6 @@ def test_llama_mem_len_smaller_than_chunk_T_gt_M() -> None:
     assert out.shape == ref.shape
     assert torch.isfinite(out).all()
 
-    # Verify KV state for first layer respects mem_len and updates kv_len.
     block0 = st.get("PassThroughBlock_0")
     cell = block0.get("HFLlamaLayerCell")
     k = cell.get("k")
@@ -309,14 +288,13 @@ def test_llama_mem_len_smaller_than_chunk_T_gt_M() -> None:
     assert k.shape == (B, n_kv, mem_len, head_dim)
     assert v.shape == (B, n_kv, mem_len, head_dim)
     assert kv_len.shape == (B,)
-    # After a single T-step chunk, kv_len should be clamped to mem_len.
     assert torch.equal(kv_len, torch.full_like(kv_len, mem_len))
 
 
 def test_llama_streaming_chunk_T_gt_M() -> None:
     torch.manual_seed(0)
     B, T_total, H = 2, 17, 32
-    mem_len = 5  # mem_len < chunk length
+    mem_len = 5
     chunk = 7
 
     cfg = LlamaConfig(
@@ -333,11 +311,9 @@ def test_llama_streaming_chunk_T_gt_M() -> None:
     input_ids = torch.randint(0, cfg.vocab_size, (B, T_total))
     embeds = hf.model.embed_tokens(input_ids)
 
-    # Baseline full pass (no mem_len constraint on HF side) to validate shapes and finiteness.
     with torch.no_grad():
         ref_full = hf.model(inputs_embeds=embeds, use_cache=True).last_hidden_state
 
-    # HF streaming with an explicit sliding window reference (crop KV to last mem_len after each chunk).
     cache = DynamicCache(config=hf.config)
     ref_chunks = []
     with torch.no_grad():
@@ -357,7 +333,6 @@ def test_llama_streaming_chunk_T_gt_M() -> None:
             t += chunk
         ref_window_stream = torch.cat(ref_chunks, dim=1)
 
-    # Cortex streaming with chunk > mem_len; should match HF sliding-window reference and maintain sane state.
     out_chunks = []
     st = None
     with torch.no_grad():
@@ -372,7 +347,6 @@ def test_llama_streaming_chunk_T_gt_M() -> None:
 
     assert out_stream.shape == ref_full.shape
     assert torch.isfinite(out_stream).all()
-    # Compare against the HF sliding-window reference, not infinite-context HF.
     torch.testing.assert_close(
         out_stream,
         ref_window_stream,
@@ -381,7 +355,6 @@ def test_llama_streaming_chunk_T_gt_M() -> None:
         msg="Cortex streaming with T>mem_len diverges from HF sliding-window reference",
     )
 
-    # KV state for first layer should still honor mem_len and kv_len clamp.
     block0 = st.get("PassThroughBlock_0")
     cell = block0.get("HFLlamaLayerCell")
     k = cell.get("k")

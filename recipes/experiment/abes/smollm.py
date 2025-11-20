@@ -43,14 +43,9 @@ def _smollm_config(
     model_name: Optional[str] = None,
     mem_len: Optional[int] = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], int]:
-    """ALL SmolLM configuration in ONE place.
-
-    Returns: (policy_config, trainer_updates, env_updates, num_agents)
-    """
-    # Environment setup
+    """SmolLM configuration returning policy, trainer, env updates, and agent count."""
     num_agents = 24
 
-    # Policy architecture configuration
     policy_config = {
         "model_name": model_name or "HuggingFaceTB/SmolLM-360M",
         "attn_implementation": "flash_attention_2",
@@ -58,7 +53,6 @@ def _smollm_config(
         "mem_len": int(mem_len) if mem_len is not None else 16,
     }
 
-    # Trainer configuration
     trainer_updates = {
         "compile": False,
         "batch_size": 131072,
@@ -66,7 +60,6 @@ def _smollm_config(
         "bptt_horizon": 16,
     }
 
-    # Environment configuration
     env_updates = {
         "forward_pass_minibatch_target_size": 8192,
         "auto_workers": False,
