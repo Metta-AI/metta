@@ -247,6 +247,10 @@ def suppress_noisy_logs() -> None:
 
     # Silence PyTorch distributed elastic warning about redirects on MacOS/Windows
     logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
+    warnings.filterwarnings(
+        "ignore",
+        message=r".*Redirects are currently not supported in Windows or MacOs.*",
+    )
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
