@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 import time
-import warnings
 from typing import Dict, List, Tuple
 
 import cogames.policy.nim_agents.agents as na
+from cogames.cli.utils import suppress_noisy_logs
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -99,20 +98,6 @@ EVALS: List[Tuple[str, str, int]] = [
     ("easy_hearts_hello_world", "", NUM_COGS),
     ("hello_world_unclip", "", NUM_COGS),
 ]
-
-
-def fix_logger() -> None:
-    # Silence torch elastic redirect note and similar warnings
-    for name in (
-        "torch.distributed.elastic.multiprocessing.redirects",
-        "torch.distributed.elastic",
-        "torch.distributed",
-    ):
-        logging.getLogger(name).setLevel(logging.ERROR)
-    warnings.filterwarnings(
-        "ignore",
-        message=r".*Redirects are currently not supported in Windows or MacOs.*",
-    )
 
 
 def _load_all_missions() -> Dict[str, Mission]:
@@ -218,7 +203,7 @@ def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], nu
 
 
 def main() -> None:
-    fix_logger()
+    suppress_noisy_logs()
     na.start_measure()
     mission_map = _load_all_missions()
     print(f"Loaded {len(mission_map)} missions")
