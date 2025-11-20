@@ -84,10 +84,9 @@ class Checkpointer(TrainerComponent):
                         payload = (state_dict, arch, action_count, normalized_uri)
                     state_dict, arch, action_count, normalized_uri = self._distributed.broadcast_from_master(payload)
 
-                    if len(policy_env_info.actions.actions()) != action_count:
-                        raise ValueError(
-                            f"Action space mismatch on resume: master={action_count}, rank={len(policy_env_info.actions.actions())}"
-                        )
+                    local_action_count = len(policy_env_info.actions.actions())
+                    if local_action_count != action_count:
+                        raise ValueError(f"Action space mismatch on resume: master={action_count}, rank={local_action_count}")
 
                     policy = arch.make_policy(policy_env_info).to(load_device)
                     if hasattr(policy, "initialize_to_environment"):
