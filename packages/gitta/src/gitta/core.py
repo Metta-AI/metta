@@ -139,9 +139,9 @@ def run_git_cmd(
     return res
 
 
-def run_git(*args: str, strip: bool = True) -> str:
+def run_git(*args: str, strip: bool = True, timeout: Optional[float] = None) -> str:
     """Run a git command and return its output."""
-    return run_git_cmd(list(args), strip=strip)
+    return run_git_cmd(list(args), strip=strip, timeout=timeout)
 
 
 def run_git_in_dir(dir: str | Path, *args: str) -> str:

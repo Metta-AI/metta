@@ -139,6 +139,11 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
         label="Ladybug",
         policy_path="cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
     ),
+    "starter": AgentConfig(
+        key="starter",
+        label="Starter",
+        policy_path="cogames.policy.scripted_agent.starter_agent.StarterPolicy",
+    ),
 }
 
 EXPERIMENT_MAP: Dict[str, Mission] = {}

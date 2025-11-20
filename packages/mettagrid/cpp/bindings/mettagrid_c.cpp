@@ -19,7 +19,6 @@
 #include "actions/noop.hpp"
 #include "actions/resource_mod.hpp"
 #include "config/observation_features.hpp"
-#include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
@@ -80,10 +79,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     feature_id_to_name[id] = name;
   }
 
-  _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>(&resource_names);
-
-  _event_manager->init(_grid.get());
 
   _action_success.resize(num_agents);
 
@@ -483,7 +479,6 @@ void MettaGrid::_step() {
 
   // Increment timestep and process events
   current_step++;
-  _event_manager->process_events(current_step);
 
   // Create and shuffle agent indices for randomized action order
   std::vector<size_t> agent_indices(_agents.size());
