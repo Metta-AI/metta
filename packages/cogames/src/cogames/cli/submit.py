@@ -7,6 +7,7 @@ import tempfile
 import uuid
 import zipfile
 from pathlib import Path
+from typing import Optional
 
 import httpx
 import typer
@@ -59,18 +60,73 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
     return validated_paths
 
 
+def _find_repo_root() -> Optional[Path]:
+    """Locate repository root by searching for a pyproject.toml upwards."""
+    here = Path(__file__).resolve()
+    for parent in [here] + list(here.parents):
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return None
+
+
+def _latest_backend_git_hash(console: Console) -> Optional[str]:
+    """Best-effort fetch of the git hash the backend uses (latest main).
+
+    Mirrors app_backend behavior (`git.get_latest_commit(REPO_SLUG, branch=\"main\"`).
+    """
+    url = "https://api.github.com/repos/Metta-AI/metta/commits/main"
+    headers = {}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    try:
+        resp = httpx.get(url, headers=headers, timeout=10.0)
+        resp.raise_for_status()
+        sha = resp.json().get("sha")
+        if sha:
+            console.print(f"[dim]Using backend git hash (main): {sha}[/dim]")
+            return sha
+        console.print("[dim]GitHub response missing sha; falling back to local checkout[/dim]")
+    except Exception as e:
+        console.print(f"[dim]Could not fetch backend git hash ({e}); falling back[/dim]")
+    return None
+
+
 def create_temp_validation_env(console: Console) -> Path:
     """Create a temporary directory with a minimal pyproject.toml.
 
-    The pyproject.toml depends on the latest published cogames package.
+    Prefers the exact git hash the backend eval worker uses (latest main),
+    installing packages from GitHub subdirectories. Falls back to local
+    checkout paths, then to PyPI.
     """
     temp_dir = Path(tempfile.mkdtemp(prefix="cogames_submit_"))
 
-    pyproject_content = """[project]
+    backend_hash = _latest_backend_git_hash(console)
+
+    repo_root = _find_repo_root()
+    cogames_path = repo_root / "packages" / "cogames" if repo_root else None
+    mettagrid_path = repo_root / "packages" / "mettagrid" if repo_root else None
+
+    dependencies: list[str] = []
+    if backend_hash:
+        base_url = f"git+https://github.com/Metta-AI/metta@{backend_hash}"
+        dependencies.append(f"cogames @ {base_url}#subdirectory=packages/cogames")
+        dependencies.append(f"mettagrid @ {base_url}#subdirectory=packages/mettagrid")
+    elif cogames_path and cogames_path.exists():
+        dependencies.append(f"cogames @ {cogames_path.as_uri()}")
+        if mettagrid_path and mettagrid_path.exists():
+            dependencies.append(f"mettagrid @ {mettagrid_path.as_uri()}")
+    else:
+        # Fallback to PyPI if neither backend hash nor local paths are available
+        dependencies.append("cogames")
+        dependencies.append("mettagrid")
+
+    pyproject_content = f"""[project]
 name = "cogames-submission-validator"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["cogames"]
+dependencies = {dependencies!r}
 
 [build-system]
 requires = ["setuptools>=42"]
