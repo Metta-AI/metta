@@ -370,6 +370,33 @@ class TrainablePolicy(MultiAgentPolicy):
 
         torch.save(self.network().state_dict(), policy_data_path)
 
+    def save_policy(self, destination: str | Path, *, policy_architecture=None) -> str:
+        """Generic saver: writes a .pt state_dict; supports s3:// or local.
+
+        Policies with custom artifact needs should override this.
+        """
+
+        import torch
+
+        from metta.common.util.file import write_file
+
+        dest_str = str(destination)
+        if dest_str.startswith("s3://"):
+            if not dest_str.endswith(".pt"):
+                dest_str = dest_str + ".pt"
+            local_tmp = Path(Path(dest_str).name)
+            torch.save(self.network().state_dict(), local_tmp)
+            write_file(dest_str, str(local_tmp))
+            return dest_str
+
+        path = Path(destination)
+        if path.suffix == "":
+            path = path.with_suffix(".pt")
+        path = path.expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.network().state_dict(), path)
+        return f"file://{path.resolve()}"
+
 
 class PolicySpec(BaseModel):
     """Specification for a policy used during evaluation."""

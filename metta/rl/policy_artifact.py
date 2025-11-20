@@ -229,6 +229,15 @@ class PolicyArtifact:
                 policy.initialize_to_environment(policy_env_info, device)
 
             ordered_state = OrderedDict(self.state_dict.items())
+
+            # If saved without the policy prefix, add it for AutoBuilder-style policies
+            if ordered_state and not any(k.startswith("_sequential_network") for k in ordered_state):
+                model_keys = policy.state_dict().keys()
+                if any(k.startswith("_sequential_network.module.") for k in model_keys):
+                    ordered_state = OrderedDict(
+                        (f"_sequential_network.module.{k}", v) for k, v in ordered_state.items()
+                    )
+
             missing, unexpected = policy.load_state_dict(ordered_state, strict=strict)
             if strict and (missing or unexpected):
                 msg = f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}"
@@ -385,6 +394,8 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
             if not isinstance(loaded_state, MutableMapping):
                 msg = "Loaded safetensors state_dict is not a mutable mapping"
                 raise TypeError(msg)
+            if loaded_state and all(k.startswith("module.") for k in loaded_state.keys()):
+                loaded_state = {k.removeprefix("module."): v for k, v in loaded_state.items()}
             state_dict = loaded_state
 
         elif "policy.pt" in names:
