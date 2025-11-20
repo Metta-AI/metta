@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     ProtocolConfig,
     ResourceLimitsConfig,
 )
@@ -79,7 +80,7 @@ class _DiagnosticMissionBase(Mission):
     # If True, give agents high energy capacity and regen (overridden by specific missions)
     generous_energy: bool = Field(default=True)
 
-    def configure_env(self, cfg: MettaGridConfig) -> None:  # pragma: no cover - hook for subclasses
+    def configure_env(self, cfg: MettaGridEnvConfig) -> None:  # pragma: no cover - hook for subclasses
         """Hook for mission-specific environment alterations."""
 
     def configure(self) -> None:
@@ -136,7 +137,7 @@ class _DiagnosticMissionBase(Mission):
         if not cli_override and self.required_agents is not None:
             mission.num_cogs = self.required_agents
 
-        def _post(cfg: MettaGridConfig) -> None:
+        def _post(cfg: MettaGridEnvConfig) -> None:
             cfg.game.map_builder = forced_map
             cfg.game.max_steps = self.max_steps
             self._apply_inventory_seed(cfg)
@@ -161,21 +162,21 @@ class _DiagnosticMissionBase(Mission):
     # Helpers
     # ------------------------------------------------------------------
 
-    def _apply_inventory_seed(self, cfg: MettaGridConfig) -> None:
+    def _apply_inventory_seed(self, cfg: MettaGridEnvConfig) -> None:
         if not self.inventory_seed:
             return
         seed = dict(cfg.game.agent.initial_inventory)
         seed.update(self.inventory_seed)
         cfg.game.agent.initial_inventory = seed
 
-    def _apply_communal_chest(self, cfg: MettaGridConfig) -> None:
+    def _apply_communal_chest(self, cfg: MettaGridEnvConfig) -> None:
         if self.communal_chest_hearts is None:
             return
         chest = cfg.game.objects.get("communal_chest")
         if isinstance(chest, ChestConfig):
             chest.initial_inventory = self.communal_chest_hearts
 
-    def _apply_resource_chests(self, cfg: MettaGridConfig) -> None:
+    def _apply_resource_chests(self, cfg: MettaGridEnvConfig) -> None:
         if not self.resource_chest_stock:
             return
         for resource, amount in self.resource_chest_stock.items():
@@ -183,7 +184,7 @@ class _DiagnosticMissionBase(Mission):
             if isinstance(chest_cfg, ChestConfig):
                 chest_cfg.initial_inventory = amount
 
-    def _apply_extractor_settings(self, cfg: MettaGridConfig) -> None:
+    def _apply_extractor_settings(self, cfg: MettaGridEnvConfig) -> None:
         for resource in RESOURCE_NAMES:
             extractor = cfg.game.objects.get(f"{resource}_extractor")
             if extractor is None:
@@ -193,7 +194,7 @@ class _DiagnosticMissionBase(Mission):
             if resource in self.extractor_max_uses and hasattr(extractor, "max_uses"):
                 extractor.max_uses = self.extractor_max_uses[resource]
 
-    def _apply_assembler_requirements(self, cfg: MettaGridConfig) -> None:
+    def _apply_assembler_requirements(self, cfg: MettaGridEnvConfig) -> None:
         assembler = cfg.game.objects.get("assembler")
         if not isinstance(assembler, AssemblerConfig):
             return
@@ -216,7 +217,7 @@ class _DiagnosticMissionBase(Mission):
                 updated.append(proto)
         assembler.protocols = updated
 
-    def _zero_all_protocol_cooldowns(self, cfg: MettaGridConfig) -> None:
+    def _zero_all_protocol_cooldowns(self, cfg: MettaGridEnvConfig) -> None:
         # Zero cooldowns on assembler/extractor protocols and unclipping protocols
         for _name, obj in list(cfg.game.objects.items()):
             if not isinstance(obj, AssemblerConfig):
@@ -231,7 +232,7 @@ class _DiagnosticMissionBase(Mission):
                 new_up.append(proto.model_copy(update={"cooldown": 0}))
             cfg.game.clipper.unclipping_protocols = new_up
 
-    def _apply_heart_reward_cap(self, cfg: MettaGridConfig) -> None:
+    def _apply_heart_reward_cap(self, cfg: MettaGridEnvConfig) -> None:
         """Normalize diagnostics so a single deposited heart yields at most 1 reward per episode.
 
         - Make each unit change of chest.heart.amount worth exactly 1.0 reward.
@@ -410,7 +411,7 @@ class _UnclipBase(_DiagnosticMissionBase):
     map_name: str = "evals/diagnostic_unclip.map"
     dynamic_assembler_chorus: bool = True
 
-    def configure_env(self, cfg: MettaGridConfig) -> None:
+    def configure_env(self, cfg: MettaGridEnvConfig) -> None:
         # Determine how many extractors to clip based on number of agents (1..4)
         num_agents = max(1, int(cfg.game.num_agents))
         resources = list(RESOURCE_NAMES)
@@ -491,7 +492,7 @@ class DiagnosticChargeUp(_DiagnosticMissionBase):
     generous_energy: bool = False
     max_steps: int = Field(default=250)
 
-    def configure_env(self, cfg: MettaGridConfig) -> None:
+    def configure_env(self, cfg: MettaGridEnvConfig) -> None:
         # Set starting energy to 30 and no regen
         agent = cfg.game.agent
         agent.initial_inventory = dict(agent.initial_inventory)
@@ -505,7 +506,7 @@ class DiagnosticAgile(_DiagnosticMissionBase):
     map_name: str = "evals/diagnostic_agile.map"
     max_steps: int = Field(default=250)
 
-    def configure_env(self, cfg: MettaGridConfig) -> None:
+    def configure_env(self, cfg: MettaGridEnvConfig) -> None:
         required = {"carbon": 2, "oxygen": 2, "germanium": 1, "silicon": 3}
         for resource, needed in required.items():
             station = cfg.game.objects.get(f"{resource}_extractor")
@@ -537,7 +538,7 @@ class DiagnosticRadial(_DiagnosticMissionBase):
     dynamic_assembler_chorus: bool = True
     max_steps: int = Field(default=250)
 
-    def configure_env(self, cfg: MettaGridConfig) -> None:
+    def configure_env(self, cfg: MettaGridEnvConfig) -> None:
         agent = cfg.game.agent
         inventory = dict(agent.initial_inventory)
         inventory["energy"] = 255

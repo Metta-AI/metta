@@ -1,4 +1,4 @@
-from mettagrid.config.mettagrid_config import MettaGridConfig, ResourceLimitsConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig, ResourceLimitsConfig
 from mettagrid.simulator import Action, Simulation
 
 
@@ -8,7 +8,7 @@ class TestInventoryRegeneration:
     def test_energy_regeneration_basic(self):
         """Test that energy regenerates at the specified interval."""
         # Create a simple environment with energy regeneration
-        cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
@@ -23,7 +23,7 @@ class TestInventoryRegeneration:
         cfg.game.agent.initial_inventory = {"energy": 10}  # Start with 10 energy
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
 
         # Reset environment
 
@@ -99,7 +99,7 @@ class TestInventoryRegeneration:
 
     def test_regeneration_disabled_with_zero_interval(self):
         """Test that regeneration is disabled when interval is 0."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
                 ["#", "@", "#"],
@@ -113,7 +113,7 @@ class TestInventoryRegeneration:
         cfg.game.agent.initial_inventory = {"energy": 10}
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
 
         # Take many steps
         for _ in range(10):
@@ -124,7 +124,7 @@ class TestInventoryRegeneration:
 
     def test_regeneration_with_resource_limits(self):
         """Test that regeneration respects resource limits."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
                 ["#", "@", "#"],
@@ -141,7 +141,7 @@ class TestInventoryRegeneration:
         }
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
 
         # Take a step - should regenerate but cap at 100
         sim.agent(0).set_action(Action(name="noop"))

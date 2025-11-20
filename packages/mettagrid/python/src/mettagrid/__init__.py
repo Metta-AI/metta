@@ -42,6 +42,7 @@ _configure_logging()
 _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
     # Config
     "MettaGridConfig": ("mettagrid.config.mettagrid_config", "MettaGridConfig"),
+    "MettaGridEnvConfig": ("mettagrid.config.mettagrid_config", "MettaGridEnvConfig"),
     "Config": ("mettagrid.config", "Config"),
     # Core classes
     "Simulator": ("mettagrid.simulator.simulator", "Simulator"),
@@ -57,7 +58,7 @@ _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
 }
 
 if TYPE_CHECKING:
-    from mettagrid.config.mettagrid_config import MettaGridConfig
+    from mettagrid.config.mettagrid_config import MettaGridConfig, MettaGridEnvConfig
     from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv as PufferMettaGridEnv
     from mettagrid.map_builder.map_builder import GameMap
     from mettagrid.simulator import Action, AgentObservation, Simulation, Simulator
@@ -65,6 +66,7 @@ if TYPE_CHECKING:
 __all__ = [
     # Config
     "MettaGridConfig",
+    "MettaGridEnvConfig",
     # Core classes
     "Simulator",
     "Simulation",

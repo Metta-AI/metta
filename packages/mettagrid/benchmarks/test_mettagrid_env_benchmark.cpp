@@ -33,7 +33,7 @@ static std::unique_ptr<py::scoped_interpreter> g_python_guard;
 // We'll know we've succeeded when this file has zero references to pybind11!
 
 // Helper functions for creating configuration and map
-GameConfig CreateBenchmarkConfig(size_t num_agents) {
+MettaGridConfig CreateBenchmarkConfig(size_t num_agents) {
   std::vector<std::string> resource_names = {"ore", "heart"};
 
   std::shared_ptr<ActionConfig> action_cfg =
@@ -50,7 +50,7 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                                                std::unordered_map<InventoryItem, InventoryProbability>(),
                                                4);
 
-  // GameConfig expects an unordered_map for actions
+  // MettaGridConfig expects an unordered_map for actions
   std::unordered_map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
 
   actions_cfg["noop"] = action_cfg;
@@ -76,24 +76,24 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::unordered_map<std::string, ObservationType> feature_ids;
   std::unordered_map<int, std::string> tag_id_map;
 
-  return GameConfig(num_agents,
-                    10000,
-                    false,
-                    11,
-                    11,
-                    resource_names,
-                    vibe_names,
-                    100,
-                    global_obs_config,
-                    feature_ids,
-                    actions_cfg,
-                    objects_cfg,
-                    0.0f,
-                    tag_id_map,
-                    false,
-                    std::unordered_map<std::string, float>(),
-                    0,
-                    nullptr);
+  return MettaGridConfig(num_agents,
+                         10000,
+                         false,
+                         11,
+                         11,
+                         resource_names,
+                         vibe_names,
+                         100,
+                         global_obs_config,
+                         feature_ids,
+                         actions_cfg,
+                         objects_cfg,
+                         0.0f,
+                         tag_id_map,
+                         false,
+                         std::unordered_map<std::string, float>(),
+                         0,
+                         nullptr);
 }
 
 py::list CreateDefaultMap(size_t num_agents_per_team = 2) {

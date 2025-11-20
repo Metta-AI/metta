@@ -1,4 +1,4 @@
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, ProtocolConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridEnvConfig, ProtocolConfig
 from mettagrid.simulator import Action, Simulation
 
 
@@ -7,7 +7,7 @@ class TestAssemblerPartialUsage:
 
     def test_partial_usage_disabled(self):
         """Test that assemblers cannot be used during cooldown when allow_partial_usage is False."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["iron", "steel"]
         cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
@@ -31,7 +31,7 @@ class TestAssemblerPartialUsage:
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
         agent = sim.agent(0)
 
         iron_idx = sim.resource_names.index("iron")
@@ -86,7 +86,7 @@ class TestAssemblerPartialUsage:
 
     def test_partial_usage_scaling(self):
         """Test resource scaling at different cooldown progress levels."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["iron", "steel"]
         cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
@@ -110,7 +110,7 @@ class TestAssemblerPartialUsage:
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
         agent = sim.agent(0)
 
         iron_idx = sim.resource_names.index("iron")

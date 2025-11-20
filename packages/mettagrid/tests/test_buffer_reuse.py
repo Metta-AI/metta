@@ -4,8 +4,8 @@ import numpy as np
 
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -25,8 +25,8 @@ def test_buffer_reuse_across_resets():
     3. Verifies it creates new Simulation instances but reuses the same buffer objects
     """
     # Create config
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=24,
             obs=ObsConfig(width=5, height=5, num_tokens=100),
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
@@ -122,8 +122,8 @@ def test_buffer_reuse_across_resets():
 def test_buffer_consistency_during_episode():
     """Test that buffers remain consistent during an episode."""
     # Create config
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=24,
             obs=ObsConfig(width=5, height=5, num_tokens=100),
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),

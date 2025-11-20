@@ -9,7 +9,7 @@ import logging
 from typing import get_args
 
 from mettagrid.builder import building
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.random_agent import RandomMultiAgentPolicy
@@ -59,7 +59,7 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
 
-    cfg = MettaGridConfig()
+    cfg = MettaGridEnvConfig()
     cfg.game.num_agents = args.agents
     cfg.game.max_steps = args.steps
 
@@ -97,11 +97,11 @@ def main():
     # Create a modified config for the policy
     policy_cfg = cfg.model_copy(deep=True)
     policy_cfg.game.actions.change_vibe.enabled = False
-    policy = RandomMultiAgentPolicy(PolicyEnvInterface.from_mg_cfg(policy_cfg))
+    policy = RandomMultiAgentPolicy(PolicyEnvInterface.from_mg_cfg(policy_cfg.game))
     agent_policies = policy.agent_policies(cfg.game.num_agents)
 
     # Create rollout with renderer
-    rollout = Rollout(config=cfg, policies=agent_policies, render_mode=args.render)
+    rollout = Rollout(config=cfg.game, policies=agent_policies, render_mode=args.render)
 
     logger.info("\n=== Running simulation ===")
     rollout.run_until_done()

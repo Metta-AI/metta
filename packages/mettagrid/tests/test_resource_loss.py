@@ -1,4 +1,4 @@
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 from mettagrid.simulator import Simulation
 
 
@@ -8,7 +8,7 @@ class TestResourceLoss:
     def test_resource_loss_prob_1_0_causes_complete_loss(self):
         """Test that resource_loss_prob=1.0 causes all items to be lost in the next timestep."""
         # Create a simple environment with resource_loss_prob=1.0
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
                 ["#", "@", "#"],
@@ -18,7 +18,7 @@ class TestResourceLoss:
         cfg.game.resource_loss_prob = 1.0
         cfg.game.agent.initial_inventory = {"heart": 5, "battery_blue": 3}
         cfg.game.actions.noop.enabled = True
-        env = Simulation(cfg)
+        env = Simulation(cfg.game)
 
         # Get the agent's inventory through grid_objects
         grid_objects = env.grid_objects()
@@ -60,7 +60,7 @@ class TestResourceLoss:
     def test_resource_loss_prob_0_0_causes_no_loss(self):
         """Test that resource_loss_prob=0.0 causes no items to be lost."""
         # Create a simple environment with resource_loss_prob=0.0
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
                 ["#", "@", "#"],
@@ -70,7 +70,7 @@ class TestResourceLoss:
         cfg.game.resource_loss_prob = 0.0
         cfg.game.agent.initial_inventory = {"heart": 5, "battery_blue": 3}
         cfg.game.actions.noop.enabled = True
-        env = Simulation(cfg)
+        env = Simulation(cfg.game)
 
         # Get the agent's inventory through grid_objects
         grid_objects = env.grid_objects()
@@ -112,7 +112,7 @@ class TestResourceLoss:
     def test_resource_loss_prob_0_5_causes_partial_loss(self):
         """Test that resource_loss_prob=0.5 causes some items to be lost over multiple steps."""
         # Create a simple environment with resource_loss_prob=0.5
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
                 ["#", "@", "#"],
@@ -124,7 +124,7 @@ class TestResourceLoss:
         cfg.game.agent.initial_inventory = {"heart": 100}
 
         # Create environment with resource_loss_prob=0.5 and initial inventory
-        env = Simulation(cfg)
+        env = Simulation(cfg.game)
 
         # Get the agent's inventory through grid_objects
         grid_objects = env.grid_objects()

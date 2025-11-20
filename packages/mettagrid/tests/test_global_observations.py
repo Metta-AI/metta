@@ -4,9 +4,9 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -30,7 +30,7 @@ class TestGlobalObservations:
     def test_last_action_is_noop_when_action_fails(self):
         """Test that agents see noop (index 0) as last_action when their action fails."""
         # Create config with last_action observation enabled and move action requiring resources
-        game_config = GameConfig(
+        game_config = MettaGridConfig(
             num_agents=1,
             obs=ObsConfig(width=7, height=7, num_tokens=100),
             max_steps=100,
@@ -52,10 +52,10 @@ class TestGlobalObservations:
             ["wall", "wall", "wall"],
         ]
 
-        cfg = MettaGridConfig(game=game_config)
+        cfg = MettaGridEnvConfig(game=game_config)
         cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
 
-        sim = Simulation(cfg, seed=42)
+        sim = Simulation(cfg.game, seed=42)
 
         # First step with noop to initialize observations
         sim.agent(0).set_action(Action(name="noop"))
@@ -85,7 +85,7 @@ class TestGlobalObservations:
     def test_last_action_is_actual_action_when_action_succeeds(self):
         """Test that agents see the actual action index as last_action when their action succeeds."""
         # Create config with last_action observation enabled
-        game_config = GameConfig(
+        game_config = MettaGridConfig(
             num_agents=1,
             obs=ObsConfig(width=7, height=7, num_tokens=100),
             max_steps=100,
@@ -107,10 +107,10 @@ class TestGlobalObservations:
             ["wall", "wall", "wall", "wall"],
         ]
 
-        cfg = MettaGridConfig(game=game_config)
+        cfg = MettaGridEnvConfig(game=game_config)
         cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
 
-        sim = Simulation(cfg, seed=42)
+        sim = Simulation(cfg.game, seed=42)
 
         # First step with noop to initialize observations
         sim.agent(0).set_action(Action(name="noop"))

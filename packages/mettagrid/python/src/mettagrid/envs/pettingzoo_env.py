@@ -13,7 +13,7 @@ from gymnasium import spaces
 from pettingzoo import ParallelEnv
 from typing_extensions import override
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.simulator import Simulator
 
@@ -31,13 +31,13 @@ class MettaGridPettingZooEnv(ParallelEnv):
       https://github.com/Farama-Foundation/PettingZoo/blob/405e71c912dc3f787bb12c7f8463f18fcce31bb1/pettingzoo/utils/env.py#L281
     """
 
-    def __init__(self, simulator: Simulator, cfg: MettaGridConfig, **kwargs: Any):
+    def __init__(self, simulator: Simulator, cfg: MettaGridEnvConfig, **kwargs: Any):
         """
         Initialize PettingZoo environment.
 
         Args:
             simulator: Simulator instance
-            cfg: MettaGridConfig instance
+            cfg: MettaGridEnvConfig instance
             **kwargs: Additional arguments
         """
         super().__init__()
@@ -46,8 +46,14 @@ class MettaGridPettingZooEnv(ParallelEnv):
         self._cfg = cfg
         self._seed = 0
 
+        # Extract core game config and copy metadata from wrapper
+        game_config = cfg.game.model_copy(deep=True)
+        game_config.metadata.label = cfg.label
+        game_config.metadata.params["teacher"] = cfg.teacher.model_dump()
+        game_config.metadata.params["desync_episodes"] = cfg.desync_episodes
+
         # Initialize first simulation to get space information
-        self._sim = self._simulator.new_simulation(cfg, seed=self._seed)
+        self._sim = self._simulator.new_simulation(game_config, seed=self._seed)
 
         # PettingZoo attributes - agent IDs are integers
         self.possible_agents: List[int] = list(range(self._sim.num_agents))
@@ -81,8 +87,14 @@ class MettaGridPettingZooEnv(ParallelEnv):
         if seed is not None:
             self._seed = seed
 
+        # Extract core game config and copy metadata from wrapper
+        game_config = self._cfg.game.model_copy(deep=True)
+        game_config.metadata.label = self._cfg.label
+        game_config.metadata.params["teacher"] = self._cfg.teacher.model_dump()
+        game_config.metadata.params["desync_episodes"] = self._cfg.desync_episodes
+
         # Create new simulation
-        self._sim = self._simulator.new_simulation(self._cfg, seed=self._seed)
+        self._sim = self._simulator.new_simulation(game_config, seed=self._seed)
 
         # Reset agents list to all possible agents
         self.agents = self.possible_agents.copy()

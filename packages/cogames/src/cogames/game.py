@@ -7,12 +7,12 @@ from pathlib import Path
 
 import yaml
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig, MettaGridEnvConfig
 
 _SUPPORTED_MISSION_EXTENSIONS = [".yaml", ".yml", ".json", ".py"]
 
 
-def load_mission_config_from_python(path: Path) -> MettaGridConfig:
+def load_mission_config_from_python(path: Path) -> MettaGridEnvConfig:
     """Load a mission configuration from a Python file.
 
     The Python file should define a function called 'get_config()' that returns a MettaGridConfig.
@@ -47,8 +47,12 @@ def load_mission_config_from_python(path: Path) -> MettaGridConfig:
             "or a 'config' variable that returns/contains a MettaGridConfig"
         )
 
-    if not isinstance(config, MettaGridConfig):
-        raise ValueError(f"Python file {path} must return a MettaGridConfig instance")
+    # Accept both MettaGridConfig and MettaGridEnvConfig
+    # If it's a MettaGridConfig (core game config), wrap it
+    if isinstance(config, MettaGridConfig) and not isinstance(config, MettaGridEnvConfig):
+        config = MettaGridEnvConfig(game=config)
+    elif not isinstance(config, MettaGridEnvConfig):
+        raise ValueError(f"Python file {path} must return a MettaGridConfig or MettaGridEnvConfig instance")
 
     # Clean up the temporary module
     del sys.modules["game_config"]
@@ -56,7 +60,7 @@ def load_mission_config_from_python(path: Path) -> MettaGridConfig:
     return config
 
 
-def save_mission_config(config: MettaGridConfig, output_path: Path) -> None:
+def save_mission_config(config: MettaGridEnvConfig, output_path: Path) -> None:
     """Save a mission configuration to file.
 
     Args:
@@ -78,7 +82,7 @@ def save_mission_config(config: MettaGridConfig, output_path: Path) -> None:
         )
 
 
-def load_mission_config(path: Path) -> MettaGridConfig:
+def load_mission_config(path: Path) -> MettaGridEnvConfig:
     """Load a mission configuration from file.
 
     Args:
@@ -101,4 +105,9 @@ def load_mission_config(path: Path) -> MettaGridConfig:
             f"Unsupported file format: {path.suffix}. Supported: {', '.join(_SUPPORTED_MISSION_EXTENSIONS)}"
         )
 
-    return MettaGridConfig(**config_dict)
+    # Try to load as MettaGridEnvConfig first, fall back to wrapping MettaGridConfig
+    try:
+        return MettaGridEnvConfig(**config_dict)
+    except Exception:
+        # If that fails, try loading as MettaGridConfig and wrap it
+        return MettaGridEnvConfig(game=MettaGridConfig(**config_dict))

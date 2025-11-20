@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
-    from mettagrid.config.mettagrid_config import GameConfig
+    from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 class ObservationFeatureSpec(BaseModel):
@@ -27,7 +27,7 @@ class ObservationFeatureSpec(BaseModel):
 class IdMap:
     """Manages observation feature IDs and mappings for a MettaGrid configuration."""
 
-    def __init__(self, config: GameConfig):
+    def __init__(self, config: MettaGridConfig):
         self._config = config
         self._features_list: list[ObservationFeatureSpec] | None = None
 
@@ -57,18 +57,20 @@ class IdMap:
 
     def tag_names(self) -> list[str]:
         """Get all tag names in alphabetical order."""
+        game_cfg = self._config
 
         result = sorted(
             set(
-                [tag for obj_config in self._config.objects.values() for tag in obj_config.tags]
-                + [tag for agent_config in self._config.agents for tag in agent_config.tags]
-                + self._config.agent.tags
+                [tag for obj_config in game_cfg.objects.values() for tag in obj_config.tags]
+                + [tag for agent_config in game_cfg.agents for tag in agent_config.tags]
+                + game_cfg.agent.tags
             )
         )
         return result
 
     def _compute_features(self) -> list[ObservationFeatureSpec]:
         """Compute observation features from the game configuration."""
+        game_cfg = self._config
 
         features: list[ObservationFeatureSpec] = []
         feature_id = 0
@@ -116,19 +118,19 @@ class IdMap:
         feature_id += 1
 
         # Inventory features (one per resource)
-        for resource_name in self._config.resource_names:
+        for resource_name in game_cfg.resource_names:
             features.append(ObservationFeatureSpec(id=feature_id, normalization=100.0, name=f"inv:{resource_name}"))
             feature_id += 1
 
         # Protocol details features (if enabled)
-        if self._config.protocol_details_obs:
-            for resource_name in self._config.resource_names:
+        if game_cfg.protocol_details_obs:
+            for resource_name in game_cfg.resource_names:
                 features.append(
                     ObservationFeatureSpec(id=feature_id, normalization=100.0, name=f"protocol_input:{resource_name}")
                 )
                 feature_id += 1
 
-            for resource_name in self._config.resource_names:
+            for resource_name in game_cfg.resource_names:
                 features.append(
                     ObservationFeatureSpec(id=feature_id, normalization=100.0, name=f"protocol_output:{resource_name}")
                 )

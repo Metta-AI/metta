@@ -96,7 +96,7 @@ class MiniscopeRenderer(Renderer):
         self._state.symbol_map = DEFAULT_SYMBOL_MAP.copy()
 
         # Add custom symbols from game config
-        for obj in self._sim.config.game.objects.values():
+        for obj in self._sim.config.objects.values():
             # Key by render_name (preferred) and also alias by name for convenience
             self._state.symbol_map[obj.render_name or obj.name] = obj.render_symbol
             if obj.render_name and obj.render_name != obj.name:

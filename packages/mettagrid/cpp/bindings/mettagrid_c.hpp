@@ -41,7 +41,7 @@ struct AssemblerConfig;
 struct ChestConfig;
 struct WallConfig;
 struct AgentConfig;
-struct GameConfig;
+struct MettaGridConfig;
 struct ActionConfig;
 struct AttackActionConfig;
 struct ChangeVibeActionConfig;
@@ -50,7 +50,7 @@ namespace py = pybind11;
 
 class METTAGRID_API MettaGrid {
 public:
-  MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
+  MettaGrid(const MettaGridConfig& cfg, py::list map, unsigned int seed);
   ~MettaGrid();
 
   ObservationCoord obs_width;
@@ -110,7 +110,7 @@ public:
 private:
   // Member variables
   GlobalObsConfig _global_obs_config;
-  GameConfig _game_config;
+  MettaGridConfig _game_config;
 
   std::unique_ptr<Grid> _grid;
 
@@ -151,9 +151,9 @@ private:
   // Global systems
   std::unique_ptr<Clipper> _clipper;
 
-  void init_action_handlers(const GameConfig& game_config);
+  void init_action_handlers(const MettaGridConfig& game_config);
   void add_agent(Agent* agent);
-  void _init_grid(const GameConfig& game_config, const py::list& map);
+  void _init_grid(const MettaGridConfig& game_config, const py::list& map);
   void _make_buffers(unsigned int num_agents);
   void _init_buffers(unsigned int num_agents);
   void _compute_observation(GridCoord observer_r,

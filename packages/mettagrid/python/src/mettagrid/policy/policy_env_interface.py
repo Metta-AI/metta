@@ -49,12 +49,12 @@ class PolicyEnvInterface(BaseModel):
         """
         # Extract assembler protocols if available
         assembler_protocols = []
-        assembler_config = mg_cfg.game.objects.get("assembler")
+        assembler_config = mg_cfg.objects.get("assembler")
         if assembler_config and hasattr(assembler_config, "protocols"):
             assembler_protocols = assembler_config.protocols
 
         # Get tag ID to name mapping from id_map
-        id_map = mg_cfg.game.id_map()
+        id_map = mg_cfg.id_map()
         tag_names_list = id_map.tag_names()
         # Tag IDs are assigned based on alphabetical order (index in sorted list)
         tag_id_to_name = {i: name for i, name in enumerate(tag_names_list)}
@@ -62,14 +62,14 @@ class PolicyEnvInterface(BaseModel):
         return PolicyEnvInterface(
             obs_features=id_map.features(),
             tags=tag_names_list,
-            actions=mg_cfg.game.actions,
-            num_agents=mg_cfg.game.num_agents,
+            actions=mg_cfg.actions,
+            num_agents=mg_cfg.num_agents,
             observation_space=gym.spaces.Box(
-                0, 255, (mg_cfg.game.obs.num_tokens, mg_cfg.game.obs.token_dim), dtype=dtype_observations
+                0, 255, (mg_cfg.obs.num_tokens, mg_cfg.obs.token_dim), dtype=dtype_observations
             ),
-            action_space=gym.spaces.Discrete(len(mg_cfg.game.actions.actions())),
-            obs_width=mg_cfg.game.obs.width,
-            obs_height=mg_cfg.game.obs.height,
+            action_space=gym.spaces.Discrete(len(mg_cfg.actions.actions())),
+            obs_width=mg_cfg.obs.width,
+            obs_height=mg_cfg.obs.height,
             assembler_protocols=assembler_protocols,
             tag_id_to_name=tag_id_to_name,
         )

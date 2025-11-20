@@ -8,8 +8,8 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChangeVibeActionConfig,
     ChestConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -23,8 +23,8 @@ from mettagrid.simulator import BoundingBox, Simulation
 @pytest.fixture
 def sim_with_assembler():
     """Create simulation with an assembler to test assembler properties."""
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=2,
             obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
@@ -55,14 +55,14 @@ def sim_with_assembler():
             ),
         )
     )
-    return Simulation(config)
+    return Simulation(config.game)
 
 
 @pytest.fixture
 def sim_with_chest():
     """Create simulation with a chest to test chest properties."""
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=1,
             obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
@@ -81,14 +81,14 @@ def sim_with_chest():
             ),
         )
     )
-    return Simulation(config)
+    return Simulation(config.game)
 
 
 @pytest.fixture
 def sim_with_walls():
     """Create simulation with walls to test ignore_types."""
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=2,
             obs=ObsConfig(width=5, height=5, num_tokens=50),
             max_steps=10,
@@ -106,7 +106,7 @@ def sim_with_walls():
             ),
         )
     )
-    return Simulation(config)
+    return Simulation(config.game)
 
 
 class TestIgnoreTypes:

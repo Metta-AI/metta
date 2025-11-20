@@ -4,8 +4,8 @@ import pytest
 
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -21,9 +21,9 @@ from mettagrid.test_support.orientation import Orientation
 
 # Test fixtures for MettaGrid environments
 @pytest.fixture
-def base_config() -> GameConfig:
+def base_config() -> MettaGridConfig:
     """Base configuration for MettaGrid tests."""
-    return GameConfig(
+    return MettaGridConfig(
         max_steps=50,
         num_agents=1,
         obs=ObsConfig(width=3, height=3, num_tokens=100),
@@ -106,15 +106,12 @@ def make_sim(base_config):
         else:
             game_config = base_config
 
-        # Create MettaGridConfig wrapper
-        cfg = MettaGridConfig(game=game_config)
-
         # Put the map into the config using ObjectNameMapBuilder
         # Convert numpy array to list if needed
         map_list = game_map.tolist() if hasattr(game_map, "tolist") else game_map
-        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_list)
+        game_config.map_builder = ObjectNameMapBuilder.Config(map_data=map_list)
 
-        sim = Simulation(cfg, seed=42)
+        sim = Simulation(game_config, seed=42)
 
         return sim
 
@@ -163,8 +160,8 @@ def test_8way_movement_all_directions(make_sim, movement_game_map):
 
 def test_8way_movement_obstacles():
     """Test that 8-way movement respects obstacles."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=1,
             actions=ActionsConfig(
                 move=MoveActionConfig(
@@ -194,7 +191,7 @@ def test_8way_movement_obstacles():
             ),
         )
     )
-    sim = Simulation(cfg)
+    sim = Simulation(cfg.game)
 
     objects = sim.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
@@ -221,8 +218,8 @@ def test_8way_movement_obstacles():
 
 def test_8way_movement_with_simple_environment():
     """Test 8-way movement using the simple environment builder."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=1,
             actions=ActionsConfig(
                 move=MoveActionConfig(
@@ -252,7 +249,7 @@ def test_8way_movement_with_simple_environment():
             ),
         )
     )
-    sim = Simulation(cfg)
+    sim = Simulation(cfg.game)
 
     objects = sim.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
@@ -285,8 +282,8 @@ def test_8way_movement_with_simple_environment():
 
 def test_8way_movement_boundary_check():
     """Test 8-way movement respects environment boundaries."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=1,
             actions=ActionsConfig(
                 move=MoveActionConfig(
@@ -316,7 +313,7 @@ def test_8way_movement_boundary_check():
             ),
         )
     )
-    sim = Simulation(cfg)
+    sim = Simulation(cfg.game)
 
     objects = sim.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")

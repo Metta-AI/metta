@@ -11,8 +11,8 @@ from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     WallConfig,
@@ -59,8 +59,8 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
             # @ agents get team_id 0
             agents.append(AgentConfig(team_id=0))
 
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=num_agents,
             max_steps=max_steps,
             actions=ActionsConfig(move=MoveActionConfig(), noop=NoopActionConfig()),

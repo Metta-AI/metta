@@ -30,7 +30,7 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
-from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridEnvConfig
 from mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_masks,
@@ -68,12 +68,12 @@ class MettaGridPufferEnv(PufferEnv):
     def __init__(
         self,
         simulator: Simulator,
-        cfg: MettaGridConfig,
+        cfg: MettaGridEnvConfig,
         env_supervisor_cfg: Optional[EnvSupervisorConfig] = None,
         buf: Any = None,
         seed: int = 0,
     ):
-        # Support both Simulation and MettaGridConfig for backwards compatibility
+        # Support both Simulation and MettaGridEnvConfig for backwards compatibility
         self._simulator = simulator
         self._current_cfg = cfg
         self._current_seed = seed
@@ -83,7 +83,7 @@ class MettaGridPufferEnv(PufferEnv):
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
 
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(cfg)
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(cfg.game)
 
         self._buffers: Buffers = Buffers(
             observations=np.zeros(
@@ -111,11 +111,11 @@ class MettaGridPufferEnv(PufferEnv):
         super().__init__(buf=buf)
 
     @property
-    def env_cfg(self) -> MettaGridConfig:
+    def env_cfg(self) -> MettaGridEnvConfig:
         """Get the environment configuration."""
         return self._current_cfg
 
-    def set_mg_config(self, config: MettaGridConfig) -> None:
+    def set_mg_config(self, config: MettaGridEnvConfig) -> None:
         self._current_cfg = config
 
     def get_episode_rewards(self) -> np.ndarray:
@@ -129,11 +129,17 @@ class MettaGridPufferEnv(PufferEnv):
         if self._sim is not None:
             self._sim.close()
 
-        self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
+        # Extract core game config and copy metadata from wrapper
+        game_config = self._current_cfg.game.model_copy(deep=True)
+        game_config.metadata.label = self._current_cfg.label
+        game_config.metadata.params["teacher"] = self._current_cfg.teacher.model_dump()
+        game_config.metadata.params["desync_episodes"] = self._current_cfg.desync_episodes
+
+        self._sim = self._simulator.new_simulation(game_config, self._current_seed, buffers=self._buffers)
 
         if self._env_supervisor_cfg.policy is not None:
             self._env_supervisor = initialize_or_load_policy(
-                PolicyEnvInterface.from_mg_cfg(self._current_cfg),
+                PolicyEnvInterface.from_mg_cfg(self._current_cfg.game),
                 PolicySpec(
                     class_path=self._env_supervisor_cfg.policy,
                     data_path=self._env_supervisor_cfg.policy_data_path,

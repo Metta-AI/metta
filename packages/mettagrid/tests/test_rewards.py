@@ -5,7 +5,6 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     AttackActionConfig,
     ChangeVibeActionConfig,
-    GameConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -35,7 +34,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
-    game_config = GameConfig(
+    game_config = MettaGridConfig(
         max_steps=max_steps,
         num_agents=num_agents,
         resource_names=["laser", "armor", "heart"],
@@ -59,10 +58,9 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
     )
 
     # Create MettaGridConfig wrapper
-    cfg = MettaGridConfig(game=game_config)
-    cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+    game_config.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
 
-    return Simulation(cfg, seed=42)
+    return Simulation(game_config, seed=42)
 
 
 def get_action_name(base_name: str, orientation: Orientation | None = None) -> str:

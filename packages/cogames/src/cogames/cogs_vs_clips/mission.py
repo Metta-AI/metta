@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import override
+from types import MethodType
+from typing import Any, Callable, override
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
@@ -24,9 +25,9 @@ from mettagrid.config.mettagrid_config import (
     AgentRewards,
     ChangeVibeActionConfig,
     ClipperConfig,
-    GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ProtocolConfig,
@@ -46,7 +47,7 @@ class MissionVariant(Config, ABC):
         # Variants are allowed to modify the mission in-place - it's guaranteed to be a one-time only instance.
         pass
 
-    def modify_env(self, mission: Mission, env: MettaGridConfig) -> None:
+    def modify_env(self, mission: Mission, env: MettaGridEnvConfig) -> None:
         # Override this method to modify the produced environment.
         # Variants are allowed to modify the environment in-place.
         pass
@@ -135,6 +136,8 @@ class Mission(Config):
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
     compass_enabled: bool = Field(default=False)
+    _env_modifiers: list[Callable[[MettaGridEnvConfig], None]] = PrivateAttr(default_factory=list)
+    _env_modifier_hooked: bool = PrivateAttr(default=False)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -151,18 +154,42 @@ class Mission(Config):
     def full_name(self) -> str:
         return f"{self.site.name}{MAP_MISSION_DELIMITER}{self.name}"
 
-    def make_env(self) -> MettaGridConfig:
-        """Create a MettaGridConfig from this mission.
+    def add_env_modifier(self, modifier: Callable[[MettaGridEnvConfig], None]) -> "Mission":
+        """Register a callable to mutate the environment config after creation."""
+        self._ensure_env_modifier_wrapper()
+        self._env_modifiers.append(modifier)
+        return self
+
+    def _ensure_env_modifier_wrapper(self) -> None:
+        if self._env_modifier_hooked:
+            return
+
+        original_make_env = self.make_env
+
+        def wrapped_make_env(_self: "Mission", *args: Any, **kwargs: Any) -> MettaGridEnvConfig:
+            env_cfg = original_make_env(*args, **kwargs)
+            for modifier in _self._env_modifiers:
+                modifier(env_cfg)
+            return env_cfg
+
+        object.__setattr__(self, "make_env", MethodType(wrapped_make_env, self))
+        self._env_modifier_hooked = True
+
+    def make_env(self) -> MettaGridEnvConfig:
+        """Create a MettaGridEnvConfig from this mission.
 
         Applies all variants to the produced configuration.
 
         Returns:
-            MettaGridConfig ready for environment creation
+            MettaGridEnvConfig ready for environment creation
+
+        Raises:
+            ValueError: If map or num_cogs is not set
         """
         map_builder = self.site.map_builder
         num_cogs = self.num_cogs if self.num_cogs is not None else self.site.min_cogs
 
-        game = GameConfig(
+        game = MettaGridConfig(
             map_builder=map_builder,
             num_agents=num_cogs,
             resource_names=resources,
@@ -274,7 +301,7 @@ class Mission(Config):
             },
         )
 
-        env = MettaGridConfig(game=game)
+        env = MettaGridEnvConfig(game=game)
         # Precaution - copy the env, in case the code above uses some global variable that we don't want to modify.
         # This allows variants to modify the env without copying it again.
         env = env.model_copy(deep=True)

@@ -22,7 +22,7 @@ class LogRenderer(Renderer):
 
         logger.info("=== Episode Start ===")
         logger.info(f"Num agents: {self._sim.num_agents}")
-        logger.info(f"Max steps: {self._sim.config.game.max_steps}")
+        logger.info(f"Max steps: {self._sim.config.max_steps}")
 
     @override
     def on_step(self) -> None:

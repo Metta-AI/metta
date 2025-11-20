@@ -164,7 +164,7 @@ class GlobalObsConfig:
     last_reward: bool
     compass: bool
 
-class GameConfig:
+class MettaGridConfig:
     def __init__(
         self,
         num_agents: int,
@@ -215,7 +215,7 @@ class MettaGrid:
     map_height: int
     num_agents: int
 
-    def __init__(self, env_cfg: GameConfig, map: list, seed: int) -> None: ...
+    def __init__(self, env_cfg: MettaGridConfig, map: list, seed: int) -> None: ...
     def step(self) -> None: ...
     def set_buffers(
         self,

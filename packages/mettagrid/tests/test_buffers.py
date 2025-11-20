@@ -6,7 +6,6 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AttackActionConfig,
     ChangeVibeActionConfig,
-    GameConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -37,7 +36,7 @@ def create_minimal_simulation(max_steps=10, width=5, height=5, config_overrides:
         max_steps: Maximum steps before truncation
         width: Map width
         height: Map height
-        config_overrides: Dictionary to override GameConfig fields
+        config_overrides: Dictionary to override MettaGridConfig fields
 
     Returns:
         Simulation instance (access underlying C++ env via sim._c_sim)
@@ -55,7 +54,7 @@ def create_minimal_simulation(max_steps=10, width=5, height=5, config_overrides:
     mid_x = width // 2
     game_map[mid_y, mid_x] = "agent.red"
 
-    game_config = GameConfig(
+    game_config = MettaGridConfig(
         max_steps=max_steps,
         num_agents=NUM_AGENTS,
         resource_names=["laser", "armor"],
@@ -73,14 +72,11 @@ def create_minimal_simulation(max_steps=10, width=5, height=5, config_overrides:
     if config_overrides:
         game_config = game_config.model_copy(update=config_overrides)
 
-    # Create MettaGridConfig wrapper
-    config = MettaGridConfig(game=game_config)
-
     # Set up map builder
     map_list = game_map.tolist()
-    config.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_list)
+    game_config.map_builder = ObjectNameMapBuilder.Config(map_data=map_list)
 
-    return Simulation(config, seed=42)
+    return Simulation(game_config, seed=42)
 
 
 # These tests validate low-level C++ buffer management using MettaGrid directly.
@@ -95,7 +91,7 @@ class TestBuffers:
         c_sim = sim._c_sim
 
         # Get action names from config since action_names() is now Python-only
-        action_names = [action.name for action in sim.config.game.actions.actions()]
+        action_names = [action.name for action in sim.config.actions.actions()]
         noop_action_idx = action_names.index("noop")
         c_sim.actions()[:] = noop_action_idx
         c_sim.step()
@@ -283,7 +279,7 @@ class TestBuffers:
 
         # Take a step - this should overwrite our manual values
         # Get action names from config since action_names() is now Python-only
-        action_names = [action.name for action in sim.config.game.actions.actions()]
+        action_names = [action.name for action in sim.config.actions.actions()]
         noop_action_idx = action_names.index("noop")
         c_sim.actions()[:] = noop_action_idx
 
@@ -330,7 +326,7 @@ class TestBuffers:
 
         # Take one step to reach max_steps
         # Get action names from config since action_names() is now Python-only
-        action_names = [action.name for action in sim.config.game.actions.actions()]
+        action_names = [action.name for action in sim.config.actions.actions()]
         noop_action_idx = action_names.index("noop")
         c_sim.actions()[:] = noop_action_idx
         c_sim.step()  # current_step = 1, should trigger end of episode
@@ -357,7 +353,7 @@ class TestBuffers:
 
         # Take one step to reach max_steps
         # Get action names from config since action_names() is now Python-only
-        action_names = [action.name for action in sim.config.game.actions.actions()]
+        action_names = [action.name for action in sim.config.actions.actions()]
         noop_action_idx = action_names.index("noop")
         c_sim.actions()[:] = noop_action_idx
         c_sim.step()  # current_step = 1, should trigger end of episode
@@ -381,7 +377,7 @@ class TestBuffers:
 
         # Take a step to get valid baseline values
         # Get action names from config since action_names() is now Python-only
-        action_names = [action.name for action in sim.config.game.actions.actions()]
+        action_names = [action.name for action in sim.config.actions.actions()]
         noop_action_idx = action_names.index("noop")
         c_sim.actions()[:] = noop_action_idx
         c_sim.step()
@@ -476,7 +472,7 @@ class TestBuffers:
 
         # Take first step
         # Get action names from config since action_names() is now Python-only
-        action_names = [action.name for action in sim.config.game.actions.actions()]
+        action_names = [action.name for action in sim.config.actions.actions()]
         noop_action_idx = action_names.index("noop")
         c_sim.actions()[:] = noop_action_idx
 

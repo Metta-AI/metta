@@ -70,7 +70,7 @@ class StatsTracker(SimulatorEventHandler):
             "map_w": self._sim.map_width,
             "map_h": self._sim.map_height,
             "steps": self._sim.current_step,
-            "max_steps": self._sim.config.game.max_steps,
+            "max_steps": self._sim.config.max_steps,
             "completion_time": time.time(),
         }
         infos["attributes"] = attributes
@@ -148,7 +148,7 @@ class StatsTracker(SimulatorEventHandler):
     def _update_label_completions(self, moving_avg_window: int = 500) -> None:
         """Update label completions."""
         assert self._sim is not None
-        label = self._sim.config.label
+        label = self._sim.config.metadata.label
 
         # keep track of a list of the last 500 labels
         if len(self._label_completions["completed_tasks"]) >= moving_avg_window:

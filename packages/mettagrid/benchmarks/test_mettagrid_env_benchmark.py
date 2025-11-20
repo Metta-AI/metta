@@ -3,8 +3,8 @@ import pytest
 
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -18,8 +18,8 @@ def simulation(num_agents: int):
     """Create and initialize the environment with specified number of agents."""
     seed = 42
 
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=num_agents,
             obs=ObsConfig(num_tokens=100),
             max_steps=0,  # env lasts forever
@@ -30,7 +30,7 @@ def simulation(num_agents: int):
 
     print(f"\nConfiguring environment with {num_agents} agents")
 
-    sim = Simulation(cfg, seed=seed)
+    sim = Simulation(cfg.game, seed=seed)
 
     yield sim
     # Cleanup after test
@@ -119,14 +119,14 @@ def test_create_env_performance(benchmark):
 
     def create_env():
         """Create a new environment."""
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=8,
                 actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
                 map_builder=RandomMapBuilder.Config(agents=8, width=20, height=20, seed=42),
             )
         )
-        sim = Simulation(cfg, seed=42)
+        sim = Simulation(cfg.game, seed=42)
         # Cleanup
         sim.close()
         del sim

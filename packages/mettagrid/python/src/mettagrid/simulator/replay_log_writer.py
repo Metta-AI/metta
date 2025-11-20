@@ -105,7 +105,7 @@ class EpisodeReplay:
             "type_names": sim.object_type_names,
             "map_size": [sim.map_width, sim.map_height],
             "num_agents": sim.num_agents,
-            "max_steps": sim.config.game.max_steps,
+            "max_steps": sim.config.max_steps,
             "mg_config": sim.config.model_dump(mode="json"),
             "objects": self.objects,
         }

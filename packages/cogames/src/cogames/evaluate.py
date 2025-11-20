@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
 
-from mettagrid import MettaGridConfig
+from mettagrid import MettaGridEnvConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -40,7 +40,7 @@ class RawMissionEvaluationResult(BaseModel):
 
 def evaluate(
     console: Console,
-    missions: list[tuple[str, MettaGridConfig]],
+    missions: list[tuple[str, MettaGridEnvConfig]],
     policy_specs: list[PolicySpec],
     proportions: list[float],
     episodes: int,
@@ -68,7 +68,7 @@ def evaluate(
     mission_results: list[MultiEpisodeRolloutResult] = []
     all_replay_paths: list[str] = []
     for mission_name, env_cfg in missions:
-        env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
+        env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg.game)
         policy_instances: list[MultiAgentPolicy] = [
             initialize_or_load_policy(env_interface, spec) for spec in policy_specs
         ]

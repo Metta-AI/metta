@@ -1,7 +1,7 @@
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -23,8 +23,8 @@ def test_walls_visible_without_tags():
     game_map[:, -1] = "#"
     game_map[1, 1] = "@"
 
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=1,
             obs=ObsConfig(width=3, height=3, num_tokens=50),
             max_steps=1,
@@ -34,10 +34,10 @@ def test_walls_visible_without_tags():
         )
     )
 
-    sim = Simulation(cfg)
+    sim = Simulation(cfg.game)
     obs = sim._c_sim.observations()
 
     helper = ObservationHelper()
-    tag_feature_id = sim.config.game.id_map().feature_id("tag")
+    tag_feature_id = sim.config.id_map().feature_id("tag")
     wall_tag_tokens = helper.find_tokens(obs[0], feature_id=tag_feature_id)
     assert len(wall_tag_tokens) > 0, "Walls should be visible even without tags"

@@ -9,7 +9,7 @@ from mettagrid.config.mettagrid_config import (
     AgentRewards,
     AttackActionConfig,
     ChangeVibeActionConfig,
-    GameConfig,
+    MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -26,7 +26,7 @@ def test_exception_when_laser_not_in_inventory():
         ["wall", "wall", "wall", "wall", "wall"],
     ]
 
-    game_config = GameConfig(
+    game_config = MettaGridConfig(
         max_steps=50,
         num_agents=2,
         obs=ObsConfig(width=11, height=11, num_tokens=200),
@@ -70,7 +70,7 @@ def test_no_exception_when_resources_in_inventory():
         ["wall", "wall", "wall", "wall", "wall"],
     ]
 
-    game_config = GameConfig(
+    game_config = MettaGridConfig(
         max_steps=50,
         num_agents=2,
         obs=ObsConfig(width=11, height=11, num_tokens=200),

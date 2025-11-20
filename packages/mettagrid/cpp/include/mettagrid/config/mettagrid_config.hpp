@@ -26,7 +26,7 @@ struct GlobalObsConfig {
   bool compass = false;
 };
 
-struct GameConfig {
+struct MettaGridConfig {
   size_t num_agents;
   unsigned int max_steps;
   bool episode_truncates;
@@ -70,7 +70,7 @@ inline void bind_global_obs_config(py::module& m) {
 }
 
 inline void bind_game_config(py::module& m) {
-  py::class_<GameConfig>(m, "GameConfig")
+  py::class_<MettaGridConfig>(m, "MettaGridConfig")
       .def(py::init<unsigned int,
                     unsigned int,
                     bool,
@@ -119,35 +119,35 @@ inline void bind_game_config(py::module& m) {
 
            // Clipper
            py::arg("clipper") = std::shared_ptr<ClipperConfig>(nullptr))
-      .def_readwrite("num_agents", &GameConfig::num_agents)
-      .def_readwrite("max_steps", &GameConfig::max_steps)
-      .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
-      .def_readwrite("obs_width", &GameConfig::obs_width)
-      .def_readwrite("obs_height", &GameConfig::obs_height)
-      .def_readwrite("resource_names", &GameConfig::resource_names)
-      .def_readwrite("vibe_names", &GameConfig::vibe_names)
-      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
-      .def_readwrite("global_obs", &GameConfig::global_obs)
-      .def_readwrite("feature_ids", &GameConfig::feature_ids)
+      .def_readwrite("num_agents", &MettaGridConfig::num_agents)
+      .def_readwrite("max_steps", &MettaGridConfig::max_steps)
+      .def_readwrite("episode_truncates", &MettaGridConfig::episode_truncates)
+      .def_readwrite("obs_width", &MettaGridConfig::obs_width)
+      .def_readwrite("obs_height", &MettaGridConfig::obs_height)
+      .def_readwrite("resource_names", &MettaGridConfig::resource_names)
+      .def_readwrite("vibe_names", &MettaGridConfig::vibe_names)
+      .def_readwrite("num_observation_tokens", &MettaGridConfig::num_observation_tokens)
+      .def_readwrite("global_obs", &MettaGridConfig::global_obs)
+      .def_readwrite("feature_ids", &MettaGridConfig::feature_ids)
 
       // We don't expose these since they're copied on read, and this means that mutations
       // to the dictionaries don't impact the underlying cpp objects. This is confusing!
       // This can be fixed, but until we do that, we're not exposing these.
-      // .def_readwrite("actions", &GameConfig::actions)
-      // .def_readwrite("objects", &GameConfig::objects);
+      // .def_readwrite("actions", &MettaGridConfig::actions)
+      // .def_readwrite("objects", &MettaGridConfig::objects);
 
-      .def_readwrite("resource_loss_prob", &GameConfig::resource_loss_prob)
-      .def_readwrite("tag_id_map", &GameConfig::tag_id_map)
+      .def_readwrite("resource_loss_prob", &MettaGridConfig::resource_loss_prob)
+      .def_readwrite("tag_id_map", &MettaGridConfig::tag_id_map)
 
       // FEATURE FLAGS
-      .def_readwrite("protocol_details_obs", &GameConfig::protocol_details_obs)
-      .def_readwrite("reward_estimates", &GameConfig::reward_estimates)
+      .def_readwrite("protocol_details_obs", &MettaGridConfig::protocol_details_obs)
+      .def_readwrite("reward_estimates", &MettaGridConfig::reward_estimates)
 
       // Inventory regeneration
-      .def_readwrite("inventory_regen_interval", &GameConfig::inventory_regen_interval)
+      .def_readwrite("inventory_regen_interval", &MettaGridConfig::inventory_regen_interval)
 
       // Clipper
-      .def_readwrite("clipper", &GameConfig::clipper);
+      .def_readwrite("clipper", &MettaGridConfig::clipper);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CONFIG_METTAGRID_CONFIG_HPP_

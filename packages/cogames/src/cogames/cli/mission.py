@@ -17,7 +17,7 @@ from cogames.cogs_vs_clips.procedural import MachinaArena
 from cogames.cogs_vs_clips.sites import SITES
 from cogames.cogs_vs_clips.variants import HIDDEN_VARIANTS, VARIANTS
 from cogames.game import load_mission_config, load_mission_config_from_python
-from mettagrid import MettaGridConfig
+from mettagrid import MettaGridEnvConfig
 from mettagrid.config.mettagrid_config import AssemblerConfig
 from mettagrid.mapgen.mapgen import MapGen
 
@@ -138,7 +138,7 @@ def get_site_by_name(site_name: str) -> Site:
 
 def get_mission_name_and_config(
     ctx: typer.Context, mission_arg: Optional[str], variants_arg: Optional[list[str]] = None, cogs: Optional[int] = None
-) -> tuple[str, MettaGridConfig, Optional[Mission]]:
+) -> tuple[str, MettaGridEnvConfig, Optional[Mission]]:
     if not mission_arg:
         console.print(ctx.get_help())
         console.print("[yellow]Missing: --mission / -m[/yellow]\n")
@@ -162,7 +162,7 @@ def get_mission_names_and_configs(
     variants_arg: Optional[list[str]] = None,
     cogs: Optional[int] = None,
     steps: Optional[int] = None,
-) -> list[tuple[str, MettaGridConfig]]:
+) -> list[tuple[str, MettaGridEnvConfig]]:
     if not missions_arg:
         console.print(ctx.get_help())
         console.print("[yellow]Supply at least one: --mission / -m[/yellow]\n")
@@ -202,7 +202,7 @@ def _get_missions_by_possible_wildcard(
     mission_arg: str,
     variants_arg: Optional[list[str]],
     cogs: Optional[int],
-) -> list[tuple[str, MettaGridConfig]]:
+) -> list[tuple[str, MettaGridEnvConfig]]:
     if "*" in mission_arg:
         # Convert shell-style wildcard to regex pattern
         regex_pattern = mission_arg.replace(".", "\\.").replace("*", ".*")
@@ -239,7 +239,7 @@ def find_mission(
 
 def get_mission(
     mission_arg: str, variants_arg: Optional[list[str]] = None, cogs: Optional[int] = None
-) -> tuple[str, MettaGridConfig, Optional[Mission]]:
+) -> tuple[str, MettaGridEnvConfig, Optional[Mission]]:
     """Get a specific mission configuration by name or file path.
 
     Args:
@@ -248,7 +248,7 @@ def get_mission(
         cogs: Number of cogs (agents) to use, overrides the default from the mission
 
     Returns:
-        Tuple of (mission name, MettaGridConfig, Mission or None)
+        Tuple of (mission name, MettaGridEnvConfig, Mission or None)
 
     Raises:
         ValueError: If mission not found or file cannot be loaded
@@ -473,7 +473,7 @@ def list_evals() -> None:
     console.print("  [bold]cogames play[/bold] --mission [blue]evals.divide_and_conquer[/blue]")
 
 
-def describe_mission(mission_name: str, game_config: MettaGridConfig, mission_cfg: Mission | None = None) -> None:
+def describe_mission(mission_name: str, game_config: MettaGridEnvConfig, mission_cfg: Mission | None = None) -> None:
     """Print detailed information about a specific mission.
 
     Args:

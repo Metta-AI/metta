@@ -11,8 +11,8 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
 )
@@ -26,12 +26,12 @@ class TestComprehensiveEnvironmentIntegration:
     REPO_ROOT = get_repo_root()
 
     @staticmethod
-    def make_debug_env(name: str) -> MettaGridConfig:
+    def make_debug_env(name: str) -> MettaGridEnvConfig:
         """Create debug environments programmatically using the new system."""
         if name == "tiny_two_altars":
-            return MettaGridConfig(
+            return MettaGridEnvConfig(
                 label=name,
-                game=GameConfig(
+                game=MettaGridConfig(
                     num_agents=2,
                     max_steps=100,
                     objects={
@@ -59,9 +59,9 @@ class TestComprehensiveEnvironmentIntegration:
                 ),
             )
         elif name == "simple_obstacles":
-            return MettaGridConfig(
+            return MettaGridEnvConfig(
                 label=name,
-                game=GameConfig(
+                game=MettaGridConfig(
                     num_agents=2,
                     max_steps=100,
                     objects={
@@ -88,9 +88,9 @@ class TestComprehensiveEnvironmentIntegration:
                 ),
             )
         elif name == "resource_collection":
-            return MettaGridConfig(
+            return MettaGridEnvConfig(
                 label=name,
-                game=GameConfig(
+                game=MettaGridConfig(
                     num_agents=2,
                     max_steps=100,
                     objects={
@@ -121,9 +121,9 @@ class TestComprehensiveEnvironmentIntegration:
                 ),
             )
         else:  # mixed_objects and default
-            return MettaGridConfig(
+            return MettaGridEnvConfig(
                 label=name,
-                game=GameConfig(
+                game=MettaGridConfig(
                     num_agents=2,
                     max_steps=100,
                     objects={
@@ -197,7 +197,7 @@ class TestComprehensiveEnvironmentIntegration:
         """Test that programmatically created environments work with MettaGridEnv."""
 
         cfg = self.make_debug_env("tiny_two_altars")
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
 
         assert len(sim.observations()) == 2, "Observation should be for 2 agents"
 

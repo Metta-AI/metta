@@ -16,7 +16,7 @@ from cogames.cogs_vs_clips.variants import (
     PackRatVariant,
     VibeCheckMin2Variant,
 )
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 
 # Training Facility Missions
 
@@ -134,7 +134,7 @@ MISSIONS: list[Mission] = [
 ]
 
 
-def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map") -> MettaGridConfig:
+def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map") -> MettaGridEnvConfig:
     """Create a default cogs vs clips game configuration."""
     mission = HarvestMission.model_copy(deep=True)
     mission.num_cogs = num_cogs

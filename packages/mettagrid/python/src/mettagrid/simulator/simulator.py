@@ -65,7 +65,7 @@ class Simulation:
         self._timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self._timer.start()
 
-        game_config_dict = self._config.game.model_dump()
+        game_config_dict = self._config.model_dump(exclude={"metadata"})
 
         with self._timer("sim.init.make_map"):
             map_grid = self._make_map().grid.tolist()
@@ -84,7 +84,7 @@ class Simulation:
 
         # Compute action_ids from config actions
         self._action_ids: dict[str, int] = {
-            action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
+            action.name: idx for idx, action in enumerate(self._config.actions.actions())
         }
 
         # Set buffers on C++ simulation if provided (for PufferEnv shared memory)
@@ -99,7 +99,7 @@ class Simulation:
 
         # Build feature dict from id_map
         self._features: dict[int, ObservationFeatureSpec] = {
-            feature.id: feature for feature in self._config.game.id_map().features()
+            feature.id: feature for feature in self._config.id_map().features()
         }
 
         self._start_episode()
@@ -168,6 +168,7 @@ class Simulation:
 
     @property
     def config(self) -> mettagrid_config.MettaGridConfig:
+        """Get the game configuration."""
         return self._config
 
     @property
@@ -189,7 +190,7 @@ class Simulation:
 
     @property
     def num_agents(self) -> int:
-        return self._config.game.num_agents
+        return self._config.num_agents
 
     @property
     def action_ids(self) -> dict[str, int]:
@@ -205,7 +206,7 @@ class Simulation:
 
     @property
     def resource_names(self) -> list[str]:
-        return self._config.game.resource_names
+        return self._config.resource_names
 
     @property
     def features(self) -> Sequence[ObservationFeatureSpec]:
@@ -221,11 +222,11 @@ class Simulation:
 
     @property
     def num_observation_tokens(self) -> int:
-        return self.config.game.obs.num_tokens
+        return self.config.obs.num_tokens
 
     @property
     def observation_shape(self) -> tuple:
-        return (self.num_observation_tokens, self.config.game.obs.token_dim)
+        return (self.num_observation_tokens, self.config.obs.token_dim)
 
     @property
     def map_width(self) -> int:
@@ -261,8 +262,8 @@ class Simulation:
 
     def _make_map(self) -> GameMap:
         if self._maps_cache is None:
-            return self._config.game.map_builder.create().build_for_num_agents(self._config.game.num_agents)
-        return self._maps_cache.get_or_create(self._config.game.map_builder, self._config.game.num_agents)
+            return self._config.map_builder.create().build_for_num_agents(self._config.num_agents)
+        return self._maps_cache.get_or_create(self._config.map_builder, self._config.num_agents)
 
 
 class Simulator:
@@ -314,11 +315,11 @@ class Simulator:
 
     def _compute_config_invariants(self, config: mettagrid_config.MettaGridConfig) -> dict[str, Any]:
         return {
-            "num_agents": config.game.num_agents,
-            "action_names": [action.name for action in config.game.actions.actions()],
-            "object_type_names": config.game.objects.keys(),
-            "resource_names": config.game.resource_names,
-            "vibe_names": config.game.vibe_names,
+            "num_agents": config.num_agents,
+            "action_names": [action.name for action in config.actions.actions()],
+            "object_type_names": config.objects.keys(),
+            "resource_names": config.resource_names,
+            "vibe_names": config.vibe_names,
         }
 
 

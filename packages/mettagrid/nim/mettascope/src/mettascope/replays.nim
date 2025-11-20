@@ -27,7 +27,7 @@ type
     swappable*: bool
     recipes*: seq[RecipeInfoConfig]
 
-  GameConfig* = object
+  MettaGridConfig* = object
     resourceNames*: seq[string]
     vibeNames*: seq[string]
     numAgents*: int
@@ -39,7 +39,7 @@ type
 
   Config* = object
     label*: string
-    game*: GameConfig
+    game*: MettaGridConfig
     desync_episodes*: bool
 
   ItemAmount* = object
