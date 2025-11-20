@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import functools
 import importlib
-import inspect
 import os
 import pkgutil
 import re
@@ -25,16 +24,6 @@ def _maybe_load_artifact(policy_spec: PolicySpec) -> Optional[PolicyArtifact]:
         return load_policy_artifact(policy_spec.data_path)
     except Exception:
         return None
-
-
-def _maybe_inject_config(policy_class, init_kwargs: dict, artifact: Optional[PolicyArtifact]) -> dict:
-    if artifact is None or artifact.policy_architecture is None:
-        return init_kwargs
-
-    signature = inspect.signature(policy_class.__init__)
-    if "config" in signature.parameters and "config" not in init_kwargs:
-        return {**init_kwargs, "config": artifact.policy_architecture}
-    return init_kwargs
 
 
 def _call_policy_loader_hook(policy_class, policy_env_info: PolicyEnvInterface, data_path: Optional[str]):
@@ -79,21 +68,17 @@ def initialize_or_load_policy(
                 policy = artifact.policy
             elif artifact.policy_architecture is not None:
                 policy = artifact.policy_architecture.make_policy(policy_env_info)
-                with_state = artifact.state_dict or (artifact.policy.state_dict() if artifact.policy else None)
-                if with_state:
-                    missing, unexpected = policy.load_state_dict(with_state, strict=False)
-                    if missing or unexpected:
-                        raise RuntimeError(f"Checkpoint load issues. Missing: {missing}, Unexpected: {unexpected}")
+                if artifact.state_dict is not None:
+                    policy.load_state_dict(artifact.state_dict, strict=False)
+                elif artifact.policy is not None:
+                    policy.load_state_dict(artifact.policy.state_dict(), strict=False)
             elif artifact.state_dict is not None:
-                # Fall back to requested policy class with raw state dict
-                init_kwargs = _maybe_inject_config(policy_class, policy_spec.init_kwargs or {}, artifact)
-                policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
-                policy.load_state_dict(artifact.state_dict)
+                policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
+                policy.load_state_dict(artifact.state_dict, strict=False)
             else:
                 raise ValueError("Artifact contained no policy, architecture, or state dict")
         else:
             init_kwargs = policy_spec.init_kwargs or {}
-            init_kwargs = _maybe_inject_config(policy_class, init_kwargs, None)
 
             try:
                 policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
