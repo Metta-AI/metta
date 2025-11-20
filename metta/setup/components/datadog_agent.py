@@ -173,7 +173,7 @@ class DatadogAgentSetup(SetupModule):
                     if "logs_enabled:" not in config_content:
                         config_updates.append("logs_enabled: true")
                         info("Enabled log collection in Datadog config")
-                    
+
                     # Add logs_config section for better reliability (recommended by Datadog docs)
                     if "logs_config:" not in config_content:
                         config_updates.append("logs_config:")
@@ -207,18 +207,18 @@ class DatadogAgentSetup(SetupModule):
                             f.write("\n# Metta SkyPilot job configuration\n")
                             for update in config_updates:
                                 f.write(f"{update}\n")
-                        
+
                         # If we enabled logs, we need to restart the agent to pick up the change
                         # But we can't restart here (no systemd in Docker), so the run-phase script will handle it
                         if "logs_enabled: true" in config_updates:
                             info("logs_enabled set - agent will be restarted in run phase to pick up changes")
-                    
+
                     # Also add log collection config directly to main datadog.yaml for reliability
                     # This ensures logs are collected even if the separate config file isn't picked up
                     try:
                         with open(config_file, "r") as f:
                             main_config = f.read()
-                        
+
                         # Check if logs section already exists in main config
                         # Note: Datadog agent reads logs from conf.d/*.d/conf.yaml files, not from main datadog.yaml
                         # So we don't add logs here - they're in the separate config file
@@ -272,29 +272,17 @@ logs:
     source: training
     sourcecategory: application
 {tags_yaml}
-  - type: file
-    path: /tmp/training_logs/training_stdout.log
-    service: skypilot-training
-    source: training
-    sourcecategory: application
-{tags_yaml}
-  - type: file
-    path: /tmp/training_logs/training_stderr.log
-    service: skypilot-training
-    source: training
-    sourcecategory: application
-{tags_yaml}
 """
                     # Ensure log directory and files exist before writing config
                     training_log_dir = "/tmp/training_logs"
                     os.makedirs(training_log_dir, exist_ok=True)
                     # Create empty log files so Datadog agent can start collecting immediately
-                    for log_file in ["training_combined.log", "training_stdout.log", "training_stderr.log"]:
+                    for log_file in ["training_combined.log"]:
                         log_path = os.path.join(training_log_dir, log_file)
                         if not os.path.exists(log_path):
                             with open(log_path, "a") as f:
                                 f.write("")  # Create empty file
-                            os.chmod(log_path, 0o644)  # Ensure readable
+                            os.chmod(log_path, 0o666)  # Ensure readable/writable by everyone
                     with open(log_config_file, "w") as f:
                         f.write(log_config)
                     # Set proper permissions so agent can read it

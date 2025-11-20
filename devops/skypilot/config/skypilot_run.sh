@@ -237,63 +237,15 @@ run_cmd() {
 
   echo "[INFO] Running command: ${cmd[*]}"
 
-  # Create log directory for Datadog agent to collect
-  TRAINING_LOG_DIR="/tmp/training_logs"
-  mkdir -p "$TRAINING_LOG_DIR"
-  # Ensure directory is accessible by Datadog agent (which runs as dd-agent user)
-  chmod 777 "$TRAINING_LOG_DIR"
+  # Log file for Datadog collection (created by devops/run.sh)
+  TRAINING_COMBINED_LOG="/tmp/training_logs/training_combined.log"
 
-  # Log files for Datadog collection
-  TRAINING_STDOUT_LOG="$TRAINING_LOG_DIR/training_stdout.log"
-  TRAINING_STDERR_LOG="$TRAINING_LOG_DIR/training_stderr.log"
-  TRAINING_COMBINED_LOG="$TRAINING_LOG_DIR/training_combined.log"
-
-  # Create empty log files so Datadog agent can start collecting immediately
-  touch "$TRAINING_STDOUT_LOG" "$TRAINING_STDERR_LOG" "$TRAINING_COMBINED_LOG"
-  # Ensure files are readable/writable by Datadog agent (dd-agent user)
-  chmod 666 "$TRAINING_STDOUT_LOG" "$TRAINING_STDERR_LOG" "$TRAINING_COMBINED_LOG"
-
-  # Start training with simple file redirection (most reliable)
-  # Ensure Python output is unbuffered for real-time logging
+  # Start training process
+  # We do NOT redirect stdout/stderr here because devops/run.sh handles piping to the log file
+  # and we want the output to also appear in the SkyPilot console (sky logs).
   export PYTHONUNBUFFERED=1
-  # Temporarily disable pipefail to avoid issues, then re-enable it
-  set +o pipefail
-  setsid "${cmd[@]}" > "$TRAINING_STDOUT_LOG" 2> "$TRAINING_STDERR_LOG" &
+  setsid "${cmd[@]}" &
   export CMD_PID=$!
-  set -o pipefail
-
-  # Merge logs in background for combined log (non-blocking, won't break training if it fails)
-  (
-    # Track what we've already written to avoid duplication
-    STDOUT_POS=0
-    STDERR_POS=0
-    while ps -p "$CMD_PID" > /dev/null 2>&1; do
-      # Append new content from stdout
-      if [ -f "$TRAINING_STDOUT_LOG" ]; then
-        CURRENT_SIZE=$(wc -c < "$TRAINING_STDOUT_LOG" 2>/dev/null || echo 0)
-        if [ "$CURRENT_SIZE" -gt "$STDOUT_POS" ]; then
-          tail -c +$((STDOUT_POS + 1)) "$TRAINING_STDOUT_LOG" >> "$TRAINING_COMBINED_LOG" 2>/dev/null || true
-          STDOUT_POS=$CURRENT_SIZE
-        fi
-      fi
-      # Append new content from stderr
-      if [ -f "$TRAINING_STDERR_LOG" ]; then
-        CURRENT_SIZE=$(wc -c < "$TRAINING_STDERR_LOG" 2>/dev/null || echo 0)
-        if [ "$CURRENT_SIZE" -gt "$STDERR_POS" ]; then
-          tail -c +$((STDERR_POS + 1)) "$TRAINING_STDERR_LOG" >> "$TRAINING_COMBINED_LOG" 2>/dev/null || true
-          STDERR_POS=$CURRENT_SIZE
-        fi
-      fi
-      sleep 2
-    done
-    # Final append of any remaining content
-    if [ -f "$TRAINING_STDOUT_LOG" ]; then
-      tail -c +$((STDOUT_POS + 1)) "$TRAINING_STDOUT_LOG" >> "$TRAINING_COMBINED_LOG" 2>/dev/null || true
-    fi
-    if [ -f "$TRAINING_STDERR_LOG" ]; then
-      tail -c +$((STDERR_POS + 1)) "$TRAINING_STDERR_LOG" >> "$TRAINING_COMBINED_LOG" 2>/dev/null || true
-    fi
-  ) &
 
   sleep 1
 
@@ -303,29 +255,21 @@ run_cmd() {
   # Verify training process is actually running
   if ! ps -p "$CMD_PID" > /dev/null 2>&1; then
     echo "[ERROR] Training process died immediately after startup!"
-    echo "[ERROR] Check log files: $TRAINING_STDOUT_LOG $TRAINING_STDERR_LOG"
-    if [ -f "$TRAINING_STDERR_LOG" ]; then
-      echo "[ERROR] Last 20 lines of stderr:"
-      tail -20 "$TRAINING_STDERR_LOG" || true
-    fi
     exit 1
   fi
 
   # Wait a bit and check if logs are being written (training is actually running)
   sleep 5
-  if [ -f "$TRAINING_STDOUT_LOG" ] || [ -f "$TRAINING_STDERR_LOG" ]; then
-    STDOUT_SIZE=$(wc -c < "$TRAINING_STDOUT_LOG" 2>/dev/null || echo 0)
-    STDERR_SIZE=$(wc -c < "$TRAINING_STDERR_LOG" 2>/dev/null || echo 0)
-    echo "[INFO] Log files after 5s - stdout: ${STDOUT_SIZE} bytes, stderr: ${STDERR_SIZE} bytes"
-    if [ "$STDOUT_SIZE" -gt 0 ] || [ "$STDERR_SIZE" -gt 0 ]; then
-      echo "[INFO] Training is producing output"
+  if [ -f "$TRAINING_COMBINED_LOG" ]; then
+    LOG_SIZE=$(wc -c < "$TRAINING_COMBINED_LOG" 2>/dev/null || echo 0)
+    echo "[INFO] Combined log file size after 5s: ${LOG_SIZE} bytes"
+    if [ "$LOG_SIZE" -gt 0 ]; then
+      echo "[INFO] Training is producing output to log file"
     else
-      echo "[WARN] Training process is running but not producing output yet"
-      if [ -f "$TRAINING_STDERR_LOG" ]; then
-        echo "[INFO] First 10 lines of stderr:"
-        head -10 "$TRAINING_STDERR_LOG" || true
-      fi
+      echo "[WARN] Training process is running but log file is empty"
     fi
+  else
+    echo "[WARN] Training log file not found yet (devops/run.sh should create it)"
   fi
 
   start_monitors

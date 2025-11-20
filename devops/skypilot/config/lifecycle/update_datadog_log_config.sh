@@ -42,7 +42,8 @@ TRAINING_LOG_DIR="/tmp/training_logs"
 mkdir -p "$TRAINING_LOG_DIR"
 chmod 777 "$TRAINING_LOG_DIR"
 
-for log_file in "training_combined.log" "training_stdout.log" "training_stderr.log"; do
+# We only use combined log now, as stdout/stderr are tee'd into it
+for log_file in "training_combined.log"; do
   log_path="${TRAINING_LOG_DIR}/${log_file}"
   if [ ! -f "$log_path" ]; then
     touch "$log_path"
@@ -63,18 +64,6 @@ logs:
 ${TAGS_YAML}
   - type: file
     path: /tmp/training_logs/training_combined.log
-    service: skypilot-training
-    source: training
-    sourcecategory: application
-${TAGS_YAML}
-  - type: file
-    path: /tmp/training_logs/training_stdout.log
-    service: skypilot-training
-    source: training
-    sourcecategory: application
-${TAGS_YAML}
-  - type: file
-    path: /tmp/training_logs/training_stderr.log
     service: skypilot-training
     source: training
     sourcecategory: application
