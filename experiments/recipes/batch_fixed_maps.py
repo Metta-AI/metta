@@ -2,8 +2,10 @@
 
 """Batch training script for fixed_maps experiments.
 
-Runs training for 8 conditions across 5 seeds, with 50M timesteps each.
+Runs training for 8 conditions with 1 seed per batch (8 jobs total), with 50M timesteps each.
 Includes activation extraction hooks for layers 1, 3, 5, and 7.
+
+The seed can be configured via BATCH_SEED environment variable (default: 42).
 
 Usage:
     # Local execution:
@@ -40,8 +42,8 @@ RUN_DEFINITIONS: Sequence[tuple[str, Sequence[str]]] = (
     ("my_fixed_maps_run_all_variants", ("lonely_heart", "heart_chorus", "pack_rat")),
 )
 
-# Seeds for reproducibility (5 seeds as requested)
-SEEDS = [42, 123, 456, 789, 1337]
+# Default seed (configurable via BATCH_SEED environment variable)
+DEFAULT_SEED = 42
 
 # Training configuration
 TOTAL_TIMESTEPS = 50_000_000  # 50M timesteps
@@ -142,12 +144,16 @@ def build_skypilot_command(
 
 
 def main() -> int:
-    """Run batch training for all conditions and seeds."""
+    """Run batch training for all conditions with a single seed."""
     # Configuration from environment variables
     num_cogs = int(os.environ.get("BATCH_NUM_COGS", "4"))
     extra_args_env = os.environ.get("BATCH_EXTRA_ARGS", "")
     extra_args = [arg for arg in extra_args_env.split() if arg]
     extract_activations = os.environ.get("BATCH_EXTRACT_ACTIVATIONS", "true").lower() == "true"
+
+    # Get seed from environment or use default (1 seed per batch)
+    seed = int(os.environ.get("BATCH_SEED", DEFAULT_SEED))
+    seeds = [seed]  # Single seed per batch
 
     # SkyPilot configuration
     use_skypilot = os.environ.get("BATCH_USE_SKYPILOT", "false").lower() == "true"
@@ -162,14 +168,14 @@ def main() -> int:
 
     env = os.environ.copy()
 
-    total_runs = len(RUN_DEFINITIONS) * len(SEEDS)
+    total_runs = len(RUN_DEFINITIONS) * len(seeds)
     current_run = 0
 
     conditions_count = len(RUN_DEFINITIONS)
-    seeds_count = len(SEEDS)
+    seeds_count = len(seeds)
     msg = (
         f"[BATCH] Starting batch training: {conditions_count} conditions × "
-        f"{seeds_count} seeds = {total_runs} total runs"
+        f"{seeds_count} seed{'s' if seeds_count > 1 else ''} = {total_runs} total runs"
     )
     print(msg)
     print("[BATCH] Configuration:")
@@ -185,21 +191,21 @@ def main() -> int:
     print(f"  - Total timesteps per run: {TOTAL_TIMESTEPS:,}")
     print(f"  - Checkpoint interval: {CHECKPOINT_EPOCH_INTERVAL} epochs")
     print(f"  - Activation extraction: {extract_activations} (layers {ACTIVATION_LAYERS})")
-    print(f"  - Seeds: {SEEDS}")
+    print(f"  - Seed: {seed}")
     print()
 
     for condition_name, variants in RUN_DEFINITIONS:
-        for seed in SEEDS:
+        for seed_value in seeds:
             current_run += 1
             # Include seed in run_id for uniqueness
-            run_id = f"{condition_name}_seed{seed}"
+            run_id = f"{condition_name}_seed{seed_value}"
 
             if use_skypilot:
                 command = build_skypilot_command(
                     run_id=run_id,
                     variants=variants,
                     num_cogs=num_cogs,
-                    seed=seed,
+                    seed=seed_value,
                     total_timesteps=TOTAL_TIMESTEPS,
                     checkpoint_interval=CHECKPOINT_EPOCH_INTERVAL,
                     extract_activations=extract_activations,
@@ -216,7 +222,7 @@ def main() -> int:
                         run_id=run_id,
                         variants=variants,
                         num_cogs=num_cogs,
-                        seed=seed,
+                        seed=seed_value,
                         total_timesteps=TOTAL_TIMESTEPS,
                         checkpoint_interval=CHECKPOINT_EPOCH_INTERVAL,
                         extract_activations=extract_activations,
@@ -227,7 +233,7 @@ def main() -> int:
             print(f"[BATCH] [{current_run}/{total_runs}] Submitting run {run_id}")
             print(f"  Condition: {condition_name}")
             print(f"  Variants: {list(variants) if variants else 'none'}")
-            print(f"  Seed: {seed}")
+            print(f"  Seed: {seed_value}")
             print(f"  Command: {' '.join(command)}")
             print(flush=True)
 
