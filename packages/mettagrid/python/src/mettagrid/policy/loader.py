@@ -10,7 +10,6 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from metta.rl.policy_artifact import load_policy_artifact
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
@@ -31,11 +30,6 @@ def initialize_or_load_policy(
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
-    artifact = None
-    is_mpt = bool(policy_spec.data_path and Path(policy_spec.data_path).suffix == ".mpt")
-    if is_mpt:
-        artifact = load_policy_artifact(policy_spec.data_path)
-
     try:
         policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
     except TypeError as e:
@@ -43,18 +37,7 @@ def initialize_or_load_policy(
             f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"
         ) from e
 
-    if artifact is not None:
-        if artifact.state_dict is not None:
-            policy.load_state_dict(artifact.state_dict, strict=False)
-        elif artifact.policy is not None:
-            if isinstance(artifact.policy, MultiAgentPolicy):
-                policy = artifact.policy
-            else:
-                policy.load_state_dict(artifact.policy.state_dict(), strict=False)
-        else:
-            msg = f"Artifact {policy_spec.data_path} contained no usable payload"
-            raise ValueError(msg)
-    elif policy_spec.data_path:
+    if policy_spec.data_path:
         policy.load_policy_data(policy_spec.data_path)
 
     if not isinstance(policy, MultiAgentPolicy):

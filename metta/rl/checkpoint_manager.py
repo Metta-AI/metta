@@ -10,13 +10,13 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
-from metta.common.util.file import local_copy
+from metta.common.util.file import local_copy, write_file
 from metta.common.util.uri import ParsedURI
-from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact
+from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -396,8 +396,33 @@ class CheckpointPolicy(MultiAgentPolicy):
         if architecture is None:
             raise ValueError("policy_architecture is required to save policy")
 
-        # Delegate to underlying policy's saver
-        return self._policy.save_policy(destination, policy_architecture=architecture)
+        saver = getattr(self._policy, "save_policy", None)
+        base_saver = getattr(saver, "__func__", None) if saver else None
+        use_fallback = saver is None or base_saver is TrainablePolicy.save_policy  # type: ignore[attr-defined]
+
+        if use_fallback:
+            dest_str = str(destination)
+            is_remote = dest_str.startswith("s3://")
+
+            if is_remote:
+                local_path = Path(Path(dest_str).name)
+            else:
+                local_path = Path(destination).expanduser()
+                local_path.parent.mkdir(parents=True, exist_ok=True)
+
+            save_policy_artifact_safetensors(
+                local_path,
+                policy_architecture=architecture,
+                state_dict=self._policy.state_dict(),
+            )
+
+            if is_remote:
+                write_file(dest_str, str(local_path))
+                return dest_str
+
+            return f"file://{local_path.resolve()}"
+
+        return saver(destination, policy_architecture=architecture)
 
     def __getattr__(self, name: str):
         return getattr(self._policy, name)

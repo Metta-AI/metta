@@ -103,6 +103,24 @@ def is_s3_uri(path: str) -> bool:
     return path.startswith("s3://") if path else False
 
 
+def _is_uri(path: Optional[str]) -> bool:
+    return bool(path and "://" in path)
+
+
+def _should_use_checkpoint_manager(path: Optional[str]) -> bool:
+    if path is None:
+        return False
+    if _is_uri(path):
+        return True
+    return Path(path).suffix == ".mpt"
+
+
+def _as_checkpoint_uri(path: str) -> str:
+    if _is_uri(path):
+        return path
+    return Path(path).expanduser().resolve().as_uri()
+
+
 def load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_path: str,
@@ -111,17 +129,18 @@ def load_policy(
 ):
     device = device or torch.device("cpu")
 
-    if checkpoint_path and is_s3_uri(checkpoint_path):
+    if checkpoint_path and _should_use_checkpoint_manager(checkpoint_path):
         if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
             raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
-        logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(checkpoint_path, device=device)
+        checkpoint_uri = _as_checkpoint_uri(checkpoint_path)
+        logger.info(f"Loading policy from checkpoint URI: {checkpoint_uri}")
+        policy_spec = CheckpointManager.policy_spec_from_uri(checkpoint_uri, device=device)
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
-    if is_s3_uri(policy_path):
+    if _is_uri(policy_path):
         if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
             raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
-        logger.info(f"Loading policy from S3 URI: {policy_path}")
+        logger.info(f"Loading policy from checkpoint URI: {policy_path}")
         policy_spec = CheckpointManager.policy_spec_from_uri(policy_path, device=device)
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
