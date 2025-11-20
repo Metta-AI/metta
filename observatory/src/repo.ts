@@ -440,10 +440,10 @@ export class ServerRepo implements Repo {
   }
 
   async getPublicLeaderboard(): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCallWithBody<LeaderboardPoliciesResponse>('/leaderboard/v2', {})
+    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2')
   }
 
   async getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCallWithBody<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me', {})
+    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me')
   }
 }

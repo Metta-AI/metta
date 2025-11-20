@@ -58,7 +58,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     async def get_leaderboard_for_policy(policy_version_id: str) -> LeaderboardResponse:
         return await _get_leaderboard_entries(user_id=None, policy_version_id=str(uuid.UUID(policy_version_id)))
 
-    @router.post("/v2", response_model=LeaderboardPoliciesResponse)
+    @router.get("/v2", response_model=LeaderboardPoliciesResponse)
     async def get_leaderboard_policies_v2(user: str = user_or_token) -> LeaderboardPoliciesResponse:
         return await _get_leaderboard_policies_v2(
             request=LeaderboardPoliciesRequest(
@@ -70,7 +70,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
             )
         )
 
-    @router.post("/v2/users/me", response_model=LeaderboardPoliciesResponse)
+    @router.get("/v2/users/me", response_model=LeaderboardPoliciesResponse)
     async def get_leaderboard_policies_v2_for_user(user: str = user_or_token) -> LeaderboardPoliciesResponse:
         return await _get_leaderboard_policies_v2(
             request=LeaderboardPoliciesRequest(
@@ -81,7 +81,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
             )
         )
 
-    @router.post("/v2/policy/{policy_version_id}", response_model=LeaderboardPoliciesResponse)
+    @router.get("/v2/policy/{policy_version_id}", response_model=LeaderboardPoliciesResponse)
     async def get_leaderboard_policies_v2_for_policy(
         policy_version_id: str, user: str = user_or_token
     ) -> LeaderboardPoliciesResponse:
