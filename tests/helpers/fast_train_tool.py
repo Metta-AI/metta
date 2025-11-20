@@ -9,9 +9,9 @@ from torch import nn
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy_artifact import save_policy_artifact_safetensors
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig

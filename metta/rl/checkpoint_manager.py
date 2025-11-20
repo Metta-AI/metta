@@ -10,9 +10,9 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact_safetensors
 from metta.common.util.file import local_copy, write_file
 from metta.common.util.uri import ParsedURI
-from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision

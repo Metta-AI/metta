@@ -11,8 +11,8 @@ from pydantic import Field
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 

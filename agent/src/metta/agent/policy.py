@@ -109,7 +109,7 @@ class Policy(TrainablePolicy, nn.Module):
         """Persist the policy using the safetensors artifact format."""
 
         # Local import avoids circular dependency when this module is imported from policy_artifact.
-        from metta.rl.policy_artifact import save_policy_artifact_safetensors
+        from metta.agent.policy_artifact import save_policy_artifact_safetensors
 
         if policy_architecture is None:
             msg = "policy_architecture is required to save a policy"
