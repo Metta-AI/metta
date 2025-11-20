@@ -53,9 +53,40 @@ cogames evals
 # Shows all policies available and their shorthands
 cogames policies
 
+# Inspect your leaderboard submissions
+cogames submissions
+
+# Show current leaderboard
+cogames leaderboard
+
 # Show version info
 cogames version
 ```
+
+## Easy Mode - Best for getting started
+
+Let’s walk through playing an easy mission in Cogs vs. Clips, then training a simple starter policy. `easy_mode` uses three variants to simplify training:
+
+- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
+  energy)
+- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
+- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
+
+
+```bash
+# Play an episode yourself
+cogames tutorial
+
+# Play an episode of the easy_mode mission with a scripted policy
+cogames play -m easy_mode -p baseline
+
+# Try the scripted policy on a set of eval missions
+cogames eval -set integrated_evals -p baseline
+
+# Train with an LSTM policy on easy_mode
+cogames train -m easy_mode -p lstm
+```
+
 
 ## Play, Train, and Eval
 
@@ -190,7 +221,7 @@ for step in range(1000):
 
 ### `cogames eval -m [MISSION] [-m MISSION...] -p POLICY [-p POLICY...]`
 
-Evaluate one or more policies on one or more missions. 
+Evaluate one or more policies on one or more missions.
 
 We provide a set of eval missions which you can use instead of missions `-m`. Specify `-set` or `-S` among: `eval_missions`, `integrated_evals`, `spanning_evals`, `diagnostic_evals`, `all`.
 
