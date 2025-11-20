@@ -68,7 +68,11 @@ class Checkpointer(TrainerComponent):
 
         # Distributed: master loads once, broadcasts payload; workers rebuild locally.
         if self._distributed.is_distributed:
-            normalized_uri = CheckpointManager.normalize_uri(candidate_uri) if self._distributed.is_master() else None
+            normalized_uri = (
+                CheckpointManager.normalize_uri(candidate_uri)
+                if self._distributed.is_master() and candidate_uri
+                else None
+            )
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
