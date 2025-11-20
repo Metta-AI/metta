@@ -43,6 +43,14 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
         cancelled_branch and cancelled_branch.startswith("gh-readonly-queue/main/")
     )
 
+    cancelled_sha_short = cancelled_sha[:8] if cancelled_sha else "None"
+    cancelled_created_str = cancelled_created.strftime("%Y-%m-%d %H:%M:%S")
+    print(
+        f"    Cancelled run: branch={cancelled_branch or 'None'}, "
+        f"sha={cancelled_sha_short}, created={cancelled_created_str}"
+    )
+    print(f"    Is main branch: {is_main_branch}")
+
     # Find newer runs on the same branch/ref
     newer_runs = []
     for run in all_runs:
@@ -67,6 +75,22 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
         if run.created_at > cancelled_created:
             newer_runs.append(run)
 
+    print(f"    Found {len(newer_runs)} newer run(s) on same branch")
+    if not newer_runs:
+        print(f"    ⚠️ No newer runs found - checking all {len(all_runs)} runs for matches")
+    elif newer_runs:
+        for nr in newer_runs[:3]:  # Show first 3 newer runs
+            nr_branch = nr.head_branch or "None"
+            nr_status = nr.status
+            nr_conclusion = nr.conclusion or "None"
+            nr_created = nr.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            print(
+                f"      - Run #{nr.run_number}: branch={nr_branch}, "
+                f"status={nr_status}, conclusion={nr_conclusion}, created={nr_created}"
+            )
+        if len(newer_runs) > 3:
+            print(f"      ... and {len(newer_runs) - 3} more newer runs")
+
     # Treat as superseded if any newer run is still running/queued, or if it completed
     # (regardless of success) and wasn't itself cancelled. This catches the concurrency
     # chain even when the replacement run fails due to a legitimate error.
@@ -75,7 +99,18 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
         for run in newer_runs
     )
 
-    return len(newer_runs) > 0 and has_newer_non_cancelled_run
+    non_cancelled_count = sum(
+        1
+        for run in newer_runs
+        if run.status in ("in_progress", "queued") or (run.conclusion and run.conclusion != "cancelled")
+    )
+    print(f"    Non-cancelled newer runs: {non_cancelled_count}/{len(newer_runs)}")
+    if not has_newer_non_cancelled_run and newer_runs:
+        print(f"    ⚠️ All {len(newer_runs)} newer run(s) were also cancelled - not superseding")
+
+    result = len(newer_runs) > 0 and has_newer_non_cancelled_run
+    print(f"    Result: {'SUPERSEDED' if result else 'NOT SUPERSEDED'}")
+    return result
 
 
 def main():
