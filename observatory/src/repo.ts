@@ -167,6 +167,27 @@ export type TrainingRunPolicy = {
   epoch_end: number | null
 }
 
+export type PublicPolicyVersionRow = {
+  id: string
+  policy_id: string
+  created_at: string
+  policy_created_at: string
+  user_id: string
+  name: string
+  version: number
+  tags: Record<string, string>
+}
+
+export type LeaderboardPolicyEntry = {
+  policy_version: PublicPolicyVersionRow
+  scores: Record<string, number>
+  avg_score: number | null
+}
+
+export type LeaderboardPoliciesResponse = {
+  entries: LeaderboardPolicyEntry[]
+}
+
 import { config } from './config'
 
 export type TableInfo = {
@@ -242,6 +263,10 @@ export interface Repo {
 
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
+
+  // Leaderboard / policy version queries
+  getPublicLeaderboard(): Promise<LeaderboardPoliciesResponse>
+  getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse>
 }
 
 export class ServerRepo implements Repo {
@@ -412,5 +437,13 @@ export class ServerRepo implements Repo {
     policyNames.forEach((name) => params.append('policy_names', name))
     const response = await this.apiCall<{ policy_ids: Record<string, string> }>(`/stats/policies/ids?${params}`)
     return response.policy_ids
+  }
+
+  async getPublicLeaderboard(): Promise<LeaderboardPoliciesResponse> {
+    return this.apiCallWithBody<LeaderboardPoliciesResponse>('/leaderboard/v2', {})
+  }
+
+  async getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse> {
+    return this.apiCallWithBody<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me', {})
   }
 }

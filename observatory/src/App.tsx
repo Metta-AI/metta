@@ -3,6 +3,7 @@ import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import { ServerRepo, Repo } from './repo'
 import { SQLQuery } from './SQLQuery'
 import { EvalTasks } from './EvalTasks'
+import { Leaderboard } from './Leaderboard'
 import { config } from './config'
 
 // CSS for navigation
@@ -180,6 +181,9 @@ function App() {
               >
                 Evaluate Policies
               </Link>
+              <Link to="/leaderboard" className={`nav-tab ${location.pathname === '/leaderboard' ? 'active' : ''}`}>
+                Leaderboard
+              </Link>
               <Link to="/sql-query" className={`nav-tab ${location.pathname === '/sql-query' ? 'active' : ''}`}>
                 SQL Query
               </Link>
@@ -190,6 +194,7 @@ function App() {
         <div className="page-container">
           <Routes>
             <Route path="/eval-tasks" element={<EvalTasks repo={state.repo} />} />
+            <Route path="/leaderboard" element={<Leaderboard repo={state.repo} currentUser={state.currentUser} />} />
             <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />
             <Route path="/" element={<EvalTasks repo={state.repo} />} />
           </Routes>
