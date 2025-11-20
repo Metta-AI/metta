@@ -1,5 +1,5 @@
 #!/usr/bin/env -S uv run
-# need this to import and call init_suppress_warnings first
+# need this to import and call suppress_noisy_logs first
 # ruff: noqa: E402
 """
 Orchestrates containers to process eval tasks, one container per git hash.
@@ -11,9 +11,9 @@ This script:
 4. Monitors container status and reports results
 """
 
-from metta.common.util.log_config import init_suppress_warnings
+from metta.common.util.log_config import suppress_noisy_logs
 
-init_suppress_warnings()
+suppress_noisy_logs()
 
 import asyncio
 import logging
@@ -263,8 +263,6 @@ def init_logging():
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-
-    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 async def main() -> None:

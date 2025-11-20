@@ -1,12 +1,12 @@
 #!/usr/bin/env -S uv run
-# need this to import and call init_suppress_warnings first
+# need this to import and call suppress_noisy_logs first
 # ruff: noqa: E402
 """Runner that takes a function that creates a ToolConfig,
 invokes the function, and then runs the tool defined by the config."""
 
-from metta.common.util.log_config import init_suppress_warnings
+from metta.common.util.log_config import suppress_noisy_logs
 
-init_suppress_warnings()
+suppress_noisy_logs()
 
 import argparse
 import copy

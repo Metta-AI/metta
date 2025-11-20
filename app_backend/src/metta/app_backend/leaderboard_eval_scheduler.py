@@ -1,10 +1,10 @@
 #!/usr/bin/env -S uv run
-# need this to import and call init_suppress_warnings first
+# need this to import and call suppress_noisy_logs first
 # ruff: noqa: E402
 
-from metta.common.util.log_config import init_suppress_warnings
+from metta.common.util.log_config import suppress_noisy_logs
 
-init_suppress_warnings()
+suppress_noisy_logs()
 
 import logging
 import os
@@ -246,7 +246,6 @@ def init_logging() -> None:
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def create_stats_client(backend_url: str, machine_token: Optional[str]) -> StatsClient:
