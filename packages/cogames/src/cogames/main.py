@@ -23,6 +23,7 @@ from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
+from cogames.cli.leaderboard import leaderboard_cmd, submissions_cmd
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
@@ -462,6 +463,7 @@ def evaluate_cmd(
     mission_set: Optional[str] = typer.Option(
         None,
         "--mission-set",
+        "-S",
         help="Predefined mission set: eval_missions, integrated_evals, spanning_evals, diagnostic_evals, all",
     ),
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
@@ -521,6 +523,10 @@ def evaluate_cmd(
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
+
+        # Default to 4 cogs for mission sets unless explicitly specified
+        if cogs is None:
+            cogs = 4
 
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
@@ -626,6 +632,14 @@ def login_cmd(
     else:
         console.print("[red]Authentication failed![/red]")
         raise typer.Exit(1)
+
+
+app.command(name="submissions", help="List your submissions on the leaderboard")(submissions_cmd)
+
+app.command(
+    name="leaderboard",
+    help="Show leaderboard entries (public or your submissions) with per-sim scores",
+)(leaderboard_cmd)
 
 
 @app.command(name="submit", help="Submit a policy to CoGames competitions")

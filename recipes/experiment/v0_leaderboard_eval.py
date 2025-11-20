@@ -64,10 +64,11 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
     return [sp_config, thinky_config, ladybug_config]
 
 
+# ./tools/run.py recipes.experiment.v0_leaderboard_eval.run policy_version_id=f32ca3a3-b6f0-479f-8105-27ce02b873cb
 def run(
     policy_version_id: str,
-    result_file_path: str,
-    eval_task_id: str,
+    result_file_path: str | None = None,
+    eval_task_id: str | None = None,
     stats_server_uri: str | None = None,
     seed: int = 50,
 ) -> MultiPolicyVersionEvalTool:
@@ -88,7 +89,7 @@ def run(
     ]
 
     tool = MultiPolicyVersionEvalTool(
-        result_file_path=result_file_path,
+        result_file_path=result_file_path or f"leaderboard_eval_{policy_version_id}.json",
         simulations=simulations(),
         policy_version_ids=policy_version_ids,
         primary_policy_version_id=policy_version_id,
