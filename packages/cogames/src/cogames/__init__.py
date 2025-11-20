@@ -1,0 +1,1 @@
+"""CoGames package."""

@@ -709,6 +709,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "tensordict" },
     { name = "torch" },
+    { name = "transformers" },
     { name = "triton", marker = "sys_platform == 'linux'" },
 ]
 
@@ -726,6 +727,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "tensordict" },
     { name = "torch" },
+    { name = "transformers", specifier = ">=4.57.0" },
     { name = "triton", marker = "sys_platform == 'linux'", specifier = ">=2.0.0" },
 ]
 
