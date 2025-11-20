@@ -221,22 +221,22 @@ if ps -p "$AGENT_PID" > /dev/null; then
         echo "[DATADOG] Current file permissions:"
         ls -la "/tmp/training_logs/training_combined.log" | sed 's/^/  /'
         echo "[DATADOG] Fixing permissions (trying multiple methods)..."
-        
+
         # Method 1: Make file world-readable
         chmod 666 "/tmp/training_logs/training_combined.log" 2>/dev/null || true
         chmod 777 "/tmp/training_logs" 2>/dev/null || true
-        
+
         # Method 2: If that didn't work, try with explicit o+r
         if ! sudo -u dd-agent test -r "/tmp/training_logs/training_combined.log" 2>/dev/null; then
           chmod o+r "/tmp/training_logs/training_combined.log" 2>/dev/null || true
           chmod o+x "/tmp/training_logs" 2>/dev/null || true
         fi
-        
+
         # Method 3: Try changing ownership if we're root
         if [ "$(id -u)" = "0" ]; then
           chown dd-agent:dd-agent "/tmp/training_logs/training_combined.log" 2>/dev/null || true
         fi
-        
+
         # Verify fix worked
         sleep 1
         if sudo -u dd-agent test -r "/tmp/training_logs/training_combined.log" 2>/dev/null; then
@@ -261,13 +261,13 @@ if ps -p "$AGENT_PID" > /dev/null; then
   # Check agent's own logs for errors, especially Logs Agent related
   if [ -f /tmp/datadog-agent.log ]; then
     echo "[DATADOG] Checking agent logs for Logs Agent errors..."
-    
+
     # Check specifically for Logs Agent startup errors
     if grep -qi "logs.*agent.*not.*running\|log.*receiver.*not.*provided\|logs.*agent.*error\|log.*collection.*error" /tmp/datadog-agent.log 2>/dev/null; then
       echo "[DATADOG] ⚠️ Found Logs Agent errors in agent log:"
       grep -i "logs.*agent.*not.*running\|log.*receiver.*not.*provided\|logs.*agent.*error\|log.*collection.*error" /tmp/datadog-agent.log | tail -10 | sed 's/^/  /'
     fi
-    
+
     # Check for general errors
     ERROR_COUNT=$(grep -i "error\|warn\|fail" /tmp/datadog-agent.log 2>/dev/null | wc -l || echo "0")
     if [ "$ERROR_COUNT" -gt 0 ]; then
@@ -276,7 +276,7 @@ if ps -p "$AGENT_PID" > /dev/null; then
     else
       echo "[DATADOG] ✓ No obvious errors in agent log"
     fi
-    
+
     # Check specifically for log collection/tailing errors
     if grep -qi "tail.*error\|cannot.*read.*log\|permission.*denied.*log" /tmp/datadog-agent.log 2>/dev/null; then
       echo "[DATADOG] ⚠️ Found log file access errors in agent log:"
