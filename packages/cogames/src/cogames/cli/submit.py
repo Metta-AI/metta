@@ -65,9 +65,8 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
 def validate_checkpoint_loadable(checkpoint_path: Path, console: Console) -> bool:
     """Eagerly load a checkpoint to verify archive structure.
 
-    - `.pt` files: exercised via `torch.load`.
-    - `.mpt` artifacts: exercised via `load_policy_artifact`, which checks for
-      required members like `weights.safetensors` + architecture.
+    - Try Metta artifact loader first (independent of extension);
+      if it raises, fall back to `torch.load` for plain state dicts.
 
     Dry-runs should fail fast on malformed archives before packaging/submission.
     """
@@ -75,9 +74,9 @@ def validate_checkpoint_loadable(checkpoint_path: Path, console: Console) -> boo
     console.print("[yellow]Validating checkpoint can be loaded...[/yellow]")
 
     try:
-        if checkpoint_path.suffix == ".mpt":
+        try:
             load_policy_artifact(checkpoint_path)
-        else:
+        except Exception:
             torch.load(checkpoint_path, map_location="cpu")
     except Exception as error:  # surface any archive/format issues
         console.print(f"[red]✗ Checkpoint load failed:[/red] {error}")
