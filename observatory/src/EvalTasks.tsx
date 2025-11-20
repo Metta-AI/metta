@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, Fragment, FC } from 'react'
 import { Repo, EvalTask, TaskAttempt, TaskFilters } from './repo'
 
 interface Props {
   repo: Repo
 }
 
-export function EvalTasks({ repo }: Props) {
+const pageSize = 50
+
+export const EvalTasks: FC<Props> = ({ repo }) => {
   // State
   const [tasks, setTasks] = useState<EvalTask[]>([])
   const [currentPage, setCurrentPage] = useState(1)
@@ -24,10 +26,8 @@ export function EvalTasks({ repo }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const pageSize = 50
-
   // Load tasks
-  const loadTasks = async (page: number) => {
+  const loadTasks = useCallback(async (page: number) => {
     try {
       const response = await repo.getEvalTasksPaginated(page, pageSize, filters)
       setTasks(response.tasks)
@@ -38,7 +38,7 @@ export function EvalTasks({ repo }: Props) {
       console.error('Failed to load tasks:', err)
       setError(`Failed to load tasks: ${err.message}`)
     }
-  }
+  }, [])
 
   // Initial load
   useEffect(() => {
@@ -139,10 +139,6 @@ export function EvalTasks({ repo }: Props) {
     }
   }
 
-  const truncateCommand = (cmd: string, maxLength: number = 60) => {
-    return cmd.length > maxLength ? cmd.substring(0, maxLength) + '...' : cmd
-  }
-
   const renderFilterInput = (value: string, onChange: (value: string) => void, placeholder: string = 'Filter...') => {
     return (
       <input
@@ -221,11 +217,11 @@ export function EvalTasks({ repo }: Props) {
           border: '1px solid #e8e8e8',
         }}
       >
-        <h3 style={{ marginTop: 0, marginBottom: '20px' }}>Create New Task</h3>
+        <h3 className="mt-0 mb-5">Create New Task</h3>
 
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
-          <div style={{ flex: '1' }}>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>Command</label>
+        <div className="flex gap-4 items-end">
+          <div className="flex-1">
+            <label className="block mb-1 text-sm font-medium">Command</label>
             <input
               type="text"
               value={command}
@@ -242,9 +238,7 @@ export function EvalTasks({ repo }: Props) {
           </div>
 
           <div style={{ flex: '0 0 250px' }}>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>
-              Git Hash (optional)
-            </label>
+            <label className="block mb-1 text-sm font-medium">Git Hash (optional)</label>
             <input
               type="text"
               value={gitHash}
@@ -281,42 +275,36 @@ export function EvalTasks({ repo }: Props) {
 
       {/* Tasks Table */}
       <div>
-        <h2 style={{ marginBottom: '20px' }}>All Tasks ({totalCount})</h2>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <h2 className="mb-5">All Tasks ({totalCount})</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse table-fixed">
             <thead>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '5%' }}>
-                  ID
-                </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '30%' }}>
+              <tr style={{ backgroundColor: '#f8f9fa', textAlign: 'left' }}>
+                <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '5%' }}>ID</th>
+                <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '30%' }}>
                   Command
                   {renderFilterInput(filters.command || '', (value) => setFilters({ ...filters, command: value }))}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '10%' }}>
                   Status
                   {renderStatusDropdown(filters.status || '', (value) => setFilters({ ...filters, status: value }))}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
+                <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '12%' }}>
                   User
                   {renderFilterInput(filters.user_id || '', (value) => setFilters({ ...filters, user_id: value }))}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '12%' }}>
+                <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '12%' }}>
                   Assignee
                   {renderFilterInput(filters.assignee || '', (value) => setFilters({ ...filters, assignee: value }))}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '8%' }}>
-                  Attempts
-                </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '15%' }}>
+                <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '8%' }}>Attempts</th>
+                <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '15%' }}>
                   Created
                   {renderFilterInput(filters.created_at || '', (value) =>
                     setFilters({ ...filters, created_at: value })
                   )}
                 </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '8%' }}>
-                  Logs
-                </th>
+                <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6', width: '8%' }}>Logs</th>
               </tr>
             </thead>
             <tbody>
@@ -326,7 +314,7 @@ export function EvalTasks({ repo }: Props) {
                 const hasMultipleAttempts = (task.attempt_number || 0) > 0
 
                 return (
-                  <React.Fragment key={task.id}>
+                  <Fragment key={task.id}>
                     <tr
                       style={{
                         borderBottom: '1px solid #dee2e6',
@@ -334,7 +322,7 @@ export function EvalTasks({ repo }: Props) {
                       }}
                       onClick={() => hasMultipleAttempts && toggleTaskExpansion(task.id)}
                     >
-                      <td style={{ padding: '12px' }}>
+                      <td className="p-3">
                         {hasMultipleAttempts && (
                           <span style={{ marginRight: '8px', fontSize: '12px', color: '#6c757d' }}>
                             {isExpanded ? '▼' : '▶'}
@@ -342,10 +330,10 @@ export function EvalTasks({ repo }: Props) {
                         )}
                         {task.id}
                       </td>
-                      <td style={{ padding: '12px' }} title={task.command}>
-                        {truncateCommand(task.command)}
+                      <td className="p-3 text-sm truncate text-wrap" title={task.command}>
+                        {task.command}
                       </td>
-                      <td style={{ padding: '12px' }}>
+                      <td className="p-3">
                         <span
                           style={{
                             padding: '4px 8px',
@@ -358,11 +346,13 @@ export function EvalTasks({ repo }: Props) {
                           {task.status}
                         </span>
                       </td>
-                      <td style={{ padding: '12px' }}>{task.user_id}</td>
-                      <td style={{ padding: '12px' }}>{task.assignee || '-'}</td>
-                      <td style={{ padding: '12px' }}>{(task.attempt_number || 0) + 1}</td>
-                      <td style={{ padding: '12px' }}>{new Date(task.created_at).toLocaleString()}</td>
-                      <td style={{ padding: '12px' }}>
+                      <td className="p-3 text-sm truncate" title={task.user_id}>
+                        {task.user_id}
+                      </td>
+                      <td className="p-3 text-sm">{task.assignee || '-'}</td>
+                      <td className="p-3 text-sm">{(task.attempt_number || 0) + 1}</td>
+                      <td className="p-3 text-sm">{new Date(task.created_at).toLocaleString()}</td>
+                      <td className="p-3 text-sm">
                         {task.output_log_path ? (
                           <a
                             href={repo.getTaskLogUrl(task.id, 'output')}
@@ -388,20 +378,20 @@ export function EvalTasks({ repo }: Props) {
                             <table style={{ width: '100%', fontSize: '13px' }}>
                               <thead>
                                 <tr style={{ borderBottom: '1px solid #dee2e6' }}>
-                                  <th style={{ padding: '8px', textAlign: 'left' }}>Attempt</th>
-                                  <th style={{ padding: '8px', textAlign: 'left' }}>Status</th>
-                                  <th style={{ padding: '8px', textAlign: 'left' }}>Assignee</th>
-                                  <th style={{ padding: '8px', textAlign: 'left' }}>Assigned</th>
-                                  <th style={{ padding: '8px', textAlign: 'left' }}>Started</th>
-                                  <th style={{ padding: '8px', textAlign: 'left' }}>Finished</th>
-                                  <th style={{ padding: '8px', textAlign: 'left' }}>Logs</th>
+                                  <th className="p-2 text-left">Attempt</th>
+                                  <th className="p-2 text-left">Status</th>
+                                  <th className="p-2 text-left">Assignee</th>
+                                  <th className="p-2 text-left">Assigned</th>
+                                  <th className="p-2 text-left">Started</th>
+                                  <th className="p-2 text-left">Finished</th>
+                                  <th className="p-2 text-left">Logs</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {attempts.map((attempt) => (
                                   <tr key={attempt.id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                                    <td style={{ padding: '8px' }}>{attempt.attempt_number + 1}</td>
-                                    <td style={{ padding: '8px' }}>
+                                    <td className="p-2">{attempt.attempt_number + 1}</td>
+                                    <td className="p-2">
                                       <span
                                         style={{
                                           padding: '2px 6px',
@@ -414,17 +404,17 @@ export function EvalTasks({ repo }: Props) {
                                         {attempt.status}
                                       </span>
                                     </td>
-                                    <td style={{ padding: '8px' }}>{attempt.assignee || '-'}</td>
-                                    <td style={{ padding: '8px' }}>
+                                    <td className="p-2">{attempt.assignee || '-'}</td>
+                                    <td className="p-2">
                                       {attempt.assigned_at ? new Date(attempt.assigned_at).toLocaleString() : '-'}
                                     </td>
-                                    <td style={{ padding: '8px' }}>
+                                    <td className="p-2">
                                       {attempt.started_at ? new Date(attempt.started_at).toLocaleString() : '-'}
                                     </td>
-                                    <td style={{ padding: '8px' }}>
+                                    <td className="p-2">
                                       {attempt.finished_at ? new Date(attempt.finished_at).toLocaleString() : '-'}
                                     </td>
-                                    <td style={{ padding: '8px' }}>
+                                    <td className="p-2">
                                       {attempt.output_log_path ? (
                                         <a
                                           href={repo.getTaskLogUrl(task.id, 'output')}
@@ -446,7 +436,7 @@ export function EvalTasks({ repo }: Props) {
                         </td>
                       </tr>
                     )}
-                  </React.Fragment>
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -458,33 +448,21 @@ export function EvalTasks({ repo }: Props) {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', padding: '20px 0' }}>
+          <div className="flex gap-2 justify-center py-5">
             <button
               onClick={() => loadTasks(currentPage - 1)}
               disabled={currentPage === 1}
-              style={{
-                padding: '8px 12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                backgroundColor: currentPage === 1 ? '#f3f4f6' : '#fff',
-                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-              }}
+              className="px-3 py-2 border border-gray-300 rounded-md cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100"
             >
               Previous
             </button>
-            <span style={{ padding: '8px 12px' }}>
+            <span className="px-3 py-2">
               Page {currentPage} of {totalPages}
             </span>
             <button
               onClick={() => loadTasks(currentPage + 1)}
               disabled={currentPage === totalPages}
-              style={{
-                padding: '8px 12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                backgroundColor: currentPage === totalPages ? '#f3f4f6' : '#fff',
-                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-              }}
+              className="px-3 py-2 border border-gray-300 rounded-md cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100"
             >
               Next
             </button>
