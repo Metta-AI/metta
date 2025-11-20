@@ -23,7 +23,6 @@ jobs:
       contents: write # Needed to create tags and push to stable branch
       issues: write # Needed for Asana integration (if used)
       id-token: write # Needed for AWS OIDC authentication
-      workflows: write # Needed to create tags on commits that modify workflows
 
     steps:
       - name: Checkout repository
