@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import { ServerRepo, Repo } from './repo'
 import { SQLQuery } from './SQLQuery'
-import { EvalTasks } from './EvalTasks'
+import { EvalTasks } from './EvalTasks/index'
 import { Leaderboard } from './Leaderboard'
 import { config } from './config'
 

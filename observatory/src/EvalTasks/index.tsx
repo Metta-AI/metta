@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, Fragment, FC } from 'react'
-import { Repo, EvalTask, TaskAttempt, TaskFilters } from './repo'
+import { Repo, EvalTask, TaskAttempt, TaskFilters } from '../repo'
 
 interface Props {
   repo: Repo
