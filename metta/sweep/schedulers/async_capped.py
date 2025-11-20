@@ -353,11 +353,37 @@ class AsyncCappedOptimizingScheduler:
     ) -> list[dict[str, Any]]:
         """Construct Constant Liar fantasies for in-progress suggestions.
 
-        We treat any run not yet completed as pending (PENDING, IN_TRAINING,
-        TRAINING_DONE_NO_EVAL, or IN_EVAL). For each pending run with a recorded
-        suggestion, create a pseudo-observation using a constant liar score.
+        The Constant Liar (CL) strategy is a practical approach for maintaining diversity
+        in parallel Bayesian optimization. When multiple trials run simultaneously, the
+        optimizer would normally suggest similar parameters since it has no information
+        about the in-progress runs. CL addresses this by creating "fantasy" observations
+        for pending runs with assumed outcomes.
+
+        Algorithm:
+        1. Identify all pending runs (not yet completed)
+        2. For each pending run with a recorded suggestion:
+           - Create a pseudo-observation with the same parameters
+           - Assign a "liar" score based on strategy:
+             * "best": Use max observed score (encourages exploration)
+             * "worst": Use min observed score (encourages exploitation)
+             * "mean": Use average score (balanced approach)
+        3. Include these fantasies when training the GP for next suggestion
+
+        This prevents the optimizer from repeatedly suggesting nearly identical
+        parameters while waiting for earlier trials to complete.
+
+        Args:
+            runs: All runs in the experiment
+            observations: Real completed observations
+
+        Returns:
+            List of fantasy observations with liar scores
         """
-        # Determine liar score
+        # Determine liar score based on strategy
+        # The choice affects exploration vs exploitation:
+        # - "best" liar: Pretends pending runs are great → optimizer explores elsewhere
+        # - "worst" liar: Pretends pending runs are bad → optimizer may retry similar params
+        # - "mean" liar: Balanced approach, most commonly used
         liar_score: float
         if observations:
             scores = [o.get("score", 0.0) for o in observations]
@@ -371,7 +397,9 @@ class AsyncCappedOptimizingScheduler:
             # No completed observations yet; use neutral 0.0
             liar_score = 0.0
 
-        # Choose liar cost as mean observed cost to avoid triggering cost mask
+        # Choose liar cost as mean observed cost to avoid triggering cost constraints
+        # Using mean cost ensures fantasies don't artificially appear too expensive
+        # or too cheap, which could bias the optimizer's cost-aware decisions
         liar_cost: float
         if observations:
             costs = [o.get("cost", 0.0) for o in observations]
@@ -379,12 +407,15 @@ class AsyncCappedOptimizingScheduler:
         else:
             liar_cost = 0.0
 
-        # Build set of pending run_ids
+        # Build set of pending run_ids (any run not completed/failed/stale)
         pending_ids: set[str] = set()
         for r in runs:
             if r.status not in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
                 pending_ids.add(r.run_id)
 
+        # Create fantasy observations for each pending suggestion
+        # These will be passed to the optimizer alongside real observations,
+        # causing the GP to "believe" these parameter regions are already explored
         fantasies: list[dict[str, Any]] = []
         for run_id in pending_ids:
             suggestion = self.state.in_progress_suggestions.get(run_id)

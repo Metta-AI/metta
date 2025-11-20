@@ -34,6 +34,7 @@ class ToolRegistry:
 
     def _register_tools(self) -> None:
         """Lazy import and register all tools."""
+        from metta.sweep.tools import WorkerTool
         from metta.tools.eval import EvaluateTool
         from metta.tools.play import PlayTool
         from metta.tools.replay import ReplayTool
@@ -47,6 +48,7 @@ class ToolRegistry:
         self.register(PlayTool)
         self.register(ReplayTool)
         self.register(SweepTool)
+        self.register(WorkerTool)
 
     def register(self, tool_class: type[Tool]) -> None:
         """Register a tool class, using its tool_type_name() as the key."""

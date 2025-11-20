@@ -209,7 +209,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     Running on the remote:
         1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
-        2 - Clean git pollution: `git clean -df && git stash`
+        2 - Clean git pollution: `git clean -df && git stash` (otherwise Skypilot will complain)
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
         5 - Launch tmux session: `tmux new -s sweep`
@@ -255,7 +255,7 @@ def sweep(sweep_name: str) -> SweepTool:
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
-        num_parallel_trials=4,
+        num_parallel_trials=2,
     )
 
 
