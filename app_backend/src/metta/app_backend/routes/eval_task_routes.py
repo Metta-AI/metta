@@ -55,20 +55,6 @@ class TaskFilterParams(BaseModel):
     git_hash: str | None = None
 
 
-class TaskPaginationParams(BaseModel):
-    page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=50, ge=1, le=100)
-    policy_name: str | None = None
-    sim_suite: str | None = None
-    status: str | None = None
-    assignee: str | None = None
-    user_id: str | None = None
-    retries: str | None = None
-    created_at: str | None = None
-    assigned_at: str | None = None
-    updated_at: str | None = None
-
-
 class TaskUpdateResponse(BaseModel):
     statuses: dict[int, TaskStatus]
 
@@ -208,16 +194,12 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     async def get_tasks_paginated(
         page: int = Query(default=1, ge=1),
         page_size: int = Query(default=50, ge=1, le=100),
-        policy_name: str | None = Query(default=None),
-        sim_suite: str | None = Query(default=None),
         status: str | None = Query(default=None),
         assignee: str | None = Query(default=None),
         user_id: str | None = Query(default=None),
-        retries: str | None = Query(default=None),
+        command: str | None = Query(default=None),
         created_at: str | None = Query(default=None),
         assigned_at: str | None = Query(default=None),
-        updated_at: str | None = Query(default=None),
-        include_attributes: bool = Query(default=False),
     ) -> PaginatedTasksResponse:
         tasks, total_count = await stats_repo.get_tasks_paginated(
             page=page,
@@ -225,6 +207,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             status=status,
             assignee=assignee,
             user_id=user_id,
+            command=command,
             created_at=created_at,
             assigned_at=assigned_at,
         )
