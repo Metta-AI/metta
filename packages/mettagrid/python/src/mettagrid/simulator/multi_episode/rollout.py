@@ -110,7 +110,6 @@ def multi_episode_rollout(
             max_action_time_ms=max_action_time_ms,
             render_mode=render_mode,
             seed=seed + episode_idx,
-            pass_sim_to_policies=True,
             event_handlers=handlers,
         )
 

@@ -105,7 +105,6 @@ def main():
         config=cfg,
         policies=agent_policies,
         render_mode=args.render,
-        pass_sim_to_policies=True,
     )
 
     logger.info("\n=== Running simulation ===")
