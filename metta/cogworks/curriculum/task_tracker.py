@@ -27,6 +27,7 @@ See Also:
     - shared_memory_backend.py: Memory backend implementations
 """
 
+import hashlib
 import time
 from typing import Any, Dict, List, Optional
 
@@ -564,10 +565,12 @@ class TaskTracker:
         if task_id not in self._task_id_to_index:
             return  # Task doesn't exist
 
-        # Compute stable hash for label
+        # Compute DETERMINISTIC hash for label using SHA256
+        # This ensures consistent hashes across all processes (unlike Python's hash())
         # Use only 53 bits to ensure exact float64 representation (2^53 - 1)
-        # This prevents precision loss when storing as float
-        label_hash = hash(label) & 0x1FFFFFFFFFFFFF  # 53-bit mask
+        sha256_hash = hashlib.sha256(label.encode("utf-8")).digest()
+        hash_int = int.from_bytes(sha256_hash[:8], byteorder="big")
+        label_hash = hash_int & 0x1FFFFFFFFFFFFF  # 53-bit mask
 
         # Store hash in shared memory at index 17
         with self._backend.acquire_lock():
