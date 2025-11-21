@@ -17,6 +17,8 @@ from metta.app_backend.routes.sql_routes import SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
     BulkEpisodeUploadResponse,
     CompleteBulkUploadRequest,
+    EpisodeQueryRequest,
+    EpisodeQueryResponse,
     MyPolicyVersionsResponse,
     PolicyCreate,
     PolicyVersionCreate,
@@ -164,6 +166,11 @@ class StatsClient:
             LeaderboardPoliciesResponse,
             "GET",
             f"/leaderboard/v2/policy/{policy_version_id}",
+        )
+
+    def query_episodes(self, request: EpisodeQueryRequest) -> EpisodeQueryResponse:
+        return self._make_sync_request(
+            EpisodeQueryResponse, "POST", "/stats/episodes/query", json=request.model_dump(mode="json")
         )
 
     @staticmethod
