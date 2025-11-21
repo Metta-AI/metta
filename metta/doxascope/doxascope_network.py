@@ -73,8 +73,15 @@ class DoxascopeNet(nn.Module):
         main_net_depth: int = 3,
         processor_depth: int = 1,
         granularity: str = "exact",
+        prediction_types: Optional[List[str]] = None,
+        inventory_num_items: Optional[int] = None,
     ):
         super(DoxascopeNet, self).__init__()
+
+        # Set default prediction types
+        if prediction_types is None:
+            prediction_types = ["location"]
+        self.prediction_types = prediction_types
 
         self.config = {
             "input_dim": input_dim,
@@ -86,6 +93,7 @@ class DoxascopeNet(nn.Module):
             "main_net_depth": main_net_depth,
             "processor_depth": processor_depth,
             "granularity": granularity,
+            "prediction_types": prediction_types,
         }
 
         lstm_state_dim = input_dim // 2
@@ -114,20 +122,77 @@ class DoxascopeNet(nn.Module):
         main_in_dim = processor_output_dim * 2
         self.main_net = build_mlp(main_net_depth, main_in_dim, hidden_dim, hidden_dim)
 
-        # Create heads for past and future predictions
-        self.output_heads = nn.ModuleList()
+        # Create unified prediction specs list
+        # Location predictions at various timesteps
         self.head_timesteps = sorted(
             [k for k in range(-num_past_timesteps, 0)] + [k for k in range(1, num_future_timesteps + 1)]
         )
-
+        prediction_specs: List[Tuple[str, Optional[int]]] = []
         for k in self.head_timesteps:
-            if granularity == "exact":
-                num_classes = get_num_classes_for_manhattan_distance(abs(k))
-            elif granularity == "quadrant":
-                num_classes = get_num_classes_for_quadrant_granularity(abs(k))
-            else:
-                raise ValueError(f"Unknown granularity: {granularity}")
-            self.output_heads.append(nn.Linear(hidden_dim, num_classes))
+            prediction_specs.append(("location", k))
+
+        # Inventory prediction (next inventory change)
+        if "inventory" in prediction_types:
+            if inventory_num_items is None:
+                raise ValueError("inventory_num_items must be provided when 'inventory' is in prediction_types")
+            prediction_specs.append(("inventory", None))
+            self.config["inventory_num_items"] = inventory_num_items
+
+        self.prediction_specs = prediction_specs
+
+        # Unified conditioning via FiLM (Feature-wise Linear Modulation)
+        # Single embedding table for all prediction types
+        prediction_embedding_dim = 32
+        num_prediction_specs = len(prediction_specs)
+        self.prediction_embedding = nn.Embedding(num_prediction_specs, prediction_embedding_dim)
+        self.prediction_processor = nn.Linear(prediction_embedding_dim, hidden_dim * 2)
+
+        # Create mapping from prediction spec to embedding index
+        self.prediction_to_idx = {spec: i for i, spec in enumerate(prediction_specs)}
+
+        # Output adapters: one per prediction type
+        self.output_adapters = nn.ModuleDict()
+
+        # Location adapter
+        if "location" in prediction_types:
+            # Compute maximum number of classes across all location timesteps
+            max_num_classes = 0
+            for k in self.head_timesteps:
+                if granularity == "exact":
+                    num_classes = get_num_classes_for_manhattan_distance(abs(k))
+                elif granularity == "quadrant":
+                    num_classes = get_num_classes_for_quadrant_granularity(abs(k))
+                else:
+                    raise ValueError(f"Unknown granularity: {granularity}")
+                max_num_classes = max(max_num_classes, num_classes)
+
+            self.output_adapters["location"] = nn.Linear(hidden_dim, max_num_classes)
+            self.config["max_num_classes"] = max_num_classes
+
+            # Create per-timestep class masks for location predictions
+            self.location_masks: Dict[int, torch.Tensor] = {}
+            for k in self.head_timesteps:
+                if granularity == "exact":
+                    num_classes = get_num_classes_for_manhattan_distance(abs(k))
+                elif granularity == "quadrant":
+                    num_classes = get_num_classes_for_quadrant_granularity(abs(k))
+                else:
+                    raise ValueError(f"Unknown granularity: {granularity}")
+                # Create boolean mask: True for valid classes, False for invalid
+                mask = torch.zeros(max_num_classes, dtype=torch.bool)
+                mask[:num_classes] = True
+                self.register_buffer(f"location_mask_k{k}", mask)
+                self.location_masks[k] = mask
+
+        # Inventory adapter
+        if "inventory" in prediction_types:
+            # Multi-label binary classification: which items changed
+            # Output: [batch, inventory_num_items] with sigmoid → probabilities
+            self.output_adapters["inventory"] = nn.Linear(hidden_dim, inventory_num_items)
+
+        # Store embedding dim and architecture type in config
+        self.config["prediction_embedding_dim"] = prediction_embedding_dim
+        self.config["architecture"] = "unified_conditioned_head"
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         # Input x is expected to be a concatenation of the LSTM hidden state and cell state.
@@ -146,10 +211,46 @@ class DoxascopeNet(nn.Module):
         combined = torch.cat([h_processed, c_processed], dim=1)
 
         # Pass through the main processing network
-        main_features = self.main_net(combined)
+        main_features = self.main_net(combined)  # [batch, hidden_dim]
 
-        # Generate predictions from each output head
-        outputs = [head(main_features) for head in self.output_heads]
+        # Generate predictions for each prediction spec using unified conditioning
+        outputs = []
+        batch_size = x.size(0)
+        device = x.device
+
+        for prediction_spec in self.prediction_specs:
+            task_type, timestep = prediction_spec
+
+            # Get prediction spec index for embedding lookup
+            spec_idx = self.prediction_to_idx[prediction_spec]
+            spec_idx_tensor = torch.full((batch_size,), spec_idx, device=device, dtype=torch.long)
+
+            # Embed prediction spec
+            spec_emb = self.prediction_embedding(spec_idx_tensor)  # [batch, prediction_embedding_dim]
+
+            # Generate FiLM parameters (scale and shift)
+            film_params = self.prediction_processor(spec_emb)  # [batch, hidden_dim * 2]
+            scale = film_params[:, : self.config["hidden_dim"]]
+            shift = film_params[:, self.config["hidden_dim"] :]
+
+            # Apply FiLM conditioning: modulate features element-wise
+            conditioned_features = main_features * (1 + scale) + shift  # [batch, hidden_dim]
+
+            # Get predictions from task-specific adapter
+            adapter = self.output_adapters[task_type]
+            logits = adapter(conditioned_features)
+
+            # Apply task-specific post-processing
+            if task_type == "location":
+                # Apply masking: set invalid classes to -inf so they're ignored in softmax/argmax
+                mask = self.location_masks[timestep].to(device)
+                logits = logits.masked_fill(~mask, float("-inf"))
+            elif task_type == "inventory":
+                # No masking needed for inventory (all outputs are valid)
+                # Logits will be used with BCEWithLogitsLoss (sigmoid applied in loss)
+                pass
+
+            outputs.append(logits)
 
         return outputs
 
@@ -179,7 +280,7 @@ class DoxascopeTrainer:
 
         total_loss = 0
         total_samples = 0
-        num_steps = len(self.model.output_heads)
+        num_steps = len(self.model.head_timesteps)
         correct_per_step = [0] * num_steps
 
         for batch_x, batch_y in dataloader:
