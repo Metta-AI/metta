@@ -119,7 +119,7 @@ def _require_checkpoint_manager() -> None:
 def _policy_spec_from_target(target: str, *, device: torch.device, display_name: str | None = None) -> PolicySpec:
     _require_checkpoint_manager()
     logger.info(f"Loading policy from checkpoint: {target}")
-    return CheckpointManager.policy_spec_from_path_or_uri(target, device=device, display_name=display_name)
+    return CheckpointManager.policy_spec_from_uri(target, device=device, display_name=display_name)
 
 
 def _policy_spec_from_inputs(

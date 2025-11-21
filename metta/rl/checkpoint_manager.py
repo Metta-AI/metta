@@ -339,7 +339,8 @@ class CheckpointManager:
         strict: bool = True,
         display_name: str | None = None,
     ) -> PolicySpec:
-        normalized_uri = CheckpointManager.normalize_uri(uri)
+        source = uri if "://" in uri else f"file://{Path(uri).expanduser().resolve()}"
+        normalized_uri = CheckpointManager.normalize_uri(source)
         init_kwargs: dict[str, str | bool] = {
             "checkpoint_uri": normalized_uri,
             "display_name": display_name or normalized_uri,
@@ -350,22 +351,6 @@ class CheckpointManager:
         return PolicySpec(
             class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
             init_kwargs=init_kwargs,
-        )
-
-    @staticmethod
-    def policy_spec_from_path_or_uri(
-        target: str,
-        *,
-        device: str | torch.device | None = None,
-        strict: bool = True,
-        display_name: str | None = None,
-    ) -> PolicySpec:
-        uri = target if "://" in target else f"file://{Path(target).expanduser().resolve()}"
-        return CheckpointManager.policy_spec_from_uri(
-            uri,
-            device=device,
-            strict=strict,
-            display_name=display_name,
         )
 
 

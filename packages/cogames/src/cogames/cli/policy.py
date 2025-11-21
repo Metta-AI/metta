@@ -202,7 +202,7 @@ def _maybe_policy_artifact_spec(
     if not checkpoint_path or not checkpoint_path.lower().endswith(".mpt"):
         return None
 
-    spec = CheckpointManager.policy_spec_from_path_or_uri(checkpoint_path, display_name=display_name)
+    spec = CheckpointManager.policy_spec_from_uri(checkpoint_path, display_name=display_name)
 
     return PolicySpecWithProportion(
         class_path=spec.class_path,
