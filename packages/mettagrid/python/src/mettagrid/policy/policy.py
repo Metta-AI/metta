@@ -3,13 +3,13 @@
 import ctypes
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
 
 import numpy as np
 import torch.nn as nn
 from pydantic import BaseModel, Field
 
-from mettagrid.mettagrid_c import dtype_actions, dtype_observations
+from mettagrid.mettagrid_c import dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -256,36 +256,35 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         self._agent_states: dict[int, StateType] = {}
         self._action_name_to_index = {name: idx for idx, name in enumerate(policy_env_info.action_names)}
         self._simulation: Simulation | None = None
+        self._state_initialized = False
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action and update hidden state."""
-        assert self._state is not None, "reset() must be called before step()"
-        action, self._state = self._base_policy.step_with_state(obs, self._state)
+        if not self._state_initialized:
+            self._initialize_state(self._simulation)
+        if hasattr(self._base_policy, "set_active_agent"):
+            self._base_policy.set_active_agent(self._agent_id)
+        state = cast(StateType, self._state)
+        action, self._state = self._base_policy.step_with_state(obs, state)
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
         return action
 
-    def reset(self) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the hidden state to initial state."""
+        self._initialize_state(simulation)
+
+    def step_batch(self, _raw_observations, raw_actions) -> None:
+        raise NotImplementedError("StatefulAgentPolicy does not support batch stepping")
+
+    def _initialize_state(self, simulation: Optional[Simulation]) -> None:
+        self._simulation = simulation
         self._base_policy.reset()
         self._state = self._base_policy.initial_agent_state()
         self._agent_states.clear()
+        self._state_initialized = True
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
-
-    def step_batch(self, _raw_observations, raw_actions) -> None:
-        sim = self._simulation
-        assert sim is not None, "reset() must be called before step_batch()"
-
-        for agent_idx, obs in enumerate(sim.observations()):
-            state = self._agent_states.get(agent_idx) or self._base_policy.initial_agent_state()
-            action, new_state = self._base_policy.step_with_state(obs, state)
-            self._agent_states[agent_idx] = new_state
-            assert isinstance(action, Action), "Policies must return mettagrid.simulator.Action instances"
-            raw_actions[agent_idx] = dtype_actions.type(self._action_name_to_index[action.name])
-
-        if self._agent_id is not None and self._agent_id in self._agent_states:
-            self._state = self._agent_states[self._agent_id]
 
 
 class StatefulPolicyImpl(Generic[StateType]):
@@ -320,6 +319,10 @@ class StatefulPolicyImpl(Generic[StateType]):
             Tuple of (action, new_state)
         """
         raise NotImplementedError
+
+    def set_active_agent(self, agent_id: Optional[int]) -> None:
+        """Optional hook for implementations that need the calling agent id."""
+        _ = agent_id
 
 
 class TrainablePolicy(MultiAgentPolicy):
