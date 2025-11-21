@@ -5,8 +5,7 @@ from contextlib import contextmanager
 
 @contextmanager
 def disable_canonical_mode():
-    """Disable canonical mode to allow long token pastes.
-    """
+    """Disable canonical mode to allow long token pastes."""
     fd = sys.stdin.fileno()
     try:
         old_settings = termios.tcgetattr(fd)
