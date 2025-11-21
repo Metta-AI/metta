@@ -248,37 +248,75 @@ def analyze_init_file(file_path: Path, package_root: Path) -> InitAnalysis:
 
         heavy_modules = [m for m, w in submodule_weights.items() if w == "heavy"]
 
-        # Determine recommendation based on lazy loading status and module weights
-        # Check for empty/minimal files first
-        if len(analyzer.exports) == 0 and total_lines < 10 and not analyzer.has_lazy_loading:
-            recommendation = "empty"
-            reason = "Already minimal or empty"
-        elif analyzer.has_lazy_loading or analyzer.has_getattr:
-            # Has lazy loading - is it justified?
-            if len(submodule_weights) == 0:
-                recommendation = "keep"
-                reason = "No submodules found to analyze"
-            elif len(heavy_modules) == 0:
-                # No heavy modules - lazy loading not justified
+        # Detect if this is a public package or internal module
+        # Public packages: packages/mettagrid, packages/cortex, etc.
+        # Internal modules: metta/rl, metta/sim, etc.
+        is_public_package = "packages" in relative.parts
+
+        # Determine recommendation based on package type and lazy loading status
+        if is_public_package:
+            # PUBLIC PACKAGE: Encourage thoughtful exports with lazy loading
+            # Check for empty/minimal files first
+            if len(analyzer.exports) == 0 and total_lines < 10 and not analyzer.has_lazy_loading:
+                recommendation = "empty"
+                reason = "Already minimal or empty"
+            elif analyzer.has_lazy_loading or analyzer.has_getattr:
+                # Has lazy loading - is it justified?
+                if len(submodule_weights) == 0:
+                    recommendation = "keep"
+                    reason = "Public package with lazy loading (no submodules to analyze)"
+                elif len(heavy_modules) == 0:
+                    # No heavy modules - lazy loading not justified
+                    recommendation = "simplify"
+                    reason = "Lazy loading not justified: no heavy submodules"
+                else:
+                    # Heavy modules present - lazy loading is justified
+                    recommendation = "keep"
+                    reason = (
+                        "Public package with justified lazy loading: "
+                        f"{len(heavy_modules)} heavy modules ({heavy_modules})"
+                    )
+            elif len(heavy_modules) > 0:
+                # No lazy loading but has heavy modules - should add lazy loading
+                recommendation = "add_lazy_loading"
+                reason = f"Public package with heavy submodules ({heavy_modules}) should use lazy loading"
+            elif complexity > 0.8:  # More than 80% imports
                 recommendation = "simplify"
-                reason = "Lazy loading not justified: no heavy submodules"
+                reason = f"Public package with high import complexity ({complexity:.0%})"
+            elif len(analyzer.exports) > 20:
+                recommendation = "simplify"
+                reason = f"Public package exports too many symbols ({len(analyzer.exports)})"
             else:
-                # Heavy modules present - lazy loading is justified
                 recommendation = "keep"
-                reason = f"Justified lazy loading: {len(heavy_modules)} heavy modules ({heavy_modules})"
-        elif len(heavy_modules) > 0:
-            # No lazy loading but has heavy modules - should add lazy loading
-            recommendation = "add_lazy_loading"
-            reason = f"Heavy submodules ({heavy_modules}) should use lazy loading"
-        elif complexity > 0.8:  # More than 80% imports
-            recommendation = "simplify"
-            reason = f"High import complexity ({complexity:.0%})"
-        elif len(analyzer.exports) > 20:
-            recommendation = "simplify"
-            reason = f"Exports too many symbols ({len(analyzer.exports)})"
+                reason = "Public package with reasonable complexity"
         else:
-            recommendation = "keep"
-            reason = "Reasonable complexity"
+            # INTERNAL MODULE: Prefer empty/minimal __init__.py
+            # Check for empty/minimal files first
+            if len(analyzer.exports) == 0 and total_lines < 10:
+                recommendation = "empty"
+                reason = "Already minimal (recommended for internal modules)"
+            elif analyzer.has_lazy_loading or analyzer.has_getattr:
+                # Has lazy loading - generally not needed for internal modules
+                if len(heavy_modules) > 0:
+                    # Exception: heavy modules with lazy loading is acceptable
+                    recommendation = "keep"
+                    reason = (
+                        "Internal module with justified lazy loading: "
+                        f"{len(heavy_modules)} heavy modules ({heavy_modules})"
+                    )
+                else:
+                    recommendation = "simplify"
+                    reason = "Internal modules should be empty unless justified (has lazy loading but no heavy modules)"
+            elif len(analyzer.exports) > 0:
+                # Has exports - recommend simplification
+                recommendation = "simplify"
+                reason = (
+                    f"Internal module with {len(analyzer.exports)} exports - "
+                    "prefer empty __init__.py (users can import from specific modules)"
+                )
+            else:
+                recommendation = "empty"
+                reason = "Internal module - empty __init__.py is recommended"
 
         return InitAnalysis(
             module=module_path,
