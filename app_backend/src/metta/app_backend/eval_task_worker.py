@@ -118,7 +118,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         return (len(git_ref) == 40 or len(git_ref) == 64) and all(c in "0123456789abcdef" for c in git_ref.lower())
 
     @trace("worker.setup_checkout")
-    def _setup_versioned_checkout(self, git_hash: str) -> None:
+    def _setup_versioned_checkout(self, git_ref: str) -> None:
         try:
             logger.info(f"Setting up versioned checkout at {self._versioned_path}")
 
@@ -140,7 +140,6 @@ class SimTaskExecutor(AbstractTaskExecutor):
                 with open(self.checkout_success_file, "w") as f:
                     f.write("Success")
 
-            # Pull the latest changes
             result = subprocess.run(
                 ["git", "fetch", "origin"],
                 cwd=self._versioned_path,
@@ -150,46 +149,36 @@ class SimTaskExecutor(AbstractTaskExecutor):
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to fetch repository: {result.stderr}")
 
-            is_sha = self._is_commit_sha(git_hash)
+            is_sha = self._is_commit_sha(git_ref)
 
-            # Checkout the specific commit or branch
             if is_sha:
                 result = subprocess.run(
-                    ["git", "checkout", "--detach", git_hash],
+                    ["git", "checkout", "--detach", git_ref],
                     cwd=self._versioned_path,
                     capture_output=True,
                     text=True,
                 )
                 if result.returncode != 0:
-                    raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
+                    raise RuntimeError(f"Failed to checkout git hash {git_ref}: {result.stderr}")
             else:
-                # Try existing local branch first, then track remote
                 result = subprocess.run(
-                    ["git", "checkout", git_hash],
+                    ["git", "checkout", git_ref],
                     cwd=self._versioned_path,
                     capture_output=True,
                     text=True,
                 )
                 if result.returncode != 0:
-                    result = subprocess.run(
-                        ["git", "checkout", "--track", f"origin/{git_hash}"],
-                        cwd=self._versioned_path,
-                        capture_output=True,
-                        text=True,
-                    )
-                    if result.returncode != 0:
-                        raise RuntimeError(f"Failed to checkout git ref {git_hash}: {result.stderr}")
+                    raise RuntimeError(f"Failed to checkout git ref {git_ref}: {result.stderr}")
 
                 result = subprocess.run(
-                    ["git", "reset", "--hard", f"origin/{git_hash}"],
+                    ["git", "reset", "--hard", f"origin/{git_ref}"],
                     cwd=self._versioned_path,
                     capture_output=True,
                     text=True,
                 )
                 if result.returncode != 0:
-                    raise RuntimeError(f"Failed to reset branch {git_hash}: {result.stderr}")
+                    raise RuntimeError(f"Failed to reset branch {git_ref}: {result.stderr}")
 
-            # Clean the repository
             result = subprocess.run(
                 ["git", "clean", "-df"],
                 cwd=self._versioned_path,
@@ -199,10 +188,19 @@ class SimTaskExecutor(AbstractTaskExecutor):
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to clean repository: {result.stderr}")
 
-            logger.info("Installing dependencies in versioned checkout...")
-            install_result = self._run_cmd_from_versioned_checkout(["uv", "sync"])
-            if install_result.returncode != 0:
-                raise RuntimeError(f"Failed to install dependencies: {install_result.stdout}")
+            logger.info("Syncing dependencies in versioned checkout...")
+            sync_result = self._run_cmd_from_versioned_checkout(
+                ["uv", "sync"],
+                capture_output=True,
+            )
+            if sync_result.returncode != 0:
+                raise RuntimeError(f"Failed to sync dependencies: {sync_result.stdout}")
+
+            self._run_cmd_from_versioned_checkout(
+                ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
+                capture_output=True,
+            )
+
             logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
         except Exception as e:
@@ -215,8 +213,9 @@ class SimTaskExecutor(AbstractTaskExecutor):
         task: EvalTaskRow,
     ) -> TaskResult:
         if not task.git_hash:
-            raise RuntimeError(f"Git hash not found for task {task.id}")
+            raise RuntimeError(f"Git reference not found for task {task.id}")
 
+        # Note: git_hash field can contain either a commit SHA or branch name
         self._setup_versioned_checkout(task.git_hash)
 
         cmd = task.command.split(" ")
