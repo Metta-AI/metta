@@ -1,11 +1,12 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
 # ruff: noqa: E402
 
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
-from cogames.cli.utils import init_suppress_warnings
+from cogames.cli.utils import suppress_noisy_logs
 
-init_suppress_warnings()
+suppress_noisy_logs()
 
 import importlib.metadata
 import importlib.util
@@ -48,7 +49,7 @@ from cogames.cli.policy import (
     policy_arg_example,
     policy_arg_w_proportion_example,
 )
-from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
+from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command, validate_policy_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid.mapgen.mapgen import MapGen
@@ -763,6 +764,17 @@ app.command(
     name="leaderboard",
     help="Show leaderboard entries (public or your submissions) with per-sim scores",
 )(leaderboard_cmd)
+
+
+@app.command(name="validate-policy", help="Validate the policy loads and runs a single step")
+def validate_policy_cmd(
+    ctx: typer.Context,
+    policy: str = typer.Argument(
+        ...,
+        help=f"Policy specification: {policy_arg_example}",
+    ),
+) -> None:
+    validate_policy_command(ctx, policy)
 
 
 @app.command(name="submit", help="Submit a policy to CoGames competitions")

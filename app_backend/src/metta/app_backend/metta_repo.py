@@ -3,7 +3,7 @@ import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from uuid import UUID
 
 from psycopg import Connection
@@ -112,10 +112,28 @@ class LeaderboardEntry(BaseModel):
     avg_score: float | None = None
 
 
+class EpisodeReplay(BaseModel):
+    episode_id: uuid.UUID
+    replay_url: str
+
+
+class EpisodeWithTags(BaseModel):
+    id: uuid.UUID
+    primary_pv_id: Optional[uuid.UUID]
+    replay_url: Optional[str]
+    thumbnail_url: Optional[str]
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    eval_task_id: Optional[uuid.UUID]
+    created_at: datetime
+    tags: dict[str, str] = Field(default_factory=dict)
+
+
 class LeaderboardPolicyEntry(BaseModel):
     policy_version: PublicPolicyVersionRow
     scores: dict[str, float]
     avg_score: float | None = None
+    replays: dict[str, list[EpisodeReplay]] = Field(default_factory=dict)
+    score_episode_ids: dict[str, uuid.UUID | None] = Field(default_factory=dict)
 
 
 logger = logging.getLogger(name="metta_repo")
@@ -497,6 +515,7 @@ class MettaRepo:
         status: str | None = None,
         assignee: str | None = None,
         user_id: str | None = None,
+        command: str | None = None,
         created_at: str | None = None,
         assigned_at: str | None = None,
     ) -> tuple[list[EvalTaskRow], int]:
@@ -517,6 +536,10 @@ class MettaRepo:
             if user_id:
                 where_conditions.append("user_id ILIKE %s")
                 params.append(f"%{user_id}%")
+
+            if command:
+                where_conditions.append("command ILIKE %s")
+                params.append(f"%{command}%")
 
             if created_at:
                 where_conditions.append("CAST(created_at AS TEXT) ILIKE %s")
@@ -928,6 +951,9 @@ ORDER BY pol.created_at DESC, pv.created_at DESC
 
             policy_version_ids = [row.id for row in policy_rows]
             scores_by_policy: dict[uuid.UUID, dict[str, float]] = {pv_id: {} for pv_id in policy_version_ids}
+            score_episode_ids: dict[uuid.UUID, dict[str, uuid.UUID | None]] = {
+                pv_id: {} for pv_id in policy_version_ids
+            }
 
             async with con.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
@@ -950,7 +976,8 @@ SELECT
     pv.id AS policy_version_id,
     et.key AS tag_key,
     et.value AS tag_value,
-    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent
+    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent,
+    (ARRAY_AGG(e.id ORDER BY e.created_at DESC, e.id DESC))[1] AS latest_episode_id
 FROM policy_versions pv
 JOIN episode_policies ep ON ep.policy_version_id = pv.id
 JOIN episodes e ON e.id = ep.episode_id
@@ -972,6 +999,7 @@ GROUP BY pv.id, et.key, et.value
                     pv_id = score_row["policy_version_id"]
                     tag_identifier = f"{score_row['tag_key']}:{score_row['tag_value']}"
                     scores_by_policy.setdefault(pv_id, {})[tag_identifier] = float(score_row["avg_reward_per_agent"])
+                    score_episode_ids.setdefault(pv_id, {})[tag_identifier] = score_row["latest_episode_id"]
 
         entries: list[LeaderboardPolicyEntry] = []
         for policy_row in policy_rows:
@@ -984,6 +1012,7 @@ GROUP BY pv.id, et.key, et.value
                     policy_version=policy_version,
                     scores=dict(scores),
                     avg_score=avg_score,
+                    score_episode_ids=dict(score_episode_ids.get(pv_id, {})),
                 )
             )
 
@@ -995,3 +1024,99 @@ GROUP BY pv.id, et.key, et.value
             )
         )
         return entries
+
+    async def get_episodes(
+        self,
+        *,
+        primary_policy_version_ids: Optional[list[uuid.UUID]] = None,
+        tag_filters: Optional[dict[str, Optional[list[str]]]] = None,
+        limit: Optional[int] = 200,
+        offset: int = 0,
+    ) -> list[EpisodeWithTags]:
+        """Fetch episodes with optional filters and tag aggregation."""
+        where_conditions: list[str] = []
+        params: list[Any] = []
+
+        if primary_policy_version_ids:
+            where_conditions.append("e.primary_pv_id = ANY(%s)")
+            params.append(primary_policy_version_ids)
+
+        if tag_filters:
+            for idx, (tag_key, tag_values) in enumerate(tag_filters.items()):
+                if tag_values:
+                    where_conditions.append(
+                        f"""EXISTS (
+                            SELECT 1 FROM episode_tags et_{idx}
+                            WHERE et_{idx}.episode_id = e.id
+                              AND et_{idx}.key = %s
+                              AND et_{idx}.value = ANY(%s)
+                        )"""
+                    )
+                    params.extend([tag_key, tag_values])
+                else:
+                    where_conditions.append(
+                        f"""EXISTS (
+                            SELECT 1 FROM episode_tags et_{idx}
+                            WHERE et_{idx}.episode_id = e.id
+                              AND et_{idx}.key = %s
+                        )"""
+                    )
+                    params.append(tag_key)
+
+        where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+        limit_clause = ""
+        if limit is not None:
+            limit_clause = "LIMIT %s"
+            params.append(limit)
+        if offset > 0:
+            limit_clause += " OFFSET %s" if limit_clause else "OFFSET %s"
+            params.append(offset)
+
+        query = f"""
+SELECT
+    e.id,
+    e.primary_pv_id,
+    e.replay_url,
+    e.thumbnail_url,
+    e.attributes,
+    e.eval_task_id,
+    e.created_at,
+    COALESCE(
+        jsonb_object_agg(et.key, et.value) FILTER (WHERE et.key IS NOT NULL),
+        '{{}}'::jsonb
+    ) AS tags
+FROM episodes e
+LEFT JOIN episode_tags et ON et.episode_id = e.id
+{where_clause}
+GROUP BY
+    e.id,
+    e.primary_pv_id,
+    e.replay_url,
+    e.thumbnail_url,
+    e.attributes,
+    e.eval_task_id,
+    e.created_at
+ORDER BY e.created_at DESC
+{limit_clause}
+"""
+
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(query, params)  # type: ignore
+                rows = await cur.fetchall()
+
+        episodes: list[EpisodeWithTags] = []
+        for row in rows:
+            episodes.append(
+                EpisodeWithTags(
+                    id=row["id"],
+                    primary_pv_id=row["primary_pv_id"],
+                    replay_url=row["replay_url"],
+                    thumbnail_url=row["thumbnail_url"],
+                    attributes=row.get("attributes") or {},
+                    eval_task_id=row["eval_task_id"],
+                    created_at=row["created_at"],
+                    tags=row.get("tags") or {},
+                )
+            )
+        return episodes
