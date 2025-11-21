@@ -281,13 +281,13 @@ import mettagrid.simulator.simulator as simulator
 - A higher layer
 - A different top-level package at the same layer (except through `types` or `common`)
 
-**Example violations:**
+**Example: see packages/mettagrid/pyproject.toml**
 
 ```python
-# VIOLATION: mettagrid (Layer 1) importing from agent (Layer 2)
+# VIOLATION - mettagrid doesn't list metta.agent in dependencies
 from metta.agent.metta_agent import MettaAgent
 
-# CORRECT: Use types
+# CORRECT - use shared types that don't require dependency
 from metta.common.types import AgentProtocol
 ```
 
@@ -391,9 +391,10 @@ from mettagrid.internal_module import PublicClass, public_function
 
 **Default pattern (strongly preferred):**
 
+Empty file, or:
+
 ```python
 """Package description."""
-from __future__ import annotations
 
 # Empty - users import from specific modules
 ```
