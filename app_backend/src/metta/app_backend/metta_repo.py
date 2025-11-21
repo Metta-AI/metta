@@ -112,10 +112,16 @@ class LeaderboardEntry(BaseModel):
     avg_score: float | None = None
 
 
+class EpisodeReplay(BaseModel):
+    episode_id: uuid.UUID
+    replay_url: str
+
+
 class LeaderboardPolicyEntry(BaseModel):
     policy_version: PublicPolicyVersionRow
     scores: dict[str, float]
     avg_score: float | None = None
+    replays: dict[str, list[EpisodeReplay]] = Field(default_factory=dict)
 
 
 logger = logging.getLogger(name="metta_repo")
@@ -933,6 +939,9 @@ ORDER BY pol.created_at DESC, pv.created_at DESC
 
             policy_version_ids = [row.id for row in policy_rows]
             scores_by_policy: dict[uuid.UUID, dict[str, float]] = {pv_id: {} for pv_id in policy_version_ids}
+            replays_by_policy: dict[uuid.UUID, dict[str, list[EpisodeReplay]]] = {
+                pv_id: {} for pv_id in policy_version_ids
+            }
 
             async with con.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
@@ -978,6 +987,40 @@ GROUP BY pv.id, et.key, et.value
                     tag_identifier = f"{score_row['tag_key']}:{score_row['tag_value']}"
                     scores_by_policy.setdefault(pv_id, {})[tag_identifier] = float(score_row["avg_reward_per_agent"])
 
+                replay_query = """
+SELECT
+    pv.id AS policy_version_id,
+    et.key AS tag_key,
+    et.value AS tag_value,
+    e.id AS episode_id,
+    e.replay_url
+FROM policy_versions pv
+JOIN episode_policies ep ON ep.policy_version_id = pv.id
+JOIN episodes e ON e.id = ep.episode_id
+JOIN episode_policy_metrics epm
+    ON epm.episode_internal_id = e.internal_id
+   AND epm.pv_internal_id = pv.internal_id
+   AND epm.metric_name = 'reward'
+JOIN episode_tags et ON et.episode_id = e.id
+WHERE et.key = %s
+  AND e.replay_url IS NOT NULL
+  AND pv.id = ANY(%s)
+ORDER BY e.created_at DESC
+"""
+
+                async with con.cursor(row_factory=dict_row) as cur:
+                    await cur.execute(replay_query, (score_group_episode_tag, policy_version_ids))
+                    replay_rows = await cur.fetchall()
+
+                for replay_row in replay_rows:
+                    pv_id = replay_row["policy_version_id"]
+                    tag_identifier = f"{replay_row['tag_key']}:{replay_row['tag_value']}"
+                    replay_entry = EpisodeReplay(
+                        episode_id=replay_row["episode_id"],
+                        replay_url=replay_row["replay_url"],
+                    )
+                    replays_by_policy.setdefault(pv_id, {}).setdefault(tag_identifier, []).append(replay_entry)
+
         entries: list[LeaderboardPolicyEntry] = []
         for policy_row in policy_rows:
             pv_id = policy_row.id
@@ -989,6 +1032,7 @@ GROUP BY pv.id, et.key, et.value
                     policy_version=policy_version,
                     scores=dict(scores),
                     avg_score=avg_score,
+                    replays=dict(replays_by_policy.get(pv_id, {})),
                 )
             )
 

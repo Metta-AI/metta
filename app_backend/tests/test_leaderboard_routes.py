@@ -23,13 +23,13 @@ async def _create_policy_with_scores(
         attributes={},
     )
 
-    for reward_l in sim_scores:
+    for episode_idx, reward_l in enumerate(sim_scores):
         for sim_name, reward in reward_l.items():
             await stats_repo.record_episode(
                 id=uuid.uuid4(),
                 data_uri=f"s3://episodes/{uuid.uuid4()}",
                 primary_pv_id=policy_version_id,
-                replay_url=None,
+                replay_url=f"https://example.com/replays/{policy_name}/{sim_name}/{episode_idx}",
                 attributes={},
                 eval_task_id=None,
                 thumbnail_url=None,
@@ -162,12 +162,26 @@ async def test_leaderboard_v2_route_returns_tags_and_scores(
     assert populated_entry.avg_score == pytest.approx(15.0)
     assert populated_entry.policy_version.tags == {COGAMES_SUBMITTED_PV_KEY: "true"}
     assert populated_entry.policy_version.user_id == user
+    expected_replays = {
+        f"{LEADERBOARD_SIM_NAME_EPISODE_KEY}:arena-basic": {
+            "https://example.com/replays/leaderboard-policy/arena-basic/0",
+            "https://example.com/replays/leaderboard-policy/arena-basic/1",
+        },
+        f"{LEADERBOARD_SIM_NAME_EPISODE_KEY}:arena-combat": {
+            "https://example.com/replays/leaderboard-policy/arena-combat/0",
+            "https://example.com/replays/leaderboard-policy/arena-combat/1",
+        },
+    }
+    assert {
+        tag: {replay.replay_url for replay in replays} for tag, replays in populated_entry.replays.items()
+    } == expected_replays
 
     empty_entry = entries[1]
     assert empty_entry.scores == {}
     assert empty_entry.avg_score is None
     assert empty_entry.policy_version.tags == {COGAMES_SUBMITTED_PV_KEY: "true"}
     assert empty_entry.policy_version.user_id == user
+    assert empty_entry.replays == {}
 
 
 @pytest.mark.asyncio
