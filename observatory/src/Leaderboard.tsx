@@ -1,7 +1,9 @@
 import { FC, Fragment, useContext, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
-import type { LeaderboardPolicyEntry } from './repo'
+import { METTASCOPE_REPLAY_URL_PREFIX } from './constants'
+import type { EpisodeReplay, LeaderboardPolicyEntry } from './repo'
 
 type SectionState = {
   entries: LeaderboardPolicyEntry[]
@@ -22,6 +24,12 @@ type EvalStatusInfo = {
   attempts: number | null
   status: 'pending' | 'complete' | 'canceled'
   label: string
+}
+
+type ReplayFetchState = {
+  loading: boolean
+  error: string | null
+  episodesBySimulation: Record<string, EpisodeReplay[]>
 }
 
 const REFRESH_INTERVAL_MS = 10_000
@@ -132,6 +140,15 @@ const STYLES = `
   margin-bottom: 4px;
 }
 
+.policy-link {
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.policy-link:hover {
+  text-decoration: underline;
+}
+
 .policy-title-row {
   display: flex;
   align-items: center;
@@ -142,6 +159,15 @@ const STYLES = `
 .policy-title-row .policy-title {
   margin-bottom: 0;
   flex: 1;
+}
+
+.policy-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.policy-link:hover {
+  text-decoration: underline;
 }
 
 .policy-status-badge {
@@ -220,6 +246,23 @@ const STYLES = `
   background: #f3f4f6;
   color: #475569;
   font-weight: 600;
+}
+
+.replay-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.replay-link {
+  color: #1d4ed8;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.replay-link:hover {
+  text-decoration: underline;
 }
 
 .tag-list {
@@ -322,6 +365,7 @@ const LEADERBOARD_ATTEMPTS_TAG = `leaderboard-attempts-${LEADERBOARD_SIM_VERSION
 const LEADERBOARD_DONE_TAG = `leaderboard-evals-done-${LEADERBOARD_SIM_VERSION}`
 const LEADERBOARD_DONE_VALUE = 'true'
 const LEADERBOARD_CANCELED_VALUE = 'canceled'
+const LEADERBOARD_SIM_NAME_EPISODE_KEY = `leaderboard-name-${LEADERBOARD_SIM_VERSION}`
 
 const formatDate = (value: string | null): string => {
   if (!value) {
@@ -344,6 +388,29 @@ const formatScore = (value: number | null): string => {
 const formatSimulationLabel = (identifier: string): string => {
   const parts = identifier.split(':')
   return parts[parts.length - 1] || identifier
+}
+
+const parseSimulationTag = (
+  identifier: string
+): {
+  tagKey: string | null
+  tagValue: string | null
+} => {
+  const separatorIndex = identifier.indexOf(':')
+  if (separatorIndex === -1) {
+    return { tagKey: null, tagValue: null }
+  }
+  return {
+    tagKey: identifier.slice(0, separatorIndex),
+    tagValue: identifier.slice(separatorIndex + 1),
+  }
+}
+
+const formatReplayUrl = (replayUrl: string): string => {
+  if (replayUrl.startsWith(METTASCOPE_REPLAY_URL_PREFIX)) {
+    return replayUrl
+  }
+  return `${METTASCOPE_REPLAY_URL_PREFIX}${replayUrl}`
 }
 
 const getEvalStatus = (tags: Record<string, string>): EvalStatusInfo => {
@@ -373,6 +440,7 @@ export const Leaderboard: FC = () => {
   const [view, setView] = useState<ViewKey>('public')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set())
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
+  const [replayState, setReplayState] = useState<Record<string, ReplayFetchState>>({})
 
   const viewConfigs: Record<ViewKey, ViewConfig> = {
     public: {
@@ -444,13 +512,14 @@ export const Leaderboard: FC = () => {
     }
   }, [repo])
 
-  const toggleRow = (rowKey: string) => {
+  const toggleRow = (rowKey: string, entry: LeaderboardPolicyEntry) => {
     setExpandedRows((previous) => {
       const next = new Set(previous)
       if (next.has(rowKey)) {
         next.delete(rowKey)
       } else {
         next.add(rowKey)
+        void fetchReplaysForPolicy(entry)
       }
       return next
     })
@@ -483,6 +552,68 @@ export const Leaderboard: FC = () => {
       <span className="copy-command-status">{copiedCommand === commandKey ? 'Copied!' : label}</span>
     </button>
   )
+
+  const fetchReplaysForPolicy = async (entry: LeaderboardPolicyEntry) => {
+    const policyId = entry.policy_version.id
+    const existing = replayState[policyId]
+    if (existing && (existing.loading || Object.keys(existing.episodesBySimulation).length > 0 || existing.error)) {
+      return
+    }
+
+    const simTagValues = Array.from(
+      new Set(
+        Object.keys(entry.scores)
+          .map((simKey) => parseSimulationTag(simKey))
+          .filter((parsed) => parsed.tagKey === LEADERBOARD_SIM_NAME_EPISODE_KEY && parsed.tagValue)
+          .map((parsed) => parsed.tagValue as string)
+      )
+    )
+
+    if (simTagValues.length === 0) {
+      setReplayState((prev) => ({
+        ...prev,
+        [policyId]: { loading: false, error: null, episodesBySimulation: {} },
+      }))
+      return
+    }
+
+    setReplayState((prev) => ({
+      ...prev,
+      [policyId]: { loading: true, error: null, episodesBySimulation: {} },
+    }))
+
+    try {
+      const response = await repo.queryEpisodes({
+        primary_policy_version_ids: [policyId],
+        tag_filters: { [LEADERBOARD_SIM_NAME_EPISODE_KEY]: simTagValues },
+        limit: null,
+      })
+
+      const episodesBySimulation: Record<string, EpisodeReplay[]> = {}
+      response.episodes.forEach((episode) => {
+        const tagValue = episode.tags?.[LEADERBOARD_SIM_NAME_EPISODE_KEY]
+        if (!tagValue || !episode.replay_url) {
+          return
+        }
+        const simKey = `${LEADERBOARD_SIM_NAME_EPISODE_KEY}:${tagValue}`
+        const expectedEpisodeId = entry.score_episode_ids?.[simKey]
+        if (expectedEpisodeId && expectedEpisodeId !== episode.id) {
+          return
+        }
+        episodesBySimulation[simKey] = [...(episodesBySimulation[simKey] ?? []), { replay_url: episode.replay_url, episode_id: episode.id }]
+      })
+
+      setReplayState((prev) => ({
+        ...prev,
+        [policyId]: { loading: false, error: null, episodesBySimulation },
+      }))
+    } catch (error: any) {
+      setReplayState((prev) => ({
+        ...prev,
+        [policyId]: { loading: false, error: error.message ?? 'Failed to load replays', episodesBySimulation: {} },
+      }))
+    }
+  }
 
   const renderContent = (state: SectionState, config: ViewConfig) => {
     if (state.loading) {
@@ -524,10 +655,16 @@ export const Leaderboard: FC = () => {
             const playCommand = `./tools/run.py recipes.experiment.v0_leaderboard.play policy_version_id=${policyId}`
             return (
               <Fragment key={`${config.sectionKey}-${policyId}`}>
-                <tr className="policy-row" onClick={() => toggleRow(rowKey)}>
+                <tr className="policy-row" onClick={() => toggleRow(rowKey, entry)}>
                   <td>
                     <div className="policy-title-row">
-                      <div className="policy-title">{policyDisplay}</div>
+                      <Link
+                        to={`/leaderboard/policy/${policyId}`}
+                        className="policy-title policy-link"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {policyDisplay}
+                      </Link>
                       <span className={`policy-status-badge ${evalStatus.status}`}>{evalStatus.label}</span>
                     </div>
                     <div className="policy-meta">{policyVersion.user_id}</div>
@@ -552,15 +689,52 @@ export const Leaderboard: FC = () => {
                                 <tr>
                                   <th>Simulation</th>
                                   <th>Score</th>
+                                  <th>Replays</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {scoreEntries.map(([simName, scoreValue]) => (
-                                  <tr key={`${policyId}-${simName}`}>
-                                    <td>{formatSimulationLabel(simName)}</td>
-                                    <td>{scoreValue.toFixed(2)}</td>
-                                  </tr>
-                                ))}
+                                {scoreEntries.map(([simName, scoreValue]) => {
+                                  const replaysForPolicy = replayState[policyId]
+                                  const simReplays = replaysForPolicy?.episodesBySimulation[simName] ?? []
+                                  const isLoadingReplays = replaysForPolicy?.loading
+                                  const replayError = replaysForPolicy?.error
+                                  return (
+                                    <tr key={`${policyId}-${simName}`}>
+                                      <td>{formatSimulationLabel(simName)}</td>
+                                      <td>{scoreValue.toFixed(2)}</td>
+                                      <td>
+                                        {replayError ? (
+                                          <span className="policy-meta">Failed to load replays</span>
+                                        ) : isLoadingReplays ? (
+                                          <span className="policy-meta">Loading replays...</span>
+                                        ) : simReplays.length === 0 ? (
+                                          '—'
+                                        ) : (
+                                          <div className="replay-links">
+                                            {simReplays.map((replay, replayIndex) => {
+                                              const label =
+                                                replay.episode_id && replay.episode_id.length > 0
+                                                  ? `Episode ${replay.episode_id.slice(0, 8)}`
+                                                  : `Replay ${replayIndex + 1}`
+                                              return (
+                                                <a
+                                                  key={`${simName}-${replay.episode_id}-${replayIndex}`}
+                                                  href={formatReplayUrl(replay.replay_url)}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  className="replay-link"
+                                                  onClick={(event) => event.stopPropagation()}
+                                                >
+                                                  {label}
+                                                </a>
+                                              )
+                                            })}
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
                               </tbody>
                             </table>
                           )}
