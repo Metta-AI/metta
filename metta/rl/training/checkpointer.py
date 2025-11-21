@@ -64,7 +64,7 @@ class Checkpointer(TrainerComponent):
         candidate_uri: Optional[str] = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
         load_device = torch.device(self._distributed.config.device)
 
-        # Distributed: master loads once, broadcasts state_dict + architecture; workers rebuild locally.
+        # Distributed: master loads once, broadcasts payload; workers rebuild locally.
         if self._distributed.is_distributed:
             normalized_uri = (
                 CheckpointManager.normalize_uri(candidate_uri)
