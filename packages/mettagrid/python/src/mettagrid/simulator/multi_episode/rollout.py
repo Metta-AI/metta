@@ -9,7 +9,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from mettagrid import MettaGridConfig
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.simulator.rollout import Rollout
@@ -89,8 +89,8 @@ def multi_episode_rollout(
     rng = np.random.default_rng(seed)
     for episode_idx in range(episodes):
         rng.shuffle(assignments)
-        agent_policies: list[AgentPolicy] = [
-            policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
+        controllers = [
+            (policies[assignments[agent_id]], agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
 
         # Create a new replay writer for each episode if save_replay is provided
@@ -102,7 +102,7 @@ def multi_episode_rollout(
 
         rollout = Rollout(
             env_cfg,
-            agent_policies,
+            controllers,
             max_action_time_ms=max_action_time_ms,
             event_handlers=handlers,
         )

@@ -131,42 +131,20 @@ def test_forward_method_matches_forward_eval():
     assert len(result1) == len(result2) == 2
 
 
-def test_stateful_agent_policy_requires_reset():
-    """Test that StatefulAgentPolicy requires reset() to be called before step().
+def test_stateful_policy_handles_agent_reset_before_step():
+    """Test that agent_reset initializes state before agent_step is invoked."""
 
-    This test demonstrates the correct usage pattern: reset() must be called
-    before step() to initialize the internal state. Without reset(), step() will
-    raise an AssertionError.
-    """
     policy_env_info = create_mock_policy_env_info()
     policy = LSTMPolicy(policy_env_info)
 
-    # Get an agent policy (returns StatefulAgentPolicy wrapper)
-    agent_policy = policy.agent_policy(agent_id=0)
-
-    # Create a minimal mock observation
-    # For LSTM, the observation needs tokens with feature, location, and value
     feature = ObservationFeatureSpec(id=0, name="test_feature", normalization=1.0)
     token = ObservationToken(feature=feature, location=(0, 0), value=1, raw_token=(255, 0, 0))
     obs = AgentObservation(agent_id=0, tokens=[token])
 
-    # Verify that step() fails without reset()
-    try:
-        agent_policy.step(obs)
-        raise AssertionError("step() should have raised AssertionError before reset()")
-    except AssertionError as e:
-        assert "reset()" in str(e), "Error message should mention reset()"
+    policy.agent_reset(agent_id=0)
 
-    # IMPORTANT: Must call reset() before step() to initialize state
-    agent_policy.reset()
-
-    # Now step() should pass the assertion (even if it fails later due to observation format)
-    # The key is that reset() initializes the state from Ellipsis to None (or other value)
     try:
-        agent_policy.step(obs)
-        # If we get here, the assertion passed (observation format issues are separate)
-    except AssertionError as e:
-        raise AssertionError("step() should not raise AssertionError after reset()") from e
+        policy.agent_step(agent_id=0, obs=obs)
     except RuntimeError:
-        # RuntimeError is expected due to observation format, but AssertionError should not occur
+        # RuntimeError is expected due to observation unpacking, but reset should prevent AssertionError
         pass

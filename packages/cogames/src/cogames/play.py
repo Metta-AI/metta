@@ -47,7 +47,7 @@ def play(
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
-    agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
+    controllers = [(policy, agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
     # Set up replay writer if requested
     event_handlers = []
@@ -59,7 +59,7 @@ def play(
     # Create simulator and renderer
     rollout = Rollout(
         env_cfg,
-        agent_policies,
+        controllers,
         render_mode=render_mode,
         seed=seed,
         pass_sim_to_policies=True,

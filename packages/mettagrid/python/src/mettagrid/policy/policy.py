@@ -21,10 +21,9 @@ StateType = TypeVar("StateType")
 class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     """Abstract base class for multi-agent policies.
 
-    A Policy manages creating AgentPolicy instances for multiple agents.
     This is the class users instantiate and pass to training/play functions.
-    Training uses the Policy directly, while play calls agent_policy() to
-    get per-agent instances.
+    Training and evaluation call `agent_step()` directly to obtain actions
+    for each environment agent.
 
     Subclasses can register themselves by defining:
     - short_names: list[str] = ["name1", "name2"] for one or more aliases

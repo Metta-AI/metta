@@ -175,11 +175,11 @@ def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], nu
             pei,
             PolicySpec(class_path=AGENT_PATH, data_path=None),
         )
-        agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
+        controllers = [(policy, i) for i in range(num_cogs)]
 
         rollout = Rollout(
             env_cfg,
-            agent_policies,
+            controllers,
             render_mode="none",
             seed=seed,
             pass_sim_to_policies=True,

@@ -245,12 +245,12 @@ def run_evaluation(
                     # Create policy with PolicyEnvInterface and hyperparameters
                     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
                     policy = UnclippingPolicy(policy_env_info, hyperparams)
-                    agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
+                    controllers = [(policy, i) for i in range(num_cogs)]
 
                     # Create rollout and run episode
                     rollout = Rollout(
                         env_config,
-                        agent_policies,
+                        controllers,
                         render_mode="none",
                         seed=seed,
                         pass_sim_to_policies=True,
