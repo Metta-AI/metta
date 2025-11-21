@@ -10,10 +10,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-import torch
-
-from metta.rl.policy_artifact import load_policy_artifact
-from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
@@ -33,12 +30,6 @@ def initialize_or_load_policy(
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
-    artifact_policy = _maybe_load_policy_artifact(policy_env_info, policy_spec, policy_class)
-    if artifact_policy is not None:
-        if not isinstance(artifact_policy, MultiAgentPolicy):
-            raise TypeError("Loaded policy artifact did not produce a MultiAgentPolicy")
-        return artifact_policy
-
     try:
         policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
     except TypeError as e:
@@ -50,6 +41,11 @@ def initialize_or_load_policy(
         policy.load_policy_data(policy_spec.data_path)
 
     if not isinstance(policy, MultiAgentPolicy):
+        if isinstance(policy, AgentPolicy):
+            raise TypeError(
+                f"Policy {policy_spec.class_path} is an AgentPolicy, but should be a MultiAgentPolicy "
+                f"(which returns AgentPolicy via `agent_policy`)"
+            )
         raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
 
     return policy
@@ -143,28 +139,6 @@ def resolve_policy_data_path(
         return str(path)
 
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
-
-
-def _maybe_load_policy_artifact(
-    policy_env_info: PolicyEnvInterface,
-    policy_spec: PolicySpec,
-    policy_class,
-) -> MultiAgentPolicy | None:
-    data_path = policy_spec.data_path
-    if not data_path:
-        return None
-
-    path = Path(data_path).expanduser()
-    if path.suffix.lower() != ".mpt":
-        return None
-
-    artifact = load_policy_artifact(path)
-    init_kwargs = policy_spec.init_kwargs or {}
-    device_arg = init_kwargs.get("device", "cpu")
-    device = device_arg if isinstance(device_arg, torch.device) else torch.device(device_arg)
-    strict = bool(init_kwargs.get("strict", True))
-
-    return artifact.instantiate(policy_env_info, device=device, strict=strict)
 
 
 @functools.cache

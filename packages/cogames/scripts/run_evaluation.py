@@ -41,7 +41,11 @@ from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
-from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.loader import (
+    initialize_or_load_policy,
+    resolve_policy_class_path,
+    resolve_policy_data_path,
+)
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
@@ -53,8 +57,6 @@ try:
 except ImportError:
     CHECKPOINT_MANAGER_AVAILABLE = False
     CheckpointManager = None
-
-ARTIFACT_FALLBACK_CLASS = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -109,12 +111,6 @@ def _is_uri(path: Optional[str]) -> bool:
     return bool(path and "://" in path)
 
 
-def _looks_like_local_artifact(path: Optional[str]) -> bool:
-    if not path or _is_uri(path):
-        return False
-    return Path(path).suffix.lower() == ".mpt"
-
-
 def _require_checkpoint_manager() -> None:
     if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
         raise ImportError("CheckpointManager not available. Install metta extras to use checkpoint URIs.")
@@ -126,6 +122,10 @@ def _policy_spec_from_uri(uri: str, *, device: torch.device) -> PolicySpec:
     return CheckpointManager.policy_spec_from_uri(uri, device=device)
 
 
+def _path_to_file_uri(path: str) -> str:
+    return f"file://{Path(path).expanduser().resolve()}"
+
+
 def _policy_spec_from_inputs(
     policy_path: str,
     checkpoint_path: Optional[str],
@@ -135,18 +135,21 @@ def _policy_spec_from_inputs(
     if _is_uri(policy_path):
         return _policy_spec_from_uri(policy_path, device=device)
 
+    if Path(policy_path).suffix.lower() == ".mpt":
+        return _policy_spec_from_uri(_path_to_file_uri(policy_path), device=device)
+
+    resolved_class = resolve_policy_class_path(policy_path)
+
     if checkpoint_path:
         if _is_uri(checkpoint_path):
             return _policy_spec_from_uri(checkpoint_path, device=device)
-        return PolicySpec(class_path=policy_path, data_path=checkpoint_path)
 
-    if _looks_like_local_artifact(policy_path):
-        return PolicySpec(
-            class_path=ARTIFACT_FALLBACK_CLASS,
-            data_path=policy_path,
-        )
+        resolved_data = resolve_policy_data_path(checkpoint_path)
+        if resolved_data and Path(resolved_data).suffix.lower() == ".mpt":
+            return _policy_spec_from_uri(_path_to_file_uri(resolved_data), device=device)
+        return PolicySpec(class_path=resolved_class, data_path=resolved_data)
 
-    return PolicySpec(class_path=policy_path)
+    return PolicySpec(class_path=resolved_class)
 
 
 def load_policy(

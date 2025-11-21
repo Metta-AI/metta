@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from typing import Literal, Optional, Sequence, TypeAlias
+from typing import Literal, Optional, TypeAlias
 
 import numpy as np
 import typer
@@ -42,12 +42,12 @@ def evaluate(
     console: Console,
     missions: list[tuple[str, MettaGridConfig]],
     policy_specs: list[PolicySpec],
+    proportions: list[float],
     episodes: int,
     action_timeout_ms: int,
     seed: int = 42,
     output_format: Optional[Literal["yaml", "json"]] = None,
     save_replay: Optional[str] = None,
-    proportions: Optional[Sequence[float]] = None,
 ) -> MissionResultsSummary:
     if not missions:
         raise ValueError("At least one mission must be provided for evaluation.")

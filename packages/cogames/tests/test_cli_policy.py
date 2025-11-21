@@ -9,7 +9,12 @@ def test_parse_policy_spec_accepts_mpt(tmp_path):
 
     spec = policy_cli._parse_policy_spec(f"stateless:{checkpoint}")
 
-    assert spec.data_path == str(checkpoint)
+    expected_uri = f"file://{checkpoint.resolve()}"
+    assert spec.class_path == "metta.rl.checkpoint_manager.CheckpointPolicy"
+    assert spec.data_path is None
+    assert spec.init_kwargs is not None
+    assert spec.init_kwargs["checkpoint_uri"] == expected_uri
+    assert spec.init_kwargs["display_name"] == "stateless"
     assert spec.proportion == 1.0
 
 

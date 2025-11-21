@@ -665,22 +665,22 @@ def evaluate_cmd(
             if isinstance(map_builder, MapGen.Config):
                 map_builder.seed = effective_map_seed
 
-    policy_specs_with_proportions = get_policy_specs_with_proportions(ctx, policies)
+    policy_specs = get_policy_specs_with_proportions(ctx, policies)
 
-    policy_count = len(policy_specs_with_proportions)
-    mission_count = len(selected_missions)
-    console.print(f"[cyan]Preparing evaluation for {policy_count} policies across {mission_count} mission(s)[/cyan]")
+    console.print(
+        f"[cyan]Preparing evaluation for {len(policy_specs)} policies across {len(selected_missions)} mission(s)[/cyan]"
+    )
 
     evaluate_module.evaluate(
         console,
         missions=selected_missions,
-        policy_specs=[spec.to_policy_spec() for spec in policy_specs_with_proportions],
+        policy_specs=[spec.to_policy_spec() for spec in policy_specs],
+        proportions=[spec.proportion for spec in policy_specs],
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
         seed=seed,
         output_format=format_,
         save_replay=save_replay_dir,
-        proportions=[spec.proportion for spec in policy_specs_with_proportions],
     )
 
 
