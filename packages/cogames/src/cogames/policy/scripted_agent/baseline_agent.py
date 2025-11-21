@@ -14,7 +14,7 @@ Just simple, clean, correct behavior.
 from __future__ import annotations
 
 import random
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
 from mettagrid.config.mettagrid_config import CardinalDirection, CardinalDirections
 from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
@@ -44,9 +44,6 @@ from .utils import (
 )
 from .utils import (
     parse_observation as utils_parse_observation,
-)
-from .utils import (
-    read_inventory_from_obs as utils_read_inventory_from_obs,
 )
 from .utils import (
     update_agent_position as utils_update_agent_position,
