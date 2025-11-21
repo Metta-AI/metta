@@ -4,27 +4,22 @@ ARG TARGETPLATFORM
 ARG TARGETARCH
 ARG BUILDPLATFORM
 
+# Unlike other processes, we need kubectl for orchestrator to spawn other pods
+RUN apt-get update
+RUN apt-get install -y kubectl
+RUN apt-get install -y apt-transport-https ca-certificates curl gnupg
+RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+RUN chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+RUN echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
+RUN chmod 644 /etc/apt/sources.list.d/kubernetes.list
+
+
 WORKDIR /workspace
 
 COPY . /workspace/metta
 
 WORKDIR /workspace/metta
 
-RUN bash ./devops/tools/install-system.sh
-
-RUN apt-get install -y apt-transport-https ca-certificates curl gnupg
-RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-RUN chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-RUN echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
-RUN chmod 644 /etc/apt/sources.list.d/kubernetes.list
-RUN apt-get update
-RUN apt-get install -y kubectl
-
 RUN bash install.sh --profile softmax-docker --non-interactive
-
-# Pre-build all packages to avoid OOM during container startup
-RUN uv sync --all-extras --frozen && \
-    uv run python -c "import metta.app_backend.eval_task_orchestrator" && \
-    uv run python -c "import metta.app_backend.eval_task_worker"
 
 CMD ["/bin/bash"]
