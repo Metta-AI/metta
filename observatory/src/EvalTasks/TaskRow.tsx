@@ -41,10 +41,9 @@ export const TaskRow: FC<{ task: EvalTask; repo: Repo }> = ({ task, repo }) => {
         onClick={() => hasMultipleAttempts && toggleTaskExpansion()}
       >
         <td className="p-3">
-          {hasMultipleAttempts && (
-            <span style={{ marginRight: '8px', fontSize: '12px', color: '#6c757d' }}>{isExpanded ? '▼' : '▶'}</span>
-          )}
+          {hasMultipleAttempts && <span className="mr-2 text-xs text-gray-500">{isExpanded ? '▼' : '▶'}</span>}
           {task.id}
+          {isLoadingAttempts && <span className="mr-2 text-xs text-gray-500">...</span>}
         </td>
         <td className="p-3 text-xs truncate text-wrap" title={task.command}>
           {task.command}
@@ -65,7 +64,7 @@ export const TaskRow: FC<{ task: EvalTask; repo: Repo }> = ({ task, repo }) => {
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              style={{ color: '#007bff', textDecoration: 'none' }}
+              className="text-blue-500 no-underline hover:underline"
             >
               View
             </a>
@@ -76,14 +75,14 @@ export const TaskRow: FC<{ task: EvalTask; repo: Repo }> = ({ task, repo }) => {
       </tr>
       {isExpanded && hasMultipleAttempts && (
         <tr>
-          <td colSpan={8} style={{ padding: '15px', backgroundColor: '#f8f9fa' }}>
-            <h4 style={{ marginTop: 0, marginBottom: '10px' }}>Attempt History</h4>
+          <td colSpan={8} className="p-4 bg-gray-100">
+            <h4 className="mb-2">Attempt History</h4>
             {isLoadingAttempts ? (
               <div>Loading attempts...</div>
             ) : (
-              <table style={{ width: '100%', fontSize: '13px' }}>
+              <table className="w-full text-sm">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #dee2e6' }}>
+                  <tr>
                     <th className="p-2 text-left">Attempt</th>
                     <th className="p-2 text-left">Status</th>
                     <th className="p-2 text-left">Assignee</th>
@@ -95,7 +94,7 @@ export const TaskRow: FC<{ task: EvalTask; repo: Repo }> = ({ task, repo }) => {
                 </thead>
                 <tbody>
                   {attempts.map((attempt) => (
-                    <tr key={attempt.id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                    <tr key={attempt.id}>
                       <td className="p-2">{attempt.attempt_number + 1}</td>
                       <td className="p-2">
                         <TaskBadge task={attempt} size="small" />
@@ -116,7 +115,7 @@ export const TaskRow: FC<{ task: EvalTask; repo: Repo }> = ({ task, repo }) => {
                             href={repo.getTaskLogUrl(task.id, 'output')}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ color: '#007bff', textDecoration: 'none' }}
+                            className="text-blue-500 no-underline hover:underline"
                           >
                             View
                           </a>

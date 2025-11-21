@@ -39,13 +39,13 @@ const StatusDropdown: FC<{ value: string; onChange: (value: string) => void }> =
 
 const TH: FC<
   PropsWithChildren<{
-    style?: React.CSSProperties
+    width?: string | number
   }>
-> = ({ children, style }) => {
+> = ({ children, width }) => {
   return (
     <th
       className="px-3 pt-2 pb-0.5 text-left text-xs text-gray-800 font-semibold tracking-wide uppercase"
-      style={style}
+      style={{ width }}
     >
       {children}
     </th>
@@ -118,7 +118,7 @@ export const TasksTable: FC<{
           <thead className="border-b border-b-gray-300 bg-gray-100">
             <tr>
               <TH>ID</TH>
-              <TH style={{ width: '30%' }}>Command</TH>
+              <TH width="30%">Command</TH>
               <TH>Status</TH>
               <TH>User</TH>
               <TH>Assignee</TH>

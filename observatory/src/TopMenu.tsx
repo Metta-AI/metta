@@ -5,10 +5,7 @@ import { Link, useLocation } from 'react-router-dom'
 // CSS for navigation
 const NAV_CSS = `
 .nav-tab {
-  padding: 15px 20px;
-  text-decoration: none;
-  color: #666;
-  border-bottom: 2px solid transparent;
+  bworder-bottom: 2px solid transparent;
   transition: all 0.2s ease;
 }
 
@@ -25,7 +22,10 @@ const NAV_CSS = `
 
 const MenuLink: FC<PropsWithChildren<{ to: string; isActive: boolean }>> = ({ to, children, isActive = false }) => {
   return (
-    <Link to={to} className={clsx('nav-tab', isActive && 'active')}>
+    <Link
+      to={to}
+      className={clsx('nav-tab py-4 px-5 text-gray-500 no-underline hover:text-gray-900', isActive && 'active')}
+    >
       {children}
     </Link>
   )

@@ -41,16 +41,7 @@ export const CreateTaskForm: FC<{
   }
 
   return (
-    <div
-      style={{
-        backgroundColor: '#ffffff',
-        padding: '24px',
-        borderRadius: '12px',
-        marginBottom: '30px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-        border: '1px solid #e8e8e8',
-      }}
-    >
+    <div className="bg-white p-6 rounded-md border border-gray-200 shadow-md mb-8">
       <h3 className="mt-0 mb-5">Create New Task</h3>
 
       <div className="flex gap-2 items-end">
