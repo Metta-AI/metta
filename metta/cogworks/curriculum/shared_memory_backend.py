@@ -15,9 +15,11 @@ Task data structure (18 floats per task):
  total_score, last_score, success_threshold, seed, generator_type, ema_squared,
  is_active, p_fast, p_slow, p_true, random_baseline, label_hash]
 
-Synchronization: SharedMemoryBackend uses multiprocessing.Lock to ensure atomic multi-field
-updates across processes. This prevents race conditions when updating related values like
-the 4 bidirectional EMAs (p_fast, p_slow, p_true, random_baseline).
+Synchronization: SharedMemoryBackend uses multiprocessing.Manager().Lock() to ensure atomic
+multi-field updates across processes. Manager.Lock() returns a proxy object that can be
+properly pickled and shared, ensuring all processes synchronize on the same server-backed
+lock. This prevents race conditions when updating related values like the 4 bidirectional
+EMAs (p_fast, p_slow, p_true, random_baseline).
 
 Why separate file: Memory management is a low-level concern distinct from curriculum logic.
 Isolating it here makes it easy to swap implementations, test independently, and reason
@@ -28,7 +30,7 @@ import logging
 import uuid
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
-from multiprocessing import Lock, shared_memory
+from multiprocessing import Manager, shared_memory
 from typing import Any, ContextManager, Optional
 
 import numpy as np
@@ -138,9 +140,10 @@ class SharedMemoryBackend(TaskMemoryBackend):
     Uses multiprocessing.shared_memory for cross-process data sharing.
     Multiple processes can read/write the same task data concurrently.
 
-    Synchronization: Uses multiprocessing.Lock to ensure atomic multi-field updates.
-    This prevents race conditions when updating related values (e.g., bidirectional
-    EMAs). The lock is properly shared across processes via pickling.
+    Synchronization: Uses multiprocessing.Manager().Lock() to ensure atomic multi-field
+    updates. This prevents race conditions when updating related values (e.g., bidirectional
+    EMAs). Manager.Lock() returns a proxy object that can be properly pickled and shared
+    across processes, ensuring all processes synchronize on the same server-backed lock.
     """
 
     def __init__(
@@ -184,9 +187,12 @@ class SharedMemoryBackend(TaskMemoryBackend):
         # Initialize shared structures
         self._init_shared_memory()
 
-        # Create a proper multiprocessing lock for synchronization
-        # This ensures multi-field updates (e.g., all 4 bidirectional EMAs) are atomic
-        self._lock = Lock()
+        # Create a Manager and its lock for proper cross-process synchronization
+        # Manager.Lock() returns a proxy that can be pickled and properly shared
+        # across processes, unlike regular Lock() which creates independent locks
+        # in each process after unpickling.
+        self._manager = Manager()
+        self._lock = self._manager.Lock()
 
     def _init_shared_memory(self):
         """Initialize shared memory structures."""
@@ -262,6 +268,14 @@ class SharedMemoryBackend(TaskMemoryBackend):
                 f"Failed to cleanup shared memory (session={self.session_id}, name={self._task_array_name}): {e}"
             )
 
+        # Shutdown manager if we have a reference to it (only in main process)
+        if hasattr(self, "_manager") and self._manager is not None:
+            try:
+                self._manager.shutdown()
+                self._manager = None
+            except Exception as e:
+                logger.debug(f"Failed to shutdown manager (may already be shutdown): {e}")
+
     def __del__(self):
         """Cleanup on destruction."""
         # Only access _task_array_shm if it was initialized
@@ -278,16 +292,26 @@ class SharedMemoryBackend(TaskMemoryBackend):
             logger.warning(f"Failed to close shared memory in destructor (session={session_id}, name={name}): {e}")
 
     def __getstate__(self):
-        """Prepare for pickling - save connection parameters."""
+        """Prepare for pickling - save connection parameters.
+
+        The lock is included in the state because Manager.Lock() returns a proxy
+        object that can be properly pickled and shared across processes.
+        """
         return {
             "max_tasks": self.max_tasks,
             "task_struct_size": self.task_struct_size,
             "session_id": self.session_id,
             "created_shared_memory": self._created_shared_memory,
+            "lock": self._lock,
         }
 
     def __setstate__(self, state):
-        """Restore from pickle - reconnect to existing shared memory."""
+        """Restore from pickle - reconnect to existing shared memory.
+
+        The lock is restored from the pickled state rather than recreated. Since
+        it's a Manager.Lock() proxy, all processes will reference the same
+        server-side lock, ensuring proper synchronization across processes.
+        """
         self.max_tasks = state["max_tasks"]
         self.task_struct_size = state["task_struct_size"]
         self.session_id = state["session_id"]
@@ -305,5 +329,6 @@ class SharedMemoryBackend(TaskMemoryBackend):
         # Reconnect to existing shared memory
         self._init_shared_memory()
 
-        # Recreate lock (each process needs its own lock object pointing to the shared lock)
-        self._lock = Lock()
+        # Restore the shared lock from pickled state (not create a new one!)
+        # The Manager proxy maintains its connection to the manager server
+        self._lock = state["lock"]

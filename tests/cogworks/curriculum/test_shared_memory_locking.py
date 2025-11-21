@@ -17,20 +17,24 @@ class TestSharedMemoryLocking:
     """Test that shared memory locking prevents race conditions."""
 
     def test_shared_memory_has_proper_lock(self):
-        """Verify SharedMemoryBackend uses multiprocessing.Lock, not nullcontext."""
-        from multiprocessing.synchronize import Lock as LockType
+        """Verify SharedMemoryBackend uses Manager.Lock for proper cross-process synchronization."""
+        from multiprocessing.managers import AcquirerProxy
 
         from metta.cogworks.curriculum.shared_memory_backend import SharedMemoryBackend
 
         backend = SharedMemoryBackend(max_tasks=10, session_id="test_lock")
         try:
-            # Verify the lock is a real Lock, not nullcontext
-            assert isinstance(backend._lock, LockType), "SharedMemoryBackend must use multiprocessing.Lock"
+            # Verify the lock is a Manager lock proxy (not nullcontext or regular Lock)
+            # Manager.Lock() returns an AcquirerProxy that can be properly pickled
+            # and shared across processes, unlike regular Lock()
+            assert isinstance(backend._lock, AcquirerProxy), (
+                "SharedMemoryBackend must use Manager.Lock() for cross-process synchronization"
+            )
 
             # Verify acquire_lock returns the lock
             with backend.acquire_lock():
-                # In a real Lock, this context manager acquires and releases the lock
-                # (Can't test much more without multiprocessing complexity)
+                # The Manager lock can be acquired and released properly
+                # across process boundaries (unlike regular Lock)
                 pass
         finally:
             backend.cleanup()
