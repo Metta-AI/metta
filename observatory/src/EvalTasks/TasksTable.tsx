@@ -24,16 +24,7 @@ const StatusDropdown: FC<{ value: string; onChange: (value: string) => void }> =
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       onClick={(e) => e.stopPropagation()}
-      style={{
-        width: '100%',
-        padding: '4px 8px',
-        fontSize: '12px',
-        border: '1px solid #d1d5db',
-        borderRadius: '4px',
-        marginTop: '4px',
-        backgroundColor: '#fff',
-        cursor: 'pointer',
-      }}
+      className="w-full rounded border h-6 border-gray-300 bg-white text-gray-800 text-xs py-1 pl-1"
     >
       <option value="">All</option>
       <option value="unprocessed">Unprocessed</option>
@@ -52,10 +43,17 @@ const TH: FC<
   }>
 > = ({ children, style }) => {
   return (
-    <th className="py-3 px-2 border-b border-b-gray-400" style={style}>
+    <th
+      className="px-3 pt-2 pb-0.5 text-left text-xs text-gray-800 font-semibold tracking-wide uppercase"
+      style={style}
+    >
       {children}
     </th>
   )
+}
+
+const THFilter: FC<PropsWithChildren> = ({ children }) => {
+  return <th className="px-1 pb-2">{children}</th>
 }
 
 export const TasksTable: FC<{
@@ -117,46 +115,51 @@ export const TasksTable: FC<{
       <h2 className="mb-5">All Tasks ({tasksResponse.total_count})</h2>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse table-fixed">
-          <thead>
-            <tr className="bg-gray-100 text-left">
+          <thead className="border-b border-b-gray-300 bg-gray-100">
+            <tr>
               <TH>ID</TH>
-              <TH style={{ width: '30%' }}>
-                Command
+              <TH style={{ width: '30%' }}>Command</TH>
+              <TH>Status</TH>
+              <TH>User</TH>
+              <TH>Assignee</TH>
+              <TH>Attempts</TH>
+              <TH>Created</TH>
+              <TH>Logs</TH>
+            </tr>
+            <tr>
+              <THFilter />
+              <THFilter>
                 <FilterInput
                   value={filters.command || ''}
                   onChange={(value) => setFilters({ ...filters, command: value })}
                 />
-              </TH>
-              <TH>
-                Status
+              </THFilter>
+              <THFilter>
                 <StatusDropdown
                   value={filters.status || ''}
                   onChange={(value) => setFilters({ ...filters, status: value })}
                 />
-              </TH>
-              <TH>
-                User
+              </THFilter>
+              <THFilter>
                 <FilterInput
                   value={filters.user_id || ''}
                   onChange={(value) => setFilters({ ...filters, user_id: value })}
                 />
-              </TH>
-              <TH>
-                Assignee
+              </THFilter>
+              <THFilter>
                 <FilterInput
                   value={filters.assignee || ''}
                   onChange={(value) => setFilters({ ...filters, assignee: value })}
                 />
-              </TH>
-              <TH>Attempts</TH>
-              <TH>
-                Created
+              </THFilter>
+              <THFilter />
+              <THFilter>
                 <FilterInput
                   value={filters.created_at || ''}
                   onChange={(value) => setFilters({ ...filters, created_at: value })}
                 />
-              </TH>
-              <TH>Logs</TH>
+              </THFilter>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -174,7 +177,7 @@ export const TasksTable: FC<{
           <Button onClick={() => loadTasks(currentPage - 1)} disabled={currentPage === 1}>
             Previous
           </Button>
-          <span className="px-3 py-2">
+          <span className="px-3 py-2 text-sm">
             Page {currentPage} of {tasksResponse.total_pages}
           </span>
           <Button onClick={() => loadTasks(currentPage + 1)} disabled={currentPage === tasksResponse.total_pages}>
