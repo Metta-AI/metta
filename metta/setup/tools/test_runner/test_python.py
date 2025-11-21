@@ -1,4 +1,3 @@
-import os
 import subprocess
 import tempfile
 import time
@@ -50,15 +49,9 @@ PACKAGES: tuple[Package, ...] = (
 )
 
 
-def _run_command(args: Sequence[str], env: dict[str, str] | None = None) -> int:
+def _run_command(args: Sequence[str]) -> int:
     info(f"→ {' '.join(args)}")
-    full_env = os.environ.copy()
-    if env:
-        full_env.update(env)
-        if "METTAGRID_BAZEL_CONFIG" in env:
-            info(f"  [Env] METTAGRID_BAZEL_CONFIG={env['METTAGRID_BAZEL_CONFIG']}")
-
-    completed = subprocess.run(args, cwd=get_repo_root(), check=False, env=full_env)
+    completed = subprocess.run(args, cwd=get_repo_root(), check=False)
     return completed.returncode
 
 
@@ -118,7 +111,6 @@ def _execute_ci_packages(
     targets: Sequence[str],
     base_cmd: Sequence[str],
     report_dir: Path,
-    env: dict[str, str] | None = None,
 ) -> list[PackageResult]:
     index_map = {package.key: index for index, package in enumerate(packages)}
     futures = []
@@ -129,16 +121,12 @@ def _execute_ci_packages(
         target: str,
         base_cmd: Sequence[str],
         report_dir: Path,
-        env: dict[str, str] | None,
     ) -> PackageResult:
         report_file = report_dir / f"{package.key}.json"
         if report_file.exists():
             report_file.unlink()
         start = time.perf_counter()
-        returncode = _run_command(
-            [*base_cmd, target, "--json-report", f"--json-report-file={report_file}"],
-            env=env,
-        )
+        returncode = _run_command([*base_cmd, target, "--json-report", f"--json-report-file={report_file}"])
         duration = time.perf_counter() - start
         return PackageResult(
             package=package,
@@ -150,7 +138,7 @@ def _execute_ci_packages(
 
     with ThreadPoolExecutor(max_workers=len(targets)) as pool:
         for package, target in zip(packages, targets, strict=True):
-            futures.append(pool.submit(_run_ci_package, package, target, base_cmd, report_dir, env))
+            futures.append(pool.submit(_run_ci_package, package, target, base_cmd, report_dir))
 
         for future in as_completed(futures):
             results.append(future.result())
@@ -191,21 +179,12 @@ def run(
     run_tests = test or not benchmark  # Default to tests if no flags
     run_benchmarks = benchmark
 
-    # Ensure correct Bazel build config for mettagrid and other native extensions.
-    # CI/Test mode should have assertions enabled (config=ci).
-    # Benchmark-only mode should have assertions disabled (config=release).
-    env = {}
-    if run_tests:
-        env["METTAGRID_BAZEL_CONFIG"] = "ci"
-    else:
-        env["METTAGRID_BAZEL_CONFIG"] = "release"
-
     cmd = ["uv", "run", "pytest"]
     if target_args:
         if package_args or skip_package_args or changed or ci:
             error("Explicit targets cannot be combined with suite filters, --changed, or --ci.")
             raise typer.Exit(1)
-        exit_code = _run_command([*cmd, *target_args, *extra_args], env=env)
+        exit_code = _run_command([*cmd, *target_args, *extra_args])
         raise typer.Exit(exit_code)
 
     try:
@@ -238,7 +217,7 @@ def run(
 
         with tempfile.TemporaryDirectory(prefix="pytest-json-") as temp_dir:
             report_dir = Path(temp_dir)
-            results = _execute_ci_packages(selected, resolved_targets, base_cmd, report_dir, env=env)
+            results = _execute_ci_packages(selected, resolved_targets, base_cmd, report_dir)
             summaries = summarize_test_results(results)
             log_results(summaries)
             report_failures(summaries)
@@ -260,4 +239,4 @@ def run(
         cmd.append("--testmon")
     cmd.extend(extra_args)
     cmd.extend(resolved_targets)
-    raise typer.Exit(_run_command(cmd, env=env))
+    raise typer.Exit(_run_command(cmd))
