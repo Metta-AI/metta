@@ -3,6 +3,7 @@
 This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.)
 implement the required methods that MettaAgent depends on."""
 
+import tempfile
 from abc import abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, List, Optional
@@ -22,6 +23,7 @@ from metta.agent.components.obs_shim import (
     ObsShimTokensConfig,
 )
 from metta.common.util.file import write_file
+from metta.rl.system_config import guess_data_dir
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
@@ -121,13 +123,26 @@ class Policy(TrainablePolicy, nn.Module):
 
         dest = str(destination)
         if dest.startswith("s3://"):
-            local_copy = Path(Path(dest).name)
-            save_policy_artifact_safetensors(
-                local_copy,
-                policy_architecture=policy_architecture,
-                state_dict=self.state_dict(),
-            )
-            write_file(dest, str(local_copy))
+            temp_dir = guess_data_dir() / ".tmp"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                dir=temp_dir,
+                prefix="policy-upload-",
+                suffix=".mpt",
+                delete=False,
+            ) as tmp_file:
+                local_copy = Path(tmp_file.name)
+
+            try:
+                save_policy_artifact_safetensors(
+                    local_copy,
+                    policy_architecture=policy_architecture,
+                    state_dict=self.state_dict(),
+                )
+                write_file(dest, str(local_copy))
+            finally:
+                local_copy.unlink(missing_ok=True)
+
             return dest
 
         path = Path(destination).expanduser()
