@@ -118,44 +118,33 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
 
-    fraction = 1.0
-    body = raw
-    head, sep, tail = raw.rpartition(POLICY_ARG_DELIMITER)
-    if sep:
-        candidate = tail.strip()
-        if candidate:
-            try:
-                parsed_fraction = float(candidate)
-            except ValueError:
-                pass
-            else:
-                if parsed_fraction <= 0:
-                    raise ValueError("Policy proportion must be a positive number.")
-                fraction = parsed_fraction
-                body = head
+    parts = [part.strip() for part in raw.split(POLICY_ARG_DELIMITER)]
+    if len(parts) > 3:
+        raise ValueError(f"Policy specification must include at most two '{POLICY_ARG_DELIMITER}' separated values.")
 
-    if not body:
-        raise ValueError("Policy specification missing class path.")
+    raw_class_path = parts[0]
+    raw_policy_data = parts[1] if len(parts) > 1 else None
+    raw_fraction = parts[2] if len(parts) > 2 else None
 
-    if POLICY_ARG_DELIMITER in body:
-        class_part, data_part_raw = body.split(POLICY_ARG_DELIMITER, 1)
-        data_part = data_part_raw.strip() or None
-    else:
-        class_part = body
-        data_part = None
-
-    class_part = class_part.strip()
-    if not class_part:
+    if not raw_class_path:
         raise ValueError("Policy class path cannot be empty.")
 
-    resolved_class_path = (
-        class_part
-        if "://" in class_part or class_part.lower().endswith(".mpt")
-        else resolve_policy_class_path(class_part)
-    )
+    if not raw_fraction:
+        fraction = 1.0
+    else:
+        try:
+            fraction = float(raw_fraction)
+        except ValueError as exc:
+            raise ValueError(f"Invalid proportion value '{raw_fraction}'.") from exc
+
+        if fraction <= 0:
+            raise ValueError("Policy proportion must be a positive number.")
+
+    resolved_class_path = resolve_policy_class_path(raw_class_path)
+    resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
 
     return PolicySpecWithProportion(
         class_path=resolved_class_path,
-        data_path=resolve_policy_data_path(data_part),
+        data_path=resolved_policy_data,
         proportion=fraction,
     )
