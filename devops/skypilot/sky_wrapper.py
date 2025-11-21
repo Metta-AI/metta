@@ -8,6 +8,7 @@ from devops.skypilot.utils.terminal import disable_canonical_mode
 
 
 def main() -> None:
+    """Wrapper for sky CLI that disables canonical mode for login commands to prevent token truncation."""
     is_login = len(sys.argv) >= 3 and sys.argv[1] == "api" and sys.argv[2] == "login"
 
     if is_login:
