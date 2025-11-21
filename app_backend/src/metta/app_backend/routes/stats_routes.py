@@ -1,6 +1,6 @@
 import tempfile
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 import aioboto3
 import duckdb
@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, Depends, Form, HTTPException, UploadFile, s
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo, PolicyVersionRow, PublicPolicyVersionRow
+from metta.app_backend.metta_repo import EpisodeWithTags, MettaRepo, PolicyVersionWithName, PublicPolicyVersionRow
 from metta.app_backend.route_logger import timed_route
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
@@ -72,6 +72,18 @@ class MyPolicyVersionsResponse(BaseModel):
     entries: list[PublicPolicyVersionRow]
 
 
+class EpisodeQueryRequest(BaseModel):
+    primary_policy_version_ids: Optional[list[uuid.UUID]] = None
+    episode_ids: Optional[list[uuid.UUID]] = None
+    tag_filters: Optional[dict[str, Optional[list[str]]]] = None
+    limit: Optional[int] = 200
+    offset: int = 0
+
+
+class EpisodeQueryResponse(BaseModel):
+    episodes: list[EpisodeWithTags]
+
+
 def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     """Create a stats router with the given StatsRepo instance."""
     router = APIRouter(prefix="/stats", tags=["stats"])
@@ -113,13 +125,13 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create policy version: {str(e)}") from e
 
-    @router.get("/policies/versions/{policy_version_id_str}", response_model=PolicyVersionRow)
+    @router.get("/policies/versions/{policy_version_id_str}", response_model=PolicyVersionWithName)
     @timed_route("get_policy_version")
-    async def get_policy_version(policy_version_id_str: str) -> PolicyVersionRow:
+    async def get_policy_version(policy_version_id_str: str) -> PolicyVersionWithName:
         """Get a policy version."""
         try:
             policy_version_id = uuid.UUID(policy_version_id_str)
-            policy_version = await stats_repo.get_policy_version(policy_version_id)
+            policy_version = await stats_repo.get_policy_version_with_name(policy_version_id)
             if policy_version is None:
                 raise HTTPException(status_code=404, detail=f"Policy version {policy_version_id} not found")
             return policy_version
@@ -347,5 +359,21 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             return MyPolicyVersionsResponse(entries=policy_versions)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get policy versions: {str(e)}") from e
+
+    @router.post("/episodes/query", response_model=EpisodeQueryResponse)
+    @timed_route("query_episodes")
+    async def query_episodes(request: EpisodeQueryRequest, user: str = user_or_token) -> EpisodeQueryResponse:
+        """Query episodes by primary policy versions, tags, and replay availability."""
+        try:
+            episodes = await stats_repo.get_episodes(
+                primary_policy_version_ids=request.primary_policy_version_ids,
+                episode_ids=request.episode_ids,
+                tag_filters=request.tag_filters,
+                limit=request.limit,
+                offset=request.offset,
+            )
+            return EpisodeQueryResponse(episodes=episodes)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to query episodes: {str(e)}") from e
 
     return router

@@ -23,10 +23,20 @@ from metta.agent.components.obs_shim import (
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
+<<<<<<< HEAD
 from mettagrid.policy.policy import MultiAgentPolicy, TrainablePolicy
+=======
+from mettagrid.policy.policy import (
+    AgentPolicy,
+    MultiAgentPolicy,
+    StatefulAgentPolicy,
+    StatefulPolicyImpl,
+    TrainablePolicy,
+)
+>>>>>>> origin/main
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryABCMeta
-from mettagrid.simulator import Action, AgentObservation, Simulation
+from mettagrid.simulator import Action, AgentObservation
 from mettagrid.util.module import load_symbol
 
 
@@ -59,6 +69,8 @@ class Policy(TrainablePolicy, nn.Module):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         TrainablePolicy.__init__(self, policy_env_info)
         nn.Module.__init__(self)
+        self._actions_by_id = self._policy_env_info.actions.actions()
+        self._stateful_impl = self.make_stateful_policy_impl()
 
     @abstractmethod
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
@@ -95,7 +107,7 @@ class Policy(TrainablePolicy, nn.Module):
         return self
 
     def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
-        td = self._obs_to_td(obs, self.device)
+        td = self._obs_to_td(obs, self.device, agent_id=agent_id)
         result = self(td)
         if result is None:
             result = td
@@ -106,9 +118,8 @@ class Policy(TrainablePolicy, nn.Module):
     def agent_reset(self, agent_id: int, simulation: Optional[Simulation] = None) -> None:
         self.reset_memory()
 
-    def _obs_to_td(self, obs: AgentObservation, device: torch.device) -> TensorDict:
+    def _obs_to_td(self, obs: AgentObservation, device: torch.device, agent_id: int | None = None) -> TensorDict:
         obs_tensor = obs_to_obs_tensor(obs, self._policy_env_info.observation_space.shape, device)
-
         td = TensorDict(
             {
                 "env_obs": obs_tensor,
@@ -118,9 +129,15 @@ class Policy(TrainablePolicy, nn.Module):
             },
             batch_size=[1],
         )
-
-        ensure_sequence_metadata(td, batch_size=1, time_steps=1)
+        self._set_single_step_metadata(td, agent_slot=int(agent_id) if agent_id is not None else 0)
         return td
+
+    def _set_single_step_metadata(self, td: TensorDict, *, agent_slot: int) -> None:
+        ensure_sequence_metadata(td, batch_size=1, time_steps=1)
+        device = td.device
+        td.set("training_env_ids", torch.tensor([[agent_slot]], dtype=torch.long, device=device))
+        td.set("row_id", torch.tensor([agent_slot], dtype=torch.long, device=device))
+        td.set("t_in_row", torch.zeros(1, dtype=torch.long, device=device))
 
 
 class DistributedPolicy(TrainablePolicy, DistributedDataParallel, metaclass=PolicyRegistryABCMeta):
@@ -194,3 +211,21 @@ class ExternalPolicyWrapper(Policy):
 
     def reset_memory(self):
         pass
+
+
+class _PolicyStateImpl(StatefulPolicyImpl[Any]):
+    def __init__(self, policy: "Policy"):
+        self._policy = policy
+        self._active_agent_id: int | None = None
+
+    def set_active_agent(self, agent_id: Optional[int]) -> None:
+        self._active_agent_id = agent_id
+
+    def reset(self) -> None:
+        self._policy.reset_memory()
+
+    def initial_agent_state(self) -> Any:
+        return self._policy.initial_agent_state()
+
+    def step_with_state(self, obs: AgentObservation, state: Any) -> tuple[Action, Any]:
+        return self._policy.step_with_state(obs, state, agent_id=self._active_agent_id)

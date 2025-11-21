@@ -3,7 +3,7 @@
 import ctypes
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
 
 import numpy as np
 import torch.nn as nn
@@ -187,20 +187,35 @@ class StatefulAgentPolicy(Generic[StateType]):
         self._state: Optional[StateType] = None
         self._agent_id = agent_id
         self._agent_states: dict[int, StateType] = {}
+        self._action_name_to_index = {name: idx for idx, name in enumerate(policy_env_info.action_names)}
+        self._simulation: Simulation | None = None
+        self._state_initialized = False
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action and update hidden state."""
-        assert self._state is not None, "reset() must be called before step()"
-        action, self._state = self._base_policy.step_with_state(obs, self._state)
+        if not self._state_initialized:
+            self._initialize_state(self._simulation)
+        if hasattr(self._base_policy, "set_active_agent"):
+            self._base_policy.set_active_agent(self._agent_id)
+        state = cast(StateType, self._state)
+        action, self._state = self._base_policy.step_with_state(obs, state)
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
         return action
 
-    def reset(self) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the hidden state to initial state."""
+        self._initialize_state(simulation)
+
+    def step_batch(self, _raw_observations, raw_actions) -> None:
+        raise NotImplementedError("StatefulAgentPolicy does not support batch stepping")
+
+    def _initialize_state(self, simulation: Optional[Simulation]) -> None:
+        self._simulation = simulation
         self._base_policy.reset()
         self._state = self._base_policy.initial_agent_state()
         self._agent_states.clear()
+        self._state_initialized = True
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
 
@@ -237,6 +252,10 @@ class StatefulPolicyImpl(Generic[StateType]):
             Tuple of (action, new_state)
         """
         raise NotImplementedError
+
+    def set_active_agent(self, agent_id: Optional[int]) -> None:
+        """Optional hook for implementations that need the calling agent id."""
+        _ = agent_id
 
 
 class TrainablePolicy(MultiAgentPolicy):

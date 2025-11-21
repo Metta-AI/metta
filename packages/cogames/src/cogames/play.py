@@ -62,7 +62,6 @@ def play(
         controllers,
         render_mode=render_mode,
         seed=seed,
-        pass_sim_to_policies=True,
         event_handlers=event_handlers,
     )
     rollout.run_until_done()

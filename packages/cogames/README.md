@@ -36,8 +36,13 @@ policy plays with other policies in the pool through running multi-policy, multi
 
 ## Quick Start
 
-Upon installation, try playing cogames with our default starter policies as Cogs. Use `cogames policies` to see a full
-list of default policies.
+Let's walk through playing an easy mission in Cogs vs. Clips, then training a simple starter policy. `easy_mode` uses
+three variants to simplify training:
+
+- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
+  energy)
+- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
+- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
 
 ```bash
 # We recommend using a virtual env
@@ -48,6 +53,22 @@ source .venv/bin/activate
 # Install cogames
 uv pip install cogames
 
+# Play an episode yourself
+cogames tutorial
+
+# Play an episode of the easy_mode mission with a scripted policy
+cogames play -m easy_mode -p baseline
+
+# Try the scripted policy on a set of eval missions
+cogames eval -set integrated_evals -p baseline
+
+# Train with an LSTM policy on easy_mode
+cogames train -m easy_mode -p lstm
+```
+
+Other useful commands:
+
+```bash
 # List available missions
 cogames missions
 
@@ -74,30 +95,6 @@ cogames leaderboard
 
 # Show version info for the installed tooling stack
 cogames version
-```
-
-## Easy Mode - Best for getting started
-
-Let's walk through playing an easy mission in Cogs vs. Clips, then training a simple starter policy. `easy_mode` uses
-three variants to simplify training:
-
-- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
-  energy)
-- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
-- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
-
-```bash
-# Play an episode yourself
-cogames tutorial
-
-# Play an episode of the easy_mode mission with a scripted policy
-cogames play -m easy_mode -p baseline
-
-# Try the scripted policy on a set of eval missions
-cogames eval -set integrated_evals -p baseline
-
-# Train with an LSTM policy on easy_mode
-cogames train -m easy_mode -p lstm
 ```
 
 ## Play, Train, and Eval
