@@ -20,5 +20,5 @@ echo "2. Press Ctrl+C once"
 echo "3. Paste it into the terminal"
 
 
-# Run the actual sky api login command
-uv run sky api login -e "$SERVER"
+# Run the actual sky api login command with terminal fix for token truncation
+uv run python devops/skypilot/login.py api login -e "$SERVER"
