@@ -131,7 +131,13 @@ def validate_policy_in_isolation(
     include_files: list[Path],
     console: Console,
 ) -> bool:
-    """Validate policy works in isolated environment with the published cogames CLI."""
+    """Validate policy works in isolated environment.
+
+    Creates a temp environment with published cogames package,
+    copies include-files, and runs cogames eval for 1 episode with max 10 steps.
+
+    Returns True if validation succeeds, False otherwise.
+    """
     temp_dir = None
     try:
         # Create temp validation environment
@@ -141,13 +147,13 @@ def validate_policy_in_isolation(
         console.print("[yellow]Copying files to validation environment...[/yellow]")
         copy_files_maintaining_structure(include_files, temp_dir, console)
 
-        # Build cogames validate-policy command
+        # Build cogames eval command
         # Policy spec format: CLASS:DATA:PROPORTION
         policy_arg = policy_spec.class_path
         if policy_spec.data_path:
             policy_arg += f":{policy_spec.data_path}"
 
-        console.print(f"[yellow]Running validation for policy '{policy_arg}'...[/yellow]")
+        console.print(f"[yellow]Running validation with mission '{DEFAULT_VALIDATION_MISSION}'...[/yellow]")
 
         cmd = [
             "uv",
