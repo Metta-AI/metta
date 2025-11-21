@@ -1,4 +1,5 @@
-# benchmarks/BUILD
+# Benchmarks for mettagrid
+
 cc_binary(
     name = "test_mettagrid_env_benchmark",
     srcs = [
@@ -10,6 +11,8 @@ cc_binary(
     ],
     copts = [
         "-std=c++20",
+        "-O3",
+        "-DNDEBUG",
         "-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION",
         "-Icpp/include/mettagrid",  # To find actions/, objects/ headers
         "-Icpp",  # To find bindings/mettagrid_c.hpp
@@ -17,9 +20,7 @@ cc_binary(
     linkstatic = True,
     deps = [
         "//cpp:mettagrid_core",
-        # Use benchmark (no main) because we provide a custom main that
-        # initializes the embedded Python interpreter safely.
-        "@google_benchmark//:benchmark",
+        "@google_benchmark//:benchmark_main",
         "@rules_python//python/cc:current_py_cc_libs",
     ],
 )
