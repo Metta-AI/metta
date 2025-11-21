@@ -371,12 +371,9 @@ def _artifact_from_policy_payload(payload: Any) -> PolicyArtifact:
         policy = load_pufferlib_checkpoint(payload, device="cpu")
         return PolicyArtifact(policy=policy)
 
-    if isinstance(payload, Policy):
-        return PolicyArtifact(policy=payload)
-
-    module_policy = getattr(payload, "module", None)
-    if isinstance(module_policy, Policy):
-        return PolicyArtifact(policy=module_policy)
+    policy_instance = _unwrap_policy(payload)
+    if policy_instance is not None:
+        return PolicyArtifact(policy=policy_instance)
 
     if isinstance(payload, Mapping):
         state_dict = payload.get("state_dict") or payload.get("weights")
@@ -403,6 +400,17 @@ def _artifact_from_policy_payload(payload: Any) -> PolicyArtifact:
                 return PolicyArtifact(policy_architecture=architecture, state_dict=mutable_state)
 
     raise TypeError("Loaded policy payload is not a Policy instance")
+
+
+def _unwrap_policy(candidate: Any) -> Policy | None:
+    current = candidate
+    visited: set[int] = set()
+    while current is not None and id(current) not in visited:
+        visited.add(id(current))
+        if isinstance(current, Policy):
+            return current
+        current = getattr(current, "module", None)
+    return None
 
 
 def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyArtifact:
