@@ -10,7 +10,7 @@ from cortex.config import CortexStackConfig
 from cortex.factory import build_cortex
 from cortex.stacks import CortexStack
 from einops import rearrange
-from pydantic import ConfigDict
+from pydantic import ConfigDict, model_validator
 from tensordict import TensorDict, TensorDictBase
 from torchrl.data import Composite, UnboundedDiscrete
 
@@ -97,11 +97,25 @@ class CortexTDConfig(ComponentConfig):
     key_prefix: str = "cortex_state"
     dtype: str = "float32"
     compute_dtype: Optional[str] = None
+    store_dtype: Optional[str] = None  # Back-compat alias for dtype
 
     pass_state_during_training: bool = True
 
     def make_component(self, env: Any = None) -> nn.Module:
         return CortexTD(config=self)
+
+    @model_validator(mode="after")
+    def _apply_store_dtype_alias(self) -> "CortexTDConfig":
+        """Allow older checkpoints to specify store_dtype instead of dtype."""
+        if self.store_dtype is None:
+            return self
+        if self.dtype not in ("float32", self.store_dtype):
+            raise ValueError(
+                "CortexTDConfig found both dtype and store_dtype with conflicting values; "
+                f"dtype={self.dtype}, store_dtype={self.store_dtype}"
+            )
+        self.dtype = self.store_dtype
+        return self
 
 
 class CortexTD(nn.Module):
