@@ -78,7 +78,6 @@ def evaluate(
     result_file_path: str | None = None,
     stats_server_uri: str | None = None,
     seed: int = 50,
-    eval_task_id: str | None = None,  # TODO: remove, this is not used
 ) -> MultiPolicyVersionEvalTool:
     """
     Run the V0 Leaderboard Evaluation.

@@ -182,7 +182,6 @@ def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], nu
             agent_policies,
             render_mode="none",
             seed=seed,
-            pass_sim_to_policies=True,
         )
         rollout.run_until_done()
 
