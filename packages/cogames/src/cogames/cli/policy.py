@@ -135,11 +135,33 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
 
-    raw_without_fraction, fraction = _split_fraction(raw)
-    if not raw_without_fraction:
+    fraction = 1.0
+    body = raw
+    head, sep, tail = raw.rpartition(POLICY_ARG_DELIMITER)
+    if sep:
+        candidate = tail.strip()
+        if candidate:
+            try:
+                parsed_fraction = float(candidate)
+            except ValueError:
+                pass
+            else:
+                if parsed_fraction <= 0:
+                    raise ValueError("Policy proportion must be a positive number.")
+                fraction = parsed_fraction
+                body = head
+
+    if not body:
         raise ValueError("Policy specification missing class path.")
 
-    class_part, data_part = _split_class_and_data(raw_without_fraction)
+    if POLICY_ARG_DELIMITER in body:
+        class_part, data_part_raw = body.split(POLICY_ARG_DELIMITER, 1)
+        data_part = data_part_raw.strip() or None
+    else:
+        class_part = body
+        data_part = None
+
+    class_part = class_part.strip()
     if not class_part:
         raise ValueError("Policy class path cannot be empty.")
 
@@ -159,38 +181,6 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         data_path=resolved_policy_data,
         proportion=fraction,
     )
-
-
-def _split_class_and_data(raw: str) -> tuple[str, Optional[str]]:
-    if POLICY_ARG_DELIMITER not in raw:
-        return raw.strip(), None
-
-    class_part, data_part = raw.split(POLICY_ARG_DELIMITER, 1)
-    data_part = data_part.strip() or None
-    return class_part.strip(), data_part
-
-
-def _split_fraction(raw: str) -> tuple[str, float]:
-    """Split off an optional trailing ':PROPORTION' suffix while leaving class/data intact."""
-
-    fraction = 1.0
-    if POLICY_ARG_DELIMITER not in raw:
-        return raw, fraction
-
-    head, candidate = raw.rsplit(POLICY_ARG_DELIMITER, 1)
-    candidate = candidate.strip()
-    if not candidate:
-        return raw, fraction
-
-    try:
-        parsed = float(candidate)
-    except ValueError:
-        return raw, fraction
-
-    if parsed <= 0:
-        raise ValueError("Policy proportion must be a positive number.")
-
-    return head, parsed
 
 
 def _maybe_policy_artifact_spec(
