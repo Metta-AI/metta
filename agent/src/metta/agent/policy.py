@@ -114,13 +114,21 @@ class Policy(TrainablePolicy, nn.Module):
         dest = str(destination)
         if dest.startswith("s3://"):
             local_copy = Path(Path(dest).name)
-            save_policy_artifact_safetensors(local_copy, policy_architecture=policy_architecture, state_dict=self.state_dict())
+            save_policy_artifact_safetensors(
+                local_copy,
+                policy_architecture=policy_architecture,
+                state_dict=self.state_dict(),
+            )
             write_file(dest, str(local_copy))
             return dest
 
         path = Path(destination).expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
-        save_policy_artifact_safetensors(path, policy_architecture=policy_architecture, state_dict=self.state_dict())
+        save_policy_artifact_safetensors(
+            path,
+            policy_architecture=policy_architecture,
+            state_dict=self.state_dict(),
+        )
         return f"file://{path.resolve()}"
 
 

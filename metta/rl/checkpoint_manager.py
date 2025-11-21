@@ -12,11 +12,15 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.common.util.file import local_copy, write_file
 from metta.common.util.uri import ParsedURI
-from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact_safetensors
+from metta.rl.policy_artifact import (
+    PolicyArtifact,
+    load_policy_artifact,
+    save_policy_artifact_safetensors,
+)
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -391,42 +395,38 @@ class CheckpointPolicy(MultiAgentPolicy):
         *,
         policy_architecture: PolicyArchitecture | None = None,
     ) -> str:
-        """Persist the wrapped policy to a URI or filesystem path using unified artifact saver."""
+        """Persist the wrapped policy to a URI or filesystem path."""
         architecture = policy_architecture or self._policy_architecture
         if architecture is None:
             raise ValueError("policy_architecture is required to save policy")
 
-        dest_str = str(destination)
-        is_remote = dest_str.startswith("s3://")
-        local_destination: str | Path = destination
-        if is_remote:
-            local_destination = Path(Path(dest_str).name)
+        parsed = ParsedURI.parse(str(destination))
+        # Resolve destination and write locally first
+        if parsed.scheme in ("", "file") or parsed.local_path:
+            path = parsed.local_path or Path(str(destination)).expanduser()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            save_policy_artifact_safetensors(
+                path,
+                policy_architecture=architecture,
+                state_dict=self._policy.state_dict(),
+            )
+            return f"file://{path.resolve()}"
 
-        saver = getattr(self._policy, "save_policy", None)
-        base_saver = getattr(saver, "__func__", None) if saver else None
-        use_fallback = saver is None or base_saver is TrainablePolicy.save_policy  # type: ignore[attr-defined]
-
-        if use_fallback:
-            local_path = Path(local_destination).expanduser()
+        if parsed.scheme == "s3":
+            # Write locally (same filename) into checkpoint_dir, then upload
+            filename = Path(parsed.canonical).name
+            local_path = Path.cwd() / filename
             local_path.parent.mkdir(parents=True, exist_ok=True)
-
             save_policy_artifact_safetensors(
                 local_path,
                 policy_architecture=architecture,
                 state_dict=self._policy.state_dict(),
             )
+            write_file(parsed.canonical, str(local_path))
+            return parsed.canonical
 
-            if is_remote:
-                write_file(dest_str, str(local_path))
-                return dest_str
-
-            return f"file://{local_path.resolve()}"
-
-        result = saver(local_destination, policy_architecture=architecture)
-        if is_remote:
-            write_file(dest_str, str(Path(local_destination)))
-            return dest_str
-        return result
+        msg = f"Unsupported destination scheme for saving policy: {parsed.scheme or 'file'}"
+        raise ValueError(msg)
 
     def __getattr__(self, name: str):
         return getattr(self._policy, name)
