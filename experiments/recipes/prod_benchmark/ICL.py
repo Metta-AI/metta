@@ -33,7 +33,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.system_config import SystemConfig
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -487,7 +487,15 @@ def train(
 
     policy_config = _get_policy_config(architecture)
 
-    trainer_cfg = TrainerConfig(losses=LossesConfig(), total_timesteps=5_000_000_000)
+    trainer_cfg = TrainerConfig(
+        losses=LossesConfig(),
+        total_timesteps=5_000_000_000,
+        optimizer=OptimizerConfig(
+            type="adamw_schedulefree",
+            weight_decay=0.01,
+            warmup_steps=1_000,
+        ),
+    )
 
     train_tool = TrainTool(
         system=SystemConfig(seed=effective_seed),

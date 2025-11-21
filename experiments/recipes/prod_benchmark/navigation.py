@@ -30,7 +30,7 @@ from mettagrid.mapgen.mapgen import MapGen
 from experiments.evals.navigation import make_navigation_eval_suite
 
 BENCHMARK_SEED = 63
-BENCHMARK_TIMESTEPS = 2_000_000_000
+BENCHMARK_TIMESTEPS = 4_000_000_000
 
 _ARCHITECTURES: dict[str, Callable[[], PolicyArchitecture]] = {
     "vit_reset": ViTResetConfig,

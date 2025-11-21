@@ -69,13 +69,11 @@ if [[ -z "$RECIPE" ]]; then
     exit 1
 fi
 
-# Include recipe identifier in the run name so runs are easy to group in W&B
-# Replace dots with underscores for readability, then drop the literal word 'recipes'
-# Build a slug without double underscores since checkpoint filenames treat '__' as special
-RECIPE_SLUG="${RECIPE//./_}"
-RECIPE_SLUG="${RECIPE_SLUG//recipes/}"
-RECIPE_SLUG="$(printf '%s' "$RECIPE_SLUG" | tr -s '_')"
-BASE_RUN_NAME="benchmark_${RECIPE_SLUG}_$(date +%Y%m%d)_v1"
+# Extract just the recipe name (e.g., "navigation" from "experiments.recipes.prod_benchmark.navigation.train")
+# Format: {recipe_name}.{date}.seed{seed}.run{number}
+RECIPE_PATH="${RECIPE%.*}"  # Remove the command part (e.g., .train)
+RECIPE_NAME="${RECIPE_PATH##*.}"  # Get the last component (e.g., navigation)
+BASE_RUN_NAME="${RECIPE_NAME}.$(date +%Y%m%d)"
 NUM_GPUS=4
 
 if [[ -n "$UNIFORM_SEED" ]]; then
