@@ -645,18 +645,19 @@ def experiment(
     ]
 
     if resource_levels:
-        # Pass as JSON string to avoid shell parsing issues
-        resource_levels_str = json.dumps(resource_levels)
+        # Pass as JSON string without spaces to avoid shell parsing issues
+        # Use separators to remove spaces so shell won't split the argument
+        resource_levels_str = json.dumps(resource_levels, separators=(",", ":"))
         cmd.append(f"resource_levels={resource_levels_str}")
 
     if maps_to_use:
-        # Pass as JSON string
-        maps_to_use_str = json.dumps(maps_to_use)
+        # Pass as JSON string without spaces
+        maps_to_use_str = json.dumps(maps_to_use, separators=(",", ":"))
         cmd.append(f"maps_to_use={maps_to_use_str}")
 
     if max_uses_values:
-        # Pass as JSON string
-        max_uses_str = json.dumps(max_uses_values)
+        # Pass as JSON string without spaces
+        max_uses_str = json.dumps(max_uses_values, separators=(",", ":"))
         cmd.append(f"max_uses_values={max_uses_str}")
 
     if skip_git_check:
