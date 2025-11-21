@@ -8,7 +8,7 @@ import httpx
 from pydantic import BaseModel
 
 from metta.app_backend.clients.base_client import NotAuthenticatedError, get_machine_token
-from metta.app_backend.metta_repo import EvalTaskRow, PolicyVersionRow
+from metta.app_backend.metta_repo import EvalTaskRow, PolicyVersionWithName
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TasksResponse
 from metta.app_backend.routes.leaderboard_routes import (
     LeaderboardPoliciesResponse,
@@ -87,8 +87,8 @@ class StatsClient:
             UUIDResponse, "POST", f"/stats/policies/{policy_id}/versions", json=data.model_dump(mode="json")
         )
 
-    def get_policy_version(self, policy_version_id: uuid.UUID) -> PolicyVersionRow:
-        return self._make_sync_request(PolicyVersionRow, "GET", f"/stats/policies/versions/{policy_version_id}")
+    def get_policy_version(self, policy_version_id: uuid.UUID) -> PolicyVersionWithName:
+        return self._make_sync_request(PolicyVersionWithName, "GET", f"/stats/policies/versions/{policy_version_id}")
 
     def create_eval_task(self, request: TaskCreateRequest) -> EvalTaskRow:
         return self._make_sync_request(EvalTaskRow, "POST", "/tasks", json=request.model_dump(mode="json"))
