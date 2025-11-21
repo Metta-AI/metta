@@ -253,7 +253,6 @@ def run_evaluation(
                         agent_policies,
                         render_mode="none",
                         seed=seed,
-                        pass_sim_to_policies=True,
                     )
                     rollout.run_until_done()
 

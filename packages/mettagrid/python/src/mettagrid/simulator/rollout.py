@@ -44,7 +44,7 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
-        # Reset policies with the active simulation
+        # Reset policies and create agent policies if needed
         for policy in self._policies:
             policy.reset()
 
