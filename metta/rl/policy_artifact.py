@@ -296,6 +296,10 @@ def _load_legacy_policy_artifact(path: Path) -> PolicyArtifact:
     if isinstance(legacy_payload, Policy):
         return PolicyArtifact(policy=legacy_payload)
 
+    module_policy = getattr(legacy_payload, "module", None)
+    if isinstance(module_policy, Policy):
+        return PolicyArtifact(policy=module_policy)
+
     if isinstance(legacy_payload, Mapping):
         state_dict = legacy_payload.get("state_dict") or legacy_payload.get("weights")
         architecture_value = (

@@ -208,3 +208,20 @@ def test_load_policy_artifact_autobuilder_state(tmp_path: Path) -> None:
     instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
 
     assert isinstance(instantiated, DummyPolicy)
+
+
+def test_load_policy_artifact_ddp_wrapper(tmp_path: Path) -> None:
+    policy_env_info = _policy_env_info()
+    policy = DummyPolicy(policy_env_info)
+
+    wrapped = DummyDDPWrapper(policy)
+    legacy_path = tmp_path / "legacy_ddp.mpt"
+    torch.save(wrapped, legacy_path)
+
+    loaded = load_policy_artifact(legacy_path)
+    instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
+
+    assert isinstance(instantiated, DummyPolicy)
+class DummyDDPWrapper:
+    def __init__(self, inner: Policy):
+        self.module = inner
