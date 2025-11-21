@@ -293,11 +293,31 @@ def _load_legacy_policy_artifact(path: Path) -> PolicyArtifact:
         policy = load_pufferlib_checkpoint(legacy_payload, device="cpu")
         return PolicyArtifact(policy=policy)
 
-    if not isinstance(legacy_payload, Policy):
-        msg = "Loaded policy payload is not a Policy instance"
-        raise TypeError(msg)
+    if isinstance(legacy_payload, Policy):
+        return PolicyArtifact(policy=legacy_payload)
 
-    return PolicyArtifact(policy=legacy_payload)
+    if isinstance(legacy_payload, Mapping):
+        state_dict = legacy_payload.get("state_dict") or legacy_payload.get("weights")
+        architecture_value = (
+            legacy_payload.get("policy_architecture")
+            or legacy_payload.get("policy_architecture_spec")
+            or legacy_payload.get("policy_architecture_str")
+        )
+
+        if isinstance(state_dict, Mapping) and architecture_value is not None:
+            if isinstance(architecture_value, PolicyArchitecture):
+                architecture = architecture_value
+            elif isinstance(architecture_value, str):
+                architecture = policy_architecture_from_string(architecture_value)
+            else:
+                architecture = None
+
+            if architecture is not None:
+                mutable_state = OrderedDict(state_dict.items()) if not isinstance(state_dict, MutableMapping) else state_dict
+                return PolicyArtifact(policy_architecture=architecture, state_dict=mutable_state)
+
+    msg = "Loaded policy payload is not a Policy instance"
+    raise TypeError(msg)
 
 
 def _save_policy_artifact(
