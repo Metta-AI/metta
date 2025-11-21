@@ -10,6 +10,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
+import torch
+
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
@@ -28,8 +30,13 @@ def initialize_or_load_policy(
         Initialized policy instance
     """
 
-    policy_spec = _normalize_policy_spec(policy_spec)
-    policy_class = load_symbol(policy_spec.class_path)
+    if policy_spec.data_path and policy_spec.data_path.lower().endswith(".mpt"):
+        policy = _load_policy_artifact(policy_env_info, policy_spec)
+        if not isinstance(policy, MultiAgentPolicy):
+            raise TypeError("Loaded policy artifact did not produce a MultiAgentPolicy")
+        return policy
+
+    policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
     try:
         policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
@@ -126,10 +133,6 @@ def resolve_policy_data_path(
     if policy_data_path is None:
         return None
 
-    # Allow artifact URIs to pass through unchanged; normalization happens later.
-    if "://" in policy_data_path:
-        return policy_data_path
-
     path = Path(policy_data_path).expanduser()
     if path.is_file():
         return str(path)
@@ -146,63 +149,36 @@ def resolve_policy_data_path(
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
 
 
-def _looks_like_uri(s: str) -> bool:
-    return "://" in s
+def _load_policy_artifact(
+    policy_env_info: PolicyEnvInterface,
+    policy_spec: PolicySpec,
+) -> MultiAgentPolicy:
+    """Load a policy from a .mpt artifact."""
 
+    data_path = policy_spec.data_path
+    if data_path is None:
+        raise ValueError("data_path is required to load a policy artifact")
 
-def _mpt_uri_from_path(path_str: str) -> str:
-    path = Path(path_str).expanduser()
-    if not path.exists():
-        raise FileNotFoundError(f"Checkpoint path not found: {path}")
-    return f"file://{path.resolve()}"
+    init_kwargs = policy_spec.init_kwargs or {}
+    device_arg = init_kwargs.get("device", "cpu")
+    device = device_arg if isinstance(device_arg, torch.device) else torch.device(device_arg)
+    strict = bool(init_kwargs.get("strict", True))
 
+    try:
+        from metta.rl.policy_artifact import load_policy_artifact
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise ImportError("Loading .mpt checkpoints requires the metta RL components to be installed.") from exc
 
-def _normalize_policy_spec(policy_spec: PolicySpec) -> PolicySpec:
-    """Route artifact paths/URIs through CheckpointPolicy for unified loading."""
-
-    def _as_artifact_uri(value: Optional[str]) -> Optional[str]:
-        if not value:
-            return None
-        if "://" in value:
-            return value
-        if value.lower().endswith(".mpt"):
-            path = Path(value).expanduser()
-            if not path.exists():
-                raise FileNotFoundError(f"Checkpoint path not found: {path}")
-            return f"file://{path.resolve()}"
-        return None
-
-    # Avoid re-wrapping if caller already requested CheckpointPolicy.
-    if policy_spec.class_path == "metta.rl.checkpoint_manager.CheckpointPolicy":
-        return policy_spec
-
-    candidate_uri = _as_artifact_uri(policy_spec.data_path) or _as_artifact_uri(policy_spec.class_path)
-    if candidate_uri:
+    if "://" in data_path:
         try:
             from metta.rl.checkpoint_manager import CheckpointManager
         except ImportError as exc:  # pragma: no cover - optional dependency
-            raise ImportError(
-                "Loading policy artifacts (.mpt or URIs) requires metta RL components to be installed."
-            ) from exc
+            raise ImportError("Loading checkpoint URIs requires the metta RL components to be installed.") from exc
+        artifact = CheckpointManager.load_artifact_from_uri(data_path)
+    else:
+        artifact = load_policy_artifact(Path(data_path))
 
-        init_kwargs = policy_spec.init_kwargs or {}
-        device = init_kwargs.get("device", None)
-        strict = bool(init_kwargs.get("strict", True))
-        display_name = init_kwargs.get("display_name", None)
-
-        return CheckpointManager.policy_spec_from_uri(
-            candidate_uri,
-            device=device,
-            strict=strict,
-            display_name=display_name,
-        )
-
-    # No artifact: resolve shorthand to full class path once here
-    resolved_class_path = resolve_policy_class_path(policy_spec.class_path)
-    if resolved_class_path != policy_spec.class_path:
-        return policy_spec.model_copy(update={"class_path": resolved_class_path})
-
-    return policy_spec
+    return artifact.instantiate(policy_env_info, device=device, strict=strict)
 
 
 @functools.cache

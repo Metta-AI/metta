@@ -41,7 +41,6 @@ from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
 from mettagrid.policy.loader import (
     initialize_or_load_policy,
-    resolve_policy_class_path,
     resolve_policy_data_path,
 )
 from mettagrid.policy.policy import PolicySpec
