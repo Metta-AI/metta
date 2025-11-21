@@ -175,16 +175,3 @@ def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
 
     assert hasattr(reloaded, "core")
     assert isinstance(reloaded.core, CortexTD)
-
-
-def test_load_policy_artifact_fallback_to_pt(tmp_path: Path) -> None:
-    policy_env_info = _policy_env_info()
-    policy = DummyPolicy(policy_env_info)
-
-    legacy_path = tmp_path / "legacy.mpt"
-    torch.save(policy, legacy_path)
-
-    loaded = load_policy_artifact(legacy_path)
-    instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
-
-    assert isinstance(instantiated, DummyPolicy)

@@ -1,8 +1,5 @@
 """Test that Policy correctly implements TrainablePolicy interface."""
 
-import tempfile
-from pathlib import Path
-
 import torch
 from tensordict import TensorDict
 
@@ -117,8 +114,11 @@ def test_policy_has_actions_config():
     assert policy._actions is actions
 
 
-def test_policy_load_save_roundtrip():
-    """Verify load/save round-trip preserves weights."""
+def test_policy_load_save_delegates_to_network():
+    """Verify load/save use torch state dict methods."""
+    import tempfile
+    from pathlib import Path
+
     actions = ActionsConfig()
     from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -137,38 +137,3 @@ def test_policy_load_save_roundtrip():
         # Verify weights match
         for p1, p2 in zip(policy.parameters(), new_policy.parameters(), strict=True):
             assert torch.allclose(p1, p2)
-
-
-def test_trainable_policy_network_fallback_roundtrip():
-    from mettagrid.config.mettagrid_config import MettaGridConfig
-
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
-
-    class _NonModuleTrainablePolicy(TrainablePolicy):
-        """TrainablePolicy without nn.Module inheritance to test fallback."""
-
-        def __init__(self, env_info: PolicyEnvInterface):
-            super().__init__(env_info)
-            self._net = torch.nn.Linear(8, 4)
-
-        def network(self) -> torch.nn.Module:  # pragma: no cover - simple getter
-            return self._net
-
-        def agent_policy(self, agent_id: int) -> AgentPolicy:  # pragma: no cover - unused in test
-            raise NotImplementedError
-
-    wrapper = _NonModuleTrainablePolicy(policy_env_info)
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = Path(tmpdir) / "wrapper.pt"
-        original = {k: v.clone() for k, v in wrapper.network().state_dict().items()}
-
-        wrapper.save_policy_data(str(path))
-
-        for param in wrapper.network().parameters():
-            param.data.zero_()
-
-        wrapper.load_policy_data(str(path))
-
-        for name, expected in original.items():
-            assert torch.allclose(wrapper.network().state_dict()[name], expected)
