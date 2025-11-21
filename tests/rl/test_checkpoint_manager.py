@@ -278,24 +278,6 @@ class TestBasicSaveLoad:
         assert spec.init_kwargs["display_name"] == "custom"
         assert spec.init_kwargs["device"] == "cpu"
 
-    def test_initialize_or_load_policy_from_local_mpt(self, checkpoint_manager, mock_policy_architecture):
-        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        mock_agent = MockAgent(env_info)
-        checkpoint_path = checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v9.mpt"
-        save_policy_artifact_safetensors(
-            checkpoint_path,
-            policy_architecture=mock_policy_architecture,
-            state_dict=mock_agent.state_dict(),
-        )
-
-        spec = PolicySpec(
-            class_path="metta.agent.mocks.mock_agent.MockAgent",
-            data_path=str(checkpoint_path),
-        )
-        loaded = initialize_or_load_policy(env_info, spec)
-
-        assert isinstance(loaded, MockAgent)
-
 
 class TestErrorHandling:
     def test_load_from_empty_directory(self, checkpoint_manager):

@@ -94,7 +94,7 @@ class TestNewPolicySystem:
         try:
             # Test with a mock URI that should be fully versioned
             artifact = CheckpointManager.load_artifact_from_uri("mock://test_policy")
-            assert (artifact.state_dict is not None) or (artifact.policy is not None)
+            assert artifact.policy is not None
         except Exception as e:
             assert "not found" in str(e).lower() or "invalid" in str(e).lower()
 
