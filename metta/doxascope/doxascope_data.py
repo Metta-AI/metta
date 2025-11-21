@@ -115,6 +115,7 @@ class DoxascopeLogger:
         self.agent_id_map: Optional[Dict[int, int]] = None
         self.agent_type_id: int = 0
         self.output_file: Optional[Path] = None
+        self.resource_names: Optional[List[str]] = None
 
     def clone(self, simulation_id: str) -> "DoxascopeLogger":
         """Create a fresh logger instance with the same configuration but new simulation ID."""
@@ -137,10 +138,13 @@ class DoxascopeLogger:
         self,
         policy_uri: str,
         object_type_names: Optional[List[str]] = None,
+        resource_names: Optional[List[str]] = None,
     ):
         """Configure the logger with policy-specific information."""
         if not self.enabled:
             return
+
+        self.resource_names = resource_names
 
         stem = Path(policy_uri).stem
         if ":" in stem:
@@ -327,10 +331,23 @@ class DoxascopeLogger:
             grid_obj = env_grid_objects[grid_obj_id]
             position = (grid_obj["r"], grid_obj["c"])
 
+            inventory_raw = grid_obj.get("inventory", {})
+            if inventory_raw and self.resource_names:
+                inventory = {
+                    self.resource_names[int(resource_id)]: int(quantity)
+                    for resource_id, quantity in inventory_raw.items()
+                    if 0 <= int(resource_id) < len(self.resource_names)
+                }
+            elif inventory_raw:
+                inventory = {str(k): int(v) for k, v in inventory_raw.items()}
+            else:
+                inventory = {}
+
             record = {
                 "agent_id": agent_id,
                 "memory_vector": memory_vector.detach().cpu().numpy().astype(np.float32).tolist(),
                 "position": position,
+                "inventory": inventory,
             }
             timestep_data["agents"].append(record)
 
