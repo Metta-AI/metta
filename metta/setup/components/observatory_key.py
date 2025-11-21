@@ -1,7 +1,8 @@
 import os
 import subprocess
 
-from metta.app_backend.clients.base_client import get_machine_token
+from metta.app_backend.clients.base_client import NotAuthenticatedError, get_machine_token
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.constants import DEV_STATS_SERVER_URI, OBSERVATORY_AUTH_SERVER_URL, PROD_STATS_SERVER_URI
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
@@ -51,14 +52,11 @@ class ObservatoryKeySetup(SetupModule):
             """)
 
     def check_connected_as(self) -> str | None:
-        # Check for token for this server
-        token = get_machine_token(self.api_server_url)
-
-        if token:
-            # NOTE: We should do the api/whoami check once it is working
-            return "@stem.ai"
-
-        return None
+        try:
+            StatsClient.create(self.api_server_url)
+        except NotAuthenticatedError:
+            return None
+        return "@stem.ai"
 
     @property
     def can_remediate_connected_status_with_install(self) -> bool:
