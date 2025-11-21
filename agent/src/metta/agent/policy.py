@@ -111,25 +111,17 @@ class Policy(TrainablePolicy, nn.Module):
         # Local import avoids circular dependency when this module is imported from policy_artifact.
         from metta.rl.policy_artifact import save_policy_artifact_safetensors
 
-        if policy_architecture is None:
-            msg = "policy_architecture is required to save a policy"
-            raise ValueError(msg)
+        dest = str(destination)
+        if dest.startswith("s3://"):
+            local_copy = Path(Path(dest).name)
+            save_policy_artifact_safetensors(local_copy, policy_architecture=policy_architecture, state_dict=self.state_dict())
+            write_file(dest, str(local_copy))
+            return dest
 
-        dest_str = str(destination)
-        is_remote = dest_str.startswith("s3://")
-        local_path = Path(Path(dest_str).name) if is_remote else Path(destination).expanduser()
-
-        save_policy_artifact_safetensors(
-            local_path,
-            policy_architecture=policy_architecture,
-            state_dict=self.state_dict(),
-        )
-
-        if is_remote:
-            write_file(dest_str, str(local_path))
-            return dest_str
-
-        return f"file://{local_path.resolve()}"
+        path = Path(destination).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        save_policy_artifact_safetensors(path, policy_architecture=policy_architecture, state_dict=self.state_dict())
+        return f"file://{path.resolve()}"
 
 
 class _SingleAgentAdapter(AgentPolicy):
