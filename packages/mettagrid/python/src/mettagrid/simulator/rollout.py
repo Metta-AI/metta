@@ -32,7 +32,7 @@ class Rollout:
         self._max_action_time_ms: int = max_action_time_ms or 10000
         self._renderer: Optional[Renderer] = None
         self._timeout_counts: list[int] = [0] * len(policies)
-        self._pass_sim_to_policies = pass_sim_to_policies  # Whether to pass the simulation to the policies
+        self._pass_sim_to_policies = pass_sim_to_policies
         # Attach renderer if specified
         if render_mode is not None:
             self._renderer = create_renderer(render_mode)
@@ -48,10 +48,7 @@ class Rollout:
 
         # Reset policies with the active simulation
         for policy in self._policies:
-            if pass_sim_to_policies:
-                policy.reset(self._sim)
-            else:
-                policy.reset()
+            policy.reset(self._sim if pass_sim_to_policies else None)
 
     def step(self) -> None:
         """Execute one step of the rollout."""

@@ -277,20 +277,7 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
             self._agent_states[self._agent_id] = self._state
 
     def step_batch(self, _raw_observations, raw_actions) -> None:
-        sim = self._simulation
-        assert sim is not None, "reset() must be called before step_batch()"
-
-        for agent_idx, obs in enumerate(sim.observations()):
-            state = self._agent_states.get(agent_idx) or self._base_policy.initial_agent_state()
-            if hasattr(self._base_policy, "set_active_agent"):
-                self._base_policy.set_active_agent(agent_idx)
-            action, new_state = self._base_policy.step_with_state(obs, state)
-            self._agent_states[agent_idx] = new_state
-            assert isinstance(action, Action), "Policies must return mettagrid.simulator.Action instances"
-            raw_actions[agent_idx] = dtype_actions.type(self._action_name_to_index[action.name])
-
-        if self._agent_id is not None and self._agent_id in self._agent_states:
-            self._state = self._agent_states[self._agent_id]
+        raise NotImplementedError("StatefulAgentPolicy does not support batch stepping")
 
 
 class StatefulPolicyImpl(Generic[StateType]):
