@@ -12,7 +12,7 @@ from metta.agent.components.cortex import CortexTD
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.agent.policy_artifact import (
+from metta.rl.policy_artifact import (
     PolicyArtifact,
     load_policy_artifact,
     policy_architecture_from_string,
