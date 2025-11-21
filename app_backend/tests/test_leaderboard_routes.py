@@ -306,7 +306,7 @@ async def test_query_episodes_filters_by_primary_and_tag(
 
 
 @pytest.mark.asyncio
-async def test_query_episodes_by_id_includes_avg_reward_and_replay(
+async def test_query_episodes_by_id_includes_avg_rewards_and_replay(
     isolated_stats_repo: MettaRepo,
     isolated_test_client: TestClient,
 ) -> None:
@@ -349,4 +349,4 @@ async def test_query_episodes_by_id_includes_avg_reward_and_replay(
     episode = episodes[0]
     assert episode["id"] == str(episode_id)
     assert episode["replay_url"] == "https://example.com/replays/episode-test"
-    assert episode["avg_reward"] == pytest.approx(5.0)
+    assert episode["avg_rewards"][str(pv_id)] == pytest.approx(5.0)
