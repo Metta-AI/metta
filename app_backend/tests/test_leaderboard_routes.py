@@ -257,3 +257,41 @@ async def test_leaderboard_v2_users_me_route_filters_by_user(
     assert len(entries) == 1
     assert entries[0].policy_version.id == owned_pv_id
     assert entries[0].policy_version.user_id == user
+
+
+@pytest.mark.asyncio
+async def test_query_episodes_filters_by_primary_and_tag(
+    isolated_stats_repo: MettaRepo,
+    isolated_test_client: TestClient,
+) -> None:
+    user = "episodes@example.com"
+    policy_version_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        user,
+        "episodes-policy",
+        [
+            {
+                "arena-basic": 1.0,
+                "arena-combat": 2.0,
+            }
+        ],
+    )
+
+    headers = {"X-Auth-Request-Email": user}
+    response = isolated_test_client.post(
+        "/stats/episodes/query",
+        headers=headers,
+        json={
+            "primary_policy_version_ids": [str(policy_version_id)],
+            "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},
+            "require_replay": True,
+            "limit": 1,
+        },
+    )
+    assert response.status_code == 200
+    episodes = response.json()["episodes"]
+    assert len(episodes) == 1
+    episode = episodes[0]
+    assert episode["primary_pv_id"] == str(policy_version_id)
+    assert episode["replay_url"].startswith("https://example.com/replays/episodes-policy/arena-basic/")
+    assert episode["tags"][LEADERBOARD_SIM_NAME_EPISODE_KEY] == "arena-basic"

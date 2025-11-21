@@ -3,7 +3,7 @@ import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from uuid import UUID
 
 from psycopg import Connection
@@ -115,6 +115,17 @@ class LeaderboardEntry(BaseModel):
 class EpisodeReplay(BaseModel):
     episode_id: uuid.UUID
     replay_url: str
+
+
+class EpisodeWithTags(BaseModel):
+    id: uuid.UUID
+    primary_pv_id: Optional[uuid.UUID]
+    replay_url: Optional[str]
+    thumbnail_url: Optional[str]
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    eval_task_id: Optional[uuid.UUID]
+    created_at: datetime
+    tags: dict[str, str] = Field(default_factory=dict)
 
 
 class LeaderboardPolicyEntry(BaseModel):
@@ -1007,62 +1018,136 @@ GROUP BY pv.id, et.key, et.value
         )
         return entries
 
-    async def get_episode_replays_by_policy_versions(
-        self, policy_version_ids: list[uuid.UUID], tag_key: str | None = None
-    ) -> dict[uuid.UUID, dict[str, list[EpisodeReplay]]]:
-        """Return replay URLs for the given policy versions, optionally filtered by an episode tag key."""
-        if not policy_version_ids:
-            return {}
+    async def get_episodes(
+        self,
+        *,
+        primary_policy_version_ids: Optional[list[uuid.UUID]] = None,
+        tag_filters: Optional[dict[str, Optional[list[str]]]] = None,
+        require_replay: bool = False,
+        limit: Optional[int] = 200,
+        offset: int = 0,
+    ) -> list[EpisodeWithTags]:
+        """Fetch episodes with optional filters and tag aggregation."""
+        where_conditions: list[str] = []
+        params: list[Any] = []
 
-        tag_join = "LEFT JOIN episode_tags et ON et.episode_id = e.id"
-        tag_condition = ""
-        params: list[Any] = [policy_version_ids]
+        if primary_policy_version_ids:
+            where_conditions.append("e.primary_pv_id = ANY(%s)")
+            params.append(primary_policy_version_ids)
 
-        if tag_key:
-            tag_join = "JOIN episode_tags et ON et.episode_id = e.id"
-            tag_condition = "AND et.key = %s"
-            params.append(tag_key)
+        if require_replay:
+            where_conditions.append("e.replay_url IS NOT NULL")
+
+        if tag_filters:
+            for idx, (tag_key, tag_values) in enumerate(tag_filters.items()):
+                if tag_values:
+                    where_conditions.append(
+                        f"""EXISTS (
+                            SELECT 1 FROM episode_tags et_{idx}
+                            WHERE et_{idx}.episode_id = e.id
+                              AND et_{idx}.key = %s
+                              AND et_{idx}.value = ANY(%s)
+                        )"""
+                    )
+                    params.extend([tag_key, tag_values])
+                else:
+                    where_conditions.append(
+                        f"""EXISTS (
+                            SELECT 1 FROM episode_tags et_{idx}
+                            WHERE et_{idx}.episode_id = e.id
+                              AND et_{idx}.key = %s
+                        )"""
+                    )
+                    params.append(tag_key)
+
+        where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+        limit_clause = "LIMIT %s OFFSET %s" if limit is not None else ""
+        if limit is not None:
+            params.extend([limit, offset])
 
         query = f"""
 SELECT
-    pv.id AS policy_version_id,
-    et.key AS tag_key,
-    et.value AS tag_value,
-    e.id AS episode_id,
-    e.replay_url
-FROM policy_versions pv
-JOIN episode_policies ep ON ep.policy_version_id = pv.id
-JOIN episodes e ON e.id = ep.episode_id
-JOIN episode_policy_metrics epm
-    ON epm.episode_internal_id = e.internal_id
-   AND epm.pv_internal_id = pv.internal_id
-   AND epm.metric_name = 'reward'
-{tag_join}
-WHERE e.replay_url IS NOT NULL
-  AND pv.id = ANY(%s)
-  {tag_condition}
+    e.id,
+    e.primary_pv_id,
+    e.replay_url,
+    e.thumbnail_url,
+    e.attributes,
+    e.eval_task_id,
+    e.created_at,
+    COALESCE(
+        jsonb_object_agg(et.key, et.value) FILTER (WHERE et.key IS NOT NULL),
+        '{{}}'::jsonb
+    ) AS tags
+FROM episodes e
+LEFT JOIN episode_tags et ON et.episode_id = e.id
+{where_clause}
+GROUP BY
+    e.id,
+    e.primary_pv_id,
+    e.replay_url,
+    e.thumbnail_url,
+    e.attributes,
+    e.eval_task_id,
+    e.created_at
 ORDER BY e.created_at DESC
+{limit_clause}
 """
-
-        replays_by_policy: dict[uuid.UUID, dict[str, list[EpisodeReplay]]] = {pv_id: {} for pv_id in policy_version_ids}
 
         async with self.connect() as con:
             async with con.cursor(row_factory=dict_row) as cur:
                 await cur.execute(query, params)
                 rows = await cur.fetchall()
 
+        episodes: list[EpisodeWithTags] = []
         for row in rows:
-            pv_id = row["policy_version_id"]
-            if row.get("tag_key") is not None and row.get("tag_value") is not None:
-                tag_identifier = f"{row['tag_key']}:{row['tag_value']}"
+            episodes.append(
+                EpisodeWithTags(
+                    id=row["id"],
+                    primary_pv_id=row["primary_pv_id"],
+                    replay_url=row["replay_url"],
+                    thumbnail_url=row["thumbnail_url"],
+                    attributes=row.get("attributes") or {},
+                    eval_task_id=row["eval_task_id"],
+                    created_at=row["created_at"],
+                    tags=row.get("tags") or {},
+                )
+            )
+        return episodes
+
+    async def get_episode_replays_by_policy_versions(
+        self, policy_version_ids: list[uuid.UUID], tag_key: Optional[str] = None
+    ) -> dict[uuid.UUID, dict[str, list[EpisodeReplay]]]:
+        """Return replay URLs for the given policy versions, optionally filtered by an episode tag key."""
+        if not policy_version_ids:
+            return {}
+
+        tag_filter: dict[str, list[str] | None] | None = None
+        if tag_key:
+            tag_filter = {tag_key: None}
+
+        episodes = await self.get_episodes(
+            primary_policy_version_ids=policy_version_ids,
+            tag_filters=tag_filter,
+            require_replay=True,
+            limit=None,
+        )
+
+        replays_by_policy: defaultdict[uuid.UUID, defaultdict[str, list[EpisodeReplay]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
+        for episode in episodes:
+            primary_pv_id = episode.primary_pv_id
+            if primary_pv_id is None or episode.replay_url is None:
+                continue
+            if tag_key:
+                tag_value = episode.tags.get(tag_key)
+                if tag_value is None:
+                    continue
+                tag_identifier = f"{tag_key}:{tag_value}"
             else:
                 tag_identifier = "unlabeled"
-
-            replay_entry = EpisodeReplay(
-                episode_id=row["episode_id"],
-                replay_url=row["replay_url"],
+            replays_by_policy[primary_pv_id][tag_identifier].append(
+                EpisodeReplay(episode_id=episode.id, replay_url=episode.replay_url)
             )
-            replays_by_policy.setdefault(pv_id, {}).setdefault(tag_identifier, []).append(replay_entry)
 
-        # Drop empty entries to avoid confusing callers with missing data
-        return {pv_id: tags for pv_id, tags in replays_by_policy.items() if tags}
+        return {pv_id: dict(tag_map) for pv_id, tag_map in replays_by_policy.items()}
