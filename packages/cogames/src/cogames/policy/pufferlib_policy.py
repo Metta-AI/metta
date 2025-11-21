@@ -19,18 +19,6 @@ from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
-_OBS_PAD_VALUE = 255.0
-
-
-def _pack_observation(obs: AgentObservation, num_tokens: int, token_dim: int, device: torch.device) -> torch.Tensor:
-    buffer = torch.full((num_tokens, token_dim), fill_value=_OBS_PAD_VALUE, device=device, dtype=torch.float32)
-    for idx, token in enumerate(obs.tokens):
-        if idx >= num_tokens:
-            break
-        raw = torch.as_tensor(token.raw_token, device=device, dtype=buffer.dtype)
-        buffer[idx, : raw.numel()] = raw
-    return buffer
-
 
 class PufferlibCogsPolicy(TrainablePolicy, AgentPolicy):
     """Loads and runs checkpoints trained with PufferLib's CoGames policy."""
@@ -82,13 +70,23 @@ class PufferlibCogsPolicy(TrainablePolicy, AgentPolicy):
     def save_policy_data(self, policy_data_path: str) -> None:
         torch.save(self._net.state_dict(), policy_data_path)
 
-    def _to_tensor(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> torch.Tensor:
-        if isinstance(obs, AgentObservation):
-            return _pack_observation(obs, self._num_tokens, self._token_dim, self._device)
-        return torch.as_tensor(obs, device=self._device)
-
     def step(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> Action:  # type: ignore[override]
-        obs_tensor = self._to_tensor(obs).to(dtype=torch.float32) * (1.0 / 255.0)
+        if isinstance(obs, AgentObservation):
+            obs_tensor = torch.full(
+                (self._num_tokens, self._token_dim),
+                fill_value=255.0,
+                device=self._device,
+                dtype=torch.float32,
+            )
+            for idx, token in enumerate(obs.tokens):
+                if idx >= self._num_tokens:
+                    break
+                raw = torch.as_tensor(token.raw_token, device=self._device, dtype=obs_tensor.dtype)
+                obs_tensor[idx, : raw.numel()] = raw
+        else:
+            obs_tensor = torch.as_tensor(obs, device=self._device, dtype=torch.float32)
+
+        obs_tensor = obs_tensor * (1.0 / 255.0)
         if obs_tensor.ndim == 2:
             obs_tensor = obs_tensor.unsqueeze(0)
 
