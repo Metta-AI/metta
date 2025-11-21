@@ -279,6 +279,27 @@ def save_policy_artifact_pt(
     return _save_policy_artifact(path, policy=policy, include_policy=True)
 
 
+def _load_legacy_policy_artifact(path: Path) -> PolicyArtifact:
+    """Load checkpoints that were written via torch.save instead of safetensors."""
+
+    try:
+        legacy_payload = torch.load(path, map_location="cpu", weights_only=False)
+    except FileNotFoundError:
+        raise
+    except (pickle.UnpicklingError, RuntimeError, OSError, TypeError, BadZipFile) as err:
+        raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
+
+    if _is_puffer_state_dict(legacy_payload):
+        policy = load_pufferlib_checkpoint(legacy_payload, device="cpu")
+        return PolicyArtifact(policy=policy)
+
+    if not isinstance(legacy_payload, Policy):
+        msg = "Loaded policy payload is not a Policy instance"
+        raise TypeError(msg)
+
+    return PolicyArtifact(policy=legacy_payload)
+
+
 def _save_policy_artifact(
     path: str | Path,
     *,
@@ -364,18 +385,7 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
         raise FileNotFoundError(msg)
 
     if is_pt_file or input_path.suffix == ".pt":
-        try:
-            legacy_payload = torch.load(input_path, map_location="cpu", weights_only=False)
-        except FileNotFoundError:
-            raise
-        except (pickle.UnpicklingError, RuntimeError, OSError, TypeError, BadZipFile) as err:
-            raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {input_path}") from err
-
-        if _is_puffer_state_dict(legacy_payload):
-            policy = load_pufferlib_checkpoint(legacy_payload, device="cpu")
-            return PolicyArtifact(policy=policy)
-
-        return PolicyArtifact(policy=legacy_payload)
+        return _load_legacy_policy_artifact(input_path)
 
     architecture: PolicyArchitecture | None = None
     state_dict: MutableMapping[str, torch.Tensor] | None = None
@@ -410,6 +420,12 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
                 policy = loaded_policy
 
     if architecture is None and state_dict is None and policy is None:
+        if not is_pt_file:
+            try:
+                return _load_legacy_policy_artifact(input_path)
+            except FileNotFoundError:
+                pass
+
         msg = f"Policy artifact {input_path} contained no usable payload"
         raise ValueError(msg)
 
