@@ -1,5 +1,6 @@
 """Test that Policy correctly implements TrainablePolicy interface."""
 
+import tempfile
 from pathlib import Path
 
 import torch
@@ -118,9 +119,6 @@ def test_policy_has_actions_config():
 
 def test_policy_load_save_roundtrip():
     """Verify load/save round-trip preserves weights."""
-    import tempfile
-    from pathlib import Path
-
     actions = ActionsConfig()
     from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -141,27 +139,25 @@ def test_policy_load_save_roundtrip():
             assert torch.allclose(p1, p2)
 
 
-class WrapperTrainablePolicy(TrainablePolicy):
-    """TrainablePolicy that is not an nn.Module to test network fallback."""
-
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
-        self._net = torch.nn.Linear(8, 4)
-
-    def network(self) -> torch.nn.Module:
-        return self._net
-
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        raise NotImplementedError
-
-
 def test_trainable_policy_network_fallback_roundtrip():
-    import tempfile
-
     from mettagrid.config.mettagrid_config import MettaGridConfig
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
-    wrapper = WrapperTrainablePolicy(policy_env_info)
+
+    class _NonModuleTrainablePolicy(TrainablePolicy):
+        """TrainablePolicy without nn.Module inheritance to test fallback."""
+
+        def __init__(self, env_info: PolicyEnvInterface):
+            super().__init__(env_info)
+            self._net = torch.nn.Linear(8, 4)
+
+        def network(self) -> torch.nn.Module:  # pragma: no cover - simple getter
+            return self._net
+
+        def agent_policy(self, agent_id: int) -> AgentPolicy:  # pragma: no cover - unused in test
+            raise NotImplementedError
+
+    wrapper = _NonModuleTrainablePolicy(policy_env_info)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / "wrapper.pt"
