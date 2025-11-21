@@ -334,6 +334,18 @@ class TrainablePolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
 
+    def _serialization_module(self) -> nn.Module:
+        """Return the module whose state dict should be persisted."""
+
+        if isinstance(self, nn.Module):
+            return self
+
+        module = self.network()
+        if not isinstance(module, nn.Module):
+            msg = f"{self.__class__.__name__}.network() must return an nn.Module"
+            raise TypeError(msg)
+        return module
+
     @abstractmethod
     def network(self) -> nn.Module:
         """Get the underlying neural network for training."""
@@ -359,18 +371,16 @@ class TrainablePolicy(MultiAgentPolicy):
 
         Default implementation loads PyTorch state dict.
         """
-        import torch
-
-        self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu"))
+        module = self._serialization_module()
+        module.load_state_dict(torch.load(policy_data_path, map_location="cpu"))
 
     def save_policy_data(self, policy_data_path: str) -> None:
         """Save network weights to file.
 
         Default implementation uses torch.save.
         """
-        import torch
-
-        torch.save(self.network().state_dict(), policy_data_path)
+        module = self._serialization_module()
+        torch.save(module.state_dict(), policy_data_path)
 
     def save_policy(self, destination: str | Path, *, policy_architecture=None) -> str:
         """Generic saver: writes a .pt state_dict; supports s3:// or local.
@@ -378,12 +388,15 @@ class TrainablePolicy(MultiAgentPolicy):
         Policies with custom artifact needs should override this.
         """
 
+        module = self._serialization_module()
+        state_dict = module.state_dict()
+
         dest_str = str(destination)
         if dest_str.startswith("s3://"):
             if not dest_str.endswith(".pt"):
                 dest_str = dest_str + ".pt"
             local_tmp = Path(Path(dest_str).name)
-            torch.save(self.network().state_dict(), local_tmp)
+            torch.save(state_dict, local_tmp)
             write_file(dest_str, str(local_tmp))
             return dest_str
 
@@ -392,7 +405,7 @@ class TrainablePolicy(MultiAgentPolicy):
             path = path.with_suffix(".pt")
         path = path.expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(self.network().state_dict(), path)
+        torch.save(state_dict, path)
         return f"file://{path.resolve()}"
 
 

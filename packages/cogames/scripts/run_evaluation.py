@@ -93,21 +93,6 @@ class AgentConfig:
     data_path: Optional[str] = None
 
 
-def _policy_spec_from_inputs(
-    policy_path: str,
-    checkpoint_path: Optional[str],
-    *,
-    device: torch.device,
-) -> PolicySpec:
-    resolved_class = resolve_policy_class_path(policy_path)
-
-    if checkpoint_path:
-        resolved_data = resolve_policy_data_path(checkpoint_path)
-        return PolicySpec(class_path=resolved_class, data_path=resolved_data)
-
-    return PolicySpec(class_path=resolved_class)
-
-
 def load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_path: str,
@@ -115,7 +100,9 @@ def load_policy(
     device: Optional[torch.device] = None,
 ):
     device = device or torch.device("cpu")
-    policy_spec = _policy_spec_from_inputs(policy_path, checkpoint_path, device=device)
+    resolved_class = resolve_policy_class_path(policy_path)
+    data_path = resolve_policy_data_path(checkpoint_path) if checkpoint_path else None
+    policy_spec = PolicySpec(class_path=resolved_class, data_path=data_path)
     return initialize_or_load_policy(policy_env_info, policy_spec)
 
 
