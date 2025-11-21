@@ -26,7 +26,6 @@ class Rollout:
         pass_sim_to_policies: bool = False,
         event_handlers: Optional[list[SimulatorEventHandler]] = None,
         stats_writer: Optional[StatsWriter] = None,
-        doxascope_logger: Optional[DoxascopeLogger] = None,
     ):
         self._config = config
         self._policies = policies
@@ -48,7 +47,8 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
-        self._doxascope_logger = doxascope_logger
+        # Add pointer to policies so that Doxascope EventHandlers can access:
+        self._sim._context["policies"] = self._policies
 
         sim = self._sim if self._pass_sim_to_policies else None
         # Reset policies and create agent policies if needed
@@ -74,16 +74,6 @@ class Rollout:
             self._renderer.render()
 
         self._sim.step()
-
-        #### Log Doxascope at end of Step ####
-        if self._doxascope_logger is not None and self._doxascope_logger.enabled:
-            env_grid_objects = self._sim.grid_objects()
-            self._doxascope_logger.log_timestep(
-                policies=self._policies,
-                env_grid_objects=env_grid_objects,
-                object_type_names=self._sim.object_type_names,
-            )
-        #####
 
     def run_until_done(self) -> None:
         """Run the rollout until completion or early exit."""

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from mettagrid.simulator.interface import SimulatorEventHandler
 import torch
 
 logger = logging.getLogger(__name__)
@@ -476,6 +477,26 @@ class DoxascopeLogger:
             logger.info(f"Doxascope data saved to {self.output_file.name} ({file_size_mb:.2f} MB)")
         except Exception as e:
             logger.error(f"Failed to save doxascope data: {e}")
+
+
+class DoxascopeEventHandler(SimulatorEventHandler):
+    # needs to be passed the Logger object
+    def __init__(self, logger: DoxascopeLogger):
+        super().__init__()
+        self._logger = logger
+
+    def on_step(self):
+        super().on_step()
+        if not self._logger.enabled:
+            return
+        env_grid_objects = self._sim.grid_objects()
+        policies = self._sim._context.get("policies", [])
+
+        self._logger.log_timestep(
+            policies=policies,
+            env_grid_objects=env_grid_objects,
+            object_type_names=self._sim.object_type_names,
+        )
 
 
 def _extract_agent_trajectories(files: list) -> List[List[Tuple[np.ndarray, Tuple[int, int]]]]:

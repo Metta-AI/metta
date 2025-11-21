@@ -8,7 +8,7 @@ from typing import Callable, Optional, Sequence
 import numpy as np
 from pydantic import BaseModel, ConfigDict
 
-from metta.doxascope.doxascope_data import DoxascopeLogger
+from metta.doxascope.doxascope_data import DoxascopeEventHandler
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.simulator import SimulatorEventHandler
@@ -101,13 +101,18 @@ def multi_episode_rollout(
         if save_replay is not None:
             episode_replay_writer = ReplayLogWriter(save_replay)
             handlers.append(episode_replay_writer)
+        # Create new event handler for the same doxascope logger
+
+        if doxascope_logger is not None:
+            if doxascope_logger.enabled:
+                doxascope_event_handler = DoxascopeEventHandler(doxascope_logger)
+                handlers.append(doxascope_event_handler)
 
         rollout = Rollout(
             env_cfg,
             agent_policies,
             max_action_time_ms=max_action_time_ms,
             event_handlers=handlers,
-            doxascope_logger=doxascope_logger,  # could be None
         )
 
         rollout.run_until_done()
