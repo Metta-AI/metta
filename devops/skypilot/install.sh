@@ -6,10 +6,6 @@ set -euo pipefail
 # SkyPilot API server endpoint
 SERVER="https://skypilot-api.softmax-research.net"
 
-# Update SkyPilot to latest version
-echo "Updating SkyPilot to latest version..."
-uv run pip install -U skypilot
-
 echo ""
 echo "Attempting login to ${SERVER}..."
 echo "Browser will open. If callback works, login will complete automatically."
