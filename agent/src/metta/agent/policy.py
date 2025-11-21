@@ -23,20 +23,10 @@ from metta.agent.components.obs_shim import (
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
-<<<<<<< HEAD
 from mettagrid.policy.policy import MultiAgentPolicy, TrainablePolicy
-=======
-from mettagrid.policy.policy import (
-    AgentPolicy,
-    MultiAgentPolicy,
-    StatefulAgentPolicy,
-    StatefulPolicyImpl,
-    TrainablePolicy,
-)
->>>>>>> origin/main
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryABCMeta
-from mettagrid.simulator import Action, AgentObservation
+from mettagrid.simulator import Action, AgentObservation, Simulation
 from mettagrid.util.module import load_symbol
 
 
