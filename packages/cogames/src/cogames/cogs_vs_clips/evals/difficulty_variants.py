@@ -313,22 +313,6 @@ class DifficultyLevel(MissionVariant):
 # Standard Difficulty Levels
 # =============================================================================
 
-STORY_MODE = DifficultyLevel(
-    name="story_mode",
-    description="Abundant energy/resource output so scripted agents can clear missions reliably",
-    carbon_max_uses_override=12,
-    oxygen_max_uses_override=12,
-    germanium_max_uses_override=12,
-    silicon_max_uses_override=12,
-    carbon_eff_override=140,
-    oxygen_eff_override=140,
-    germanium_eff_override=140,
-    silicon_eff_override=140,
-    charger_eff_override=150,
-    energy_regen_override=2,
-    allow_agent_scaling=False,
-)
-
 STANDARD = DifficultyLevel(
     name="standard",
     description="Baseline mission parameters (legacy medium)",
@@ -348,25 +332,6 @@ HARD = DifficultyLevel(
     charger_eff_override=100,
     energy_regen_override=1,  # Minimal regen prevents deadlock
     move_energy_cost_override=2,
-    allow_agent_scaling=False,
-)
-
-BRUTAL = DifficultyLevel(
-    name="brutal",
-    description="Extreme scarcity, reduced inventories, perfection required",
-    carbon_max_uses_override=2,
-    oxygen_max_uses_override=2,
-    germanium_max_uses_override=3,
-    silicon_max_uses_override=2,
-    carbon_eff_override=55,
-    oxygen_eff_override=45,
-    germanium_eff_override=50,
-    silicon_eff_override=50,
-    charger_eff_override=60,
-    energy_regen_override=1,  # Minimal regen prevents deadlock
-    move_energy_cost_override=3,
-    energy_capacity_override=70,
-    cargo_capacity_override=80,
     allow_agent_scaling=False,
 )
 
@@ -456,33 +421,11 @@ CLIPPING_CHAOS = DifficultyLevel(
     allow_agent_scaling=False,
 )
 
-HARD_CLIPPED_OXYGEN = DifficultyLevel(
-    name="hard_clipped_oxygen",
-    description="Hard mode + oxygen starts clipped",
-    carbon_max_uses_override=4,
-    oxygen_max_uses_override=4,
-    germanium_max_uses_override=6,
-    silicon_max_uses_override=3,
-    carbon_eff_override=80,
-    oxygen_eff_override=65,
-    germanium_eff_override=75,
-    silicon_eff_override=70,
-    charger_eff_override=80,
-    energy_regen_override=1,  # Minimal regen prevents deadlock
-    move_energy_cost_override=3,
-    clip_period=0,
-    clip_target="oxygen",
-    clip_immune_extractor="carbon_extractor",
-    allow_agent_scaling=False,
-)
-
 # Export variants for use with --variant CLI flag.
 # Ordered in canonical difficulty order.
 DIFFICULTY_VARIANTS: list[DifficultyLevel] = [
-    STORY_MODE,
     STANDARD,
     HARD,
-    BRUTAL,
     SINGLE_USE,
     SPEED_RUN,
     ENERGY_CRISIS,
@@ -491,7 +434,6 @@ DIFFICULTY_VARIANTS: list[DifficultyLevel] = [
     CLIPPED_GERMANIUM,
     CLIPPED_SILICON,
     CLIPPING_CHAOS,
-    HARD_CLIPPED_OXYGEN,
 ]
 
 

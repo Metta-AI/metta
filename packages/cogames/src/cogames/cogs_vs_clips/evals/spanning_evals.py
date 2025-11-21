@@ -20,7 +20,6 @@ from cogames.cogs_vs_clips.variants import (
     ExtractorHeartTuneVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
-    NeutralFacedVariant,
     PackRatVariant,
     QuadrantBuildingsVariant,
     ResourceBottleneckVariant,
@@ -28,7 +27,6 @@ from cogames.cogs_vs_clips.variants import (
     SingleResourceUniformVariant,
     SingleToolUnclipVariant,
     SingleUseSwarmVariant,
-    Small50Variant,
     SuperChargedVariant,
     VibeCheckMin2Variant,
 )
@@ -67,12 +65,9 @@ OxygenBottleneck = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(missing=["oxygen_extractor"]),
-        ExtractorHeartTuneVariant(hearts=10),
         ResourceBottleneckVariant(resource=["oxygen"]),
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
-        NeutralFacedVariant(),
         PackRatVariant(),
-        #
     ],
 )
 
@@ -134,8 +129,6 @@ EnergyStarved = Mission(
         EmptyBaseVariant(),
         ResourceBottleneckVariant(resource=["energy"]),
         DarkSideVariant(),
-        NeutralFacedVariant(),
-        #
     ],
 )
 
@@ -148,8 +141,6 @@ OxygenBottleneckEasy = Mission(
     site=HELLO_WORLD,
     variants=[
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
-        ExtractorHeartTuneVariant(hearts=10),
-        NeutralFacedVariant(),
         PackRatVariant(),
     ],
 )
@@ -171,7 +162,6 @@ OxygenBottleneckHard = Mission(
     variants=[
         EmptyBaseVariant(missing=["oxygen_extractor"]),
         ResourceBottleneckVariant(resource=["oxygen"]),
-        DistantResourcesVariant(),
         RoughTerrainVariant(),
     ],
 )
@@ -184,7 +174,6 @@ EnergyStarvedEasy = Mission(
     variants=[
         SuperChargedVariant(),
         EnergizedVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
@@ -217,7 +206,6 @@ DistantResources = Mission(
     variants=[
         EmptyBaseVariant(),
         DistantResourcesVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
@@ -228,8 +216,8 @@ DistantResourcesEasy = Mission(
     site=HELLO_WORLD,
     variants=[
         CompassVariant(),
-        Small50Variant(),
         PackRatVariant(),
+        DistantResourcesVariant(),
     ],
 )
 
@@ -263,8 +251,6 @@ QuadrantBuildings = Mission(
     variants=[
         EmptyBaseVariant(),
         QuadrantBuildingsVariant(),
-        NeutralFacedVariant(),
-        #
     ],
 )
 
@@ -277,7 +263,6 @@ QuadrantBuildingsEasy = Mission(
         QuadrantBuildingsVariant(),
         CompassVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
@@ -287,7 +272,6 @@ QuadrantBuildingsStandard = Mission(
     site=HELLO_WORLD,
     variants=[
         QuadrantBuildingsVariant(),
-        NeutralFacedVariant(),
         EmptyBaseVariant(),
     ],
 )
@@ -310,11 +294,7 @@ SingleUseSwarm = Mission(
     description="Everything is single use, so agents must fan out and reconverge with needed resources.",
     site=HELLO_WORLD,
     variants=[
-        EmptyBaseVariant(),
         SingleUseSwarmVariant(),
-        NeutralFacedVariant(),
-        PackRatVariant(),
-        #
     ],
 )
 
@@ -326,8 +306,8 @@ SingleUseSwarmEasy = Mission(
     variants=[
         SingleUseSwarmVariant(),
         CompassVariant(),
-        Small50Variant(),
         SuperChargedVariant(),
+        ExtractorHeartTuneVariant(hearts=1),
     ],
 )
 
@@ -349,7 +329,6 @@ SingleUseSwarmHard = Mission(
         SingleUseSwarmVariant(),
         DistantResourcesVariant(),
         RoughTerrainVariant(),
-        DarkSideVariant(),
     ],
 )
 
@@ -367,12 +346,12 @@ VibeCheck = Mission(
 
 VibeCheckEasy = Mission(
     name="vibe_check_easy",
-    description="Easy: neutralized vibes and generous hearts; reward shaping for hearts.",
+    description="Easy: generous hearts with shaping rewards to guide coordination.",
     site=HELLO_WORLD,
     variants=[
+        EmptyBaseVariant(),
         VibeCheckMin2Variant(),
         LonelyHeartVariant(),
-        PackRatVariant(),
     ],
 )
 
@@ -382,7 +361,7 @@ VibeCheckStandard = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(),
-        VibeCheckMin2Variant(),
+        VibeCheckMin2Variant(min_vibes=3),
     ],
 )
 
@@ -392,52 +371,47 @@ VibeCheckHard = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(),
-        VibeCheckMin2Variant(),
-        ResourceBottleneckVariant(),
+        VibeCheckMin2Variant(min_vibes=4),
     ],
 )
 
 EasyHeartsTraining = Mission(
-    name="easy_hearts",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    name="easy_hearts_training",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=TRAINING_FACILITY,
     variants=[
         LonelyHeartVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
 EasyHeartsSmallWorld = Mission(
     name="easy_small_hearts",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=SMALL_HELLO_WORLD,
     variants=[
         LonelyHeartVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
 EasyHeartsMediumWorld = Mission(
     name="easy_medium_hearts",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=MEDIUM_HELLO_WORLD,
     variants=[
         LonelyHeartVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
 EasyHeartsLargeWorld = Mission(
     name="easy_large_hearts",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=LARGE_HELLO_WORLD,
     variants=[
         LonelyHeartVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 

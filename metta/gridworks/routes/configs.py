@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.common.util.fs import get_repo_root
-from metta.gridworks.common import ErrorResult, dump_config_with_implicit_info
+from metta.gridworks.common import extend_config
 from metta.gridworks.configs.registry import ConfigMaker, ConfigMakerKind, ConfigMakerRegistry
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
@@ -25,7 +25,7 @@ def make_configs_router() -> APIRouter:
     repo_root = get_repo_root()
     registry = ConfigMakerRegistry(
         root_dirs=[
-            repo_root / "recipes/experiment",
+            repo_root / "recipes",
             repo_root / "packages/cogames/src/cogames",
         ]
     )
@@ -80,15 +80,15 @@ def make_configs_router() -> APIRouter:
         return result
 
     @router.get("/get")
-    async def get_config(path: str) -> dict | ErrorResult:
+    async def get_config(path: str) -> dict:
         cfg = get_config_maker_or_404(path)
         return {
             "maker": cfg.to_dict(),
-            "config": dump_config_with_implicit_info(cfg.maker()),
+            "config": extend_config(cfg.maker()),
         }
 
     @router.get("/get-map")
-    async def get_map(path: str, name: str | None = None) -> StorableMapDict | ErrorResult:
+    async def get_map(path: str, name: str | None = None) -> StorableMapDict:
         cfg = get_config_maker_or_404(path)
 
         if name:

@@ -21,7 +21,6 @@ Agent::Agent(GridCoord r,
       action_failure_penalty(config.action_failure_penalty),
       group_name(config.group_name),
       soul_bound_resources(config.soul_bound_resources),
-      shareable_resources(config.shareable_resources),
       agent_id(0),
       stats(resource_names),
       current_stat_reward(0),
@@ -30,13 +29,15 @@ Agent::Agent(GridCoord r,
       prev_action_name(""),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
-      diversity_tracked_mask_(resource_names != nullptr ? resource_names->size() : 0, 0),
-      tracked_resource_presence_(resource_names != nullptr ? resource_names->size() : 0, 0),
-      tracked_resource_diversity_(0) {
+      resource_names(resource_names),
+      diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
+      tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
+      tracked_resource_diversity(0),
+      vibe_transfers(config.vibe_transfers) {
   for (InventoryItem item : config.diversity_tracked_resources) {
     const size_t index = static_cast<size_t>(item);
-    if (index < diversity_tracked_mask_.size()) {
-      diversity_tracked_mask_[index] = 1;
+    if (index < diversity_tracked_mask.size()) {
+      diversity_tracked_mask[index] = 1;
     }
   }
 
@@ -121,19 +122,31 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
 }
 
 bool Agent::onUse(Agent& actor, ActionArg arg) {
-  // Share half of shareable resources from actor to this agent
-  for (InventoryItem resource : actor.shareable_resources) {
-    InventoryQuantity actor_amount = actor.inventory.amount(resource);
-    // Calculate half (rounded down)
-    InventoryQuantity share_attempted_amount = actor_amount / 2;
-    if (share_attempted_amount > 0) {
-      // The actor is trying to give us resources. We need to make sure we can take them.
-      InventoryDelta successful_share_amount = this->update_inventory(resource, share_attempted_amount);
-      actor.update_inventory(resource, -successful_share_amount);
+  // Look up transfers for the actor's vibe
+  auto vibe_it = actor.vibe_transfers.find(actor.vibe);
+  if (vibe_it == actor.vibe_transfers.end()) {
+    return false;  // No transfers configured for this vibe
+  }
+
+  // Transfer each configured resource
+  bool any_transfer_occurred = false;
+  const auto& resource_deltas = vibe_it->second;
+  for (const auto& [resource, amount] : resource_deltas) {
+    if (amount > 0) {
+      // Transfer from actor to receiver (this)
+      InventoryQuantity actor_amount = actor.inventory.amount(resource);
+      InventoryQuantity share_attempted_amount = std::min(static_cast<InventoryQuantity>(amount), actor_amount);
+      if (share_attempted_amount > 0) {
+        InventoryDelta successful_share_amount = this->update_inventory(resource, share_attempted_amount);
+        actor.update_inventory(resource, -successful_share_amount);
+        if (successful_share_amount > 0) {
+          any_transfer_occurred = true;
+        }
+      }
     }
   }
 
-  return true;
+  return any_transfer_occurred;
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
@@ -166,21 +179,21 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
 
 void Agent::update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount) {
   const size_t index = static_cast<size_t>(item);
-  if (index >= diversity_tracked_mask_.size() || !diversity_tracked_mask_[index]) {
+  if (index >= diversity_tracked_mask.size() || !diversity_tracked_mask[index]) {
     return;
   }
 
   const bool now_present = amount > 0;
-  const bool currently_present = tracked_resource_presence_[index] != 0;
+  const bool currently_present = tracked_resource_presence[index] != 0;
   if (currently_present == now_present) {
     return;
   }
 
-  const float prev_diversity = static_cast<float>(tracked_resource_diversity_);
-  tracked_resource_presence_[index] = now_present ? 1 : 0;
-  tracked_resource_diversity_ += now_present ? 1 : -1;
+  const float prev_diversity = static_cast<float>(tracked_resource_diversity);
+  tracked_resource_presence[index] = now_present ? 1 : 0;
+  tracked_resource_diversity += now_present ? 1 : -1;
 
-  const float new_diversity = static_cast<float>(tracked_resource_diversity_);
+  const float new_diversity = static_cast<float>(tracked_resource_diversity);
   this->stats.set("inventory.diversity", new_diversity);
 
   for (int threshold = 2; threshold <= 5; ++threshold) {

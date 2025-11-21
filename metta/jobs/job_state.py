@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import Text
 from sqlmodel import Column, Field, SQLModel
@@ -31,7 +31,6 @@ class JobState(SQLModel, table=True):
 
     Persisted to SQLite with name as primary key.
     Config stored as JSON, exposed via property for type safety.
-    Callback stored in memory (not persisted) for state change notifications.
     """
 
     name: str = Field(primary_key=True)
@@ -42,7 +41,6 @@ class JobState(SQLModel, table=True):
             data["config_json"] = json.dumps(data["config"].model_dump())
             del data["config"]
         super().__init__(**data)
-        self._on_state_change: Callable[[str, str, str], None] | None = None
 
     @property
     def config(self) -> JobConfig:
@@ -61,30 +59,6 @@ class JobState(SQLModel, table=True):
     skypilot_status: Optional[str] = None  # SkyPilot job status (PENDING, RUNNING, SUCCEEDED, etc.)
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
-
-    def set_state_change_callback(self, callback: Callable[[str, str, str], None]) -> None:
-        """Set callback to be triggered on state changes.
-
-        Args:
-            callback: Function(job_name, old_status, new_status) to call on status change
-        """
-        self._on_state_change = callback
-
-    def update_status(self, new_status: str) -> None:
-        """Update job status and trigger callback if registered.
-
-        Args:
-            new_status: New status value (pending, running, completed)
-        """
-        old_status = self.status
-        if old_status != new_status:
-            self.status = new_status
-            callback = getattr(self, "_on_state_change", None)
-            if callback:
-                try:
-                    callback(self.name, old_status, new_status)
-                except Exception as e:
-                    logger.error(f"State change callback failed for {self.name}: {e}")
 
     # Results
     exit_code: Optional[int] = None

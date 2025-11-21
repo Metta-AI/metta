@@ -30,8 +30,6 @@ public:
   std::string group_name;
   // We expect only a small number (single-digit) of soul-bound resources.
   std::vector<InventoryItem> soul_bound_resources;
-  // Resources that this agent will try to share when it uses another agent.
-  std::vector<InventoryItem> shareable_resources;
   // Despite being a GridObjectId, this is different from the `id` property.
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
   GridObjectId agent_id;
@@ -72,10 +70,12 @@ public:
 
 private:
   const ObservationEncoder* obs_encoder = nullptr;
+  const std::vector<std::string>* resource_names = nullptr;
   void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
-  std::vector<char> diversity_tracked_mask_;
-  std::vector<char> tracked_resource_presence_;
-  std::size_t tracked_resource_diversity_{0};
+  std::vector<char> diversity_tracked_mask;
+  std::vector<char> tracked_resource_presence;
+  std::size_t tracked_resource_diversity{0};
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_HPP_

@@ -1,6 +1,7 @@
 
 import
   std/[strformat, strutils, tables, sets, options, algorithm],
+  fidget2/measure,
   jsony
 
 type
@@ -9,6 +10,10 @@ type
     name*: string
     normalization*: float
 
+  AssemblerProtocol* = object
+    inputResources*: Table[string, int]
+    outputResources*: Table[string, int]
+
   PolicyConfig* = object
     numAgents*: int
     obsWidth*: int
@@ -16,6 +21,7 @@ type
     actions*: seq[string]
     tags*: seq[string]
     obsFeatures*: seq[ConfigFeature]
+    assemblerProtocols*: seq[AssemblerProtocol]
 
   Config* = object
     config*: PolicyConfig
@@ -23,6 +29,7 @@ type
     features*: Features
     tags*: Tags
     vibes*: Vibes
+    assemblerProtocols*: seq[AssemblerProtocol]
 
   FeatureValue* = object
     featureId*: int
@@ -95,15 +102,11 @@ type
   Features* = object
     group*: int
     frozen*: int
-    reservedForFutureUse*: int
-    converting*: int
     episodeCompletionPct*: int
     lastAction*: int
-    lastActionArg*: int
     lastReward*: int
     vibe*: int
     compass*: int
-    orientation*: int
     tag*: int
     cooldownRemaining*: int
     clipped*: int
@@ -118,8 +121,54 @@ type
     invModulator*: int
     invResonator*: int
     invScrambler*: int
-    protocolInputs*: Table[string, int]
-    protocolOutputs*: Table[string, int]
+
+    protocolInputEnergy*: int
+    protocolInputCarbon*: int
+    protocolInputOxygen*: int
+    protocolInputGermanium*: int
+    protocolInputSilicon*: int
+    protocolInputHeart*: int
+    protocolInputDecoder*: int
+    protocolInputModulator*: int
+    protocolInputResonator*: int
+    protocolInputScrambler*: int
+
+    protocolOutputEnergy*: int
+    protocolOutputCarbon*: int
+    protocolOutputOxygen*: int
+    protocolOutputGermanium*: int
+    protocolOutputSilicon*: int
+    protocolOutputHeart*: int
+    protocolOutputDecoder*: int
+    protocolOutputModulator*: int
+    protocolOutputResonator*: int
+    protocolOutputScrambler*: int
+
+  RecipeInfo* = object
+    pattern*: seq[int] # In vibe indices
+
+    energyCost*: int
+    carbonCost*: int
+    oxygenCost*: int
+    germaniumCost*: int
+    siliconCost*: int
+    heartCost*: int
+    decoderCost*: int
+    modulatorCost*: int
+    resonatorCost*: int
+    scramblerCost*: int
+
+    energyOutput*: int
+    carbonOutput*: int
+    oxygenOutput*: int
+    germaniumOutput*: int
+    siliconOutput*: int
+    heartOutput*: int
+    decoderOutput*: int
+    modulatorOutput*: int
+    resonatorOutput*: int
+    scramblerOutput*: int
+    cooldown*: int
 
 proc `+`*(location1: Location, location2: Location): Location =
   ## Add two locations.
@@ -164,6 +213,130 @@ proc generateSpiral*(count: int): seq[Location] =
 
 const spiral* = generateSpiral(1000)
 
+proc `$`*(recipe: RecipeInfo): string =
+  ## Stringify the recipe.
+  result = "Recipe(pattern: ["
+  for vibe in recipe.pattern:
+    case vibe:
+    of 0:
+      result.add("Default")
+      result.add(", ")
+    of 1:
+      result.add("Charger")
+      result.add(", ")
+    of 2:
+      result.add("CarbonA")
+      result.add(", ")
+    of 3:
+      result.add("CarbonB")
+      result.add(", ")
+    of 4:
+      result.add("OxygenA")
+      result.add(", ")
+    of 5:
+      result.add("OxygenB")
+      result.add(", ")
+    of 6:
+      result.add("GermaniumA")
+      result.add(", ")
+    of 7:
+      result.add("GermaniumB")
+      result.add(", ")
+    of 8:
+      result.add("SiliconA")
+      result.add(", ")
+    of 9:
+      result.add("SiliconB")
+      result.add(", ")
+    of 10:
+      result.add("HeartA")
+      result.add(", ")
+    of 11:
+      result.add("HeartB")
+      result.add(", ")
+    of 12:
+      result.add("Gear")
+      result.add(", ")
+    of 13:
+      result.add("Assembler")
+      result.add(", ")
+    of 14:
+      result.add("Chest")
+      result.add(", ")
+    of 15:
+      result.add("Wall")
+      result.add(", ")
+    of 16:
+      result.add("Paperclip")
+      result.add(", ")
+    else:
+      result.add("???")
+      result.add(", ")
+  result.removeSuffix(", ")
+  result.add("]")
+  if recipe.energyCost != 0:
+    result.add(" E:")
+    result.add($recipe.energyCost)
+  if recipe.carbonCost != 0:
+    result.add(" C:")
+    result.add($recipe.carbonCost)
+  if recipe.oxygenCost != 0:
+    result.add(" O2:")
+    result.add($recipe.oxygenCost)
+  if recipe.germaniumCost != 0:
+    result.add(" Ge:")
+    result.add($recipe.germaniumCost)
+  if recipe.siliconCost != 0:
+    result.add(" Si:")
+    result.add($recipe.siliconCost)
+  if recipe.heartCost != 0:
+    result.add(" Heart:")
+    result.add($recipe.heartCost)
+  if recipe.decoderCost != 0:
+    result.add(" Decoder:")
+    result.add($recipe.decoderCost)
+  if recipe.modulatorCost != 0:
+    result.add(" Modulator:")
+    result.add($recipe.modulatorCost)
+  if recipe.resonatorCost != 0:
+    result.add(" Resonator:")
+    result.add($recipe.resonatorCost)
+  if recipe.scramblerCost != 0:
+    result.add(" Scrambler:")
+    result.add($recipe.scramblerCost)
+  result.add(" -> ")
+  if recipe.energyOutput != 0:
+    result.add(" E:")
+    result.add($recipe.energyOutput)
+  if recipe.carbonOutput != 0:
+    result.add(" C:")
+    result.add($recipe.carbonOutput)
+  if recipe.oxygenOutput != 0:
+    result.add(" O2:")
+    result.add($recipe.oxygenOutput)
+  if recipe.germaniumOutput != 0:
+    result.add(" Ge:")
+    result.add($recipe.germaniumOutput)
+  if recipe.siliconOutput != 0:
+    result.add(" Si:")
+    result.add($recipe.siliconOutput)
+  if recipe.heartOutput != 0:
+    result.add(" Heart:")
+    result.add($recipe.heartOutput)
+  if recipe.decoderOutput != 0:
+    result.add(" Decoder:")
+    result.add($recipe.decoderOutput)
+  if recipe.modulatorOutput != 0:
+    result.add(" Modulator:")
+    result.add($recipe.modulatorOutput)
+  if recipe.resonatorOutput != 0:
+    result.add(" Resonator:")
+    result.add($recipe.resonatorOutput)
+  if recipe.scramblerOutput != 0:
+    result.add(" Scrambler:")
+    result.add($recipe.scramblerOutput)
+  result.add(")")
+
 proc registerProtocolFeature(feature: ConfigFeature; prefix: string;
     dest: var Table[string, int]): bool =
   ## Store protocol input/output features keyed by their resource suffix.
@@ -190,8 +363,7 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
   try:
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
-    result.features.protocolInputs = initTable[string, int]()
-    result.features.protocolOutputs = initTable[string, int]()
+    result.assemblerProtocols = config.assemblerProtocols
 
     for feature in config.obsFeatures:
       case feature.name:
@@ -199,24 +371,16 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.group = feature.id
       of "agent:frozen":
         result.features.frozen = feature.id
-      of "agent:reserved_for_future_use":
-        result.features.reservedForFutureUse = feature.id
-      of "converting":
-        result.features.converting = feature.id
       of "episode_completion_pct":
         result.features.episodeCompletionPct = feature.id
       of "last_action":
         result.features.lastAction = feature.id
-      of "last_action_arg":
-        result.features.lastActionArg = feature.id
       of "last_reward":
         result.features.lastReward = feature.id
       of "vibe":
         result.features.vibe = feature.id
       of "agent:compass":
         result.features.compass = feature.id
-      of "agent:orientation":
-        result.features.orientation = feature.id
       of "tag":
         result.features.tag = feature.id
       of "cooldown_remaining":
@@ -245,15 +409,48 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.invResonator = feature.id
       of "inv:scrambler":
         result.features.invScrambler = feature.id
+      of "protocol_input:energy":
+        result.features.protocolInputEnergy = feature.id
+      of "protocol_input:carbon":
+        result.features.protocolInputCarbon = feature.id
+      of "protocol_input:oxygen":
+        result.features.protocolInputOxygen = feature.id
+      of "protocol_input:germanium":
+        result.features.protocolInputGermanium = feature.id
+      of "protocol_input:silicon":
+        result.features.protocolInputSilicon = feature.id
+      of "protocol_input:heart":
+        result.features.protocolInputHeart = feature.id
+      of "protocol_input:decoder":
+        result.features.protocolInputDecoder = feature.id
+      of "protocol_input:modulator":
+        result.features.protocolInputModulator = feature.id
+      of "protocol_input:resonator":
+        result.features.protocolInputResonator = feature.id
+      of "protocol_input:scrambler":
+        result.features.protocolInputScrambler = feature.id
+      of "protocol_output:energy":
+        result.features.protocolOutputEnergy = feature.id
+      of "protocol_output:carbon":
+        result.features.protocolOutputCarbon = feature.id
+      of "protocol_output:oxygen":
+        result.features.protocolOutputOxygen = feature.id
+      of "protocol_output:germanium":
+        result.features.protocolOutputGermanium = feature.id
+      of "protocol_output:silicon":
+        result.features.protocolOutputSilicon = feature.id
+      of "protocol_output:heart":
+        result.features.protocolOutputHeart = feature.id
+      of "protocol_output:decoder":
+        result.features.protocolOutputDecoder = feature.id
+      of "protocol_output:modulator":
+        result.features.protocolOutputModulator = feature.id
+      of "protocol_output:resonator":
+        result.features.protocolOutputResonator = feature.id
+      of "protocol_output:scrambler":
+        result.features.protocolOutputScrambler = feature.id
       else:
-        if registerProtocolFeature(feature, "protocol_input:",
-            result.features.protocolInputs):
-          discard
-        elif registerProtocolFeature(feature, "protocol_output:",
-            result.features.protocolOutputs):
-          discard
-        else:
-          echo "Unknown feature: ", feature.name
+        echo "Unknown feature: ", feature.name
 
     for id, name in config.actions:
       case name:
@@ -412,10 +609,15 @@ proc getTag*(cfg: Config, map: Table[Location, seq[FeatureValue]], location: Loc
         return featureValue.value
   return -1
 
-proc getFeature*(cfg: Config, visible: Table[Location, seq[FeatureValue]], featureId: int): int =
+proc getFeature*(
+  cfg: Config,
+  visible: Table[Location,
+  seq[FeatureValue]], featureId: int,
+  location: Location = Location(x: 0, y: 0)
+): int =
   ## Get the feature of the visible map.
-  if Location(x: 0, y: 0) in visible:
-    for featureValue in visible[Location(x: 0, y: 0)]:
+  if location in visible:
+    for featureValue in visible[location]:
       if featureValue.featureId == featureId:
         return featureValue.value
   return -1
@@ -424,9 +626,14 @@ proc getLastAction*(cfg: Config, visible: Table[Location, seq[FeatureValue]]): i
   ## Get the last action of the visible map.
   cfg.getFeature(visible, cfg.features.lastAction)
 
-proc getInventory*(cfg: Config, visible: Table[Location, seq[FeatureValue]], inventoryId: int): int =
+proc getInventory*(
+  cfg: Config,
+  visible: Table[Location, seq[FeatureValue]],
+  inventoryId: int,
+  location: Location = Location(x: 0, y: 0)
+): int =
   ## Get the inventory of the visible map.
-  result = cfg.getFeature(visible, inventoryId)
+  result = cfg.getFeature(visible, inventoryId, location)
   # Missing inventory is 0.
   if result == -1:
     result = 0
@@ -444,11 +651,9 @@ proc getOtherInventory*(
         return featureValue.value
   return 0
 
-proc getVibe*(cfg: Config, visible: Table[Location, seq[FeatureValue]]): int =
+proc getVibe*(cfg: Config, visible: Table[Location, seq[FeatureValue]], location: Location): int =
   ## Get the vibe of the visible map.
-  result = cfg.getFeature(visible, cfg.features.vibe)
-  if result == -1:
-    result = cfg.vibes.default
+  result = cfg.getFeature(visible, cfg.features.vibe, location)
 
 proc getNearby*(
   cfg: Config,
@@ -477,7 +682,8 @@ proc getNearbyUnseen*(
   cfg: Config,
   currentLocation: Location,
   map: Table[Location, seq[FeatureValue]],
-  seen: HashSet[Location]
+  seen: HashSet[Location],
+  unreachables: HashSet[Location]
 ): Option[Location] =
   ## Get if there is a nearby location that is unseen.
   var
@@ -486,7 +692,7 @@ proc getNearbyUnseen*(
     closestDistance = 9999
   for spiralLocation in spiral:
     let location = spiralLocation + currentLocation
-    if location notin seen:
+    if location notin seen and location notin unreachables:
       let distance = manhattan(location, currentLocation)
       if distance < closestDistance:
         closestDistance = distance
@@ -523,9 +729,6 @@ proc isWalkable*(cfg: Config, map: Table[Location, seq[FeatureValue]], loc: Loca
     for featureValue in map[loc]:
       if featureValue.featureId == cfg.features.tag:
         # Its something that blocks movement.
-        return false
-      if featureValue.featureId == cfg.features.orientation:
-        # Its the agent's orientation, so an agent can't move through it.
         return false
       if featureValue.featureId == cfg.features.group:
         # If the group there, then its an agent.
@@ -568,7 +771,7 @@ proc aStar*(
   currentLocation: Location,
   targetLocation: Location,
   map: Table[Location, seq[FeatureValue]]
-): Option[int] =
+): Option[int] {.measure.} =
   ## Navigate to the given location using A*. Returns the next action to take.
   if currentLocation == targetLocation:
     return none(int)
@@ -641,3 +844,8 @@ proc aStar*(
 
   # No path found — fall back to greedy single-step
   return none(int)
+
+proc remove*[T](seq: var seq[T], item: T) =
+  let index = seq.find(item)
+  if index != -1:
+    seq.delete(index)

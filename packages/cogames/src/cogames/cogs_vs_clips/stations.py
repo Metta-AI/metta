@@ -1,7 +1,7 @@
 from pydantic import Field
 
-from cogames.cogs_vs_clips import vibes
 from mettagrid.base_config import Config
+from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, ProtocolConfig, WallConfig
 
 resources = [
@@ -34,7 +34,6 @@ class CvCWallConfig(CvCStationConfig):
 class ExtractorConfig(CvCStationConfig):
     """Base class for all extractor configs."""
 
-    max_uses: int = Field(default=1000)
     efficiency: int = Field(default=100)
 
 
@@ -61,16 +60,17 @@ class ChargerConfig(ExtractorConfig):
 
 # Time consuming but easy to mine.
 class CarbonExtractorConfig(ExtractorConfig):
+    max_uses: int = Field(default=25)
+
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="carbon_extractor",
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["carbon_a"].symbol,
-            # Protocols
             max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
-                    output_resources={"carbon": 4 * self.efficiency // 100},
+                    output_resources={"carbon": 2 * self.efficiency // 100},
                     cooldown=0,
                 )
             ],
@@ -80,20 +80,20 @@ class CarbonExtractorConfig(ExtractorConfig):
         )
 
 
-# Accumulates oxygen over time, needs to be emptied periodically.
-# Takes a lot of space, relative to usage needs.
+# Accumulates over time.
 class OxygenExtractorConfig(ExtractorConfig):
+    max_uses: int = Field(default=5)
+
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="oxygen_extractor",
             map_char="O",
             render_symbol=vibes.VIBE_BY_NAME["oxygen_a"].symbol,
-            # Protocols
             max_uses=self.max_uses,
             allow_partial_usage=True,  # can use it while its on cooldown
             protocols=[
                 ProtocolConfig(
-                    output_resources={"oxygen": 20},
+                    output_resources={"oxygen": 10},
                     cooldown=int(10_000 / self.efficiency),
                 )
             ],
@@ -105,24 +105,26 @@ class OxygenExtractorConfig(ExtractorConfig):
 
 # Rare and doesn't regenerate. But more cogs increase efficiency.
 class GermaniumExtractorConfig(ExtractorConfig):
+    # How much one agent gets.
+    efficiency: int = 2
+    # How much each additional agent gets.
     synergy: int = 1
-    efficiency: int = 1
 
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="germanium_extractor",
             map_char="G",
             render_symbol=vibes.VIBE_BY_NAME["germanium_a"].symbol,
-            # Protocols
-            max_uses=self.max_uses,
+            # Germanium is inherently a single use resource.
+            max_uses=1,
             protocols=[
-                ProtocolConfig(output_resources={"germanium": self.efficiency}),
-                *[
-                    ProtocolConfig(
-                        vibes=["germanium_a"] * i, output_resources={"germanium": self.efficiency + i * self.synergy}
-                    )
-                    for i in range(1, 5)
-                ],
+                ProtocolConfig(
+                    # For the 1 agent protocol, we set min_agents to zero so it's visible when no
+                    # agents are adjacent to the extractor.
+                    min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
+                    output_resources={"germanium": self.efficiency + additional_agents * self.synergy},
+                )
+                for additional_agents in range(4)
             ],
             # Clipping
             start_clipped=self.start_clipped,
@@ -130,20 +132,20 @@ class GermaniumExtractorConfig(ExtractorConfig):
         )
 
 
+# Bulky and energy intensive.
 class SiliconExtractorConfig(ExtractorConfig):
-    max_uses: int = Field(default=100)  # Silicon has lower default than other extractors
+    max_uses: int = Field(default=10)
 
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="silicon_extractor",
             map_char="S",
             render_symbol=vibes.VIBE_BY_NAME["silicon_a"].symbol,
-            # Protocols
-            max_uses=self.max_uses,  # Use direct value, no division
+            max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
-                    input_resources={"energy": 25},
-                    output_resources={"silicon": max(1, int(25 * self.efficiency // 100))},
+                    input_resources={"energy": 20},
+                    output_resources={"silicon": max(1, int(15 * self.efficiency // 100))},
                 )
             ],
             # Clipping
@@ -184,7 +186,7 @@ class CvCAssemblerConfig(CvCStationConfig):
     additional_heart_cost: int = Field(default=5)
 
     def station_cfg(self) -> AssemblerConfig:
-        gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
+        gear = [("carbon", "decoder"), ("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator")]
         return AssemblerConfig(
             name="assembler",
             map_char="&",
@@ -194,11 +196,10 @@ class CvCAssemblerConfig(CvCStationConfig):
                 ProtocolConfig(
                     vibes=["heart_a"] * (i + 1),
                     input_resources={
-                        "carbon": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
-                        "oxygen": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
-                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 2),
-                        "silicon": 5 * (self.first_heart_cost + self.additional_heart_cost * i),
-                        "energy": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
+                        "carbon": self.first_heart_cost + self.additional_heart_cost * i,
+                        "oxygen": self.first_heart_cost + self.additional_heart_cost * i,
+                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 5),
+                        "silicon": 3 * (self.first_heart_cost + self.additional_heart_cost * i),
                     },
                     output_resources={"heart": i + 1},
                 )

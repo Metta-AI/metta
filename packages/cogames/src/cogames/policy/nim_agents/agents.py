@@ -14,8 +14,16 @@ if bindings_dir not in sys.path:
 na = importlib.import_module("nim_agents")
 
 
+def start_measure():
+    na.start_measure()
+
+
+def end_measure():
+    na.end_measure()
+
+
 class ThinkyAgentsMultiPolicy(NimMultiAgentPolicy):
-    short_names = ["nim_thinky"]
+    short_names = ["nim_thinky", "thinky"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
         super().__init__(
@@ -45,3 +53,19 @@ class RaceCarAgentsMultiPolicy(NimMultiAgentPolicy):
             nim_policy_factory=na.RaceCarPolicy,
             agent_ids=agent_ids,
         )
+
+
+class LadyBugAgentsMultiPolicy(NimMultiAgentPolicy):
+    short_names = ["nim_ladybug"]
+
+    def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
+        super().__init__(
+            policy_env_info,
+            nim_policy_factory=na.LadybugPolicy,
+            agent_ids=agent_ids,
+        )
+
+
+# Backwards compatibility for older import path (lowercase "b")
+class LadybugAgentsMultiPolicy(LadyBugAgentsMultiPolicy):
+    pass

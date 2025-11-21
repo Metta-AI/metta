@@ -82,7 +82,9 @@ def train(
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=simulations()),
+        evaluator=EvaluatorConfig(
+            simulations=simulations(), evaluate_remote=True, evaluate_local=True, skip_git_check=True
+        ),
     )
 
 

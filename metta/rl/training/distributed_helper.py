@@ -61,32 +61,6 @@ class DistributedHelper:
             torch.backends.cuda.enable_mem_efficient_sdp(True)
             torch.backends.cuda.enable_math_sdp(True)
             logger.info("Enabled PyTorch CUDA optimizations")
-            self._warn_if_cuda_architecture_mismatch()
-
-    def _warn_if_cuda_architecture_mismatch(self) -> None:
-        """Log a warning if installed CUDA kernels do not cover detected devices."""
-        if not torch.cuda.is_available() or not hasattr(torch.cuda, "get_arch_list"):
-            return
-
-        try:
-            compiled_architectures = torch.cuda.get_arch_list()
-        except RuntimeError:
-            return
-
-        if not compiled_architectures:
-            return
-
-        for device_index in range(torch.cuda.device_count()):
-            major, minor = torch.cuda.get_device_capability(device_index)
-            capability_tag = f"sm_{major}{minor}"
-            if capability_tag not in compiled_architectures:
-                logger.warning(
-                    "Detected CUDA capability %s, but this PyTorch build only includes kernels for [%s]. "
-                    "Run with `system.device=cpu` or reinstall PyTorch with a wheel targeting your GPU.",
-                    f"{major}.{minor}",
-                    ", ".join(compiled_architectures),
-                )
-                break
 
     def _setup_distributed_training(self, system_cfg: SystemConfig) -> Optional[dict[str, Any]]:
         """Return distributed config values or None if world_size = 1"""

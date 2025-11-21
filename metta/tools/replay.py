@@ -5,16 +5,15 @@ import os
 import subprocess
 from pathlib import Path
 
-import torch
 from pydantic import Field
 
-from metta.agent.mocks import MockAgent
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.runner import MultiAgentPolicyInitializer, run_simulations
+from metta.sim.runner import run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
+from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
 
@@ -32,43 +31,30 @@ class ReplayTool(Tool):
     open_browser_on_start: bool = True
     launch_viewer: bool = True
 
-    def _build_policy_initializer(self, normalized_uri: str | None) -> MultiAgentPolicyInitializer:
-        device = torch.device("cpu")
-
-        def _initializer(policy_env_info):
-            if normalized_uri is None:
-                policy = MockAgent(policy_env_info)
-            else:
-                artifact = CheckpointManager.load_artifact_from_uri(normalized_uri)
-                policy = artifact.instantiate(policy_env_info, device=device)
-
-            policy = policy.to(device)
-            policy.eval()
-            return policy
-
-        return _initializer
+    @staticmethod
+    def _build_policy_spec(normalized_uri: str | None) -> PolicySpec:
+        if normalized_uri is None:
+            return PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
+        return CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
 
     def invoke(self, args: dict[str, str]) -> int | None:
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri) if self.policy_uri else None
-        policy_initializers = [self._build_policy_initializer(normalized_uri)]
+        policy_spec = self._build_policy_spec(normalized_uri)
 
         simulation_run = self.sim.to_simulation_run_config()
 
         simulation_results = run_simulations(
-            policy_initializers=policy_initializers,
+            policy_specs=[policy_spec],
             simulations=[simulation_run],
             replay_dir=self.replay_dir,
             seed=self.system.seed,
-            enable_replays=True,
         )
 
         result = simulation_results[0]
-        replay_urls = result.replay_urls
-        if not replay_urls:
-            logger.error("No replay URLs found in simulation results", exc_info=True)
+        replay_url = result.results.episodes[0].replay_path
+        if not replay_url:
+            logger.error("No replay path found in simulation results", exc_info=True)
             return 1
-
-        replay_url = next(iter(replay_urls.values()))
 
         if self.launch_viewer:
             launch_mettascope(replay_url)

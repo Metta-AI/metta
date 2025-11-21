@@ -87,7 +87,8 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._buffers: Buffers = Buffers(
             observations=np.zeros(
-                (policy_env_info.num_agents, *policy_env_info.observation_space.shape), dtype=dtype_observations
+                (policy_env_info.num_agents, *policy_env_info.observation_space.shape),
+                dtype=dtype_observations,
             ),
             terminals=np.zeros(policy_env_info.num_agents, dtype=dtype_terminals),
             truncations=np.zeros(policy_env_info.num_agents, dtype=dtype_truncations),
@@ -157,6 +158,11 @@ class MettaGridPufferEnv(PufferEnv):
         if sim._c_sim.terminals().all() or sim._c_sim.truncations().all():
             self._new_sim()
             sim = cast(Simulation, self._sim)
+
+        # Gymnasium returns int64 arrays by default when sampling MultiDiscrete spaces,
+        # so coerce here to keep callers simple while preserving strict bounds checking.
+        actions_to_copy = actions if actions.dtype == dtype_actions else np.asarray(actions, dtype=dtype_actions)
+        np.copyto(self._buffers.actions, actions_to_copy, casting="safe")
 
         sim.step()
 

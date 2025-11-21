@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -58,9 +59,12 @@ class JobManager:
         max_remote_jobs: int = 10,
         remote_poll_interval_s: float = 5.0,
         metrics_fetch_interval_s: float = 300.0,  # Fetch metrics every 5 minutes
+        group: str | None = None,  # Optional group name for unique database file
     ):
         self.base_dir = Path(base_dir)
-        self.db_path = self.base_dir / "jobs.sqlite"
+        # Use group-specific database file if provided, otherwise use default jobs.sqlite
+        db_filename = f"{group}.sqlite" if group else "jobs.sqlite"
+        self.db_path = self.base_dir / db_filename
         self.log_dir = self.base_dir / "logs"
         self.max_local_jobs = max_local_jobs
         self.max_remote_jobs = max_remote_jobs
@@ -78,8 +82,52 @@ class JobManager:
         self._remote_jobs_lock = threading.Lock()
         self._remote_batch_monitor: threading.Thread | None = None  # Batch status checks for all remote jobs
         self._remote_batch_monitor_stop = threading.Event()
+
+        # State change callbacks (not persisted)
+        self._state_change_callbacks: dict[str, Callable[[str, str, str], None]] = {}
+        self._callbacks_lock = threading.Lock()
+
         self._init_db()
         self._validate_job_states()
+
+    def set_state_change_callback(self, job_name: str, callback: Callable[[str, str, str], None]) -> None:
+        """Register a callback for job state changes.
+
+        Args:
+            job_name: Name of job to monitor
+            callback: Function(job_name, old_status, new_status) called on state change
+        """
+        with self._callbacks_lock:
+            self._state_change_callbacks[job_name] = callback
+
+    def _trigger_state_change_callback(self, job_name: str, old_status: str, new_status: str) -> None:
+        """Trigger registered callback for a job state change.
+
+        Args:
+            job_name: Name of job that changed state
+            old_status: Previous status
+            new_status: New status
+        """
+        with self._callbacks_lock:
+            callback = self._state_change_callbacks.get(job_name)
+
+        if callback:
+            try:
+                callback(job_name, old_status, new_status)
+            except Exception as e:
+                logger.error(f"State change callback failed for {job_name}: {e}")
+
+    def _update_job_status(self, job_state: JobState, new_status: str) -> None:
+        """Update job status and trigger callback if status changed.
+
+        Args:
+            job_state: JobState instance to update
+            new_status: New status value
+        """
+        old_status = job_state.status
+        if old_status != new_status:
+            job_state.status = new_status
+            self._trigger_state_change_callback(job_state.name, old_status, new_status)
 
     def _init_db(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -167,7 +215,7 @@ class JobManager:
 
                     if status and status not in SKYPILOT_RUNNING_STATUSES:
                         # Job finished while we were down - mark complete
-                        job_state.update_status(JobStatus.COMPLETED)
+                        self._update_job_status(job_state, JobStatus.COMPLETED)
                         job_state.skypilot_status = status
                         job_state.exit_code = self._map_skypilot_status_to_exit_code(status)
                         job_state.completed_at = datetime.now().isoformat(timespec="seconds")
@@ -198,7 +246,7 @@ class JobManager:
 
             # Mark local jobs as stale (can't reattach to subprocesses)
             for job_state in local_stale:
-                job_state.update_status(JobStatus.COMPLETED)
+                self._update_job_status(job_state, JobStatus.COMPLETED)
                 job_state.exit_code = -1  # Abnormal termination
                 job_state.completed_at = datetime.now().isoformat(timespec="seconds")
                 session.add(job_state)
@@ -325,7 +373,7 @@ class JobManager:
             if not job_state:
                 return False
 
-            job_state.update_status(JobStatus.COMPLETED)
+            self._update_job_status(job_state, JobStatus.COMPLETED)
             job_state.completed_at = datetime.now().isoformat(timespec="seconds")
             job_state.exit_code = job_result.exit_code
             job_state.logs_path = job_result.logs_path
@@ -346,11 +394,7 @@ class JobManager:
             session.add(job_state)
             session.commit()
 
-        # Clean up active job
-        with self._local_jobs_lock:
-            if job_name in self._active_local_jobs:
-                del self._active_local_jobs[job_name]
-
+        # Note: Active job cleanup happens in monitor thread's finally block
         return True
 
     def _handle_remote_job_completion(self, job_name: str, status: str, job_id: int) -> bool:
@@ -376,7 +420,7 @@ class JobManager:
             exit_code = self._map_skypilot_status_to_exit_code(status)
 
             prev_status = job_state.skypilot_status
-            job_state.update_status(JobStatus.COMPLETED)
+            self._update_job_status(job_state, JobStatus.COMPLETED)
             job_state.completed_at = datetime.now().isoformat(timespec="seconds")
             job_state.exit_code = exit_code
             if not job_state.job_id:
@@ -406,11 +450,7 @@ class JobManager:
                 f"exit_code={job_state.exit_code}, acceptance={job_state.acceptance_passed}"
             )
 
-        # Clean up active job
-        with self._remote_jobs_lock:
-            if job_name in self._active_remote_jobs:
-                del self._active_remote_jobs[job_name]
-
+        # Note: Active job cleanup happens in monitor thread's finally block
         return True
 
     def _start_local_monitor(self, job_name: str, fetch_immediately: bool = False) -> None:
@@ -458,8 +498,12 @@ class JobManager:
             except Exception as e:
                 logger.warning(f"Local monitor thread for {job_name} failed: {e}")
             finally:
-                # Clean up monitor thread (protected by lock)
+                # Always clean up active job and monitor thread on exit
+                # (even if completion handler failed, to avoid blocking slots forever)
                 with self._local_jobs_lock:
+                    if job_name in self._active_local_jobs:
+                        del self._active_local_jobs[job_name]
+                        logger.debug(f"Freed local worker slot (monitor thread exiting for {job_name})")
                     if job_name in self._local_monitor_threads:
                         del self._local_monitor_threads[job_name]
 
@@ -622,8 +666,12 @@ class JobManager:
                 time.sleep(1.0)
 
             finally:
-                # Clean up monitor thread (protected by lock)
+                # Always clean up active job and monitor thread on exit
+                # (even if completion handler failed, to avoid blocking slots forever)
                 with self._remote_jobs_lock:
+                    if job_name in self._active_remote_jobs:
+                        del self._active_remote_jobs[job_name]
+                        logger.debug(f"Freed remote worker slot (monitor thread exiting for {job_name})")
                     if job_name in self._remote_monitor_threads:
                         del self._remote_monitor_threads[job_name]
 
@@ -679,10 +727,15 @@ class JobManager:
 
             # Check dependencies first
             if not self._dependencies_satisfied(job_state, session):
+                logger.debug(f"Job {name} waiting for dependencies")
                 return False
 
             is_remote = job_state.config.remote is not None
             if not self._has_available_slot_for_type(is_remote):
+                job_type = "remote" if is_remote else "local"
+                active_count = self._count_active_jobs_by_type(is_remote)
+                max_jobs = self.max_remote_jobs if is_remote else self.max_local_jobs
+                logger.debug(f"Job {name} waiting for {job_type} worker slot (active: {active_count}/{max_jobs})")
                 return False
 
             # Spawn job and update state with job metadata
@@ -710,7 +763,7 @@ class JobManager:
                 with self._local_jobs_lock:
                     self._active_local_jobs[name] = job
 
-            job_state.update_status(JobStatus.RUNNING)
+            self._update_job_status(job_state, JobStatus.RUNNING)
             job_state.started_at = datetime.now().isoformat(timespec="seconds")
             session.add(job_state)
 

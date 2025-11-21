@@ -19,7 +19,6 @@
 #include "actions/noop.hpp"
 #include "actions/resource_mod.hpp"
 #include "config/observation_features.hpp"
-#include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
@@ -80,10 +79,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     feature_id_to_name[id] = name;
   }
 
-  _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>(&resource_names);
-
-  _event_manager->init(_grid.get());
 
   _action_success.resize(num_agents);
 
@@ -130,13 +126,6 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
                                object_type_names[type_id] + ". Trying to add " + object_cfg->type_name + ".");
     }
     object_type_names[type_id] = object_cfg->type_name;
-
-    const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg.get());
-    if (agent_config) {
-      unsigned int id = agent_config->group_id;
-      _group_sizes[id] = 0;
-      _group_reward_pct[id] = agent_config->group_reward_pct;
-    }
   }
 
   // Initialize objects from map
@@ -176,7 +165,6 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->set_obs_encoder(_obs_encoder.get());
         add_agent(agent);
-        _group_sizes[agent->group] += 1;
         continue;
       }
 
@@ -204,8 +192,6 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
       throw std::runtime_error("Unable to create object of type " + cell + " at (" + std::to_string(r) + ", " +
                                std::to_string(c) + ")");
     }
-
-    _group_rewards.resize(_group_sizes.size());
   }
 }
 
@@ -247,14 +233,10 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
-  // Compute initial observations
-  auto zero_actions =
-      py::array_t<ActionType, py::array::c_style>(std::vector<ssize_t>{static_cast<ssize_t>(_agents.size())});
-  std::fill(static_cast<ActionType*>(zero_actions.request().ptr),
-            static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
-            static_cast<ActionType>(0));
-
-  _compute_observations(zero_actions);
+  // Compute initial observations. Every agent starts with a noop.
+  std::vector<ActionType> executed_actions(_agents.size());
+  std::fill(executed_actions.begin(), executed_actions.end(), ActionType(0));
+  _compute_observations(executed_actions);
 }
 
 void MettaGrid::init_action_handlers(const GameConfig& game_config) {
@@ -464,18 +446,10 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   _stats->add("tokens_free_space", static_cast<size_t>(observation_view.shape(1)) - tokens_written);
 }
 
-void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c_style> actions) {
-  auto info = actions.request();
-
-  // Actions must be 1D now
-  if (info.ndim != 1) {
-    throw std::runtime_error("actions must be 1D array");
-  }
-
-  auto actions_view = actions.unchecked<1>();
+void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
-    ActionType action_idx = actions_view(idx);
+    ActionType action_idx = executed_actions[idx];
     _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, action_idx);
   }
 }
@@ -505,13 +479,15 @@ void MettaGrid::_step() {
 
   // Increment timestep and process events
   current_step++;
-  _event_manager->process_events(current_step);
 
   // Create and shuffle agent indices for randomized action order
   std::vector<size_t> agent_indices(_agents.size());
   std::iota(agent_indices.begin(), agent_indices.end(), 0);
   std::shuffle(agent_indices.begin(), agent_indices.end(), _rng);
 
+  std::vector<ActionType> executed_actions(_agents.size());
+  // Fill with noop. Replace this with the actual action if it's successful.
+  std::fill(executed_actions.begin(), executed_actions.end(), ActionType(0));
   // Process actions by priority levels (highest to lowest)
   for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
     unsigned char current_priority = _max_action_priority - offset;
@@ -530,7 +506,11 @@ void MettaGrid::_step() {
       }
 
       auto* agent = _agents[agent_idx];
-      _action_success[agent_idx] = action.handle(*agent);
+      bool success = action.handle(*agent);
+      _action_success[agent_idx] = success;
+      if (success) {
+        executed_actions[agent_idx] = action_idx;
+      }
     }
   }
 
@@ -574,7 +554,7 @@ void MettaGrid::_step() {
   }
 
   // Compute observations for next step
-  _compute_observations(_actions);
+  _compute_observations(executed_actions);
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {
@@ -673,35 +653,6 @@ void MettaGrid::step() {
   }
 
   _step();
-
-  auto rewards_view = _rewards.mutable_unchecked<1>();
-
-  // Clear group rewards from previous step
-  std::fill(_group_rewards.begin(), _group_rewards.end(), 0.0f);
-
-  bool share_rewards = false;
-
-  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    if (rewards_view(agent_idx) != 0.0f) {
-      share_rewards = true;
-      auto& agent = _agents[agent_idx];
-      auto group_id = agent->group;
-
-      RewardType agent_reward = rewards_view(agent_idx);
-      RewardType group_reward = agent_reward * _group_reward_pct[group_id];
-      rewards_view(agent_idx) = agent_reward - group_reward;
-
-      _group_rewards[group_id] += group_reward / static_cast<RewardType>(_group_sizes[group_id]);
-    }
-  }
-
-  if (share_rewards) {
-    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-      auto& agent = _agents[agent_idx];
-      size_t group_id = static_cast<size_t>(agent->group);
-      rewards_view(agent_idx) += _group_rewards[group_id];
-    }
-  }
 }
 
 py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_col, const py::list& ignore_types) {
@@ -825,27 +776,30 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       }
 
       // Add all protocols information
-      const std::unordered_map<uint64_t, std::shared_ptr<Protocol>>& active_protocols =
+      const std::unordered_map<GroupVibe, vector<std::shared_ptr<Protocol>>>& active_protocols =
           assembler->is_clipped ? assembler->unclip_protocols : assembler->protocols;
       py::list protocols_list;
 
-      for (const auto& [vibe, protocol] : active_protocols) {
-        py::dict protocol_dict;
+      for (const auto& [vibe, protocols] : active_protocols) {
+        for (const auto& protocol : protocols) {
+          py::dict protocol_dict;
 
-        py::dict input_resources_dict;
-        for (const auto& [resource, quantity] : protocol->input_resources) {
-          input_resources_dict[py::int_(resource)] = quantity;
+          py::dict input_resources_dict;
+          for (const auto& [resource, quantity] : protocol->input_resources) {
+            input_resources_dict[py::int_(resource)] = quantity;
+          }
+          protocol_dict["inputs"] = input_resources_dict;
+
+          py::dict output_resources_dict;
+          for (const auto& [resource, quantity] : protocol->output_resources) {
+            output_resources_dict[py::int_(resource)] = quantity;
+          }
+          protocol_dict["outputs"] = output_resources_dict;
+          protocol_dict["cooldown"] = protocol->cooldown;
+          protocol_dict["min_agents"] = protocol->min_agents;
+          protocol_dict["vibes"] = protocol->vibes;
+          protocols_list.append(protocol_dict);
         }
-        protocol_dict["inputs"] = input_resources_dict;
-
-        py::dict output_resources_dict;
-        for (const auto& [resource, quantity] : protocol->output_resources) {
-          output_resources_dict[py::int_(resource)] = quantity;
-        }
-        protocol_dict["outputs"] = output_resources_dict;
-        protocol_dict["cooldown"] = protocol->cooldown;
-
-        protocols_list.append(protocol_dict);
       }
       obj_dict["protocols"] = protocols_list;
     }

@@ -43,26 +43,30 @@ class AgentRewards(Config):
     stats_max: dict[str, float] = Field(default_factory=dict)
 
 
+class ResourceLimitsConfig(Config):
+    """Resource limits configuration."""
+
+    limit: int
+    resources: list[str]
+
+
 # TODO: this should probably subclass GridObjectConfig
 class AgentConfig(Config):
     """Python agent configuration."""
 
     default_resource_limit: int = Field(default=255, ge=0)
-    resource_limits: dict[str | tuple[str, ...], int] = Field(
+    resource_limits: dict[str, ResourceLimitsConfig] = Field(
         default_factory=dict,
-        description="Resource limits - keys can be single resource names or tuples of names for shared limits",
+        description="Resource limits for this agent",
     )
-    freeze_duration: int = Field(default=10, ge=-1)
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     action_failure_penalty: float = Field(default=0, ge=0)
+    freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
-    )
-    shareable_resources: list[str] = Field(
-        default_factory=list, description="Resources that will be shared when we use another agent"
     )
     inventory_regen_amounts: dict[str, int] = Field(
         default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
@@ -71,7 +75,20 @@ class AgentConfig(Config):
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
     )
+    vibe_transfers: dict[str, dict[str, int]] = Field(
+        default_factory=dict, description="Maps vibe name to resource deltas for agent-to-agent sharing"
+    )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
+
+    def get_limit_for_resource(self, resource_name: str) -> int:
+        """Get the resource limit for a given resource name.
+
+        Returns the limit from resource_limits if found, otherwise returns default_resource_limit.
+        """
+        for resource_limit in self.resource_limits.values():
+            if resource_name in resource_limit.resources:
+                return resource_limit.limit
+        return self.default_resource_limit
 
 
 class ActionConfig(Config):
@@ -234,6 +251,9 @@ class WallConfig(GridObjectConfig):
 
 
 class ProtocolConfig(Config):
+    # Note that `vibes` implicitly also sets a minimum number of agents. So min_agents is useful
+    # when you want to set a minimum that's higher than the number of vibes.
+    min_agents: int = Field(default=0, ge=0, description="Number of agents required to use this protocol")
     vibes: list[str] = Field(default_factory=list)
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
@@ -293,9 +313,19 @@ class ChestConfig(GridObjectConfig):
     )
 
     # Resource limits for the chest's inventory
-    resource_limits: dict[str, int] = Field(
-        default_factory=dict, description="Maximum amount per resource (uses inventory system's built-in limits)"
+    resource_limits: dict[str, ResourceLimitsConfig] = Field(
+        default_factory=dict, description="Resource limits for this chest"
     )
+
+    def get_limit(self, resource_name: str) -> Optional[int]:
+        """Get the resource limit for a given resource name.
+
+        Returns the limit from resource_limits if found, otherwise returns None.
+        """
+        for resource_limit in self.resource_limits.values():
+            if resource_name in resource_limit.resources:
+                return resource_limit.limit
+        return None
 
 
 class ClipperConfig(Config):

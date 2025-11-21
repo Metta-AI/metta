@@ -79,4 +79,11 @@ class PolicyEnvInterface(BaseModel):
         payload = self.model_dump(mode="json", include={"num_agents", "obs_width", "obs_height", "tags"})
         payload["actions"] = self.action_names
         payload["obs_features"] = [feature.model_dump(mode="json") for feature in self.obs_features]
+        payload["assembler_protocols"] = [
+            {
+                "input_resources": getattr(proto, "input_resources", {}) or {},
+                "output_resources": getattr(proto, "output_resources", {}) or {},
+            }
+            for proto in self.assembler_protocols
+        ]
         return json.dumps(payload)

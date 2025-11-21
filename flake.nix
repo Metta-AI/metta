@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-python.url = "github:cachix/nixpkgs-python";
   };
 
@@ -15,10 +16,14 @@
     ];
   };
 
-  outputs = { self, nixpkgs, nixpkgs-python, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixpkgs-python, ... }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
+      };
+      unstable = import nixpkgs-unstable {
         inherit system;
         config.allowUnfree = true;
       };
@@ -30,7 +35,7 @@
 
         buildInputs = with pkgs; [
           mettaPython
-          uv
+          unstable.uv
           bazel_7
           stdenv.cc.cc.lib
           pnpm

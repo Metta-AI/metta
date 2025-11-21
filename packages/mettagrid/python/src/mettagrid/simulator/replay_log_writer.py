@@ -4,14 +4,14 @@ import json
 import logging
 import uuid
 import zlib
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 
-from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
-from metta.common.util.file import http_url, write_data
+from mettagrid.renderer.mettascope import METTASCOPE_REPLAY_URL_PREFIX
 from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.simulator.simulator import Simulation
+from mettagrid.util.file import http_url, write_data
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 logger = logging.getLogger("ReplayLogWriter")
@@ -32,6 +32,7 @@ class ReplayLogWriter(SimulatorEventHandler):
         self._should_continue = True
         self.episodes: Dict[str, EpisodeReplay] = {}
         self._episode_urls: Dict[str, str] = {}
+        self._episode_paths: Dict[str, str] = {}
 
     def on_episode_start(self) -> None:
         """Start recording a new episode."""
@@ -40,7 +41,7 @@ class ReplayLogWriter(SimulatorEventHandler):
         self._episode_replay = EpisodeReplay(self._sim)
         assert self._episode_id is not None
         self.episodes[self._episode_id] = self._episode_replay
-        logger.info("Started recording episode %s", self._episode_id)
+        logger.debug("Started recording episode %s", self._episode_id)
 
     def on_step(
         self,
@@ -67,10 +68,11 @@ class ReplayLogWriter(SimulatorEventHandler):
         self._episode_replay.write_replay(replay_path)
         url = http_url(replay_path)
         self._episode_urls[self._episode_id] = url
+        self._episode_paths[self._episode_id] = replay_path
         self._sim._context["replay_url"] = url
         logger.info("Wrote replay for episode %s to %s", self._episode_id, url)
-        logger.info("Watch replay at %s", METTASCOPE_REPLAY_URL_PREFIX + url)
-        logger.info(
+        logger.debug("Watch replay at %s", METTASCOPE_REPLAY_URL_PREFIX + url)
+        logger.debug(
             "Watch locally: "
             + f"nim r -d:fidgetUseCached packages/mettagrid/nim/mettascope/src/mettascope.nim --replay={replay_path}"
         )
@@ -78,6 +80,10 @@ class ReplayLogWriter(SimulatorEventHandler):
     def get_written_replay_urls(self) -> Dict[str, str]:
         """Return URLs for every replay file that has been written to disk."""
         return dict(self._episode_urls)
+
+    def get_written_replay_paths(self) -> List[str]:
+        """Return file paths for every replay file that has been written to disk."""
+        return list(self._episode_paths.values())
 
 
 class EpisodeReplay:

@@ -64,37 +64,6 @@ assembler_armory = AssemblerConfig(
     protocols=[ProtocolConfig(input_resources={"ore_red": 3}, output_resources={"armor": 1}, cooldown=10)],
 )
 
-assembler_lab = AssemblerConfig(
-    name="lab",
-    map_char="L",
-    render_symbol="🔵",
-    protocols=[
-        ProtocolConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10)
-    ],
-)
-
-assembler_factory = AssemblerConfig(
-    name="factory",
-    map_char="F",
-    render_symbol="🟪",
-    protocols=[
-        ProtocolConfig(input_resources={"battery_red": 1, "ore_red": 2}, output_resources={"laser": 1}, cooldown=10)
-    ],
-)
-
-assembler_temple = AssemblerConfig(
-    name="temple",
-    map_char="T",
-    render_symbol="🟨",
-    protocols=[
-        ProtocolConfig(
-            input_resources={"battery_red": 1, "ore_red": 2},
-            output_resources={"laser": 1},
-            cooldown=10,
-        )
-    ],
-)
-
 nav_assembler = AssemblerConfig(
     name="nav_assembler",
     map_char="_",

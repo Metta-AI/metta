@@ -1,3 +1,4 @@
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -6,13 +7,19 @@ import pytest
 import torch
 import torch.nn as nn
 from pydantic import Field
+from tensordict import TensorDict
 
+import mettagrid.builder.envs as eb
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class MockActionComponentConfig(ComponentConfig):
@@ -54,9 +61,12 @@ def mock_policy_architecture():
 class TestBasicSaveLoad:
     def test_load_from_uri_with_latest(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Test loading policy with :latest selector."""
-        checkpoint_manager.save_agent(mock_agent, epoch=1, policy_architecture=mock_policy_architecture)
-        checkpoint_manager.save_agent(mock_agent, epoch=7, policy_architecture=mock_policy_architecture)
-        checkpoint_manager.save_agent(mock_agent, epoch=3, policy_architecture=mock_policy_architecture)
+        for epoch in [1, 7, 3]:
+            save_policy_artifact_safetensors(
+                checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}.mpt",
+                policy_architecture=mock_policy_architecture,
+                state_dict=mock_agent.state_dict(),
+            )
 
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}:latest"
         artifact = CheckpointManager.load_artifact_from_uri(latest_uri)
@@ -67,7 +77,11 @@ class TestBasicSaveLoad:
         assert metadata["epoch"] == 7
 
     def test_save_and_load_agent(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        checkpoint_manager.save_agent(mock_agent, epoch=5, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
 
         checkpoint_dir = checkpoint_manager.checkpoint_dir
         expected_filename = "test_run:v5.mpt"
@@ -90,20 +104,39 @@ class TestBasicSaveLoad:
         expected_filename = "test_run:v3.mpt"
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
 
-        with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
-            remote_uri = manager.save_agent(mock_agent, epoch=3, policy_architecture=mock_policy_architecture)
+        try:
+            with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
+                local_path = manager.checkpoint_dir / expected_filename
+                save_policy_artifact_safetensors(
+                    local_path,
+                    policy_architecture=mock_policy_architecture,
+                    state_dict=mock_agent.state_dict(),
+                )
 
-        assert remote_uri == expected_remote
-        mock_write.assert_called_once()
-        remote_arg, local_arg = mock_write.call_args[0]
-        assert remote_arg == expected_remote
-        assert Path(local_arg).name == expected_filename
+                # Upload via the actual policy save path
+                env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+                policy_spec = CheckpointManager.policy_spec_from_uri(f"file://{local_path}")
+                policy = initialize_or_load_policy(env_info, policy_spec)
+                remote_uri = policy.save_policy(expected_remote, policy_architecture=mock_policy_architecture)
+
+                assert remote_uri == expected_remote
+                mock_write.assert_called_once()
+                remote_arg, local_arg = mock_write.call_args[0]
+                assert remote_arg == expected_remote
+                assert Path(local_arg).name == Path(expected_filename).name
+        finally:
+            if Path(expected_filename).exists():
+                os.remove(expected_filename)
 
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         epochs = [1, 5, 10]
 
         for epoch in epochs:
-            checkpoint_manager.save_agent(mock_agent, epoch=epoch, policy_architecture=mock_policy_architecture)
+            save_policy_artifact_safetensors(
+                checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}.mpt",
+                policy_architecture=mock_policy_architecture,
+                state_dict=mock_agent.state_dict(),
+            )
 
         latest_checkpoint = checkpoint_manager.get_latest_checkpoint()
         assert latest_checkpoint is not None
@@ -112,7 +145,11 @@ class TestBasicSaveLoad:
         assert artifact.state_dict is not None
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        checkpoint_manager.save_agent(mock_agent, epoch=5, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
 
         mock_optimizer = torch.optim.Adam([torch.tensor(1.0)])
         stopwatch_state = {"elapsed_time": 123.45}
@@ -130,9 +167,116 @@ class TestBasicSaveLoad:
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is None
 
-        checkpoint_manager.save_agent(mock_agent, epoch=1, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v1.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
+
+    def test_policy_spec_from_uri_initializes_checkpoint(
+        self,
+        checkpoint_manager,
+        mock_agent,
+        mock_policy_architecture,
+    ):
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v1.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
+        latest = checkpoint_manager.get_latest_checkpoint()
+        assert latest is not None
+        spec = CheckpointManager.policy_spec_from_uri(latest)
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = initialize_or_load_policy(env_info, spec)
+        assert policy.agent_policy(0) is not None
+
+    def test_checkpoint_policy_remains_callable(
+        self,
+        checkpoint_manager,
+        mock_agent,
+        mock_policy_architecture,
+    ):
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v2.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
+        latest = checkpoint_manager.get_latest_checkpoint()
+        assert latest is not None
+        spec = CheckpointManager.policy_spec_from_uri(latest)
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = initialize_or_load_policy(env_info, spec)
+
+        assert callable(policy)
+
+        obs_shape = env_info.observation_space.shape
+        env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)
+        td = TensorDict({"env_obs": env_obs}, batch_size=[env_info.num_agents])
+        result = policy(td.clone())
+        assert "actions" in result
+
+    def test_policy_spec_display_name_preserved(
+        self,
+        checkpoint_manager,
+        mock_agent,
+        mock_policy_architecture,
+    ):
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v4.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
+        latest = checkpoint_manager.get_latest_checkpoint()
+        assert latest is not None
+        spec = CheckpointManager.policy_spec_from_uri(latest, display_name="friendly-name")
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = initialize_or_load_policy(env_info, spec)
+        assert getattr(policy, "display_name", "") == "friendly-name"
+
+    def test_checkpoint_policy_save_policy_round_trip(
+        self,
+        checkpoint_manager,
+        mock_agent,
+        mock_policy_architecture,
+    ):
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
+        latest = checkpoint_manager.get_latest_checkpoint()
+        assert latest is not None
+        spec = CheckpointManager.policy_spec_from_uri(latest)
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = initialize_or_load_policy(env_info, spec)
+
+        save_path = checkpoint_manager.checkpoint_dir / "resaved.mpt"
+        saved_uri = policy.save_policy(save_path, policy_architecture=mock_policy_architecture)
+
+        assert save_path.exists()
+        reload_spec = CheckpointManager.policy_spec_from_uri(saved_uri, device="cpu")
+        reloaded = initialize_or_load_policy(env_info, reload_spec)
+        assert reloaded is not None
+
+    def test_policy_spec_from_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v2.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
+        latest = checkpoint_manager.get_latest_checkpoint()
+        assert latest is not None
+
+        spec = CheckpointManager.policy_spec_from_uri(latest, display_name="custom", device="cpu")
+        assert isinstance(spec, PolicySpec)
+        assert spec.class_path == "metta.rl.checkpoint_manager.CheckpointPolicy"
+        assert spec.init_kwargs is not None
+        assert spec.init_kwargs["checkpoint_uri"] == CheckpointManager.normalize_uri(latest)
+        assert spec.init_kwargs["display_name"] == "custom"
+        assert spec.init_kwargs["device"] == "cpu"
 
 
 class TestErrorHandling:

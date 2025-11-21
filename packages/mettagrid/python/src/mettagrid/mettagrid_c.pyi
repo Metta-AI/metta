@@ -72,12 +72,11 @@ class AgentConfig(GridObjectConfig):
         resource_limits: dict[int, int] = {},
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
-        group_reward_pct: float = 0,
         initial_inventory: dict[int, int] = {},
         soul_bound_resources: list[int] | None = None,
-        shareable_resources: list[int] | None = None,
         inventory_regen_amounts: dict[int, int] | None = None,
         diversity_tracked_resources: list[int] | None = None,
+        vibe_transfers: dict[int, dict[int, int]] | None = None,
     ) -> None: ...
     type_id: int
     type_name: str
@@ -89,12 +88,11 @@ class AgentConfig(GridObjectConfig):
     resource_limits: dict[int, int]
     stat_rewards: dict[str, float]  # Added this
     stat_reward_max: dict[str, float]  # Added this
-    group_reward_pct: float
     initial_inventory: dict[int, int]
     soul_bound_resources: list[int]
-    shareable_resources: list[int]
     inventory_regen_amounts: dict[int, int]
     diversity_tracked_resources: list[int]
+    vibe_transfers: dict[int, dict[int, int]]
 
 class ActionConfig:
     def __init__(
@@ -107,6 +105,7 @@ class ActionConfig:
 
 class Protocol:
     def __init__(self) -> None: ...
+    min_agents: int
     vibes: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]

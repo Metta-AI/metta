@@ -15,6 +15,7 @@ from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from mettagrid.mettagrid_c import PackedCoordinate
 from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
 from mettagrid.simulator.interface import Action, AgentObservation, ObservationToken, SimulatorEventHandler
+from mettagrid.simulator.map_cache import SharedMapCache, get_shared_cache
 
 if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
@@ -49,11 +50,13 @@ class Simulation:
         event_handlers: Sequence[SimulatorEventHandler] = (),  # Use tuple to avoid mutable default
         simulator: Optional[Simulator] | None = None,
         buffers: Optional[Buffers] = None,
+        maps_cache: Optional[SharedMapCache] = None,
     ):
         self._config = config
         self._seed = seed
         self._event_handlers = list(event_handlers)
         self._simulator = simulator
+        self._maps_cache = maps_cache
         self._context: Dict[str, Any] = {}
 
         for handler in self._event_handlers:
@@ -64,7 +67,8 @@ class Simulation:
 
         game_config_dict = self._config.game.model_dump()
 
-        map_grid = self._make_map().grid.tolist()
+        with self._timer("sim.init.make_map"):
+            map_grid = self._make_map().grid.tolist()
 
         # Create C++ config
         try:
@@ -75,15 +79,17 @@ class Simulation:
             raise e
 
         # Create C++ environment
-        self.__c_sim = MettaGridCpp(c_cfg, map_grid, self._seed)
+        with self._timer("sim.init.create_c_sim"):
+            self.__c_sim = MettaGridCpp(c_cfg, map_grid, self._seed)
 
         # Compute action_ids from config actions
         self._action_ids: dict[str, int] = {
             action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
         }
 
+        # Set buffers on C++ simulation if provided (for PufferEnv shared memory)
         if buffers is not None:
-            self._c_sim.set_buffers(
+            self.__c_sim.set_buffers(
                 buffers.observations,
                 buffers.terminals,
                 buffers.truncations,
@@ -98,7 +104,7 @@ class Simulation:
 
         self._start_episode()
 
-        self._timer.start("thread_idle")
+        self._timer.start("sim.thread_idle")
 
     def agents(self) -> list[SimulationAgent]:
         return [self.agent(agent_id) for agent_id in range(self.num_agents)]
@@ -112,6 +118,7 @@ class Simulation:
     def is_done(self) -> bool:
         return bool(self.__c_sim.truncations().all() or self.__c_sim.terminals().all())
 
+    @with_instance_timer("sim.episode.start", timer_attr="_timer")
     def _start_episode(self) -> None:
         """Start a new episode (internal use only)."""
         self._episode_started = True
@@ -121,34 +128,34 @@ class Simulation:
             with self._timer(f"sim.on_episode_start.{handler.__class__.__name__}"):
                 handler.on_episode_start()
 
+    @with_instance_timer("sim.episode.end", timer_attr="_timer")
     def end_episode(self) -> None:
         """Force the episode to end by setting all agents to truncated state."""
         self.__c_sim.truncations()[:] = True
 
-    @with_instance_timer("step", timer_attr="_timer")
+    @with_instance_timer("sim.step", timer_attr="_timer")
     def step(self) -> None:
         """Execute one timestep of the environment dynamics.
 
         Actions must be set beforehand using agent(i).set_action() or by setting
         actions directly via _c_sim.actions()[i] = action_idx.
         """
-        self._timer.stop("thread_idle")
+        self._timer.stop("sim.thread_idle")
 
-        with self._timer("c_sim.step"):
+        with self._timer("sim.step.c_sim"):
             self.__c_sim.step()
 
         for handler in self._event_handlers:
-            with self._timer(f"sim.on_step.{handler.__class__.__name__}"):
+            with self._timer(f"sim.step.{handler.__class__.__name__.lower()}"):
                 handler.on_step()
 
         if self.is_done():
-            self._timer.start("episode_end")
-            for handler in self._event_handlers:
-                with self._timer(f"sim.on_episode_end.{handler.__class__.__name__}"):
-                    handler.on_episode_end()
-            self._timer.stop("episode_end")
+            with self._timer("sim.episode.end"):
+                for handler in self._event_handlers:
+                    with self._timer(f"sim.episode.end.{handler.__class__.__name__.lower()}"):
+                        handler.on_episode_end()
 
-        self._timer.start("thread_idle")
+        self._timer.start("sim.thread_idle")
 
     def close(self) -> None:
         """Close the environment."""
@@ -253,14 +260,17 @@ class Simulation:
         return self.__c_sim.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
 
     def _make_map(self) -> GameMap:
-        map_builder = self._config.game.map_builder.create()
-        game_map = map_builder.build_for_num_agents(self._config.game.num_agents)
-
-        return game_map
+        if self._maps_cache is None:
+            return self._config.game.map_builder.create().build_for_num_agents(self._config.game.num_agents)
+        return self._maps_cache.get_or_create(self._config.game.map_builder, self._config.game.num_agents)
 
 
 class Simulator:
-    def __init__(self):
+    def __init__(self, maps_cache_size: Optional[int] = None):
+        self._maps_cache = None
+        if maps_cache_size is not None:
+            self._maps_cache = get_shared_cache(maps_per_key=maps_cache_size)
+
         self._config_invariants = None
         self._event_handlers = []
         self._current_simulation = None
@@ -283,7 +293,12 @@ class Simulator:
             raise ValueError("Config invariants have changed")
 
         self._current_simulation = Simulation(
-            config=config, seed=seed, event_handlers=self._event_handlers, simulator=self, buffers=buffers
+            config=config,
+            seed=seed,
+            event_handlers=self._event_handlers,
+            simulator=self,
+            buffers=buffers,
+            maps_cache=self._maps_cache,
         )
         return self._current_simulation
 

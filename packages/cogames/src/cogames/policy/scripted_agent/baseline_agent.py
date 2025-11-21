@@ -69,7 +69,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Fast lookup tables for observation feature decoding
         self._spatial_feature_names = {
             "tag",
-            "converting",
             "cooldown_remaining",
             "clipped",
             "remaining_uses",
@@ -97,16 +96,18 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
     def _change_vibe_action(self, vibe_name: str) -> Action:
         """
         Return a safe vibe-change action.
-        Guard only on configured number_of_vibes (>1) to avoid emitting an invalid action.
+        Guard against disabled or single-vibe configurations before issuing the action.
         """
         change_vibe_cfg = getattr(self._actions, "change_vibe", None)
         if change_vibe_cfg is None:
             return self._actions.noop.Noop()
+        if not getattr(change_vibe_cfg, "enabled", True):
+            return self._actions.noop.Noop()
         num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
         if num_vibes <= 1:
             return self._actions.noop.Noop()
-
-        # Raise an exception if the vibe doesn't exist
+        # Raise loudly if the requested vibe isn't registered instead of silently
+        # falling back to noop; otherwise config issues become very hard to spot.
         vibe = VIBE_BY_NAME.get(vibe_name)
         if vibe is None:
             raise Exception(f"No valid vibes called {vibe_name}")
@@ -175,7 +176,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if pos not in position_features:
             position_features[pos] = {}
 
-        # Handle spatial features (tag, converting, cooldown, etc.)
+        # Handle spatial features (tag, cooldown, etc.)
         if feature_name in self._spatial_feature_names:
             # Tag: collect all tags as a list (objects can have multiple tags)
             if feature_name == "tag":
@@ -242,7 +243,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         return ObjectState(
             name=obj_name,
-            converting=get_int("converting", 0),
             cooldown_remaining=get_int("cooldown_remaining", 0),
             clipped=get_int("clipped", 0),
             remaining_uses=get_int("remaining_uses", 999),
@@ -509,7 +509,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             s.extractors[resource_type].append(extractor)
 
         extractor.last_seen_step = s.step_count
-        extractor.converting = obj_state.converting > 0
         extractor.cooldown_remaining = obj_state.cooldown_remaining
         extractor.clipped = obj_state.clipped > 0
         extractor.remaining_uses = obj_state.remaining_uses
@@ -868,7 +867,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """Try to use extractor if ready. Returns appropriate action."""
 
         # Wait if on cooldown
-        if extractor.cooldown_remaining > 0 or extractor.converting:
+        if extractor.cooldown_remaining > 0:
             s.waiting_at_extractor = extractor.position
             s.wait_steps += 1
             return self._actions.noop.Noop()
@@ -945,7 +944,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # First, ensure we have the correct glyph (heart) for assembling
         if s.current_glyph != "heart_a":
-            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["heart_a"])
+            vibe_action = self._change_vibe_action("heart_a")
             s.current_glyph = "heart_a"
             return vibe_action
 

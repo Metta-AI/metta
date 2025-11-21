@@ -77,9 +77,6 @@ class IdMap:
         core_features = [
             ("agent:group", 10.0),
             ("agent:frozen", 1.0),
-            ("agent:orientation", 1.0),
-            ("agent:reserved_for_future_use", 255.0),
-            ("converting", 1.0),
         ]
 
         for name, normalization in core_features:
@@ -92,18 +89,12 @@ class IdMap:
 
         features.append(ObservationFeatureSpec(id=feature_id, normalization=10.0, name="last_action"))
         feature_id += 1
-        features.append(ObservationFeatureSpec(id=feature_id, normalization=10.0, name="last_action_arg"))
-        feature_id += 1
 
         features.append(ObservationFeatureSpec(id=feature_id, normalization=100.0, name="last_reward"))
         feature_id += 1
 
         # Agent-specific features
         features.append(ObservationFeatureSpec(id=feature_id, normalization=255.0, name="vibe"))
-        feature_id += 1
-
-        # Visitation counts (include even if config disables emitting data)
-        features.append(ObservationFeatureSpec(id=feature_id, normalization=1000.0, name="agent:visitation_counts"))
         feature_id += 1
 
         # Compass direction toward assembler

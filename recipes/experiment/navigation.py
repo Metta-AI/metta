@@ -8,7 +8,6 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
-from metta.evals.navigation import make_navigation_eval_suite
 from metta.map.terrain_from_numpy import NavigationFromNumpy
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -16,9 +15,88 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import AsciiMapBuilder, MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scenes.mean_distance import MeanDistance
+from recipes.experiment.cfg import NAVIGATION_EVALS
+
+
+def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
+    """Set the heart reward to 0.333 for normalization"""
+    env.game.agent.rewards.inventory["heart"] = 0.333
+    return env
+
+
+def make_nav_ascii_env(
+    name: str,
+    max_steps: int,
+    num_agents=1,
+    num_instances=4,
+    border_width: int = 6,
+    instance_border_width: int = 3,
+) -> MettaGridConfig:
+    # we re-use nav sequence maps, but replace all objects with altars
+    path = f"packages/mettagrid/configs/maps/navigation_sequence/{name}.map"
+
+    env = eb.make_navigation(num_agents=num_agents * num_instances)
+    env.game.max_steps = max_steps
+
+    map_instance = AsciiMapBuilder.Config.from_uri(path)
+
+    # Replace objects with altars by setting char_to_map_name (char -> map_name, the stable ASCII map key).
+    map_instance.char_to_map_name["n"] = "altar"
+    map_instance.char_to_map_name["m"] = "altar"
+
+    env.game.map_builder = MapGen.Config(
+        instances=num_instances,
+        border_width=border_width,
+        instance_border_width=instance_border_width,
+        instance=map_instance,
+    )
+
+    return make_nav_eval_env(env)
+
+
+def make_emptyspace_sparse_env() -> MettaGridConfig:
+    env = eb.make_navigation(num_agents=4)
+    env.game.max_steps = 300
+    env.game.map_builder = MapGen.Config(
+        instances=4,
+        instance=MapGen.Config(
+            width=60,
+            height=60,
+            border_width=3,
+            instance=MeanDistance.Config(
+                mean_distance=30,
+                objects={"altar": 3},
+            ),
+        ),
+    )
+    return make_nav_eval_env(env)
+
+
+def make_navigation_eval_suite() -> list[SimulationConfig]:
+    evals = [
+        SimulationConfig(
+            suite="navigation",
+            name=eval["name"],
+            env=make_nav_ascii_env(
+                name=eval["name"],
+                max_steps=eval["max_steps"],
+                num_agents=eval["num_agents"],
+                num_instances=eval["num_instances"],
+            ),
+        )
+        for eval in NAVIGATION_EVALS
+    ] + [
+        SimulationConfig(
+            suite="navigation",
+            name="emptyspace_sparse",
+            env=make_emptyspace_sparse_env(),
+        )
+    ]
+    return evals
 
 
 def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:

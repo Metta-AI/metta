@@ -260,7 +260,7 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
                 job = jobs_map[job_id]
 
                 # Calculate time ago
-                submitted_timestamp = job.get("submitted_at", time.time())
+                submitted_timestamp = job.get("submitted_at") or time.time()
                 time_diff = time.time() - submitted_timestamp
 
                 if time_diff < 60:
@@ -271,7 +271,7 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
                     time_ago = f"{int(time_diff / 3600)} hours ago"
 
                 # Format duration
-                duration = job.get("job_duration", 0)
+                duration = job.get("job_duration") or 0
                 if duration:
                     duration_str = f"{int(duration)}s" if duration < 60 else f"{int(duration / 60)}m"
                 else:

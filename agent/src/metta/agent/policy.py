@@ -198,7 +198,7 @@ class ExternalPolicyWrapper(Policy):
         self.obs_shaper(td)
         return self.policy(td["obs"])
 
-    def initialize_to_environment(self, game_rules: PolicyEnvInterface, device: torch.device):
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
         pass
 
     @property
