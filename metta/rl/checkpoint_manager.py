@@ -22,6 +22,7 @@ from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action, AgentObservation, Simulation
 
 logger = logging.getLogger(__name__)
 
@@ -382,6 +383,12 @@ class CheckpointPolicy(MultiAgentPolicy):
     @property
     def display_name(self) -> str:
         return self._display_name
+
+    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
+        return self._policy.agent_step(agent_id, obs)
+
+    def agent_reset(self, agent_id: int, simulation: Optional[Simulation] = None) -> None:
+        self._policy.agent_reset(agent_id, simulation)
 
     def __call__(self, *args, **kwargs):
         return self._policy(*args, **kwargs)

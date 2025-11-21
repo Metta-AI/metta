@@ -96,8 +96,11 @@ class Policy(TrainablePolicy, nn.Module):
 
     def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
         td = self._obs_to_td(obs, self.device)
-        self(td)
-        action_index = int(td["actions"][0].item())
+        result = self(td)
+        if result is None:
+            result = td
+        action_source = result if "actions" in result.keys(True) else td
+        action_index = int(action_source["actions"][0].item())
         return self._policy_env_info.actions.actions()[action_index]
 
     def agent_reset(self, agent_id: int, simulation: Optional[Simulation] = None) -> None:

@@ -13,14 +13,14 @@ import mettagrid.builder.envs as eb
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
+from metta.rl.checkpoint_manager import CheckpointManager, CheckpointPolicy
+from metta.rl.policy_artifact import PolicyArtifact, save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import AgentObservation, ObservationToken
+from mettagrid.simulator import Action, AgentObservation, ObservationToken, Simulation
 
 
 def _dummy_observation(env_info: PolicyEnvInterface) -> AgentObservation:
@@ -287,6 +287,51 @@ class TestBasicSaveLoad:
         assert spec.init_kwargs["checkpoint_uri"] == CheckpointManager.normalize_uri(latest)
         assert spec.init_kwargs["display_name"] == "custom"
         assert spec.init_kwargs["device"] == "cpu"
+
+
+class _DummyDelegatingPolicy(MultiAgentPolicy):
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info)
+        self.step_calls: list[int] = []
+        self.reset_calls: list[int] = []
+
+    def agent_step(self, agent_id: int, obs: AgentObservation) -> Action:
+        self.step_calls.append(agent_id)
+        return self.policy_env_info.actions.actions()[0]
+
+    def agent_reset(self, agent_id: int, simulation: Simulation | None = None) -> None:
+        self.reset_calls.append(agent_id)
+
+    def to(self, device):
+        self._device = device
+        return self
+
+    def eval(self):
+        return self
+
+    def state_dict(self):
+        return {}
+
+
+class TestCheckpointPolicyDelegation:
+    def test_agent_reset_delegates(self, monkeypatch):
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=1))
+        dummy_policy = _DummyDelegatingPolicy(env_info)
+        artifact = PolicyArtifact(policy=dummy_policy)
+
+        monkeypatch.setattr(
+            CheckpointManager,
+            "load_artifact_from_uri",
+            staticmethod(lambda uri: artifact),
+        )
+
+        policy = CheckpointPolicy(env_info, checkpoint_uri="mock://dummy")
+        policy.agent_reset(0)
+        assert dummy_policy.reset_calls == [0]
+
+        action = policy.agent_step(0, _dummy_observation(env_info))
+        assert dummy_policy.step_calls == [0]
+        assert action == env_info.actions.actions()[0]
 
 
 class TestErrorHandling:
