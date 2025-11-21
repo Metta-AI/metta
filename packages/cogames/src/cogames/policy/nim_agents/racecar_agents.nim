@@ -14,7 +14,7 @@ const
   PutSiliconAmount = 25
 
 type
-  ThinkyAgent* = ref object
+  RaceCarAgent* = ref object
     agentId*: int
 
     map: Table[Location, seq[FeatureValue]]
@@ -36,8 +36,8 @@ type
     seenChest: bool
     exploreLocations: seq[Location]
 
-  ThinkyPolicy* = ref object
-    agents*: seq[ThinkyAgent]
+  RaceCarPolicy* = ref object
+    agents*: seq[RaceCarAgent]
 
 proc log(message: string) =
   when defined(debug):
@@ -62,7 +62,7 @@ const Offsets8 = [
   Location(x: -1, y: -1),
 ]
 
-proc getActiveRecipe(agent: ThinkyAgent): RecipeInfo {.measure.} =
+proc getActiveRecipe(agent: RaceCarAgent): RecipeInfo {.measure.} =
   ## Get the recipes form the assembler protocol inputs.
   let assemblerLocation = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
   if assemblerLocation.isSome():
@@ -119,11 +119,11 @@ proc getActiveRecipe(agent: ThinkyAgent): RecipeInfo {.measure.} =
       elif feature.featureId == agent.cfg.features.protocolOutputScrambler:
         result.scramblerCost = feature.value
 
-proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
+proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   ## Create a new thinky agent, the fastest and the smartest agent.
 
   var config = parseConfig(environmentConfig)
-  result = ThinkyAgent(agentId: agentId, cfg: config)
+  result = RaceCarAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
   result.map = initTable[Location, seq[FeatureValue]]()
   result.seen = initHashSet[Location]()
@@ -143,7 +143,7 @@ proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   ]
   result.random.shuffle(result.exploreLocations)
 
-proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
+proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
   ## Update the big map with the small visible map.
 
   if agent.map.len == 0:
@@ -255,7 +255,7 @@ proc getNearbyExtractor*(
   return none(Location)
 
 proc step*(
-  agent: ThinkyAgent,
+  agent: RaceCarAgent,
   numAgents: int,
   numTokens: int,
   sizeToken: int,
@@ -498,7 +498,7 @@ proc step*(
           return
 
     proc findAndTakeResource(
-      agent: ThinkyAgent,
+      agent: RaceCarAgent,
       vibe: int,
       resource: int,
       target: int,
@@ -685,15 +685,15 @@ proc step*(
     echo getCurrentExceptionMsg()
     quit()
 
-proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy =
+proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
   let cfg = parseConfig(environmentConfig)
-  var agents: seq[ThinkyAgent] = @[]
+  var agents: seq[RaceCarAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:
-    agents.add(newThinkyAgent(id, environmentConfig))
-  return ThinkyPolicy(agents: agents)
+    agents.add(newRaceCarAgent(id, environmentConfig))
+  return RaceCarPolicy(agents: agents)
 
 proc stepBatch*(
-    policy: ThinkyPolicy,
+    policy: RaceCarPolicy,
     agentIds: pointer,
     numAgentIds: int,
     numAgents: int,
