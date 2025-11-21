@@ -46,9 +46,12 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
-        # Reset policies and create agent policies if needed
+        # Reset policies with the active simulation
         for policy in self._policies:
-            policy.reset()
+            if pass_sim_to_policies:
+                policy.reset(self._sim)
+            else:
+                policy.reset()
 
     def step(self) -> None:
         """Execute one step of the rollout."""

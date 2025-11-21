@@ -260,13 +260,16 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     def step(self, obs: AgentObservation) -> Action:
         """Get action and update hidden state."""
         assert self._state is not None, "reset() must be called before step()"
+        if hasattr(self._base_policy, "set_active_agent"):
+            self._base_policy.set_active_agent(self._agent_id)
         action, self._state = self._base_policy.step_with_state(obs, self._state)
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
         return action
 
-    def reset(self) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the hidden state to initial state."""
+        self._simulation = simulation
         self._base_policy.reset()
         self._state = self._base_policy.initial_agent_state()
         self._agent_states.clear()
@@ -279,6 +282,8 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
 
         for agent_idx, obs in enumerate(sim.observations()):
             state = self._agent_states.get(agent_idx) or self._base_policy.initial_agent_state()
+            if hasattr(self._base_policy, "set_active_agent"):
+                self._base_policy.set_active_agent(agent_idx)
             action, new_state = self._base_policy.step_with_state(obs, state)
             self._agent_states[agent_idx] = new_state
             assert isinstance(action, Action), "Policies must return mettagrid.simulator.Action instances"
@@ -320,6 +325,10 @@ class StatefulPolicyImpl(Generic[StateType]):
             Tuple of (action, new_state)
         """
         raise NotImplementedError
+
+    def set_active_agent(self, agent_id: Optional[int]) -> None:
+        """Optional hook for implementations that need the calling agent id."""
+        _ = agent_id
 
 
 class TrainablePolicy(MultiAgentPolicy):
