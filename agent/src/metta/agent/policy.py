@@ -4,7 +4,7 @@ This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.
 implement the required methods that MettaAgent depends on."""
 
 from abc import abstractmethod
-from typing import ClassVar, List, Optional
+from typing import Any, ClassVar, List, Optional
 
 import torch
 import torch.nn as nn
@@ -23,7 +23,7 @@ from metta.agent.components.obs_shim import (
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
-from mettagrid.policy.policy import MultiAgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import MultiAgentPolicy, StatefulPolicyImpl, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryABCMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
