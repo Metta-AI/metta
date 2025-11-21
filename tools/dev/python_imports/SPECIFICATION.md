@@ -5,9 +5,12 @@
 ## 1. Purpose and Scope
 
 This specification defines the formal rules for Python import management in the Metta AI codebase. It serves as the
-authoritative reference for tooling, CI validation, and automated refactoring. **Target Audience:** CI systems, linters,
-automated refactoring tools, and developers needing detailed technical guidance. **Companion Document:** `CLAUDE.md`
-provides practical, user-facing guidance on these rules.
+authoritative reference for tooling, CI validation, and automated refactoring.
+
+**Target Audience:** CI systems, linters, automated refactoring tools, and developers needing detailed technical
+guidance.
+
+**Companion Document:** `CLAUDE.md` provides practical, user-facing guidance on these rules.
 
 ---
 
@@ -15,8 +18,10 @@ provides practical, user-facing guidance on these rules.
 
 ### 2.1 Explicit Over Implicit
 
-**Rule:** All type dependencies MUST be explicitly visible at the module level. **Rationale:** Improves code navigation,
-enables better static analysis, and makes circular dependencies visible during development rather than at runtime.
+**Rule:** All type dependencies MUST be explicitly visible at the module level.
+
+**Rationale:** Improves code navigation, enables better static analysis, and makes circular dependencies visible during
+development rather than at runtime.
 
 ### 2.2 Structure Over Workarounds
 
@@ -28,16 +33,19 @@ the architecture level.
 
 **Rule:** Import-time optimizations are permitted ONLY when:
 
-- Measurably improving startup time for large applications
+- Improving startup time for large applications
 - Implemented with explicit lazy-loading patterns (`__getattr__`)
-- Documented with clear performance justification **Rationale:** Premature optimization creates complexity; legitimate
-  performance needs are met with explicit patterns.
+- Documented with clear performance justification
+
+**Rationale:** Premature optimization creates complexity; legitimate performance needs are met with explicit patterns.
 
 ### 2.4 Absolute Over Relative Imports
 
-**Rule:** All imports MUST use absolute paths, not relative imports. **Rationale:** Absolute imports are unambiguous,
-work correctly when files are run directly, and provide better error messages when the import system is misconfigured.
-They also make refactoring easier and improve code readability for new contributors.
+**Rule:** All imports MUST use absolute paths, not relative imports.
+
+**Rationale:** Absolute imports are unambiguous, work correctly when files are run directly, and provide better error
+messages when the import system is misconfigured. They also make refactoring easier and improve code readability for new
+contributors.
 
 ```python
 # CORRECT - absolute imports
@@ -52,45 +60,44 @@ from ..common.types import Config
 
 ## 3. Import Patterns
 
-### 3.1 Standard Import Pattern
+### 3.1 Forward References
 
-**Required for all new code:**
+**Recommended:** When forward references are needed, use `from __future__ import annotations` to enable them
+automatically.
+
+**Needed:**
+
+- Class methods returning the class type: `def clone(self) -> MyClass:`
+- Type hints that reference classes defined later in the same file
+- Breaking circular import dependencies in type hints
+
+**NOT needed:**
+
+- All types are already imported or defined before use
+- Python 3.10+ code using native union syntax (`int | str`)
+- Code that performs runtime introspection of `__annotations__`
+
+**Important:** Python 3.14+ (PEP 749) will deprecate `from __future__ import annotations`. The new default behavior will
+use lazy evaluation without stringifying annotations. Use this import only when required.
+
+**Pattern:**
 
 ```python
-from __future__ import annotations  # MUST be first import
-# Standard library imports
-import sys
-from pathlib import Path
-# Third-party imports
-import torch
-from omegaconf import DictConfig
-# Local imports - types first
-from metta.common.types import Action, Observation
-from mettagrid.types import GridState
-# Local imports - runtime dependencies
-import metta.rl.trainer as trainer
-from metta.mypackage.sibling_module import HelperClass
+# When forward reference is needed
+from __future__ import annotations
+
+class Node:
+    def get_parent(self) -> Node:  # Forward reference to Node
+        pass
+
+def process(agent: MettaAgent) -> Action:  # MettaAgent defined later
+    pass
 ```
 
-**Ordering:**
-
-1. `from __future__ import annotations` (if needed)
-2. Standard library imports
-3. Third-party imports
-4. Local package imports (types first, then runtime)
-5. Each group separated by a blank line
-
-### 3.2 Forward References
-
-**Rule:** The `from __future__ import annotations` import MUST be used to enable forward references automatically.
-**Prohibited:** Manual string literals in type hints (except for recursive types).
+**Discouraged:** Manual string literals in type hints (use `from __future__ import annotations` instead).
 
 ```python
-# CORRECT
-from __future__ import annotations
-def process(agent: MettaAgent) -> Action:
-    pass
-# INCORRECT (manual string literals)
+# DISCOURAGED
 def process(agent: 'MettaAgent') -> 'Action':
     pass
 ```
@@ -112,7 +119,9 @@ action = Action(...)
 import metta.rl.trainer as trainer
 import mettagrid.simulator.simulator as simulator
 # Usage
-sim = simulator.Simulator(...)
+def create_simulation():
+    sim = simulator.Simulator(...)
+    return sim
 ```
 
 **Decision criteria:**
@@ -120,20 +129,22 @@ sim = simulator.Simulator(...)
 - Use symbol imports for types from `types.py` files
 - Use symbol imports for most dependencies within a package
 - Use module imports when symbol import would create a cycle
-- Use module imports for large modules to control namespace
+- Use module imports for modules with many exports to avoid namespace pollution
 - Always use absolute paths (never relative imports)
 
 ### 3.4 Optional Types
 
-**Rule:** Use `Optional[type]` syntax for optional parameters, not `type | None`. **Rationale:** While
-`from __future__ import annotations` enables union syntax, the codebase standardizes on `Optional` for consistency and
-explicit intent.
+**Rule:** Use `Optional[type]` syntax for optional parameters, not `type | None`.
+
+**Rationale:** Consistent with codebase standard per `CLAUDE.md`.
 
 ```python
 # CORRECT
 from typing import Optional
+
 def process(config: Optional[DictConfig] = None) -> None:
     pass
+
 # INCORRECT
 def process(config: DictConfig | None = None) -> None:
     pass
@@ -180,20 +191,27 @@ packages/mettagrid/python/src/mettagrid/types.py
 
 ### 4.3 Types File Content Guidelines
 
-**Rule:** Files named `types.py` MUST contain only lightweight type definitions. **Permitted contents:**
+**Rule:** Files named `types.py` MUST contain only lightweight type definitions.
+
+**Permitted contents:**
 
 - Data classes (`@dataclass` or plain classes with only data attributes)
 - `TypedDict` definitions
 - Type aliases (`MyType = Union[...]`)
 - `Enum` classes
 - `Protocol` definitions (structural typing interfaces)
-- Simple Pydantic `Config` classes (field definitions only, no methods with logic) **Prohibited contents:**
+- Simple Pydantic `Config` classes (field definitions only, no methods with logic)
+
+**Prohibited contents:**
+
 - Classes with `__init__` containing business logic
 - Classes inheriting from implementation bases (e.g., `StatsLogger`, `ABC` with concrete methods)
 - Classes importing heavy dependencies (torch, pandas, boto3)
-- Factory methods that instantiate other classes **Rationale:** types.py files should be safe to import from anywhere
-  without pulling in heavy dependencies or creating import order issues. If a "type" requires significant
-  implementation, it's not a type—it's a class that belongs in a regular module.
+- Factory methods that instantiate other classes
+
+**Rationale:** types.py files should be safe to import from anywhere without pulling in heavy dependencies or creating
+import order issues. If a "type" requires significant implementation, it's not a type—it's a class that belongs in a
+regular module.
 
 **Example - CORRECT types.py:**
 
@@ -212,7 +230,7 @@ class CurriculumTask:
 **Example - INCORRECT types.py:**
 
 ```python
-# DON'T DO THIS - too much implementation
+# DISCOURAGED - includes excessive implementation
 class CurriculumAlgorithm(StatsLogger, ABC):
     def __init__(self, num_tasks: int, hypers: Config):
         # Business logic here...
@@ -234,6 +252,7 @@ cycle:
 ```python
 # Before (creates cycle)
 from mettagrid.simulator.simulator import Simulator
+
 # After (breaks cycle)
 import mettagrid.simulator.simulator as simulator
 # Usage: simulator.Simulator(...)
@@ -249,26 +268,20 @@ import mettagrid.simulator.simulator as simulator
 
 ## 5. Architecture Layers
 
-### 5.1 Layer Definitions
-
-```
-Layer 0 (Foundation):  common
-Layer 1 (Environment): mettagrid.config → mettagrid.simulator → mettagrid.policy
-Layer 2 (Agent):       agent
-Layer 3 (RL Core):     metta.rl
-Layer 4 (Apps):        metta.sim, metta.cogworks, recipes
-Layer 5 (Services):    app_backend, tools
-```
-
-### 5.2 Layer Import Rules
+### 5.1 Layer Import Rules
 
 **Rule:** A module MAY import from:
 
 - Its own layer (same package)
 - Any lower layer
-- `common.types` (accessible from all layers) **Rule:** A module MUST NOT import from:
+- `types` or `common`
+
+**Rule:** A module MUST NOT import from:
+
 - A higher layer
-- A different top-level package at the same layer (except through `common`) **Example violations:**
+- A different top-level package at the same layer (except through `types` or `common`)
+
+**Example violations:**
 
 ```python
 # VIOLATION: mettagrid (Layer 1) importing from agent (Layer 2)
@@ -282,73 +295,182 @@ from metta.common.types import AgentProtocol
 
 ## 6. `__init__.py` Management
 
-### 6.1 Default Pattern: Minimal `__init__.py`
+### 6.1 Public vs Internal Packages
 
-**Rule:** By default, `__init__.py` files SHOULD be empty or contain only essential package initialization.
-**Rationale:** Heavy re-exports in `__init__.py` files create hidden circular dependencies and slow imports. **Minimal
-pattern:**
+**Rule:** `__init__.py` design differs based on whether the package is user-facing or internal.
+
+**Public Packages** (in `packages/` directory):
+
+- **Examples:** `mettagrid/__init__.py`, `cortex/__init__.py`, `cogames/__init__.py`
+- **Purpose:** Define clean external API for library users
+- **Should have:** Thoughtful exports with lazy loading for heavy imports
+- **Benefits:**
+  - Users import with convenient syntax: `from mettagrid import Simulator`
+  - Protects users from internal refactoring (move implementation without breaking API)
+  - Defines clear public API surface
+  - Better for package documentation
+
+**Internal Modules** (in `metta/` directory):
+
+- **Examples:** `metta/rl/loss/__init__.py`, `metta/cogworks/curriculum/__init__.py`, `metta/sim/envs/__init__.py`
+- **Purpose:** Python package organization (implementation detail)
+- **Should be:** Empty or minimal
+- **Rationale:**
+  - No external users - only internal codebase imports
+  - VS Code autocompletes full paths: `from metta.rl.loss.ppo import PPOLoss`
+  - Avoids hidden circular dependencies from re-export chains
+  - Makes refactoring easier (no re-export lists to update)
+  - Import statements show exactly where code comes from
+  - Slightly longer imports don't matter for internal code
+
+### 6.2 Public Package `__init__.py` Pattern
+
+**For packages in `packages/` directory:**
+
+**Lazy loading rules:**
+
+- **Heavy imports present** → MUST use lazy loading for heavy imports
+- **Only light imports** → MAY use direct imports (lazy loading adds unnecessary complexity)
+
+Heavy imports include: torch, gymnasium, pufferlib, jax, tensorflow, pandas, scipy, sqlalchemy, boto3, botocore,
+transformers, or nn.Module classes. See `tools/dev/python_imports/analyze_architecture.py` for the authoritative list.
+
+**Pattern:**
+
+```python
+# mettagrid/__init__.py
+from __future__ import annotations
+
+# Direct imports for light modules
+from mettagrid.config import GridConfig
+from mettagrid.types import Action, Observation
+
+if TYPE_CHECKING:
+    from mettagrid.simulator.simulator import Simulator
+    from mettagrid.envs.puffer_env import PufferEnv
+
+# Lazy loading for heavy modules (imports gymnasium, torch, etc.)
+def __getattr__(name: str):
+    """Lazy-load expensive modules."""
+    if name == "Simulator":
+        from mettagrid.simulator.simulator import Simulator
+        globals()["Simulator"] = Simulator
+        return Simulator
+    if name == "PufferEnv":
+        from mettagrid.envs.puffer_env import PufferEnv
+        globals()["PufferEnv"] = PufferEnv
+        return PufferEnv
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+__all__ = ["GridConfig", "Action", "Observation", "Simulator", "PufferEnv"]
+```
+
+Mixing direct and lazy imports is acceptable - the key rule is that heavy imports should be lazy loaded.
+
+**Additional permitted patterns:**
+
+1. **Backward compatibility:**
+
+```python
+# Deprecated imports for backward compatibility
+# TODO: Remove in version 2.0
+from mettagrid.new_location import OldClass
+```
+
+2. **Explicit public API:**
+
+```python
+__all__ = ["PublicClass", "public_function"]
+
+from mettagrid.internal_module import PublicClass, public_function
+```
+
+### 6.3 Internal Module `__init__.py` Pattern
+
+**For modules in `metta/` directory:**
+
+**Default pattern (strongly preferred):**
 
 ```python
 """Package description."""
 from __future__ import annotations
 
-# Only if necessary
-__version__ = "1.0.0"
+# Empty - users import from specific modules
 ```
 
-### 6.2 Legitimate `__init__.py` Exports
+**When to add exports (rare):**
 
-**Lazy loading rules:**
+Only if there's a specific justification:
 
-- **Heavy imports present** → SHOULD use lazy loading (at minimum for heavy imports)
-- **Only light imports** → SHOULD use direct imports (lazy loading adds unnecessary complexity) Heavy imports include:
-  torch, gymnasium, pufferlib, jax, tensorflow, pandas, scipy, sqlalchemy, boto3, botocore, transformers, or nn.Module
-  classes. See `tools/dev/python_imports/analyze_architecture.py` for the authoritative list. **Permitted patterns:**
+- Backward compatibility requirement (document reason)
+- Legitimate performance benefit with lazy loading
 
-1. **Lazy loading for performance:**
+**Anti-pattern to avoid:**
 
 ```python
-# Direct imports for light modules
-from mypackage.config import Config
-from mypackage.types import Action, Observation
-# Lazy loading for heavy modules (imports gymnasium, torch, etc.)
-def __getattr__(name: str):
-    """Lazy-load expensive modules."""
-    if name == "PufferEnv":
-        from mypackage.envs.puffer_env import PufferEnv
-        globals()["PufferEnv"] = PufferEnv
-        return PufferEnv
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+# DON'T DO THIS in internal modules
+from metta.rl.loss import PPOLoss, VTraceLoss
+from metta.rl.trainer import Trainer
+from metta.rl.vecenv import VecEnv
+# ... 20+ re-exports
+
+# Instead: Let users import from specific modules
+# from metta.rl.loss.ppo import PPOLoss
 ```
 
-Mixing direct and lazy imports is acceptable - the key rule is that heavy imports should be lazy loaded. 2. **Backward
-compatibility:**
+**Simplification criteria:**
 
-```python
-# Deprecated imports for backward compatibility
-# TODO: Remove in version 2.0
-from .new_location import OldClass
-```
-
-3. **Public API surface:**
-
-```python
-# Explicitly define public API
-__all__ = ["PublicClass", "public_function"]
-
-from .internal_module import PublicClass, public_function
-```
-
-### 6.3 `__init__.py` Simplification Criteria
-
-**Simplify if:**
+Simplify an existing `__init__.py` if:
 
 - Import complexity > 80% of file (mostly re-exports)
 - Exports > 20 symbols
-- No lazy loading or performance justification **Keep if:**
-- Has `__getattr__` for lazy loading
-- Has backward compatibility requirements
-- Defines explicit public API surface with clear purpose
+- No lazy loading or performance justification
+- Not a public package in `packages/`
+
+### 6.4 Module-level Lazy Loading (Non-`__init__.py`)
+
+**Rule:** The `__getattr__` lazy loading pattern MAY be used in regular module files (not just `__init__.py`) when there
+is a meaningful performance benefit from deferring heavy imports.
+
+**Use case:** When a module conditionally needs heavy dependencies (torch, pandas, boto3, etc.) but many import paths
+don't use those features, lazy loading can significantly improve CLI and import performance.
+
+**Pattern:**
+
+```python
+# system_config.py
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import torch
+
+def __getattr__(name: str) -> Any:
+    """Lazy-load torch to avoid import cost for CLI scripts that don't need it.
+    """
+    if name == "torch":
+        import torch as _torch
+        globals()["torch"] = _torch
+        return _torch
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+# Rest of module code that uses `torch` variable
+def create_optimizer(params) -> torch.optim.Optimizer:
+    return torch.optim.Adam(params)  # torch loads on first use
+```
+
+**Requirements:**
+
+1. Use TYPE_CHECKING for type hints of lazily-loaded symbols
+2. Only apply to heavy dependencies (torch, pandas, scipy, boto3, etc.)
+3. Must use `__getattr__` pattern (not inline/local imports inside functions)
+
+Ideally, document the performance benefit in a comment or docstring.
+
+**Rationale:** This is a legitimate Python feature (PEP 562) that allows performance optimization without sacrificing
+type safety or creating hidden circular dependencies. Unlike inline imports, it keeps imports at the module level where
+they're discoverable.
 
 ---
 
@@ -358,9 +480,10 @@ from .internal_module import PublicClass, public_function
 
 **Rule:** `TYPE_CHECKING` imports are PROHIBITED except in the following cases:
 
-1. **Legitimate lazy loading** where documented performance testing shows measurable improvement
-2. **Unavoidable runtime cycles** with clear architectural justification documented in code comments **Pattern
-   (discouraged, use only when necessary):**
+1. **Legitimate lazy loading** (see §6.2 for `__init__.py`, §6.4 for regular modules) for performance improvement
+2. **Unavoidable runtime cycles** with clear architectural justification
+
+**Pattern (discouraged, use only when necessary):**
 
 ```python
 from __future__ import annotations
@@ -379,159 +502,48 @@ def configure_trainer(trainer: Trainer) -> None:
     pass
 ```
 
-### 7.2 Conversion from TYPE_CHECKING
-
-**Before:**
-
-```python
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from mettagrid.simulator.simulator import Simulator
-
-def process(sim: 'Simulator') -> None:
-    pass
-```
-
-**After (preferred - extract types):**
-
-```python
-from __future__ import annotations
-
-from mettagrid.types import Simulator
-
-def process(sim: Simulator) -> None:
-    pass
-```
-
-**After (alternative - module import):**
-
-```python
-from __future__ import annotations
-
-import mettagrid.simulator.simulator as simulator
-
-def process(sim: simulator.Simulator) -> None:
-    pass
-```
-
 ---
 
-## 8. Validation and Enforcement - NOT YET IMPLEMENTED
+## 8. Tooling Reference
 
-### 8.1 Automated Checks
-
-**CI MUST validate:**
-
-1. No circular dependencies in runtime imports (TYPE_CHECKING imports excluded)
-2. All modules follow layer import rules
-3. `__init__.py` files meet simplification criteria
-4. `from __future__ import annotations` present when type hints used
-
-### 8.2 Pre-commit Hooks
-
-**Pre-commit SHOULD check:**
-
-1. Import ordering within modified files
-2. No new TYPE_CHECKING blocks without justification
-3. Module import aliases follow naming conventions
-
-### 8.3 Linting Rules
-
-**Ruff/Flake8 configuration:**
-
-```toml
-[tool.ruff.lint]
-select = [
-    "I",     # isort - import ordering
-    "TCH",   # flake8-type-checking - TYPE_CHECKING usage
-    "TID",   # flake8-tidy-imports - banned imports
-]
-
-[tool.ruff.lint.flake8-type-checking]
-strict = true
-quote-annotations = false  # We use __future__.annotations
-
-[tool.ruff.lint.isort]
-known-first-party = ["metta", "mettagrid"]
-required-imports = ["from __future__ import annotations"]
-```
-
----
-
-## 9. Exceptions and Variances
-
-### 9.1 Requesting Exception
-
-**Process:**
-
-1. Document specific use case and why standard patterns don't apply
-2. Propose alternative approach
-3. Get approval from architecture review
-4. Document exception in code with clear comment **Example:**
-
-```python
-# ARCHITECTURE EXCEPTION: This module uses TYPE_CHECKING due to
-# circular dependency between Simulator and Policy that cannot be
-# resolved without breaking backward compatibility with external
-# plugins. Approved: 2025-11-17. Revisit in v2.0.
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from mettagrid.policy import Policy
-```
-
-### 9.2 Handling Existing Violations
-
-When encountering code that violates import rules: **During focused tasks:**
-
-- Fix violations only if directly related to the current task
-- Note other violations for future cleanup but don't fix them
-- Example: If adding a new method to a class, fix imports in that file only **During refactoring tasks:**
-- Fix all violations in the scope of the refactor
-- Document significant changes in commit messages **When reviewing code:**
-- Flag violations but don't block on pre-existing issues
-- New code must follow current rules **Priority order for fixes:**
-
-1. Circular dependencies (blocks import)
-2. Layer violations (architectural debt)
-3. TYPE_CHECKING misuse (code smell)
-4. Import ordering (style)
-
----
-
-## 10. Tooling Reference
-
-### 10.1 Analysis Tools
+### 8.1 Analysis Tools
 
 **detect_cycles.py:** Finds circular dependencies using Tarjan's algorithm
 
 ```bash
-python devops/import_refactor/detect_cycles.py --path . --output cycles.json
+python tools/dev/python_imports/detect_cycles.py --path . --output cycles.json
 ```
 
 **analyze_architecture.py:** Recommends type extraction and `__init__.py` simplification
 
 ```bash
-python devops/import_refactor/analyze_architecture.py --path . --output architecture.json
+python tools/dev/python_imports/analyze_architecture.py --path . --output architecture.json
 ```
 
 ---
 
-## 11. Glossary
+## 9. Glossary
 
 **Circular Dependency:** Module A imports from Module B, and Module B imports from Module A (directly or transitively).
-**Runtime Import:** An import that executes when the module is loaded, creating actual dependencies. **Type-Only
-Import:** An import used only for type hints, not runtime behavior (often in TYPE_CHECKING blocks). **Module Import:**
-Pattern `import x.y.z as z` - imports the module itself, requires qualified access. **Symbol Import:** Pattern
-`from x.y import Z` - imports specific symbol, allows direct access. **Forward Reference:** Using a type name in a hint
-before it's defined, enabled by `from __future__ import annotations`. **Layer Violation:** Import from a higher
-architectural layer to a lower one, creating dependency inversion.
+
+**Runtime Import:** An import that executes when the module is loaded, creating actual dependencies.
+
+**Type-Only Import:** An import used only for type hints, not runtime behavior (often in TYPE_CHECKING blocks).
+
+**Module Import:** Pattern `import x.y.z as z` - imports the module itself, requires qualified access.
+
+**Symbol Import:** Pattern `from x.y import Z` - imports specific symbol, allows direct access.
+
+**Forward Reference:** Using a type name in a hint before it's defined, requiring either
+`from __future__ import annotations` (Python 3.7-3.13) or lazy evaluation (Python 3.14+).
+
+**Layer Violation:** Import from a higher architectural layer to a lower one, creating dependency inversion.
 
 ---
 
-## 12. References
+## 10. References
 
-- **PEP 563:** Postponed Evaluation of Annotations (`from __future__ import annotations`)
 - **PEP 484:** Type Hints
+- **PEP 563:** Postponed Evaluation of Annotations (`from __future__ import annotations`)
+- **PEP 749:** Lazy Evaluation of Annotations (Python 3.14+, deprecates PEP 563)
 - **CLAUDE.md:** Practical import guidance (lines 558-630)
