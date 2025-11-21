@@ -391,33 +391,36 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
     state_dict: MutableMapping[str, torch.Tensor] | None = None
     policy: Policy | None = None
 
-    with zipfile.ZipFile(input_path, mode="r") as archive:
-        names = set(archive.namelist())
+    try:
+        with zipfile.ZipFile(input_path, mode="r") as archive:
+            names = set(archive.namelist())
 
-        if "modelarchitecture.txt" in names and "weights.safetensors" in names:
-            architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
-            architecture = policy_architecture_from_string(architecture_blob)
+            if "modelarchitecture.txt" in names and "weights.safetensors" in names:
+                architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
+                architecture = policy_architecture_from_string(architecture_blob)
 
-            weights_blob = archive.read("weights.safetensors")
-            loaded_state = load_safetensors(weights_blob)
-            if not isinstance(loaded_state, MutableMapping):
-                msg = "Loaded safetensors state_dict is not a mutable mapping"
-                raise TypeError(msg)
-            if loaded_state and all(k.startswith("module.") for k in loaded_state.keys()):
-                loaded_state = {k.removeprefix("module."): v for k, v in loaded_state.items()}
-            state_dict = loaded_state
-
-        elif "policy.pt" in names:
-            buffer = io.BytesIO(archive.read("policy.pt"))
-            loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
-
-            if _is_puffer_state_dict(loaded_policy):
-                policy = load_pufferlib_checkpoint(loaded_policy, device="cpu")
-            else:
-                if not isinstance(loaded_policy, Policy):
-                    msg = "Loaded policy payload is not a Policy instance"
+                weights_blob = archive.read("weights.safetensors")
+                loaded_state = load_safetensors(weights_blob)
+                if not isinstance(loaded_state, MutableMapping):
+                    msg = "Loaded safetensors state_dict is not a mutable mapping"
                     raise TypeError(msg)
-                policy = loaded_policy
+                if loaded_state and all(k.startswith("module.") for k in loaded_state.keys()):
+                    loaded_state = {k.removeprefix("module."): v for k, v in loaded_state.items()}
+                state_dict = loaded_state
+
+            elif "policy.pt" in names:
+                buffer = io.BytesIO(archive.read("policy.pt"))
+                loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
+
+                if _is_puffer_state_dict(loaded_policy):
+                    policy = load_pufferlib_checkpoint(loaded_policy, device="cpu")
+                else:
+                    if not isinstance(loaded_policy, Policy):
+                        msg = "Loaded policy payload is not a Policy instance"
+                        raise TypeError(msg)
+                    policy = loaded_policy
+    except BadZipFile:
+        return _load_legacy_policy_artifact(input_path)
 
     if architecture is None and state_dict is None and policy is None:
         if not is_pt_file:
