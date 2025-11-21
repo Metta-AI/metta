@@ -178,6 +178,14 @@ def _load_policy_artifact(
     else:
         artifact = load_policy_artifact(Path(data_path))
 
+    if artifact.policy_architecture is None and artifact.state_dict is not None:
+        arch_hint = policy_spec.init_kwargs.get("policy_architecture") if policy_spec.init_kwargs else None
+        if arch_hint is not None:
+            artifact.policy_architecture = arch_hint  # type: ignore[assignment]
+        else:
+            msg = "Checkpoint contains weights but no policy_architecture; provide one via init_kwargs.policy_architecture"
+            raise ValueError(msg)
+
     return artifact.instantiate(policy_env_info, device=device, strict=strict)
 
 

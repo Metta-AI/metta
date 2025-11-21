@@ -204,10 +204,10 @@ class PolicyArtifact:
         has_state = self.state_dict is not None
         has_policy = self.policy is not None
 
-        valid_combo = (has_state and has_arch and not has_policy) or (has_policy and not has_state and not has_arch)
+        valid_combo = (has_state and not has_policy) or (has_policy and not has_state and not has_arch)
 
         if not valid_combo:
-            msg = "PolicyArtifact must contain either (policy) or (state_dict + policy_architecture)."
+            msg = "PolicyArtifact must contain either (policy) or (state_dict [+ policy_architecture])."
             raise ValueError(msg)
 
         if has_state and not isinstance(self.state_dict, MutableMapping):
@@ -221,7 +221,10 @@ class PolicyArtifact:
         *,
         strict: bool = True,
     ) -> Policy:
-        if self.state_dict is not None and self.policy_architecture is not None:
+        if self.state_dict is not None:
+            if self.policy_architecture is None:
+                msg = "policy_architecture is required to instantiate weights-only artifacts"
+                raise ValueError(msg)
             policy = self.policy_architecture.make_policy(policy_env_info)
             policy = policy.to(device)
 
