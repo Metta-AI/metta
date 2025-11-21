@@ -145,11 +145,14 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     if not class_part:
         raise ValueError("Policy class path cannot be empty.")
 
-    resolved_class_path = resolve_policy_class_path(class_part)
-    resolved_policy_data = resolve_policy_data_path(data_part)
+    resolved_class_path = (
+        class_part
+        if "://" in class_part or class_part.lower().endswith(".mpt")
+        else resolve_policy_class_path(class_part)
+    )
 
     return PolicySpecWithProportion(
         class_path=resolved_class_path,
-        data_path=resolved_policy_data,
+        data_path=resolve_policy_data_path(data_part),
         proportion=fraction,
     )

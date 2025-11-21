@@ -100,9 +100,8 @@ def load_policy(
     device: Optional[torch.device] = None,
 ):
     device = device or torch.device("cpu")
-    resolved_class = resolve_policy_class_path(policy_path)
     data_path = resolve_policy_data_path(checkpoint_path) if checkpoint_path else None
-    policy_spec = PolicySpec(class_path=resolved_class, data_path=data_path)
+    policy_spec = PolicySpec(class_path=policy_path, data_path=data_path)
     return initialize_or_load_policy(policy_env_info, policy_spec)
 
 
