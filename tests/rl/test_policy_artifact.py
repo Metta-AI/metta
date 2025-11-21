@@ -222,6 +222,8 @@ def test_load_policy_artifact_ddp_wrapper(tmp_path: Path) -> None:
     instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
 
     assert isinstance(instantiated, DummyPolicy)
+
+
 class DummyDDPWrapper:
     def __init__(self, inner: Policy):
         self.module = inner

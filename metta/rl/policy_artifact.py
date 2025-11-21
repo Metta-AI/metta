@@ -399,8 +399,11 @@ def _artifact_from_policy_payload(payload: Any) -> PolicyArtifact:
                     mutable_state = OrderedDict(state_dict.items())
                 return PolicyArtifact(policy_architecture=architecture, state_dict=mutable_state)
 
-        if not architecture_value and state_dict is None and payload and all(
-            isinstance(v, torch.Tensor) for v in payload.values()
+        if (
+            not architecture_value
+            and state_dict is None
+            and payload
+            and all(isinstance(v, torch.Tensor) for v in payload.values())
         ):
             return PolicyArtifact(policy_architecture=None, state_dict=OrderedDict(payload.items()))
 
