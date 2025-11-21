@@ -41,6 +41,7 @@ from .utils import (
     is_adjacent,
     is_station,
     is_wall,
+    read_inventory_from_obs,
 )
 from .utils import (
     parse_observation as utils_parse_observation,
@@ -136,6 +137,36 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             col=center,
             heart_recipe=heart_recipe,
         )
+
+    def step_with_state(self, obs: AgentObservation, s: SimpleAgentState) -> tuple[Action, SimpleAgentState]:
+        """Main step function that processes observation and returns action with updated state."""
+        s.step_count += 1
+        s.current_obs = obs
+
+        # Read inventory from observation
+        read_inventory_from_obs(s, obs, obs_hr=self._obs_hr, obs_wr=self._obs_wr)
+
+        # Update agent position based on last action
+        self._update_agent_position(s)
+
+        # Parse observation to get structured data
+        parsed = self.parse_observation(s, obs)
+
+        # Update occupancy map and discover objects
+        self._update_occupancy_and_discover(s, parsed)
+
+        # Check for stuck state and handle escape
+        stuck_action = self._check_stuck_and_escape(s)
+        if stuck_action is not None:
+            return stuck_action, s
+
+        # Update phase based on current state
+        self._update_phase(s)
+
+        # Execute action for current phase
+        action = self._execute_phase(s)
+
+        return action, s
 
     def parse_observation(
         self, state: SimpleAgentState, obs: AgentObservation, debug: bool = False
