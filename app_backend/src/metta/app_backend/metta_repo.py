@@ -126,7 +126,7 @@ class EpisodeWithTags(BaseModel):
     eval_task_id: Optional[uuid.UUID]
     created_at: datetime
     tags: dict[str, str] = Field(default_factory=dict)
-    avg_reward: float | None = None
+    avg_rewards: dict[uuid.UUID, float] = Field(default_factory=dict)
 
 
 class LeaderboardPolicyEntry(BaseModel):
@@ -1079,6 +1079,30 @@ GROUP BY pv.id, et.key, et.value
             params.append(offset)
 
         query = f"""
+WITH episode_tags_agg AS (
+    SELECT episode_id, jsonb_object_agg(key, value) AS tags
+    FROM episode_tags
+    GROUP BY episode_id
+),
+episode_avg_rewards AS (
+    SELECT
+        e_sub.id AS episode_id,
+        jsonb_object_agg(
+            pv.id::text,
+            epm.value / NULLIF(ep.num_agents, 0)
+        ) FILTER (
+            WHERE epm.metric_name = 'reward'
+              AND ep.num_agents IS NOT NULL
+              AND ep.num_agents > 0
+        ) AS avg_rewards
+    FROM episodes e_sub
+    JOIN episode_policies ep ON ep.episode_id = e_sub.id
+    JOIN policy_versions pv ON pv.id = ep.policy_version_id
+    JOIN episode_policy_metrics epm
+        ON epm.episode_internal_id = e_sub.internal_id
+       AND epm.pv_internal_id = pv.internal_id
+    GROUP BY e_sub.id
+)
 SELECT
     e.id,
     e.primary_pv_id,
@@ -1087,38 +1111,12 @@ SELECT
     COALESCE(e.attributes, '{{}}'::jsonb) AS attributes,
     e.eval_task_id,
     e.created_at,
-    COALESCE(
-        jsonb_object_agg(et.key, et.value) FILTER (WHERE et.key IS NOT NULL),
-        '{{}}'::jsonb
-    ) AS tags,
-    AVG(
-        CASE
-            WHEN ep_primary.num_agents IS NOT NULL AND ep_primary.num_agents > 0
-                THEN epm.value / ep_primary.num_agents
-            ELSE NULL
-        END
-    ) AS avg_reward
+    COALESCE(t.tags, '{{}}'::jsonb) AS tags,
+    COALESCE(r.avg_rewards, '{{}}'::jsonb) AS avg_rewards
 FROM episodes e
-LEFT JOIN episode_tags et ON et.episode_id = e.id
-LEFT JOIN episode_policies ep_primary
-    ON ep_primary.episode_id = e.id
-   AND ep_primary.policy_version_id = e.primary_pv_id
-LEFT JOIN policy_versions pv_primary
-    ON pv_primary.id = ep_primary.policy_version_id
-LEFT JOIN episode_policy_metrics epm
-    ON epm.episode_internal_id = e.internal_id
-   AND epm.pv_internal_id = pv_primary.internal_id
-   AND epm.metric_name = 'reward'
+LEFT JOIN episode_tags_agg t ON t.episode_id = e.id
+LEFT JOIN episode_avg_rewards r ON r.episode_id = e.id
 {where_clause}
-GROUP BY
-    e.id,
-    e.primary_pv_id,
-    e.replay_url,
-    e.thumbnail_url,
-    COALESCE(e.attributes, '{{}}'::jsonb),
-    e.eval_task_id,
-    e.created_at,
-    ep_primary.num_agents
 ORDER BY e.created_at DESC
 {limit_clause}
 """

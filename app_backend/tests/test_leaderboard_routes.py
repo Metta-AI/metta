@@ -277,7 +277,6 @@ async def test_query_episodes_filters_by_primary_and_tag(
         json={
             "primary_policy_version_ids": [str(policy_version_id)],
             "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},
-            "require_replay": True,
             "limit": 1,
         },
     )
@@ -296,7 +295,6 @@ async def test_query_episodes_filters_by_primary_and_tag(
         json={
             "primary_policy_version_ids": [str(policy_version_id)],
             "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},
-            "require_replay": True,
             "limit": None,
             "offset": 1,
         },
@@ -305,3 +303,50 @@ async def test_query_episodes_filters_by_primary_and_tag(
     offset_episodes = offset_response.json()["episodes"]
     assert len(offset_episodes) == 1
     assert offset_episodes[0]["replay_url"].endswith("/0")
+
+
+@pytest.mark.asyncio
+async def test_query_episodes_by_id_includes_avg_reward_and_replay(
+    isolated_stats_repo: MettaRepo,
+    isolated_test_client: TestClient,
+) -> None:
+    user = "episodes@example.com"
+    policy_id = await isolated_stats_repo.upsert_policy(name="episodes-policy", user_id=user, attributes={})
+    pv_id = await isolated_stats_repo.create_policy_version(
+        policy_id=policy_id,
+        s3_path=None,
+        git_hash=None,
+        policy_spec={},
+        attributes={},
+    )
+
+    episode_id = uuid.uuid4()
+    await isolated_stats_repo.record_episode(
+        id=episode_id,
+        data_uri=f"s3://episodes/{uuid.uuid4()}",
+        primary_pv_id=pv_id,
+        replay_url="https://example.com/replays/episode-test",
+        attributes={"note": "avg reward should be computed"},
+        eval_task_id=None,
+        thumbnail_url=None,
+        tags=[(LEADERBOARD_SIM_NAME_EPISODE_KEY, "arena-basic")],
+        policy_versions=[(pv_id, 2)],
+        policy_metrics=[(pv_id, "reward", 10.0)],
+    )
+
+    headers = {"X-Auth-Request-Email": user}
+    response = isolated_test_client.post(
+        "/stats/episodes/query",
+        headers=headers,
+        json={"episode_ids": [str(episode_id)], "limit": 1},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "episodes" in body
+    episodes = body["episodes"]
+    assert len(episodes) == 1
+    episode = episodes[0]
+    assert episode["id"] == str(episode_id)
+    assert episode["replay_url"] == "https://example.com/replays/episode-test"
+    assert episode["avg_reward"] == pytest.approx(5.0)
