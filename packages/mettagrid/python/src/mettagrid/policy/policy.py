@@ -3,7 +3,7 @@
 import ctypes
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
 
 import numpy as np
 import torch.nn as nn
@@ -261,16 +261,23 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     def step(self, obs: AgentObservation) -> Action:
         """Get action and update hidden state."""
         if not self._state_initialized:
-            raise RuntimeError("reset() must be called before step()")
+            self._initialize_state(self._simulation)
         if hasattr(self._base_policy, "set_active_agent"):
             self._base_policy.set_active_agent(self._agent_id)
-        action, self._state = self._base_policy.step_with_state(obs, self._state)
+        state = cast(StateType, self._state)
+        action, self._state = self._base_policy.step_with_state(obs, state)
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
         return action
 
     def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the hidden state to initial state."""
+        self._initialize_state(simulation)
+
+    def step_batch(self, _raw_observations, raw_actions) -> None:
+        raise NotImplementedError("StatefulAgentPolicy does not support batch stepping")
+
+    def _initialize_state(self, simulation: Optional[Simulation]) -> None:
         self._simulation = simulation
         self._base_policy.reset()
         self._state = self._base_policy.initial_agent_state()
@@ -278,9 +285,6 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         self._state_initialized = True
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
-
-    def step_batch(self, _raw_observations, raw_actions) -> None:
-        raise NotImplementedError("StatefulAgentPolicy does not support batch stepping")
 
 
 class StatefulPolicyImpl(Generic[StateType]):
