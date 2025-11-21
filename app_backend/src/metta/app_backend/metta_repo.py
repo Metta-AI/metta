@@ -1,4 +1,3 @@
-import json
 import logging
 import uuid
 from collections import defaultdict
@@ -1085,7 +1084,7 @@ SELECT
     e.primary_pv_id,
     e.replay_url,
     e.thumbnail_url,
-    e.attributes,
+    COALESCE(e.attributes, '{{}}'::jsonb) AS attributes,
     e.eval_task_id,
     e.created_at,
     COALESCE(
@@ -1116,7 +1115,7 @@ GROUP BY
     e.primary_pv_id,
     e.replay_url,
     e.thumbnail_url,
-    e.attributes,
+    COALESCE(e.attributes, '{{}}'::jsonb),
     e.eval_task_id,
     e.created_at,
     ep_primary.num_agents
@@ -1125,37 +1124,8 @@ ORDER BY e.created_at DESC
 """
 
         async with self.connect() as con:
-            async with con.cursor(row_factory=dict_row) as cur:
+            async with con.cursor(row_factory=class_row(EpisodeWithTags)) as cur:
                 await cur.execute(query, params)  # type: ignore
                 rows = await cur.fetchall()
 
-        episodes: list[EpisodeWithTags] = []
-        for row in rows:
-            attributes_value = row.get("attributes") or {}
-            if isinstance(attributes_value, str):
-                try:
-                    attributes_value = json.loads(attributes_value)
-                except json.JSONDecodeError:
-                    attributes_value = {}
-
-            tags_value = row.get("tags") or {}
-            if isinstance(tags_value, str):
-                try:
-                    tags_value = json.loads(tags_value)
-                except json.JSONDecodeError:
-                    tags_value = {}
-
-            episodes.append(
-                EpisodeWithTags(
-                    id=row["id"],
-                    primary_pv_id=row["primary_pv_id"],
-                    replay_url=row["replay_url"],
-                    thumbnail_url=row["thumbnail_url"],
-                    attributes=attributes_value,
-                    eval_task_id=row["eval_task_id"],
-                    created_at=row["created_at"],
-                    tags=tags_value,
-                    avg_reward=row.get("avg_reward"),
-                )
-            )
-        return episodes
+        return list(rows)
