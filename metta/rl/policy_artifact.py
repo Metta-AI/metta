@@ -279,49 +279,13 @@ def save_policy_artifact_pt(
     return _save_policy_artifact(path, policy=policy, include_policy=True)
 
 
-def _load_legacy_policy_artifact(path: Path) -> PolicyArtifact:
-    """Load checkpoints that were written via torch.save instead of safetensors."""
-
+def _load_policy_payload_from_file(path: Path) -> Any:
     try:
-        legacy_payload = torch.load(path, map_location="cpu", weights_only=False)
+        return torch.load(path, map_location="cpu", weights_only=False)
     except FileNotFoundError:
         raise
     except (pickle.UnpicklingError, RuntimeError, OSError, TypeError, BadZipFile) as err:
         raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
-
-    if _is_puffer_state_dict(legacy_payload):
-        policy = load_pufferlib_checkpoint(legacy_payload, device="cpu")
-        return PolicyArtifact(policy=policy)
-
-    if isinstance(legacy_payload, Policy):
-        return PolicyArtifact(policy=legacy_payload)
-
-    module_policy = getattr(legacy_payload, "module", None)
-    if isinstance(module_policy, Policy):
-        return PolicyArtifact(policy=module_policy)
-
-    if isinstance(legacy_payload, Mapping):
-        state_dict = legacy_payload.get("state_dict") or legacy_payload.get("weights")
-        architecture_value = (
-            legacy_payload.get("policy_architecture")
-            or legacy_payload.get("policy_architecture_spec")
-            or legacy_payload.get("policy_architecture_str")
-        )
-
-        if isinstance(state_dict, Mapping) and architecture_value is not None:
-            if isinstance(architecture_value, PolicyArchitecture):
-                architecture = architecture_value
-            elif isinstance(architecture_value, str):
-                architecture = policy_architecture_from_string(architecture_value)
-            else:
-                architecture = None
-
-            if architecture is not None:
-                mutable_state = OrderedDict(state_dict.items()) if not isinstance(state_dict, MutableMapping) else state_dict
-                return PolicyArtifact(policy_architecture=architecture, state_dict=mutable_state)
-
-    msg = "Loaded policy payload is not a Policy instance"
-    raise TypeError(msg)
 
 
 def _save_policy_artifact(
@@ -402,6 +366,45 @@ def _save_policy_artifact(
     )
 
 
+def _artifact_from_policy_payload(payload: Any) -> PolicyArtifact:
+    if _is_puffer_state_dict(payload):
+        policy = load_pufferlib_checkpoint(payload, device="cpu")
+        return PolicyArtifact(policy=policy)
+
+    if isinstance(payload, Policy):
+        return PolicyArtifact(policy=payload)
+
+    module_policy = getattr(payload, "module", None)
+    if isinstance(module_policy, Policy):
+        return PolicyArtifact(policy=module_policy)
+
+    if isinstance(payload, Mapping):
+        state_dict = payload.get("state_dict") or payload.get("weights")
+        architecture_value = (
+            payload.get("policy_architecture")
+            or payload.get("policy_architecture_spec")
+            or payload.get("policy_architecture_str")
+        )
+
+        if isinstance(state_dict, Mapping) and architecture_value is not None:
+            if isinstance(architecture_value, PolicyArchitecture):
+                architecture = architecture_value
+            elif isinstance(architecture_value, str):
+                architecture = policy_architecture_from_string(architecture_value)
+            else:
+                architecture = None
+
+            if architecture is not None:
+                mutable_state: MutableMapping[str, torch.Tensor]
+                if isinstance(state_dict, MutableMapping):
+                    mutable_state = state_dict  # type: ignore[assignment]
+                else:
+                    mutable_state = OrderedDict(state_dict.items())
+                return PolicyArtifact(policy_architecture=architecture, state_dict=mutable_state)
+
+    raise TypeError("Loaded policy payload is not a Policy instance")
+
+
 def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyArtifact:
     input_path = Path(path)
     if not input_path.exists():
@@ -409,11 +412,11 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
         raise FileNotFoundError(msg)
 
     if is_pt_file or input_path.suffix == ".pt":
-        return _load_legacy_policy_artifact(input_path)
+        payload = _load_policy_payload_from_file(input_path)
+        return _artifact_from_policy_payload(payload)
 
     architecture: PolicyArchitecture | None = None
     state_dict: MutableMapping[str, torch.Tensor] | None = None
-    policy: Policy | None = None
 
     try:
         with zipfile.ZipFile(input_path, mode="r") as archive:
@@ -435,25 +438,13 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
             elif "policy.pt" in names:
                 buffer = io.BytesIO(archive.read("policy.pt"))
                 loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
-
-                if _is_puffer_state_dict(loaded_policy):
-                    policy = load_pufferlib_checkpoint(loaded_policy, device="cpu")
-                else:
-                    if not isinstance(loaded_policy, Policy):
-                        msg = "Loaded policy payload is not a Policy instance"
-                        raise TypeError(msg)
-                    policy = loaded_policy
+                return _artifact_from_policy_payload(loaded_policy)
     except BadZipFile:
-        return _load_legacy_policy_artifact(input_path)
+        payload = _load_policy_payload_from_file(input_path)
+        return _artifact_from_policy_payload(payload)
 
-    if architecture is None and state_dict is None and policy is None:
-        if not is_pt_file:
-            try:
-                return _load_legacy_policy_artifact(input_path)
-            except FileNotFoundError:
-                pass
+    if architecture is None and state_dict is None:
+        payload = _load_policy_payload_from_file(input_path)
+        return _artifact_from_policy_payload(payload)
 
-        msg = f"Policy artifact {input_path} contained no usable payload"
-        raise ValueError(msg)
-
-    return PolicyArtifact(policy_architecture=architecture, state_dict=state_dict, policy=policy)
+    return PolicyArtifact(policy_architecture=architecture, state_dict=state_dict, policy=None)
