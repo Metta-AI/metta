@@ -591,13 +591,14 @@ Prevent circular import errors by using consistent patterns.
 
 **Quick rules:**
 
-1. **Start every file with:**
+1. **Use `from __future__ import annotations` when needed for forward references:**
 
    ```python
    from __future__ import annotations
    ```
 
-   This enables automatic forward references in type hints.
+   Currently the best option for forward references (e.g., methods returning their own class type, or type hints
+   referencing classes defined later in the file). Python 3.14+ will deprecate this in favor of native lazy evaluation.
 
 2. **Import shared types from `types.py` files:**
 
@@ -627,7 +628,7 @@ Prevent circular import errors by using consistent patterns.
 
 **Why?**
 
-- `from __future__ import annotations` makes forward references work automatically
+- `from __future__ import annotations` enables forward references when needed (use only when necessary)
 - Absolute imports are unambiguous, work when running files directly, and give better error messages
 - Extracting shared types to `types.py` breaks most circular dependencies
 - Module imports (`import X as X_mod`) prevent remaining cycles
@@ -661,39 +662,24 @@ Prevent circular import errors by using consistent patterns.
 
 **Performance exceptions allowed:**
 
-- `__init__.py` SHOULD use lazy loading via `__getattr__` when package has heavy imports (torch, gymnasium, pufferlib,
-  pandas, scipy, boto3, etc.)
-- `__init__.py` with only light imports SHOULD use direct imports (lazy loading adds unnecessary complexity)
+- **Public packages** (`packages/mettagrid`, `packages/cortex`, etc.): `__init__.py` SHOULD use lazy loading via
+  `__getattr__` for heavy imports (torch, gymnasium, pufferlib, pandas, scipy, boto3, etc.) to provide clean user API
+- **Internal modules** (`metta/` directory): `__init__.py` files SHOULD be empty or minimal - let users import from
+  specific modules
+- Module-level `__getattr__` can be used in regular `.py` files (not just `__init__.py`) when documented performance
+  benefit exists
 - Optional dependencies can use try/except imports
 - Backend selection (CUDA/Triton) can use conditional imports
 
 **Not allowed:**
 
-- Local imports inside functions/methods to work around circular dependencies
+- Inline imports (imports inside function/method bodies) to work around circular dependencies
 - Use the resolution protocol above instead (extract types or module imports)
 
-**Architecture layers (for reference):**
+**Architecture layers:**
 
-```
-Foundation:     common
-Environment:    mettagrid.config → mettagrid.simulator → mettagrid.policy/envs
-Agent:          agent (neural components)
-RL Core:        metta.rl (training, losses, vecenv)
-Applications:   metta.sim, metta.cogworks, recipes
-Services:       app_backend, tools
-```
-
-Lower layers provide abstractions for higher layers. Don't import upward.
-
-**Examples:**
-
-- ✓ `from mettagrid.types import Action` - absolute import, shared type
-- ✓ `from metta.cogworks.curriculum.types import CurriculumTask` - absolute import
-- ✓ `import mettagrid.simulator.simulator as sim` - module import prevents cycles
-- ✗ `from .types import CurriculumTask` - relative import, use absolute
-- ✗ `from mettagrid.simulator import Action` - unclear source, use types.py
-- ✗ `from mettagrid.simulator.simulator import Simulation` in `mettagrid.simulator.interface` - creates cycle
-- ✗ `from metta.rl import Trainer` in `agent/` - violates layer ordering
+Higher-level modules can import from lower-level modules, but not vice versa. Check `pyproject.toml` dependencies to
+understand the hierarchy - you can only import from packages listed in your dependencies.
 
 **For detailed Python Imports specification:** See `tools/dev/python_imports/SPECIFICATION.md`
 
