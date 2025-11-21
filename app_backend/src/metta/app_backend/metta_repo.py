@@ -142,7 +142,7 @@ class EpisodeWithTags(BaseModel):
     tags: dict[str, str] = Field(default_factory=dict)
     avg_rewards: dict[uuid.UUID, float] = Field(default_factory=dict)
 
-    # We need this because we dont insert a json object into attributes, we insert a string reflecting the json object.
+    # We need this because we don't insert a json object into attributes, we insert a string reflecting the json object.
     @field_validator("attributes", mode="before")
     @classmethod
     def _ensure_dict_attributes(cls, value: Any) -> dict[str, Any]:
