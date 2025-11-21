@@ -133,6 +133,7 @@ class LeaderboardPolicyEntry(BaseModel):
     scores: dict[str, float]
     avg_score: float | None = None
     replays: dict[str, list[EpisodeReplay]] = Field(default_factory=dict)
+    score_episode_ids: dict[str, uuid.UUID | None] = Field(default_factory=dict)
 
 
 logger = logging.getLogger(name="metta_repo")
@@ -950,6 +951,9 @@ ORDER BY pol.created_at DESC, pv.created_at DESC
 
             policy_version_ids = [row.id for row in policy_rows]
             scores_by_policy: dict[uuid.UUID, dict[str, float]] = {pv_id: {} for pv_id in policy_version_ids}
+            score_episode_ids: dict[uuid.UUID, dict[str, uuid.UUID | None]] = {
+                pv_id: {} for pv_id in policy_version_ids
+            }
 
             async with con.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
@@ -972,7 +976,8 @@ SELECT
     pv.id AS policy_version_id,
     et.key AS tag_key,
     et.value AS tag_value,
-    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent
+    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent,
+    (ARRAY_AGG(e.id ORDER BY e.created_at DESC, e.id DESC))[1] AS latest_episode_id
 FROM policy_versions pv
 JOIN episode_policies ep ON ep.policy_version_id = pv.id
 JOIN episodes e ON e.id = ep.episode_id
@@ -994,6 +999,7 @@ GROUP BY pv.id, et.key, et.value
                     pv_id = score_row["policy_version_id"]
                     tag_identifier = f"{score_row['tag_key']}:{score_row['tag_value']}"
                     scores_by_policy.setdefault(pv_id, {})[tag_identifier] = float(score_row["avg_reward_per_agent"])
+                    score_episode_ids.setdefault(pv_id, {})[tag_identifier] = score_row["latest_episode_id"]
 
         entries: list[LeaderboardPolicyEntry] = []
         for policy_row in policy_rows:
@@ -1006,6 +1012,7 @@ GROUP BY pv.id, et.key, et.value
                     policy_version=policy_version,
                     scores=dict(scores),
                     avg_score=avg_score,
+                    score_episode_ids=dict(score_episode_ids.get(pv_id, {})),
                 )
             )
 
@@ -1057,9 +1064,13 @@ GROUP BY pv.id, et.key, et.value
                     params.append(tag_key)
 
         where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
-        limit_clause = "LIMIT %s OFFSET %s" if limit is not None else ""
+        limit_clause = ""
         if limit is not None:
-            params.extend([limit, offset])
+            limit_clause = "LIMIT %s"
+            params.append(limit)
+        if offset > 0:
+            limit_clause += " OFFSET %s" if limit_clause else "OFFSET %s"
+            params.append(offset)
 
         query = f"""
 SELECT
