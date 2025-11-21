@@ -1,12 +1,12 @@
-import React from "react";
-import { EvalMetadata } from "./types";
+import React from 'react'
+import { EvalMetadata } from './types'
 
 interface EvalListViewProps {
-  evaluations: EvalMetadata[];
-  selectedEvals: string[];
-  onEvalToggle: (evalName: string) => void;
-  viewMode: "list" | "category";
-  showPrerequisites: boolean;
+  evaluations: EvalMetadata[]
+  selectedEvals: string[]
+  onEvalToggle: (evalName: string) => void
+  viewMode: 'list' | 'category'
+  showPrerequisites: boolean
 }
 
 export const EvalListView: React.FC<EvalListViewProps> = ({
@@ -14,27 +14,24 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
   selectedEvals,
   onEvalToggle,
   viewMode,
-  showPrerequisites
+  showPrerequisites,
 }) => {
   const renderDifficultyBadge = (difficulty: string) => {
     const colorMap = {
-      easy: "#22c55e",
-      medium: "#f59e0b",
-      hard: "#ef4444"
-    };
+      easy: '#22c55e',
+      medium: '#f59e0b',
+      hard: '#ef4444',
+    }
 
     return (
-      <span
-        className="difficulty-badge"
-        style={{ backgroundColor: colorMap[difficulty as keyof typeof colorMap] }}
-      >
+      <span className="difficulty-badge" style={{ backgroundColor: colorMap[difficulty as keyof typeof colorMap] }}>
         {difficulty}
       </span>
-    );
-  };
+    )
+  }
 
   const renderPrerequisites = (prerequisites: string[]) => {
-    if (!showPrerequisites || prerequisites.length === 0) return null;
+    if (!showPrerequisites || prerequisites.length === 0) return null
 
     return (
       <div className="prerequisites">
@@ -45,11 +42,11 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
           </span>
         ))}
       </div>
-    );
-  };
+    )
+  }
 
   const renderAgentRequirements = (agentRequirements: string[]) => {
-    if (agentRequirements.includes("any")) return null;
+    if (agentRequirements.includes('any')) return null
 
     return (
       <div className="agent-requirements">
@@ -59,18 +56,21 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
           </span>
         ))}
       </div>
-    );
-  };
+    )
+  }
 
-  if (viewMode === "category") {
+  if (viewMode === 'category') {
     // Group by category
-    const evalsByCategory = evaluations.reduce((acc, eval_meta) => {
-      if (!acc[eval_meta.category]) {
-        acc[eval_meta.category] = [];
-      }
-      acc[eval_meta.category].push(eval_meta);
-      return acc;
-    }, {} as Record<string, EvalMetadata[]>);
+    const evalsByCategory = evaluations.reduce(
+      (acc, eval_meta) => {
+        if (!acc[eval_meta.category]) {
+          acc[eval_meta.category] = []
+        }
+        acc[eval_meta.category].push(eval_meta)
+        return acc
+      },
+      {} as Record<string, EvalMetadata[]>
+    )
 
     return (
       <div className="eval-list-view category-view">
@@ -79,12 +79,12 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
             <h4 className="category-title">{category}</h4>
             <div className="eval-grid">
               {categoryEvals.map((metadata) => {
-                const isSelected = selectedEvals.includes(metadata.name);
+                const isSelected = selectedEvals.includes(metadata.name)
 
                 return (
                   <div
                     key={metadata.name}
-                    className={`eval-card ${isSelected ? "selected" : ""}`}
+                    className={`eval-card ${isSelected ? 'selected' : ''}`}
                     onClick={() => onEvalToggle(metadata.name)}
                   >
                     <div className="eval-header">
@@ -94,30 +94,28 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
                         onChange={() => onEvalToggle(metadata.name)}
                         onClick={(e) => e.stopPropagation()}
                       />
-                      <span className="eval-name">
-                        {metadata.name.split('/').pop()}
-                      </span>
+                      <span className="eval-name">{metadata.name.split('/').pop()}</span>
                     </div>
                   </div>
-                );
+                )
               })}
             </div>
           </div>
         ))}
       </div>
-    );
+    )
   }
 
   // List view
   return (
     <div className="eval-list-view">
       {evaluations.map((metadata) => {
-        const isSelected = selectedEvals.includes(metadata.name);
+        const isSelected = selectedEvals.includes(metadata.name)
 
         return (
           <div
             key={metadata.name}
-            className={`eval-item ${isSelected ? "selected" : ""}`}
+            className={`eval-item ${isSelected ? 'selected' : ''}`}
             onClick={() => onEvalToggle(metadata.name)}
           >
             <div className="eval-header">
@@ -130,8 +128,8 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
               <span className="eval-name">{metadata.name}</span>
             </div>
           </div>
-        );
+        )
       })}
     </div>
-  );
-};
+  )
+}
