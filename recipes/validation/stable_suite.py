@@ -74,35 +74,35 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     )
 
     # ========================================
-    # CvC Small Maps - Stable Tests
+    # CvC Fixed Maps - Stable Tests
     # ========================================
 
     # 200-epoch mettabox sanity check (~105M timesteps)
-    cvc_small_200ep_name = f"{prefix}.cvc_small_mettabox_200ep"
-    cvc_small_200ep_timesteps = 200 * 524_288  # 200 epochs * default batch size
-    cvc_small_train_200ep = JobConfig(
-        name=cvc_small_200ep_name,
-        module="recipes.prod.cvc.small_maps.train",
+    cvc_fixed_maps_200ep_name = f"{prefix}.cvc_fixed_maps_mettabox_200ep"
+    cvc_fixed_maps_200ep_timesteps = 200 * 524_288  # 200 epochs * default batch size
+    cvc_fixed_maps_train_200ep = JobConfig(
+        name=cvc_fixed_maps_200ep_name,
+        module="recipes.prod.cvc.fixed_maps.train",
         args=[
-            f"run={cvc_small_200ep_name}",
-            f"trainer.total_timesteps={cvc_small_200ep_timesteps}",
+            f"run={cvc_fixed_maps_200ep_name}",
+            f"trainer.total_timesteps={cvc_fixed_maps_200ep_timesteps}",
             "num_cogs=4",
             'variants=["lonely_heart","heart_chorus","pack_rat"]',
         ],
         timeout_s=43200,
         remote=RemoteConfig(gpus=1, nodes=1),
         is_training_job=True,
-        metrics_to_track=["env_agent/heart.gained"],
-        acceptance_criteria=[AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.0)],
+        metrics_to_track=["overview/sps"],
+        acceptance_criteria=[AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000)],
     )
 
     # Multi-GPU training - 2B timesteps
-    cvc_small_train_name = f"{prefix}.cvc_small_multi_gpu_2b"
-    cvc_small_train_2b = JobConfig(
-        name=cvc_small_train_name,
-        module="recipes.prod.cvc.small_maps.train",
+    cvc_fixed_maps_train_name = f"{prefix}.cvc_fixed_maps_multi_gpu_2b"
+    cvc_fixed_maps_train_2b = JobConfig(
+        name=cvc_fixed_maps_train_name,
+        module="recipes.prod.cvc.fixed_maps.train",
         args=[
-            f"run={cvc_small_train_name}",
+            f"run={cvc_fixed_maps_train_name}",
             "trainer.total_timesteps=2000000000",
             "num_cogs=4",
             'variants=["lonely_heart","heart_chorus","pack_rat"]',
@@ -110,7 +110,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         timeout_s=172800,
         remote=RemoteConfig(gpus=4, nodes=4),
         is_training_job=True,
-        metrics_to_track=["overview/sps", "env_agent/heart.gained"],
+        metrics_to_track=["overview/sps"],
         acceptance_criteria=[AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=80000)],
     )
 
@@ -118,6 +118,6 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         arena_train_100m,
         arena_train_2b,
         arena_eval,
-        cvc_small_train_200ep,
-        cvc_small_train_2b,
+        cvc_fixed_maps_train_200ep,
+        cvc_fixed_maps_train_2b,
     ]

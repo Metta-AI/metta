@@ -64,8 +64,3 @@ class LadyBugAgentsMultiPolicy(NimMultiAgentPolicy):
             nim_policy_factory=na.LadybugPolicy,
             agent_ids=agent_ids,
         )
-
-
-# Backwards compatibility for older import path (lowercase "b")
-class LadybugAgentsMultiPolicy(LadyBugAgentsMultiPolicy):
-    pass

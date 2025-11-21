@@ -56,9 +56,18 @@ EVALS = Site(
     max_cogs=8,
 )
 
+EASY_MODE = Site(
+    name="easy_mode",
+    description="Easy training configuration with simplified variants",
+    map_builder=get_map("evals/extractor_hub_30x30.map"),
+    min_cogs=1,
+    max_cogs=8,
+)
+
 SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
     EVALS,
+    EASY_MODE,
 ]

@@ -61,6 +61,7 @@ runs:
       with:
         install-mode: minimal
         extra-dependencies: |
+          asana>=5.2.2
           requests>=2.31.0
           vcrpy>=6.0.0
           pyyaml>=6.0.0

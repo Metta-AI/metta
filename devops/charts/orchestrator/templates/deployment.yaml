@@ -37,6 +37,10 @@ spec:
               fieldPath: metadata.namespace
         - name: KUBERNETES_SERVICE_ACCOUNT
           value: {{ include "orchestrator.serviceAccountName" . }}
+        - name: KUBERNETES_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         - name: WANDB_API_KEY
           valueFrom:
             secretKeyRef:
@@ -60,7 +64,8 @@ spec:
           value: "eval-orchestrator"
         - name: DD_VERSION
           value: {{ .Values.image.tag | quote }}
+        - name: DD_TAGS
+          value: "kube_pod_name:$(KUBERNETES_POD_NAME)"
         {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
-

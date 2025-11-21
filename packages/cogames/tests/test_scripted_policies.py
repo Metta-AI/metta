@@ -17,15 +17,15 @@ from rich.console import Console
 
 from cogames.cli.mission import get_mission
 from cogames.play import play as play_episode
-from metta.common.tool.run_tool import init_mettagrid_system_environment
+from metta.common.util.log_config import init_mettagrid_system_environment
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator import Simulator
 
-init_mettagrid_system_environment()
 discover_and_register_policies("cogames.policy")
+init_mettagrid_system_environment()
 
 
 @dataclass(frozen=True)
@@ -50,12 +50,14 @@ POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
     PolicyUnderTest("nim_race_car", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("scripted_baseline"),
     PolicyUnderTest("scripted_unclipping"),
+    PolicyUnderTest("scripted_starter"),
     PolicyUnderTest(
         "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
         requires_nim=True,
         supports_supervisor=True,
     ),
     PolicyUnderTest("cogames.policy.scripted_agent.baseline_agent.BaselinePolicy"),
+    PolicyUnderTest("cogames.policy.scripted_agent.starter_agent.StarterPolicy"),
 )
 
 SUPERVISOR_POLICIES: tuple[PolicyUnderTest, ...] = tuple(p for p in POLICIES_UNDER_TEST if p.supports_supervisor)

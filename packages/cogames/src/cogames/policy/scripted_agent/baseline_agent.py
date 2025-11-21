@@ -16,10 +16,9 @@ from __future__ import annotations
 import random
 from typing import Callable, Optional, Tuple, Union
 
-from cogames.policy import StatefulPolicyImpl
 from mettagrid.config.mettagrid_config import CardinalDirection, CardinalDirections
 from mettagrid.config.vibes import VIBE_BY_NAME
-from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
@@ -69,7 +68,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Fast lookup tables for observation feature decoding
         self._spatial_feature_names = {
             "tag",
-            "converting",
             "cooldown_remaining",
             "clipped",
             "remaining_uses",
@@ -177,7 +175,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if pos not in position_features:
             position_features[pos] = {}
 
-        # Handle spatial features (tag, converting, cooldown, etc.)
+        # Handle spatial features (tag, cooldown, etc.)
         if feature_name in self._spatial_feature_names:
             # Tag: collect all tags as a list (objects can have multiple tags)
             if feature_name == "tag":
@@ -244,7 +242,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         return ObjectState(
             name=obj_name,
-            converting=get_int("converting", 0),
             cooldown_remaining=get_int("cooldown_remaining", 0),
             clipped=get_int("clipped", 0),
             remaining_uses=get_int("remaining_uses", 999),
@@ -511,7 +508,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             s.extractors[resource_type].append(extractor)
 
         extractor.last_seen_step = s.step_count
-        extractor.converting = obj_state.converting > 0
         extractor.cooldown_remaining = obj_state.cooldown_remaining
         extractor.clipped = obj_state.clipped > 0
         extractor.remaining_uses = obj_state.remaining_uses
@@ -870,7 +866,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """Try to use extractor if ready. Returns appropriate action."""
 
         # Wait if on cooldown
-        if extractor.cooldown_remaining > 0 or extractor.converting:
+        if extractor.cooldown_remaining > 0:
             s.waiting_at_extractor = extractor.position
             s.wait_steps += 1
             return self._actions.noop.Noop()

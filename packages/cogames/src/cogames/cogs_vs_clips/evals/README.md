@@ -568,13 +568,13 @@ uv run cogames play --mission evals.go_together --cogs 4 --difficulty standard
 
 ```bash
 # Evaluate a single agent on all missions and difficulties
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+uv run python packages/cogames/scripts/run_evaluation.py \
   --agent simple \
   --steps 1000 \
   --output eval_simple.json
 
 # Evaluate with specific difficulty filter
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+uv run python packages/cogames/scripts/run_evaluation.py \
   --agent coordinating \
   --difficulties clipped_oxygen clipped_silicon \
   --steps 1000 \
@@ -585,7 +585,7 @@ uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
 
 ```bash
 # Evaluate a policy on the integrated eval suite (spanning evals)
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+uv run python packages/cogames/scripts/run_evaluation.py \
   --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
   --mission-set integrated_evals \
   --cogs 4 \
@@ -696,7 +696,7 @@ Why these choices:
 Run the set:
 
 ```bash
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+uv run python packages/cogames/scripts/run_evaluation.py \
   --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
   --mission-set integrated_evals \
   --cogs 4 \
