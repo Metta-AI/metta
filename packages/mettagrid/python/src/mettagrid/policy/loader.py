@@ -10,6 +10,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
+import torch
+
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
@@ -29,6 +31,12 @@ def initialize_or_load_policy(
     """
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+
+    artifact_policy = _maybe_load_policy_artifact(policy_env_info, policy_spec)
+    if artifact_policy is not None:
+        if not isinstance(artifact_policy, MultiAgentPolicy):
+            raise TypeError("Loaded policy artifact did not produce a MultiAgentPolicy")
+        return artifact_policy
 
     try:
         policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
@@ -139,6 +147,32 @@ def resolve_policy_data_path(
         return str(path)
 
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
+
+
+def _maybe_load_policy_artifact(
+    policy_env_info: PolicyEnvInterface,
+    policy_spec: PolicySpec,
+) -> MultiAgentPolicy | None:
+    data_path = policy_spec.data_path
+    if not data_path:
+        return None
+
+    path = Path(data_path).expanduser()
+    if path.suffix.lower() != ".mpt":
+        return None
+
+    try:
+        from metta.rl.policy_artifact import load_policy_artifact
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise ImportError("Loading .mpt checkpoints requires the metta RL components to be installed.") from exc
+
+    artifact = load_policy_artifact(path)
+    init_kwargs = policy_spec.init_kwargs or {}
+    device_arg = init_kwargs.get("device", "cpu")
+    device = device_arg if isinstance(device_arg, torch.device) else torch.device(device_arg)
+    strict = bool(init_kwargs.get("strict", True))
+
+    return artifact.instantiate(policy_env_info, device=device, strict=strict)
 
 
 @functools.cache

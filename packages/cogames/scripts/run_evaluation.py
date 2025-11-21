@@ -5,7 +5,7 @@ Evaluation Script for Policies
 Supports:
 - Built-in shorthands: baseline, ladybug (`--agent all` runs both)
 - Any policy via full class path
-- Local or S3 checkpoints when CheckpointManager is available
+- Local checkpoints (.pt/.mpt) when providing `--checkpoint`
 
 Usage snippets:
   uv run python packages/cogames/scripts/run_evaluation.py --agent all
@@ -14,9 +14,7 @@ Usage snippets:
   uv run python packages/cogames/scripts/run_evaluation.py \
       --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy --cogs 1
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent cogames.policy.lstm.LSTMPolicy --checkpoint s3://bucket/path/model.mpt --cogs 1
-  uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent s3://bucket/path/model.mpt --cogs 1
+      --agent cogames.policy.lstm.LSTMPolicy --checkpoint ./train_dir/run/model.mpt --cogs 1
 """
 
 import argparse
@@ -49,14 +47,6 @@ from mettagrid.policy.loader import (
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
-
-try:
-    from metta.rl.checkpoint_manager import CheckpointManager
-
-    CHECKPOINT_MANAGER_AVAILABLE = True
-except ImportError:
-    CHECKPOINT_MANAGER_AVAILABLE = False
-    CheckpointManager = None
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -103,47 +93,16 @@ class AgentConfig:
     data_path: Optional[str] = None
 
 
-def is_s3_uri(path: str) -> bool:
-    return path.startswith("s3://") if path else False
-
-
-def _require_checkpoint_manager() -> None:
-    if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-        raise ImportError("CheckpointManager not available. Install metta extras to use checkpoint URIs.")
-
-
 def _policy_spec_from_inputs(
     policy_path: str,
     checkpoint_path: Optional[str],
     *,
     device: torch.device,
 ) -> PolicySpec:
-    if policy_path and ("://" in policy_path or Path(policy_path).suffix.lower() == ".mpt"):
-        _require_checkpoint_manager()
-        logger.info(f"Loading policy from checkpoint: {policy_path}")
-        return CheckpointManager.policy_spec_from_uri(policy_path, device=device)
-
     resolved_class = resolve_policy_class_path(policy_path)
 
     if checkpoint_path:
-        if "://" in checkpoint_path or Path(checkpoint_path).suffix.lower() == ".mpt":
-            _require_checkpoint_manager()
-            logger.info(f"Loading policy from checkpoint: {checkpoint_path}")
-            return CheckpointManager.policy_spec_from_uri(
-                checkpoint_path,
-                device=device,
-                display_name=resolved_class,
-            )
-
         resolved_data = resolve_policy_data_path(checkpoint_path)
-        if resolved_data and ("://" in resolved_data or Path(resolved_data).suffix.lower() == ".mpt"):
-            _require_checkpoint_manager()
-            logger.info(f"Loading policy from checkpoint: {resolved_data}")
-            return CheckpointManager.policy_spec_from_uri(
-                resolved_data,
-                device=device,
-                display_name=resolved_class,
-            )
         return PolicySpec(class_path=resolved_class, data_path=resolved_data)
 
     return PolicySpec(class_path=resolved_class)
@@ -853,9 +812,6 @@ def main():
             configs.extend(list(AGENT_CONFIGS.values()))
         elif agent_key in AGENT_CONFIGS:
             configs.append(AGENT_CONFIGS[agent_key])
-        elif is_s3_uri(agent_key):
-            label = Path(agent_key).stem if "/" in agent_key else agent_key
-            configs.append(AgentConfig(key="custom", label=f"s3_{label}", policy_path=agent_key, data_path=None))
         else:
             label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
             configs.append(AgentConfig(key="custom", label=label, policy_path=agent_key, data_path=args.checkpoint))

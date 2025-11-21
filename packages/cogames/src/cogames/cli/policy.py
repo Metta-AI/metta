@@ -9,7 +9,6 @@ from pydantic import Field
 from rich.table import Table
 
 from cogames.cli.base import console
-from metta.rl.checkpoint_manager import CheckpointManager
 from mettagrid.policy.loader import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid.policy.policy import PolicySpec
 
@@ -168,35 +167,8 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     resolved_class_path = resolve_policy_class_path(class_part)
     resolved_policy_data = resolve_policy_data_path(data_part)
 
-    artifact_spec = _maybe_policy_artifact_spec(
-        display_name=class_part,
-        checkpoint_path=resolved_policy_data,
-        proportion=fraction,
-    )
-    if artifact_spec is not None:
-        return artifact_spec
-
     return PolicySpecWithProportion(
         class_path=resolved_class_path,
         data_path=resolved_policy_data,
         proportion=fraction,
-    )
-
-
-def _maybe_policy_artifact_spec(
-    *,
-    display_name: str,
-    checkpoint_path: Optional[str],
-    proportion: float,
-) -> PolicySpecWithProportion | None:
-    if not checkpoint_path or not checkpoint_path.lower().endswith(".mpt"):
-        return None
-
-    spec = CheckpointManager.policy_spec_from_uri(checkpoint_path, display_name=display_name)
-
-    return PolicySpecWithProportion(
-        class_path=spec.class_path,
-        data_path=spec.data_path,
-        init_kwargs=spec.init_kwargs,
-        proportion=proportion,
     )
