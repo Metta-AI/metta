@@ -120,7 +120,10 @@ class CurriculumEnv(PufferEnv):
             episode_rewards = self._env.get_episode_rewards()
 
             # Get per-epoch evictions and add to info dict (for gini calculation)
-            evictions_this_epoch = self._curriculum.get_and_reset_evictions_this_epoch()
+            # NOTE: Use get_evictions_this_epoch() NOT get_and_reset_evictions_this_epoch()
+            # The reset should only happen at epoch boundaries (in training loop),
+            # not on every episode completion.
+            evictions_this_epoch = self._curriculum.get_evictions_this_epoch()
             if evictions_this_epoch:
                 if "env_curriculum_stats/per_label_evictions_this_epoch" not in infos:
                     infos["env_curriculum_stats/per_label_evictions_this_epoch"] = {}

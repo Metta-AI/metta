@@ -253,10 +253,12 @@ class BidirectionalLPScorer(LPScorer):
         # Pass task_ids to prevent race condition in multi-process environment
         learning_progress = self._learning_progress(task_ids)
         if len(learning_progress) > 0:
+            # Count zeros in lp_scores list (convert to numpy for element-wise comparison)
+            num_zeros = float(np.sum(np.array(lp_scores) == 0)) if lp_scores else 0.0
             stats.update(
                 {
                     "mean_sample_prob": stats["mean_lp_score"],  # Approximate (after normalization)
-                    "num_zeros_lp_dist": float(np.sum(lp_scores == 0) if lp_scores else 0),
+                    "num_zeros_lp_dist": num_zeros,
                     "mean_learning_progress": float(np.mean(learning_progress)),
                 }
             )

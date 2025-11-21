@@ -527,6 +527,7 @@ class TaskTracker:
                 task_data = self._backend.get_task_data(index)
                 task_data[0] = 0.0  # Clear task_id to mark slot as free
                 task_data[12] = 0.0  # is_active = False
+                task_data[17] = 0.0  # Clear label_hash (prevents stale labels on slot reuse)
                 del self._task_id_to_index[task_id]
 
                 # Update _next_free_index to enable slot reuse
@@ -603,15 +604,19 @@ class TaskTracker:
         return self._label_hash_to_string.get(label_hash)
 
     def get_label_completion_counts(self) -> Dict[str, int]:
-        """Count total completions per label by scanning shared memory.
+        """Count total completions per label by scanning ALL slots in shared memory.
+
+        This scans all memory slots (not just local task mapping) to find tasks
+        across all processes, ensuring cross-process label visibility.
 
         Returns:
             Dictionary mapping label -> total completion count
         """
         label_counts: Dict[str, int] = {}
 
-        for _task_id, index in self._task_id_to_index.items():
-            task_data = self._backend.get_task_data(index)
+        # Scan ALL slots in shared memory to find tasks from all processes
+        for slot_index in range(self._backend.max_tasks):
+            task_data = self._backend.get_task_data(slot_index)
             is_active = bool(task_data[12])
 
             if not is_active:
@@ -623,7 +628,7 @@ class TaskTracker:
 
             label = self._label_hash_to_string.get(label_hash)
             if label is None:
-                continue  # Hash not in mapping (shouldn't happen)
+                continue  # Hash not in local mapping (from another process)
 
             completion_count = int(task_data[2])
             label_counts[label] = label_counts.get(label, 0) + completion_count

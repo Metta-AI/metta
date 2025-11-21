@@ -68,10 +68,12 @@ Checkpoint load restores tasks but drops label strings (only label hashes exist 
 ## 2. `task_tracker.py`
 
 ### Issue 2.1: Stale Label Hashes in Freed Slots
-**Confidence: 4/5**
+**Confidence: 4/5** ✅ **FIXED**
 
 #### Problem
 Freed task slots retain stale `label_hash` values. New tasks reusing the slot inherit incorrect labels, corrupting per-label statistics.
+
+**SOLUTION IMPLEMENTED**: Added `task_data[17] = 0.0` to `remove_task()` to clear label_hash on task removal. See `outputs/four_curriculum_fixes_summary.md` for details.
 
 #### Investigation Steps
 1. Review task creation/removal logic in `task_tracker.py`
@@ -124,10 +126,12 @@ Uses Python's `hash(label)` which is randomized per process. This causes:
 ---
 
 ### Issue 2.3: Label Readers Can't See Cross-Process Tasks
-**Confidence: 4/5**
+**Confidence: 4/5** ✅ **FIXED**
 
 #### Problem
 Label readers rely on local `_task_id_to_index` mapping. Tasks created by other workers aren't visible locally, so per-label stats miss cross-process tasks.
+
+**SOLUTION IMPLEMENTED**: Changed `get_label_completion_counts()` to scan ALL shared memory slots instead of just local mapping. Now sees tasks from all processes. See `outputs/four_curriculum_fixes_summary.md` for details.
 
 #### Investigation Steps
 1. Review how `_task_id_to_index` is populated
@@ -281,10 +285,12 @@ This works because Manager.Lock() returns a proxy object that can be pickled and
 ## 4. `lp_scorers.py`
 
 ### Issue 4.1: Zero-Count LP Distribution Metric Broken
-**Confidence: 5/5**
+**Confidence: 5/5** ✅ **FIXED**
 
 #### Problem
 `num_zeros_lp_dist` uses `lp_scores == 0` on a Python list, which always evaluates to `False`. The zero-count metric never works correctly.
+
+**SOLUTION IMPLEMENTED**: Convert list to numpy array before comparison: `np.sum(np.array(lp_scores) == 0)`. Now correctly counts zero LP scores. See `outputs/four_curriculum_fixes_summary.md` for details.
 
 #### Investigation Steps
 1. Review `num_zeros_lp_dist` implementation
@@ -333,13 +339,15 @@ This works because Manager.Lock() returns a proxy object that can be pickled and
 ## 5. `curriculum_env.py`
 
 ### Issue 5.1: Eviction Counters Zeroed Mid-Epoch
-**Confidence: 5/5**
+**Confidence: 5/5** ✅ **FIXED**
 
 #### Problem
 `get_and_reset_evictions_this_epoch` is called on every episode completion, zeroing epoch counters mid-epoch. Consequences:
 - StatsReporter sees 0 evictions at actual epoch end
 - Eviction info in `infos` only reflects last reset
 - Eviction tracking is per-episode not per-epoch
+
+**SOLUTION IMPLEMENTED**: Added `get_evictions_this_epoch()` (non-resetting) and updated curriculum_env to use it. Now evictions accumulate properly across episodes, with reset only at epoch boundaries. See `outputs/four_curriculum_fixes_summary.md` for details.
 
 #### Investigation Steps
 1. Find all calls to `get_and_reset_evictions_this_epoch`
@@ -391,23 +399,25 @@ When task config fails in `_get_task_with_retries`, we mark task complete with -
 
 ## Investigation Priority
 
-### High Priority (Fix First)
+### ✅ High Priority - ALL FIXED!
 1. ✅ **Lock not shared** (3.1) - FIXED: Now uses Manager().Lock() for proper cross-process synchronization
 2. ✅ **Non-deterministic hash** (2.2) - FIXED: Now uses SHA256-based deterministic hash
-3. **Eviction counters mid-epoch** (5.1) - High confidence, clear fix
-4. **Zero-count metric broken** (4.1) - High confidence, easy fix
+3. ✅ **Eviction counters mid-epoch** (5.1) - FIXED: Added non-resetting getter, accumulates properly
+4. ✅ **Zero-count metric broken** (4.1) - FIXED: Convert list to numpy for element-wise comparison
 
-### Medium Priority
+### Medium Priority (6 remaining)
 5. **Failed task configs** (5.2) - Curriculum quality issue
 6. **Checkpoint ignores hypers** (1.1) - Silent corruption risk
 7. **Label strings lost** (1.2) - Breaks post-checkpoint functionality
-8. **Stale label hashes** (2.1) - Data corruption
+8. ✅ **Stale label hashes** (2.1) - FIXED: Clear label_hash on removal
 
 ### Lower Priority (Investigate Further)
-9. **Cross-process label visibility** (2.3) - May be acceptable limitation
-10. **Label mapping not restored** (2.4) - Overlaps with 1.2
+9. ✅ **Cross-process label visibility** (2.3) - FIXED: Scan all slots, not just local mapping
+10. **Label mapping not restored** (2.4) - Overlaps with 1.2 (easier now with deterministic hash)
 11. **Distribution normalization** (4.2) - Low confidence, may be intended
 12. **Shared memory leaks** (3.2) - Lower confidence, operational issue
+
+**Progress: 6 of 12 issues fixed today! 🎉**
 
 ---
 

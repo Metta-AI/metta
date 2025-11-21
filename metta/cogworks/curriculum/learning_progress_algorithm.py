@@ -419,8 +419,21 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
             self._label_sampling_counts_this_epoch[label] = self._label_sampling_counts_this_epoch.get(label, 0) + 1
 
+    def get_evictions_this_epoch(self) -> Dict[str, int]:
+        """Get per-epoch evictions WITHOUT resetting the counter.
+
+        Use this for reporting evictions in infos during episodes.
+
+        Returns:
+            Dictionary mapping label -> eviction count this epoch
+        """
+        return self._label_evictions_this_epoch.copy()
+
     def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
         """Get per-epoch evictions and reset the counter.
+
+        This should ONLY be called at epoch boundaries, not per-episode.
+        For per-episode reporting, use get_evictions_this_epoch() instead.
 
         Returns:
             Dictionary mapping label -> eviction count this epoch
@@ -468,9 +481,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Mark distribution as stale - LP scores will be recalculated on next sampling
         self.scorer.invalidate_cache()
-
-        # Note: Completion counts are now tracked in TaskTracker shared memory
-        # No local label tracking needed here
 
         # Invalidate stats cache when task performance changes
         self.invalidate_cache()

@@ -313,8 +313,22 @@ class Curriculum(StatsLogger):
             return self._algorithm.get_task_lp_score(task_id)
         return 0.0
 
+    def get_evictions_this_epoch(self) -> Dict[str, int]:
+        """Get per-epoch evictions WITHOUT resetting the counter.
+
+        Use this for reporting evictions in infos during episodes.
+
+        Returns:
+            Dictionary mapping label -> eviction count this epoch
+        """
+        if self._algorithm is not None:
+            return self._algorithm.get_evictions_this_epoch()
+        return {}
+
     def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
         """Get per-epoch evictions and reset the counter.
+
+        This should ONLY be called at epoch boundaries, not per-episode.
 
         Returns:
             Dictionary mapping label -> eviction count this epoch
