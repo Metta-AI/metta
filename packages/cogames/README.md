@@ -15,7 +15,7 @@ gathering resources, operating machinery, and assembling components. Success is 
 missions requires multiple cogs working in tandem.
 
 <p align="middle">
-<img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
+<img src="assets/cvc-snap.png" alt="Example Cogs vs Clips">
 <br>
 
 There are many mission configurations available, with different map sizes, resource and station layouts, and game rules.
