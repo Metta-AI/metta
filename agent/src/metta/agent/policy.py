@@ -139,15 +139,15 @@ class Policy(TrainablePolicy, nn.Module):
             },
             batch_size=[1],
         )
+        self._set_single_step_metadata(td, agent_slot=int(agent_id) if agent_id is not None else 0)
+        return td
+
+    def _set_single_step_metadata(self, td: TensorDict, *, agent_slot: int) -> None:
         ensure_sequence_metadata(td, batch_size=1, time_steps=1)
-        agent_slot = int(agent_id) if agent_id is not None else 0
-        td.set(
-            "training_env_ids",
-            torch.tensor([[agent_slot]], dtype=torch.long, device=device),
-        )
+        device = td.device
+        td.set("training_env_ids", torch.tensor([[agent_slot]], dtype=torch.long, device=device))
         td.set("row_id", torch.tensor([agent_slot], dtype=torch.long, device=device))
         td.set("t_in_row", torch.zeros(1, dtype=torch.long, device=device))
-        return td
 
 
 class DistributedPolicy(TrainablePolicy, DistributedDataParallel, metaclass=PolicyRegistryABCMeta):

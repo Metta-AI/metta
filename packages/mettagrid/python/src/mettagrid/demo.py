@@ -101,7 +101,12 @@ def main():
     agent_policies = policy.agent_policies(cfg.game.num_agents)
 
     # Create rollout with renderer
-    rollout = Rollout(config=cfg, policies=agent_policies, render_mode=args.render)
+    rollout = Rollout(
+        config=cfg,
+        policies=agent_policies,
+        render_mode=args.render,
+        pass_sim_to_policies=True,
+    )
 
     logger.info("\n=== Running simulation ===")
     rollout.run_until_done()
