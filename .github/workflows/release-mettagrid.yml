@@ -76,7 +76,7 @@ jobs:
             chmod +x /usr/local/bin/bazelisk
             ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
             NIM_VERSION="2.2.6"
-            NIMBY_VERSION="0.1.11"
+            NIMBY_VERSION="0.1.12"
             ARCH="X64"
             if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
               ARCH="ARM64"
@@ -93,7 +93,7 @@ jobs:
           CIBW_BEFORE_ALL_MACOS: |
             python3 -m pip install "pip<25"
             NIM_VERSION="2.2.6"
-            NIMBY_VERSION="0.1.11"
+            NIMBY_VERSION="0.1.12"
             ARCH="X64"
             if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
               ARCH="ARM64"
