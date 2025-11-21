@@ -107,19 +107,9 @@ def is_s3_uri(path: str) -> bool:
     return path.startswith("s3://") if path else False
 
 
-def _is_uri(path: Optional[str]) -> bool:
-    return bool(path and "://" in path)
-
-
 def _require_checkpoint_manager() -> None:
     if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
         raise ImportError("CheckpointManager not available. Install metta extras to use checkpoint URIs.")
-
-
-def _policy_spec_from_target(target: str, *, device: torch.device, display_name: str | None = None) -> PolicySpec:
-    _require_checkpoint_manager()
-    logger.info(f"Loading policy from checkpoint: {target}")
-    return CheckpointManager.policy_spec_from_uri(target, device=device, display_name=display_name)
 
 
 def _policy_spec_from_inputs(
@@ -128,18 +118,32 @@ def _policy_spec_from_inputs(
     *,
     device: torch.device,
 ) -> PolicySpec:
-    if _is_uri(policy_path) or Path(policy_path).suffix.lower() == ".mpt":
-        return _policy_spec_from_target(policy_path, device=device)
+    if policy_path and ("://" in policy_path or Path(policy_path).suffix.lower() == ".mpt"):
+        _require_checkpoint_manager()
+        logger.info(f"Loading policy from checkpoint: {policy_path}")
+        return CheckpointManager.policy_spec_from_uri(policy_path, device=device)
 
     resolved_class = resolve_policy_class_path(policy_path)
 
     if checkpoint_path:
-        if _is_uri(checkpoint_path) or Path(checkpoint_path).suffix.lower() == ".mpt":
-            return _policy_spec_from_target(checkpoint_path, device=device, display_name=resolved_class)
+        if "://" in checkpoint_path or Path(checkpoint_path).suffix.lower() == ".mpt":
+            _require_checkpoint_manager()
+            logger.info(f"Loading policy from checkpoint: {checkpoint_path}")
+            return CheckpointManager.policy_spec_from_uri(
+                checkpoint_path,
+                device=device,
+                display_name=resolved_class,
+            )
 
         resolved_data = resolve_policy_data_path(checkpoint_path)
-        if resolved_data and Path(resolved_data).suffix.lower() == ".mpt":
-            return _policy_spec_from_target(resolved_data, device=device, display_name=resolved_class)
+        if resolved_data and ("://" in resolved_data or Path(resolved_data).suffix.lower() == ".mpt"):
+            _require_checkpoint_manager()
+            logger.info(f"Loading policy from checkpoint: {resolved_data}")
+            return CheckpointManager.policy_spec_from_uri(
+                resolved_data,
+                device=device,
+                display_name=resolved_class,
+            )
         return PolicySpec(class_path=resolved_class, data_path=resolved_data)
 
     return PolicySpec(class_path=resolved_class)
