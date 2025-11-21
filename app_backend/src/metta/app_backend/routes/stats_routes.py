@@ -75,7 +75,6 @@ class MyPolicyVersionsResponse(BaseModel):
 class EpisodeQueryRequest(BaseModel):
     primary_policy_version_ids: Optional[list[uuid.UUID]] = None
     tag_filters: Optional[dict[str, Optional[list[str]]]] = None
-    require_replay: bool = False
     limit: Optional[int] = 200
     offset: int = 0
 
@@ -368,7 +367,6 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             episodes = await stats_repo.get_episodes(
                 primary_policy_version_ids=request.primary_policy_version_ids,
                 tag_filters=request.tag_filters,
-                require_replay=request.require_replay,
                 limit=request.limit,
                 offset=request.offset,
             )

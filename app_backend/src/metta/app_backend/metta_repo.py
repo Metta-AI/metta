@@ -1023,7 +1023,6 @@ GROUP BY pv.id, et.key, et.value
         *,
         primary_policy_version_ids: Optional[list[uuid.UUID]] = None,
         tag_filters: Optional[dict[str, Optional[list[str]]]] = None,
-        require_replay: bool = False,
         limit: Optional[int] = 200,
         offset: int = 0,
     ) -> list[EpisodeWithTags]:
@@ -1034,9 +1033,6 @@ GROUP BY pv.id, et.key, et.value
         if primary_policy_version_ids:
             where_conditions.append("e.primary_pv_id = ANY(%s)")
             params.append(primary_policy_version_ids)
-
-        if require_replay:
-            where_conditions.append("e.replay_url IS NOT NULL")
 
         if tag_filters:
             for idx, (tag_key, tag_values) in enumerate(tag_filters.items()):
@@ -1095,7 +1091,7 @@ ORDER BY e.created_at DESC
 
         async with self.connect() as con:
             async with con.cursor(row_factory=dict_row) as cur:
-                await cur.execute(query, params)
+                await cur.execute(query, params)  # type: ignore
                 rows = await cur.fetchall()
 
         episodes: list[EpisodeWithTags] = []
@@ -1113,41 +1109,3 @@ ORDER BY e.created_at DESC
                 )
             )
         return episodes
-
-    async def get_episode_replays_by_policy_versions(
-        self, policy_version_ids: list[uuid.UUID], tag_key: Optional[str] = None
-    ) -> dict[uuid.UUID, dict[str, list[EpisodeReplay]]]:
-        """Return replay URLs for the given policy versions, optionally filtered by an episode tag key."""
-        if not policy_version_ids:
-            return {}
-
-        tag_filter: dict[str, list[str] | None] | None = None
-        if tag_key:
-            tag_filter = {tag_key: None}
-
-        episodes = await self.get_episodes(
-            primary_policy_version_ids=policy_version_ids,
-            tag_filters=tag_filter,
-            require_replay=True,
-            limit=None,
-        )
-
-        replays_by_policy: defaultdict[uuid.UUID, defaultdict[str, list[EpisodeReplay]]] = defaultdict(
-            lambda: defaultdict(list)
-        )
-        for episode in episodes:
-            primary_pv_id = episode.primary_pv_id
-            if primary_pv_id is None or episode.replay_url is None:
-                continue
-            if tag_key:
-                tag_value = episode.tags.get(tag_key)
-                if tag_value is None:
-                    continue
-                tag_identifier = f"{tag_key}:{tag_value}"
-            else:
-                tag_identifier = "unlabeled"
-            replays_by_policy[primary_pv_id][tag_identifier].append(
-                EpisodeReplay(episode_id=episode.id, replay_url=episode.replay_url)
-            )
-
-        return {pv_id: dict(tag_map) for pv_id, tag_map in replays_by_policy.items()}
