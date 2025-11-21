@@ -254,7 +254,8 @@ def _get_selected_modules(components: list[str] | None = None, ensure_required: 
         )
     ]
     if components:
-        not_found_components = [c for c in components if c not in [m.name for m in component_objs]]
+        component_names = {m.name for m in component_objs}
+        not_found_components = [c for c in components if c not in component_names]
         if not_found_components:
             error(f"Unknown components: {', '.join(not_found_components)}")
             raise typer.Exit(1)
