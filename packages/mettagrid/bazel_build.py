@@ -55,9 +55,11 @@ def _run_bazel_build() -> None:
 
     if is_ci:
         # Use CI configuration to avoid root user issues with hermetic Python
-        config = "ci"
+        config = os.environ.get("METTAGRID_BAZEL_CONFIG", "ci")
     else:
-        config = "dbg" if debug else "opt"
+        default_config = "debug" if debug else "release"
+        # Allow experiments to override Bazel config (e.g. release_gcc13/clang)
+        config = os.environ.get("METTAGRID_BAZEL_CONFIG", default_config)
 
     # Align Bazel's registered Python toolchain with the active interpreter.
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
