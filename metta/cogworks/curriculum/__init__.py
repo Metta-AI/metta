@@ -4,29 +4,7 @@ This module provides a comprehensive curriculum learning framework that automati
 selects training tasks based on agent learning progress, enabling more efficient and
 effective training on complex task distributions.
 
-Core Components:
-    - Curriculum: Main curriculum manager coordinating task generation and selection
-    - LearningProgressAlgorithm: Intelligent task selection based on learning progress
-    - TaskTracker: Performance tracking with shared memory support for multi-process training
-    - TaskGenerator: Flexible task generation (single, bucketed, or merged task sets)
-
-Key Features:
-    - Bidirectional Learning Progress: Tracks fast/slow EMAs to detect learning opportunities
-    - Shared Memory Backend: True multi-process training with atomic updates
-    - Comprehensive Statistics: Per-task metrics, Gini coefficients, and learning progress tracking
-    - Flexible Task Generation: Support for parameterized, bucketed, and merged task distributions
-
-Quick Start:
-    # Basic curriculum with learning progress
-    config = LearningProgressConfig(
-        use_bidirectional=True,
-        num_active_tasks=256,
-    )
-
-See Also:
-    - learning_progress_algorithm.py: Core LP algorithm with bidirectional scoring
-    - task_tracker.py: Performance tracking with shared memory support
-    - curriculum.py: Main Curriculum class coordinating all components
+For detailed documentation, see metta/cogworks/curriculum/README.md
 """
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
