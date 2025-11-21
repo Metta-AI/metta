@@ -159,15 +159,8 @@ def validate_policy_in_isolation(
             "uv",
             "run",
             "cogames",
-            "eval",
-            "--mission",
-            DEFAULT_VALIDATION_MISSION,
-            "--policy",
+            "validate-policy",
             policy_arg,
-            "--episodes",
-            str(VALIDATION_EPISODES),
-            "--steps",
-            str(VALIDATION_MAX_STEPS),
         ]
 
         # Run in temp directory
