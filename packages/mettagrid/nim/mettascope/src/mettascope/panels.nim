@@ -102,19 +102,29 @@ proc beginPanAndZoom*(panel: Panel) =
 
     if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
       panel.vel = window.logicalMouseDelta
+      settings.lockFocus = false
     else:
       panel.vel *= 0.9
 
     panel.pos += panel.vel
 
     if window.scrollDelta.y != 0:
-      # Apply zoom at focal point (mouse position) with consistent sensitivity.
+      # Apply zoom at focal point (mouse position or agent position if pinned).
       let localMousePos = window.logicalMousePos - panel.rect.xy.vec2
       let zoomSensitivity = 0.005
 
       let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) *
         scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-      let oldWorldPoint = oldMat.inverse() * localMousePos
+
+      # Use agent position as focal point if lockFocus is enabled and agent is selected
+      let focalPoint = if settings.lockFocus and selection != nil:
+        # Convert agent's world position to screen space
+        let agentWorldPos = vec2(selection.location.at(step).x.float32, selection.location.at(step).y.float32)
+        oldMat * agentWorldPos
+      else:
+        localMousePos
+
+      let oldWorldPoint = oldMat.inverse() * focalPoint
 
       # Apply zoom with multiplicative scaling.
       # keeps zoom consistent when zoomed far out or zoomed far in.
@@ -124,9 +134,9 @@ proc beginPanAndZoom*(panel: Panel) =
 
       let newMat = translate(vec2(panel.pos.x, panel.pos.y)) *
         scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-      let newWorldPoint = newMat.inverse() * localMousePos
+      let newWorldPoint = newMat.inverse() * focalPoint
 
-      # Adjust pan position to keep the same world point under the mouse.
+      # Adjust pan position to keep the same world point under the focal point.
       panel.pos += (newWorldPoint - oldWorldPoint) * (panel.zoom*panel.zoom)
 
   clampMapPan(panel)

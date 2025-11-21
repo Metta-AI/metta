@@ -1,10 +1,7 @@
-import { Fragment, useEffect, useState } from 'react'
-import type { LeaderboardPolicyEntry, Repo } from './repo'
+import { FC, Fragment, useContext, useEffect, useState } from 'react'
 
-type LeaderboardProps = {
-  repo: Repo
-  currentUser: string
-}
+import { AppContext } from './AppContext'
+import type { LeaderboardPolicyEntry } from './repo'
 
 type SectionState = {
   entries: LeaderboardPolicyEntry[]
@@ -320,9 +317,9 @@ const STYLES = `
   }
 }
 `
-
-const LEADERBOARD_ATTEMPTS_TAG = 'v0-leaderboard-attempts'
-const LEADERBOARD_DONE_TAG = 'v0-leaderboard-evals-done'
+const LEADERBOARD_SIM_VERSION = 'v0.1'
+const LEADERBOARD_ATTEMPTS_TAG = `leaderboard-attempts-${LEADERBOARD_SIM_VERSION}`
+const LEADERBOARD_DONE_TAG = `leaderboard-evals-done-${LEADERBOARD_SIM_VERSION}`
 const LEADERBOARD_DONE_VALUE = 'true'
 const LEADERBOARD_CANCELED_VALUE = 'canceled'
 
@@ -369,7 +366,8 @@ const createInitialSectionState = (): SectionState => ({
   error: null,
 })
 
-export function Leaderboard({ repo, currentUser }: LeaderboardProps) {
+export const Leaderboard: FC = () => {
+  const { repo, currentUser } = useContext(AppContext)
   const [publicLeaderboard, setPublicLeaderboard] = useState<SectionState>(() => createInitialSectionState())
   const [personalLeaderboard, setPersonalLeaderboard] = useState<SectionState>(() => createInitialSectionState())
   const [view, setView] = useState<ViewKey>('public')

@@ -16,3 +16,12 @@ def obs_to_td(obs: np.ndarray, device: str | torch.device = "cpu") -> TensorDict
     ensure_sequence_metadata(td, batch_size=batch_size, time_steps=1)
     td.set("env_obs_flat", env_obs.view(batch_size, -1))
     return td
+
+
+def resolve_torch_dtype(dtype_str: str | None) -> torch.dtype:
+    """Resolve common dtype strings to torch dtypes with float32 default."""
+    if dtype_str is None:
+        return torch.float32
+    s = str(dtype_str).lower()
+    mapping = {"float16": torch.float16, "fp16": torch.float16, "bfloat16": torch.bfloat16, "bf16": torch.bfloat16}
+    return mapping.get(s, torch.float32)

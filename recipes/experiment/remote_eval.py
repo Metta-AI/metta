@@ -12,7 +12,6 @@ from metta.tools.utils.auto_config import auto_replay_dir
 class ExecuteRemoteEvalTool(ToolWithResult):
     simulations: Sequence[SimulationRunConfig]  # list of simulations to run
     policy_version_id: str  # policy uri to evaluate
-    eval_task_id: str
     replay_dir: str = Field(default_factory=auto_replay_dir)
     result_file_path: str  # path to the file where the results will be written
 
@@ -45,7 +44,6 @@ def eval(
     policy_version_id: str,
     task_data_path: str,
     result_file_path: str,
-    eval_task_id: str,
 ) -> ExecuteRemoteEvalTool:
     # Decode from base64 to avoid OmegaConf auto-parsing issues
     with open(task_data_path, "rb") as f:
@@ -57,5 +55,4 @@ def eval(
         simulations=simulations,
         policy_version_id=policy_version_id,
         result_file_path=result_file_path,
-        eval_task_id=eval_task_id,
     )

@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from metta.doxascope.doxascope_data import DoxascopeEventHandler
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
+from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.simulator.rollout import Rollout
@@ -29,6 +30,8 @@ class EpisodeRolloutResult(BaseModel):
     action_timeouts: np.ndarray  # agent_id -> timeout_count
     stats: EpisodeStats
     replay_path: str | None
+    steps: int
+    max_steps: int
 
 
 class MultiEpisodeRolloutResult(BaseModel):
@@ -62,6 +65,7 @@ def multi_episode_rollout(
     progress_callback: Optional[ProgressCallback] = None,
     save_replay: Optional[str] = None,
     max_action_time_ms: int | None = None,
+    render_mode: Optional[RenderMode] = None,
     doxascope_logger: Optional[DoxascopeLogger] = None,
 ) -> MultiEpisodeRolloutResult:
     """
@@ -112,6 +116,8 @@ def multi_episode_rollout(
             env_cfg,
             agent_policies,
             max_action_time_ms=max_action_time_ms,
+            render_mode=render_mode,
+            seed=seed + episode_idx,
             event_handlers=handlers,
         )
 
@@ -128,6 +134,8 @@ def multi_episode_rollout(
             action_timeouts=np.array(rollout.timeout_counts, dtype=float),
             stats=rollout._sim.episode_stats,
             replay_path=replay_path,
+            steps=rollout._sim.current_step,
+            max_steps=rollout._sim.config.game.max_steps,
         )
 
         episode_results.append(result)

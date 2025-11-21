@@ -23,13 +23,13 @@ async def _create_policy_with_scores(
         attributes={},
     )
 
-    for reward_l in sim_scores:
+    for episode_idx, reward_l in enumerate(sim_scores):
         for sim_name, reward in reward_l.items():
             await stats_repo.record_episode(
                 id=uuid.uuid4(),
                 data_uri=f"s3://episodes/{uuid.uuid4()}",
                 primary_pv_id=policy_version_id,
-                replay_url=None,
+                replay_url=f"https://example.com/replays/{policy_name}/{sim_name}/{episode_idx}",
                 attributes={},
                 eval_task_id=None,
                 thumbnail_url=None,
@@ -162,12 +162,15 @@ async def test_leaderboard_v2_route_returns_tags_and_scores(
     assert populated_entry.avg_score == pytest.approx(15.0)
     assert populated_entry.policy_version.tags == {COGAMES_SUBMITTED_PV_KEY: "true"}
     assert populated_entry.policy_version.user_id == user
+    assert set(populated_entry.score_episode_ids.keys()) == set(expected_scores.keys())
+    assert all(populated_entry.score_episode_ids.values())
 
     empty_entry = entries[1]
     assert empty_entry.scores == {}
     assert empty_entry.avg_score is None
     assert empty_entry.policy_version.tags == {COGAMES_SUBMITTED_PV_KEY: "true"}
     assert empty_entry.policy_version.user_id == user
+    assert empty_entry.score_episode_ids == {}
 
 
 @pytest.mark.asyncio
@@ -243,3 +246,60 @@ async def test_leaderboard_v2_users_me_route_filters_by_user(
     assert len(entries) == 1
     assert entries[0].policy_version.id == owned_pv_id
     assert entries[0].policy_version.user_id == user
+
+
+@pytest.mark.asyncio
+async def test_query_episodes_filters_by_primary_and_tag(
+    isolated_stats_repo: MettaRepo,
+    isolated_test_client: TestClient,
+) -> None:
+    user = "episodes@example.com"
+    policy_version_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        user,
+        "episodes-policy",
+        [
+            {
+                "arena-basic": 1.0,
+                "arena-combat": 2.0,
+            },
+            {
+                "arena-basic": 3.0,
+                "arena-combat": 4.0,
+            },
+        ],
+    )
+
+    headers = {"X-Auth-Request-Email": user}
+    response = isolated_test_client.post(
+        "/stats/episodes/query",
+        headers=headers,
+        json={
+            "primary_policy_version_ids": [str(policy_version_id)],
+            "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},
+            "limit": 1,
+        },
+    )
+    assert response.status_code == 200
+    episodes = response.json()["episodes"]
+    assert len(episodes) == 1
+    episode = episodes[0]
+    assert episode["primary_pv_id"] == str(policy_version_id)
+    assert episode["replay_url"].endswith("/1")
+    assert episode["tags"][LEADERBOARD_SIM_NAME_EPISODE_KEY] == "arena-basic"
+
+    # Offset should work even when limit is None
+    offset_response = isolated_test_client.post(
+        "/stats/episodes/query",
+        headers=headers,
+        json={
+            "primary_policy_version_ids": [str(policy_version_id)],
+            "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},
+            "limit": None,
+            "offset": 1,
+        },
+    )
+    assert offset_response.status_code == 200
+    offset_episodes = offset_response.json()["episodes"]
+    assert len(offset_episodes) == 1
+    assert offset_episodes[0]["replay_url"].endswith("/0")

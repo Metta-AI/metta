@@ -8,6 +8,7 @@ on:
     types: [completed]
     branches:
       - main
+  workflow_dispatch: {}
 
 # Explicit concurrency settings to prevent cancellation
 # Each cleanup run gets a unique group based on the triggering workflow run ID
@@ -23,8 +24,6 @@ permissions:
 jobs:
   cleanup-cancelled-runs:
     name: "Cleanup Cancelled Runs"
-    # The workflow_run trigger already filters by branch (main), so we always run
-    # The debug step below will help us understand the context if needed
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
