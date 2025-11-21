@@ -100,6 +100,7 @@ run: |
       --ulimit memlock=-1:-1 \
       --ipc=host \
       --userns=host \
+      --restart unless-stopped \
       -p 2222:22 \
       --entrypoint /bin/sh \
       -v /mnt/s3/softmax-public:/mnt/s3/softmax-public \
@@ -113,7 +114,7 @@ run: |
       -e SKYPILOT_NODE_IPS="${SKYPILOT_NODE_IPS:-}" \
       -e SKYPILOT_NODE_RANK="${SKYPILOT_NODE_RANK:-}" \
       "$IMAGE" \
-      -c 'trap : TERM INT; while :; do sleep 3600; done'
+      -c '(/usr/sbin/sshd -D >/var/log/sshd.log 2>&1 &) || true; trap : TERM INT; while :; do sleep 3600; done'
 
     echo "[RUN] Waiting for container to be running..."
     for i in $(seq 1 30); do
@@ -185,6 +186,16 @@ run: |
     mkdir -p /var/run/sshd
     mkdir -p /root/.ssh
     chmod 700 /root/.ssh
+    # Write a fresh sshd_config to ensure predictable settings
+    cat >/etc/ssh/sshd_config <<EOF
+Port 22
+Protocol 2
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+PubkeyAuthentication yes
+UsePAM yes
+UseDNS no
+EOF
     # Harden and enable key-based root login only
     if [ -d /etc/ssh/sshd_config.d ]; then
       printf "%s\\n%s\\n%s\\n%s\\n" \
@@ -209,14 +220,25 @@ run: |
     mkdir -p /root/.ssh
     touch /root/.ssh/authorized_keys
     chmod 600 /root/.ssh/authorized_keys
-    # Start SSH daemon
-    if command -v systemctl >/dev/null 2>&1; then
-      systemctl enable ssh || systemctl enable sshd || true
-      systemctl restart ssh || systemctl restart sshd || true
-    else
-      /usr/sbin/sshd || true
-    fi
   '
+
+  # Copy host authorized_keys into the container's root user for key-based login
+  if [ -f "$HOME/.ssh/authorized_keys" ]; then
+    echo "[RUN] Installing authorized_keys into container root account"
+    cat "$HOME/.ssh/authorized_keys" | docker exec -i "$CONTAINER_NAME" bash -lc 'cat > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys'
+  else
+    echo "[RUN] WARNING: No $HOME/.ssh/authorized_keys found on host; SSH into container may fail"
+  fi
+
+  # Start sshd in the background if not already running
+  if ! docker exec -i "$CONTAINER_NAME" bash -lc 'pgrep -x sshd >/dev/null 2>&1'; then
+    echo "[RUN] Starting sshd inside container on port 22 (host port 2222)"
+    docker exec -d "$CONTAINER_NAME" /usr/sbin/sshd -D || docker exec -d "$CONTAINER_NAME" nohup /usr/sbin/sshd -D >/dev/null 2>&1
+    sleep 1
+  fi
+
+  # Verify sshd is listening
+  docker exec -i "$CONTAINER_NAME" bash -lc 'ss -tlnp 2>/dev/null | grep -E "LISTEN.+:22\\b" || netstat -tlnp 2>/dev/null | grep -E "LISTEN.+:22\\b" || true'
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta
