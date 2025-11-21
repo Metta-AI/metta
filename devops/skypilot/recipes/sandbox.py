@@ -2,12 +2,13 @@
 import argparse
 import logging
 import os
+from contextlib import nullcontext
 import shlex
 import subprocess
 import sys
 import time
 import warnings
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, ContextManager, Dict, List, Optional, Tuple
 from pathlib import Path
 import glob
 import re
@@ -22,6 +23,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._intern
 
 import sky  # noqa: E402
 import sky.exceptions  # noqa: E402
+from sky import skypilot_config  # noqa: E402
 import yaml  # noqa: E402
 
 import gitta as git  # noqa: E402
@@ -126,6 +128,20 @@ def get_current_git_ref():
         return git.get_current_branch()
     except (git.GitError, ValueError):
         return "main"  # Fallback to main
+
+
+def get_capacity_reservation_context(capacity_reservation_id: Optional[str]) -> ContextManager[None]:
+    """Return a context that applies a capacity reservation override if provided."""
+    if not capacity_reservation_id:
+        return nullcontext()
+
+    override_config = {
+        "aws": {
+            "specific_reservations": [capacity_reservation_id],
+            "prioritize_reservations": True,
+        }
+    }
+    return skypilot_config.override_skypilot_config(override_config)
 
 
 def format_cluster_info(cluster: Dict[str, Any]):
@@ -482,6 +498,12 @@ Common management commands:
     )
     parser.add_argument("--nodes", type=int, default=1, help="Number of nodes (default: 1)")
     parser.add_argument(
+        "--capacity-reservation-id",
+        type=str,
+        default=None,
+        help="AWS Capacity Reservation ID to target (e.g., cr-xxxxxxxxxxxxxxxxx)",
+    )
+    parser.add_argument(
         "--retry-until-up", action="store_true", help="Keep retrying until cluster is successfully launched"
     )
     parser.add_argument(
@@ -497,6 +519,8 @@ Common management commands:
     )
 
     args = parser.parse_args()
+
+    capacity_reservation_id: Optional[str] = args.capacity_reservation_id
 
     # Validate conflicting arguments
     if args.sweep_controller and (args.gpus > 1 or args.nodes > 1):
@@ -577,6 +601,7 @@ Common management commands:
                 print(f"Approximate cost: {green('~$0.384/hour')} (on-demand pricing, us-east-1)")
             else:
                 print("Approximate cost: (unavailable) – check AWS pricing for your region.")
+        capacity_reservation_id = None
     else:
         # Determine GPU type: CLI overrides config
         accelerators_str = resources.get("accelerators", "L4:1")
@@ -587,7 +612,12 @@ Common management commands:
 
         # For A100/H100 families, switch to AMI-host + manual docker recipe
         if gpu_type in ["A100", "H100", "A100-80GB"]:
-            config_path = "./devops/skypilot/config/sandbox_a100.yaml"
+            if gpu_type == "H100":
+                config_path = "./devops/skypilot/config/sandbox_h100.yaml"
+            else:
+                config_path = "./devops/skypilot/config/sandbox_a100.yaml"
+        if capacity_reservation_id:
+            print(f"Capacity reservation: {bold(capacity_reservation_id)}")
 
         # Get instance type and calculate per-node cost
         instance_type, region, hourly_cost = get_gpu_instance_info(
@@ -659,16 +689,17 @@ Common management commands:
             print("to authenticate before launching a sandbox.")
             return 1
 
-        # Launch cluster
-        request_id = sky.launch(
-            task,
-            cluster_name=cluster_name,
-            idle_minutes_to_autostop=autostop_hours * 60,
-            retry_until_up=args.retry_until_up,
-        )
+        with get_capacity_reservation_context(capacity_reservation_id):
+            # Launch cluster
+            request_id = sky.launch(
+                task,
+                cluster_name=cluster_name,
+                idle_minutes_to_autostop=autostop_hours * 60,
+                retry_until_up=args.retry_until_up,
+            )
 
-        # Stream the launch logs
-        _result = sky.stream_and_get(request_id)
+            # Stream the launch logs
+            _result = sky.stream_and_get(request_id)
 
     except sky.exceptions.ResourcesUnavailableError as e:
         print(f"\n{red('✗ Failed to provision resources')}")
