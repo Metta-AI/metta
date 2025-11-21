@@ -144,12 +144,20 @@ class DoxascopeLogger:
 
         stem = Path(policy_uri).stem
         if ":" in stem:
-            base_name, version = stem.split(":", 1)
+            base_name = stem.split(":", 1)[0]
+            version = stem.split(":", 1)[1]
+        elif ":" in policy_uri:
+            parts = policy_uri.split(":")
+            if len(parts) > 1:
+                version = parts[-1]
+                path_parts = parts[-2].split("/")
+                base_name = path_parts[-1] if path_parts else "unknown_policy"
+            else:
+                base_name = stem
+                version = None
         else:
             base_name = stem
             version = None
-
-        base_name = base_name.replace("/", "_")
 
         if version:
             self.output_dir = self.base_dir / base_name / version
