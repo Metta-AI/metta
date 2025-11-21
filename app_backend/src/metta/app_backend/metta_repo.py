@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 from collections import defaultdict
@@ -126,6 +127,7 @@ class EpisodeWithTags(BaseModel):
     eval_task_id: Optional[uuid.UUID]
     created_at: datetime
     tags: dict[str, str] = Field(default_factory=dict)
+    avg_reward: float | None = None
 
 
 class LeaderboardPolicyEntry(BaseModel):
@@ -1029,6 +1031,7 @@ GROUP BY pv.id, et.key, et.value
         self,
         *,
         primary_policy_version_ids: Optional[list[uuid.UUID]] = None,
+        episode_ids: Optional[list[uuid.UUID]] = None,
         tag_filters: Optional[dict[str, Optional[list[str]]]] = None,
         limit: Optional[int] = 200,
         offset: int = 0,
@@ -1040,6 +1043,10 @@ GROUP BY pv.id, et.key, et.value
         if primary_policy_version_ids:
             where_conditions.append("e.primary_pv_id = ANY(%s)")
             params.append(primary_policy_version_ids)
+
+        if episode_ids:
+            where_conditions.append("e.id = ANY(%s)")
+            params.append(episode_ids)
 
         if tag_filters:
             for idx, (tag_key, tag_values) in enumerate(tag_filters.items()):
@@ -1084,9 +1091,25 @@ SELECT
     COALESCE(
         jsonb_object_agg(et.key, et.value) FILTER (WHERE et.key IS NOT NULL),
         '{{}}'::jsonb
-    ) AS tags
+    ) AS tags,
+    AVG(
+        CASE
+            WHEN ep_primary.num_agents IS NOT NULL AND ep_primary.num_agents > 0
+                THEN epm.value / ep_primary.num_agents
+            ELSE NULL
+        END
+    ) AS avg_reward
 FROM episodes e
 LEFT JOIN episode_tags et ON et.episode_id = e.id
+LEFT JOIN episode_policies ep_primary
+    ON ep_primary.episode_id = e.id
+   AND ep_primary.policy_version_id = e.primary_pv_id
+LEFT JOIN policy_versions pv_primary
+    ON pv_primary.id = ep_primary.policy_version_id
+LEFT JOIN episode_policy_metrics epm
+    ON epm.episode_internal_id = e.internal_id
+   AND epm.pv_internal_id = pv_primary.internal_id
+   AND epm.metric_name = 'reward'
 {where_clause}
 GROUP BY
     e.id,
@@ -1095,7 +1118,8 @@ GROUP BY
     e.thumbnail_url,
     e.attributes,
     e.eval_task_id,
-    e.created_at
+    e.created_at,
+    ep_primary.num_agents
 ORDER BY e.created_at DESC
 {limit_clause}
 """
@@ -1107,16 +1131,31 @@ ORDER BY e.created_at DESC
 
         episodes: list[EpisodeWithTags] = []
         for row in rows:
+            attributes_value = row.get("attributes") or {}
+            if isinstance(attributes_value, str):
+                try:
+                    attributes_value = json.loads(attributes_value)
+                except json.JSONDecodeError:
+                    attributes_value = {}
+
+            tags_value = row.get("tags") or {}
+            if isinstance(tags_value, str):
+                try:
+                    tags_value = json.loads(tags_value)
+                except json.JSONDecodeError:
+                    tags_value = {}
+
             episodes.append(
                 EpisodeWithTags(
                     id=row["id"],
                     primary_pv_id=row["primary_pv_id"],
                     replay_url=row["replay_url"],
                     thumbnail_url=row["thumbnail_url"],
-                    attributes=row.get("attributes") or {},
+                    attributes=attributes_value,
                     eval_task_id=row["eval_task_id"],
                     created_at=row["created_at"],
-                    tags=row.get("tags") or {},
+                    tags=tags_value,
+                    avg_reward=row.get("avg_reward"),
                 )
             )
         return episodes
