@@ -107,7 +107,7 @@ def multi_episode_rollout(
             agent_policies,
             max_action_time_ms=max_action_time_ms,
             event_handlers=handlers,
-            doxascope_logger=doxascope_logger # could be None
+            doxascope_logger=doxascope_logger,  # could be None
         )
 
         rollout.run_until_done()

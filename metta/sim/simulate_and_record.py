@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
+from metta.doxascope.doxascope_data import DoxascopeLogger
 from metta.sim.handle_results import send_eval_results_to_wandb, write_eval_results_to_observatory
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult, run_simulations
 from mettagrid.policy.policy import PolicySpec
@@ -50,6 +51,7 @@ def simulate_and_record(
     observatory_writer: ObservatoryWriter | None = None,
     wandb_writer: WandbWriter | None = None,
     on_progress: Callable[[str], None] = lambda x: None,
+    doxascope_logger: DoxascopeLogger | None = None,
 ) -> list[SimulationRunResult]:
     rollout_results = run_simulations(
         policy_specs=policy_specs,
@@ -57,6 +59,7 @@ def simulate_and_record(
         replay_dir=replay_dir,
         seed=seed,
         on_progress=on_progress,
+        doxascope_logger=doxascope_logger,
     )
 
     if observatory_writer is not None:

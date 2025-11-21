@@ -2,7 +2,7 @@ import logging
 import uuid
 from typing import Sequence
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -117,7 +117,7 @@ class EvaluateTool(Tool):
             seed=self.system.seed,
             observatory_writer=observatory_writer,
             wandb_writer=wandb_writer,
-            doxascope_logger=doxascope_logger or self.doxascope_logger,
+            doxascope_logger=self.doxascope_logger,
         )
         render_eval_summary(rollout_results, policy_names=[_spec_display_name(policy_spec)], verbose=self.verbose)
 
@@ -136,9 +136,10 @@ class EvaluateTool(Tool):
             self.policy_uris = [self.policy_uris]
 
         for policy_uri in self.policy_uris:
-            self.handle_single_policy_uri(policy_uri)
             if self.doxascope_logger:
                 self.doxascope_logger.configure(policy_uri=policy_uri)
+            self.handle_single_policy_uri(policy_uri)
+
 
 class EvaluatePolicyVersionTool(Tool):
     simulations: Sequence[SimulationRunConfig]  # list of simulations to run

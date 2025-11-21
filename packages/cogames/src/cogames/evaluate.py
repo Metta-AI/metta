@@ -13,15 +13,13 @@ from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
 
+from metta.doxascope.doxascope_data import DoxascopeLogger
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 from mettagrid.simulator.multi_episode.summary import MultiEpisodeRolloutSummary, build_multi_episode_rollout_summaries
-
-from metta.doxascope.doxascope_data import DoxascopeLogger
-
 
 MissionResultsSummary: TypeAlias = list[MultiEpisodeRolloutSummary]
 
@@ -59,8 +57,8 @@ def evaluate(
     if not policy_specs:
         raise ValueError("At least one policy specification must be provided for evaluation.")
 
-    #### Creates DoxascopeLogger ####
-    doxascope_logger = DoxascopeLogger(enabled=doxascope_enabled, simulation_id=f"eval_{seed}_{mission_name}", output_dir=doxascope_output_dir)
+
+    base_doxascope_logger = DoxascopeLogger(enabled=doxascope_enabled, simulation_id="", output_dir=doxascope_output_dir)
     ####
 
     mission_names = [mission_name for mission_name, _ in missions]
@@ -82,13 +80,14 @@ def evaluate(
             initialize_or_load_policy(env_interface, spec) for spec in policy_specs
         ]
 
-        #### Configure DoxascopeLogger ####
-        doxascope_logger.configure(
-            # I don't think either of these arguments will work but we will see in a moment.
-            policy_uri=str(policy_specs[0].uri),
-            object_type_names=env_cfg.game.object_types
-        )
-        ######
+        if base_doxascope_logger.enabled:
+            doxascope_logger = base_doxascope_logger.clone(simulation_id=f"eval_{seed}_{mission_name}")
+            doxascope_logger.configure(
+                policy_uri=str(policy_specs[0].uri),
+                object_type_names=env_cfg.game.object_types
+            )
+        else:
+            doxascope_logger = None
 
         progress_label = f"Simulating ({mission_name})"
         progress_iterable = range(episodes)
@@ -110,8 +109,12 @@ def evaluate(
                 seed=seed,
                 progress_callback=_progress_callback,
                 save_replay=save_replay,
-                doxascope_logger=doxascope_logger, # pass in DoxascopeLogger
+                doxascope_logger=doxascope_logger,
             )
+
+        if doxascope_logger:
+            doxascope_logger.save()
+
         mission_results.append(rollout_payload)
         # Collect replay paths from this mission
         for episode in rollout_payload.episodes:
