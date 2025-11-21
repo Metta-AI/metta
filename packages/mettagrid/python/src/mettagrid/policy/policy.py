@@ -9,7 +9,7 @@ import numpy as np
 import torch.nn as nn
 from pydantic import BaseModel, Field
 
-from mettagrid.mettagrid_c import dtype_actions, dtype_observations
+from mettagrid.mettagrid_c import dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
