@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Iterable, Literal, Sequence
 
 from cogames.cli.mission import get_all_eval_missions, get_all_missions, get_mission
-from metta.cogworks.curriculum import CurriculumConfig, merge, single_task
+from metta.cogworks.curriculum import CurriculumConfig, env_curriculum, merge, single_task
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
@@ -33,12 +33,20 @@ def train(
     total_timesteps: int = 262_144 * 10,
     vectorization: Literal["serial", "multiprocessing"] = "serial",
     resume_policy_uri: str | None = None,
-    learning_rate: float = 0.001153637 * 0.1,
+    learning_rate: float = 0.001153637 * 1,
 ) -> TrainTool:
     """Train via supervised imitation from the Nim scripted policy."""
 
-    curriculum = create_cogames_curriculum(variants=variants, cogs=cogs, max_steps=max_steps)
-    eval_env = _load_env_from_mission(mission, tuple(variants) if variants else None, cogs, max_steps)
+    # decide if we want to just train on a single simple mission for debugging instead of using
+    # a curriculum over all cogames missions
+    simple_mission = True
+    if simple_mission:
+        env_config = _load_env_from_mission(mission, tuple(variants) if variants else None, cogs, max_steps)
+        curriculum = env_curriculum(env_config)
+        eval_env = env_config
+    else:
+        curriculum = create_cogames_curriculum(variants=variants, cogs=cogs, max_steps=max_steps)
+        eval_env = _load_env_from_mission(mission, tuple(variants) if variants else None, cogs, max_steps)
 
     tool = TrainTool(
         training_env=TrainingEnvironmentConfig(
@@ -61,7 +69,9 @@ def train(
     tool.trainer.bptt_horizon = 16
     tool.trainer.optimizer.learning_rate = learning_rate
 
-    tool.trainer.losses.supervisor.teacher_random_walk_prob = 0.2
+    tool.trainer.losses.supervisor.teacher_random_walk_prob = 0.1
+    tool.trainer.losses.supervisor.teacher_lead_prob = 0.8
+    tool.trainer.losses.supervisor.enabled = True
 
     tool.wandb.enabled = False
     tool.system.vectorization = vectorization

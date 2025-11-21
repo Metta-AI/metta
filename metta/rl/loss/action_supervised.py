@@ -129,6 +129,7 @@ class ActionSupervised(Loss):
             # when sending to the environment. After it gets sent to env it is no longer used.
             # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
             td["actions"] = td["teacher_actions"]
+            # print("teacher leading")
             if self.teacher_random_walk_prob > 0:
                 self._maybe_apply_random_walk(td["actions"])
 
@@ -165,6 +166,7 @@ class ActionSupervised(Loss):
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
+        print(f"loss in action supervised: {loss.item()}")
 
         # --------------------------Add action loss to rewards as per Matt's doc----------------------------------
         if self.cfg.add_action_loss_to_rewards:
