@@ -126,6 +126,7 @@ class EpisodeWithTags(BaseModel):
     eval_task_id: Optional[uuid.UUID]
     created_at: datetime
     tags: dict[str, str] = Field(default_factory=dict)
+    avg_rewards: dict[uuid.UUID, float] = Field(default_factory=dict)
 
 
 class LeaderboardPolicyEntry(BaseModel):
@@ -1029,6 +1030,7 @@ GROUP BY pv.id, et.key, et.value
         self,
         *,
         primary_policy_version_ids: Optional[list[uuid.UUID]] = None,
+        episode_ids: Optional[list[uuid.UUID]] = None,
         tag_filters: Optional[dict[str, Optional[list[str]]]] = None,
         limit: Optional[int] = 200,
         offset: int = 0,
@@ -1040,6 +1042,10 @@ GROUP BY pv.id, et.key, et.value
         if primary_policy_version_ids:
             where_conditions.append("e.primary_pv_id = ANY(%s)")
             params.append(primary_policy_version_ids)
+
+        if episode_ids:
+            where_conditions.append("e.id = ANY(%s)")
+            params.append(episode_ids)
 
         if tag_filters:
             for idx, (tag_key, tag_values) in enumerate(tag_filters.items()):
@@ -1073,50 +1079,51 @@ GROUP BY pv.id, et.key, et.value
             params.append(offset)
 
         query = f"""
+WITH episode_tags_agg AS (
+    SELECT episode_id, jsonb_object_agg(key, value) AS tags
+    FROM episode_tags
+    GROUP BY episode_id
+),
+episode_avg_rewards AS (
+    SELECT
+        e_sub.id AS episode_id,
+        jsonb_object_agg(
+            pv.id::text,
+            epm.value / NULLIF(ep.num_agents, 0)
+        ) FILTER (
+            WHERE epm.metric_name = 'reward'
+              AND ep.num_agents IS NOT NULL
+              AND ep.num_agents > 0
+        ) AS avg_rewards
+    FROM episodes e_sub
+    JOIN episode_policies ep ON ep.episode_id = e_sub.id
+    JOIN policy_versions pv ON pv.id = ep.policy_version_id
+    JOIN episode_policy_metrics epm
+        ON epm.episode_internal_id = e_sub.internal_id
+       AND epm.pv_internal_id = pv.internal_id
+    GROUP BY e_sub.id
+)
 SELECT
     e.id,
     e.primary_pv_id,
     e.replay_url,
     e.thumbnail_url,
-    e.attributes,
+    COALESCE(e.attributes, '{{}}'::jsonb) AS attributes,
     e.eval_task_id,
     e.created_at,
-    COALESCE(
-        jsonb_object_agg(et.key, et.value) FILTER (WHERE et.key IS NOT NULL),
-        '{{}}'::jsonb
-    ) AS tags
+    COALESCE(t.tags, '{{}}'::jsonb) AS tags,
+    COALESCE(r.avg_rewards, '{{}}'::jsonb) AS avg_rewards
 FROM episodes e
-LEFT JOIN episode_tags et ON et.episode_id = e.id
+LEFT JOIN episode_tags_agg t ON t.episode_id = e.id
+LEFT JOIN episode_avg_rewards r ON r.episode_id = e.id
 {where_clause}
-GROUP BY
-    e.id,
-    e.primary_pv_id,
-    e.replay_url,
-    e.thumbnail_url,
-    e.attributes,
-    e.eval_task_id,
-    e.created_at
 ORDER BY e.created_at DESC
 {limit_clause}
 """
 
         async with self.connect() as con:
-            async with con.cursor(row_factory=dict_row) as cur:
+            async with con.cursor(row_factory=class_row(EpisodeWithTags)) as cur:
                 await cur.execute(query, params)  # type: ignore
                 rows = await cur.fetchall()
 
-        episodes: list[EpisodeWithTags] = []
-        for row in rows:
-            episodes.append(
-                EpisodeWithTags(
-                    id=row["id"],
-                    primary_pv_id=row["primary_pv_id"],
-                    replay_url=row["replay_url"],
-                    thumbnail_url=row["thumbnail_url"],
-                    attributes=row.get("attributes") or {},
-                    eval_task_id=row["eval_task_id"],
-                    created_at=row["created_at"],
-                    tags=row.get("tags") or {},
-                )
-            )
-        return episodes
+        return list(rows)
