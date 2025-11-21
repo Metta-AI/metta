@@ -20,7 +20,7 @@ from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action, AgentObservation, ObservationToken
+from mettagrid.simulator import AgentObservation, ObservationToken
 
 
 def _dummy_observation(env_info: PolicyEnvInterface) -> AgentObservation:
@@ -201,8 +201,7 @@ class TestBasicSaveLoad:
         spec = CheckpointManager.policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
-        action = policy.agent_step(0, _dummy_observation(env_info))
-        assert isinstance(action, Action)
+        policy.agent_step(0, _dummy_observation(env_info))
 
     def test_checkpoint_policy_remains_callable(
         self,

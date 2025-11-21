@@ -89,9 +89,7 @@ def multi_episode_rollout(
     rng = np.random.default_rng(seed)
     for episode_idx in range(episodes):
         rng.shuffle(assignments)
-        controllers = [
-            (policies[assignments[agent_id]], agent_id) for agent_id in range(env_cfg.game.num_agents)
-        ]
+        controllers = [(policies[assignments[agent_id]], agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
         # Create a new replay writer for each episode if save_replay is provided
         handlers: list[SimulatorEventHandler] = []

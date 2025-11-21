@@ -98,10 +98,10 @@ def main():
     policy_cfg = cfg.model_copy(deep=True)
     policy_cfg.game.actions.change_vibe.enabled = False
     policy = RandomMultiAgentPolicy(PolicyEnvInterface.from_mg_cfg(policy_cfg))
-    agent_policies = policy.agent_policies(cfg.game.num_agents)
+    controllers = [(policy, agent_id) for agent_id in range(cfg.game.num_agents)]
 
     # Create rollout with renderer
-    rollout = Rollout(config=cfg, policies=agent_policies, render_mode=args.render)
+    rollout = Rollout(config=cfg, controllers=controllers, render_mode=args.render)
 
     logger.info("\n=== Running simulation ===")
     rollout.run_until_done()

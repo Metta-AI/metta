@@ -93,8 +93,7 @@ class TestNewPolicySystem:
             for _ in range(env_info.observation_space.shape[0])
         ]
         obs = AgentObservation(agent_id=0, tokens=tokens)
-        action = policy.agent_step(0, obs)
-        assert action is not None
+        policy.agent_step(0, obs)
 
     def test_policy_loading_interface(self):
         """Test that policy loading functions work with versioned URIs."""

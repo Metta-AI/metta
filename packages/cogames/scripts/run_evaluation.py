@@ -195,14 +195,14 @@ def _run_case(
         actual_max_steps = env_config.game.max_steps
         policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
         policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-        agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
+        controllers = [(policy, i) for i in range(num_cogs)]
 
         out: List[EvalResult] = []
         for run_idx in range(runs_per_case):
             run_seed = seed + run_idx
             rollout = Rollout(
                 env_config,
-                agent_policies,
+                controllers,
                 render_mode="none",
                 seed=run_seed,
                 pass_sim_to_policies=True,

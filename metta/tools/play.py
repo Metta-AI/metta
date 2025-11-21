@@ -98,6 +98,7 @@ class PlayTool(Tool):
 
             def _register_policy(policy: MultiAgentPolicy) -> None:
                 controllers.extend((policy, agent_id) for agent_id in range(policy_env_info.num_agents))
+
             if s3_path:
                 assert s3_path is not None
                 policy_spec = stack.enter_context(policy_spec_from_s3_submission(s3_path))

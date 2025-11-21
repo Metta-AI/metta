@@ -67,10 +67,8 @@ env = MettaGridEnv(env_config)
 policy = BaselinePolicy(env)
 
 obs, info = env.reset()
-policy.reset(obs, info)
-
-agent = policy.agent_policy(0)
-action = agent.step(obs[0])
+policy.agent_reset(0)
+action = policy.agent_step(0, obs[0])
 ```
 
 **CLI**:
@@ -292,29 +290,15 @@ class MyAgent(BaselineAgent):
 3. **Add policy wrapper** at bottom of file:
 
 ```python
-class MyAgentPolicy:
-    """Per-agent policy wrapper."""
-    def __init__(self, impl: MyAgent, agent_id: int):
-        self._impl = impl
-        self._agent_id = agent_id
-
-    def step(self, obs) -> int:
-        return self._impl.step(self._agent_id, obs)
-
-class MyPolicy:
+class MyPolicy(MultiAgentPolicy):
     """Policy wrapper for MyAgent."""
-    def __init__(self, simulation=None):
-        self._simulation = simulation
-        self._impl = None
-        self._agent_policies = {}
 
-    def reset(self, obs, info):
-        # Initialize impl from simulation
-        pass
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info)
+        self._impl = MyAgent(...)
 
-    def agent_policy(self, agent_id: int):
-        # Return per-agent policy
-        pass
+    def agent_step(self, agent_id: int, obs):
+        return self._impl.step(agent_id, obs)
 ```
 
 4. **Register in `__init__.py`**:
