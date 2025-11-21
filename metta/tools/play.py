@@ -106,15 +106,15 @@ class PlayTool(Tool):
             else:
                 multi_agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
 
-        rollout_result = multi_episode_rollout(
-            env_cfg=env_cfg,
-            policies=multi_agent_policies,
-            episodes=1,
-            seed=self.seed,
-            render_mode=self.render,
-            max_action_time_ms=10000,
-        )
-        episode = rollout_result.episodes[0]
+            rollout_result = multi_episode_rollout(
+                env_cfg=env_cfg,
+                policies=multi_agent_policies,
+                episodes=1,
+                seed=self.seed,
+                render_mode=self.render,
+                max_action_time_ms=10000,
+            )
+            episode = rollout_result.episodes[0]
 
         # Run the rollout
         logger.info("Starting interactive play session")
