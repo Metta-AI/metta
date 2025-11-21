@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 from collections import defaultdict
@@ -10,7 +11,7 @@ from psycopg import Connection
 from psycopg.rows import class_row, dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from metta.app_backend.migrations import MIGRATIONS
 from metta.app_backend.schema_manager import run_migrations
@@ -140,6 +141,22 @@ class EpisodeWithTags(BaseModel):
     created_at: datetime
     tags: dict[str, str] = Field(default_factory=dict)
     avg_rewards: dict[uuid.UUID, float] = Field(default_factory=dict)
+
+    # We need this because we don't insert a json object into attributes, we insert a string reflecting the json object.
+    @field_validator("attributes", mode="before")
+    @classmethod
+    def _ensure_dict_attributes(cls, value: Any) -> dict[str, Any]:
+        """Coerce JSON strings into dictionaries so validation doesn't fail."""
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            parsed = json.loads(value)
+            if not isinstance(parsed, dict):
+                raise ValueError("attributes must be a JSON object")
+            return parsed
+        raise ValueError("attributes must be a dictionary")
 
 
 class LeaderboardPolicyEntry(BaseModel):
