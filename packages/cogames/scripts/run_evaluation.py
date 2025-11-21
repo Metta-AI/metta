@@ -59,17 +59,17 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_vibe_supports_gear(env_cfg) -> None:
-    assembler = env_cfg.game.objects.get("assembler")
-    uses_gear = False
-    if assembler is not None and hasattr(assembler, "protocols"):
-        for proto in assembler.protocols:
-            if any(v == "gear" for v in getattr(proto, "vibes", [])):
-                uses_gear = True
-                break
-    if uses_gear:
-        change_vibe = env_cfg.game.actions.change_vibe
-        if getattr(change_vibe, "number_of_vibes", 0) < 8:
-            change_vibe.number_of_vibes = 8
+        assembler = env_cfg.game.objects.get("assembler")
+        uses_gear = False
+        if assembler is not None and hasattr(assembler, "protocols"):
+            for proto in assembler.protocols:
+                if any(v == "gear" for v in getattr(proto, "vibes", [])):
+                    uses_gear = True
+                    break
+        if uses_gear:
+            change_vibe = env_cfg.game.actions.change_vibe
+            if getattr(change_vibe, "number_of_vibes", 0) < 8:
+                change_vibe.number_of_vibes = 8
 
 
 @dataclass
@@ -172,14 +172,14 @@ def _run_case(
     agent_config: AgentConfig,
 ) -> List[EvalResult]:
     mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
-    if variant:
-        mission_variants.insert(0, variant)
+                    if variant:
+                        mission_variants.insert(0, variant)
     try:
-        mission = base_mission.with_variants(mission_variants)
-        env_config = mission.make_env()
-        _ensure_vibe_supports_gear(env_config)
+                    mission = base_mission.with_variants(mission_variants)
+                    env_config = mission.make_env()
+                    _ensure_vibe_supports_gear(env_config)
         if variant is None or getattr(variant, "max_steps_override", None) is None:
-            env_config.game.max_steps = max_steps
+                        env_config.game.max_steps = max_steps
 
         # For evaluation, only heart rewards should count (not resource rewards)
         if not env_config.game.agent.rewards.stats:
@@ -193,25 +193,25 @@ def _run_case(
             env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
 
         actual_max_steps = env_config.game.max_steps
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+                    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
         policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-        agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
+                    agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
         out: List[EvalResult] = []
-        for run_idx in range(runs_per_case):
-            run_seed = seed + run_idx
-            rollout = Rollout(
-                env_config,
-                agent_policies,
-                render_mode="none",
-                seed=run_seed,
-                pass_sim_to_policies=True,
-            )
-            rollout.run_until_done()
+                    for run_idx in range(runs_per_case):
+                        run_seed = seed + run_idx
+                        rollout = Rollout(
+                            env_config,
+                            agent_policies,
+                            render_mode="none",
+                            seed=run_seed,
+                            pass_sim_to_policies=True,
+                        )
+                        rollout.run_until_done()
 
-            total_reward = float(sum(rollout._sim.episode_rewards))
-            avg_reward_per_agent = total_reward / max(1, num_cogs)
-            final_step = rollout._sim.current_step
+                        total_reward = float(sum(rollout._sim.episode_rewards))
+                        avg_reward_per_agent = total_reward / max(1, num_cogs)
+                        final_step = rollout._sim.current_step
 
             heart_gained = 0.0
             episode_stats = rollout._sim.episode_stats
@@ -223,22 +223,22 @@ def _run_case(
 
             out.append(
                 EvalResult(
-                    agent=agent_config.label,
-                    experiment=exp_name,
-                    num_cogs=num_cogs,
+                            agent=agent_config.label,
+                            experiment=exp_name,
+                            num_cogs=num_cogs,
                     difficulty=variant_name or "base",
-                    clip_period=clip_period,
-                    total_reward=total_reward,
-                    avg_reward_per_agent=avg_reward_per_agent,
-                    hearts_assembled=int(total_reward),
+                            clip_period=clip_period,
+                            total_reward=total_reward,
+                            avg_reward_per_agent=avg_reward_per_agent,
+                            hearts_assembled=int(total_reward),
                     heart_gained=heart_gained,
                     avg_heart_gained_per_agent=avg_heart_gained_per_agent,
-                    steps_taken=final_step + 1,
-                    max_steps=actual_max_steps,
-                    success=total_reward > 0,
-                    seed_used=run_seed,
-                    run_index=run_idx + 1,
-                )
+                            steps_taken=final_step + 1,
+                            max_steps=actual_max_steps,
+                            success=total_reward > 0,
+                            seed_used=run_seed,
+                            run_index=run_idx + 1,
+                        )
             )
         return out
     except Exception as e:
@@ -314,7 +314,7 @@ def run_evaluation(
             case_results = future.result()
             results.extend(case_results)
             completed += len(case_results)
-            logger.info(
+                        logger.info(
                 f"[{idx}/{total_cases}] {exp_name} | {variant_name or 'base'} | {num_cogs} agent(s) "
                 f"(progress {completed}/{total_tests})"
             )
@@ -347,11 +347,11 @@ def print_summary(results: List[EvalResult]):
             group_successes = sum(1 for r in group if r.success)
             avg_total_reward = sum(r.total_reward for r in group) / len(group)
             avg_reward_per_agent = sum(r.avg_reward_per_agent for r in group) / len(group)
-            logger.info(
-                f"  {key}: {group_successes}/{len(group)} "
-                f"({100 * group_successes / len(group):.1f}%) "
-                f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
-            )
+        logger.info(
+            f"  {key}: {group_successes}/{len(group)} "
+            f"({100 * group_successes / len(group):.1f}%) "
+            f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
+        )
 
     _summarize("agent", "Agent")
     _summarize("num_cogs", "Agent Count")
@@ -823,10 +823,10 @@ def main():
         elif agent_key in AGENT_CONFIGS:
             configs.append(AGENT_CONFIGS[agent_key])
         elif is_s3_uri(agent_key):
-            label = Path(agent_key).stem if "/" in agent_key else agent_key
+                label = Path(agent_key).stem if "/" in agent_key else agent_key
             configs.append(AgentConfig(key="custom", label=f"s3_{label}", policy_path=agent_key, data_path=None))
-        else:
-            label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
+            else:
+                label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
             configs.append(AgentConfig(key="custom", label=label, policy_path=agent_key, data_path=args.checkpoint))
 
     experiments = args.experiments if args.experiments else list(experiment_map.keys())
@@ -837,16 +837,16 @@ def main():
         cogs_list = args.cogs if args.cogs else [1, 2, 4]
         all_results.extend(
             run_evaluation(
-                agent_config=config,
-                experiments=experiments,
-                variants=variants,
-                cogs_list=cogs_list,
+            agent_config=config,
+            experiments=experiments,
+            variants=variants,
+            cogs_list=cogs_list,
                 experiment_map=experiment_map,
-                max_steps=args.steps,
-                seed=args.seed,
-                repeats=args.repeats,
+            max_steps=args.steps,
+            seed=args.seed,
+            repeats=args.repeats,
                 jobs=args.jobs,
-            )
+        )
         )
 
     print_summary(all_results)
