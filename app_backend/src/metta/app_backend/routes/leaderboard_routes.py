@@ -101,6 +101,12 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
             user_id=request.user_id,
             policy_version_id=request.policy_version_id,
         )
+        policy_version_ids = [entry.policy_version.id for entry in entries]
+        replays_by_policy = await metta_repo.get_episode_replays_by_policy_versions(
+            policy_version_ids, tag_key=request.score_group_episode_tag
+        )
+        for entry in entries:
+            entry.replays = replays_by_policy.get(entry.policy_version.id, {})
         return LeaderboardPoliciesResponse(entries=entries)
 
     return router

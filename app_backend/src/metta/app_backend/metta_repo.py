@@ -939,9 +939,6 @@ ORDER BY pol.created_at DESC, pv.created_at DESC
 
             policy_version_ids = [row.id for row in policy_rows]
             scores_by_policy: dict[uuid.UUID, dict[str, float]] = {pv_id: {} for pv_id in policy_version_ids}
-            replays_by_policy: dict[uuid.UUID, dict[str, list[EpisodeReplay]]] = {
-                pv_id: {} for pv_id in policy_version_ids
-            }
 
             async with con.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
@@ -987,7 +984,46 @@ GROUP BY pv.id, et.key, et.value
                     tag_identifier = f"{score_row['tag_key']}:{score_row['tag_value']}"
                     scores_by_policy.setdefault(pv_id, {})[tag_identifier] = float(score_row["avg_reward_per_agent"])
 
-                replay_query = """
+        entries: list[LeaderboardPolicyEntry] = []
+        for policy_row in policy_rows:
+            pv_id = policy_row.id
+            scores = scores_by_policy.get(pv_id, {})
+            avg_score = sum(scores.values()) / len(scores) if scores else None
+            policy_version = policy_row.model_copy(update={"tags": tags_by_policy.get(pv_id, {})})
+            entries.append(
+                LeaderboardPolicyEntry(
+                    policy_version=policy_version,
+                    scores=dict(scores),
+                    avg_score=avg_score,
+                )
+            )
+
+        entries.sort(
+            key=lambda entry: (
+                0 if entry.avg_score is not None else 1,
+                -(entry.avg_score or 0.0),
+                -entry.policy_version.created_at.timestamp(),
+            )
+        )
+        return entries
+
+    async def get_episode_replays_by_policy_versions(
+        self, policy_version_ids: list[uuid.UUID], tag_key: str | None = None
+    ) -> dict[uuid.UUID, dict[str, list[EpisodeReplay]]]:
+        """Return replay URLs for the given policy versions, optionally filtered by an episode tag key."""
+        if not policy_version_ids:
+            return {}
+
+        tag_join = "LEFT JOIN episode_tags et ON et.episode_id = e.id"
+        tag_condition = ""
+        params: list[Any] = [policy_version_ids]
+
+        if tag_key:
+            tag_join = "JOIN episode_tags et ON et.episode_id = e.id"
+            tag_condition = "AND et.key = %s"
+            params.append(tag_key)
+
+        query = f"""
 SELECT
     pv.id AS policy_version_id,
     et.key AS tag_key,
@@ -1001,46 +1037,32 @@ JOIN episode_policy_metrics epm
     ON epm.episode_internal_id = e.internal_id
    AND epm.pv_internal_id = pv.internal_id
    AND epm.metric_name = 'reward'
-JOIN episode_tags et ON et.episode_id = e.id
-WHERE et.key = %s
-  AND e.replay_url IS NOT NULL
+{tag_join}
+WHERE e.replay_url IS NOT NULL
   AND pv.id = ANY(%s)
+  {tag_condition}
 ORDER BY e.created_at DESC
 """
 
-                async with con.cursor(row_factory=dict_row) as cur:
-                    await cur.execute(replay_query, (score_group_episode_tag, policy_version_ids))
-                    replay_rows = await cur.fetchall()
+        replays_by_policy: dict[uuid.UUID, dict[str, list[EpisodeReplay]]] = {pv_id: {} for pv_id in policy_version_ids}
 
-                for replay_row in replay_rows:
-                    pv_id = replay_row["policy_version_id"]
-                    tag_identifier = f"{replay_row['tag_key']}:{replay_row['tag_value']}"
-                    replay_entry = EpisodeReplay(
-                        episode_id=replay_row["episode_id"],
-                        replay_url=replay_row["replay_url"],
-                    )
-                    replays_by_policy.setdefault(pv_id, {}).setdefault(tag_identifier, []).append(replay_entry)
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(query, params)
+                rows = await cur.fetchall()
 
-        entries: list[LeaderboardPolicyEntry] = []
-        for policy_row in policy_rows:
-            pv_id = policy_row.id
-            scores = scores_by_policy.get(pv_id, {})
-            avg_score = sum(scores.values()) / len(scores) if scores else None
-            policy_version = policy_row.model_copy(update={"tags": tags_by_policy.get(pv_id, {})})
-            entries.append(
-                LeaderboardPolicyEntry(
-                    policy_version=policy_version,
-                    scores=dict(scores),
-                    avg_score=avg_score,
-                    replays=dict(replays_by_policy.get(pv_id, {})),
-                )
+        for row in rows:
+            pv_id = row["policy_version_id"]
+            if row.get("tag_key") is not None and row.get("tag_value") is not None:
+                tag_identifier = f"{row['tag_key']}:{row['tag_value']}"
+            else:
+                tag_identifier = "unlabeled"
+
+            replay_entry = EpisodeReplay(
+                episode_id=row["episode_id"],
+                replay_url=row["replay_url"],
             )
+            replays_by_policy.setdefault(pv_id, {}).setdefault(tag_identifier, []).append(replay_entry)
 
-        entries.sort(
-            key=lambda entry: (
-                0 if entry.avg_score is not None else 1,
-                -(entry.avg_score or 0.0),
-                -entry.policy_version.created_at.timestamp(),
-            )
-        )
-        return entries
+        # Drop empty entries to avoid confusing callers with missing data
+        return {pv_id: tags for pv_id, tags in replays_by_policy.items() if tags}
