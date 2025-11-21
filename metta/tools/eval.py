@@ -1,4 +1,5 @@
 import logging
+import uuid
 from typing import Sequence
 
 from pydantic import BaseModel, Field
@@ -147,14 +148,8 @@ class EvaluatePolicyVersionTool(Tool):
             raise ValueError("stats_server_uri is required")
 
         stats_client = StatsClient.create(self.stats_server_uri)
-        result = stats_client.sql_query(
-            f"""SELECT pv.policy_spec, pv.attributes, p.name
-            FROM policy_versions pv JOIN policies p ON pv.policy_id = p.id
-            WHERE pv.id = '{self.policy_version_id}'"""
-        )
-        if result.rows is None or len(result.rows) == 0:
-            raise ValueError(f"Policy version {self.policy_version_id} not found")
-        policy_spec = PolicySpec.model_validate(result.rows[0][0])
+        policy_version = stats_client.get_policy_version(uuid.UUID(self.policy_version_id))
+        policy_spec = PolicySpec.model_validate(policy_version.policy_spec)
         if policy_spec.init_kwargs.get("device") is not None:
             policy_spec.init_kwargs["device"] = self.device
 
@@ -166,23 +161,18 @@ class EvaluatePolicyVersionTool(Tool):
 
         wandb_writer: WandbWriter | None = None
         if self.write_to_wandb:
-            try:
-                run_name = result.rows[0][2]
-                attributes = result.rows[0][1]
-                epoch_str = attributes.get("epoch")
-                agent_step_str = attributes.get("agent_step")
+            epoch = policy_version.attributes.get("epoch")
+            agent_step = policy_version.attributes.get("agent_step")
 
-                if run_name and epoch_str and agent_step_str:
-                    wandb_config = _get_wandb_config(run_name, self.group)
-                    with WandbContext(wandb_config, self) as wandb_run:
-                        if wandb_run:
-                            wandb_writer = WandbWriter(
-                                wandb_run=wandb_run,
-                                epoch=int(epoch_str),
-                                agent_step=int(agent_step_str),
-                            )
-            except Exception as e:
-                logger.error(f"Error writing to WandB: {e}")
+            if epoch and agent_step:
+                wandb_config = _get_wandb_config(policy_spec.name, self.group)
+                with WandbContext(wandb_config, self) as wandb_run:
+                    if wandb_run:
+                        wandb_writer = WandbWriter(
+                            wandb_run=wandb_run,
+                            epoch=epoch,
+                            agent_step=agent_step,
+                        )
 
         rollout_results = simulate_and_record(
             policy_specs=[policy_spec],
