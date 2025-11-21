@@ -116,14 +116,10 @@ def _require_checkpoint_manager() -> None:
         raise ImportError("CheckpointManager not available. Install metta extras to use checkpoint URIs.")
 
 
-def _policy_spec_from_uri(uri: str, *, device: torch.device) -> PolicySpec:
+def _policy_spec_from_target(target: str, *, device: torch.device, display_name: str | None = None) -> PolicySpec:
     _require_checkpoint_manager()
-    logger.info(f"Loading policy from checkpoint URI: {uri}")
-    return CheckpointManager.policy_spec_from_uri(uri, device=device)
-
-
-def _path_to_file_uri(path: str) -> str:
-    return f"file://{Path(path).expanduser().resolve()}"
+    logger.info(f"Loading policy from checkpoint: {target}")
+    return CheckpointManager.policy_spec_from_path_or_uri(target, device=device, display_name=display_name)
 
 
 def _policy_spec_from_inputs(
@@ -132,21 +128,18 @@ def _policy_spec_from_inputs(
     *,
     device: torch.device,
 ) -> PolicySpec:
-    if _is_uri(policy_path):
-        return _policy_spec_from_uri(policy_path, device=device)
-
-    if Path(policy_path).suffix.lower() == ".mpt":
-        return _policy_spec_from_uri(_path_to_file_uri(policy_path), device=device)
+    if _is_uri(policy_path) or Path(policy_path).suffix.lower() == ".mpt":
+        return _policy_spec_from_target(policy_path, device=device)
 
     resolved_class = resolve_policy_class_path(policy_path)
 
     if checkpoint_path:
-        if _is_uri(checkpoint_path):
-            return _policy_spec_from_uri(checkpoint_path, device=device)
+        if _is_uri(checkpoint_path) or Path(checkpoint_path).suffix.lower() == ".mpt":
+            return _policy_spec_from_target(checkpoint_path, device=device, display_name=resolved_class)
 
         resolved_data = resolve_policy_data_path(checkpoint_path)
         if resolved_data and Path(resolved_data).suffix.lower() == ".mpt":
-            return _policy_spec_from_uri(_path_to_file_uri(resolved_data), device=device)
+            return _policy_spec_from_target(resolved_data, device=device, display_name=resolved_class)
         return PolicySpec(class_path=resolved_class, data_path=resolved_data)
 
     return PolicySpec(class_path=resolved_class)

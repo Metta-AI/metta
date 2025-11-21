@@ -202,8 +202,7 @@ def _maybe_policy_artifact_spec(
     if not checkpoint_path or not checkpoint_path.lower().endswith(".mpt"):
         return None
 
-    uri = _normalize_checkpoint_uri(checkpoint_path)
-    spec = CheckpointManager.policy_spec_from_uri(uri, display_name=display_name)
+    spec = CheckpointManager.policy_spec_from_path_or_uri(checkpoint_path, display_name=display_name)
 
     return PolicySpecWithProportion(
         class_path=spec.class_path,
@@ -211,9 +210,3 @@ def _maybe_policy_artifact_spec(
         init_kwargs=spec.init_kwargs,
         proportion=proportion,
     )
-
-
-def _normalize_checkpoint_uri(path_or_uri: str) -> str:
-    if "://" in path_or_uri:
-        return path_or_uri
-    return f"file://{Path(path_or_uri).expanduser().resolve()}"

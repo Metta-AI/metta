@@ -352,6 +352,22 @@ class CheckpointManager:
             init_kwargs=init_kwargs,
         )
 
+    @staticmethod
+    def policy_spec_from_path_or_uri(
+        target: str,
+        *,
+        device: str | torch.device | None = None,
+        strict: bool = True,
+        display_name: str | None = None,
+    ) -> PolicySpec:
+        uri = target if "://" in target else f"file://{Path(target).expanduser().resolve()}"
+        return CheckpointManager.policy_spec_from_uri(
+            uri,
+            device=device,
+            strict=strict,
+            display_name=display_name,
+        )
+
 
 class CheckpointPolicy(MultiAgentPolicy):
     def __init__(
