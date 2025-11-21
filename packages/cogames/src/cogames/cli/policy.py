@@ -87,21 +87,11 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
     if policy_arg is None:
         console.print(ctx.get_help())
         console.print("[yellow]Missing: --policy / -p[/yellow]\n")
-    else:
-        try:
-            return _parse_policy_spec(spec=policy_arg).to_policy_spec()
-        except (ValueError, ModuleNotFoundError) as e:
-            translated = _translate_error(e)
-            console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]\n")
-
-    list_checkpoints()
-    describe_policy_arg(with_proportion=False)
-
-    if policy_arg is not None:
-        console.print("\n" + ctx.get_usage())
-
-    console.print("\n")
-    raise typer.Exit(0)
+        list_checkpoints()
+        describe_policy_arg(with_proportion=False)
+        console.print("\n")
+        raise typer.Exit(0)
+    return _parse_policy_spec(spec=policy_arg).to_policy_spec()
 
 
 def get_policy_specs_with_proportions(
@@ -110,21 +100,12 @@ def get_policy_specs_with_proportions(
     if not policy_args:
         console.print(ctx.get_help())
         console.print("[yellow]Supply at least one: --policy / -p[/yellow]\n")
-    else:
-        try:
-            return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
-        except (ValueError, ModuleNotFoundError) as e:
-            translated = _translate_error(e)
-            console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]")
-            console.print()
+        list_checkpoints()
+        describe_policy_arg(with_proportion=True)
+        console.print("\n")
+        raise typer.Exit(0)
 
-    list_checkpoints()
-    describe_policy_arg(with_proportion=True)
-
-    if policy_args:
-        console.print("\n" + ctx.get_usage())
-    console.print("\n")
-    raise typer.Exit(0)
+    return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
 
 
 def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
