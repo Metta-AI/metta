@@ -76,12 +76,23 @@ def describe_policy_arg(with_proportion: bool):
     console.print("\n" + "\n".join([f"  - {part}" for part in subcommand_parts]) + "\n")
 
 
+def _translate_error(e: Exception) -> str:
+    translated = str(e).replace("Invalid symbol name", "Could not find policy class")
+    if isinstance(e, ModuleNotFoundError):
+        translated += ". Please make sure to specify your policy class."
+    return translated
+
+
 def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec:
     if policy_arg is None:
         console.print(ctx.get_help())
         console.print("[yellow]Missing: --policy / -p[/yellow]\n")
     else:
-        return _parse_policy_spec(spec=policy_arg).to_policy_spec()
+        try:
+            return _parse_policy_spec(spec=policy_arg).to_policy_spec()
+        except (ValueError, ModuleNotFoundError) as e:
+            translated = _translate_error(e)
+            console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]\n")
 
     list_checkpoints()
     describe_policy_arg(with_proportion=False)
@@ -100,7 +111,12 @@ def get_policy_specs_with_proportions(
         console.print(ctx.get_help())
         console.print("[yellow]Supply at least one: --policy / -p[/yellow]\n")
     else:
-        return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
+        try:
+            return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
+        except (ValueError, ModuleNotFoundError) as e:
+            translated = _translate_error(e)
+            console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]")
+            console.print()
 
     list_checkpoints()
     describe_policy_arg(with_proportion=True)
@@ -140,6 +156,7 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         if fraction <= 0:
             raise ValueError("Policy proportion must be a positive number.")
 
+    # It isn't strictly necessary to resolve these here, but doing so enables nicer error messages
     resolved_class_path = resolve_policy_class_path(raw_class_path)
     resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
 
