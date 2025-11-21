@@ -342,15 +342,18 @@ class CheckpointManager:
         device: str | torch.device | None = None,
         strict: bool = True,
         display_name: str | None = None,
+        policy_architecture: PolicyArchitecture | None = None,
     ) -> PolicySpec:
         normalized_uri = CheckpointManager.normalize_uri(uri)
-        init_kwargs: dict[str, str | bool] = {
+        init_kwargs: dict[str, str | bool | PolicyArchitecture] = {
             "checkpoint_uri": normalized_uri,
             "display_name": display_name or normalized_uri,
             "strict": strict,
         }
         if device is not None:
             init_kwargs["device"] = str(device)
+        if policy_architecture is not None:
+            init_kwargs["policy_architecture"] = policy_architecture
         return PolicySpec(
             class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
             init_kwargs=init_kwargs,
@@ -366,11 +369,15 @@ class CheckpointPolicy(MultiAgentPolicy):
         device: str | torch.device = "cpu",
         strict: bool = True,
         display_name: str | None = None,
+        policy_architecture: PolicyArchitecture | None = None,
     ):
         super().__init__(policy_env_info)
         torch_device = torch.device(device)
         self._checkpoint_uri = checkpoint_uri
         artifact = CheckpointManager.load_artifact_from_uri(checkpoint_uri)
+        if artifact.policy_architecture is None and policy_architecture is not None and artifact.state_dict is not None:
+            artifact.policy_architecture = policy_architecture
+
         self._artifact = artifact
         self._policy_architecture = artifact.policy_architecture
         policy = artifact.instantiate(policy_env_info, device=torch_device, strict=strict)
