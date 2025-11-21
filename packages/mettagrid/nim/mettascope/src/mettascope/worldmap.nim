@@ -15,6 +15,7 @@ var
   visibilityMap*: TileMap
   px*: Pixelator
   sq*: ShaderQuad
+  previousPanelSize*: Vec2 = vec2(0, 0)
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -795,6 +796,42 @@ proc fitFullMap*(panel: Panel) {.measure.} =
     z = panel.zoom * panel.zoom
   panel.pos.x = rectW / 2.0f - cx * z
   panel.pos.y = rectH / 2.0f - cy * z
+
+proc adjustPanelForResize*(panel: Panel) {.measure.} =
+  ## Adjust pan and zoom when panel resizes to show the same portion of the map.
+  let currentSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
+
+  # Skip if this is the first time or no change
+  if previousPanelSize.x <= 0 or previousPanelSize.y <= 0 or currentSize == previousPanelSize:
+    previousPanelSize = currentSize
+    return
+
+  # Calculate current center point in world coordinates using previous panel size
+  let
+    oldRectW = previousPanelSize.x
+    oldRectH = previousPanelSize.y
+    rectW = panel.rect.w.float32
+    rectH = panel.rect.h.float32
+    z = panel.zoom * panel.zoom
+    centerX = (oldRectW / 2.0f - panel.pos.x) / z
+    centerY = (oldRectH / 2.0f - panel.pos.y) / z
+
+  # Adjust zoom with square root of proportional scaling - moderate the zoom increase
+  # when panel gets bigger to keep map elements reasonably sized
+  let
+    oldDiagonal = sqrt(oldRectW * oldRectW + oldRectH * oldRectH)
+    newDiagonal = sqrt(rectW * rectW + rectH * rectH)
+    zoomFactor = sqrt(newDiagonal / oldDiagonal)
+
+  panel.zoom = clamp(panel.zoom * zoomFactor, panel.minZoom, panel.maxZoom)
+
+  # Recalculate pan to keep the same center point
+  let newZ = panel.zoom * panel.zoom
+  panel.pos.x = rectW / 2.0f - centerX * newZ
+  panel.pos.y = rectH / 2.0f - centerY * newZ
+
+  # Update previous size
+  previousPanelSize = currentSize
 
 proc drawWorldMap*(panel: Panel) {.measure.} =
   ## Draw the world map.
