@@ -389,7 +389,9 @@ class StatsReporter(TrainerComponent):
                 continue
             history.append(scalar)
             env_stats.setdefault(key, scalar)
-            env_stats[f"{key}.avg"] = sum(history) / len(history)
+            # Skip creating .avg versions for env_per_label metrics
+            if not (key.startswith("env_per_label_rewards/") or key.startswith("env_per_label_chest_deposits/")):
+                env_stats[f"{key}.avg"] = sum(history) / len(history)
 
     def _normalize_steps_per_second(self, timing_info: dict[str, Any], agent_step: int) -> None:
         """Adjust SPS to account for agent steps accumulated before a resume."""

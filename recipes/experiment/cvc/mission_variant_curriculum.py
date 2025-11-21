@@ -43,6 +43,8 @@ from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
+from recipes.experiment.cvc.dense_curriculum import make_dense_curriculum
+from metta.cogworks.curriculum.task_generator import TaskGeneratorSet
 
 # Missions from eval_missions where scripted agents perform well
 MISSIONS: tuple[str, ...] = (
@@ -593,6 +595,119 @@ def make_curriculum(
     )
 
 
+def make_combined_curriculum(
+    base_missions: Optional[list[str] | str] = None,
+    num_cogs: int = 4,
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+    variants: Optional[Sequence[str] | str] = None,
+    exclude_variants: Optional[Sequence[str] | str] = None,
+    stats_max_cap: float = 0.5,
+    use_proven_variants_only: bool = False,
+    progressive_deposit_rewards: bool = True,
+    adjusted_inventory_rewards: bool = True,
+    # Dense curriculum parameters
+    dense_resource_levels: Optional[list[int]] = None,
+    dense_maps_to_use: Optional[list[str]] = None,
+    dense_include_diagnostics: bool = False,
+    dense_max_uses_values: Optional[list[int]] = None,
+) -> CurriculumConfig:
+    """Create a combined curriculum that includes both full curriculum missions and dense environments.
+
+    Args:
+        base_missions: Mission names to include in the full curriculum part.
+        num_cogs: Number of agents per mission.
+        enable_detailed_slice_logging: Enable detailed logging for curriculum slices.
+        algorithm_config: Optional curriculum algorithm configuration.
+        variants: Optional mission variants to apply to full curriculum missions.
+        exclude_variants: Optional list of variant names to exclude.
+        stats_max_cap: Maximum reward cap for resource stats.
+        use_proven_variants_only: If True, only use variants from PROVEN_VARIANTS list.
+        progressive_deposit_rewards: If True, use progressive deposit reward buckets.
+        adjusted_inventory_rewards: If True, use adjusted inventory rewards.
+        dense_resource_levels: Resource levels for dense curriculum (default: [7, 8, 9, 10]).
+        dense_maps_to_use: Maps to use for dense curriculum (default: all maps).
+        dense_include_diagnostics: Whether to include diagnostic missions in dense curriculum.
+        dense_max_uses_values: Max uses values for dense curriculum (default: [1, 2, 3, 5, 10, 255]).
+
+    Returns:
+        A CurriculumConfig combining both full curriculum and dense curriculum tasks.
+    """
+    from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig
+
+    # Create full curriculum
+    full_curriculum = make_curriculum(
+        base_missions=base_missions,
+        num_cogs=num_cogs,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+        algorithm_config=algorithm_config,
+        variants=variants,
+        exclude_variants=exclude_variants,
+        stats_max_cap=stats_max_cap,
+        use_proven_variants_only=use_proven_variants_only,
+        progressive_deposit_rewards=progressive_deposit_rewards,
+        adjusted_inventory_rewards=adjusted_inventory_rewards,
+    )
+
+    # Create dense curriculum
+    dense_curriculum = make_dense_curriculum(
+        num_cogs=num_cogs,
+        resource_levels=dense_resource_levels,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+        algorithm_config=algorithm_config,
+        maps_to_use=dense_maps_to_use,
+        include_diagnostics=dense_include_diagnostics,
+        max_uses_values=dense_max_uses_values,
+    )
+
+    # Extract task generators from both curricula
+    def extract_task_generators(curriculum: CurriculumConfig) -> list[AnyTaskGeneratorConfig]:
+        """Extract all task generators from a curriculum, handling TaskGeneratorSet.Config."""
+        task_gen = curriculum.task_generator
+        if isinstance(task_gen, TaskGeneratorSet.Config):
+            # If it's a set, extract all generators
+            return list(task_gen.task_generators)
+        else:
+            # If it's a single generator, return it as a list
+            return [task_gen]
+
+    full_generators = extract_task_generators(full_curriculum)
+    dense_generators = extract_task_generators(dense_curriculum)
+
+    # Merge all task generators
+    all_generators = full_generators + dense_generators
+    merged_task_generators = cc.merge(all_generators)
+
+    # Create combined curriculum with appropriate algorithm config
+    if algorithm_config is None:
+        combined_algorithm_config: LearningProgressConfig = LearningProgressConfig(
+            use_bidirectional=True,
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=3000,  # Higher because we have more tasks
+            max_slice_axes=4,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
+    else:
+        # Use the provided algorithm config (must be LearningProgressConfig)
+        if not isinstance(algorithm_config, LearningProgressConfig):
+            raise ValueError(
+                f"algorithm_config must be LearningProgressConfig, got {type(algorithm_config)}"
+            )
+        combined_algorithm_config = algorithm_config
+
+    # Estimate number of active tasks (roughly 50-75% of total)
+    # This is a rough estimate; actual task count depends on bucketing
+    estimated_total_tasks = len(all_generators) * 10  # Rough estimate
+    num_active_tasks = min(2500, max(1000, int(estimated_total_tasks * 0.6)))
+
+    return CurriculumConfig(
+        task_generator=merged_task_generators,
+        num_active_tasks=num_active_tasks,
+        algorithm_config=combined_algorithm_config,
+    )
+
+
 def make_eval_suite_from_curriculum(
     base_missions: Optional[list[str] | str] = None,
     num_cogs: int = 4,
@@ -751,6 +866,12 @@ def train(
     use_proven_variants_only: bool = False,
     progressive_deposit_rewards: bool = True,
     adjusted_inventory_rewards: bool = True,
+    # Combined curriculum parameters
+    use_combined_curriculum: bool = False,
+    dense_resource_levels_b64: Optional[str] = None,
+    dense_maps_to_use_b64: Optional[str] = None,
+    dense_include_diagnostics: bool = False,
+    dense_max_uses_values_b64: Optional[str] = None,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips with mission-variant curriculum.
 
@@ -790,13 +911,43 @@ def train(
     if all_variants_per_mission and exclude_variants is None:
         resolved_exclude_variants = []
 
-    resolved_curriculum = curriculum or make_curriculum(
-        base_missions=base_missions,
-        num_cogs=num_cogs,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-        variants=variants,
-        exclude_variants=resolved_exclude_variants,
-        stats_max_cap=0.5 if all_variants_per_mission else 1.0,
+    # Use combined curriculum if requested
+    if use_combined_curriculum:
+        # Decode dense curriculum parameters
+        dense_resource_levels = None
+        dense_maps_to_use = None
+        dense_max_uses_values = None
+
+        if dense_resource_levels_b64:
+            dense_resource_levels = json.loads(base64.b64decode(dense_resource_levels_b64.encode()).decode())
+        if dense_maps_to_use_b64:
+            dense_maps_to_use = json.loads(base64.b64decode(dense_maps_to_use_b64.encode()).decode())
+        if dense_max_uses_values_b64:
+            dense_max_uses_values = json.loads(base64.b64decode(dense_max_uses_values_b64.encode()).decode())
+
+        resolved_curriculum = curriculum or make_combined_curriculum(
+            base_missions=base_missions,
+            num_cogs=num_cogs,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            variants=variants,
+            exclude_variants=resolved_exclude_variants,
+            stats_max_cap=0.5 if all_variants_per_mission else 1.0,
+            use_proven_variants_only=use_proven_variants_only,
+            progressive_deposit_rewards=progressive_deposit_rewards,
+            adjusted_inventory_rewards=adjusted_inventory_rewards,
+            dense_resource_levels=dense_resource_levels,
+            dense_maps_to_use=dense_maps_to_use,
+            dense_include_diagnostics=dense_include_diagnostics,
+            dense_max_uses_values=dense_max_uses_values,
+        )
+    else:
+        resolved_curriculum = curriculum or make_curriculum(
+            base_missions=base_missions,
+            num_cogs=num_cogs,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            variants=variants,
+            exclude_variants=resolved_exclude_variants,
+            stats_max_cap=0.5 if all_variants_per_mission else 1.0,
         use_proven_variants_only=use_proven_variants_only,
         progressive_deposit_rewards=progressive_deposit_rewards,
         adjusted_inventory_rewards=adjusted_inventory_rewards,
@@ -966,6 +1117,7 @@ def experiment(
 
 __all__ = [
     "make_curriculum",
+    "make_combined_curriculum",
     "train",
     "evaluate",
     "play",

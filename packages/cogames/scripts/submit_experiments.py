@@ -88,7 +88,7 @@ def submit_variants_experiments():
         safe_mission_name = mission.replace("_", "-")
         mission_variant_curriculum.experiment(
             base_missions=[mission],
-            run_name=f"variants_curriculum_{safe_mission_name}_all_variants_v2",
+            run_name=f"variants_curriculum_{safe_mission_name}_all_variants_v3",
             skip_git_check=True,
             all_variants_per_mission=True,
             additional_args=[
@@ -164,6 +164,57 @@ def submit_full_curriculum_experiments():
     )
 
     print("\n✓ All full curriculum experiments submitted!")
+
+
+def submit_full_curriculum_with_dense():
+    """Submit full curriculum experiments that include dense environments.
+
+    This combines the full curriculum missions with dense training environments
+    to provide a comprehensive training curriculum.
+    """
+    print("\n" + "=" * 80)
+    print("Submitting Full Curriculum + Dense Environments Experiments")
+    print("=" * 80)
+    print("\nThis combines:")
+    print("  - Full curriculum missions (all maps, variants, diagnostics)")
+    print("  - Dense training environments (resource reduction + max_uses bucketing)")
+
+    import base64
+    import json
+
+    from recipes.experiment.cvc.dense_curriculum import DENSE_TRAINING_MISSIONS
+
+    # Default dense curriculum parameters
+    dense_resource_levels = [7, 8, 9, 10]  # Dense levels
+    dense_maps = [m.name for m in DENSE_TRAINING_MISSIONS]  # All maps
+    dense_max_uses = [1, 2, 3, 5, 10, 255]
+
+    # Encode parameters as base64 for command-line passing
+    dense_resource_levels_b64 = base64.b64encode(json.dumps(dense_resource_levels).encode()).decode()
+    dense_maps_b64 = base64.b64encode(json.dumps(dense_maps).encode()).decode()
+    dense_max_uses_b64 = base64.b64encode(json.dumps(dense_max_uses).encode()).decode()
+
+    print("\n1. Full curriculum + Dense environments (with diagnostics):")
+    print("   - All full curriculum missions")
+    print("   - Dense environments: levels [7,8,9,10], all maps, max_uses bucketing")
+    print("   - Includes diagnostic missions in both curricula")
+    mission_variant_curriculum.experiment(
+        run_name="full_curriculum_with_dense_v1",
+        skip_git_check=True,
+        all_variants_per_mission=False,
+        variants=None,
+        additional_args=[
+            "progressive_deposit_rewards=True",
+            "adjusted_inventory_rewards=True",
+            f"dense_resource_levels_b64={dense_resource_levels_b64}",
+            f"dense_maps_to_use_b64={dense_maps_b64}",
+            "dense_include_diagnostics=True",
+            f"dense_max_uses_values_b64={dense_max_uses_b64}",
+            "use_combined_curriculum=True",
+        ],
+    )
+
+    print("\n✓ Full curriculum + Dense environments experiment submitted!")
 
 
 if __name__ == "__main__":
