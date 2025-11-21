@@ -9,6 +9,7 @@ This replaces both variants_curriculum.py and full_curriculum.py.
 
 from __future__ import annotations
 
+import base64
 import json
 import subprocess
 import time
@@ -740,7 +741,9 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     variants: Optional[Sequence[str]] = None,
+    variants_b64: Optional[str] = None,
     exclude_variants: Optional[Sequence[str] | str] = None,
+    exclude_variants_b64: Optional[str] = None,
     all_variants_per_mission: bool = False,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
@@ -775,6 +778,12 @@ def train(
     Returns:
         A TrainTool configured with the mission-variant curriculum
     """
+    # Decode base64-encoded variants if provided (to avoid shell space-splitting issues)
+    if variants_b64:
+        variants = json.loads(base64.b64decode(variants_b64.encode()).decode())
+    if exclude_variants_b64:
+        exclude_variants = json.loads(base64.b64decode(exclude_variants_b64.encode()).decode())
+
     # When all_variants_per_mission=True, we want all variants (unless exclude_variants is specified)
     # Pass exclude_variants=[] to indicate "get all variants" if not already specified
     resolved_exclude_variants = exclude_variants
@@ -797,9 +806,25 @@ def train(
         losses=LossesConfig(),
     )
 
-    # If all_variants_per_mission=True and eval_match_training=True, create eval suite
-    # that matches the training mission:variant combinations
-    if all_variants_per_mission and eval_match_training:
+    # If eval_match_training=True and we're creating mission:variant combinations in training,
+    # create eval suite that matches the training mission:variant combinations
+    # This happens when:
+    # 1. all_variants_per_mission=True (creates mission:variant tasks for all variants)
+    # 2. variants is provided (even with all_variants_per_mission=False, still creates mission:variant tasks)
+    # Parse variants to check if any will be used (same logic as make_curriculum)
+    will_create_mission_variant_tasks = all_variants_per_mission
+    if variants is not None:
+        # Parse variants to check if any will be used
+        if isinstance(variants, str):
+            try:
+                parsed_variants = json.loads(variants)
+            except (json.JSONDecodeError, TypeError):
+                parsed_variants = [v.strip() for v in variants.split(",") if v.strip()]
+        else:
+            parsed_variants = list(variants)
+        will_create_mission_variant_tasks = will_create_mission_variant_tasks or len(parsed_variants) > 0
+
+    if will_create_mission_variant_tasks and eval_match_training:
         eval_suite = make_eval_suite_from_curriculum(
             base_missions=base_missions,
             num_cogs=num_cogs,
@@ -914,15 +939,19 @@ def experiment(
     if all_variants_per_mission:
         cmd.append("all_variants_per_mission=True")
         if exclude_variants:
-            # Use JSON format for lists to avoid parsing issues
+            # The shell script splits METTA_ARGS on spaces, so we base64-encode
+            # the JSON string to avoid space-splitting issues
             exclude_str = json.dumps(exclude_variants)
-            cmd.append(f"exclude_variants={exclude_str}")
+            exclude_str_b64 = base64.b64encode(exclude_str.encode()).decode()
+            cmd.append(f"exclude_variants_b64={exclude_str_b64}")
     else:
         cmd.append("all_variants_per_mission=False")
         if variants:
-            # Use JSON format for lists to avoid parsing issues
+            # The shell script splits METTA_ARGS on spaces, so we base64-encode
+            # the JSON string to avoid space-splitting issues
             variants_str = json.dumps(variants)
-            cmd.append(f"variants={variants_str}")
+            variants_str_b64 = base64.b64encode(variants_str.encode()).decode()
+            cmd.append(f"variants_b64={variants_str_b64}")
 
     if additional_args:
         cmd.extend(additional_args)
