@@ -220,6 +220,7 @@ def submit_full_curriculum_with_dense():
 if __name__ == "__main__":
     submit_tier_experiments()
     submit_full_curriculum_experiments()
+    submit_full_curriculum_with_dense()  # Combined curriculum with dense environments
     submit_variants_experiments()  # Reference runs
     print("\n" + "=" * 80)
     print("All experiments submitted successfully!")
