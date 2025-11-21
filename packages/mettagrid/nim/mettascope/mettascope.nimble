@@ -13,7 +13,7 @@ requires "genny >= 0.1.1"
 task bindings, "Generate bindings":
 
   proc compile(libName: string) =
-    exec "nim c -d:release --app:lib -d:fidgetUseCached=true --tlsEmulation:off --out:" & libName & " --outdir:bindings/generated bindings/bindings.nim"
+    exec "nim c -d:release --app:lib--tlsEmulation:off --out:" & libName & " --outdir:bindings/generated bindings/bindings.nim"
     # Post-process generated Python file: fix cstring -> c_char_p for Python ctypes compatibility
     let pyFile = "bindings/generated/mettascope.py"
     var content = readFile(pyFile)

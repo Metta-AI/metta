@@ -412,7 +412,7 @@ def replay_cmd(
 
     try:
         # Run nim with mettascope and replay argument
-        cmd = ["nim", "r", "-d:fidgetUseCached", str(mettascope_path), f"--replay:{replay_path}"]
+        cmd = ["nim", "r", str(mettascope_path), f"--replay:{replay_path}"]
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as exc:
         console.print(f"[red]Error running MettaScope: {exc}[/red]")
