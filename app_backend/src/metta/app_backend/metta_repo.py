@@ -94,6 +94,19 @@ class PolicyVersionRow(BaseModel):
     created_at: datetime
 
 
+class PolicyVersionWithName(BaseModel):
+    id: uuid.UUID
+    internal_id: int
+    policy_id: uuid.UUID
+    version: int
+    s3_path: str | None
+    git_hash: str | None
+    policy_spec: dict[str, Any]
+    attributes: dict[str, Any]
+    created_at: datetime
+    name: str
+
+
 class PublicPolicyVersionRow(BaseModel):
     id: uuid.UUID
     policy_id: uuid.UUID
@@ -667,10 +680,16 @@ class MettaRepo:
                 raise ValueError("Failed to create policy version")
             return row[0]
 
-    async def get_policy_version(self, policy_version_id: uuid.UUID) -> PolicyVersionRow | None:
+    async def get_policy_version_with_name(self, policy_version_id: uuid.UUID) -> PolicyVersionWithName | None:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(PolicyVersionRow)) as cur:
-                await cur.execute("SELECT * FROM policy_versions WHERE id = %s", (policy_version_id,))
+            async with con.cursor(row_factory=class_row(PolicyVersionWithName)) as cur:
+                await cur.execute(
+                    """
+                SELECT pv.*, p.name
+                FROM policy_versions pv JOIN policies p ON pv.policy_id = p.id
+                WHERE pv.id = %s""",
+                    (policy_version_id,),
+                )
                 return await cur.fetchone()
 
     async def get_user_policy_versions(self, user_id: str) -> list[PublicPolicyVersionRow]:
