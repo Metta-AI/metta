@@ -1126,4 +1126,7 @@ ORDER BY e.created_at DESC
                 await cur.execute(query, params)  # type: ignore
                 rows = await cur.fetchall()
 
+        for row in rows:
+            # `class_row` returns a dict for this attr but doesn't coerce its inner types
+            row.avg_rewards = {uuid.UUID(str(key)): value for key, value in row.avg_rewards.items()}
         return list(rows)
