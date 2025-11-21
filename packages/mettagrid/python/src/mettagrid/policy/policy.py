@@ -256,10 +256,12 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         self._agent_states: dict[int, StateType] = {}
         self._action_name_to_index = {name: idx for idx, name in enumerate(policy_env_info.action_names)}
         self._simulation: Simulation | None = None
+        self._state_initialized = False
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action and update hidden state."""
-        assert self._state is not None, "reset() must be called before step()"
+        if not self._state_initialized:
+            raise RuntimeError("reset() must be called before step()")
         if hasattr(self._base_policy, "set_active_agent"):
             self._base_policy.set_active_agent(self._agent_id)
         action, self._state = self._base_policy.step_with_state(obs, self._state)
@@ -273,6 +275,7 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         self._base_policy.reset()
         self._state = self._base_policy.initial_agent_state()
         self._agent_states.clear()
+        self._state_initialized = True
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
 
