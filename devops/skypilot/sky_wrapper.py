@@ -1,27 +1,18 @@
 #!/usr/bin/env python3
 
 import sys
-import termios
 
 from sky.cli import cli
 
+from devops.skypilot.utils.terminal import disable_canonical_mode
+
 
 def main() -> None:
-    if len(sys.argv) >= 3 and sys.argv[1] == "api" and sys.argv[2] == "login":
-        fd = sys.stdin.fileno()
-        try:
-            old_settings = termios.tcgetattr(fd)
-        except (OSError, termios.error):
-            cli()
-            return
+    is_login = len(sys.argv) >= 3 and sys.argv[1] == "api" and sys.argv[2] == "login"
 
-        try:
-            new_settings = termios.tcgetattr(fd)
-            new_settings[3] = new_settings[3] & ~termios.ICANON
-            termios.tcsetattr(fd, termios.TCSADRAIN, new_settings)
+    if is_login:
+        with disable_canonical_mode():
             cli()
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     else:
         cli()
 
