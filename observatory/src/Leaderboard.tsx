@@ -320,9 +320,9 @@ const STYLES = `
   }
 }
 `
-
-const LEADERBOARD_ATTEMPTS_TAG = 'v0-leaderboard-attempts'
-const LEADERBOARD_DONE_TAG = 'v0-leaderboard-evals-done'
+const LEADERBOARD_SIM_VERSION = 'v0.1'
+const LEADERBOARD_ATTEMPTS_TAG = `leaderboard-attempts-${LEADERBOARD_SIM_VERSION}`
+const LEADERBOARD_DONE_TAG = `leaderboard-evals-done-${LEADERBOARD_SIM_VERSION}`
 const LEADERBOARD_DONE_VALUE = 'true'
 const LEADERBOARD_CANCELED_VALUE = 'canceled'
 
