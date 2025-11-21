@@ -54,6 +54,8 @@ except ImportError:
     CHECKPOINT_MANAGER_AVAILABLE = False
     CheckpointManager = None
 
+ARTIFACT_FALLBACK_CLASS = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -107,18 +109,44 @@ def _is_uri(path: Optional[str]) -> bool:
     return bool(path and "://" in path)
 
 
-def _should_use_checkpoint_manager(path: Optional[str]) -> bool:
-    if path is None:
+def _looks_like_local_artifact(path: Optional[str]) -> bool:
+    if not path or _is_uri(path):
         return False
-    if _is_uri(path):
-        return True
-    return Path(path).suffix == ".mpt"
+    return Path(path).suffix.lower() == ".mpt"
 
 
-def _as_checkpoint_uri(path: str) -> str:
-    if _is_uri(path):
-        return path
-    return Path(path).expanduser().resolve().as_uri()
+def _require_checkpoint_manager() -> None:
+    if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
+        raise ImportError("CheckpointManager not available. Install metta extras to use checkpoint URIs.")
+
+
+def _policy_spec_from_uri(uri: str, *, device: torch.device) -> PolicySpec:
+    _require_checkpoint_manager()
+    logger.info(f"Loading policy from checkpoint URI: {uri}")
+    return CheckpointManager.policy_spec_from_uri(uri, device=device)
+
+
+def _policy_spec_from_inputs(
+    policy_path: str,
+    checkpoint_path: Optional[str],
+    *,
+    device: torch.device,
+) -> PolicySpec:
+    if _is_uri(policy_path):
+        return _policy_spec_from_uri(policy_path, device=device)
+
+    if checkpoint_path:
+        if _is_uri(checkpoint_path):
+            return _policy_spec_from_uri(checkpoint_path, device=device)
+        return PolicySpec(class_path=policy_path, data_path=checkpoint_path)
+
+    if _looks_like_local_artifact(policy_path):
+        return PolicySpec(
+            class_path=ARTIFACT_FALLBACK_CLASS,
+            data_path=policy_path,
+        )
+
+    return PolicySpec(class_path=policy_path)
 
 
 def load_policy(
@@ -128,23 +156,7 @@ def load_policy(
     device: Optional[torch.device] = None,
 ):
     device = device or torch.device("cpu")
-
-    if checkpoint_path and _should_use_checkpoint_manager(checkpoint_path):
-        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
-        checkpoint_uri = _as_checkpoint_uri(checkpoint_path)
-        logger.info(f"Loading policy from checkpoint URI: {checkpoint_uri}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(checkpoint_uri, device=device)
-        return initialize_or_load_policy(policy_env_info, policy_spec)
-
-    if _is_uri(policy_path):
-        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
-        logger.info(f"Loading policy from checkpoint URI: {policy_path}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(policy_path, device=device)
-        return initialize_or_load_policy(policy_env_info, policy_spec)
-
-    policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)
+    policy_spec = _policy_spec_from_inputs(policy_path, checkpoint_path, device=device)
     return initialize_or_load_policy(policy_env_info, policy_spec)
 
 
