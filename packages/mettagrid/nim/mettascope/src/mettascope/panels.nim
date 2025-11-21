@@ -102,6 +102,7 @@ proc beginPanAndZoom*(panel: Panel) =
 
     if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
       panel.vel = window.logicalMouseDelta
+      settings.lockFocus = false
     else:
       panel.vel *= 0.9
 
