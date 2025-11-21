@@ -94,21 +94,22 @@ class PlayTool(Tool):
                 raise ValueError(f"Policy version {self.policy_version_id} has no s3 path")
 
         with ExitStack() as stack:
-            multi_agent_policies: list[MultiAgentPolicy] = []
+            agent_policies: list[MultiAgentPolicy] = []
             if s3_path:
                 policy_spec = stack.enter_context(policy_spec_from_s3_submission(s3_path))
                 policy = initialize_or_load_policy(policy_env_info, policy_spec)
-                multi_agent_policies.append(policy)
+                agent_policies.append(policy)
                 logger.info("Loaded policy from s3 path")
             elif self.policy_uri:
-                multi_agent_policies.append(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
+                agent_policies.append(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
                 logger.info("Loaded policy from deprecated-format policy uri")
             else:
-                multi_agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
+                # Fall back to random policies only when no policy was configured explicitly.
+                agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
 
             rollout_result = multi_episode_rollout(
                 env_cfg=env_cfg,
-                policies=multi_agent_policies,
+                policies=agent_policies,
                 episodes=1,
                 seed=self.seed,
                 render_mode=self.render,
