@@ -1,3 +1,5 @@
+replicaCount: 2
+
 # This host is used by scripts that authenticate with API tokens.
 # Backend server will be mounted under /
 #
