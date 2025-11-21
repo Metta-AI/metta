@@ -10,7 +10,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     libgomp1 \
+    python3-numpy \
+    wget \
+    gnupg \
+    software-properties-common \
     && rm -rf /var/lib/apt/lists/*
+
+# Add LLVM official repository for Clang 21
+RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - \
+    && echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" > /etc/apt/sources.list.d/llvm.list
+
+# Install Clang 21
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    clang-21 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Clang 21 as default compiler
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100 \
+    && update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
 
 # Install Bazel for mettagrid build
 RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
@@ -19,7 +36,7 @@ RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/baze
 RUN mkdir -p /workspace/metta
 WORKDIR /workspace/metta
 
-COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.9.10 /uv /uvx /bin/
 
 COPY .python-version pyproject.toml uv.lock ./
 RUN uv python install
@@ -33,7 +50,6 @@ COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
-COPY experiments/pyproject.toml experiments/
 
 RUN uv sync --no-install-workspace --frozen
 
@@ -50,6 +66,8 @@ RUN git fetch
 
 RUN echo 'cd /workspace/metta' >> /root/.bashrc && \
     echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
+
+RUN rm -rf packages/mettagrid/.bazel_output/install
 
 RUN uv sync --locked
 

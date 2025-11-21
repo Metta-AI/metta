@@ -8,6 +8,7 @@ on:
     types: [completed]
     branches:
       - main
+  workflow_dispatch: {}
 
 # Explicit concurrency settings to prevent cancellation
 # Each cleanup run gets a unique group based on the triggering workflow run ID

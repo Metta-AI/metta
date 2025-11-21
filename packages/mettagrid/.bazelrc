@@ -9,13 +9,43 @@ build --action_env=PYTHON_BIN_PATH
 build --action_env=PYTHON_LIB_PATH
 build --python_path=python
 
-# Prod build mode. --compilation_mode=[opt|dbg] is a required Bazel field.
+build:release --repo_env=CC=clang
+build:release --repo_env=CXX=clang++
+build:release --action_env=CC=clang
+build:release --action_env=CXX=clang++
+build:release --compilation_mode=opt
+build:release --copt=-O3
+build:release --copt=-DNDEBUG
+build:release --strip=always
+build:release --copt=-flto=thin
+build:release --linkopt=-flto=thin
+
+build:debug --repo_env=CC=clang
+build:debug --repo_env=CXX=clang++
+build:debug --action_env=CC=clang
+build:debug --action_env=CXX=clang++
+build:debug --compilation_mode=dbg
+build:debug --copt=-O0
+build:debug --copt=-g
+build:debug --strip=never
+
+# Built-in opt mode (uses toolchain default -O2)
+# Use: bazel build -c opt //target
+# NOTE: Cannot override -O2 via .bazelrc due to toolchain precedence.
+# Use --config=release above for -O3, or pass --copt=-O3 on command line.
+build:opt --repo_env=CC=clang
+build:opt --repo_env=CXX=clang++
+build:opt --action_env=CC=clang
+build:opt --action_env=CXX=clang++
 build:opt --compilation_mode=opt
-build:opt --copt=-O3
 build:opt --copt=-DNDEBUG
 build:opt --strip=always
 
 # Debug build mode. --compilation_mode=[opt|dbg] is a required Bazel field.
+build:dbg --repo_env=CC=clang
+build:dbg --repo_env=CXX=clang++
+build:dbg --action_env=CC=clang
+build:dbg --action_env=CXX=clang++
 build:dbg --compilation_mode=dbg
 build:dbg --strip=never
 build:dbg --copt=-g
@@ -71,7 +101,7 @@ common --color=yes
 common --show_progress_rate_limit=0.5
 
 # Local disk cache configuration
-build --disk_cache=~/.cache/bazel
+build --disk_cache=~/.cache/bazel-disk
 build --repository_cache=~/.cache/bazel-repo
 
 # Build execution optimization
@@ -84,10 +114,9 @@ build:ci --repo_env=PYTHON_BIN_PATH=/usr/bin/python3
 build:ci --python_path=/usr/bin/python3
 # Skip hermetic Python toolchain in CI
 build:ci --@rules_python//python/config_settings:bootstrap_impl=system
-
-# Add retries for external dependency downloads to handle rate limiting
 build:ci --repository_cache=~/.cache/bazel-repo
 build:ci --experimental_repository_downloader_retries=5
 build:ci --http_timeout_scaling=2.0
-# Add delays between retries (exponential backoff)
 build:ci --experimental_scale_timeouts=2.0
+build:ci --copt=-O3
+build:ci --copt=-UNDEBUG

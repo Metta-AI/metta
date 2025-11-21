@@ -10,6 +10,8 @@
 
 #include "actions/attack.hpp"
 #include "actions/change_vibe.hpp"
+#include "actions/move_config.hpp"   // For MoveActionConfig
+#include "actions/resource_mod.hpp"  // For ResourceModConfig
 #include "bindings/mettagrid_c.hpp"
 #include "objects/agent.hpp"
 #include "objects/agent_config.hpp"
@@ -17,91 +19,115 @@
 
 namespace py = pybind11;
 
-// Global pointer to store the Python interpreter guard
-// This ensures it stays alive for the entire program duration
+// Hold a Python interpreter for process lifetime
 static std::unique_ptr<py::scoped_interpreter> g_python_guard;
 
-// TODO: Currently this benchmark requires Python/pybind11 because the MettaGrid
-// API is tightly coupled with Python types (py::dict, py::list, py::array_t).
-//
-// The goal is to refactor MettaGrid to have a pure C++ core with a thin Python
-// wrapper layer. When that refactoring is complete, we should be able to:
-// 1. Remove all pybind11 includes from this benchmark
-// 2. Remove the Python interpreter initialization
-// 3. Work directly with C++ types (std::vector, std::unordered_map, etc.)
-//
-// We'll know we've succeeded when this file has zero references to pybind11!
+// Initialize Python very early to avoid any static-init use of NumPy C-API
+struct PythonBootstrap {
+  PythonBootstrap() {
+    try {
+      g_python_guard = std::make_unique<py::scoped_interpreter>();
+      // Import numpy so py::array_t is safe to construct later
+      py::module_::import("numpy");
+    } catch (const std::exception& e) {
+      fprintf(stderr, "[mettagrid-bench] early python bootstrap failed: %s\n", e.what());
+    }
+  }
+};
+static PythonBootstrap g_bootstrap __attribute__((init_priority(101)));
 
-// Helper functions for creating configuration and map
+// Helper: construct a minimal GameConfig for the benchmark
 GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::vector<std::string> resource_names = {"ore", "heart"};
 
-  std::shared_ptr<ActionConfig> action_cfg =
-      std::make_shared<ActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                     std::unordered_map<InventoryItem, InventoryProbability>());
-
-  std::shared_ptr<AttackActionConfig> attack_cfg =
-      std::make_shared<AttackActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                           std::unordered_map<InventoryItem, InventoryProbability>(),
-                                           std::unordered_map<InventoryItem, InventoryQuantity>());
-
-  std::shared_ptr<ChangeVibeActionConfig> change_vibe_cfg =
-      std::make_shared<ChangeVibeActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                               std::unordered_map<InventoryItem, InventoryProbability>(),
+  auto action_cfg = std::make_shared<ActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>{},
+                                                   std::unordered_map<InventoryItem, InventoryProbability>{});
+  auto move_cfg = std::make_shared<MoveActionConfig>(std::vector<std::string>{"north", "south", "east", "west"},
+                                                     std::unordered_map<InventoryItem, InventoryQuantity>{},
+                                                     std::unordered_map<InventoryItem, InventoryProbability>{});
+  auto attack_cfg = std::make_shared<AttackActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>{},
+                                                         std::unordered_map<InventoryItem, InventoryProbability>{},
+                                                         std::unordered_map<InventoryItem, InventoryQuantity>{});
+  auto change_vibe_cfg =
+      std::make_shared<ChangeVibeActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>{},
+                                               std::unordered_map<InventoryItem, InventoryProbability>{},
                                                4);
+  // Create proper ResourceModConfig with all required fields
+  auto resource_mod_cfg = std::make_shared<ResourceModConfig>(
+      std::unordered_map<InventoryItem, InventoryQuantity>{},     // required_resources
+      std::unordered_map<InventoryItem, InventoryProbability>{},  // consumed_resources
+      std::unordered_map<InventoryItem, InventoryProbability>{},  // modifies
+      0,                                                          // agent_radius
+      false);                                                     // scales
 
-  // GameConfig expects an unordered_map for actions
   std::unordered_map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
-
   actions_cfg["noop"] = action_cfg;
-  actions_cfg["move"] = action_cfg;
+  actions_cfg["move"] = move_cfg;
   actions_cfg["rotate"] = action_cfg;
   actions_cfg["attack"] = attack_cfg;
   actions_cfg["change_vibe"] = change_vibe_cfg;
+  actions_cfg["resource_mod"] = resource_mod_cfg;
 
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
-
   objects_cfg["wall"] = std::make_shared<WallConfig>(1, "wall", false);
   objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0, "agent", 0, "team1");
   objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0, "agent", 1, "team2");
 
-  // Create default global observation config
   GlobalObsConfig global_obs_config;
   global_obs_config.episode_completion_pct = true;
   global_obs_config.last_action = true;
   global_obs_config.last_reward = true;
 
-  // Empty vibe_names and feature_ids for benchmark
-  std::vector<std::string> vibe_names;
+  // Minimal observation feature id map needed by C++ core - CRITICAL!
   std::unordered_map<std::string, ObservationType> feature_ids;
+  ObservationType fid = 1;
+  auto add = [&](const char* name) { feature_ids.emplace(std::string(name), fid++); };
+  add("agent:group");
+  add("agent:frozen");
+  add("agent:orientation");
+  add("agent:reserved_for_future_use");
+  add("converting");
+  add("swappable");
+  add("episode_completion_pct");
+  add("last_action");
+  add("last_action_arg");
+  add("last_reward");
+  add("vibe");
+  add("agent:visitation_counts");
+  add("agent:compass");
+  add("tag");
+  add("cooldown_remaining");
+  add("clipped");
+  add("remaining_uses");
+  add("inv:ore");
+  add("inv:heart");
+
   std::unordered_map<int, std::string> tag_id_map;
 
-  return GameConfig(num_agents,
-                    10000,
-                    false,
-                    11,
-                    11,
-                    resource_names,
-                    vibe_names,
-                    100,
-                    global_obs_config,
-                    feature_ids,
-                    actions_cfg,
-                    objects_cfg,
-                    0.0f,
-                    tag_id_map,
-                    false,
-                    std::unordered_map<std::string, float>(),
-                    0,
-                    nullptr);
+  return GameConfig(/*num_agents*/ num_agents,
+                    /*max_steps*/ 10000,
+                    /*episode_truncates*/ false,
+                    /*obs_width*/ 11,
+                    /*obs_height*/ 11,
+                    /*resource_names*/ resource_names,
+                    /*vibe_names*/ std::vector<std::string>{},
+                    /*num_observation_tokens*/ 100,
+                    /*global_obs*/ global_obs_config,
+                    /*feature_ids*/ feature_ids,
+                    /*actions*/ actions_cfg,
+                    /*objects*/ objects_cfg,
+                    /*resource_loss_prob*/ 0.0f,
+                    /*tag_id_map*/ tag_id_map,
+                    /*protocol_details_obs*/ false,
+                    /*reward_estimates*/ std::unordered_map<std::string, float>{},
+                    /*inventory_regen_interval*/ 0,
+                    /*clipper*/ nullptr);
 }
 
 py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
   py::list map;
   const int width = 32;
   const int height = 32;
-
-  // First, create empty map
   for (int r = 0; r < height; ++r) {
     py::list row;
     for (int c = 0; c < width; ++c) {
@@ -113,14 +139,11 @@ py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
     }
     map.append(row);
   }
-
-  // Place agents symmetrically
   size_t agents_placed = 0;
   std::vector<std::pair<size_t, size_t>> positions = {
       {8, 8},   {8, 24},  {24, 8},  {24, 24}, {16, 8},  {16, 24}, {8, 16},  {24, 16}, {12, 12},
       {12, 20}, {20, 12}, {20, 20}, {16, 16}, {16, 12}, {16, 20}, {12, 16}, {20, 16}, {10, 10},
       {10, 22}, {22, 10}, {22, 22}, {14, 14}, {14, 18}, {18, 14}, {18, 18}};
-
   for (size_t i = 0; i < positions.size() && agents_placed < num_agents_per_team * 2; ++i) {
     auto [r, c] = positions[i];
     std::string team = (agents_placed % 2 == 0) ? "agent.team1" : "agent.team2";
@@ -128,7 +151,6 @@ py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
     row[c] = team;
     agents_placed++;
   }
-
   return map;
 }
 
@@ -166,43 +188,43 @@ std::vector<py::array_t<int>> PreGenerateActionSequence(size_t num_agents, size_
   return action_sequence;
 }
 
-// Benchmark fixture class to ensure proper setup/teardown
 class MettaGridBenchmark : public benchmark::Fixture {
 public:
   void SetUp(const ::benchmark::State&) override {
-    // Ensure Python is initialized
     if (!g_python_guard) {
       setup_error = "Python interpreter not initialized";
       return;
     }
+    py::gil_scoped_acquire gil;
 
-    // Acquire GIL for setup
-    py::gil_scoped_acquire acquire;
-
-    // Setup with default 4 agents (matching Python benchmark config)
     num_agents = 4;
     auto cfg = CreateBenchmarkConfig(num_agents);
     auto map = CreateDefaultMap(2);
+    try {
+      env = std::make_unique<MettaGrid>(cfg, map, 42);
+    } catch (const std::exception& e) {
+      setup_error = std::string("Failed to create environment: ") + e.what();
+      return;
+    } catch (...) {
+      setup_error = "Failed to create environment: unknown exception";
+      return;
+    }
 
-    env = std::make_unique<MettaGrid>(cfg, map, 42);
-
-    // Initialize buffers for the environment
-    // Observations: [num_agents, num_tokens, 3]
     const size_t num_tokens = cfg.num_observation_tokens;
     std::vector<py::ssize_t> obs_shape = {
         static_cast<py::ssize_t>(num_agents), static_cast<py::ssize_t>(num_tokens), 3};
-    auto observations = py::array_t<uint8_t, py::array::c_style>(obs_shape);
-    auto terminals = py::array_t<bool, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
-    auto truncations = py::array_t<bool, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
-    auto rewards = py::array_t<float, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
+    observations_buffer = py::array_t<uint8_t, py::array::c_style>(obs_shape);
+    terminals_buffer = py::array_t<bool, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
+    truncations_buffer = py::array_t<bool, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
+    rewards_buffer = py::array_t<float, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
     actions_buffer = py::array_t<int, py::array::c_style>(static_cast<py::ssize_t>(num_agents));
 
-    // Initialize actions to zero
+    // zero actions
     std::fill(static_cast<int*>(actions_buffer.request().ptr),
               static_cast<int*>(actions_buffer.request().ptr) + actions_buffer.size(),
               0);
 
-    env->set_buffers(observations, terminals, truncations, rewards, actions_buffer);
+    env->set_buffers(observations_buffer, terminals_buffer, truncations_buffer, rewards_buffer, actions_buffer);
 
     // Pre-generate action sequence matching Python benchmark
     // Python uses: iterations = 1000, rounds = 20, total = 20000
@@ -216,8 +238,7 @@ public:
   }
 
   void TearDown(const ::benchmark::State&) override {
-    // Acquire GIL for cleanup
-    py::gil_scoped_acquire acquire;
+    py::gil_scoped_acquire gil;
 
     // Clean up
     action_sequence.clear();
@@ -227,13 +248,16 @@ public:
 protected:
   std::unique_ptr<MettaGrid> env;
   std::vector<py::array_t<int>> action_sequence;
-  py::array_t<int, py::array::c_style> actions_buffer;  // Store actions buffer for mutation
-  size_t num_agents;
+  py::array_t<uint8_t, py::array::c_style> observations_buffer;
+  py::array_t<bool, py::array::c_style> terminals_buffer;
+  py::array_t<bool, py::array::c_style> truncations_buffer;
+  py::array_t<float, py::array::c_style> rewards_buffer;
+  py::array_t<int, py::array::c_style> actions_buffer;
+  size_t num_agents{};
   size_t iteration_counter;
   std::string setup_error;
 };
 
-// Matching Python test_step_performance_no_reset
 BENCHMARK_F(MettaGridBenchmark, Step)(benchmark::State& state) {
   // Check for setup errors
   if (!setup_error.empty()) {
@@ -255,13 +279,6 @@ BENCHMARK_F(MettaGridBenchmark, Step)(benchmark::State& state) {
     auto* action_array_ptr = static_cast<int*>(action_array.request().ptr);
     std::copy(action_array_ptr, action_array_ptr + num_agents, actions_ptr);
 
-    // Update buffers with new actions (set_buffers copies, so we need to call it)
-    auto observations = env->observations();
-    auto terminals = env->terminals();
-    auto truncations = env->truncations();
-    auto rewards = env->rewards();
-    env->set_buffers(observations, terminals, truncations, rewards, actions_buffer);
-
     // Perform the step (no arguments - uses actions from buffer)
     env->step();
 
@@ -280,23 +297,28 @@ BENCHMARK_F(MettaGridBenchmark, Step)(benchmark::State& state) {
   }
 }
 
-// Custom main that properly initializes Python
 int main(int argc, char** argv) {
-  // Initialize Python interpreter BEFORE benchmark initialization
-  // Store it in a global to ensure it stays alive
-  g_python_guard = std::make_unique<py::scoped_interpreter>();
-
-  // Now initialize benchmark framework
+  // Python should already be initialized by PythonBootstrap static initializer
+  if (!Py_IsInitialized()) {
+    fprintf(stderr, "[mettagrid-bench] WARNING: Python not initialized by bootstrap, initializing now\n");
+    try {
+      g_python_guard = std::make_unique<py::scoped_interpreter>();
+    } catch (const std::exception& e) {
+      fprintf(stderr, "[mettagrid-bench] failed to start interpreter: %s\n", e.what());
+      return 1;
+    }
+  }
+  {
+    py::gil_scoped_acquire gil;
+    try {
+      py::module_::import("numpy");
+    } catch (const std::exception& e) {
+      fprintf(stderr, "Failed to import numpy: %s\n", e.what());
+      return 1;
+    }
+  }
   ::benchmark::Initialize(&argc, argv);
-
-  // Run benchmarks
   ::benchmark::RunSpecifiedBenchmarks();
-
-  // Shutdown benchmark framework
   ::benchmark::Shutdown();
-
-  // Clean up Python interpreter
-  g_python_guard.reset();
-
   return 0;
 }

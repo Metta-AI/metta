@@ -1,10 +1,10 @@
 # ROOT BUILD.bazel file for mettagrid - references new structure
 load("@pybind11_bazel//:build_defs.bzl", "pybind_extension", "pybind_library")
 
-# Re-export main targets from cpp/ for backward compatibility
+# Aliases to cpp targets for clarity
 alias(
     name = "mettagrid_c",
-    actual = "//cpp:mettagrid_c",
+    actual = "//cpp:mettagrid_c.so",
     visibility = ["//visibility:public"],
 )
 

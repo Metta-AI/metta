@@ -497,6 +497,7 @@ class MettaRepo:
         status: str | None = None,
         assignee: str | None = None,
         user_id: str | None = None,
+        command: str | None = None,
         created_at: str | None = None,
         assigned_at: str | None = None,
     ) -> tuple[list[EvalTaskRow], int]:
@@ -517,6 +518,10 @@ class MettaRepo:
             if user_id:
                 where_conditions.append("user_id ILIKE %s")
                 params.append(f"%{user_id}%")
+
+            if command:
+                where_conditions.append("command ILIKE %s")
+                params.append(f"%{command}%")
 
             if created_at:
                 where_conditions.append("CAST(created_at AS TEXT) ILIKE %s")
