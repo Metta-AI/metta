@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import random
+import subprocess
 from typing import Literal
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
@@ -11,6 +12,92 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
 
 logger = logging.getLogger(__name__)
+
+
+def check_ollama_available() -> bool:
+    """Check if Ollama server is running.
+
+    Returns:
+        True if Ollama is available, False otherwise
+    """
+    try:
+        from openai import OpenAI
+        client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+        # Try to list models as a health check
+        client.models.list()
+        return True
+    except Exception:
+        return False
+
+
+def list_ollama_models() -> list[str]:
+    """List available Ollama models.
+
+    Returns:
+        List of model names
+    """
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        # Parse output: skip header line, extract model names
+        lines = result.stdout.strip().split('\n')[1:]  # Skip header
+        models = [line.split()[0] for line in lines if line.strip()]
+        return models
+    except (subprocess.CalledProcessError, FileNotFoundError, IndexError):
+        return []
+
+
+def ensure_ollama_model(model: str | None = None) -> str:
+    """Ensure an Ollama model is available, pulling if necessary.
+
+    Args:
+        model: Model name to check/pull, or None to use default
+
+    Returns:
+        The model name that is available
+
+    Raises:
+        RuntimeError: If Ollama is not available or model pull fails
+    """
+    if not check_ollama_available():
+        raise RuntimeError(
+            "Ollama server is not running. Please start it with 'ollama serve' "
+            "or install from https://ollama.ai"
+        )
+
+    available_models = list_ollama_models()
+
+    # If no model specified, try to use an available one
+    if model is None:
+        if available_models:
+            model = available_models[0]
+            logger.info(f"Using available Ollama model: {model}")
+            return model
+        else:
+            # Pull default model
+            model = "llama3.2"
+            logger.info(f"No models found. Pulling default model: {model}")
+
+    # Check if model is already available
+    if any(model in m for m in available_models):
+        return model
+
+    # Try to pull the model
+    logger.info(f"Pulling Ollama model: {model}...")
+    try:
+        subprocess.run(
+            ["ollama", "pull", model],
+            check=True,
+            capture_output=False  # Show progress
+        )
+        logger.info(f"Successfully pulled model: {model}")
+        return model
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Failed to pull Ollama model '{model}': {e}") from e
 
 GAME_RULES_PROMPT = """You are playing MettaGrid, a multi-agent gridworld game.
 
@@ -91,7 +178,7 @@ class LLMAgentPolicy(AgentPolicy):
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
-        provider: Literal["openai", "anthropic"] = "openai",
+        provider: Literal["openai", "anthropic", "ollama"] = "openai",
         model: str | None = None,
         temperature: float = 0.7
     ):
@@ -99,8 +186,8 @@ class LLMAgentPolicy(AgentPolicy):
 
     Args:
         policy_env_info: Policy environment interface
-        provider: LLM provider ("openai" or "anthropic")
-        model: Model name (defaults to gpt-4o-mini or claude-3-5-sonnet)
+        provider: LLM provider ("openai", "anthropic", or "ollama")
+        model: Model name (defaults: gpt-4o-mini, claude-3-5-sonnet, or llama3.2 for ollama)
         temperature: Sampling temperature for LLM
     """
         super().__init__(policy_env_info)
@@ -112,12 +199,30 @@ class LLMAgentPolicy(AgentPolicy):
             from openai import OpenAI
             self.client: OpenAI | None = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             self.anthropic_client = None
+            self.ollama_client = None
             self.model = model or "gpt-4o-mini"
         elif self.provider == "anthropic":
             from anthropic import Anthropic
             self.client = None
             self.anthropic_client: Anthropic | None = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            self.ollama_client = None
             self.model = model or "claude-3-5-sonnet-20241022"
+        elif self.provider == "ollama":
+            from openai import OpenAI
+            self.client = None
+            self.anthropic_client = None
+
+            # Ensure Ollama is available and model is pulled
+            try:
+                self.model = ensure_ollama_model(model)
+            except RuntimeError as e:
+                logger.error(f"Ollama setup failed: {e}")
+                raise
+
+            self.ollama_client: OpenAI | None = OpenAI(
+                base_url="http://localhost:11434/v1",
+                api_key="ollama"  # Ollama doesn't need a real API key
+            )
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
@@ -181,6 +286,36 @@ Respond with ONLY the action name from the available actions list. No explanatio
                         f"Cost: ${call_cost:.6f}"
                     )
 
+            elif self.provider == "ollama":
+                assert self.ollama_client is not None
+                response = self.ollama_client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": GAME_RULES_PROMPT},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=self.temperature,
+                    max_tokens=50
+                )
+                action_name = response.choices[0].message.content
+                if action_name is None:
+                    action_name = "noop"
+                action_name = action_name.strip()
+
+                # Track usage (Ollama is free/local)
+                usage = response.usage
+                if usage:
+                    LLMAgentPolicy.total_calls += 1
+                    LLMAgentPolicy.total_input_tokens += usage.prompt_tokens
+                    LLMAgentPolicy.total_output_tokens += usage.completion_tokens
+                    # No cost for local Ollama
+
+                    logger.debug(
+                        f"Ollama response: '{action_name}' | "
+                        f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out | "
+                        f"Cost: $0.00 (local)"
+                    )
+
             elif self.provider == "anthropic":
                 assert self.anthropic_client is not None
                 response = self.anthropic_client.messages.create(
@@ -218,7 +353,11 @@ Respond with ONLY the action name from the available actions list. No explanatio
 
             # Parse and return action
             parsed_action = self._parse_action(action_name)
-            logger.info(f"Agent {obs.agent_id}: LLM chose '{action_name}' -> Action: {parsed_action.name}")
+            logger.info(
+                f"Agent {obs.agent_id}: LLM chose '{action_name}' -> Action: {parsed_action.name} | "
+                f"Obs tokens: {len(obs.tokens)}"
+            )
+            logger.debug(f"Full action object: {parsed_action}")
             return parsed_action
 
         except Exception as e:
@@ -279,12 +418,12 @@ Respond with ONLY the action name from the available actions list. No explanatio
 class LLMMultiAgentPolicy(MultiAgentPolicy):
     """LLM-based multi-agent policy for MettaGrid."""
 
-    short_names = ["llm", "llm-gpt", "llm-claude"]
+    short_names = ["llm"]
 
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
-        provider: Literal["openai", "anthropic"] = "openai",
+        provider: Literal["openai", "anthropic", "ollama"] = "openai",
         model: str | None = None,
         temperature: float = 0.7
     ):
@@ -292,12 +431,12 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
 
         Args:
             policy_env_info: Policy environment interface
-            provider: LLM provider ("openai" or "anthropic")
+            provider: LLM provider ("openai", "anthropic", or "ollama")
             model: Model name (defaults based on provider)
             temperature: Sampling temperature for LLM
         """
         super().__init__(policy_env_info)
-        self.provider: Literal["openai", "anthropic"] = provider
+        self.provider: Literal["openai", "anthropic", "ollama"] = provider
         self.model = model
         self.temperature = temperature
 
@@ -316,3 +455,45 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             model=self.model,
             temperature=self.temperature
         )
+
+
+class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
+    """OpenAI GPT-based policy for MettaGrid."""
+
+    short_names = ["llm-gpt", "llm-openai"]
+
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        model: str | None = None,
+        temperature: float = 0.7
+    ):
+        super().__init__(policy_env_info, provider="openai", model=model, temperature=temperature)
+
+
+class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
+    """Anthropic Claude-based policy for MettaGrid."""
+
+    short_names = ["llm-claude", "llm-anthropic"]
+
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        model: str | None = None,
+        temperature: float = 0.7
+    ):
+        super().__init__(policy_env_info, provider="anthropic", model=model, temperature=temperature)
+
+
+class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
+    """Ollama local LLM-based policy for MettaGrid."""
+
+    short_names = ["llm-ollama", "llm-local"]
+
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        model: str | None = None,
+        temperature: float = 0.7
+    ):
+        super().__init__(policy_env_info, provider="ollama", model=model, temperature=temperature)
