@@ -76,22 +76,21 @@ def describe_policy_arg(with_proportion: bool):
     console.print("\n" + "\n".join([f"  - {part}" for part in subcommand_parts]) + "\n")
 
 
-def _translate_error(e: Exception) -> str:
-    translated = str(e).replace("Invalid symbol name", "Could not find policy class")
-    if isinstance(e, ModuleNotFoundError):
-        translated += ". Please make sure to specify your policy class."
-    return translated
-
-
 def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec:
     if policy_arg is None:
         console.print(ctx.get_help())
         console.print("[yellow]Missing: --policy / -p[/yellow]\n")
-        list_checkpoints()
-        describe_policy_arg(with_proportion=False)
-        console.print("\n")
-        raise typer.Exit(0)
-    return _parse_policy_spec(spec=policy_arg).to_policy_spec()
+    else:
+        return _parse_policy_spec(spec=policy_arg).to_policy_spec()
+
+    list_checkpoints()
+    describe_policy_arg(with_proportion=False)
+
+    if policy_arg is not None:
+        console.print("\n" + ctx.get_usage())
+
+    console.print("\n")
+    raise typer.Exit(0)
 
 
 def get_policy_specs_with_proportions(
@@ -100,12 +99,16 @@ def get_policy_specs_with_proportions(
     if not policy_args:
         console.print(ctx.get_help())
         console.print("[yellow]Supply at least one: --policy / -p[/yellow]\n")
-        list_checkpoints()
-        describe_policy_arg(with_proportion=True)
-        console.print("\n")
-        raise typer.Exit(0)
+    else:
+        return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
 
-    return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
+    list_checkpoints()
+    describe_policy_arg(with_proportion=True)
+
+    if policy_args:
+        console.print("\n" + ctx.get_usage())
+    console.print("\n")
+    raise typer.Exit(0)
 
 
 def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
