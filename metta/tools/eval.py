@@ -9,7 +9,7 @@ from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.doxascope.doxascope_data import DoxascopeLogger
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.handle_results import render_eval_summary
+from metta.sim.handle_results import render_eval_summary, to_eval_results
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult
 from metta.sim.simulate_and_record import (
     ObservatoryWriter,
@@ -122,9 +122,9 @@ class EvaluateTool(Tool):
         render_eval_summary(rollout_results, policy_names=[_spec_display_name(policy_spec)], verbose=self.verbose)
 
         # TODO: this should also submit to stats-server
-        eval_results = build_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
+        eval_results = to_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
 
-        self._log_to_wandb(normalized_uri, eval_results, stats_client)
+        # self._log_to_wandb(normalized_uri, eval_results, stats_client)
 
         return 0, "Done", rollout_results
 
@@ -136,9 +136,10 @@ class EvaluateTool(Tool):
             self.policy_uris = [self.policy_uris]
 
         for policy_uri in self.policy_uris:
+            normalized_uri = CheckpointManager.normalize_uri(policy_uri)
             if self.doxascope_logger:
-                self.doxascope_logger.configure(policy_uri=policy_uri)
-            self.handle_single_policy_uri(policy_uri)
+                self.doxascope_logger.configure(policy_uri=normalized_uri)
+            self.handle_single_policy_uri(normalized_uri)
 
 
 class EvaluatePolicyVersionTool(Tool):

@@ -132,6 +132,7 @@ class _SingleAgentAdapter(AgentPolicy):
                 "dones": torch.zeros(1, dtype=torch.float32, device=device),
                 "truncateds": torch.zeros(1, dtype=torch.float32, device=device),
                 "bptt": torch.ones(1, dtype=torch.long, device=device),
+                "training_env_ids": torch.tensor([[self._agent_id]], dtype=torch.long, device=device),
             },
             batch_size=[1],
         )

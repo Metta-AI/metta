@@ -1,4 +1,5 @@
 import logging
+import uuid
 from typing import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -50,10 +51,12 @@ def run_simulations(
         proportions = simulation.proportions
 
         if doxascope_logger is None and simulation.doxascope_enabled:
-            simulation_id = f"eval_{uuid.uuid4().hex[:12]}"
+            prefix = simulation.episode_tags.get("name", "eval")
+            simulation_id = f"{prefix}_{uuid.uuid4().hex[:12]}"
             current_logger = DoxascopeLogger(enabled=True, simulation_id=simulation_id)
         elif doxascope_logger:
-            sim_id = f"eval_{uuid.uuid4().hex[:12]}"
+            prefix = simulation.episode_tags.get("name", "eval")
+            sim_id = f"{prefix}_{uuid.uuid4().hex[:12]}"
             current_logger = doxascope_logger.clone(sim_id)
         else:
             current_logger = None
@@ -81,7 +84,6 @@ def run_simulations(
             current_logger.save()
 
         on_progress(f"Finished rollout for simulation {i}")
-
 
         simulation_rollouts.append(
             SimulationRunResult(

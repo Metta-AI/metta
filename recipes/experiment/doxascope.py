@@ -28,9 +28,6 @@ def simulations(
     basic_sim.doxascope_enabled = True
     # Force bptt=1 to ensure CortexTD runs in rollout mode
     basic_sim.env.game.params = {"bptt": 1}
-    # Ensure all agents are policy agents for data collection
-    basic_sim.npc_policy_uri = None
-    basic_sim.policy_agents_pct = 1.0
 
     # Create n copies of the simulation config, one for each simulation run
     all_sim_configs = []
