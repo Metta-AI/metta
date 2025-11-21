@@ -339,8 +339,10 @@ class CheckpointManager:
         strict: bool = True,
         display_name: str | None = None,
     ) -> PolicySpec:
-        source = uri if "://" in uri else f"file://{Path(uri).expanduser().resolve()}"
-        normalized_uri = CheckpointManager.normalize_uri(source)
+        if "://" not in uri:
+            raise ValueError(f"Checkpoint URI must include a scheme (e.g. file://, s3://); got: {uri}")
+
+        normalized_uri = CheckpointManager.normalize_uri(uri)
         init_kwargs: dict[str, str | bool] = {
             "checkpoint_uri": normalized_uri,
             "display_name": display_name or normalized_uri,
