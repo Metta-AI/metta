@@ -409,6 +409,16 @@ def _load_pt_artifact(path: Path) -> PolicyArtifact:
     except Exception as e:
         raise ValueError(f"Failed to load .pt file: {path}") from e
 
+    # Backwards compatibility: check if payload is a policy instance (or wrapped in DDP/CheckpointPolicy)
+    # Unwrap by following .module (DDP) or ._policy (CheckpointPolicy) chains
+    current = payload
+    visited: set[int] = set()
+    while current is not None and id(current) not in visited:
+        visited.add(id(current))
+        if isinstance(current, Policy):
+            return PolicyArtifact(policy=current)
+        current = getattr(current, "module", None) or getattr(current, "_policy", None)
+
     if not isinstance(payload, Mapping):
         raise TypeError(f".pt file must contain a state_dict mapping, got {type(payload)}")
 
