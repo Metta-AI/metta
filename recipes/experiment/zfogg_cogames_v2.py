@@ -76,12 +76,7 @@ def make_better_curriculum(
         all_mission_tasks.append(mission_tasks)
 
     # Merge all missions into single curriculum
-    if len(all_mission_tasks) == 1:
-        combined_tasks = all_mission_tasks[0]
-    else:
-        combined_tasks = all_mission_tasks[0]
-        for tasks in all_mission_tasks[1:]:
-            combined_tasks = combined_tasks.merge(tasks)
+    merged_tasks = cc.merge(all_mission_tasks)
 
     # Use bidirectional learning progress (proven effective in cvc_arena)
     algorithm_config = LearningProgressConfig(
@@ -93,7 +88,10 @@ def make_better_curriculum(
         enable_detailed_slice_logging=False,
     )
 
-    return combined_tasks.to_curriculum(algorithm_config=algorithm_config)
+    return merged_tasks.to_curriculum(
+        num_active_tasks=1500,
+        algorithm_config=algorithm_config,
+    )
 
 
 def train(

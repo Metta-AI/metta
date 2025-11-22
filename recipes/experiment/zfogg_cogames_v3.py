@@ -96,7 +96,7 @@ def train(
 
     # Increase entropy bonus for more exploration
     trainer_cfg = TrainerConfig()
-    trainer_cfg.entropy_coef = 0.01  # Default is 0.01, could go higher
+    trainer_cfg.losses.ppo_actor.ent_coef = 0.015  # Higher than default 0.01
 
     # Evaluate on STANDARD difficulty (no training wheels)
     eval_suite = make_eval_suite(
