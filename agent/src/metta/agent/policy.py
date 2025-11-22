@@ -126,10 +126,9 @@ class Policy(TrainablePolicy, nn.Module):
     ) -> str:
         """Persist the policy using the safetensors artifact format."""
 
-        # Local import avoids circular dependency when this module is imported from policy_artifact.
-        from metta.rl.policy_artifact import save_policy_artifact_safetensors
-
         dest = str(destination)
+        effective_arch = policy_architecture or self._policy_architecture
+
         if dest.startswith("s3://"):
             temp_dir = guess_data_dir() / ".tmp"
             temp_dir.mkdir(parents=True, exist_ok=True)
@@ -143,11 +142,7 @@ class Policy(TrainablePolicy, nn.Module):
                 ) as tmp_file:
                     local_copy = Path(tmp_file.name)
 
-                save_policy_artifact_safetensors(
-                    local_copy,
-                    policy_architecture=policy_architecture,
-                    state_dict=self.state_dict(),
-                )
+                self.save_policy_data(str(local_copy), policy_architecture=effective_arch)
                 write_file(dest, str(local_copy))
             finally:
                 if local_copy is not None:
@@ -156,12 +151,7 @@ class Policy(TrainablePolicy, nn.Module):
             return dest
 
         path = Path(destination).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        save_policy_artifact_safetensors(
-            path,
-            policy_architecture=policy_architecture,
-            state_dict=self.state_dict(),
-        )
+        self.save_policy_data(str(path), policy_architecture=effective_arch)
         return f"file://{path.resolve()}"
 
     def make_stateful_policy_impl(self) -> StatefulPolicyImpl[Any]:

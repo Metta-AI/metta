@@ -170,9 +170,6 @@ def validate_policy_in_isolation(
         if policy_spec.data_path:
             policy_arg += f":{policy_spec.data_path}"
 
-        validation_mission_name, _, _ = _load_validation_env()
-        console.print(f"[yellow]Running validation with mission '{validation_mission_name}'...[/yellow]")
-
         cmd = [
             "uv",
             "run",

@@ -429,12 +429,13 @@ def _normalize_state_dict_keys(state_dict: Mapping[str, torch.Tensor]) -> Mutabl
     """
 
     normalized: MutableMapping[str, torch.Tensor] = OrderedDict()
+    has_global_ddp_prefix = state_dict and all(key.startswith("module.") for key in state_dict)
     for key, value in state_dict.items():
         new_key = key
-        if new_key.startswith("module."):
+        if has_global_ddp_prefix and new_key.startswith("module."):
             new_key = new_key[len("module.") :]
-        if ".module.module." in new_key:
-            new_key = new_key.replace(".module.module.", ".module.", 1)
+        while ".module.module." in new_key:
+            new_key = new_key.replace(".module.module.", ".module.")
         normalized[new_key] = value
     return normalized
 
@@ -449,36 +450,34 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
         payload = _load_policy_payload_from_file(input_path)
         return _artifact_from_policy_payload(payload)
 
-    architecture: PolicyArchitecture | None = None
-    state_dict: MutableMapping[str, torch.Tensor] | None = None
-
     try:
         with zipfile.ZipFile(input_path, mode="r") as archive:
             names = set(archive.namelist())
 
-            if "modelarchitecture.txt" in names and "weights.safetensors" in names:
-                architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
-                architecture = policy_architecture_from_string(architecture_blob)
-
+            if "weights.safetensors" in names:
                 weights_blob = archive.read("weights.safetensors")
                 loaded_state = load_safetensors(weights_blob)
                 if not isinstance(loaded_state, MutableMapping):
                     msg = "Loaded safetensors state_dict is not a mutable mapping"
                     raise TypeError(msg)
-                if loaded_state and all(k.startswith("module.") for k in loaded_state.keys()):
-                    loaded_state = {k.removeprefix("module."): v for k, v in loaded_state.items()}
-                state_dict = loaded_state
 
-            elif "policy.pt" in names:
+                normalized_state = _normalize_state_dict_keys(loaded_state)
+                payload: dict[str, Any] = {"state_dict": normalized_state}
+
+                if "modelarchitecture.txt" in names:
+                    architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
+                    payload["policy_architecture"] = policy_architecture_from_string(architecture_blob)
+
+                return _artifact_from_policy_payload(payload)
+
+            if "policy.pt" in names:
                 buffer = io.BytesIO(archive.read("policy.pt"))
                 loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
                 return _artifact_from_policy_payload(loaded_policy)
+
     except BadZipFile:
         payload = _load_policy_payload_from_file(input_path)
         return _artifact_from_policy_payload(payload)
 
-    if architecture is None and state_dict is None:
-        payload = _load_policy_payload_from_file(input_path)
-        return _artifact_from_policy_payload(payload)
-
-    return PolicyArtifact(policy_architecture=architecture, state_dict=state_dict, policy=None)
+    payload = _load_policy_payload_from_file(input_path)
+    return _artifact_from_policy_payload(payload)

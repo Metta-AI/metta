@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
 
 import numpy as np
+import torch
 import torch.nn as nn
 from pydantic import BaseModel, Field
 
@@ -360,11 +361,16 @@ class TrainablePolicy(MultiAgentPolicy):
 
         Default implementation loads PyTorch state dict.
         """
+        path = Path(policy_data_path).expanduser()
+        if path.suffix == ".mpt":
+            self._load_policy_artifact_state(path)
+            return
+
         import torch
 
-        self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu"))
+        self.network().load_state_dict(torch.load(path, map_location="cpu"))
 
-    def save_policy_data(self, policy_data_path: str) -> None:
+    def save_policy_data(self, policy_data_path: str, *, policy_architecture: Any | None = None) -> None:
         """Save network weights to file.
 
         Default implementation uses torch.save.
@@ -372,7 +378,7 @@ class TrainablePolicy(MultiAgentPolicy):
         path = Path(policy_data_path).expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        architecture = getattr(self, "_policy_architecture", None)
+        architecture = policy_architecture or getattr(self, "_policy_architecture", None)
         if architecture is not None:
             from metta.rl.policy_artifact import save_policy_artifact_safetensors
 
@@ -386,6 +392,35 @@ class TrainablePolicy(MultiAgentPolicy):
         import torch
 
         torch.save(self.network().state_dict(), path)
+
+    def _load_policy_artifact_state(self, artifact_path: Path) -> None:
+        try:
+            from metta.rl.policy_artifact import load_policy_artifact
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError("Loading .mpt checkpoints requires the metta RL components to be installed.") from exc
+
+        artifact = load_policy_artifact(artifact_path)
+
+        state_dict = None
+        if artifact.policy is not None:
+            state_dict = artifact.policy.network().state_dict()
+        elif artifact.state_dict is not None and artifact.policy_architecture is None:
+            state_dict = artifact.state_dict
+        elif artifact.policy_architecture is not None:
+            target_device = next(self.network().parameters(), None)
+            device = target_device.device if target_device is not None else None
+            hydrated = artifact.instantiate(
+                self._policy_env_info,
+                device if device is not None else torch.device("cpu"),
+                strict=True,
+            )
+            state_dict = hydrated.network().state_dict()
+
+        if state_dict is None:
+            msg = f"Policy artifact at {artifact_path} did not contain weights or a policy"
+            raise ValueError(msg)
+
+        self.network().load_state_dict(state_dict)
 
 
 class PolicySpec(BaseModel):

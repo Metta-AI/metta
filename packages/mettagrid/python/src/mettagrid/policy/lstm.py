@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -261,5 +261,5 @@ class LSTMPolicy(TrainablePolicy):
         self._agent_policy._net = self._net
         self._agent_policy._device = self._device
 
-    def save_policy_data(self, checkpoint_path: str) -> None:
+    def save_policy_data(self, checkpoint_path: str, *, policy_architecture: Any | None = None) -> None:
         torch.save(self._net.state_dict(), checkpoint_path)

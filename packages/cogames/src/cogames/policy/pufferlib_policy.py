@@ -67,7 +67,7 @@ class PufferlibCogsPolicy(TrainablePolicy, AgentPolicy):
         self._net.load_state_dict(state)
         self._net = self._net.to(next(self._net.parameters()).device)
 
-    def save_policy_data(self, policy_data_path: str) -> None:
+    def save_policy_data(self, policy_data_path: str, *, policy_architecture: Any | None = None) -> None:
         torch.save(self._net.state_dict(), policy_data_path)
 
     def step(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> Action:  # type: ignore[override]
