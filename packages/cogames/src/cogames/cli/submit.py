@@ -14,6 +14,7 @@ from rich.console import Console
 
 from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
+from cogames.cli.mission import get_mission
 from cogames.cli.policy import PolicySpec, get_policy_spec
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -21,7 +22,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
-DEFAULT_VALIDATION_MISSION = "vanilla"
+DEFAULT_VALIDATION_MISSION = "training_facility.harvest"
 VALIDATION_EPISODES = 1
 VALIDATION_MAX_STEPS = 10
 SUBMISSION_TAGS = {"cogames-submitted": "true"}
@@ -107,15 +108,31 @@ def copy_files_maintaining_structure(files: list[Path], dest_dir: Path, console:
             shutil.copy2(file_path, dest_path)
 
 
+def _load_validation_env() -> tuple[str, MettaGridConfig, PolicyEnvInterface]:
+    """Return the mission, env config, and interface used for policy validation."""
+
+    try:
+        mission_name, env_cfg, _ = get_mission(DEFAULT_VALIDATION_MISSION)
+    except ValueError as exc:  # pragma: no cover - configuration error
+        msg = (
+            f"Validation mission '{DEFAULT_VALIDATION_MISSION}' could not be loaded. "
+            "Update DEFAULT_VALIDATION_MISSION to reference a valid mission."
+        )
+        raise RuntimeError(msg) from exc
+
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+    return mission_name, env_cfg, policy_env_info
+
+
 def validate_policy_spec(policy_spec: PolicySpec) -> None:
     """Validate policy works.
 
     Loads the policy and runs a single step on a mock environment.
     """
-    env = MettaGridConfig.EmptyRoom(num_agents=1)
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(env)
+    _, env_cfg, policy_env_info = _load_validation_env()
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
-    rollout = Rollout(env, [policy.agent_policy(0)])
+    agent_policies = [policy.agent_policy(i) for i in range(policy_env_info.num_agents)]
+    rollout = Rollout(env_cfg, agent_policies)
     rollout.step()
 
 
@@ -153,7 +170,8 @@ def validate_policy_in_isolation(
         if policy_spec.data_path:
             policy_arg += f":{policy_spec.data_path}"
 
-        console.print(f"[yellow]Running validation with mission '{DEFAULT_VALIDATION_MISSION}'...[/yellow]")
+        validation_mission_name, _, _ = _load_validation_env()
+        console.print(f"[yellow]Running validation with mission '{validation_mission_name}'...[/yellow]")
 
         cmd = [
             "uv",
