@@ -637,7 +637,7 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
 
   return replay
 
-proc loadImages(replay: Replay) =
+proc loadImages*(replay: Replay) =
   ## Load the images for the replay.
   replay.typeImages = initTable[string, string]()
   for typeName in replay.typeNames:
