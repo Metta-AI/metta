@@ -57,9 +57,7 @@ class PolicyArchitecture(Config):
 
         AgentClass = load_symbol(self.class_path)
         policy = AgentClass(policy_env_info, self)  # type: ignore[misc]
-        assign = getattr(policy, "_assign_policy_architecture", None)
-        if callable(assign):
-            assign(self)
+        policy._policy_architecture = self
         return policy
 
 
@@ -114,9 +112,6 @@ class Policy(TrainablePolicy, nn.Module):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy adapter for the specified agent index."""
         return StatefulAgentPolicy(self._stateful_impl, self._policy_env_info, agent_id)
-
-    def _assign_policy_architecture(self, architecture: "PolicyArchitecture") -> None:
-        self._policy_architecture = architecture
 
     def save_policy(
         self,
