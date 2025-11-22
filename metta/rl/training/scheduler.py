@@ -89,6 +89,15 @@ class HyperUpdateRule(Config):
     def _apply_progress(self, *, obj: object, epoch: int, agent_step: int) -> None:
         if self.start_value is None or self.end_value is None:
             return
+
+        # Check if current step/epoch is within the rule's range
+        if self.start_agent_step is not None and self.end_agent_step is not None:
+            if not (self.start_agent_step <= agent_step < self.end_agent_step):
+                return
+        elif self.start_epoch is not None and self.end_epoch is not None:
+            if not (self.start_epoch <= epoch < self.end_epoch):
+                return
+
         fn = ANNEALERS[self.style]
         value = fn(self._progress(epoch=epoch, agent_step=agent_step), float(self.start_value), float(self.end_value))
         _set_attr_path(obj, self.attr_path, float(value))

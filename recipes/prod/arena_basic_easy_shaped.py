@@ -14,8 +14,10 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -103,10 +105,86 @@ def train(
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
-    trainer_cfg = TrainerConfig()
+    losses_config = LossesConfig()
+    losses_config.sliced_kickstarter.enabled = True
+    losses_config.sliced_kickstarter.teacher_uri = (
+        "s3://softmax-public/policies/av.ppo_divorced.mb.11.18.01/av.ppo_divorced.mb.11.18.01:v7500.mpt"
+    )
+    losses_config.ppo_critic.sample_enabled = False
+    losses_config.ppo_critic.train_forward_enabled = False
+    # losses_config.ppo_critic.rollout_forward_enabled = False
+    trainer_cfg = TrainerConfig(losses=losses_config)
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
+
+    scheduler = SchedulerConfig(
+        run_gates=[
+            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=1_000_000_000),
+            LossRunGate(
+                loss_instance_name="sliced_kickstarter",
+                phase="rollout",
+                end_at_step=1_000_000_000,
+            ),
+            LossRunGate(
+                loss_instance_name="sliced_kickstarter",
+                phase="train",
+                end_at_step=1_000_000_000,
+            ),
+        ],
+        rules=[
+            HyperUpdateRule(
+                loss_instance_name="sliced_kickstarter",
+                attr_path="action_loss_coef",
+                mode="progress",
+                style="linear",
+                start_value=0.6,
+                end_value=0.0,
+                start_agent_step=500_000_000,
+                end_agent_step=1_000_000_000,
+            ),
+            HyperUpdateRule(
+                loss_instance_name="sliced_kickstarter",
+                attr_path="value_loss_coef",
+                mode="progress",
+                style="linear",
+                start_value=1.0,
+                end_value=0.0,
+                start_agent_step=500_000_000,
+                end_agent_step=1_000_000_000,
+            ),
+            HyperUpdateRule(
+                loss_instance_name="sliced_kickstarter",
+                attr_path="teacher_led_proportion",
+                mode="progress",
+                style="linear",
+                start_value=0.80,
+                end_value=0.0,
+                start_agent_step=0,
+                end_agent_step=500_000_000,
+            ),
+            HyperUpdateRule(
+                loss_instance_name="sliced_kickstarter",
+                attr_path="student_led_proportion",
+                mode="progress",
+                style="linear",
+                start_value=0.10,
+                end_value=0.7,
+                start_agent_step=0,
+                end_agent_step=500_000_000,
+            ),
+            HyperUpdateRule(
+                loss_instance_name="sliced_kickstarter",
+                attr_path="student_led_proportion",
+                mode="progress",
+                style="cosine",
+                start_value=0.70,
+                end_value=0.0,
+                start_agent_step=500_000_000,
+                end_agent_step=1_000_000_000,
+            ),
+        ],
+    )
 
     return TrainTool(
         trainer=trainer_cfg,
@@ -114,6 +192,7 @@ def train(
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
+        scheduler=scheduler,
     )
 
 
