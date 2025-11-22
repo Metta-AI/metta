@@ -126,7 +126,7 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
-            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_step=1_000_000_000),
+            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=1_000_000_000),
             LossRunGate(
                 loss_instance_name="kickstarter",
                 phase="rollout",
