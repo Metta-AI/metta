@@ -97,14 +97,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         Return a safe vibe-change action.
         Guard against disabled or single-vibe configurations before issuing the action.
         """
-        change_vibe_cfg = getattr(self._actions, "change_vibe", None)
-        if change_vibe_cfg is None:
-            return self._actions.noop.Noop()
-        if not getattr(change_vibe_cfg, "enabled", True):
-            return self._actions.noop.Noop()
-        num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
-        if num_vibes <= 1:
-            return self._actions.noop.Noop()
+        change_vibe_cfg = self._actions.change_vibe
+        if not change_vibe_cfg.enabled:
+            raise Exception("change_vibe is not enabled")
         # Raise loudly if the requested vibe isn't registered instead of silently
         # falling back to noop; otherwise config issues become very hard to spot.
         vibe = VIBE_BY_NAME.get(vibe_name)
@@ -180,8 +175,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             # Tag: collect all tags as a list (objects can have multiple tags)
             if feature_name == "tag":
                 tags = position_features[pos].setdefault("tags", [])
-                if isinstance(tags, list):
-                    tags.append(value)
+                assert isinstance(tags, list), "tags must be a list"
+                tags.append(value)
                 return
             # Other spatial features are single values
             position_features[pos][feature_name] = value
@@ -197,15 +192,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if feature_name.startswith(self._protocol_input_prefix):
             resource = feature_name[len(self._protocol_input_prefix) :]
             inputs = position_features[pos].setdefault("protocol_inputs", {})
-            if isinstance(inputs, dict):
-                inputs[resource] = value
+            assert isinstance(inputs, dict), "protocol_inputs must be a dict"
+            inputs[resource] = value
             return
 
         if feature_name.startswith(self._protocol_output_prefix):
             resource = feature_name[len(self._protocol_output_prefix) :]
             outputs = position_features[pos].setdefault("protocol_outputs", {})
-            if isinstance(outputs, dict):
-                outputs[resource] = value
+            assert isinstance(outputs, dict), "protocol_outputs must be a dict"
+            outputs[resource] = value
             return
 
     def _create_object_state(self, features: dict[str, Union[int, list[int], dict[str, int]]]) -> ObjectState:
@@ -215,13 +210,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         We use the first tag as the primary object name.
         """
         # Get tags list (now stored as "tags" instead of "tag")
-        tags_value = features.get("tags", [])
-        if isinstance(tags_value, list):
-            tag_ids = list(tags_value)
-        elif isinstance(tags_value, int):
-            tag_ids = [tags_value]
-        else:
-            tag_ids = []
+        tag_ids = features.get("tags", [])
+        assert isinstance(tag_ids, list), "tags must be a list"
 
         # Use first tag as primary object name
         if tag_ids:
@@ -233,12 +223,14 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Helper to safely extract int values
         def get_int(key: str, default: int) -> int:
             val = features.get(key, default)
-            return int(val) if isinstance(val, int) else default
+            assert isinstance(val, int), f"Expected {key} to be an integer, got {type(val)}"
+            return val
 
         # Helper to safely extract dict values
         def get_dict(key: str) -> dict[str, int]:
             val = features.get(key, {})
-            return dict(val) if isinstance(val, dict) else {}
+            assert isinstance(val, dict), f"Expected {key} to be a dict, got {type(val)}"
+            return dict(val)
 
         return ObjectState(
             name=obj_name,
