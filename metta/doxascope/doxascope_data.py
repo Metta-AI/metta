@@ -273,12 +273,26 @@ class DoxascopeLogger:
 
         # Get the underlying Policy from the first adapter (all adapters share the same policy)
         first_adapter = policies[0]
-        if not hasattr(first_adapter, "_policy"):
-            if self.timestep == 1:
-                logger.warning("Expected _SingleAgentAdapter with _policy attribute, got %s", type(first_adapter))
-            return
 
-        underlying_policy = first_adapter._policy
+        # Handle different policy wrapper types
+        underlying_policy = None
+        if hasattr(first_adapter, "_policy"):
+            # Old _SingleAgentAdapter style
+            underlying_policy = first_adapter._policy
+        elif hasattr(first_adapter, "_base_policy"):
+            # New StatefulAgentPolicy style - get the base policy implementation
+            base = first_adapter._base_policy
+            # The base_policy is a StatefulPolicyImpl, we need to get the actual Policy
+            if hasattr(base, "_policy"):
+                underlying_policy = base._policy
+
+        if underlying_policy is None:
+            if self.timestep == 1:
+                logger.warning(
+                    "Could not extract underlying policy from %s (expected _policy or _base_policy attribute)",
+                    type(first_adapter)
+                )
+            return
 
         # Find the CortexTD component (shared across all adapters)
         cortex_component = self._find_cortex_component(underlying_policy)
