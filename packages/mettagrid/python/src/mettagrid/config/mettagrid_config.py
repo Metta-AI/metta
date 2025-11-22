@@ -20,7 +20,7 @@ from mettagrid.config.vibes import VIBES, Vibe
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.simulator import Action
+from mettagrid.simulator.interface import Action
 
 # ===== Python Configuration Models =====
 
