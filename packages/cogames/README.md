@@ -139,8 +139,8 @@ Train a policy on a mission.
 By default, our `stateless` policy architecture will be used. But as is explained above, you can select a different
 policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
 
-Any policy provided must implement the `TrainablePolicy` interface, which you can find in
-`cogames/policy/interfaces.py`.
+Any policy provided must implement the `MultiAgentPolicy` interface with a trainable `network()` method, which you can
+find in `mettagrid/policy/policy.py`.
 
 You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
 
