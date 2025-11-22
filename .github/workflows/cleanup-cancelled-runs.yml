@@ -25,7 +25,7 @@ jobs:
   cleanup-cancelled-runs:
     name: "Cleanup Cancelled Runs"
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     outputs:
       deleted-count: ${{ steps.cleanup.outputs.deleted-count }}
       status: ${{ steps.cleanup.outcome }}
