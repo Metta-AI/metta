@@ -15,13 +15,17 @@ import torch
 
 import pufferlib.models  # type: ignore[import-untyped]
 import pufferlib.pytorch  # type: ignore[import-untyped]
-from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
 
-class PufferlibCogsPolicy(TrainablePolicy, AgentPolicy):
-    """Loads and runs checkpoints trained with PufferLib's CoGames policy."""
+class PufferlibCogsPolicy(MultiAgentPolicy, AgentPolicy):
+    """Loads and runs checkpoints trained with PufferLib's CoGames policy.
+
+    This policy serves as both the MultiAgentPolicy factory and AgentPolicy
+    implementation, returning itself from agent_policy().
+    """
 
     short_names = ["pufferlib", "pufferlib_cogs"]
 
@@ -32,7 +36,7 @@ class PufferlibCogsPolicy(TrainablePolicy, AgentPolicy):
         hidden_size: int = 256,
         device: Optional[Union[str, torch.device]] = None,
     ):
-        TrainablePolicy.__init__(self, policy_env_info)
+        MultiAgentPolicy.__init__(self, policy_env_info)
         AgentPolicy.__init__(self, policy_env_info)
         shim_env = SimpleNamespace(
             single_observation_space=policy_env_info.observation_space,

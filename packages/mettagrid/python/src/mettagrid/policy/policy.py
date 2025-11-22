@@ -49,23 +49,15 @@ class AgentPolicy:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
-    def step_batch(self, _raw_observations, raw_actions) -> None:
-        """Optional fast-path for policies that consume raw buffers.
-
-        Policies that support raw NumPy pointers should override this method.
-        The default implementation raises so callers get a clear error if a
-        policy without batch support is used in a context that requires it."""
-
-        raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
-
 
 class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
-    """Abstract base class for multi-agent policies.
+    """Unified policy interface for multi-agent systems.
 
-    A Policy manages creating AgentPolicy instances for multiple agents.
-    This is the class users instantiate and pass to training/play functions.
-    Training uses the Policy directly, while play calls agent_policy() to
-    get per-agent instances.
+    This class manages policy lifecycle including:
+    1. Creating per-agent policy instances (agent_policy)
+    2. Serialization/deserialization (load_policy_data/save_policy_data)
+    3. Optional: Providing network for training (network)
+    4. Optional: Batch stepping optimization (step_batch)
 
     Subclasses can register themselves by defining:
     - short_names: list[str] = ["name1", "name2"] for one or more aliases
@@ -79,35 +71,71 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     @abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            An AgentPolicy instance for this agent
-        """
+        """Get an AgentPolicy instance for a specific agent."""
         ...
 
     def load_policy_data(self, policy_data_path: str) -> None:
         """Load policy data from a file.
 
-        Args:
-            policy_data_path: Path to the policy data file
-
-        Default implementation does nothing. Override to load weights/parameters.
+        Supports .mpt (metta format) and .pt (simple state dict) files for trainable policies.
+        Non-trainable policies (network() returns None) do nothing by default.
         """
-        pass  # Default: no-op for policies without learnable parameters
+        network = self.network()
+        if network is None:
+            # Non-trainable policy, do nothing
+            return
+
+        # Trainable policy - load weights
+        path = Path(policy_data_path).expanduser()
+        suffix = path.suffix.lower()
+
+        if suffix == ".mpt":
+            self._load_policy_artifact_state(path)
+            return
+
+        # Load simple .pt state dict
+        import torch
+
+        network.load_state_dict(torch.load(path, map_location="cpu"))
 
     def save_policy_data(self, policy_data_path: str) -> None:
         """Save policy data to a file.
 
-        Args:
-            policy_data_path: Path to save the policy data
-
-        Default implementation does nothing. Override to save weights/parameters.
+        Supports .mpt (metta format) and .pt (simple state dict) files for trainable policies.
+        Non-trainable policies (network() returns None) do nothing by default.
         """
-        pass  # Default: no-op for policies without learnable parameters
+        network = self.network()
+        if network is None:
+            # Non-trainable policy, do nothing
+            return
+
+        # Trainable policy - save weights
+        path = Path(policy_data_path).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        architecture = getattr(self, "_policy_architecture", None)
+        suffix = path.suffix.lower()
+        if architecture is not None and suffix == ".mpt":
+            from metta.rl.policy_artifact import save_policy_artifact_safetensors
+
+            save_policy_artifact_safetensors(
+                path,
+                policy_architecture=architecture,
+                state_dict=network.state_dict(),
+            )
+            return
+
+        import torch
+
+        torch.save(network.state_dict(), path)
+
+    def network(self) -> Optional[nn.Module]:
+        """Get the underlying neural network for training.
+
+        Returns None if this policy is not trainable.
+        Override this method in trainable policies to return the network.
+        """
+        return None
 
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
@@ -120,11 +148,44 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         """Optional fast-path for policies that consume raw buffers.
 
-        Policies that support raw NumPy pointers should override this method.
-        The default implementation raises so callers get a clear error if a
-        policy without batch support is used in a context that requires it."""
-
+        Override this method in policies that support batch stepping.
+        The default implementation raises NotImplementedError.
+        """
         raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
+
+    def _load_policy_artifact_state(self, artifact_path: Path) -> None:
+        """Load state dict from a .mpt artifact file."""
+        try:
+            from metta.rl.policy_artifact import load_policy_artifact
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError("Loading .mpt checkpoints requires the metta RL components to be installed.") from exc
+
+        artifact = load_policy_artifact(artifact_path)
+
+        state_dict = None
+        network = self.network()
+        if network is None:
+            raise RuntimeError(f"Cannot load weights into non-trainable policy {self.__class__.__name__}")
+
+        if artifact.policy is not None:
+            state_dict = artifact.policy.network().state_dict()
+        elif artifact.state_dict is not None and artifact.policy_architecture is None:
+            state_dict = artifact.state_dict
+        elif artifact.policy_architecture is not None:
+            target_device = next(network.parameters(), None)
+            device = target_device.device if target_device is not None else None
+            hydrated = artifact.instantiate(
+                self._policy_env_info,
+                device if device is not None else torch.device("cpu"),
+                strict=True,
+            )
+            state_dict = hydrated.network().state_dict()
+
+        if state_dict is None:
+            msg = f"Policy artifact at {artifact_path} did not contain weights or a policy"
+            raise RuntimeError(msg)
+
+        network.load_state_dict(state_dict)
 
 
 class NimMultiAgentPolicy(MultiAgentPolicy):
@@ -275,9 +336,6 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         """Reset the hidden state to initial state."""
         self._initialize_state(simulation)
 
-    def step_batch(self, _raw_observations, raw_actions) -> None:
-        raise NotImplementedError("StatefulAgentPolicy does not support batch stepping")
-
     def _initialize_state(self, simulation: Optional[Simulation]) -> None:
         self._simulation = simulation
         self._base_policy.reset()
@@ -324,107 +382,6 @@ class StatefulPolicyImpl(Generic[StateType]):
     def set_active_agent(self, agent_id: Optional[int]) -> None:
         """Optional hook for implementations that need the calling agent id."""
         _ = agent_id
-
-
-class TrainablePolicy(MultiAgentPolicy):
-    """Abstract base class for trainable policies.
-
-    TrainablePolicy extends Policy and manages a neural network that can be trained.
-    It creates per-agent AgentPolicy instances that share the same network.
-    """
-
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
-
-    @abstractmethod
-    def network(self) -> nn.Module:
-        """Get the underlying neural network for training."""
-        ...
-
-    @abstractmethod
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        This must be overridden by trainable policies to return
-        per-agent policy instances.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            An AgentPolicy instance for this agent
-        """
-        ...
-
-    def load_policy_data(self, policy_data_path: str) -> None:
-        """Load network weights from file.
-
-        Supports .mpt (metta format) and .pt (simple state dict) files.
-        """
-        path = Path(policy_data_path).expanduser()
-        suffix = path.suffix.lower()
-
-        if suffix == ".mpt":
-            self._load_policy_artifact_state(path)
-            return
-
-        # Load simple .pt state dict
-        import torch
-
-        self.network().load_state_dict(torch.load(path, map_location="cpu"))
-
-    def save_policy_data(self, policy_data_path: str) -> None:
-        """Save network weights to file.
-
-        Default implementation uses torch.save.
-        """
-        path = Path(policy_data_path).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        architecture = getattr(self, "_policy_architecture", None)
-        suffix = path.suffix.lower()
-        if architecture is not None and suffix == ".mpt":
-            from metta.rl.policy_artifact import save_policy_artifact_safetensors
-
-            save_policy_artifact_safetensors(
-                path,
-                policy_architecture=architecture,
-                state_dict=self.network().state_dict(),
-            )
-            return
-
-        import torch
-
-        torch.save(self.network().state_dict(), path)
-
-    def _load_policy_artifact_state(self, artifact_path: Path) -> None:
-        try:
-            from metta.rl.policy_artifact import load_policy_artifact
-        except ImportError as exc:  # pragma: no cover - optional dependency
-            raise ImportError("Loading .mpt checkpoints requires the metta RL components to be installed.") from exc
-
-        artifact = load_policy_artifact(artifact_path)
-
-        state_dict = None
-        if artifact.policy is not None:
-            state_dict = artifact.policy.network().state_dict()
-        elif artifact.state_dict is not None and artifact.policy_architecture is None:
-            state_dict = artifact.state_dict
-        elif artifact.policy_architecture is not None:
-            target_device = next(self.network().parameters(), None)
-            device = target_device.device if target_device is not None else None
-            hydrated = artifact.instantiate(
-                self._policy_env_info,
-                device if device is not None else torch.device("cpu"),
-                strict=True,
-            )
-            state_dict = hydrated.network().state_dict()
-
-        if state_dict is None:
-            msg = f"Policy artifact at {artifact_path} did not contain weights or a policy"
-            raise RuntimeError(msg)
-
-        self.network().load_state_dict(state_dict)
 
 
 class PolicySpec(BaseModel):
