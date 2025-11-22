@@ -4,6 +4,9 @@ import
   fidget2/measure,
   jsony
 
+# Disable debug output (comment out to enable)
+template echo(args: varargs[string, `$`]) = discard
+
 type
   ConfigFeature* = object
     id*: int
