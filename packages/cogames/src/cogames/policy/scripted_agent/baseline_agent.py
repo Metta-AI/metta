@@ -141,7 +141,10 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
     def step_with_state(self, obs: AgentObservation, s: SimpleAgentState) -> tuple[Action, SimpleAgentState]:
         """Main step function that processes observation and returns action with updated state."""
         s.step_count += 1
+
+        # Store observation for collision detection
         s.current_obs = obs
+        s.agent_occupancy.clear()
 
         # Read inventory from observation
         read_inventory_from_obs(s, obs, obs_hr=self._obs_hr, obs_wr=self._obs_wr)
@@ -155,16 +158,29 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Update occupancy map and discover objects
         self._update_occupancy_and_discover(s, parsed)
 
-        # Check for stuck state and handle escape
-        stuck_action = self._check_stuck_and_escape(s)
-        if stuck_action is not None:
-            return stuck_action, s
-
         # Update phase based on current state
         self._update_phase(s)
 
+        # Update vibe to match phase
+        desired_vibe = self._get_vibe_for_phase(s.phase, s)
+        if s.current_glyph != desired_vibe:
+            s.current_glyph = desired_vibe
+            # Return vibe change action this step
+            action = utils_change_vibe_action(desired_vibe, actions=self._actions)
+            s.last_action = action
+            return action, s
+
+        # Check for stuck state and handle escape
+        stuck_action = self._check_stuck_and_escape(s)
+        if stuck_action is not None:
+            s.last_action = stuck_action
+            return stuck_action, s
+
         # Execute action for current phase
         action = self._execute_phase(s)
+
+        # Save action for next step's position update
+        s.last_action = action
 
         return action, s
 
@@ -766,12 +782,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if explore_action is not None:
             return explore_action
 
-        # First, ensure we have the correct glyph (heart) for assembling
-        if s.current_glyph != "heart_a":
-            vibe_action = utils_change_vibe_action("heart_a", actions=self._actions)
-            s.current_glyph = "heart_a"
-            return vibe_action
-
         # Assembler is known, navigate to it and use it
         assembler = s.stations["assembler"]
         assert assembler is not None  # Guaranteed by _explore_until above
@@ -792,14 +802,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         explore_action = self._explore_until(s, condition=lambda: s.stations["chest"] is not None, reason="Need chest")
         if explore_action is not None:
             return explore_action
-
-        # First, ensure we have the correct glyph (default/neutral) for chest deposit
-        # - "default" vibe: DEPOSIT resources (positive values)
-        # - specific resource vibes (e.g., "heart_a"): WITHDRAW resources (negative values)
-        if s.current_glyph != "default":
-            vibe_action = utils_change_vibe_action("default", actions=self._actions)
-            s.current_glyph = "default"
-            return vibe_action
 
         # Chest is known, navigate to it and use it
         chest = s.stations["chest"]
