@@ -101,10 +101,7 @@ def _validate_proc_map_missions() -> None:
         try:
             _resolve_mission_template(mission_name)
         except ValueError as exc:
-            raise RuntimeError(
-                f"Unknown procedural mission '{mission_name}' in PROC_MAP_MISSIONS"
-            ) from exc
-
+            raise RuntimeError(f"Unknown procedural mission '{mission_name}' in PROC_MAP_MISSIONS") from exc
 
 
 def _resolve_eval_variants(
