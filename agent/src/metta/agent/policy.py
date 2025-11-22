@@ -133,15 +133,16 @@ class Policy(TrainablePolicy, nn.Module):
         if dest.startswith("s3://"):
             temp_dir = guess_data_dir() / ".tmp"
             temp_dir.mkdir(parents=True, exist_ok=True)
-            with tempfile.NamedTemporaryFile(
-                dir=temp_dir,
-                prefix="policy-upload-",
-                suffix=".mpt",
-                delete=False,
-            ) as tmp_file:
-                local_copy = Path(tmp_file.name)
-
+            local_copy: Path | None = None
             try:
+                with tempfile.NamedTemporaryFile(
+                    dir=temp_dir,
+                    prefix="policy-upload-",
+                    suffix=".mpt",
+                    delete=False,
+                ) as tmp_file:
+                    local_copy = Path(tmp_file.name)
+
                 save_policy_artifact_safetensors(
                     local_copy,
                     policy_architecture=policy_architecture,
@@ -149,7 +150,8 @@ class Policy(TrainablePolicy, nn.Module):
                 )
                 write_file(dest, str(local_copy))
             finally:
-                local_copy.unlink(missing_ok=True)
+                if local_copy is not None:
+                    local_copy.unlink(missing_ok=True)
 
             return dest
 
