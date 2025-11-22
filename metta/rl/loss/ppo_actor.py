@@ -84,8 +84,6 @@ class PPOActor(Loss):
 
         cfg = self.cfg
         minibatch = shared_loss_data["sampled_mb"]
-        if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
-            return self._zero_tensor, shared_loss_data, False
         policy_td = shared_loss_data["policy_td"]
         old_logprob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
@@ -111,17 +109,13 @@ class PPOActor(Loss):
         # Use gamma/lambda from critic to ensure consistency
         gamma = shared_loss_data.get("gamma", None)
         if gamma is not None:
-            gamma_flat = gamma.flatten()
-            if gamma_flat.numel() > 0:
-                gamma = gamma_flat[0].item()
+            gamma = gamma.flatten()[0].item()
         else:
             raise ValueError("ppo_actor could not find gamma in shared_loss_data")
 
         gae_lambda = shared_loss_data.get("gae_lambda", None)
         if gae_lambda is not None:
-            gae_lambda_flat = gae_lambda.flatten()
-            if gae_lambda_flat.numel() > 0:
-                gae_lambda = gae_lambda_flat[0].item()
+            gae_lambda = gae_lambda.flatten()[0].item()
         else:
             raise ValueError("ppo_actor could not find gae_lambda in shared_loss_data")
 
