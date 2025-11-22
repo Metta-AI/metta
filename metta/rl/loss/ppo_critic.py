@@ -162,6 +162,9 @@ class PPOCritic(Loss):
                     dtype=torch.float32,
                 )
 
+        if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
+            return self._zero_tensor, shared_loss_data, False
+
         shared_loss_data["advantages"] = self.advantages[indices]
         # Share gamma/lambda with other losses (e.g. actor) to ensure consistency
         batch_size = shared_loss_data.batch_size

@@ -83,7 +83,11 @@ class PPOActor(Loss):
                 stop_update_epoch = True
 
         cfg = self.cfg
+
         minibatch = shared_loss_data["sampled_mb"]
+        if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
+            return self._zero_tensor, shared_loss_data, False
+
         policy_td = shared_loss_data["policy_td"]
         old_logprob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)

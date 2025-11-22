@@ -29,8 +29,8 @@ class SlicedKickstarterConfig(LossConfig):
     teacher_lead_prob: float = Field(default=1.0, ge=0, le=1.0)  # set to 1 since we slice teacher lead separately
 
     # remainder of the sum below is left for the PPO loss to use
-    student_led_proportion: float = Field(default=0.2, ge=0, le=1.0)
-    teacher_led_proportion: float = Field(default=0.5, ge=0, le=1.0)
+    student_led_proportion: float = Field(default=1.0, ge=0, le=1.0)
+    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
 
     def create(
         self,
@@ -323,6 +323,7 @@ class SlicedKickstarter(Loss):
         super().on_train_phase_end(context)
 
     def _create_slices(self, B: int) -> None:
+        assert self.cfg.student_led_proportion + self.cfg.teacher_led_proportion <= 1.0, "Proportions must be <= 1.0"
         self.rollout_batch_size = B
         stud_led_count = int(B * self.cfg.student_led_proportion)
         stud_slice = slice(0, stud_led_count)
