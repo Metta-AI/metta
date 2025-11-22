@@ -9,7 +9,6 @@ import {
   LEADERBOARD_EVAL_CANCELED_VALUE,
   LEADERBOARD_EVAL_DONE_VALUE,
   LEADERBOARD_SIM_NAME_EPISODE_KEY,
-  METTASCOPE_REPLAY_URL_PREFIX,
 } from './constants'
 import type { EpisodeReplay, LeaderboardPolicyEntry } from './repo'
 
