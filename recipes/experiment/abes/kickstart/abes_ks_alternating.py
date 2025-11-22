@@ -9,7 +9,6 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
@@ -105,16 +104,17 @@ def train(
 
     eval_simulations = simulations()
 
-    loss_config = LossesConfig(
-        kickstarter=KickstarterConfig(
-            enabled=True,
-            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt",
-            # teacher_uri=(
-            #     "s3://softmax-public/policies/av.ppo_divorced.mb.11.18.01/av.ppo_divorced.mb.11.18.01:v2000.mpt"
-            # ),
-            teacher_lead_prob=1.0,
-        ),
+    loss_config = LossesConfig()
+    loss_config.ppo_critic.enabled = False
+    loss_config.ppo_actor.enabled = False
+    loss_config.ppo.enabled = True
+    loss_config.kickstarter.enabled = True
+    loss_config.kickstarter.teacher_uri = (
+        "s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt"
     )
+    # loss_config.kickstarter.teacher_uri=(
+    #     "s3://softmax-public/policies/av.ppo_divorced.mb.11.18.01/av.ppo_divorced.mb.11.18.01:v7500.mpt"
+    # )
 
     trainer_cfg = TrainerConfig(
         losses=loss_config,
@@ -126,7 +126,8 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=1_000_000_000),
+            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_step=1_000_000_000),
+            # LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=1_000_000_000),
             LossRunGate(
                 loss_instance_name="kickstarter",
                 phase="rollout",
