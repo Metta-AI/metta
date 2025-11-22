@@ -25,6 +25,14 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
+CHECKPOINT_EPOCH_DIGITS = 5
+
+
+def _format_checkpoint_epoch(epoch: int) -> str:
+    if epoch < 0:
+        raise ValueError("Checkpoint epoch cannot be negative")
+    return f"{epoch:0{CHECKPOINT_EPOCH_DIGITS}d}"
+
 
 class PolicyMetadata(TypedDict):
     """Type definition for policy metadata returned by get_policy_metadata."""
@@ -38,8 +46,8 @@ def key_and_version(uri: str) -> tuple[str, int] | None:
     """Extract key (run name) and version (epoch) from a policy URI.
 
     Examples:
-        "file:///tmp/my_run/checkpoints/my_run:v5.mpt" -> ("my_run", 5)
-        "s3://bucket/policies/my_run/checkpoints/my_run:v10.mpt" -> ("my_run", 10)
+        "file:///tmp/my_run/checkpoints/my_run:v00005.mpt" -> ("my_run", 5)
+        "s3://bucket/policies/my_run/checkpoints/my_run:v00010.mpt" -> ("my_run", 10)
         "mock://test_agent" -> ("test_agent", 0)
     """
     parsed = ParsedURI.parse(uri)
@@ -60,8 +68,8 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
     """Infer run name and epoch from a checkpoint path.
 
     Examples:
-        "file:///tmp/my_run/checkpoints/my_run:v5.mpt" -> ("my_run", 5)
-        "s3://bucket/policies/my_run/checkpoints/my_run:v10.mpt" -> ("my_run", 10)
+        "file:///tmp/my_run/checkpoints/my_run:v00005.mpt" -> ("my_run", 5)
+        "s3://bucket/policies/my_run/checkpoints/my_run:v00010.mpt" -> ("my_run", 10)
     """
 
     stem = path.stem
@@ -188,6 +196,12 @@ class CheckpointManager:
     @property
     def remote_checkpoints_enabled(self) -> bool:
         return self._remote_prefix is not None
+
+    @staticmethod
+    def format_checkpoint_filename(run_name: str, epoch: int) -> str:
+        if not run_name or not run_name.strip():
+            raise ValueError("Run name cannot be empty")
+        return f"{run_name}:v{_format_checkpoint_epoch(epoch)}.mpt"
 
     @staticmethod
     def load_artifact_from_uri(uri: str) -> PolicyArtifact:

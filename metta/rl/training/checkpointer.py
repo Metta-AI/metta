@@ -170,7 +170,7 @@ class Checkpointer(TrainerComponent):
     def _save_policy(self, epoch: int) -> None:
         policy = self._ensure_save_capable(self._policy_to_save())
 
-        filename = f"{self._checkpoint_manager.run_name}:v{epoch}.mpt"
+        filename = CheckpointManager.format_checkpoint_filename(self._checkpoint_manager.run_name, epoch)
         checkpoint_dir = self._checkpoint_manager.checkpoint_dir
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         local_path = checkpoint_dir / filename

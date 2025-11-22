@@ -155,7 +155,7 @@ class SLCheckpointedKickstarter(Loss):
 
     def _construct_checkpoint_uri(self, epoch: int) -> str:
         """Construct a checkpoint URI from the base URI and epoch."""
-        from metta.rl.checkpoint_manager import key_and_version
+        from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
         from metta.utils.uri import ParsedURI
 
         # Parse the base URI
@@ -168,17 +168,17 @@ class SLCheckpointedKickstarter(Loss):
         # Construct new URI with the specified epoch
         if parsed.scheme == "file" and parsed.local_path:
             # For file URIs, replace the filename
-            path = parsed.local_path.parent / f"{run_name}:v{epoch}.mpt"
+            path = parsed.local_path.parent / CheckpointManager.format_checkpoint_filename(run_name, epoch)
             return f"file://{path}"
         elif parsed.scheme == "s3" and parsed.bucket and parsed.key:
             # For S3 URIs, replace the filename in the key
             # The key is the full path including the filename
             if "/" in parsed.key:
                 key_dir = parsed.key.rsplit("/", 1)[0]
-                new_key = f"{key_dir}/{run_name}:v{epoch}.mpt"
+                new_key = f"{key_dir}/{CheckpointManager.format_checkpoint_filename(run_name, epoch)}"
             else:
                 # If key has no directory, just use the filename
-                new_key = f"{run_name}:v{epoch}.mpt"
+                new_key = CheckpointManager.format_checkpoint_filename(run_name, epoch)
             return f"s3://{parsed.bucket}/{new_key}"
         else:
             raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")

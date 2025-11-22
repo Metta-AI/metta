@@ -18,7 +18,7 @@ from mettagrid.base_config import Config
 
 
 def checkpoint_filename(run: str, epoch: int) -> str:
-    return f"{run}:v{epoch}.mpt"
+    return CheckpointManager.format_checkpoint_filename(run, epoch)
 
 
 def create_checkpoint(tmp_path: Path, filename: str, policy: MockAgent) -> Path:
@@ -90,7 +90,7 @@ class TestS3URIs:
         mock_local_copy.return_value.__enter__ = Mock(return_value=str(checkpoint_file))
         mock_local_copy.return_value.__exit__ = Mock(return_value=None)
 
-        uri = "s3://bucket/run/checkpoints/run:v12.mpt"
+        uri = "s3://bucket/run/checkpoints/run:v00012.mpt"
         artifact = CheckpointManager.load_artifact_from_uri(uri)
 
         assert artifact.policy is not None
@@ -118,7 +118,7 @@ class TestCheckpointManagerOperations:
 
         uri = manager.get_latest_checkpoint()
         assert uri is not None
-        assert uri.endswith(":v3.mpt")
+        assert uri.endswith(":v00003.mpt")
 
     def test_normalize_uri(self, tmp_path: Path):
         path = tmp_path / "model.mpt"

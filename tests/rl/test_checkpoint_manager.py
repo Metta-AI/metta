@@ -58,12 +58,16 @@ def mock_policy_architecture():
     return MockAgentPolicyArchitecture()
 
 
+def ckpt_name(run_name: str, epoch: int) -> str:
+    return CheckpointManager.format_checkpoint_filename(run_name, epoch)
+
+
 class TestBasicSaveLoad:
     def test_load_from_uri_with_latest(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Test loading policy with :latest selector."""
         for epoch in [1, 7, 3]:
             save_policy_artifact_safetensors(
-                checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}.mpt",
+                checkpoint_manager.checkpoint_dir / ckpt_name(checkpoint_manager.run_name, epoch),
                 policy_architecture=mock_policy_architecture,
                 state_dict=mock_agent.state_dict(),
             )
@@ -78,13 +82,13 @@ class TestBasicSaveLoad:
 
     def test_save_and_load_agent(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         save_policy_artifact_safetensors(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            checkpoint_manager.checkpoint_dir / ckpt_name(checkpoint_manager.run_name, 5),
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
         )
 
         checkpoint_dir = checkpoint_manager.checkpoint_dir
-        expected_filename = "test_run:v5.mpt"
+        expected_filename = ckpt_name("test_run", 5)
         agent_file = checkpoint_dir / expected_filename
 
         assert agent_file.exists()
@@ -101,7 +105,7 @@ class TestBasicSaveLoad:
         test_system_cfg.remote_prefix = "s3://bucket/checkpoints"
         manager = CheckpointManager(run="test_run", system_cfg=test_system_cfg)
 
-        expected_filename = "test_run:v3.mpt"
+        expected_filename = ckpt_name("test_run", 3)
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
 
         try:
@@ -133,20 +137,20 @@ class TestBasicSaveLoad:
 
         for epoch in epochs:
             save_policy_artifact_safetensors(
-                checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}.mpt",
+                checkpoint_manager.checkpoint_dir / ckpt_name(checkpoint_manager.run_name, epoch),
                 policy_architecture=mock_policy_architecture,
                 state_dict=mock_agent.state_dict(),
             )
 
         latest_checkpoint = checkpoint_manager.get_latest_checkpoint()
         assert latest_checkpoint is not None
-        assert latest_checkpoint.endswith(":v10.mpt")
+        assert latest_checkpoint.endswith(":v00010.mpt")
         artifact = CheckpointManager.load_artifact_from_uri(latest_checkpoint)
         assert artifact.state_dict is not None
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         save_policy_artifact_safetensors(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            checkpoint_manager.checkpoint_dir / ckpt_name(checkpoint_manager.run_name, 5),
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
         )
@@ -168,7 +172,7 @@ class TestBasicSaveLoad:
         assert latest is None
 
         save_policy_artifact_safetensors(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v1.mpt",
+            checkpoint_manager.checkpoint_dir / ckpt_name(checkpoint_manager.run_name, 1),
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
         )
@@ -182,7 +186,7 @@ class TestBasicSaveLoad:
         mock_policy_architecture,
     ):
         save_policy_artifact_safetensors(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v1.mpt",
+            checkpoint_manager.checkpoint_dir / ckpt_name(checkpoint_manager.run_name, 1),
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
         )
@@ -200,7 +204,7 @@ class TestBasicSaveLoad:
         mock_policy_architecture,
     ):
         save_policy_artifact_safetensors(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v2.mpt",
+            checkpoint_manager.checkpoint_dir / ckpt_name(checkpoint_manager.run_name, 2),
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
         )
@@ -225,7 +229,7 @@ class TestBasicSaveLoad:
         mock_policy_architecture,
     ):
         save_policy_artifact_safetensors(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v4.mpt",
+            checkpoint_manager.checkpoint_dir / ckpt_name(checkpoint_manager.run_name, 4),
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
         )
@@ -243,7 +247,7 @@ class TestBasicSaveLoad:
         mock_policy_architecture,
     ):
         save_policy_artifact_safetensors(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            checkpoint_manager.checkpoint_dir / ckpt_name(checkpoint_manager.run_name, 5),
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
         )
@@ -263,7 +267,7 @@ class TestBasicSaveLoad:
 
     def test_policy_spec_from_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         save_policy_artifact_safetensors(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v2.mpt",
+            checkpoint_manager.checkpoint_dir / ckpt_name(checkpoint_manager.run_name, 2),
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
         )

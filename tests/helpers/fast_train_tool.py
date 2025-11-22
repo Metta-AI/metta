@@ -74,7 +74,7 @@ class FastCheckpointTrainTool(TrainTool):
             trainer_state_path,
         )
 
-        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.mpt"
+        policy_path = checkpoint_manager.checkpoint_dir / CheckpointManager.format_checkpoint_filename(run_name, epoch)
         policy = DummyPolicy(epoch)
         save_policy_artifact_pt(policy_path, policy=policy)
 
