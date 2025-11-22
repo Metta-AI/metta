@@ -56,7 +56,11 @@ class PolicyArchitecture(Config):
         """Create an agent instance from configuration."""
 
         AgentClass = load_symbol(self.class_path)
-        return AgentClass(policy_env_info, self)  # type: ignore[misc]
+        policy = AgentClass(policy_env_info, self)  # type: ignore[misc]
+        assign = getattr(policy, "_assign_policy_architecture", None)
+        if callable(assign):
+            assign(self)
+        return policy
 
 
 class Policy(TrainablePolicy, nn.Module):
@@ -71,6 +75,7 @@ class Policy(TrainablePolicy, nn.Module):
         nn.Module.__init__(self)
         self._actions_by_id = self._policy_env_info.actions.actions()
         self._stateful_impl = self.make_stateful_policy_impl()
+        self._policy_architecture: PolicyArchitecture | None = None
 
     @abstractmethod
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
@@ -109,6 +114,9 @@ class Policy(TrainablePolicy, nn.Module):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy adapter for the specified agent index."""
         return StatefulAgentPolicy(self._stateful_impl, self._policy_env_info, agent_id)
+
+    def _assign_policy_architecture(self, architecture: "PolicyArchitecture") -> None:
+        self._policy_architecture = architecture
 
     def save_policy(
         self,

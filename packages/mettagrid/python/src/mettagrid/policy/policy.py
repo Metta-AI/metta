@@ -369,9 +369,23 @@ class TrainablePolicy(MultiAgentPolicy):
 
         Default implementation uses torch.save.
         """
+        path = Path(policy_data_path).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        architecture = getattr(self, "_policy_architecture", None)
+        if architecture is not None:
+            from metta.rl.policy_artifact import save_policy_artifact_safetensors
+
+            save_policy_artifact_safetensors(
+                path,
+                policy_architecture=architecture,
+                state_dict=self.network().state_dict(),
+            )
+            return
+
         import torch
 
-        torch.save(self.network().state_dict(), policy_data_path)
+        torch.save(self.network().state_dict(), path)
 
 
 class PolicySpec(BaseModel):
