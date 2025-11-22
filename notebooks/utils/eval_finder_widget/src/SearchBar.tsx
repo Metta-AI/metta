@@ -1,14 +1,11 @@
-import React from "react";
+import React from 'react'
 
 interface SearchBarProps {
-  searchTerm: string;
-  onSearchChange: (term: string) => void;
+  searchTerm: string
+  onSearchChange: (term: string) => void
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({
-  searchTerm,
-  onSearchChange
-}) => {
+export const SearchBar: React.FC<SearchBarProps> = ({ searchTerm, onSearchChange }) => {
   return (
     <div className="search-bar">
       <div className="search-input-container">
@@ -21,14 +18,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           className="search-input"
         />
         {searchTerm && (
-          <button
-            className="clear-search"
-            onClick={() => onSearchChange("")}
-          >
+          <button className="clear-search" onClick={() => onSearchChange('')}>
             ✕
           </button>
         )}
       </div>
     </div>
-  );
-};
+  )
+}

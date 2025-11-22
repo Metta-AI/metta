@@ -1,15 +1,15 @@
 // vite.config.js
-import { defineConfig } from "vite";
-import anywidget from "@anywidget/vite";
-import react from '@vitejs/plugin-react';
-import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import { defineConfig } from 'vite'
+import anywidget from '@anywidget/vite'
+import react from '@vitejs/plugin-react'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 export default defineConfig({
   build: {
-    outDir: "scorecard_widget/static",
+    outDir: 'scorecard_widget/static',
     lib: {
-      entry: ["src/index.tsx"],
-      formats: ["es"],
+      entry: ['src/index.tsx'],
+      formats: ['es'],
     },
     rollupOptions: {
       external: [
@@ -28,10 +28,10 @@ export default defineConfig({
         global: true,
         process: true,
       },
-    })
+    }),
   ],
   resolve: {
     // Preserve symlinks to avoid conflicts
     preserveSymlinks: true,
   },
-});
+})
