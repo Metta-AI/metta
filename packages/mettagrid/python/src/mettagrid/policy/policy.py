@@ -48,15 +48,6 @@ class AgentPolicy:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
-    def step_batch(self, _raw_observations, raw_actions) -> None:
-        """Optional fast-path for policies that consume raw buffers.
-
-        Policies that support raw NumPy pointers should override this method.
-        The default implementation raises so callers get a clear error if a
-        policy without batch support is used in a context that requires it."""
-
-        raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
-
 
 class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     """Unified policy interface for multi-agent systems.
@@ -270,9 +261,6 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the hidden state to initial state."""
         self._initialize_state(simulation)
-
-    def step_batch(self, _raw_observations, raw_actions) -> None:
-        raise NotImplementedError("StatefulAgentPolicy does not support batch stepping")
 
     def _initialize_state(self, simulation: Optional[Simulation]) -> None:
         self._simulation = simulation
