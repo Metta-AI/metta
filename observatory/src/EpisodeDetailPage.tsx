@@ -2,8 +2,8 @@ import { FC, useContext, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
+import { ReplayViewer } from './components/ReplayViewer'
 import type { EpisodeWithTags, PolicyVersionWithName } from './repo'
-import { METTASCOPE_REPLAY_URL_PREFIX } from './constants'
 
 type LoadState<T> = {
   data: T
@@ -60,14 +60,6 @@ const formatScore = (value: number | null | undefined): string => {
     return '—'
   }
   return value.toFixed(2)
-}
-
-const formatReplayUrl = (replayUrl: string): string => {
-  if (!replayUrl) return ''
-  if (replayUrl.startsWith(METTASCOPE_REPLAY_URL_PREFIX)) {
-    return replayUrl
-  }
-  return `${METTASCOPE_REPLAY_URL_PREFIX}${replayUrl}`
 }
 
 export const EpisodeDetailPage: FC = () => {
@@ -269,38 +261,23 @@ export const EpisodeDetailPage: FC = () => {
         </div>
       </div>
 
-      <div className="p-5 space-y-3">
-        {state.loading ? (
-          <div className="text-gray-500 text-sm">Loading replay...</div>
-        ) : state.error ? (
-          <div className="text-red-600 text-sm">{state.error}</div>
-        ) : !episode || !episode.replay_url ? (
-          <div className="text-gray-500 text-sm">No replay available for this episode.</div>
-        ) : (
-          <>
-            <div
-              className="w-full border border-gray-200 rounded overflow-hidden bg-black"
-              style={{ minHeight: '360px', height: '480px' }}
-            >
-              <iframe
-                src={formatReplayUrl(episode.replay_url)}
-                title="Episode replay"
-                className="w-full h-full"
-                allowFullScreen
-              />
-            </div>
-            <div className="text-sm">
-              <a
-                href={formatReplayUrl(episode.replay_url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 no-underline hover:underline"
-              >
-                Open replay in new tab
-              </a>
-            </div>
-          </>
-        )}
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Replay</h2>
+          </div>
+        </div>
+        <div className="p-5 space-y-3">
+          {state.loading ? (
+            <div className="text-gray-500 text-sm">Loading replay...</div>
+          ) : state.error ? (
+            <div className="text-red-600 text-sm">{state.error}</div>
+          ) : !episode || !episode.replay_url ? (
+            <div className="text-gray-500 text-sm">No replay available for this episode.</div>
+          ) : (
+            <ReplayViewer replayUrl={episode.replay_url} label="Episode replay" />
+          )}
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
