@@ -20,11 +20,13 @@ export const ConfigViewer: FC<{
 
   function handleCopyAsYaml() {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(configToYaml({
-        value,
-        path: [],
-        depth: 0,
-      }));
+      navigator.clipboard.writeText(
+        configToYaml({
+          value,
+          path: [],
+          depth: 0,
+        })
+      );
     }
   }
 

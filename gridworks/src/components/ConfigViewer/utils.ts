@@ -41,7 +41,7 @@ export function configToYaml(rootNode: ConfigNode): string {
     }
 
     if (isScalarNode(node)) {
-      output += `${indent}${node.value}\n`
+      output += `${indent}${node.value}\n`;
       return;
     }
 
@@ -87,8 +87,8 @@ export function configToYaml(rootNode: ConfigNode): string {
 
       for (let i = 0; i < entries.length; i++) {
         const [key, value] = entries[i];
-        // Do not indent the first key of an object in an array 
-        const prefix = i === 0 && output.endsWith('-') ? " " : `${indent}`;
+        // Do not indent the first key of an object in an array
+        const prefix = i === 0 && output.endsWith("-") ? " " : `${indent}`;
 
         const child: ConfigNode = {
           path: [...node.path, key],
