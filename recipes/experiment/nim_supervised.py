@@ -39,7 +39,7 @@ def train(
 
     # decide if we want to just train on a single simple mission for debugging instead of using
     # a curriculum over all cogames missions
-    simple_mission = True
+    simple_mission = False
     if simple_mission:
         env_config = _load_env_from_mission(mission, tuple(variants) if variants else None, cogs, max_steps)
         curriculum = env_curriculum(env_config)
@@ -69,13 +69,16 @@ def train(
     tool.trainer.bptt_horizon = 16
     tool.trainer.optimizer.learning_rate = learning_rate
 
-    tool.trainer.losses.supervisor.teacher_random_walk_prob = 0.1
-    tool.trainer.losses.supervisor.teacher_lead_prob = 0.8
+    tool.trainer.losses.supervisor.teacher_random_walk_prob = 0.0
+    tool.trainer.losses.supervisor.teacher_lead_prob = 0.9
     tool.trainer.losses.supervisor.enabled = True
 
     tool.wandb.enabled = False
     tool.system.vectorization = vectorization
     tool.system.device = "cpu"
+
+    # generate replays during training
+    # tool.training_env.write_replays = True
 
     # Fast local defaults.
     tool.evaluator.epoch_interval = 0
@@ -84,8 +87,7 @@ def train(
 
     tool.evaluator.epoch_interval = 0
 
-    if resume_policy_uri:
-        tool.initial_policy_uri = resume_policy_uri
+    tool.initial_policy_uri = "train_dir/local.dffarr.20251121.151430/checkpoints/local.dffarr.20251121.151430:v650.mpt"
 
     return tool
 
