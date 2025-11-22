@@ -126,7 +126,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
             result = subprocess.run(
-                ["git", "clone", REPO_URL, self._versioned_path],
+                ["git", "clone", "--filter=blob:none", REPO_URL, self._versioned_path],
                 capture_output=True,
                 text=True,
             )
