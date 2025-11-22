@@ -4,7 +4,6 @@ import ctypes
 from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
-from zipfile import BadZipFile, ZipFile
 
 import numpy as np
 import torch
@@ -360,18 +359,16 @@ class TrainablePolicy(MultiAgentPolicy):
     def load_policy_data(self, policy_data_path: str) -> None:
         """Load network weights from file.
 
-        Default implementation loads PyTorch state dict.
+        Supports .mpt (metta format) and .pt (simple state dict) files.
         """
         path = Path(policy_data_path).expanduser()
         suffix = path.suffix.lower()
+
         if suffix == ".mpt":
             self._load_policy_artifact_state(path)
             return
 
-        if self._is_policy_artifact_archive(path):
-            self._load_policy_artifact_state(path, force_policy_artifact=True)
-            return
-
+        # Load simple .pt state dict
         import torch
 
         self.network().load_state_dict(torch.load(path, map_location="cpu"))
@@ -400,13 +397,13 @@ class TrainablePolicy(MultiAgentPolicy):
 
         torch.save(self.network().state_dict(), path)
 
-    def _load_policy_artifact_state(self, artifact_path: Path, *, force_policy_artifact: bool = False) -> None:
+    def _load_policy_artifact_state(self, artifact_path: Path) -> None:
         try:
             from metta.rl.policy_artifact import load_policy_artifact
         except ImportError as exc:  # pragma: no cover - optional dependency
             raise ImportError("Loading .mpt checkpoints requires the metta RL components to be installed.") from exc
 
-        artifact = load_policy_artifact(artifact_path, force_policy_artifact=force_policy_artifact)
+        artifact = load_policy_artifact(artifact_path)
 
         state_dict = None
         if artifact.policy is not None:
@@ -428,21 +425,6 @@ class TrainablePolicy(MultiAgentPolicy):
             raise RuntimeError(msg)
 
         self.network().load_state_dict(state_dict)
-
-    @staticmethod
-    def _is_policy_artifact_archive(path: Path) -> bool:
-        if not path.is_file():
-            return False
-
-        try:
-            with ZipFile(path, mode="r") as archive:
-                names = set(archive.namelist())
-        except (BadZipFile, OSError):
-            return False
-
-        return bool(
-            {"weights.safetensors", "policy.pt", "modelarchitecture.txt"}.intersection(names)
-        )
 
 
 class PolicySpec(BaseModel):

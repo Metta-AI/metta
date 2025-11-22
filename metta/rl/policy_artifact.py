@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import io
-import pickle
 import tempfile
 import zipfile
 from collections import OrderedDict
@@ -17,7 +16,6 @@ from safetensors.torch import save as save_safetensors
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 
@@ -273,24 +271,6 @@ def save_policy_artifact_safetensors(
     )
 
 
-def save_policy_artifact_pt(
-    path: str | Path,
-    *,
-    policy: Policy,
-) -> PolicyArtifact:
-    """Persist a policy object with torch.save (.pt)."""
-    return _save_policy_artifact(path, policy=policy, include_policy=True)
-
-
-def _load_policy_payload_from_file(path: Path) -> Any:
-    try:
-        return torch.load(path, map_location="cpu", weights_only=False)
-    except FileNotFoundError:
-        raise
-    except (pickle.UnpicklingError, RuntimeError, OSError, TypeError, BadZipFile) as err:
-        raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
-
-
 def _save_policy_artifact(
     path: str | Path,
     *,
@@ -369,60 +349,6 @@ def _save_policy_artifact(
     )
 
 
-def _artifact_from_policy_payload(payload: Any) -> PolicyArtifact:
-    if _is_puffer_state_dict(payload):
-        policy = load_pufferlib_checkpoint(payload, device="cpu")
-        return PolicyArtifact(policy=policy)
-
-    policy_instance = _unwrap_policy(payload)
-    if policy_instance is not None:
-        return PolicyArtifact(policy=policy_instance)
-
-    if isinstance(payload, Mapping):
-        state_dict = payload.get("state_dict") or payload.get("weights")
-        architecture_value = (
-            payload.get("policy_architecture")
-            or payload.get("policy_architecture_spec")
-            or payload.get("policy_architecture_str")
-        )
-
-        if isinstance(state_dict, Mapping):
-            normalized_state = _normalize_state_dict_keys(state_dict)
-            architecture = None
-            if architecture_value is not None:
-                if isinstance(architecture_value, PolicyArchitecture):
-                    architecture = architecture_value
-                elif isinstance(architecture_value, str):
-                    architecture = policy_architecture_from_string(architecture_value)
-
-            if architecture is not None:
-                return PolicyArtifact(policy_architecture=architecture, state_dict=normalized_state)
-
-            return PolicyArtifact(policy_architecture=None, state_dict=normalized_state)
-
-        if (
-            not architecture_value
-            and state_dict is None
-            and payload
-            and all(isinstance(v, torch.Tensor) for v in payload.values())
-        ):
-            normalized_state = _normalize_state_dict_keys(payload)
-            return PolicyArtifact(policy_architecture=None, state_dict=normalized_state)
-
-    raise TypeError("Loaded policy payload is not a Policy instance")
-
-
-def _unwrap_policy(candidate: Any) -> Policy | None:
-    current = candidate
-    visited: set[int] = set()
-    while current is not None and id(current) not in visited:
-        visited.add(id(current))
-        if isinstance(current, Policy):
-            return current
-        current = getattr(current, "module", None)
-    return None
-
-
 def _normalize_state_dict_keys(state_dict: Mapping[str, torch.Tensor]) -> MutableMapping[str, torch.Tensor]:
     """Strip common DDP prefixes and collapse duplicate '.module.' segments.
 
@@ -442,48 +368,79 @@ def _normalize_state_dict_keys(state_dict: Mapping[str, torch.Tensor]) -> Mutabl
     return normalized
 
 
-def load_policy_artifact(
-    path: str | Path,
-    is_pt_file: bool = False,
-    force_policy_artifact: bool = False,
-) -> PolicyArtifact:
-    input_path = Path(path)
-    if not input_path.exists():
-        msg = f"Policy artifact not found: {input_path}"
-        raise FileNotFoundError(msg)
-
-    if not force_policy_artifact and (is_pt_file or input_path.suffix == ".pt"):
-        payload = _load_policy_payload_from_file(input_path)
-        return _artifact_from_policy_payload(payload)
-
+def _load_mpt_artifact(path: Path) -> PolicyArtifact:
+    """Load modern .mpt format: safetensors + architecture."""
     try:
-        with zipfile.ZipFile(input_path, mode="r") as archive:
+        with zipfile.ZipFile(path, mode="r") as archive:
             names = set(archive.namelist())
 
-            if "weights.safetensors" in names:
-                weights_blob = archive.read("weights.safetensors")
-                loaded_state = load_safetensors(weights_blob)
-                if not isinstance(loaded_state, MutableMapping):
-                    msg = "Loaded safetensors state_dict is not a mutable mapping"
-                    raise TypeError(msg)
+            if "weights.safetensors" not in names:
+                raise ValueError(f".mpt file missing weights.safetensors: {path}")
 
-                normalized_state = _normalize_state_dict_keys(loaded_state)
-                payload: dict[str, Any] = {"state_dict": normalized_state}
+            # Load weights
+            weights_blob = archive.read("weights.safetensors")
+            state_dict = load_safetensors(weights_blob)
 
-                if "modelarchitecture.txt" in names:
-                    architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
-                    payload["policy_architecture"] = policy_architecture_from_string(architecture_blob)
+            # Load architecture (required for .mpt files)
+            if "modelarchitecture.txt" not in names:
+                raise ValueError(f".mpt file missing modelarchitecture.txt: {path}")
 
-                return _artifact_from_policy_payload(payload)
+            arch_blob = archive.read("modelarchitecture.txt").decode("utf-8")
+            architecture = policy_architecture_from_string(arch_blob)
 
-            if "policy.pt" in names:
-                buffer = io.BytesIO(archive.read("policy.pt"))
-                loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
-                return _artifact_from_policy_payload(loaded_policy)
+            # DDP normalization (ONLY legacy code we keep)
+            normalized_state = _normalize_state_dict_keys(state_dict)
 
-    except BadZipFile:
-        payload = _load_policy_payload_from_file(input_path)
-        return _artifact_from_policy_payload(payload)
+            return PolicyArtifact(
+                policy_architecture=architecture,
+                state_dict=normalized_state,
+            )
+    except BadZipFile as e:
+        raise ValueError(f"Invalid .mpt file (not a valid ZIP archive): {path}") from e
 
-    payload = _load_policy_payload_from_file(input_path)
-    return _artifact_from_policy_payload(payload)
+
+def _load_pt_artifact(path: Path) -> PolicyArtifact:
+    """Load simple .pt format: raw state_dict pickle.
+
+    Used for cogames-trained policies and backward compatibility.
+    """
+    try:
+        state_dict = torch.load(path, map_location="cpu", weights_only=False)
+    except Exception as e:
+        raise ValueError(f"Failed to load .pt file: {path}") from e
+
+    # Expect a simple state dict (mapping of string keys to tensors)
+    if not isinstance(state_dict, Mapping):
+        raise TypeError(f".pt file must contain a state_dict mapping, got {type(state_dict)}")
+
+    if not all(isinstance(k, str) and isinstance(v, torch.Tensor) for k, v in state_dict.items()):
+        raise TypeError(".pt file must contain string→Tensor mapping")
+
+    # DDP normalization (ONLY legacy code we keep)
+    normalized_state = _normalize_state_dict_keys(state_dict)
+
+    return PolicyArtifact(
+        policy_architecture=None,  # .pt files don't include architecture
+        state_dict=normalized_state,
+    )
+
+
+def load_policy_artifact(path: str | Path) -> PolicyArtifact:
+    """Load a policy artifact from .mpt (metta) or .pt (cogames) format.
+
+    .mpt files: ZIP archives with weights.safetensors + modelarchitecture.txt
+    .pt files: Simple torch state_dict pickles
+    """
+    input_path = Path(path)
+    if not input_path.exists():
+        raise FileNotFoundError(f"Policy artifact not found: {input_path}")
+
+    # Path 1: Modern .mpt format (safetensors + architecture)
+    if input_path.suffix == ".mpt":
+        return _load_mpt_artifact(input_path)
+
+    # Path 2: Simple .pt format (state_dict only)
+    if input_path.suffix == ".pt":
+        return _load_pt_artifact(input_path)
+
+    raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
