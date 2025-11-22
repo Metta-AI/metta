@@ -2,6 +2,7 @@ import os
 import platform
 import shutil
 import sys
+from typing import Optional
 
 from setuptools import setup
 
@@ -11,7 +12,7 @@ BUILD_EXTENSIONS = True
 # Import torch for extensions
 try:
     import torch
-    from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension
+    from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME
 
     print("Building pufferlib-core with C++/CUDA extensions")
 except ImportError:
@@ -20,6 +21,33 @@ except ImportError:
 
 # Build with DEBUG=1 to enable debug symbols
 DEBUG = os.getenv("DEBUG", "0") == "1"
+
+
+def _detect_cuda_home() -> Optional[str]:
+    """Use the CUDA toolkit path baked into our base image."""
+    if CUDA_HOME and os.path.exists(CUDA_HOME):
+        return CUDA_HOME
+    return None
+
+
+def _nvcc_available() -> bool:
+    """Detect nvcc, preferring the toolkit path shipped in our sandbox image."""
+    nvcc_path = shutil.which("nvcc")
+    if nvcc_path:
+        return True
+
+    cuda_home = _detect_cuda_home()
+    if not cuda_home:
+        return False
+
+    candidate = os.path.join(cuda_home, "bin", "nvcc")
+    if os.path.exists(candidate):
+        os.environ.setdefault("CUDA_HOME", cuda_home)
+        os.environ["PATH"] = os.pathsep.join([os.path.join(cuda_home, "bin"), os.environ.get("PATH", "")])
+        return True
+
+    return False
+
 
 # Compile args
 cxx_args = ["-fdiagnostics-color=always"]
@@ -39,7 +67,7 @@ torch_sources = ["src/pufferlib/extensions/pufferlib.cpp"]
 torch_lib_path = os.path.join(os.path.dirname(torch.__file__), "lib")
 
 # Check if CUDA compiler is available
-if shutil.which("nvcc"):
+if _nvcc_available():
     extension_class = CUDAExtension
     torch_sources.append("src/pufferlib/extensions/cuda/pufferlib.cu")
     print("Building with CUDA support")
