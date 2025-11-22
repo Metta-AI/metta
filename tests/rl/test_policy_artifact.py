@@ -224,6 +224,22 @@ def test_load_policy_artifact_ddp_wrapper(tmp_path: Path) -> None:
     assert isinstance(instantiated, DummyPolicy)
 
 
+def test_load_policy_artifact_ddp_state_dict(tmp_path: Path) -> None:
+    policy_env_info = _policy_env_info()
+    architecture = DummyPolicyArchitecture()
+    policy = architecture.make_policy(policy_env_info)
+
+    ddp_style = {f"module.{k}": v.clone() for k, v in policy.state_dict().items()}
+    legacy_path = tmp_path / "legacy_ddp_state.mpt"
+    torch.save(ddp_style, legacy_path)
+
+    artifact = load_policy_artifact(legacy_path)
+    artifact.policy_architecture = architecture
+    instantiated = artifact.instantiate(policy_env_info, torch.device("cpu"))
+
+    assert isinstance(instantiated, DummyPolicy)
+
+
 class DummyDDPWrapper:
     def __init__(self, inner: Policy):
         self.module = inner

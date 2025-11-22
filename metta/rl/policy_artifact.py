@@ -395,12 +395,8 @@ def _artifact_from_policy_payload(payload: Any) -> PolicyArtifact:
                 architecture = None
 
             if architecture is not None:
-                mutable_state: MutableMapping[str, torch.Tensor]
-                if isinstance(state_dict, MutableMapping):
-                    mutable_state = state_dict  # type: ignore[assignment]
-                else:
-                    mutable_state = OrderedDict(state_dict.items())
-                return PolicyArtifact(policy_architecture=architecture, state_dict=mutable_state)
+                normalized_state = _normalize_state_dict_keys(state_dict)
+                return PolicyArtifact(policy_architecture=architecture, state_dict=normalized_state)
 
         if (
             not architecture_value
@@ -408,7 +404,8 @@ def _artifact_from_policy_payload(payload: Any) -> PolicyArtifact:
             and payload
             and all(isinstance(v, torch.Tensor) for v in payload.values())
         ):
-            return PolicyArtifact(policy_architecture=None, state_dict=OrderedDict(payload.items()))
+            normalized_state = _normalize_state_dict_keys(payload)
+            return PolicyArtifact(policy_architecture=None, state_dict=normalized_state)
 
     raise TypeError("Loaded policy payload is not a Policy instance")
 
@@ -422,6 +419,24 @@ def _unwrap_policy(candidate: Any) -> Policy | None:
             return current
         current = getattr(current, "module", None)
     return None
+
+
+def _normalize_state_dict_keys(state_dict: Mapping[str, torch.Tensor]) -> MutableMapping[str, torch.Tensor]:
+    """Strip common DDP prefixes and collapse duplicate '.module.' segments.
+
+    Handles checkpoints saved from distributed wrappers where keys are prefixed with
+    'module.' and cases where nested modules introduce '.module.module.' sequences.
+    """
+
+    normalized: MutableMapping[str, torch.Tensor] = OrderedDict()
+    for key, value in state_dict.items():
+        new_key = key
+        if new_key.startswith("module."):
+            new_key = new_key[len("module.") :]
+        if ".module.module." in new_key:
+            new_key = new_key.replace(".module.module.", ".module.", 1)
+        normalized[new_key] = value
+    return normalized
 
 
 def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyArtifact:
