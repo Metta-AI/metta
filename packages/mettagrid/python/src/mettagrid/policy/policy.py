@@ -123,10 +123,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
 
 
-# Type alias for clarity - Policy is the same as MultiAgentPolicy
-Policy = MultiAgentPolicy
-
-
 class NimMultiAgentPolicy(MultiAgentPolicy):
     """Base class for Nim-backed multi-agent policies."""
 
@@ -324,40 +320,6 @@ class StatefulPolicyImpl(Generic[StateType]):
     def set_active_agent(self, agent_id: Optional[int]) -> None:
         """Optional hook for implementations that need the calling agent id."""
         _ = agent_id
-
-
-class TrainablePolicy(MultiAgentPolicy):
-    """Base class for trainable policies (DEPRECATED - use MultiAgentPolicy directly).
-
-    This class is kept for backward compatibility. New code should inherit from
-    MultiAgentPolicy directly and override network() to return nn.Module.
-
-    TrainablePolicy provides default implementations of load/save that use
-    the network's state_dict.
-    """
-
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
-
-    @abstractmethod
-    def network(self) -> nn.Module:
-        """Get the underlying neural network for training.
-
-        Must be overridden to return the network module.
-        """
-        ...
-
-    def load_policy_data(self, policy_data_path: str) -> None:
-        """Load network weights from file using PyTorch state dict."""
-        import torch
-
-        self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu"))
-
-    def save_policy_data(self, policy_data_path: str) -> None:
-        """Save network weights to file using torch.save."""
-        import torch
-
-        torch.save(self.network().state_dict(), policy_data_path)
 
 
 class PolicySpec(BaseModel):
