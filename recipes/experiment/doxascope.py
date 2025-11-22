@@ -3,7 +3,8 @@ import uuid
 from metta.doxascope.doxascope_data import DoxascopeLogger
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
-from recipes.experiment import arena
+from recipes.experiment import arena  # Original unshaped arena
+# from recipes.prod import arena_basic_easy_shaped # ABES option
 
 
 def simulations(
@@ -15,8 +16,8 @@ def simulations(
 
     Note: Uses single-environment configuration as required by doxascope logging.
     """
-    # Use the arena recipe to get the base "basic" simulation config
-    all_sims = arena.simulations()
+    all_sims = arena.simulations()  # Original unshaped arena
+    # all_sims = arena_basic_easy_shaped.simulations() # ABES option
     basic_sim = next((s for s in all_sims if s.name == "basic"), None)
 
     if not basic_sim:
