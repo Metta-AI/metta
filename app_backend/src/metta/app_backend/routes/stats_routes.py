@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, Depends, Form, HTTPException, UploadFile, s
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import EpisodeWithTags, MettaRepo, PolicyVersionRow, PublicPolicyVersionRow
+from metta.app_backend.metta_repo import EpisodeWithTags, MettaRepo, PolicyVersionWithName, PublicPolicyVersionRow
 from metta.app_backend.route_logger import timed_route
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
@@ -74,6 +74,7 @@ class MyPolicyVersionsResponse(BaseModel):
 
 class EpisodeQueryRequest(BaseModel):
     primary_policy_version_ids: Optional[list[uuid.UUID]] = None
+    episode_ids: Optional[list[uuid.UUID]] = None
     tag_filters: Optional[dict[str, Optional[list[str]]]] = None
     limit: Optional[int] = 200
     offset: int = 0
@@ -124,13 +125,13 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create policy version: {str(e)}") from e
 
-    @router.get("/policies/versions/{policy_version_id_str}", response_model=PolicyVersionRow)
+    @router.get("/policies/versions/{policy_version_id_str}", response_model=PolicyVersionWithName)
     @timed_route("get_policy_version")
-    async def get_policy_version(policy_version_id_str: str) -> PolicyVersionRow:
+    async def get_policy_version(policy_version_id_str: str) -> PolicyVersionWithName:
         """Get a policy version."""
         try:
             policy_version_id = uuid.UUID(policy_version_id_str)
-            policy_version = await stats_repo.get_policy_version(policy_version_id)
+            policy_version = await stats_repo.get_policy_version_with_name(policy_version_id)
             if policy_version is None:
                 raise HTTPException(status_code=404, detail=f"Policy version {policy_version_id} not found")
             return policy_version
@@ -366,6 +367,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         try:
             episodes = await stats_repo.get_episodes(
                 primary_policy_version_ids=request.primary_policy_version_ids,
+                episode_ids=request.episode_ids,
                 tag_filters=request.tag_filters,
                 limit=request.limit,
                 offset=request.offset,

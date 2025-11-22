@@ -177,7 +177,6 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         job_result_file_path = f"job_result_file_path_{task.id}.json"
         cmd.append(f"result_file_path={os.path.abspath(job_result_file_path)}")
-        cmd.append(f"eval_task_id='{task.id}'")
 
         # Download data file if data_uri is provided, using local_copy context manager
         if task.data_uri:

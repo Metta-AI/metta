@@ -277,7 +277,6 @@ async def test_query_episodes_filters_by_primary_and_tag(
         json={
             "primary_policy_version_ids": [str(policy_version_id)],
             "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},
-            "require_replay": True,
             "limit": 1,
         },
     )
@@ -296,7 +295,6 @@ async def test_query_episodes_filters_by_primary_and_tag(
         json={
             "primary_policy_version_ids": [str(policy_version_id)],
             "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},
-            "require_replay": True,
             "limit": None,
             "offset": 1,
         },
