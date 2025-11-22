@@ -46,9 +46,18 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/cleanup-cancelled-runs
         with:
-          workflow-file: "checks.yml"
-          max-deletions: "10"
+          workflow-file: "*"
+          max-deletions: "120"
+          max-deletions-per-workflow: "10"
+          workflow-caps: |
+            build-policy-evaluator-image.yml=12
+            build-app-backend-image.yml=12
+            build-observatory-image.yml=12
+            build-home-image.yml=12
+            build-image.yml=12
+            build-pages.yml=10
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          max-age-days: "30"
 
       - name: Report cleanup status
         if: always()
