@@ -53,7 +53,6 @@ PROC_MAP_MISSIONS: tuple[str, ...] = tuple(
     for mission in (
         "open_world",
         "hello_world_unclip",
-        "clipping",
         "oxygen_bottleneck",
         "energy_starved",
         "distant_resources",
@@ -93,6 +92,19 @@ def _resolve_mission_template(name: str) -> Mission:
 
     site_name, mission_name = name.split(MAP_MISSION_DELIMITER)
     return find_mission(site_name, mission_name)
+
+
+def _validate_proc_map_missions() -> None:
+    for mission_name in PROC_MAP_MISSIONS:
+        try:
+            _resolve_mission_template(mission_name)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"Unknown procedural mission '{mission_name}' in PROC_MAP_MISSIONS"
+            ) from exc
+
+
+_validate_proc_map_missions()
 
 
 def _resolve_eval_variants(
