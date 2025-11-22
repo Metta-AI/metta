@@ -96,7 +96,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
             network.load_state_dict(artifact.state_dict)
             return
 
-        import torch
         network.load_state_dict(torch.load(path, map_location="cpu"))
 
     def save_policy_data(self, policy_data_path: str) -> None:
@@ -125,8 +124,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
                 state_dict=network.state_dict(),
             )
             return
-
-        import torch
 
         torch.save(network.state_dict(), path)
 
