@@ -52,9 +52,9 @@ class CurriculumEnv(PufferEnv):
         self._current_task = self._curriculum.get_task()
 
         # Check if troubleshooting logging is enabled
-        self._enable_per_label_tracking = False
-        if curriculum._algorithm is not None:
-            self._enable_per_label_tracking = curriculum._algorithm.hypers.show_curriculum_troubleshooting_logging
+        self._enable_per_label_tracking = getattr(
+            curriculum._algorithm.hypers, "show_curriculum_troubleshooting_logging", False
+        )
 
     def _get_task_with_retries(self, context: str = "") -> None:
         """Get a new task from curriculum with retry logic for invalid configurations.

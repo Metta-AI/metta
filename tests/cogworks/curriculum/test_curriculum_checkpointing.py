@@ -518,7 +518,7 @@ class TestCurriculumRoundtripBehavior:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
-            algorithm_config=None,  # Use default discrete random
+            # algorithm_config uses default DiscreteRandomCurriculumConfig
         )
 
         # Create original curriculum

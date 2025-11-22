@@ -102,15 +102,17 @@ class TestCurriculumCapacityAndEviction:
         # Verify new tasks were created to replace evicted ones
         assert final_stats["num_created"] > config.num_active_tasks
 
-    def test_curriculum_without_algorithm(self):
-        """Test that curriculum behavior without algorithm doesn't evict tasks."""
+    def test_curriculum_with_discrete_random_algorithm(self):
+        """Test that curriculum with DiscreteRandomCurriculum doesn't evict tasks."""
         arena = make_arena(num_agents=4)
         bucketed_config = cc.bucketed(arena)
         bucketed_config.add_bucket("game.agent.rewards.inventory.ore_red", [0.0, 1.0])
 
+        from metta.cogworks.curriculum.curriculum import DiscreteRandomCurriculumConfig
+
         config = bucketed_config.to_curriculum()
         config.num_active_tasks = 5
-        config.algorithm_config = None  # No algorithm
+        config.algorithm_config = DiscreteRandomCurriculumConfig(num_active_tasks=5)
 
         curriculum = config.make()
 

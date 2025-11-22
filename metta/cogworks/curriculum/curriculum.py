@@ -46,7 +46,7 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 logger = logging.getLogger(__name__)
 
 
-class DiscreteRandomConfig(CurriculumAlgorithmConfig):
+class DiscreteRandomCurriculumConfig(CurriculumAlgorithmConfig):
     """Hyperparameters for DiscreteRandomCurriculum."""
 
     type: Literal["discrete_random"] = "discrete_random"
@@ -95,8 +95,10 @@ class CurriculumConfig(Config):
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
 
-    algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
-        default=None, description="Curriculum algorithm hyperparameters", discriminator="type"
+    algorithm_config: Union["DiscreteRandomCurriculumConfig", "LearningProgressConfig"] = Field(
+        default_factory=DiscreteRandomCurriculumConfig,
+        description="Curriculum algorithm hyperparameters",
+        discriminator="type",
     )
 
     @classmethod
@@ -116,8 +118,12 @@ class CurriculumConfig(Config):
         """Validate configuration after initialization."""
         super().model_post_init(__context)
 
-        # Sync num_active_tasks from algorithm_config if available
-        if self.algorithm_config:
+        # Sync num_active_tasks between CurriculumConfig and algorithm_config
+        # If algorithm_config has the default value (64), sync FROM CurriculumConfig
+        # Otherwise, sync TO CurriculumConfig from algorithm_config (user explicitly set it)
+        if self.algorithm_config.num_active_tasks == 64:  # Default from CurriculumAlgorithmConfig
+            self.algorithm_config.num_active_tasks = self.num_active_tasks
+        else:
             self.num_active_tasks = self.algorithm_config.num_active_tasks
 
     def make(self) -> "Curriculum":
@@ -147,13 +153,11 @@ class Curriculum(StatsLogger):
         self._num_created = 0
         self._num_evicted = 0
 
-        self._algorithm: Optional[CurriculumAlgorithm] = None
-        if config.algorithm_config is not None:
-            # Always use algorithm_config.num_active_tasks (source of truth for algorithm-based curricula)
-            num_tasks = config.algorithm_config.num_active_tasks
-            self._algorithm = config.algorithm_config.create(num_tasks)
-            # Pass curriculum reference to algorithm for stats updates
-            self._algorithm.set_curriculum_reference(self)
+        # Create algorithm from config (always present via default_factory)
+        num_tasks = config.algorithm_config.num_active_tasks
+        self._algorithm: CurriculumAlgorithm = config.algorithm_config.create(num_tasks)
+        # Pass curriculum reference to algorithm for stats updates
+        self._algorithm.set_curriculum_reference(self)
 
         # Initialize task pool at capacity unless deferred (e.g., for checkpoint loading)
         if not config.defer_init:
@@ -163,14 +167,10 @@ class Curriculum(StatsLogger):
     def _num_active_tasks(self) -> int:
         """Get the effective number of active tasks.
 
-        Handles three scenarios:
-        1. No algorithm_config: use config.num_active_tasks
-        2. Algorithm_config present and in sync with config: use algorithm_config (allows CLI overrides)
-        3. Algorithm_config present but out of sync: use config (manual override after creation)
+        Handles two scenarios:
+        1. Algorithm_config in sync with config: use algorithm_config (allows CLI overrides)
+        2. Algorithm_config out of sync: use config (manual override after creation)
         """
-        if self._config.algorithm_config is None:
-            return self._config.num_active_tasks
-
         # If they match, they're in sync - use algorithm_config (allows CLI overrides to work)
         if self._config.algorithm_config.num_active_tasks == self._config.num_active_tasks:
             return self._config.algorithm_config.num_active_tasks
@@ -196,18 +196,17 @@ class Curriculum(StatsLogger):
         # If we couldn't create a task, try eviction or choose existing
         if task is None:
             # At capacity - check if any task meets eviction criteria first
-            if self._algorithm is not None:
-                evictable_tasks = [
-                    tid
-                    for tid in self._tasks.keys()
-                    if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
-                ]
-                if evictable_tasks:
-                    # Evict a task that meets the criteria and create a new one
-                    evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
-                    if evict_candidate is not None:
-                        self._evict_specific_task(evict_candidate)
-                        task = self._create_task()
+            evictable_tasks = [
+                tid
+                for tid in self._tasks.keys()
+                if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
+            ]
+            if evictable_tasks:
+                # Evict a task that meets the criteria and create a new one
+                evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
+                if evict_candidate is not None:
+                    self._evict_specific_task(evict_candidate)
+                    task = self._create_task()
 
             # If no eviction happened, choose from existing tasks
             if task is None:
@@ -216,8 +215,7 @@ class Curriculum(StatsLogger):
         task._num_scheduled += 1
 
         # Notify algorithm that this task was sampled (for sampling statistics)
-        if self._algorithm is not None:
-            self._algorithm.on_task_sampled(task._task_id)
+        self._algorithm.on_task_sampled(task._task_id)
 
         return task
 
@@ -232,8 +230,7 @@ class Curriculum(StatsLogger):
             return
 
         # Notify algorithm of eviction
-        if self._algorithm is not None:
-            self._algorithm.on_task_evicted(task_id)
+        self._algorithm.on_task_evicted(task_id)
 
         self._task_ids.remove(task_id)
         self._tasks.pop(task_id)
@@ -246,18 +243,17 @@ class Curriculum(StatsLogger):
         across different environments. Tasks are weighted by their learning
         progress scores (high LP = higher probability).
         """
-        if self._algorithm is not None:
-            # Score all tasks
-            task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
-            if task_scores:
-                # Convert scores to probabilities for sampling
-                task_ids = list(task_scores.keys())
-                scores = list(task_scores.values())
-                total_score = sum(scores)
-                if total_score > 0:
-                    probabilities = [score / total_score for score in scores]
-                    selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
-                    return self._tasks[selected_id]
+        # Score all tasks
+        task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
+        if task_scores:
+            # Convert scores to probabilities for sampling
+            task_ids = list(task_scores.keys())
+            scores = list(task_scores.values())
+            total_score = sum(scores)
+            if total_score > 0:
+                probabilities = [score / total_score for score in scores]
+                selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
+                return self._tasks[selected_id]
 
         # Fallback to random selection
         return self._tasks[self._rng.choice(list(self._tasks.keys()))]
@@ -287,15 +283,13 @@ class Curriculum(StatsLogger):
         self._num_created += 1
 
         # Notify algorithm of new task
-        if self._algorithm is not None:
-            self._algorithm.on_task_created(task)
+        self._algorithm.on_task_created(task)
 
         return task
 
     def update_task_performance(self, task_id: int, score: float):
         """Update the curriculum algorithm with task performance."""
-        if self._algorithm is not None:
-            self._algorithm.update_task_performance(task_id, score)
+        self._algorithm.update_task_performance(task_id, score)
 
         # Invalidate stats cache since task performance affects curriculum stats
         self.invalidate_cache()
@@ -309,9 +303,7 @@ class Curriculum(StatsLogger):
         Returns:
             The learning progress score, or 0.0 if not available
         """
-        if self._algorithm is not None:
-            return self._algorithm.get_task_lp_score(task_id)
-        return 0.0
+        return self._algorithm.get_task_lp_score(task_id)
 
     def get_evictions_this_epoch(self) -> Dict[str, int]:
         """Get per-epoch evictions WITHOUT resetting the counter.
@@ -321,9 +313,7 @@ class Curriculum(StatsLogger):
         Returns:
             Dictionary mapping label -> eviction count this epoch
         """
-        if self._algorithm is not None:
-            return self._algorithm.get_evictions_this_epoch()
-        return {}
+        return self._algorithm.get_evictions_this_epoch()
 
     def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
         """Get per-epoch evictions and reset the counter.
@@ -333,9 +323,7 @@ class Curriculum(StatsLogger):
         Returns:
             Dictionary mapping label -> eviction count this epoch
         """
-        if self._algorithm is not None:
-            return self._algorithm.get_and_reset_evictions_this_epoch()
-        return {}
+        return self._algorithm.get_and_reset_evictions_this_epoch()
 
     def reset_epoch_counters(self) -> None:
         """Reset per-epoch counters in the curriculum algorithm.
@@ -343,8 +331,7 @@ class Curriculum(StatsLogger):
         This is called by the training infrastructure at epoch boundaries
         to ensure per-epoch metrics start fresh each epoch.
         """
-        if self._algorithm is not None:
-            self._algorithm.reset_epoch_counters()
+        self._algorithm.reset_epoch_counters()
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
@@ -396,10 +383,9 @@ class Curriculum(StatsLogger):
         for label, count in per_label_completions.items():
             base_stats[f"per_label_completions/{label}"] = count
 
-        # Include algorithm stats if available
-        if self._algorithm is not None:
-            algorithm_stats = self._algorithm.stats("algorithm/")
-            base_stats.update(algorithm_stats)
+        # Include algorithm stats
+        algorithm_stats = self._algorithm.stats("algorithm/")
+        base_stats.update(algorithm_stats)
 
         return base_stats
 
@@ -430,14 +416,11 @@ class Curriculum(StatsLogger):
                 "slice_values": task._slice_values,
             }
 
-        # Save algorithm state if present
-        if self._algorithm is not None:
-            state["algorithm_state"] = self._algorithm.get_state()
+        # Save algorithm state
+        state["algorithm_state"] = self._algorithm.get_state()
 
         num_tasks = len(state["tasks"])
-        has_algo = "algorithm_state" in state
-        algo_status = "present" if has_algo else "missing"
-        logger.info(f"Curriculum: Saving state with {num_tasks} tasks, algorithm_state={algo_status}")
+        logger.info(f"Curriculum: Saving state with {num_tasks} tasks, algorithm_state=present")
 
         return state
 
@@ -469,7 +452,7 @@ class Curriculum(StatsLogger):
 
         # Restore algorithm state BEFORE recreating tasks
         # Algorithm's load_state will handle clearing and restoring its internal state atomically
-        if self._algorithm is not None and "algorithm_state" in state:
+        if "algorithm_state" in state:
             self._algorithm.load_state(state["algorithm_state"])
 
         # Restore tasks

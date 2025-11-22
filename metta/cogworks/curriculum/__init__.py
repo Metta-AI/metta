@@ -1,12 +1,3 @@
-"""Curriculum learning system for adaptive task selection and intelligent training.
-
-This module provides a comprehensive curriculum learning framework that automatically
-selects training tasks based on agent learning progress, enabling more efficient and
-effective training on complex task distributions.
-
-For detailed documentation, see metta/cogworks/curriculum/README.md
-"""
-
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask

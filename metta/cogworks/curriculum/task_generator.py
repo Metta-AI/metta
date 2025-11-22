@@ -82,10 +82,16 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
         return cls._generator_cls
 
     def to_curriculum(self, num_active_tasks: int = 1000, algorithm_config=None):
-        """Create a CurriculumConfig from this TaskGeneratorConfig."""
+        """Create a CurriculumConfig from this TaskGeneratorConfig.
+
+        Note: If algorithm_config is not provided, defaults to LearningProgressConfig
+        for backwards compatibility with existing recipes.
+        """
         from metta.cogworks.curriculum.curriculum import CurriculumConfig
         from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 
+        # Default to LearningProgressConfig for to_curriculum() helper method
+        # (CurriculumConfig itself defaults to DiscreteRandomCurriculumConfig)
         if algorithm_config is None:
             algorithm_config = LearningProgressConfig()
 
