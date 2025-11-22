@@ -80,6 +80,8 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         Supports .mpt (metta format) and .pt (simple state dict) files for trainable policies.
         Non-trainable policies (network() returns None) do nothing by default.
         """
+        import torch
+
         network = self.network()
         if network is None:
             return
@@ -102,7 +104,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
             artifact = load_policy_artifact(path)
             network.load_state_dict(artifact.state_dict)
         else:
-            import torch
             network.load_state_dict(torch.load(path, map_location=device))
 
         # Hook for subclasses to perform post-load actions
