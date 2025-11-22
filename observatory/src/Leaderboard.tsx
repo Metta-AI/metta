@@ -2,7 +2,14 @@ import { FC, Fragment, useContext, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
-import { METTASCOPE_REPLAY_URL_PREFIX } from './constants'
+import {
+  LEADERBOARD_ATTEMPTS_TAG,
+  LEADERBOARD_DONE_TAG,
+  LEADERBOARD_EVAL_CANCELED_VALUE,
+  LEADERBOARD_EVAL_DONE_VALUE,
+  LEADERBOARD_SIM_NAME_EPISODE_KEY,
+  METTASCOPE_REPLAY_URL_PREFIX,
+} from './constants'
 import type { EpisodeReplay, LeaderboardPolicyEntry } from './repo'
 
 type SectionState = {
@@ -360,12 +367,6 @@ const STYLES = `
   }
 }
 `
-const LEADERBOARD_SIM_VERSION = 'v0.1'
-const LEADERBOARD_ATTEMPTS_TAG = `leaderboard-attempts-${LEADERBOARD_SIM_VERSION}`
-const LEADERBOARD_DONE_TAG = `leaderboard-evals-done-${LEADERBOARD_SIM_VERSION}`
-const LEADERBOARD_DONE_VALUE = 'true'
-const LEADERBOARD_CANCELED_VALUE = 'canceled'
-const LEADERBOARD_SIM_NAME_EPISODE_KEY = `leaderboard-name-${LEADERBOARD_SIM_VERSION}`
 
 const formatDate = (value: string | null): string => {
   if (!value) {
@@ -418,10 +419,10 @@ const getEvalStatus = (tags: Record<string, string>): EvalStatusInfo => {
   const parsedAttempts = attemptValue !== undefined ? Number(attemptValue) : null
   const attempts = typeof parsedAttempts === 'number' && Number.isFinite(parsedAttempts) ? parsedAttempts : null
   const doneValue = tags[LEADERBOARD_DONE_TAG]
-  if (doneValue === LEADERBOARD_CANCELED_VALUE) {
+  if (doneValue === LEADERBOARD_EVAL_CANCELED_VALUE) {
     return { attempts, status: 'canceled', label: 'Canceled' }
   }
-  if (doneValue === LEADERBOARD_DONE_VALUE) {
+  if (doneValue === LEADERBOARD_EVAL_DONE_VALUE) {
     return { attempts, status: 'complete', label: 'Complete' }
   }
   return { attempts, status: 'pending', label: 'Pending' }
@@ -600,7 +601,10 @@ export const Leaderboard: FC = () => {
         if (expectedEpisodeId && expectedEpisodeId !== episode.id) {
           return
         }
-        episodesBySimulation[simKey] = [...(episodesBySimulation[simKey] ?? []), { replay_url: episode.replay_url, episode_id: episode.id }]
+        episodesBySimulation[simKey] = [
+          ...(episodesBySimulation[simKey] ?? []),
+          { replay_url: episode.replay_url, episode_id: episode.id },
+        ]
       })
 
       setReplayState((prev) => ({

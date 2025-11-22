@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { AppContext } from './AppContext'
 import { TaskBadge } from './components/TaskBadge'
 import type { EpisodeWithTags, EvalTask, LeaderboardPolicyEntry } from './repo'
+import { LEADERBOARD_SIM_NAME_EPISODE_KEY, METTASCOPE_REPLAY_URL_PREFIX } from './constants'
 
 const TASK_PAGE_SIZE = 100
 
@@ -37,11 +38,6 @@ const formatScore = (value: number | null | undefined): string => {
   return value.toFixed(2)
 }
 
-const formatSimulationLabel = (identifier: string): string => {
-  const parts = identifier.split(':')
-  return parts[parts.length - 1] || identifier
-}
-
 const formatRelativeTime = (value: string | null): string => {
   if (!value) {
     return '—'
@@ -73,12 +69,12 @@ export const PolicyPage: FC = () => {
   const { policyVersionId } = useParams<{ policyVersionId: string }>()
   const { repo } = useContext(AppContext)
 
-  const [policyState, setPolicyState] = useState<LoadState<LeaderboardPolicyEntry | null>>(
-    () => createInitialState<LeaderboardPolicyEntry | null>(null)
+  const [policyState, setPolicyState] = useState<LoadState<LeaderboardPolicyEntry | null>>(() =>
+    createInitialState<LeaderboardPolicyEntry | null>(null)
   )
   const [taskState, setTaskState] = useState<LoadState<EvalTask[]>>(() => createInitialState<EvalTask[]>([]))
-  const [episodesState, setEpisodesState] = useState<LoadState<EpisodeWithTags[]>>(
-    () => createInitialState<EpisodeWithTags[]>([])
+  const [episodesState, setEpisodesState] = useState<LoadState<EpisodeWithTags[]>>(() =>
+    createInitialState<EpisodeWithTags[]>([])
   )
 
   useEffect(() => {
@@ -183,7 +179,24 @@ export const PolicyPage: FC = () => {
   const policyVersion = policyEntry?.policy_version
   const policyCreatedAt = policyVersion?.policy_created_at || policyVersion?.created_at || null
   const policyDisplay = policyVersion ? `${policyVersion.name}.${policyVersion.version}` : policyVersionId
-  const scoreEntries = policyEntry ? Object.entries(policyEntry.scores).sort(([a], [b]) => a.localeCompare(b)) : []
+  const getPolicyAvgReward = (episode: EpisodeWithTags): number | undefined => {
+    if (policyVersionId && episode.avg_rewards[policyVersionId] !== undefined) {
+      return episode.avg_rewards[policyVersionId]
+    }
+    if (episode.primary_pv_id && episode.avg_rewards[episode.primary_pv_id] !== undefined) {
+      return episode.avg_rewards[episode.primary_pv_id]
+    }
+    return undefined
+  }
+
+  const getLeaderboardTagDisplay = (episode: EpisodeWithTags): { value: string; tooltip: string } => {
+    const tags = episode.tags || {}
+    const leaderboardValue = tags[LEADERBOARD_SIM_NAME_EPISODE_KEY] ?? '—'
+    const otherTags = Object.entries(tags).filter(([key]) => key !== LEADERBOARD_SIM_NAME_EPISODE_KEY)
+    const tooltip =
+      otherTags.length === 0 ? 'No other tags' : otherTags.map(([key, value]) => `${key}: ${value}`).join('\n')
+    return { value: leaderboardValue, tooltip }
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -191,9 +204,14 @@ export const PolicyPage: FC = () => {
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase text-gray-500 tracking-wide">Policy Version</p>
           <h1 className="text-2xl font-semibold text-gray-900">{policyDisplay}</h1>
-          <div className="text-sm text-gray-600 space-x-2">
-            {policyVersion && <span>Owner: {policyVersion.user_id}</span>}
+          <div className="flex flex-wrap gap-3 text-sm text-gray-600">
             {policyCreatedAt && <span className="text-gray-500">Created: {formatDate(policyCreatedAt)}</span>}
+            {policyVersion && (
+              <span className="flex items-center gap-1 text-gray-500">
+                Policy ID:
+                <span className="font-mono text-xs text-gray-700">{policyVersion.id}</span>
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -203,49 +221,14 @@ export const PolicyPage: FC = () => {
           >
             ← Back to leaderboard
           </Link>
-          {policyVersion && (
-            <div className="text-xs text-gray-500 px-3 py-2 border rounded bg-gray-50">
-              Policy ID: <span className="font-mono">{policyVersion.id}</span>
-            </div>
-          )}
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Leaderboard Episodes</h2>
-          </div>
+      {policyState.error ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+          {policyState.error}
         </div>
-        <div className="p-5">
-          {policyState.loading ? (
-            <div className="text-gray-500 text-sm">Loading policy scores...</div>
-          ) : policyState.error ? (
-            <div className="text-red-600 text-sm">{policyState.error}</div>
-          ) : scoreEntries.length === 0 ? (
-            <div className="text-gray-500 text-sm">No episode scores found for this policy.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-                    <th className="px-3 py-2 border-b border-gray-200">Episode</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Average Reward</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scoreEntries.map(([name, value]) => (
-                    <tr key={name} className="border-b border-gray-100">
-                      <td className="px-3 py-2">{formatSimulationLabel(name)}</td>
-                      <td className="px-3 py-2 font-mono">{formatScore(value)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+      ) : null}
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
         <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -266,10 +249,10 @@ export const PolicyPage: FC = () => {
                 <thead>
                   <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
                     <th className="px-3 py-2 border-b border-gray-200">ID</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Tags</th>
+                    <th className="px-3 py-2 border-b border-gray-200">Leaderboard Tag</th>
                     <th className="px-3 py-2 border-b border-gray-200">Replay</th>
                     <th className="px-3 py-2 border-b border-gray-200">Created</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Avg Reward</th>
+                    <th className="px-3 py-2 border-b border-gray-200">Avg Reward (policy)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,27 +267,22 @@ export const PolicyPage: FC = () => {
                         </Link>
                       </td>
                       <td className="px-3 py-2">
-                        {Object.keys(episode.tags).length === 0 ? (
-                          <span className="text-gray-500">—</span>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(episode.tags)
-                              .sort(([a], [b]) => a.localeCompare(b))
-                              .map(([key, value]) => (
-                                <span
-                                  key={`${episode.id}-${key}-${value}`}
-                                  className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-200"
-                                >
-                                  {key}: {value}
-                                </span>
-                              ))}
-                          </div>
-                        )}
+                        {(() => {
+                          const { value, tooltip } = getLeaderboardTagDisplay(episode)
+                          return (
+                            <span
+                              className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-200 font-mono"
+                              title={tooltip}
+                            >
+                              {value}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-3 py-2">
                         {episode.replay_url ? (
                           <a
-                            href={episode.replay_url}
+                            href={METTASCOPE_REPLAY_URL_PREFIX + episode.replay_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 no-underline hover:underline"
@@ -318,7 +296,7 @@ export const PolicyPage: FC = () => {
                       <td className="px-3 py-2" title={formatDate(episode.created_at)}>
                         {formatRelativeTime(episode.created_at)}
                       </td>
-                      <td className="px-3 py-2 font-mono">{formatScore(episode.avg_reward)}</td>
+                      <td className="px-3 py-2 font-mono">{formatScore(getPolicyAvgReward(episode))}</td>
                     </tr>
                   ))}
                 </tbody>

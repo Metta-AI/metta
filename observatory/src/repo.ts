@@ -197,7 +197,7 @@ export type EpisodeWithTags = {
   eval_task_id: string | null
   created_at: string
   tags: Record<string, string>
-  avg_reward?: number | null
+  avg_rewards: Record<string, number>
 }
 
 export type LeaderboardPolicyEntry = {
@@ -210,6 +210,14 @@ export type LeaderboardPolicyEntry = {
 
 export type LeaderboardPoliciesResponse = {
   entries: LeaderboardPolicyEntry[]
+}
+
+export type PolicyVersionWithName = {
+  id: string
+  policy_id: string
+  version: number
+  name: string
+  created_at: string
 }
 
 export type EpisodeQueryRequest = {
@@ -441,6 +449,10 @@ export class Repo {
 
   async getLeaderboardPolicy(policyVersionId: string): Promise<LeaderboardPoliciesResponse> {
     return this.apiCall<LeaderboardPoliciesResponse>(`/leaderboard/v2/policy/${policyVersionId}`)
+  }
+
+  async getPolicyVersion(policyVersionId: string): Promise<PolicyVersionWithName> {
+    return this.apiCall<PolicyVersionWithName>(`/stats/policies/versions/${policyVersionId}`)
   }
 
   async queryEpisodes(request: EpisodeQueryRequest): Promise<EpisodeQueryResponse> {
