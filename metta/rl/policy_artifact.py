@@ -405,14 +405,38 @@ def _load_pt_artifact(path: Path) -> PolicyArtifact:
     Used for cogames-trained policies and backward compatibility.
     """
     try:
-        state_dict = torch.load(path, map_location="cpu", weights_only=False)
+        payload = torch.load(path, map_location="cpu", weights_only=False)
     except Exception as e:
         raise ValueError(f"Failed to load .pt file: {path}") from e
 
-    # Expect a simple state dict (mapping of string keys to tensors)
-    if not isinstance(state_dict, Mapping):
-        raise TypeError(f".pt file must contain a state_dict mapping, got {type(state_dict)}")
+    if not isinstance(payload, Mapping):
+        raise TypeError(f".pt file must contain a state_dict mapping, got {type(payload)}")
 
+    # Backwards compatibility: handle wrapped dicts from old checkpoints
+    # Old format: {"state_dict": {...}, "policy_architecture": ...}
+    # New format: {...} (direct state_dict)
+    state_dict = payload
+    policy_architecture = None
+
+    if "state_dict" in payload or "weights" in payload:
+        # Old wrapped format
+        state_dict = payload.get("state_dict") or payload.get("weights")
+        if not isinstance(state_dict, Mapping):
+            raise TypeError(f"Wrapped state_dict must be a mapping, got {type(state_dict)}")
+
+        # Extract architecture if present (legacy keys)
+        arch_value = (
+            payload.get("policy_architecture")
+            or payload.get("policy_architecture_spec")
+            or payload.get("policy_architecture_str")
+        )
+        if arch_value is not None:
+            if isinstance(arch_value, str):
+                policy_architecture = policy_architecture_from_string(arch_value)
+            elif hasattr(arch_value, "__class__") and arch_value.__class__.__name__ == "PolicyArchitecture":
+                policy_architecture = arch_value
+
+    # Validate it's a state_dict (string keys → tensors)
     if not all(isinstance(k, str) and isinstance(v, torch.Tensor) for k, v in state_dict.items()):
         raise TypeError(".pt file must contain string→Tensor mapping")
 
@@ -420,7 +444,7 @@ def _load_pt_artifact(path: Path) -> PolicyArtifact:
     normalized_state = _normalize_state_dict_keys(state_dict)
 
     return PolicyArtifact(
-        policy_architecture=None,  # .pt files don't include architecture
+        policy_architecture=policy_architecture,
         state_dict=normalized_state,
     )
 
