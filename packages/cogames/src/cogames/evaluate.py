@@ -57,9 +57,7 @@ def evaluate(
     if not policy_specs:
         raise ValueError("At least one policy specification must be provided for evaluation.")
 
-
     base_doxascope_logger = DoxascopeLogger(enabled=doxascope_enabled, simulation_id="", output_dir=doxascope_output_dir)
-    ####
 
     mission_names = [mission_name for mission_name, _ in missions]
     if len(missions) == 1:
