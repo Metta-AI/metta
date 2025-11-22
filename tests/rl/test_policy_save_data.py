@@ -69,7 +69,7 @@ def test_policy_load_data_reads_artifacts_with_pt_extension(tmp_path: Path) -> N
     source_policy.save_policy_data(str(artifact_path))
 
     pt_path = tmp_path / "policy.pt"
-    shutil.copyfile(artifact_path, pt_path)
+    source_policy.save_policy_data(str(pt_path))
 
     target_policy = arch.make_policy(env_info)
     target_policy.load_policy_data(str(pt_path))

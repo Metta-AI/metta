@@ -175,5 +175,5 @@ class TokenPolicy(TrainablePolicy):
         self._net.load_state_dict(state_dict)
         self._net = self._net.to(self._device)
 
-    def save_policy_data(self, checkpoint_path: str, *, policy_architecture: Any | None = None) -> None:
+    def save_policy_data(self, checkpoint_path: str) -> None:
         torch.save(self._net.state_dict(), checkpoint_path)

@@ -373,7 +373,7 @@ class TrainablePolicy(MultiAgentPolicy):
 
         self.network().load_state_dict(torch.load(path, map_location="cpu"))
 
-    def save_policy_data(self, policy_data_path: str, *, policy_architecture: Any | None = None) -> None:
+    def save_policy_data(self, policy_data_path: str) -> None:
         """Save network weights to file.
 
         Default implementation uses torch.save.
@@ -381,7 +381,7 @@ class TrainablePolicy(MultiAgentPolicy):
         path = Path(policy_data_path).expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        architecture = policy_architecture or getattr(self, "_policy_architecture", None)
+        architecture = getattr(self, "_policy_architecture", None)
         suffix = path.suffix.lower()
         if architecture is not None and suffix == ".mpt":
             from metta.rl.policy_artifact import save_policy_artifact_safetensors

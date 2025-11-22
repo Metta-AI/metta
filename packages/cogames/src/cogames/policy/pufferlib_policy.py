@@ -88,7 +88,7 @@ class PufferlibCogsPolicy(TrainablePolicy, AgentPolicy):
 
         self._net = self._net.to(device)
 
-    def save_policy_data(self, policy_data_path: str, *, policy_architecture: Any | None = None) -> None:
+    def save_policy_data(self, policy_data_path: str) -> None:
         """Save weights as simple .pt format (cogames standard)."""
         torch.save(self._net.state_dict(), policy_data_path)
 

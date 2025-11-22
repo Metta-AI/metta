@@ -122,7 +122,6 @@ class Policy(TrainablePolicy, nn.Module):
         """Persist the policy using the safetensors artifact format."""
 
         dest = str(destination)
-        effective_arch = policy_architecture or self._policy_architecture
 
         if dest.startswith("s3://"):
             temp_dir = guess_data_dir() / ".tmp"
@@ -137,7 +136,7 @@ class Policy(TrainablePolicy, nn.Module):
                 ) as tmp_file:
                     local_copy = Path(tmp_file.name)
 
-                self.save_policy_data(str(local_copy), policy_architecture=effective_arch)
+                self.save_policy_data(str(local_copy))
                 write_file(dest, str(local_copy))
             finally:
                 if local_copy is not None:
@@ -146,7 +145,7 @@ class Policy(TrainablePolicy, nn.Module):
             return dest
 
         path = Path(destination).expanduser()
-        self.save_policy_data(str(path), policy_architecture=effective_arch)
+        self.save_policy_data(str(path))
         return f"file://{path.resolve()}"
 
     def make_stateful_policy_impl(self) -> StatefulPolicyImpl[Any]:
