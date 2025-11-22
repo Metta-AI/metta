@@ -76,9 +76,7 @@ def version_ge(current: str, required: str) -> bool:
         current_parts.extend(["0"] * (max_len - len(current_parts)))
         required_parts.extend(["0"] * (max_len - len(required_parts)))
 
-        if len(current_parts) != len(required_parts):
-            raise ValueError("Mismatched lengths: current_parts and required_parts must have the same length") from None
-        for c, r in zip(current_parts, required_parts, strict=True):
+        for c, r in zip(current_parts, required_parts, strict=False):
             c_int = int(c) if c.isdigit() else 0
             r_int = int(r) if r.isdigit() else 0
             if c_int > r_int:
