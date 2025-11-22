@@ -22,7 +22,6 @@ class Rollout:
         max_action_time_ms: int | None = 10000,
         render_mode: Optional[RenderMode] = None,
         seed: int = 0,
-        pass_sim_to_policies: bool = False,
         event_handlers: Optional[list[SimulatorEventHandler]] = None,
         stats_writer: Optional[StatsWriter] = None,
     ):
@@ -32,7 +31,6 @@ class Rollout:
         self._max_action_time_ms: int = max_action_time_ms or 10000
         self._renderer: Optional[Renderer] = None
         self._timeout_counts: list[int] = [0] * len(policies)
-        self._pass_sim_to_policies = pass_sim_to_policies  # Whether to pass the simulation to the policies
         # Attach renderer if specified
         if render_mode is not None:
             self._renderer = create_renderer(render_mode)

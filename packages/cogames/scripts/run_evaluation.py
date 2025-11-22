@@ -205,7 +205,6 @@ def _run_case(
                 agent_policies,
                 render_mode="none",
                 seed=run_seed,
-                pass_sim_to_policies=True,
             )
             rollout.run_until_done()
 

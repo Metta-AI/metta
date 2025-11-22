@@ -165,7 +165,7 @@ class EvaluatePolicyVersionTool(Tool):
             agent_step = policy_version.attributes.get("agent_step")
 
             if epoch and agent_step:
-                wandb_config = _get_wandb_config(policy_spec.name, self.group)
+                wandb_config = _get_wandb_config(policy_version.name, self.group)
                 with WandbContext(wandb_config, self) as wandb_run:
                     if wandb_run:
                         wandb_writer = WandbWriter(

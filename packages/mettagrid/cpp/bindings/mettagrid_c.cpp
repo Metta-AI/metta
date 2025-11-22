@@ -10,7 +10,6 @@
 #include <random>
 #include <unordered_set>
 #include <vector>
-#include <cassert>
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
@@ -69,8 +68,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
-  _obs_encoder =
-      std::make_unique<ObservationEncoder>(game_config.protocol_details_obs, resource_names, game_config.feature_ids);
+  _obs_encoder = std::make_unique<ObservationEncoder>(
+      game_config.protocol_details_obs, resource_names, game_config.feature_ids);
 
   // Initialize ObservationFeature namespace with feature IDs
   ObservationFeature::Initialize(game_config.feature_ids);
@@ -87,11 +86,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   init_action_handlers(game_config);
 
   _init_grid(game_config, map);
-
-  // Ensure Python is initialized properly
-  if (!Py_IsInitialized()) {
-    throw std::runtime_error("Python interpreter not initialized");
-  }
 
   // Create buffers
   _make_buffers(num_agents);
@@ -206,11 +200,14 @@ void MettaGrid::_make_buffers(unsigned int num_agents) {
   std::vector<ssize_t> shape;
   shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
   auto observations = py::array_t<ObservationType, py::array::c_style>(shape);
-  auto terminals = py::array_t<TerminalType, py::array::c_style>(static_cast<ssize_t>(num_agents));
-  auto truncations = py::array_t<TruncationType, py::array::c_style>(static_cast<ssize_t>(num_agents));
-  auto rewards = py::array_t<RewardType, py::array::c_style>(static_cast<ssize_t>(num_agents));
-  auto actions = py::array_t<ActionType, py::array::c_style>(static_cast<ssize_t>(num_agents));
-  this->_episode_rewards = py::array_t<float, py::array::c_style>(static_cast<ssize_t>(num_agents));
+  auto terminals =
+      py::array_t<TerminalType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(TerminalType)});
+  auto truncations =
+      py::array_t<TruncationType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(TruncationType)});
+  auto rewards = py::array_t<RewardType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
+  auto actions = py::array_t<ActionType, py::array::c_style>(std::vector<ssize_t>{static_cast<ssize_t>(num_agents)});
+  this->_episode_rewards =
+      py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
 
   set_buffers(observations, terminals, truncations, rewards, actions);
 }
@@ -431,8 +428,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     // Prepare observation buffer for this object
     ObservationToken* obs_ptr =
         reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
-    ObservationTokens obs_tokens(obs_ptr,
-                                 static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
+    ObservationTokens obs_tokens(
+        obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
 
     // Calculate position within the observation window (agent is at the center)
     int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
@@ -705,8 +702,8 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     // Note: it might be different for matrix computations.
     obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r);
 
-    obj_dict["r"] = obj->location.r;  // To remove
-    obj_dict["c"] = obj->location.c;  // To remove
+    obj_dict["r"] = obj->location.r;          // To remove
+    obj_dict["c"] = obj->location.c;          // To remove
 
     // Inject observation features
     auto features = obj->obs_features();
