@@ -2,10 +2,16 @@
 import argparse
 import logging
 import os
+from contextlib import nullcontext
+import shlex
 import subprocess
 import sys
 import time
 import warnings
+from typing import Any, ContextManager, Dict, List, Optional, Tuple
+from pathlib import Path
+import glob
+import re
 
 # Suppress Pydantic warnings from SkyPilot dependencies before importing sky
 # SkyPilot v0.10.3.post2 with Pydantic 2.12.3 generates UnsupportedFieldAttributeWarning
@@ -17,6 +23,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._intern
 
 import sky  # noqa: E402
 import sky.exceptions  # noqa: E402
+from sky import skypilot_config  # noqa: E402
 import yaml  # noqa: E402
 
 import gitta as git  # noqa: E402
@@ -50,6 +57,40 @@ credentials_logger.addHandler(CredentialWarningHandler())
 credentials_logger.propagate = False
 
 
+def _build_incluster_persist_script(cluster_name: str) -> str:
+    """Return a one-liner to persist cluster name and node count on head (rank 0).
+
+    If a Docker container is running, prefer persisting inside the container; otherwise,
+    fall back to the host path. This preserves behavior across both docker: runtime and
+    AMI+docker-manual setups.
+    """
+    quoted_name = shlex.quote(cluster_name)
+    return (
+        "set -e; "
+        'if [ "${SKYPILOT_NODE_RANK:-0}" != "0" ]; then exit 0; fi; '
+        # Try to find our named container first, then any running container
+        'CID=""; '
+        'if command -v docker >/dev/null 2>&1; then '
+        '  if docker ps -a --format "{{.Names}}" | grep -qx "metta"; then CID=metta; '
+        '  else CID=$(docker ps -q | head -n1); fi; '
+        'fi; '
+        'if [ -n "$CID" ]; then '
+        "  docker exec -i \"$CID\" bash -lc "
+        + shlex.quote(
+            "set -e; "
+            "mkdir -p /workspace/metta/.cluster; "
+            f"printf %s\\n {quoted_name} > /workspace/metta/.cluster/name; "
+            "printf %s\\n \"${SKYPILOT_NUM_NODES:-1}\" > /workspace/metta/.cluster/num_nodes"
+        )
+        + "; "
+        'else '
+        "  mkdir -p /workspace/metta/.cluster; "
+        f"  printf %s\\n {quoted_name} > /workspace/metta/.cluster/name; "
+        '  printf %s\\n "${SKYPILOT_NUM_NODES:-1}" > /workspace/metta/.cluster/num_nodes; '
+        'fi'
+    )
+
+
 def get_existing_clusters():
     """Get existing clusters."""
     with spinner("Fetching existing clusters", style=cyan):
@@ -58,13 +99,13 @@ def get_existing_clusters():
     return cluster_records
 
 
-def get_user_sandboxes(clusters):
+def get_user_sandboxes(clusters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Filter clusters to only show user's sandboxes."""
     username = os.environ.get("USER", "unknown")
     return [c for c in clusters if c["name"].startswith(f"{username}-sandbox-")]
 
 
-def get_next_sandbox_name(cluster_records):
+def get_next_sandbox_name(cluster_records: List[Dict[str, Any]]) -> str:
     """Get the next available sandbox name for the current user."""
     names = [record["name"] for record in cluster_records]
     username = os.environ["USER"]
@@ -75,7 +116,7 @@ def get_next_sandbox_name(cluster_records):
     raise ValueError("No available sandbox name found")
 
 
-def load_sandbox_config(config_path: str):
+def load_sandbox_config(config_path: str) -> Dict[str, Any]:
     """Load the sandbox YAML configuration file."""
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
@@ -89,7 +130,21 @@ def get_current_git_ref():
         return "main"  # Fallback to main
 
 
-def format_cluster_info(cluster):
+def get_capacity_reservation_context(capacity_reservation_id: Optional[str]) -> ContextManager[None]:
+    """Return a context that applies a capacity reservation override if provided."""
+    if not capacity_reservation_id:
+        return nullcontext()
+
+    override_config = {
+        "aws": {
+            "specific_reservations": [capacity_reservation_id],
+            "prioritize_reservations": True,
+        }
+    }
+    return skypilot_config.override_skypilot_config(override_config)
+
+
+def format_cluster_info(cluster: Dict[str, Any]):
     """Format cluster information for display."""
     status = cluster["status"].name
 
@@ -111,7 +166,7 @@ def format_cluster_info(cluster):
     return color_func, status_msg, gpu_info
 
 
-def print_cluster_status(clusters, title=None):
+def print_cluster_status(clusters: List[Dict[str, Any]], title: Optional[str] = None) -> None:
     """Print cluster status in a consistent format."""
     if title:
         print(title)
@@ -129,7 +184,7 @@ def print_cluster_status(clusters, title=None):
             print(f"    📊 Check logs: {green(f'uv run sky logs {cluster_name}')}")
 
 
-def print_management_commands(clusters):
+def print_management_commands(clusters: List[Dict[str, Any]]) -> None:
     """Print helpful management commands."""
     if not clusters:
         return
@@ -146,7 +201,12 @@ def print_management_commands(clusters):
     print(f"  Delete:         {red(f'uv run sky down {first_cluster_name}')}")
 
 
-def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us-east-1", cloud: str = "aws"):
+def get_gpu_instance_info(
+    num_gpus: int,
+    gpu_type: str = "L4",
+    region: str = "us-east-1",
+    cloud: str = "aws",
+) -> Tuple[Optional[str], str, Optional[float]]:
     """
     Determine the instance type and cost for GPU instances.
 
@@ -164,7 +224,9 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
         return None, region, None
 
     # Map GPU configurations to typical AWS instance types
-    gpu_instance_map = {
+    gpu_type_norm = gpu_type.upper()
+
+    gpu_instance_map: Dict[Tuple[str, int], str] = {
         ("L4", 1): "g6.xlarge",
         ("L4", 2): "g6.2xlarge",
         ("L4", 4): "g6.4xlarge",
@@ -172,9 +234,9 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     }
 
     # Get the instance type based on GPU configuration
-    instance_type = gpu_instance_map.get((gpu_type, num_gpus))
+    instance_type = gpu_instance_map.get((gpu_type_norm, num_gpus))
     if not instance_type:
-        print(f"Warning: No instance mapping for {num_gpus} {gpu_type} GPU(s), using g6.xlarge as estimate")
+        print(f"Warning: No instance mapping for {num_gpus} {gpu_type_norm} GPU(s), using g6.xlarge as estimate")
         instance_type = "g6.xlarge"
         estimated_multiplier = num_gpus
     else:
@@ -196,7 +258,7 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     return instance_type, region, hourly_cost
 
 
-def print_cost_info(hourly_cost, num_gpus):
+def print_cost_info(hourly_cost: Optional[float], num_gpus: int) -> None:
     """Print cost information in a consistent format."""
     if hourly_cost is not None:
         print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)")
@@ -212,7 +274,7 @@ def print_cost_info(hourly_cost, num_gpus):
         print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
 
 
-def check_cluster_status(cluster_name: str) -> str:
+def check_cluster_status(cluster_name: str) -> Optional[str]:
     """Check the status of a specific cluster.
 
     Returns:
@@ -271,6 +333,83 @@ def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> boo
         return False
 
 
+def _find_sky_identity_for_cluster(cluster_name: str) -> Optional[str]:
+    """Return the IdentityFile path used by SkyPilot for the given cluster.
+
+    Searches files included via '~/.sky/generated/ssh/*' to find a block like:
+
+      Host <cluster_name>
+        IdentityFile /path/to/key
+
+    Returns the IdentityFile path if found, else None.
+    """
+    try:
+        ssh_include_dir = Path.home() / ".sky" / "generated" / "ssh"
+        if not ssh_include_dir.exists():
+            return None
+
+        for path_str in glob.glob(str(ssh_include_dir / "*")):
+            p = Path(path_str)
+            try:
+                content = p.read_text()
+            except Exception:
+                continue
+
+            # Find the Host <cluster_name> block
+            # Simple regex to capture lines between 'Host <name>' and next 'Host ' or EOF
+            host_re = re.compile(rf"^Host\s+{re.escape(cluster_name)}\n(?P<body>(?:^(?!Host\s).*$\n?)*)", re.MULTILINE)
+            m = host_re.search(content)
+            if not m:
+                continue
+            body = m.group("body")
+            for line in body.splitlines():
+                if line.strip().lower().startswith("identityfile"):
+                    # Return the remainder of the line after the keyword
+                    parts = line.strip().split(None, 1)
+                    if len(parts) == 2:
+                        return os.path.expanduser(parts[1])
+        return None
+    except Exception:
+        return None
+
+
+def _write_container_ssh_config(cluster_name: str, port: int = 2222, user: str = "root") -> Optional[str]:
+    """Create/update a local SSH config entry to access the container via ProxyJump.
+
+    Writes to '~/.sky/generated/ssh/<cluster_name>-container.conf' so it is auto-included
+    by the main SSH config (which includes ~/.sky/generated/ssh/*).
+
+    Returns the created host alias (e.g., '<cluster_name>-ctr') on success.
+    """
+    try:
+        alias = f"{cluster_name}-ctr"
+        ssh_dir = Path.home() / ".sky" / "generated" / "ssh"
+        ssh_dir.mkdir(parents=True, exist_ok=True)
+
+        identity = _find_sky_identity_for_cluster(cluster_name)
+
+        lines: List[str] = [
+            f"Host {alias}",
+            "  HostName 127.0.0.1",
+            f"  Port {port}",
+            f"  User {user}",
+            f"  ProxyJump {cluster_name}",
+            "  StrictHostKeyChecking no",
+            "  UserKnownHostsFile /dev/null",
+        ]
+        if identity:
+            lines.append(f"  IdentityFile {identity}")
+            lines.append("  IdentitiesOnly yes")
+
+        lines.append("")
+        content = "\n".join(lines)
+        out_path = ssh_dir / f"{cluster_name}-container.conf"
+        out_path.write_text(content)
+        return alias
+    except Exception:
+        return None
+
+
 def handle_check_mode(clusters):
     """Handle --check mode to display user's sandboxes."""
     username = os.environ.get("USER", "unknown")
@@ -322,7 +461,8 @@ Examples:
   %(prog)s              # Show existing sandboxes and management commands
   %(prog)s --check      # Check for active sandboxes and exit
   %(prog)s --new        # Launch a new sandbox with 1 GPU
-  %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
+  %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs on 1 node
+  %(prog)s --new --nodes 4 --gpus 8  # Launch multi-node sandbox (4 nodes, 8 GPUs/node)
   %(prog)s --new --sweep-controller  # Launch a CPU-only sandbox (uses config instance_type)
   %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
   %(prog)s --new --wait-timeout 600  # Wait up to 10 minutes for cluster to be ready
@@ -342,8 +482,27 @@ Common management commands:
         "--git-ref", type=str, default=None, help="Git branch or commit to deploy (default: current branch)"
     )
     parser.add_argument("--new", action="store_true", help="Launch a new sandbox cluster")
+    parser.add_argument("--name", type=str, default=None, help="Custom sandbox cluster name (e.g., my-sandbox)")
     parser.add_argument("--check", action="store_true", help="Check for existing sandboxes and exit")
-    parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs to use (default: 1)")
+    parser.add_argument("--gpus", type=int, default=1, help="GPUs per node (default: 1)")
+    parser.add_argument(
+        "--gpu-type",
+        type=str,
+        choices=["L4", "A10G", "A100", "H100", "A100-80GB"],
+        help="GPU type to use (overrides config accelerators)",
+    )
+    parser.add_argument(
+        "--instance-type",
+        type=str,
+        help="Explicit cloud instance type (e.g., p5.4xlarge). Overrides automatic mapping.",
+    )
+    parser.add_argument("--nodes", type=int, default=1, help="Number of nodes (default: 1)")
+    parser.add_argument(
+        "--capacity-reservation-id",
+        type=str,
+        default=None,
+        help="AWS Capacity Reservation ID to target (e.g., cr-xxxxxxxxxxxxxxxxx)",
+    )
     parser.add_argument(
         "--retry-until-up", action="store_true", help="Keep retrying until cluster is successfully launched"
     )
@@ -361,10 +520,15 @@ Common management commands:
 
     args = parser.parse_args()
 
+    capacity_reservation_id: Optional[str] = args.capacity_reservation_id
+
     # Validate conflicting arguments
-    if args.sweep_controller and args.gpus > 1:
+    if args.sweep_controller and (args.gpus > 1 or args.nodes > 1):
         print(f"{red('✗')} Error: --sweep-controller mode is CPU-only and cannot use GPUs.")
-        print(f"  Either use --sweep-controller without --gpus, or use regular mode with --gpus {args.gpus}")
+        print(
+            f"  Either use --sweep-controller without --gpus/--nodes, "
+            f"or use regular mode with --nodes {args.nodes} and --gpus {args.gpus}"
+        )
         return 1
 
     # Get git ref - use current branch/commit if not specified
@@ -388,14 +552,22 @@ Common management commands:
         return 0
 
     # Launch new sandbox
-    cluster_name = get_next_sandbox_name(existing_clusters)
+    if args.name:
+        cluster_name = args.name
+        if any(c["name"] == cluster_name for c in existing_clusters):
+            print(red(f"✗ A sandbox named '{cluster_name}' already exists. Choose a different name or stop/delete it."))
+            return 1
+    else:
+        cluster_name = get_next_sandbox_name(existing_clusters)
 
     # Determine configuration based on --sweep-controller flag
     if args.sweep_controller:
         print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')}")
         config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
     else:
-        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
+        nodes_msg = f"{args.nodes} node{'s' if args.nodes != 1 else ''}"
+        # GPU type placeholder; will finalize after reading config and args
+        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(nodes_msg)} × GPUs per node: {bold(str(args.gpus))}")
         config_path = "./devops/skypilot/config/sandbox.yaml"
 
     print(f"🔌 Git ref: {cyan(git_ref)}")
@@ -429,18 +601,53 @@ Common management commands:
                 print(f"Approximate cost: {green('~$0.384/hour')} (on-demand pricing, us-east-1)")
             else:
                 print("Approximate cost: (unavailable) – check AWS pricing for your region.")
+        capacity_reservation_id = None
     else:
-        # Parse GPU type from the config (e.g., "L4:1" -> "L4")
+        # Determine GPU type: CLI overrides config
         accelerators_str = resources.get("accelerators", "L4:1")
-        gpu_type = accelerators_str.split(":")[0]
+        default_gpu_type = accelerators_str.split(":")[0]
+        gpu_type = (args.gpu_type or default_gpu_type).upper()
 
-        # Get instance type and calculate cost
-        instance_type, region, hourly_cost = get_gpu_instance_info(args.gpus, gpu_type, region, cloud)
+        print(f"GPU configuration: {bold(str(args.gpus))} {bold(gpu_type)} GPU{'s' if args.gpus != 1 else ''} per node")
+
+        # For A100/H100 families, switch to AMI-host + manual docker recipe
+        if gpu_type in ["A100", "H100", "A100-80GB"]:
+            if gpu_type == "H100":
+                config_path = "./devops/skypilot/config/sandbox_h100.yaml"
+            else:
+                config_path = "./devops/skypilot/config/sandbox_a100.yaml"
+        if capacity_reservation_id:
+            print(f"Capacity reservation: {bold(capacity_reservation_id)}")
+
+        # Get instance type and calculate per-node cost
+        instance_type, region, hourly_cost = get_gpu_instance_info(
+            args.gpus,
+            gpu_type,
+            region,
+            cloud,
+        )
 
         if instance_type:
-            print(f"Instance type: {bold(instance_type)} in {bold(region)}")
+            print(f"Instance type (per node): {bold(instance_type)} in {bold(region)}")
 
-        print_cost_info(hourly_cost, args.gpus)
+        # Cost output (per node and total)
+        if hourly_cost is not None:
+            total_cost = hourly_cost * max(1, int(args.nodes))
+            print(
+                f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour per node')} | "
+                f"{green(f'~${total_cost:.2f}/hour total for {args.nodes} node(s)')}"
+            )
+        else:
+            # Fallback estimate when cost API unavailable
+            gpu_cost_estimates = {
+                1: "~$0.70-0.90/hour",
+                2: "~$1.40-1.80/hour",
+                4: "~$2.80-3.60/hour",
+                8: "~$5.60-7.20/hour",
+            }
+            per_node_est = gpu_cost_estimates.get(args.gpus, f"~${0.70 * args.gpus:.2f}-{0.90 * args.gpus:.2f}/hour")
+            print(f"Approximate cost (per node): {yellow(per_node_est)}")
+            print(f"Approximate total (very rough): {yellow(per_node_est)} × {args.nodes} nodes")
 
     autostop_hours = 48
 
@@ -451,7 +658,22 @@ Common management commands:
 
         if not args.sweep_controller:
             # Only override GPU resources for non-cheap mode
-            task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
+            # Use computed gpu_type (from CLI or config)
+            accelerators_override = f"{gpu_type}:{args.gpus}"
+            overrides: Dict[str, Any] = {"accelerators": accelerators_override}
+            if args.instance_type:
+                overrides["instance_type"] = args.instance_type
+
+            # Use custom AMI for A100 and H100 instances
+            if gpu_type in ["A100", "H100", "A100-80GB"]:
+                overrides["image_id"] = "ami-06161ef177f46b7d3"
+                print(f"Using custom AMI: {cyan('ami-06161ef177f46b7d3')} for {gpu_type}")
+
+            task.set_resources_override(overrides)
+
+            # Multi-node support
+            if args.nodes and args.nodes > 1:
+                task.num_nodes = int(args.nodes)
 
         task.update_envs({"METTA_GIT_REF": git_ref})
         time.sleep(1)
@@ -467,16 +689,17 @@ Common management commands:
             print("to authenticate before launching a sandbox.")
             return 1
 
-        # Launch cluster
-        request_id = sky.launch(
-            task,
-            cluster_name=cluster_name,
-            idle_minutes_to_autostop=autostop_hours * 60,
-            retry_until_up=args.retry_until_up,
-        )
+        with get_capacity_reservation_context(capacity_reservation_id):
+            # Launch cluster
+            request_id = sky.launch(
+                task,
+                cluster_name=cluster_name,
+                idle_minutes_to_autostop=autostop_hours * 60,
+                retry_until_up=args.retry_until_up,
+            )
 
-        # Stream the launch logs
-        _result = sky.stream_and_get(request_id)
+            # Stream the launch logs
+            _result = sky.stream_and_get(request_id)
 
     except sky.exceptions.ResourcesUnavailableError as e:
         print(f"\n{red('✗ Failed to provision resources')}")
@@ -523,12 +746,47 @@ Common management commands:
             print(f"  • Update SSH config: {green(f'uv run sky status {cluster_name}')}")
             print(f"Error: {str(e)}")
 
-    # For CPU-only mode, SCP the additional files over
-    if args.sweep_controller:
-        print("\n📤 Transferring additional files to sandbox...")
+    # Always persist cluster metadata on master for in-SSH launches
+    with spinner("Persisting cluster metadata on master", style=cyan):
+        try:
+            persist_script = _build_incluster_persist_script(cluster_name)
+            subprocess.run(
+                [
+                    "sky",
+                    "exec",
+                    cluster_name,
+                    "--num-nodes",
+                    str(max(1, int(args.nodes or 1))),
+                    "--",
+                    persist_script,
+                ],
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"\n{yellow('⚠')} Failed to persist cluster metadata on master: {str(e)}")
+            print("   You can still run jobs, but auto-detection may not work in SSH sessions.")
+
+    # Create a local SSH alias to connect directly to the container on the head node
+    with spinner("Creating SSH alias for container", style=cyan):
+        alias = _write_container_ssh_config(cluster_name, port=2222, user="root")
+        if alias:
+            print(f"  {green('✓')} Added SSH alias: {bold(alias)}")
+            print(f"     Use: {green(f'ssh {alias}')} (proxies via {cluster_name})")
+        else:
+            print(f"  {yellow('⚠')} Failed to write SSH alias for container. You can still:")
+            print(f"     {green(f'ssh -J {cluster_name} -p 2222 root@127.0.0.1')}")
+
+    # For multi-GPU sandboxes (multi-node OR >1 GPU per node) and not sweep-controller, copy helpful credentials
+    do_bootstrap_incluster = (not args.sweep_controller) and (
+        (args.nodes and int(args.nodes) > 1) or (args.gpus and int(args.gpus) > 1)
+    )
+    if do_bootstrap_incluster:
+        # Transfer helpful credentials and persist cluster metadata to enable in-cluster launching.
+        print("\n📤 Transferring credentials for in-cluster SkyPilot usage...")
         scp_success = True
 
-        # Transfer .sky folder
+        # Transfer .sky folder (SkyPilot client state/keys)
         with spinner("Copying ~/.sky folder", style=cyan):
             try:
                 sky_path = os.path.expanduser("~/.sky")
@@ -598,6 +856,11 @@ Common management commands:
     print(f"\n{green('✓')} Sandbox is ready!")
     print("\nConnect to your sandbox:")
     print(f"  {green(f'ssh {cluster_name}')}")
+    # If we created the container SSH alias earlier, surface it here as well
+    container_alias = f"{cluster_name}-ctr"
+    container_conf = Path.home() / ".sky" / "generated" / "ssh" / f"{cluster_name}-container.conf"
+    if container_conf.exists():
+        print(f"  {green(f'ssh {container_alias}')}  # connect directly to the container")
     print(f"\n\n⚠️ The cluster will be automatically stopped after {bold(str(autostop_hours))} hours.")
     print("To disable autostop:")
     print(f"  {green(f'uv run sky autostop --cancel {cluster_name}')}")

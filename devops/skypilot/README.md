@@ -265,8 +265,11 @@ ssh <sandbox-name>
 # Launch a new sandbox with 1 GPU (default)
 ./devops/skypilot/sandbox.py --new
 
-# Launch with multiple GPUs
+# Launch with multiple GPUs (single node)
 ./devops/skypilot/sandbox.py --new --gpus 4
+
+# Launch a multi-node sandbox (e.g., 4 nodes × 8 GPUs/node)
+./devops/skypilot/sandbox.py --new --nodes 4 --gpus 8
 
 # Launch with specific git branch
 ./devops/skypilot/sandbox.py --new --git-ref feature/my-branch
@@ -323,6 +326,25 @@ uv run sky logs <sandbox-name>
 # Retry launch for stuck clusters
 uv run sky launch -c <sandbox-name> --no-setup
 ```
+
+### Launching H100 (p5) Sandboxes
+
+You can now request H100-backed instances directly via flags (no YAML edits):
+
+```bash
+# Launch a single-node H100 sandbox on p5.4xlarge (1× H100)
+./devops/skypilot/sandbox.py --new --gpu-type H100 --gpus 1 --instance-type p5.4xlarge --retry-until-up --wait-timeout 900
+
+# Examples for larger nodes
+# 2× H100: p5.12xlarge | 4× H100: p5.24xlarge | 8× H100: p5.48xlarge
+./devops/skypilot/sandbox.py --new --gpu-type H100 --gpus 2 --instance-type p5.12xlarge
+./devops/skypilot/sandbox.py --new --gpu-type H100 --gpus 4 --instance-type p5.24xlarge
+./devops/skypilot/sandbox.py --new --gpu-type H100 --gpus 8 --instance-type p5.48xlarge
+```
+
+Notes
+- Omit `--instance-type` to let the tool auto-map H100 to the closest p5 size when possible.
+- Ensure your AWS account has p5 quota in the target region (see `resources.region` in `devops/skypilot/config/sandbox.yaml`).
 
 ### Cost Management
 
