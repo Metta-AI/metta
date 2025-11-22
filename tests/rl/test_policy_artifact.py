@@ -240,6 +240,28 @@ def test_load_policy_artifact_ddp_state_dict(tmp_path: Path) -> None:
     assert isinstance(instantiated, DummyPolicy)
 
 
+def test_load_policy_artifact_state_dict_payload(tmp_path: Path) -> None:
+    policy_env_info = _policy_env_info()
+    architecture = DummyPolicyArchitecture()
+    policy = architecture.make_policy(policy_env_info)
+
+    payload = {
+        "state_dict": policy.state_dict(),
+        "optimizer": {"lr": 1e-3},
+    }
+    legacy_path = tmp_path / "legacy_payload.mpt"
+    torch.save(payload, legacy_path)
+
+    artifact = load_policy_artifact(legacy_path)
+    assert artifact.state_dict is not None
+    assert artifact.policy_architecture is None
+
+    artifact.policy_architecture = architecture
+    instantiated = artifact.instantiate(policy_env_info, torch.device("cpu"))
+
+    assert isinstance(instantiated, DummyPolicy)
+
+
 class DummyDDPWrapper:
     def __init__(self, inner: Policy):
         self.module = inner

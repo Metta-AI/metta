@@ -386,17 +386,19 @@ def _artifact_from_policy_payload(payload: Any) -> PolicyArtifact:
             or payload.get("policy_architecture_str")
         )
 
-        if isinstance(state_dict, Mapping) and architecture_value is not None:
-            if isinstance(architecture_value, PolicyArchitecture):
-                architecture = architecture_value
-            elif isinstance(architecture_value, str):
-                architecture = policy_architecture_from_string(architecture_value)
-            else:
-                architecture = None
+        if isinstance(state_dict, Mapping):
+            normalized_state = _normalize_state_dict_keys(state_dict)
+            architecture = None
+            if architecture_value is not None:
+                if isinstance(architecture_value, PolicyArchitecture):
+                    architecture = architecture_value
+                elif isinstance(architecture_value, str):
+                    architecture = policy_architecture_from_string(architecture_value)
 
             if architecture is not None:
-                normalized_state = _normalize_state_dict_keys(state_dict)
                 return PolicyArtifact(policy_architecture=architecture, state_dict=normalized_state)
+
+            return PolicyArtifact(policy_architecture=None, state_dict=normalized_state)
 
         if (
             not architecture_value
