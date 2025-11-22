@@ -440,13 +440,17 @@ def _normalize_state_dict_keys(state_dict: Mapping[str, torch.Tensor]) -> Mutabl
     return normalized
 
 
-def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyArtifact:
+def load_policy_artifact(
+    path: str | Path,
+    is_pt_file: bool = False,
+    force_policy_artifact: bool = False,
+) -> PolicyArtifact:
     input_path = Path(path)
     if not input_path.exists():
         msg = f"Policy artifact not found: {input_path}"
         raise FileNotFoundError(msg)
 
-    if is_pt_file or input_path.suffix == ".pt":
+    if not force_policy_artifact and (is_pt_file or input_path.suffix == ".pt"):
         payload = _load_policy_payload_from_file(input_path)
         return _artifact_from_policy_payload(payload)
 
