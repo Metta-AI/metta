@@ -63,8 +63,6 @@ PROC_MAP_MISSIONS: tuple[str, ...] = tuple(
     )
 )
 
-_proc_map_missions_validated = False
-
 
 def _normalize_variant_names(
     *,
@@ -94,17 +92,6 @@ def _resolve_mission_template(name: str) -> Mission:
 
     site_name, mission_name = name.split(MAP_MISSION_DELIMITER)
     return find_mission(site_name, mission_name)
-
-
-def _validate_proc_map_missions() -> None:
-    for mission_name in PROC_MAP_MISSIONS:
-        try:
-            _resolve_mission_template(mission_name)
-        except ValueError as exc:
-            raise RuntimeError(
-                f"Unknown procedural mission '{mission_name}' in PROC_MAP_MISSIONS"
-            ) from exc
-
 
 
 def _resolve_eval_variants(
@@ -476,11 +463,6 @@ def train_proc_maps(
     mission: str | None = None,
 ) -> TrainTool:
     """Train on procedural MachinaArena map missions."""
-    global _proc_map_missions_validated
-    if not _proc_map_missions_validated:
-        _validate_proc_map_missions()
-        _proc_map_missions_validated = True
-
     return train(
         num_cogs=num_cogs,
         base_missions=list(PROC_MAP_MISSIONS),
