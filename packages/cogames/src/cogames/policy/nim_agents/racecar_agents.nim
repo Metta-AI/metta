@@ -3,6 +3,9 @@ import
   fidget2/measure,
   common
 
+# Disable debug output (comment out to enable)
+template echo(args: varargs[string, `$`]) = discard
+
 const
   MaxEnergy = 100
   MaxResourceInventory = 100
@@ -38,10 +41,6 @@ type
 
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
-
-proc log(message: string) =
-  when defined(debug):
-    echo message
 
 const Offsets4 = [
   Location(x: -1, y: +0),
@@ -295,7 +294,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveWest:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: left, right, left"
+          echo "Stuck prevention: left, right, left"
           doAction(agent.cfg.actions.noop.int32)
           return
       if agent.lastActions.len >= 2 and
@@ -304,7 +303,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveEast:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: right, left, right"
+          echo "Stuck prevention: right, left, right"
           doAction(agent.cfg.actions.noop.int32)
           return
       if agent.lastActions.len >= 2 and
@@ -313,7 +312,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveNorth:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: north, south, north"
+          echo "Stuck prevention: north, south, north"
           doAction(agent.cfg.actions.noop.int32)
           return
       if agent.lastActions.len >= 2 and
@@ -322,7 +321,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveSouth:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: south, north, south"
+          echo "Stuck prevention: south, north, south"
           doAction(agent.cfg.actions.noop.int32)
           return
 
@@ -343,10 +342,10 @@ proc step*(
       invResonator = agent.cfg.getInventory(visible, agent.cfg.features.invResonator)
       invScrambler = agent.cfg.getInventory(visible, agent.cfg.features.invScrambler)
 
-    log &"vibe:{vibe} H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
+    echo &"vibe:{vibe} H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
     let activeRecipe = agent.getActiveRecipe()
-    log "active recipe: " & $activeRecipe
+    echo "active recipe: " & $activeRecipe
 
     if activeRecipe.pattern.len > 0:
       # Split the cost evenly across the agents.
@@ -373,7 +372,7 @@ proc step*(
         measurePop()
         if action.isSome():
           doAction(action.get().int32)
-          log "going to charger"
+          echo "going to charger"
           return
 
     # Charge opportunistically.
@@ -386,14 +385,14 @@ proc step*(
           measurePop()
           if action.isSome():
             doAction(action.get().int32)
-            log "charge nearby might as well charge"
+            echo "charge nearby might as well charge"
             return
 
     # Deposit heart into the chest.
     if invHeart > 0:
 
       # Reset the targets when we deposit hearts.
-      log "depositing hearts"
+      echo "depositing hearts"
       agent.carbonTarget = PutCarbonAmount
       agent.oxygenTarget = PutOxygenAmount
       agent.germaniumTarget = PutGermaniumAmount
@@ -411,16 +410,16 @@ proc step*(
         measurePop()
         if action.isSome():
           doAction(action.get().int32)
-          log "going to chest"
+          echo "going to chest"
           return
 
     if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
       # We have all the resources we need, so we can build a heart.
-      log "trying to build a heart"
+      echo "trying to build a heart"
 
       if vibe != agent.cfg.vibes.heartA:
         doAction(agent.cfg.actions.vibeHeartA.int32)
-        log "vibing heart for assembler"
+        echo "vibing heart for assembler"
         return
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
@@ -430,28 +429,28 @@ proc step*(
         measurePop()
         if action.isSome():
           doAction(action.get().int32)
-          log "going to assembler to build heart"
+          echo "going to assembler to build heart"
           return
 
     # Dump excess resources.
     let atMaxInventory = invCarbon + invOxygen + invGermanium + invSilicon >= MaxResourceInventory
     let avgResource = (invCarbon + invOxygen + invGermanium + invSilicon) div 4
     if atMaxInventory:
-      log "at max inventory"
+      echo "at max inventory"
 
     if atMaxInventory and invCarbon > avgResource and invCarbon > agent.carbonTarget + PutCarbonAmount:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.carbonB:
           doAction(agent.cfg.actions.vibeCarbonB.int32)
-          log "vibing carbon B to dump excess carbon"
+          echo "vibing carbon B to dump excess carbon"
           return
         measurePush("chest nearby excess carbon")
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
         measurePop()
         if action.isSome():
           doAction(action.get().int32)
-          log "going to chest to dump excess carbon"
+          echo "going to chest to dump excess carbon"
           return
 
     if atMaxInventory and invSilicon > avgResource and invSilicon > agent.siliconTarget + PutSiliconAmount:
@@ -459,12 +458,12 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.siliconB:
           doAction(agent.cfg.actions.vibeSiliconB.int32)
-          log "vibing silicon B to dump excess silicon"
+          echo "vibing silicon B to dump excess silicon"
           return
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
         if action.isSome():
           doAction(action.get().int32)
-          log "going to chest to dump excess silicon"
+          echo "going to chest to dump excess silicon"
           return
 
     if atMaxInventory and invOxygen > avgResource and invOxygen > agent.oxygenTarget + PutOxygenAmount:
@@ -472,14 +471,14 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.oxygenB:
           doAction(agent.cfg.actions.vibeOxygenB.int32)
-          log "vibing oxygen B to dump excess oxygen"
+          echo "vibing oxygen B to dump excess oxygen"
           return
         measurePush("chest nearby excess oxygen")
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
         measurePop()
         if action.isSome():
           doAction(action.get().int32)
-          log "going to chest to dump excess oxygen"
+          echo "going to chest to dump excess oxygen"
           return
 
     if atMaxInventory and invGermanium > avgResource and invGermanium > agent.germaniumTarget + PutGermaniumAmount:
@@ -487,14 +486,14 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.germaniumB:
           doAction(agent.cfg.actions.vibeGermaniumB.int32)
-          log "vibing germanium B to dump excess germanium"
+          echo "vibing germanium B to dump excess germanium"
           return
         measurePush("chest nearby excess germanium")
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
         measurePop()
         if action.isSome():
           doAction(action.get().int32)
-          log "going to chest to dump excess germanium"
+          echo "going to chest to dump excess germanium"
           return
 
     proc findAndTakeResource(
@@ -517,14 +516,14 @@ proc step*(
           # Vibe the right resource to take from the chest.
           if vibe != vibeGetResource:
             doAction(vibeAction.int32)
-            log "vibing " & name & " to take from chest"
+            echo "vibing " & name & " to take from chest"
             return true
           measurePush("chest nearby to take " & name)
           let action = agent.cfg.aStar(agent.location, closeChest.get(), agent.map)
           measurePop()
           if action.isSome():
             doAction(action.get().int32)
-            log "going to chest to take " & name & " from chest"
+            echo "going to chest to take " & name & " from chest"
             return true
 
       # Check the carbon extractor.
@@ -535,7 +534,7 @@ proc step*(
         measurePop()
         if action.isSome():
           doAction(action.get().int32)
-          log "going to " & name & ", need: " & $target & " have: " & $inventory
+          echo "going to " & name & ", need: " & $target & " have: " & $inventory
           return true
 
     # Is there carbon nearby?
@@ -653,19 +652,19 @@ proc step*(
       if locationFound:
         agent.exploreLocations.add(unexploredLocation)
       else:
-        log "no unseen location found"
+        echo "no unseen location found"
         # agent.cfg.drawMap(agent.map, visited)
       measurePop()
 
     measurePush("explore locations")
-    log "explore locations: " & $agent.exploreLocations
+    echo "explore locations: " & $agent.exploreLocations
     if agent.exploreLocations.len > 0:
       for location in agent.exploreLocations:
         if location notin agent.seen:
           let action = agent.cfg.aStar(agent.location, location, agent.map)
           if action.isSome():
             doAction(action.get().int32)
-            log "going to explore location: " & $location
+            echo "going to explore location: " & $location
             return
           else:
             agent.exploreLocations.remove(location)
@@ -677,7 +676,7 @@ proc step*(
 
     # If all else fails, take a random move to explore the map or get unstuck.
     let action = agent.random.rand(1 .. 4).int32
-    log "taking random action " & $action
+    echo "taking random action " & $action
     doAction(action.int32)
 
   except:
