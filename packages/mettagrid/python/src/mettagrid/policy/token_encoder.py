@@ -171,12 +171,6 @@ class TokenPolicy(MultiAgentPolicy):
     def is_recurrent(self) -> bool:
         return False
 
-    def load_policy_data(self, checkpoint_path: str) -> None:
-        """Load token encoder network weights from file."""
-        state_dict = torch.load(checkpoint_path, map_location=self._device)
-        self._net.load_state_dict(state_dict)
-        self._net = self._net.to(self._device)
-
     def save_policy_data(self, checkpoint_path: str) -> None:
         """Save token encoder network weights to file."""
         torch.save(self._net.state_dict(), checkpoint_path)

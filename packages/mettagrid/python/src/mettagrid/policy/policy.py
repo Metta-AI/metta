@@ -84,6 +84,13 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         if network is None:
             return
 
+        # Unified device discovery with fallback
+        try:
+            device = next(network.parameters()).device
+        except StopIteration:
+            # Network has no parameters yet, fallback to stored device or CPU
+            device = getattr(self, "_device", None) or getattr(self, "device", torch.device("cpu"))
+
         path = Path(policy_data_path).expanduser()
 
         if path.suffix.lower() == ".mpt":
@@ -94,9 +101,16 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
             artifact = load_policy_artifact(path)
             network.load_state_dict(artifact.state_dict)
-            return
+        else:
+            import torch
+            network.load_state_dict(torch.load(path, map_location=device))
 
-        network.load_state_dict(torch.load(path, map_location="cpu"))
+        # Hook for subclasses to perform post-load actions
+        self._on_weights_loaded()
+
+    def _on_weights_loaded(self) -> None:
+        """Hook called after weights are loaded. Override for custom post-load actions."""
+        pass
 
     def save_policy_data(self, policy_data_path: str) -> None:
         """Save policy data to a file.

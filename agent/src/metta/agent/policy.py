@@ -108,12 +108,6 @@ class Policy(MultiAgentPolicy, nn.Module):
         """Return the nn.Module representing the policy."""
         return self
 
-    def load_policy_data(self, policy_data_path: str) -> None:
-        """Load network weights from file using PyTorch state dict."""
-        import torch
-
-        self.load_state_dict(torch.load(policy_data_path, map_location=self.device))
-
     def save_policy_data(self, policy_data_path: str) -> None:
         """Save network weights to file using torch.save."""
         import torch

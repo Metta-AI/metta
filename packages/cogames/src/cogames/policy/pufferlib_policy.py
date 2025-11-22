@@ -66,32 +66,6 @@ class PufferlibCogsPolicy(MultiAgentPolicy, AgentPolicy):
         # No internal state to reset; signature satisfies AgentPolicy and MultiAgentPolicy
         return None
 
-    def load_policy_data(self, policy_data_path: str) -> None:
-        """Load weights from .pt (cogames) or .mpt (metta) format."""
-        from pathlib import Path
-
-        path = Path(policy_data_path)
-        device = next(self._net.parameters()).device
-
-        if path.suffix == ".mpt":
-            # Load metta format checkpoint
-            try:
-                from metta.rl.policy_artifact import load_policy_artifact
-            except ImportError as exc:
-                raise ImportError("Loading .mpt checkpoints requires metta RL components") from exc
-
-            artifact = load_policy_artifact(path)
-            if artifact.state_dict is None:
-                raise ValueError(f"Checkpoint at {path} did not contain weights")
-
-            self._net.load_state_dict(artifact.state_dict)
-        else:
-            # Load cogames format (.pt)
-            state = torch.load(policy_data_path, map_location=device, weights_only=False)
-            self._net.load_state_dict(state)
-
-        self._net = self._net.to(device)
-
     def save_policy_data(self, policy_data_path: str) -> None:
         """Save weights as simple .pt format (cogames standard)."""
         torch.save(self._net.state_dict(), policy_data_path)
