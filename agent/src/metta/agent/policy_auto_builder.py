@@ -30,6 +30,11 @@ class PolicyAutoBuilder(Policy):
 
     def __init__(self, policy_env_info: PolicyEnvInterface, config: Config | None = None):
         super().__init__(policy_env_info)
+        if config is None:
+            raise ValueError(
+                "PolicyAutoBuilder requires a PolicyArchitecture config; "
+                "ensure your checkpoint includes policy_architecture or pass init_kwargs.policy_architecture"
+            )
         self.config = config
 
         self.components = OrderedDict()
