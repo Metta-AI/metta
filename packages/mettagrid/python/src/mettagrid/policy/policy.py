@@ -82,20 +82,21 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         """
         network = self.network()
         if network is None:
-            # Non-trainable policy, do nothing
             return
 
-        # Trainable policy - load weights
         path = Path(policy_data_path).expanduser()
-        suffix = path.suffix.lower()
 
-        if suffix == ".mpt":
-            self._load_policy_artifact_state(path)
+        if path.suffix.lower() == ".mpt":
+            try:
+                from metta.rl.policy_artifact import load_policy_artifact
+            except ImportError as exc:
+                raise ImportError("Loading .mpt checkpoints requires metta RL components") from exc
+
+            artifact = load_policy_artifact(path)
+            network.load_state_dict(artifact.state_dict)
             return
 
-        # Load simple .pt state dict
         import torch
-
         network.load_state_dict(torch.load(path, map_location="cpu"))
 
     def save_policy_data(self, policy_data_path: str) -> None:
@@ -152,40 +153,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         The default implementation raises NotImplementedError.
         """
         raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
-
-    def _load_policy_artifact_state(self, artifact_path: Path) -> None:
-        """Load state dict from a .mpt artifact file."""
-        try:
-            from metta.rl.policy_artifact import load_policy_artifact
-        except ImportError as exc:  # pragma: no cover - optional dependency
-            raise ImportError("Loading .mpt checkpoints requires the metta RL components to be installed.") from exc
-
-        artifact = load_policy_artifact(artifact_path)
-
-        state_dict = None
-        network = self.network()
-        if network is None:
-            raise RuntimeError(f"Cannot load weights into non-trainable policy {self.__class__.__name__}")
-
-        if artifact.policy is not None:
-            state_dict = artifact.policy.network().state_dict()
-        elif artifact.state_dict is not None and artifact.policy_architecture is None:
-            state_dict = artifact.state_dict
-        elif artifact.policy_architecture is not None:
-            target_device = next(network.parameters(), None)
-            device = target_device.device if target_device is not None else None
-            hydrated = artifact.instantiate(
-                self._policy_env_info,
-                device if device is not None else torch.device("cpu"),
-                strict=True,
-            )
-            state_dict = hydrated.network().state_dict()
-
-        if state_dict is None:
-            msg = f"Policy artifact at {artifact_path} did not contain weights or a policy"
-            raise RuntimeError(msg)
-
-        network.load_state_dict(state_dict)
 
 
 class NimMultiAgentPolicy(MultiAgentPolicy):
