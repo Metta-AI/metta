@@ -78,7 +78,7 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     architecture = DummyPolicyArchitecture()
     policy = architecture.make_policy(policy_env_info)
 
-    artifact_path = tmp_path / "artifact.zip"
+    artifact_path = tmp_path / "artifact.mpt"
     artifact = save_policy_artifact_safetensors(
         artifact_path,
         policy_architecture=architecture,
@@ -163,7 +163,7 @@ def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
     policy = architecture.make_policy(policy_env_info)
     policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
-    artifact_path = tmp_path / "artifact.zip"
+    artifact_path = tmp_path / "artifact.mpt"
     save_policy_artifact_safetensors(
         artifact_path,
         policy_architecture=architecture,
@@ -177,91 +177,89 @@ def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
     assert isinstance(reloaded.core, CortexTD)
 
 
-def test_load_policy_artifact_fallback_to_pt(tmp_path: Path) -> None:
-    policy_env_info = _policy_env_info()
-    policy = DummyPolicy(policy_env_info)
-
-    legacy_path = tmp_path / "legacy.mpt"
-    torch.save(policy, legacy_path)
-
-    loaded = load_policy_artifact(legacy_path)
-    instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
-
-    assert isinstance(instantiated, DummyPolicy)
-
-
-def test_load_policy_artifact_autobuilder_state(tmp_path: Path) -> None:
+def test_load_pt_simple_state_dict(tmp_path: Path) -> None:
+    """Test loading simple .pt file with state_dict."""
     policy_env_info = _policy_env_info()
     architecture = DummyPolicyArchitecture()
     policy = architecture.make_policy(policy_env_info)
 
-    legacy_path = tmp_path / "legacy_autobuilder.mpt"
-    torch.save(
-        {
-            "policy_architecture": architecture,
-            "state_dict": policy.state_dict(),
-        },
-        legacy_path,
-    )
+    pt_path = tmp_path / "checkpoint.pt"
+    torch.save(policy.state_dict(), pt_path)
 
-    loaded = load_policy_artifact(legacy_path)
-    instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
-
-    assert isinstance(instantiated, DummyPolicy)
-
-
-def test_load_policy_artifact_ddp_wrapper(tmp_path: Path) -> None:
-    policy_env_info = _policy_env_info()
-    policy = DummyPolicy(policy_env_info)
-
-    wrapped = DummyDDPWrapper(policy)
-    legacy_path = tmp_path / "legacy_ddp.mpt"
-    torch.save(wrapped, legacy_path)
-
-    loaded = load_policy_artifact(legacy_path)
-    instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
-
-    assert isinstance(instantiated, DummyPolicy)
-
-
-def test_load_policy_artifact_ddp_state_dict(tmp_path: Path) -> None:
-    policy_env_info = _policy_env_info()
-    architecture = DummyPolicyArchitecture()
-    policy = architecture.make_policy(policy_env_info)
-
-    ddp_style = {f"module.{k}": v.clone() for k, v in policy.state_dict().items()}
-    legacy_path = tmp_path / "legacy_ddp_state.mpt"
-    torch.save(ddp_style, legacy_path)
-
-    artifact = load_policy_artifact(legacy_path)
-    artifact.policy_architecture = architecture
-    instantiated = artifact.instantiate(policy_env_info, torch.device("cpu"))
-
-    assert isinstance(instantiated, DummyPolicy)
-
-
-def test_load_policy_artifact_state_dict_payload(tmp_path: Path) -> None:
-    policy_env_info = _policy_env_info()
-    architecture = DummyPolicyArchitecture()
-    policy = architecture.make_policy(policy_env_info)
-
-    payload = {
-        "state_dict": policy.state_dict(),
-        "optimizer": {"lr": 1e-3},
-    }
-    legacy_path = tmp_path / "legacy_payload.mpt"
-    torch.save(payload, legacy_path)
-
-    artifact = load_policy_artifact(legacy_path)
+    artifact = load_policy_artifact(pt_path)
     assert artifact.state_dict is not None
     assert artifact.policy_architecture is None
+    assert artifact.policy is None
 
+    # Can instantiate with architecture provided separately
     artifact.policy_architecture = architecture
     instantiated = artifact.instantiate(policy_env_info, torch.device("cpu"))
-
     assert isinstance(instantiated, DummyPolicy)
 
 
-class DummyDDPWrapper:
-    def __init__(self, inner: Policy):
-        self.module = inner
+def test_load_pt_with_ddp_normalization(tmp_path: Path) -> None:
+    """Test that .pt files with DDP-style keys are normalized."""
+    policy_env_info = _policy_env_info()
+    architecture = DummyPolicyArchitecture()
+    policy = architecture.make_policy(policy_env_info)
+
+    # Create DDP-style state dict with 'module.' prefix
+    ddp_style = {f"module.{k}": v.clone() for k, v in policy.state_dict().items()}
+    pt_path = tmp_path / "ddp_checkpoint.pt"
+    torch.save(ddp_style, pt_path)
+
+    artifact = load_policy_artifact(pt_path)
+    assert artifact.state_dict is not None
+
+    # Keys should be normalized (module. prefix stripped)
+    for key in artifact.state_dict.keys():
+        assert not key.startswith("module.")
+
+    artifact.policy_architecture = architecture
+    instantiated = artifact.instantiate(policy_env_info, torch.device("cpu"))
+    assert isinstance(instantiated, DummyPolicy)
+
+
+def test_load_mpt_requires_architecture(tmp_path: Path) -> None:
+    """Test that .mpt files must contain architecture."""
+    policy_env_info = _policy_env_info()
+    architecture = DummyPolicyArchitecture()
+    policy = architecture.make_policy(policy_env_info)
+
+    mpt_path = tmp_path / "checkpoint.mpt"
+    save_policy_artifact_safetensors(
+        mpt_path,
+        policy_architecture=architecture,
+        state_dict=policy.state_dict(),
+    )
+
+    artifact = load_policy_artifact(mpt_path)
+    assert artifact.policy_architecture is not None
+    assert artifact.state_dict is not None
+    assert isinstance(artifact.policy_architecture, DummyPolicyArchitecture)
+
+
+def test_load_invalid_extension_raises(tmp_path: Path) -> None:
+    """Test that unsupported extensions raise clear errors."""
+    invalid_path = tmp_path / "checkpoint.pkl"
+    invalid_path.touch()
+
+    with pytest.raises(ValueError, match="Unsupported checkpoint extension.*Expected .mpt or .pt"):
+        load_policy_artifact(invalid_path)
+
+
+def test_load_nonexistent_file_raises(tmp_path: Path) -> None:
+    """Test that missing files raise clear errors."""
+    missing_path = tmp_path / "missing.mpt"
+
+    with pytest.raises(FileNotFoundError, match="Policy artifact not found"):
+        load_policy_artifact(missing_path)
+
+
+def test_pt_with_non_state_dict_raises(tmp_path: Path) -> None:
+    """Test that .pt files must contain state_dict mappings."""
+    pt_path = tmp_path / "invalid.pt"
+    torch.save("not a state dict", pt_path)
+
+    with pytest.raises(TypeError, match=".pt file must contain a state_dict mapping"):
+        load_policy_artifact(pt_path)
