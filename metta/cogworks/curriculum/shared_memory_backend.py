@@ -35,6 +35,8 @@ from typing import Any, ContextManager, Optional
 
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 
 class TaskMemoryBackend(ABC):
     """Abstract interface for task memory storage.
@@ -250,8 +252,6 @@ class SharedMemoryBackend(TaskMemoryBackend):
 
     def cleanup(self):
         """Clean up shared memory resources."""
-        logger = logging.getLogger(__name__)
-
         if self._task_array_shm is None:
             return
 
@@ -282,7 +282,6 @@ class SharedMemoryBackend(TaskMemoryBackend):
         if not hasattr(self, "_task_array_shm") or self._task_array_shm is None:
             return
 
-        logger = logging.getLogger(__name__)
         session_id = getattr(self, "session_id", "unknown")
         name = getattr(self, "_task_array_name", "unknown")
 

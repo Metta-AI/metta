@@ -554,68 +554,6 @@ class StatsReporter(TrainerComponent):
                 hyperparameters[f"ppo_{attr}"] = value
         return hyperparameters
 
-    def _log_shared_memory_state(self, curriculum: Any) -> None:
-        """Log raw shared memory state for debugging.
-
-        Directly reads the task tracker's shared memory arrays to show what's actually stored.
-        This bypasses all caching and intermediate layers to provide ground truth.
-        """
-        algorithm = getattr(curriculum, "_algorithm", None)
-        if not algorithm:
-            logger.info("SHARED MEMORY DEBUG: No algorithm found")
-            return
-
-        task_tracker = getattr(algorithm, "task_tracker", None)
-        if not task_tracker:
-            logger.info("SHARED MEMORY DEBUG: No task tracker found")
-            return
-
-        logger.info("=" * 80)
-        logger.info("SHARED MEMORY STATE (Direct Array Read)")
-        logger.info("=" * 80)
-
-        # Get all task IDs being tracked
-        tracked_tasks = task_tracker.get_all_tracked_tasks()
-        logger.info(f"Total tracked tasks: {len(tracked_tasks)}")
-
-        if not tracked_tasks:
-            logger.info("No tasks tracked yet")
-            logger.info("=" * 80)
-            return
-
-        # Count tasks by completion status
-        tasks_with_completions = 0
-        total_completions = 0
-        tasks_with_nonzero_lp = 0
-        tasks_with_nonzero_ema = 0
-
-        # Compute aggregate stats
-        for task_id in tracked_tasks:
-            task_stats = task_tracker.get_task_stats(task_id)
-            if task_stats:
-                comp_count = task_stats["completion_count"]
-                if comp_count > 0:
-                    tasks_with_completions += 1
-                    total_completions += comp_count
-                if task_stats["lp_score"] != 0.0:
-                    tasks_with_nonzero_lp += 1
-                if task_stats["p_fast"] != 0.0 or task_stats["p_slow"] != 0.0:
-                    tasks_with_nonzero_ema += 1
-
-        logger.info("\nAggregate stats:")
-        logger.info(f"  Tasks with completions: {tasks_with_completions}/{len(tracked_tasks)}")
-        logger.info(f"  Total completions across all tasks: {total_completions}")
-        logger.info(f"  Tasks with non-zero LP scores: {tasks_with_nonzero_lp}/{len(tracked_tasks)}")
-        logger.info(f"  Tasks with non-zero EMAs: {tasks_with_nonzero_ema}/{len(tracked_tasks)}")
-
-        # Check global tracker stats
-        tracker_global_stats = task_tracker.get_global_stats()
-        logger.info("\nTracker global stats:")
-        logger.info(f"  _total_completions: {tracker_global_stats.get('total_completions', 0)}")
-        logger.info(f"  _mean_score: {tracker_global_stats.get('mean_score', 0):.4f}")
-
-        logger.info("=" * 80)
-
     def _collect_curriculum_stats(self) -> dict[str, float]:
         """Collect curriculum statistics directly at epoch boundary.
 
@@ -628,290 +566,33 @@ class StatsReporter(TrainerComponent):
 
         curriculum = self.context.curriculum
         logger.info(f"Collecting curriculum stats from curriculum: {type(curriculum).__name__}")
-        stats = {}
 
         # Direct shared memory inspection for debugging
-        self._log_shared_memory_state(curriculum)
+        curriculum.log_shared_memory_state()
 
-        curriculum_stats = curriculum.stats()
-        logger.info(f"Got {len(curriculum_stats)} base curriculum stats")
+        stats = curriculum.stats()
+        logger.info(f"Got {len(stats)} base curriculum stats")
 
-        # Compute Gini coefficients once per epoch from shared memory (expensive)
-        algorithm = getattr(curriculum, "_algorithm", None)
-        if algorithm:
-            gini_stats = algorithm.calculate_gini_coefficients()
-            if gini_stats:
-                logger.info(f"Calculated {len(gini_stats)} Gini coefficient stats")
-                for key, value in gini_stats.items():
-                    curriculum_stats[f"algorithm/{key}"] = value
+        # Calculate per-label mean LP scores and reward EMAs
+        per_label_lp_stats = curriculum.calculate_per_label_mean_lp_stats()
+        for key, value in per_label_lp_stats.items():
+            stats[f"algorithm/{key}"] = value
+        logger.info(f"Calculated {len(per_label_lp_stats)} per-label LP stats")
 
-        sample_keys = list(curriculum_stats.keys())[:10]
+        # Calculate raw LP debug statistics
+        raw_lp_debug_stats = curriculum.calculate_raw_lp_debug_stats()
+        for key, value in raw_lp_debug_stats.items():
+            stats[f"algorithm/{key}"] = value
+        logger.info(f"Calculated {len(raw_lp_debug_stats)} raw LP debug stats")
+
+        # Compute Gini coefficients once per epoch (expensive operation)
+        gini_stats = curriculum.calculate_gini_coefficients()
+        for key, value in gini_stats.items():
+            stats[f"algorithm/{key}"] = value
+        logger.info(f"Calculated {len(gini_stats)} Gini coefficient stats")
+
+        sample_keys = list(stats.keys())[:10]
         logger.info(f"Sample curriculum stat keys: {sample_keys}")
-
-        # Calculate per-label mean LP scores directly from shared memory
-        per_label_lp_stats = self._calculate_per_label_mean_lp_from_shared_memory(curriculum)
-        stats.update(per_label_lp_stats)
-
-        # Calculate raw LP debug stats directly from shared memory
-        raw_lp_debug_stats = self._calculate_raw_lp_gini_from_shared_memory(curriculum)
-        stats.update(raw_lp_debug_stats)
-
-        # Calculate gini statistics directly from shared memory
-        gini_stats = self._calculate_gini_stats_from_shared_memory(curriculum)
-        stats.update(gini_stats)
 
         logger.info(f"Total curriculum stats collected: {len(stats)}")
         return stats
-
-    def _calculate_per_label_mean_lp_from_shared_memory(self, curriculum: Any) -> dict[str, float]:
-        """Calculate per-label mean LP scores directly from task tracker shared memory.
-
-        Reads LP scores from shared memory for all tasks, groups by label, and calculates mean.
-        """
-        stats = {}
-
-        if not hasattr(curriculum, "_algorithm") or not hasattr(curriculum._algorithm, "task_tracker"):
-            logger.warning("Cannot access task tracker from curriculum")
-            return stats
-
-        task_tracker = curriculum._algorithm.task_tracker
-        all_task_ids = task_tracker.get_all_tracked_tasks()
-
-        if not all_task_ids:
-            return stats
-
-        # Group LP scores and reward EMAs by label (for debugging)
-        label_lp_scores = {}
-        label_reward_emas = {}
-
-        for task_id in all_task_ids:
-            task_stats = task_tracker.get_task_stats(task_id)
-            if task_stats:
-                lp_score = task_stats.get("lp_score", 0.0)
-                reward_ema = task_stats.get("reward_ema", 0.0)
-                completion_count = task_stats.get("completion_count", 0)
-                label = task_tracker.get_task_label(task_id)
-
-                if label:
-                    if label not in label_lp_scores:
-                        label_lp_scores[label] = []
-                        label_reward_emas[label] = []
-                    label_lp_scores[label].append(lp_score)
-                    if completion_count > 0:  # Only include tasks with completions
-                        label_reward_emas[label].append(reward_ema)
-
-        # Calculate mean LP score per label
-        if label_lp_scores:
-            for label, lp_scores in label_lp_scores.items():
-                mean_lp = sum(lp_scores) / len(lp_scores)
-                stats[f"curriculum_stats/per_label_mean_lp_score/{label}"] = mean_lp
-
-                # Debug: also log mean reward EMA
-                if label in label_reward_emas and label_reward_emas[label]:
-                    mean_reward = sum(label_reward_emas[label]) / len(label_reward_emas[label])
-                    logger.debug(
-                        f"Label {label}: mean_lp={mean_lp:.4f}, "
-                        f"mean_reward_ema={mean_reward:.4f} "
-                        f"(from {len(label_reward_emas[label])} completed tasks)"
-                    )
-
-            logger.info(
-                f"Calculated mean LP scores for {len(label_lp_scores)} labels "
-                f"(sample: {list(label_lp_scores.keys())[:3]})"
-            )
-
-        return stats
-
-    def _calculate_raw_lp_gini_from_shared_memory(self, curriculum: Any) -> dict[str, float]:
-        """Calculate raw LP debug stats directly from task tracker shared memory.
-
-        Reads p_fast and p_slow from shared memory for all tasks, calculates raw LP as |p_fast - p_slow|.
-        """
-        stats = {}
-
-        if not hasattr(curriculum, "_algorithm") or not hasattr(curriculum._algorithm, "task_tracker"):
-            logger.warning("Cannot access task tracker from curriculum")
-            return stats
-
-        task_tracker = curriculum._algorithm.task_tracker
-        all_task_ids = task_tracker.get_all_tracked_tasks()
-
-        if not all_task_ids:
-            return stats
-
-        # Calculate raw LP scores
-        raw_lp_scores = []
-
-        for task_id in all_task_ids:
-            task_stats = task_tracker.get_task_stats(task_id)
-            if task_stats:
-                p_fast = task_stats.get("p_fast", 0.0)
-                p_slow = task_stats.get("p_slow", 0.0)
-                raw_lp = abs(p_fast - p_slow)
-                raw_lp_scores.append(raw_lp)
-
-        # Calculate debug stats directly from shared memory
-        if raw_lp_scores:
-            mean_lp = sum(raw_lp_scores) / len(raw_lp_scores)
-            stats["algorithm/debug/raw_lp_mean"] = mean_lp
-
-            # Standard deviation
-            if len(raw_lp_scores) > 1:
-                variance = sum((x - mean_lp) ** 2 for x in raw_lp_scores) / len(raw_lp_scores)
-                stats["algorithm/debug/raw_lp_std"] = variance**0.5
-            else:
-                stats["algorithm/debug/raw_lp_std"] = 0.0
-
-            # Min/max
-            stats["algorithm/debug/raw_lp_min"] = min(raw_lp_scores)
-            stats["algorithm/debug/raw_lp_max"] = max(raw_lp_scores)
-
-            # Non-zero count
-            non_zero_count = sum(1 for x in raw_lp_scores if x > 1e-10)
-            stats["algorithm/debug/raw_lp_nonzero_count"] = float(non_zero_count)
-
-            # Total count
-            stats["algorithm/debug/raw_lp_total_count"] = float(len(raw_lp_scores))
-
-            logger.info(
-                f"Raw LP debug stats: "
-                f"({len(raw_lp_scores)} tasks, mean={mean_lp:.4f}, std={stats['algorithm/debug/raw_lp_std']:.4f}, "
-                f"non_zero={non_zero_count})"
-            )
-
-        return stats
-
-    def _calculate_gini_stats_from_shared_memory(self, curriculum: Any) -> dict[str, float]:
-        """Calculate all gini coefficients directly from task tracker shared memory.
-
-        Calculates:
-        - pool_composition_gini: Inequality in task counts per label
-        - raw_lp_score_gini: Inequality in raw LP scores across all tasks
-        - raw_lp_by_label_gini: Inequality in summed raw LP scores per label
-        - sampling_gini: Inequality in LP scores (sampling probabilities) per label
-        - task_age_gini: Inequality in task ages (time since creation)
-        """
-        stats = {}
-
-        if not hasattr(curriculum, "_algorithm") or not hasattr(curriculum._algorithm, "task_tracker"):
-            logger.warning("Cannot access task tracker from curriculum for gini calculations")
-            return stats
-
-        task_tracker = curriculum._algorithm.task_tracker
-        all_task_ids = task_tracker.get_all_tracked_tasks()
-
-        if not all_task_ids:
-            return stats
-
-        # Collect data grouped by label
-        label_counts = {}
-        label_raw_lp_sums = {}
-        label_lp_scores = {}
-        raw_lp_scores = []
-        task_ages = []
-
-        import time
-
-        current_time = time.time()
-
-        for task_id in all_task_ids:
-            task_stats = task_tracker.get_task_stats(task_id)
-            if task_stats:
-                label = task_tracker.get_task_label(task_id)
-
-                # Get raw LP score
-                p_fast = task_stats.get("p_fast", 0.0)
-                p_slow = task_stats.get("p_slow", 0.0)
-                raw_lp = abs(p_fast - p_slow)
-                raw_lp_scores.append(raw_lp)
-
-                # Get final LP score (sampling probability)
-                lp_score = task_stats.get("lp_score", 0.0)
-
-                # Calculate task age
-                creation_time = task_stats.get("creation_time", current_time)
-                task_age = current_time - creation_time
-                task_ages.append(task_age)
-
-                if label:
-                    # Track label counts for pool composition gini
-                    label_counts[label] = label_counts.get(label, 0) + 1
-
-                    # Track summed raw LP per label
-                    if label not in label_raw_lp_sums:
-                        label_raw_lp_sums[label] = 0.0
-                    label_raw_lp_sums[label] += raw_lp
-
-                    # Track summed LP scores per label (for sampling gini)
-                    if label not in label_lp_scores:
-                        label_lp_scores[label] = 0.0
-                    label_lp_scores[label] += lp_score
-
-        # Calculate pool composition gini
-        if label_counts:
-            counts = list(label_counts.values())
-            gini = self._calculate_gini_coefficient(counts)
-            stats["curriculum_stats/pool_composition_gini"] = gini
-            logger.info(
-                f"Pool composition gini: {gini:.3f} "
-                f"({len(label_counts)} labels, counts={sorted(counts, reverse=True)[:5]})"
-            )
-
-        # Calculate raw LP score gini (across all tasks)
-        if raw_lp_scores:
-            gini = self._calculate_gini_coefficient(raw_lp_scores)
-            stats["curriculum_stats/raw_lp_score_gini"] = gini
-            logger.info(f"Raw LP score gini: {gini:.3f} ({len(raw_lp_scores)} tasks)")
-
-        # Calculate raw LP by label gini (inequality in summed raw LP per label)
-        if label_raw_lp_sums:
-            lp_sums = list(label_raw_lp_sums.values())
-            gini = self._calculate_gini_coefficient(lp_sums)
-            stats["curriculum_stats/raw_lp_by_label_gini"] = gini
-            logger.info(f"Raw LP by label gini: {gini:.3f} ({len(label_raw_lp_sums)} labels)")
-
-        # Calculate sampling gini (inequality in LP scores per label)
-        if label_lp_scores:
-            lp_score_sums = list(label_lp_scores.values())
-            gini = self._calculate_gini_coefficient(lp_score_sums)
-            stats["curriculum_stats/sampling_gini"] = gini
-            logger.info(
-                f"Sampling gini: {gini:.3f} "
-                f"({len(label_lp_scores)} labels, lp_sums={sorted(lp_score_sums, reverse=True)[:5]})"
-            )
-
-        # Calculate task age gini (inequality in task ages)
-        if task_ages:
-            gini = self._calculate_gini_coefficient(task_ages)
-            stats["curriculum_stats/task_age_gini"] = gini
-            mean_age = sum(task_ages) / len(task_ages)
-            logger.info(
-                f"Task age gini: {gini:.3f} "
-                f"({len(task_ages)} tasks, mean_age={mean_age:.1f}s, "
-                f"oldest={max(task_ages):.1f}s)"
-            )
-
-        return stats
-
-    @staticmethod
-    def _calculate_gini_coefficient(values: list[float]) -> float:
-        """Calculate Gini coefficient for a distribution.
-
-        Measures inequality in sampling across labels:
-        - 0 = perfect equality (all labels sampled equally)
-        - 1 = perfect inequality (all samples from one label)
-        """
-        if not values or len(values) == 0:
-            return 0.0
-
-        if sum(values) == 0:
-            return 0.0
-
-        sorted_values = sorted(values)
-        n = len(sorted_values)
-
-        cumsum = sum((i + 1) * v for i, v in enumerate(sorted_values))
-        total = sum(sorted_values)
-        gini = (2.0 * cumsum) / (n * total) - (n + 1.0) / n
-
-        return float(gini)

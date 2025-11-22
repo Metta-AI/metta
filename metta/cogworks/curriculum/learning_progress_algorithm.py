@@ -38,6 +38,7 @@ import logging
 import math
 import random
 import statistics
+import time
 import uuid
 from typing import Any, Dict, List, Literal, Optional
 
@@ -46,6 +47,8 @@ from pydantic import model_validator
 from .curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
 from .task_tracker import TaskTracker
+
+logger = logging.getLogger(__name__)
 
 
 class LearningProgressConfig(CurriculumAlgorithmConfig):
@@ -602,8 +605,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         Returns:
             Gini coefficient between 0 and 1
         """
-        logger = logging.getLogger(__name__)
-
         if not values or len(values) == 0:
             return 0.0
 
@@ -668,6 +669,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         z_scored_lp_scores = []
         sampling_probs = []
         task_labels_list = []
+        task_ages = []
+
+        current_time = time.time()
 
         for task_id in all_task_ids:
             task_stats = self.task_tracker.get_task_stats(task_id)
@@ -687,6 +691,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 raw_lp = abs(p_fast - p_slow)
                 raw_lp_scores.append(raw_lp)
 
+                # Calculate task age
+                creation_time = float(task_stats.get("creation_time", current_time))
+                task_age = current_time - creation_time
+                task_ages.append(task_age)
+
                 label = self.task_tracker.get_task_label(task_id)
                 task_labels_list.append(label if label else "unknown")
 
@@ -698,23 +707,29 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if completion_counts:
             gini_stats["curriculum_gini/pool_occupancy"] = self._calculate_gini_coefficient(completion_counts)
 
+        if task_ages:
+            gini_stats["curriculum_gini/task_age"] = self._calculate_gini_coefficient(task_ages)
+            mean_age = statistics.mean(task_ages)
+            gini_stats["debug/task_age_mean_seconds"] = mean_age
+            gini_stats["debug/task_age_max_seconds"] = max(task_ages)
+
         if raw_lp_scores:
             gini_stats["curriculum_gini/raw_lp_scores"] = self._calculate_gini_coefficient(raw_lp_scores)
-            # Debug stats for raw LP
-            gini_stats["debug/raw_lp_mean"] = float(statistics.mean(raw_lp_scores))
-            gini_stats["debug/raw_lp_std"] = float(statistics.stdev(raw_lp_scores)) if len(raw_lp_scores) > 1 else 0.0
-            gini_stats["debug/raw_lp_max"] = float(max(raw_lp_scores))
-            gini_stats["debug/raw_lp_min"] = float(min(raw_lp_scores))
-            gini_stats["debug/raw_lp_nonzero_count"] = float(sum(1 for x in raw_lp_scores if x > 1e-10))
+            # Note: Raw LP debug stats (mean, std, min, max, etc.) are now calculated
+            # separately via curriculum.calculate_raw_lp_debug_stats()
 
         if raw_lp_scores and task_labels_list:
+            # Calculate label-aggregated raw LP for gini calculation
             label_lp_sums = {}
-            for label, lp in zip(task_labels_list, raw_lp_scores, strict=True):
+            for i, label in enumerate(task_labels_list):
+                lp = raw_lp_scores[i]
                 label_lp_sums[label] = label_lp_sums.get(label, 0.0) + lp
 
             if label_lp_sums:
                 label_lp_values = list(label_lp_sums.values())
                 gini_stats["curriculum_gini/raw_lp_by_label"] = self._calculate_gini_coefficient(label_lp_values)
+                # Note: Per-label mean LP scores and reward EMAs are now calculated
+                # separately via curriculum.calculate_per_label_mean_lp_stats()
 
         if z_scored_lp_scores:
             gini_stats["curriculum_gini/zscored_lp_scores"] = self._calculate_gini_coefficient(
@@ -804,8 +819,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def load_state(self, state: Dict[str, Any]) -> None:
         """Load learning progress algorithm state from checkpoint."""
-        logger = logging.getLogger(__name__)
-
         # Restore task tracker
         self.task_tracker.load_state(state["task_tracker"])
 

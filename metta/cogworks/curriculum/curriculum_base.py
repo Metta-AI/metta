@@ -31,7 +31,10 @@ class CurriculumTask:
         self._total_score = 0.0
         self._mean_score = 0.0
         self._num_scheduled = 0
-        self._label = getattr(env_cfg, "label", "unknown")
+
+        # Ensure label is always a string (not None or other types)
+        label = getattr(env_cfg, "label", "unknown")
+        self._label = str(label) if label is not None else "unknown"
 
     def complete(self, score: float):
         """Complete the task with a score."""
@@ -51,8 +54,12 @@ class CurriculumTask:
         """Get the slice values (backward compatibility alias)."""
         return self._slice_values
 
-    def get_label(self):
-        """Get the task label for per-label metrics."""
+    def get_label(self) -> str:
+        """Get the task label for per-label metrics.
+
+        Returns:
+            Always returns a string (never None). Defaults to "unknown" if no label is set.
+        """
         return self._label
 
 

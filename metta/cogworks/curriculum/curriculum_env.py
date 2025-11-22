@@ -24,6 +24,8 @@ from pufferlib import PufferEnv
 
 from .curriculum import Curriculum
 
+logger = logging.getLogger(__name__)
+
 
 class CurriculumEnv(PufferEnv):
     """Environment wrapper that integrates with a curriculum system.
@@ -75,7 +77,6 @@ class CurriculumEnv(PufferEnv):
                 # Handle configuration errors (e.g., agent count mismatch, map too small)
                 if attempt < max_retries - 1:
                     # Log warning and try a new task
-                    logger = logging.getLogger(__name__)
                     context_msg = f" {context}" if context else ""
                     logger.warning(
                         f"Task configuration error{context_msg} "
@@ -87,7 +88,6 @@ class CurriculumEnv(PufferEnv):
                     continue
                 else:
                     # All retries exhausted - re-raise the error
-                    logger = logging.getLogger(__name__)
                     context_msg = f" {context}" if context else ""
                     logger.error(
                         f"Failed to find valid task configuration after {max_retries} attempts{context_msg}. "
@@ -137,7 +137,6 @@ class CurriculumEnv(PufferEnv):
             mean_reward = float(episode_rewards.mean())
 
             # Debug logging for reward tracking (can be removed after verification)
-            logger = logging.getLogger(__name__)
             logger.debug(
                 f"Task {self._current_task._task_id} (label={self._current_task.get_label()}) "
                 f"completed with mean_reward={mean_reward:.4f} "
@@ -150,13 +149,13 @@ class CurriculumEnv(PufferEnv):
             self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
 
             # ALWAYS emit per-label sample count (needed for basic curriculum monitoring)
+            # Note: get_label() always returns a string (enforced in CurriculumTask.__init__)
             label = self._current_task.get_label()
-            if label is not None and isinstance(label, str):
-                if "env_curriculum_stats/per_label_samples_this_epoch" not in infos:
-                    infos["env_curriculum_stats/per_label_samples_this_epoch"] = {}
-                infos["env_curriculum_stats/per_label_samples_this_epoch"][label] = (
-                    infos["env_curriculum_stats/per_label_samples_this_epoch"].get(label, 0) + 1
-                )
+            if "env_curriculum_stats/per_label_samples_this_epoch" not in infos:
+                infos["env_curriculum_stats/per_label_samples_this_epoch"] = {}
+            infos["env_curriculum_stats/per_label_samples_this_epoch"][label] = (
+                infos["env_curriculum_stats/per_label_samples_this_epoch"].get(label, 0) + 1
+            )
 
             # Get new task with retry logic for invalid configurations
             self._get_task_with_retries(context="on episode completion")

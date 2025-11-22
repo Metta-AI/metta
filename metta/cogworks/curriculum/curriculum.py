@@ -333,6 +333,132 @@ class Curriculum(StatsLogger):
         """
         self._algorithm.reset_epoch_counters()
 
+    def calculate_per_label_mean_lp_stats(self) -> Dict[str, float]:
+        """Calculate per-label mean LP scores and reward EMAs.
+
+        This is extracted from the main gini calculation and includes:
+        - per_label_stats/mean_lp_score/{label}: Mean learning progress per label
+        - per_label_stats/mean_reward_ema/{label}: Mean reward EMA per label (only completed tasks)
+
+        Returns:
+            Dictionary of per-label statistics
+        """
+        if not hasattr(self._algorithm, "task_tracker"):
+            return {}
+
+        stats = {}
+        task_tracker = self._algorithm.task_tracker
+        all_task_ids = task_tracker.get_all_tracked_tasks()
+
+        if not all_task_ids:
+            return stats
+
+        # Group data by label
+        label_lp_sums = {}
+        label_lp_counts = {}
+        label_reward_ema_sums = {}
+        label_reward_ema_counts = {}
+
+        for task_id in all_task_ids:
+            task_stats = task_tracker.get_task_stats(task_id)
+            if task_stats:
+                label = task_tracker.get_task_label(task_id)
+                if not label:
+                    continue
+
+                # Get raw LP score
+                p_fast = float(task_stats.get("p_fast", 0.0))
+                p_slow = float(task_stats.get("p_slow", 0.0))
+                raw_lp = abs(p_fast - p_slow)
+
+                label_lp_sums[label] = label_lp_sums.get(label, 0.0) + raw_lp
+                label_lp_counts[label] = label_lp_counts.get(label, 0) + 1
+
+                # Only include reward EMAs for tasks with completions
+                completion_count = float(task_stats.get("completion_count", 0))
+                if completion_count > 0:
+                    reward_ema = float(task_stats.get("reward_ema", 0.0))
+                    label_reward_ema_sums[label] = label_reward_ema_sums.get(label, 0.0) + reward_ema
+                    label_reward_ema_counts[label] = label_reward_ema_counts.get(label, 0) + 1
+
+        # Calculate means
+        for label, lp_sum in label_lp_sums.items():
+            count = label_lp_counts[label]
+            mean_lp = lp_sum / count if count > 0 else 0.0
+            stats[f"per_label_stats/mean_lp_score/{label}"] = mean_lp
+
+        for label, reward_sum in label_reward_ema_sums.items():
+            count = label_reward_ema_counts[label]
+            mean_reward = reward_sum / count if count > 0 else 0.0
+            stats[f"per_label_stats/mean_reward_ema/{label}"] = mean_reward
+
+        return stats
+
+    def calculate_raw_lp_debug_stats(self) -> Dict[str, float]:
+        """Calculate raw LP debug statistics.
+
+        This includes aggregate statistics about raw learning progress scores:
+        - debug/raw_lp_mean: Mean of raw LP scores
+        - debug/raw_lp_std: Standard deviation of raw LP scores
+        - debug/raw_lp_min: Minimum raw LP score
+        - debug/raw_lp_max: Maximum raw LP score
+        - debug/raw_lp_nonzero_count: Count of tasks with non-zero LP
+        - debug/raw_lp_total_count: Total number of tasks
+
+        Returns:
+            Dictionary of raw LP debug statistics
+        """
+        if not hasattr(self._algorithm, "task_tracker"):
+            return {}
+
+        stats = {}
+        task_tracker = self._algorithm.task_tracker
+        all_task_ids = task_tracker.get_all_tracked_tasks()
+
+        if not all_task_ids:
+            return stats
+
+        raw_lp_scores = []
+        for task_id in all_task_ids:
+            task_stats = task_tracker.get_task_stats(task_id)
+            if task_stats:
+                p_fast = float(task_stats.get("p_fast", 0.0))
+                p_slow = float(task_stats.get("p_slow", 0.0))
+                raw_lp = abs(p_fast - p_slow)
+                raw_lp_scores.append(raw_lp)
+
+        if raw_lp_scores:
+            import statistics
+
+            mean_lp = statistics.mean(raw_lp_scores)
+            stats["debug/raw_lp_mean"] = mean_lp
+            stats["debug/raw_lp_std"] = statistics.stdev(raw_lp_scores) if len(raw_lp_scores) > 1 else 0.0
+            stats["debug/raw_lp_min"] = min(raw_lp_scores)
+            stats["debug/raw_lp_max"] = max(raw_lp_scores)
+            stats["debug/raw_lp_nonzero_count"] = float(sum(1 for x in raw_lp_scores if x > 1e-10))
+            stats["debug/raw_lp_total_count"] = float(len(raw_lp_scores))
+
+        return stats
+
+    def calculate_gini_coefficients(self) -> Dict[str, float]:
+        """Calculate Gini coefficients at each stage of the LP calculation pipeline.
+
+        This is an expensive operation that should be called once per epoch from
+        the centralized stats reporter, not from each worker in vectorized environments.
+
+        Calculates Gini coefficients for:
+        - Raw LP scores (task-level and aggregated by label)
+        - Z-scored LP scores
+        - Sampling probabilities (task-level and by label)
+        - Pool composition by label
+        - Task ages
+        - Eviction counts by label
+
+        Returns:
+            Dictionary of Gini coefficients with curriculum_gini/ prefix
+        """
+        return self._algorithm.calculate_gini_coefficients()
+
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
         # Get global completion count from algorithm's task tracker if available
@@ -396,8 +522,6 @@ class Curriculum(StatsLogger):
 
     def get_state(self) -> Dict[str, Any]:
         """Get curriculum state for checkpointing."""
-        logger = logging.getLogger(__name__)
-
         state = {
             "config": self._config.model_dump(),  # Save config for validation
             "seed": self._rng.getstate(),
@@ -424,10 +548,65 @@ class Curriculum(StatsLogger):
 
         return state
 
+    def log_shared_memory_state(self) -> None:
+        """Log raw shared memory state for debugging.
+
+        Directly reads the task tracker's shared memory arrays to show what's actually stored.
+        This bypasses all caching and intermediate layers to provide ground truth.
+        """
+        if not hasattr(self._algorithm, "task_tracker"):
+            logger.info("SHARED MEMORY DEBUG: No task tracker found")
+            return
+
+        task_tracker = self._algorithm.task_tracker
+        logger.info("=" * 80)
+        logger.info("SHARED MEMORY STATE (Direct Array Read)")
+        logger.info("=" * 80)
+
+        # Get all task IDs being tracked
+        tracked_tasks = task_tracker.get_all_tracked_tasks()
+        logger.info(f"Total tracked tasks: {len(tracked_tasks)}")
+
+        if not tracked_tasks:
+            logger.info("No tasks tracked yet")
+            logger.info("=" * 80)
+            return
+
+        # Count tasks by completion status
+        tasks_with_completions = 0
+        total_completions = 0
+        tasks_with_nonzero_lp = 0
+        tasks_with_nonzero_ema = 0
+
+        # Compute aggregate stats
+        for task_id in tracked_tasks:
+            task_stats = task_tracker.get_task_stats(task_id)
+            if task_stats:
+                comp_count = task_stats["completion_count"]
+                if comp_count > 0:
+                    tasks_with_completions += 1
+                    total_completions += comp_count
+                if task_stats["lp_score"] != 0.0:
+                    tasks_with_nonzero_lp += 1
+                if task_stats["p_fast"] != 0.0 or task_stats["p_slow"] != 0.0:
+                    tasks_with_nonzero_ema += 1
+
+        logger.info("\nAggregate stats:")
+        logger.info(f"  Tasks with completions: {tasks_with_completions}/{len(tracked_tasks)}")
+        logger.info(f"  Total completions across all tasks: {total_completions}")
+        logger.info(f"  Tasks with non-zero LP scores: {tasks_with_nonzero_lp}/{len(tracked_tasks)}")
+        logger.info(f"  Tasks with non-zero EMAs: {tasks_with_nonzero_ema}/{len(tracked_tasks)}")
+
+        # Check global tracker stats
+        tracker_global_stats = task_tracker.get_global_stats()
+        logger.info("\nTracker global stats:")
+        logger.info(f"  _total_completions: {tracker_global_stats.get('total_completions', 0)}")
+        logger.info(f"  _mean_score: {tracker_global_stats.get('mean_score', 0):.4f}")
+
+        logger.info("=" * 80)
+
     def load_state(self, state: Dict[str, Any]) -> None:
         """Load curriculum state from checkpoint."""
-        logger = logging.getLogger(__name__)
-
         num_tasks_to_load = len(state.get("tasks", {}))
         has_algo_state = "algorithm_state" in state
         logger.info(
