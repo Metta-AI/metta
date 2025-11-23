@@ -93,10 +93,6 @@ def load_policy(
     return policy
 
 
-# Alias retained for callers familiar with the old name
-initialize_or_load_policy = load_policy
-
-
 initialize_or_load_policy = load_policy
 
 
@@ -107,8 +103,8 @@ def save_policy(
     arch_hint: object | None = None,
 ) -> str:
     """Persist a policy checkpoint to a local path."""
-    path = Path(destination).expanduser()
-    path.parent.mkdir(parents=True, exist_ok=True)
+    dest = str(destination)
+    path = Path(dest).expanduser()
     suffix = path.suffix.lower()
 
     inner_policy = getattr(policy, "module", policy)
@@ -125,6 +121,21 @@ def save_policy(
         raise ValueError(f"Unsupported checkpoint extension: {suffix}")
 
     uri = f"file://{path.resolve()}"
+
+    if dest.startswith("s3://"):
+        from metta.common.util.file import write_file
+        from metta.rl.system_config import guess_data_dir
+
+        temp_dir = guess_data_dir() / ".tmp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_copy = temp_dir / path.name
+        try:
+            tmp_copy.write_bytes(path.read_bytes())
+            write_file(dest, str(tmp_copy))
+        finally:
+            tmp_copy.unlink(missing_ok=True)
+        return dest
+
     return urllib.parse.unquote(uri)
 
 

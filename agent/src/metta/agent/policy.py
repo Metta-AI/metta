@@ -3,9 +3,7 @@
 This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.)
 implement the required methods that MettaAgent depends on."""
 
-import tempfile
 from abc import abstractmethod
-from pathlib import Path
 from typing import Any, ClassVar, List, Optional
 
 import torch
@@ -22,8 +20,6 @@ from metta.agent.components.obs_shim import (
     ObsShimTokens,
     ObsShimTokensConfig,
 )
-from metta.common.util.file import write_file
-from metta.rl.system_config import guess_data_dir
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
@@ -111,41 +107,6 @@ class Policy(MultiAgentPolicy, nn.Module):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy adapter for the specified agent index."""
         return StatefulAgentPolicy(self._stateful_impl, self._policy_env_info, agent_id)
-
-    def save_policy(
-        self,
-        destination: str | Path,
-        *,
-        policy_architecture: PolicyArchitecture | None = None,
-    ) -> str:
-        """Persist the policy using the safetensors artifact format."""
-
-        dest = str(destination)
-        from mettagrid.policy.loader import save_policy as _save_policy_helper
-
-        if dest.startswith("s3://"):
-            temp_dir = guess_data_dir() / ".tmp"
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            local_copy: Path | None = None
-            try:
-                with tempfile.NamedTemporaryFile(
-                    dir=temp_dir,
-                    prefix="policy-upload-",
-                    suffix=Path(dest).suffix or ".mpt",
-                    delete=False,
-                ) as tmp_file:
-                    local_copy = Path(tmp_file.name)
-
-                _save_policy_helper(local_copy, self, arch_hint=policy_architecture)
-                write_file(dest, str(local_copy))
-            finally:
-                if local_copy is not None:
-                    local_copy.unlink(missing_ok=True)
-
-            return dest
-
-        path = Path(destination).expanduser()
-        return _save_policy_helper(path, self, arch_hint=policy_architecture)
 
     def make_stateful_policy_impl(self) -> StatefulPolicyImpl[Any]:
         return _PolicyStateImpl(self)

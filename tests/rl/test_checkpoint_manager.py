@@ -16,7 +16,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
-from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.loader import initialize_or_load_policy, save_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
@@ -132,7 +132,7 @@ class TestBasicSaveLoad:
         policy_spec = CheckpointManager.policy_spec_from_uri(f"file://{local_path}")
         policy = initialize_or_load_policy(env_info, policy_spec)
         remote_path = remote_dir / expected_filename
-        remote_uri = policy.save_policy(remote_path, policy_architecture=mock_policy_architecture)
+        remote_uri = save_policy(remote_path, policy, arch_hint=mock_policy_architecture)
 
         assert remote_path.exists()
         # URI may percent-encode ':'; compare normalized parts
@@ -301,7 +301,7 @@ class TestBasicSaveLoad:
         policy = initialize_or_load_policy(env_info, spec)
 
         save_path = checkpoint_manager.checkpoint_dir / "resaved.mpt"
-        saved_uri = policy.save_policy(save_path, policy_architecture=mock_policy_architecture)
+        saved_uri = save_policy(save_path, policy, arch_hint=mock_policy_architecture)
 
         assert save_path.exists()
         reload_spec = CheckpointManager.policy_spec_from_uri(saved_uri, device="cpu")
