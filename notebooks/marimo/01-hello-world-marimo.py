@@ -1669,7 +1669,9 @@ def _(
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         run_name_from_ckpt = metadata["run_name"]
 
-        policy_spec = policy_spec_from_uri(CheckpointManager.normalize_uri(str(latest_ckpt)), device=device)
+        policy_spec = policy_spec_from_uri(
+            CheckpointManager.normalize_uri(str(latest_ckpt)), device=device
+        )
         trained_policy = initialize_or_load_policy(policy_env_info, policy_spec)
 
         # Create evaluation environment

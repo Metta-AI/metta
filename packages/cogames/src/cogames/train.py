@@ -202,7 +202,9 @@ def train(
             policy_spec = policy_spec_from_uri(initial_weights_path, class_path=policy_class_path)
             policy = initialize_or_load_policy(policy_env_info, policy_spec)
         except Exception as exc:  # pragma: no cover - warning path
-            console.print(f"[yellow]Initial weights not loaded ({exc}). Continuing with random initialization.[/yellow]")
+            console.print(
+                f"[yellow]Initial weights not loaded ({exc}). Continuing with random initialization.[/yellow]"
+            )
             policy = initialize_or_load_policy(policy_env_info, PolicySpec(class_path=policy_class_path))
     else:
         resolved_initial_weights = None
