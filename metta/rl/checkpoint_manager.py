@@ -341,6 +341,7 @@ class CheckpointManager:
         class_path: str | None = None,
     ) -> PolicySpec:
         normalized_uri = CheckpointManager.normalize_uri(uri)
+        parsed_uri = ParsedURI.parse(normalized_uri)
         if policy_architecture is None:
             artifact = CheckpointManager.load_artifact_from_uri(normalized_uri)
             policy_architecture = artifact.policy_architecture
@@ -358,4 +359,5 @@ class CheckpointManager:
             resolved_class_path = policy_architecture.class_path
         else:
             resolved_class_path = class_path  # type: ignore[assignment]
-        return PolicySpec(class_path=resolved_class_path, init_kwargs=init_kwargs, data_path=None)
+        data_path = str(parsed_uri.local_path) if parsed_uri.scheme == "file" and parsed_uri.local_path else None
+        return PolicySpec(class_path=resolved_class_path, init_kwargs=init_kwargs, data_path=data_path)

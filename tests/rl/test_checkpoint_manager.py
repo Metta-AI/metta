@@ -36,6 +36,21 @@ class MockAgentPolicyArchitecture(PolicyArchitecture):
         return MockAgent()
 
 
+class ParameterizedMockAgent(MockAgent):
+    def __init__(self, policy_env_info: PolicyEnvInterface | None = None):
+        super().__init__(policy_env_info)
+        self.dummy_weight = torch.nn.Parameter(torch.tensor([0.0]))
+
+
+class ParameterizedMockArchitecture(PolicyArchitecture):
+    class_path: str = "tests.rl.test_checkpoint_manager.ParameterizedMockAgent"
+    action_probs_config: Config = Field(default_factory=MockActionComponentConfig)
+
+    def make_policy(self, policy_env_info: PolicyEnvInterface) -> ParameterizedMockAgent:  # pragma: no cover
+        # simple test helper
+        return ParameterizedMockAgent(policy_env_info)
+
+
 @pytest.fixture
 def test_system_cfg():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -275,6 +290,32 @@ class TestBasicSaveLoad:
         assert spec.init_kwargs["display_name"] == "custom"
         assert spec.init_kwargs["device"] == "cpu"
         assert spec.init_kwargs.get("policy_architecture") is not None
+
+    def test_loader_uses_checkpoint_uri_when_data_path_missing(self, checkpoint_manager):
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        arch = ParameterizedMockArchitecture()
+        policy = arch.make_policy(env_info)
+        with torch.no_grad():
+            policy.dummy_weight.fill_(5.0)
+
+        ckpt_path = checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v_uri.mpt"
+        save_policy_artifact_safetensors(
+            ckpt_path,
+            policy_architecture=arch,
+            state_dict=policy.state_dict(),
+        )
+
+        spec = PolicySpec(
+            class_path=arch.class_path,
+            data_path=None,
+            init_kwargs={
+                "checkpoint_uri": ckpt_path.as_uri(),
+                "policy_architecture": arch,
+            },
+        )
+
+        restored = initialize_or_load_policy(env_info, spec)
+        assert torch.allclose(restored.dummy_weight, torch.tensor([5.0]))
 
 
 class TestErrorHandling:

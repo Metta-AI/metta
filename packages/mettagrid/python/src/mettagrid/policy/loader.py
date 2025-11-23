@@ -8,11 +8,13 @@ import os
 import pkgutil
 import re
 import urllib.parse
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Optional
 
 import torch
 
+from metta.common.util.file import ParsedURI, local_copy
 from mettagrid.policy.artifact import load_policy_artifact, save_policy_artifact_safetensors
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -48,25 +50,35 @@ def load_policy(
     init_kwargs = dict(policy_spec.init_kwargs or {})
     state_dict: dict[str, torch.Tensor] | None = None
     architecture = arch_hint or init_kwargs.get("policy_architecture")
+    checkpoint_ref = policy_spec.data_path or init_kwargs.get("checkpoint_uri")
 
-    if policy_spec.data_path:
-        data_path = Path(policy_spec.data_path).expanduser()
-        suffix = data_path.suffix.lower()
-        if suffix == ".mpt":
-            artifact = load_policy_artifact(data_path)
-            architecture = getattr(artifact, "policy_architecture", None) or architecture
-            state_dict = getattr(artifact, "state_dict", None)
-            if state_dict is not None and architecture is None:
-                raise ValueError("Old-format .mpt requires policy_architecture (provide arch_hint)")
-        elif suffix == ".pt":
-            payload = torch.load(data_path, map_location="cpu", weights_only=False)
-            state_dict, arch_value = _unwrap_state_dict(payload)
-            if arch_value is not None:
-                architecture = arch_value
-            if architecture is None:
-                raise ValueError("Loading .pt requires policy_architecture when none is embedded")
+    if checkpoint_ref:
+        parsed = ParsedURI.parse(str(checkpoint_ref))
+        if parsed.scheme == "file":
+            ctx = nullcontext(parsed.require_local_path())
+        elif parsed.scheme == "s3":
+            ctx = local_copy(parsed.canonical)
         else:
-            raise ValueError(f"Unsupported checkpoint extension: {suffix}")
+            raise ValueError(f"Unsupported checkpoint scheme: {parsed.scheme}")
+
+        with ctx as materialized_path:
+            data_path = Path(materialized_path).expanduser()
+            suffix = data_path.suffix.lower()
+            if suffix == ".mpt":
+                artifact = load_policy_artifact(data_path)
+                architecture = getattr(artifact, "policy_architecture", None) or architecture
+                state_dict = getattr(artifact, "state_dict", None)
+                if state_dict is not None and architecture is None:
+                    raise ValueError("Old-format .mpt requires policy_architecture (provide arch_hint)")
+            elif suffix == ".pt":
+                payload = torch.load(data_path, map_location="cpu", weights_only=False)
+                state_dict, arch_value = _unwrap_state_dict(payload)
+                if arch_value is not None:
+                    architecture = arch_value
+                if architecture is None:
+                    raise ValueError("Loading .pt requires policy_architecture when none is embedded")
+            else:
+                raise ValueError(f"Unsupported checkpoint extension: {suffix}")
 
     if architecture is not None and hasattr(architecture, "make_policy"):
         policy = architecture.make_policy(policy_env_info)  # type: ignore[call-arg]
