@@ -341,6 +341,24 @@ class TestBasicSaveLoad:
         restored = initialize_or_load_policy(env_info, spec)
         assert torch.allclose(restored.dummy_weight, torch.tensor([7.0]))
 
+    def test_weights_only_checkpoint_loads_with_class_path(self, tmp_path: Path):
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = ParameterizedMockAgent(env_info)
+        with torch.no_grad():
+            policy.dummy_weight.fill_(11.0)
+
+        save_path = tmp_path / "weights_only.pt"
+        torch.save(policy.state_dict(), save_path)
+
+        spec = CheckpointManager.policy_spec_from_uri(
+            save_path.as_uri(),
+            class_path="tests.rl.test_checkpoint_manager.ParameterizedMockAgent",
+        )
+
+        restored = initialize_or_load_policy(env_info, spec)
+        assert isinstance(restored, ParameterizedMockAgent)
+        assert torch.allclose(restored.dummy_weight, torch.tensor([11.0]))
+
     def test_loader_uses_checkpoint_uri_when_data_path_missing(self, checkpoint_manager):
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         arch = ParameterizedMockArchitecture()

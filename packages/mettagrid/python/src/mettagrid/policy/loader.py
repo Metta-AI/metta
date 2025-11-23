@@ -58,7 +58,12 @@ def load_policy(
         architecture = getattr(artifact, "policy_architecture", None) or architecture
         state_dict = getattr(artifact, "state_dict", None)
         policy_from_artifact = getattr(artifact, "policy", None)
-        if state_dict is not None and architecture is None:
+        if (
+            state_dict is not None
+            and architecture is None
+            and policy_from_artifact is None
+            and not policy_spec.class_path
+        ):
             raise ValueError("Loading checkpoints requires policy_architecture when none is embedded")
 
     if architecture is not None and hasattr(architecture, "make_policy"):

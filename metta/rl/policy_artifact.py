@@ -413,29 +413,20 @@ def _load_pt_artifact(path: Path) -> PolicyArtifact:
     return _artifact_from_payload(payload, source=".pt file")
 
 
-def load_policy_artifact(path: str | Path) -> PolicyArtifact:
-    """Load a policy artifact from .mpt (metta) or .pt (cogames) format.
+def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
+    """Load a policy artifact from .mpt/.pt or URI (file://, s3://, :latest, mock://)."""
+    if isinstance(path_or_uri, Path):
+        input_path = path_or_uri
+    else:
+        input_path = Path(path_or_uri) if "://" not in path_or_uri and not str(path_or_uri).endswith(":latest") else None
 
-    .mpt files: ZIP archives with weights.safetensors + modelarchitecture.txt
-    .pt files: Simple torch state_dict pickles
-    """
-    input_path = Path(path)
-    if not input_path.exists():
-        raise FileNotFoundError(f"Policy artifact not found: {input_path}")
+    if input_path is not None and input_path.exists():
+        if input_path.suffix == ".mpt":
+            return _load_mpt_artifact(input_path)
+        if input_path.suffix == ".pt":
+            return _load_pt_artifact(input_path)
+        raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
 
-    # Path 1: Modern .mpt format (safetensors + architecture)
-    if input_path.suffix == ".mpt":
-        return _load_mpt_artifact(input_path)
-
-    # Path 2: Simple .pt format (state_dict only)
-    if input_path.suffix == ".pt":
-        return _load_pt_artifact(input_path)
-
-    raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
-
-
-def load_policy_artifact_from_uri(uri: str) -> PolicyArtifact:
-    """Load a policy artifact from a URI (file://, s3://, :latest, or mock://)."""
     from metta.rl.checkpoint_manager import CheckpointManager
 
-    return CheckpointManager.load_artifact_from_uri(uri)
+    return CheckpointManager.load_artifact_from_uri(str(path_or_uri))
