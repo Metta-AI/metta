@@ -1,33 +1,31 @@
 #!/usr/bin/env -S uv run
 # ruff: noqa: E402
-# ^ Imports must come after warnings.filterwarnings() to suppress Pydantic warnings from SkyPilot
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 
 import json
 import logging
 import subprocess
-import warnings
 from typing import Annotated, Literal, Optional
 
-import typer
-from typer import rich_utils
-
-from devops.skypilot.utils.task_helpers import display_task_summary, patch_task, validate_task_name
-from metta.common.util.log_config import init_logging
-
-# Suppress Pydantic warnings from SkyPilot dependencies before importing sky
-warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._generate_schema")
-
 import sky
+import typer
 import yaml
+from typer import rich_utils
 
 import gitta as git
 from devops.skypilot.utils.task_helpers import (
+    display_task_summary,
     launch_task,
+    patch_task,
     set_task_secrets,
+    validate_task_name,
 )
 from metta.common.tool.tool_path import parse_two_token_syntax, validate_module_path
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.fs import cd_repo_root
+from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import red
 from metta.tools.utils.auto_config import auto_run_name
 

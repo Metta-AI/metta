@@ -1,60 +1,28 @@
 #!/usr/bin/env -S uv run
 # ruff: noqa: E402
-# ^ Imports must come after warnings.filterwarnings() to suppress Pydantic warnings from SkyPilot
-import logging
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
+
 import os
 import subprocess
 import time
-import warnings
 from typing import Annotated, Optional
-
-import typer
-from typer import rich_utils
-
-from metta.common.util.log_config import init_logging
-
-# Suppress Pydantic warnings from SkyPilot dependencies before importing sky
-# SkyPilot v0.10.3.post2 with Pydantic 2.12.3 generates UnsupportedFieldAttributeWarning
-# for 'repr' and 'frozen' attributes used in Field() definitions that have no effect.
-# This is a known issue in Pydantic 2.12+ affecting multiple projects (wandb, pytorch, etc.)
-# See: https://github.com/pydantic/pydantic/issues/10497
-# These warnings are harmless and come from upstream dependencies, not our code.
-warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._generate_schema")
 
 import sky
 import sky.exceptions
+import typer
 import yaml
 from sky.schemas.api.responses import StatusResponse
+from typer import rich_utils
 
 import gitta as git
 from devops.skypilot.utils.cost_monitor import get_instance_cost
 from devops.skypilot.utils.task_helpers import set_task_secrets
 from metta.common.util.cli import spinner
+from metta.common.util.log_config import init_logging
 from metta.common.util.retry import retry_function
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
-
-
-class CredentialWarningHandler(logging.Handler):
-    """Custom handler to intercept and reformat botocore credential warnings."""
-
-    def emit(self, record):
-        if record.levelno == logging.WARNING and "credential" in record.getMessage().lower():
-            # Extract just the warning message without the traceback
-            message = record.getMessage()
-
-            # Check for specific credential-related messages
-            if "refresh failed" in message or "Token has expired" in message:
-                print(f"\n{yellow('⚠️  AWS credentials need refresh')}")
-                print("   Your AWS session is expiring but still functional")
-                print(f"   Run {green('aws sso login')} when convenient to refresh\n")
-
-
-# Set up custom logging for botocore.credentials
-credentials_logger = logging.getLogger("botocore.credentials")
-credentials_logger.setLevel(logging.WARNING)
-credentials_logger.addHandler(CredentialWarningHandler())
-# Prevent propagation to avoid duplicate output
-credentials_logger.propagate = False
 
 
 def get_existing_clusters():
@@ -516,7 +484,7 @@ def new(
     # Configure SSH access
     with spinner("Configuring SSH access", style=cyan):
         try:
-            subprocess.run(["sky", "status2", cluster_name], check=True, capture_output=True)
+            subprocess.run(["sky", "status", cluster_name], check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
             print(f"\n{yellow('⚠')} SSH setup may not be complete. You can try:")
             print(f"  • Manual SSH: {green(f'ssh {cluster_name}')}")
@@ -528,71 +496,40 @@ def new(
         print("\n📤 Transferring additional files to sandbox...")
         scp_success = True
 
-        # Transfer .sky folder
-        with spinner("Copying ~/.sky folder", style=cyan):
-            try:
-                sky_path = os.path.expanduser("~/.sky")
-                if os.path.exists(sky_path):
-                    subprocess.run(
-                        ["scp", "-rq", sky_path, f"{cluster_name}:~/"],
-                        check=True,
-                        capture_output=True,
-                    )
-                    print(f"  {green('✓')} ~/.sky folder transferred")
-                else:
-                    print(f"  {yellow('⚠')} ~/.sky folder not found locally")
+        failed_dirs: list[str] = []
+
+        for folder in [".sky", ".aws", ".metta"]:
+            with spinner(f"Copying ~/.{folder} folder", style=cyan):
+                try:
+                    folder_path = os.path.expanduser(f"~/{folder}")
+                    if os.path.exists(folder_path):
+                        subprocess.run(
+                            ["scp", "-rq", folder_path, f"{cluster_name}:~/"],
+                            check=True,
+                            capture_output=True,
+                        )
+                        print(f"  {green('✓')} ~/{folder} folder transferred")
+                    else:
+                        print(f"  {yellow('⚠')} ~/{folder} folder not found locally")
+                        print("    AWS credentials will need to be configured via environment variables")
+                except subprocess.CalledProcessError as e:
+                    print(f"  {red('✗')} Failed to transfer ~/.aws folder: {str(e)}")
+                    failed_dirs.append(folder)
                     scp_success = False
-            except subprocess.CalledProcessError as e:
-                print(f"  {red('✗')} Failed to transfer ~/.sky folder: {str(e)}")
-                scp_success = False
-
-        # Transfer .aws folder (for AWS CLI configuration and SSO)
-        with spinner("Copying ~/.aws folder", style=cyan):
-            try:
-                aws_path = os.path.expanduser("~/.aws")
-                if os.path.exists(aws_path):
-                    subprocess.run(
-                        ["scp", "-rq", aws_path, f"{cluster_name}:~/"],
-                        check=True,
-                        capture_output=True,
-                    )
-                    print(f"  {green('✓')} ~/.aws folder transferred")
-                    # Check if SSO is configured
-                    config_path = os.path.join(aws_path, "config")
-                    if os.path.exists(config_path):
-                        with open(config_path, "r") as f:
-                            if "sso_session" in f.read() or "sso_start_url" in f.read():
-                                print(f"    {yellow('Note:')} AWS SSO detected")
-                                print("    Run 'aws sso login' if tokens expired")
-                else:
-                    print(f"  {yellow('⚠')} ~/.aws folder not found locally")
-                    print("    AWS credentials will need to be configured via environment variables")
-            except subprocess.CalledProcessError as e:
-                print(f"  {red('✗')} Failed to transfer ~/.aws folder: {str(e)}")
-                scp_success = False
-
-        # Transfer observatory tokens
-        with spinner("Copying ~/.metta/config.yaml", style=cyan):
-            try:
-                obs_path = os.path.expanduser("~/.metta/config.yaml")
-                if os.path.exists(obs_path):
-                    subprocess.run(
-                        ["scp", "-q", obs_path, f"{cluster_name}:~/.metta/config.yaml"],
-                        check=True,
-                        capture_output=True,
-                    )
-                    print(f"  {green('✓')} Observatory tokens transferred")
-                else:
-                    print(f"  {yellow('⚠')} Observatory tokens not found locally")
-            except subprocess.CalledProcessError as e:
-                print(f"  {red('✗')} Failed to transfer observatory tokens: {str(e)}")
-                scp_success = False
 
         if not scp_success:
             print(f"\n{yellow('⚠')} Some files failed to transfer.")
             print("  You can manually copy them later with:")
-            print(f"    {green(f'scp -r ~/.sky {cluster_name}:~/')}")
-            print(f"    {green(f'scp ~/.metta/config.yaml {cluster_name}:~/.metta/')}")
+            for folder in failed_dirs:
+                print(f"    {green(f'scp -r ~/{folder} {cluster_name}:~/')}")
+
+        # Check if SSO is configured
+        config_path = os.path.join(os.path.expanduser("~/.aws"), "config")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                if "sso_session" in f.read() or "sso_start_url" in f.read():
+                    print(f"    {yellow('Note:')} AWS SSO detected")
+                    print("    Run 'aws sso login' if tokens expired")
 
     # Success!
     print(f"\n{green('✓')} Sandbox is ready!")
