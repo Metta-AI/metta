@@ -378,8 +378,11 @@ def _load_mpt_artifact(path: Path) -> PolicyArtifact:
             # Backwards compat: old .mpt files are PyTorch ZIP format (data.pkl)
             if "weights.safetensors" not in names:
                 if any("data.pkl" in name for name in names):
-                    state_dict = torch.load(path, map_location="cpu", weights_only=False)
-                    return PolicyArtifact(state_dict=_normalize_state_dict_keys(state_dict))
+                    payload = torch.load(path, map_location="cpu", weights_only=False)
+                    # Route legacy PyTorch ZIP payloads through the generic loader so we can
+                    # recover embedded metadata (e.g., policy_architecture_{spec,str}) when
+                    # present instead of treating them as raw weights only.
+                    return _artifact_from_payload(payload, source=".mpt data.pkl")
                 if "policy.pt" in names:
                     try:
                         with archive.open("policy.pt") as payload_file:
