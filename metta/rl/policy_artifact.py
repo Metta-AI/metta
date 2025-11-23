@@ -361,7 +361,7 @@ def _artifact_from_payload(payload: object, *, source: str) -> PolicyArtifact:
         )
         if isinstance(arch_value, str):
             policy_architecture = policy_architecture_from_string(arch_value)
-        elif hasattr(arch_value, "__class__") and arch_value.__class__.__name__ == "PolicyArchitecture":
+        elif isinstance(arch_value, PolicyArchitecture):
             policy_architecture = arch_value
 
     if not all(isinstance(k, str) and isinstance(v, torch.Tensor) for k, v in state_dict.items()):
