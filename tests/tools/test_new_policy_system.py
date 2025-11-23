@@ -11,9 +11,7 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from recipes.experiment.arena import mettagrid
 from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
 
