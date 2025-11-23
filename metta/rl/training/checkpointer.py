@@ -157,6 +157,11 @@ class Checkpointer(TrainerComponent):
     def _require_policy_instance(self, candidate: object) -> Policy:
         if isinstance(candidate, Policy):
             return candidate
+
+        # Unwrap CheckpointPolicy to get the actual Policy instance
+        if hasattr(candidate, "_policy") and isinstance(candidate._policy, Policy):  # type: ignore[attr-defined]
+            return candidate._policy  # type: ignore[attr-defined]
+
         msg = f"Checkpointer expected Policy, got {type(candidate).__name__}"
         raise TypeError(msg)
 
