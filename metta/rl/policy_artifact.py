@@ -263,56 +263,11 @@ def save_policy_artifact_safetensors(
     detach_buffers: bool = True,
 ) -> PolicyArtifact:
     """Persist weights + architecture using the safetensors format."""
-    return _save_policy_artifact(
-        path,
-        policy_architecture=policy_architecture,
-        state_dict=state_dict,
-        detach_buffers=detach_buffers,
-    )
-
-
-def _save_policy_artifact(
-    path: str | Path,
-    *,
-    policy: Policy | None = None,
-    policy_architecture: PolicyArchitecture | None = None,
-    state_dict: Mapping[str, torch.Tensor] | None = None,
-    include_policy: bool = False,
-    detach_buffers: bool = True,
-) -> PolicyArtifact:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    has_state_input = state_dict is not None
-    if not has_state_input and policy is not None and policy_architecture is not None:
-        state_dict = policy.state_dict()
+    artifact_state = _to_safetensors_state_dict(state_dict, detach_buffers)
 
-    has_state_input = state_dict is not None
-
-    if has_state_input and policy_architecture is None:
-        msg = "policy_architecture is required when saving weights"
-        raise ValueError(msg)
-    if not has_state_input and not include_policy:
-        msg = "Saving requires weights/architecture or include_policy=True with a policy"
-        raise ValueError(msg)
-
-    artifact_state: MutableMapping[str, torch.Tensor] | None = None
-    if has_state_input:
-        artifact_state = _to_safetensors_state_dict(state_dict or {}, detach_buffers)
-
-    policy_payload: bytes | None = None
-    if include_policy:
-        if policy is None:
-            msg = "include_policy=True requires a policy instance"
-            raise ValueError(msg)
-        if has_state_input:
-            msg = "include_policy=True cannot be combined with weights/state_dict"
-            raise ValueError(msg)
-        buffer = io.BytesIO()
-        torch.save(policy, buffer)
-        policy_payload = buffer.getvalue()
-
-    # Atomic save: write to temporary file first, then move to final destination
     with tempfile.NamedTemporaryFile(
         dir=output_path.parent,
         prefix=f".{output_path.name}.",
@@ -323,30 +278,19 @@ def _save_policy_artifact(
 
         try:
             with zipfile.ZipFile(temp_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-                if artifact_state is not None and policy_architecture is not None:
-                    weights_blob = save_safetensors(artifact_state)
-                    archive.writestr("weights.safetensors", weights_blob)
-                    archive.writestr(
-                        "modelarchitecture.txt",
-                        policy_architecture_to_string(policy_architecture),
-                    )
+                weights_blob = save_safetensors(artifact_state)
+                archive.writestr("weights.safetensors", weights_blob)
+                archive.writestr(
+                    "modelarchitecture.txt",
+                    policy_architecture_to_string(policy_architecture),
+                )
 
-                if policy_payload is not None:
-                    archive.writestr("policy.pt", policy_payload)
-
-            # Atomic move: this operation is atomic on most filesystems
             temp_path.replace(output_path)
-
         except Exception:
-            # Clean up temporary file on error
             temp_path.unlink(missing_ok=True)
             raise
 
-    return PolicyArtifact(
-        policy_architecture=policy_architecture if artifact_state is not None else None,
-        state_dict=artifact_state,
-        policy=policy if include_policy else None,
-    )
+    return PolicyArtifact(policy_architecture=policy_architecture, state_dict=artifact_state)
 
 
 def _normalize_state_dict_keys(state_dict: Mapping[str, torch.Tensor]) -> MutableMapping[str, torch.Tensor]:

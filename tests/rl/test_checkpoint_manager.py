@@ -118,7 +118,9 @@ class TestBasicSaveLoad:
         remote_path = remote_dir / expected_filename
         remote_uri = policy.save_policy(remote_path, policy_architecture=mock_policy_architecture)
 
-        assert remote_uri == remote_path.as_uri()
+        assert remote_path.exists()
+        # URI may percent-encode ':'; compare normalized parts
+        assert Path(ParsedURI.parse(remote_uri).local_path) == remote_path
         assert remote_path.exists()
 
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent, mock_policy_architecture):
