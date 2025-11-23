@@ -12,6 +12,10 @@ locals {
   )
 }
 
+data "aws_s3_bucket" "softmax_public" {
+  bucket = "softmax-public"
+}
+
 resource "aws_iam_openid_connect_provider" "github" {
   url            = "https://token.actions.githubusercontent.com"
   client_id_list = [local.audience]
@@ -47,6 +51,39 @@ resource "aws_iam_role" "github_actions" {
 resource "aws_iam_role_policy_attachment" "github_ecr_poweruser" {
   role       = aws_iam_role.github_actions.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
+}
+
+# Allow GitHub workflows to access the public bucket used across CI tasks.
+resource "aws_iam_role_policy" "github_s3_softmax_public" {
+  name = "github-actions-softmax-public"
+  role = aws_iam_role.github_actions.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+        ]
+        Resource = data.aws_s3_bucket.softmax_public.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:AbortMultipartUpload",
+          "s3:CreateMultipartUpload",
+          "s3:ListMultipartUploadParts",
+          "s3:ListBucketMultipartUploads",
+          "s3:UploadPart",
+          "s3:CompleteMultipartUpload",
+        ]
+        Resource = "${data.aws_s3_bucket.softmax_public.arn}/*"
+      }
+    ]
+  })
 }
 
 # This is necessary for github to be able to update the kubeconfig.
