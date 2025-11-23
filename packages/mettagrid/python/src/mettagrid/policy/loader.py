@@ -38,13 +38,15 @@ def load_policy(
     architecture = arch_hint or init_kwargs.get("policy_architecture")
     artifact = None
     policy_from_artifact: MultiAgentPolicy | None = None
+    checkpoint_ref = None
 
     if policy_spec.data_path:
-        checkpoint_ref = str(Path(policy_spec.data_path).expanduser())
-    elif init_kwargs.get("checkpoint_uri"):
+        data_path = Path(policy_spec.data_path).expanduser()
+        if data_path.exists():
+            checkpoint_ref = str(data_path)
+
+    if checkpoint_ref is None and init_kwargs.get("checkpoint_uri"):
         checkpoint_ref = str(init_kwargs["checkpoint_uri"])
-    else:
-        checkpoint_ref = None
 
     if checkpoint_ref:
         artifact = load_policy_artifact(checkpoint_ref)
@@ -66,10 +68,10 @@ def load_policy(
         ):
             raise ValueError("Loading checkpoints requires policy_architecture when none is embedded")
 
-    if architecture is not None and hasattr(architecture, "make_policy"):
-        policy = architecture.make_policy(policy_env_info)  # type: ignore[call-arg]
-    elif policy_from_artifact is not None:
+    if policy_from_artifact is not None:
         policy = policy_from_artifact
+    elif architecture is not None and hasattr(architecture, "make_policy"):
+        policy = architecture.make_policy(policy_env_info)  # type: ignore[call-arg]
     else:
         policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
         try:

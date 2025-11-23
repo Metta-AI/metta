@@ -422,6 +422,22 @@ class TestBasicSaveLoad:
         restored = initialize_or_load_policy(env_info, spec)
         assert torch.allclose(restored.dummy_weight, torch.tensor([3.0]))
 
+    def test_loader_prefers_embedded_policy_over_arch_hint(self, tmp_path):
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = ParameterizedMockAgent(env_info)
+        with torch.no_grad():
+            policy.dummy_weight.fill_(9.0)
+
+        save_path = tmp_path / "embedded.pt"
+        torch.save(policy, save_path)
+
+        spec = CheckpointManager.policy_spec_from_uri(save_path.as_uri())
+        arch_hint = ParameterizedMockArchitecture()
+
+        restored = initialize_or_load_policy(env_info, spec, arch_hint=arch_hint)
+        assert isinstance(restored, ParameterizedMockAgent)
+        assert torch.allclose(restored.dummy_weight, torch.tensor([9.0]))
+
     def test_policy_spec_from_directory_uri_does_not_set_data_path(self, tmp_path: Path):
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         arch = ParameterizedMockArchitecture()
@@ -465,6 +481,32 @@ class TestBasicSaveLoad:
         assert Path(uploads["local"]).parent == fake_guess_data_dir() / ".tmp"
         assert not Path(uploads["local"]).exists()
         assert not (tmp_path / "s3:").exists()
+
+    def test_loader_falls_back_to_checkpoint_uri_when_data_path_missing(self, tmp_path: Path):
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        arch = ParameterizedMockArchitecture()
+        policy = arch.make_policy(env_info)
+        with torch.no_grad():
+            policy.dummy_weight.fill_(17.0)
+
+        ckpt_path = tmp_path / "fallback.mpt"
+        save_policy_artifact(
+            ckpt_path,
+            policy_architecture=arch,
+            state_dict=policy.state_dict(),
+        )
+
+        spec = PolicySpec(
+            class_path=arch.class_path,
+            data_path=str(tmp_path / "missing.mpt"),
+            init_kwargs={
+                "checkpoint_uri": ckpt_path.as_uri(),
+                "policy_architecture": arch,
+            },
+        )
+
+        restored = initialize_or_load_policy(env_info, spec)
+        assert torch.allclose(restored.dummy_weight, torch.tensor([17.0]))
 
 
 class TestErrorHandling:
