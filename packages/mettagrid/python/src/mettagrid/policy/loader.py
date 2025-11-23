@@ -20,6 +20,12 @@ from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
 
 
+def guess_data_dir() -> Path:
+    """Return default data directory; kept here for callers that monkeypatch this module."""
+    data_dir = os.environ.get("DATA_DIR")
+    return Path(data_dir) if data_dir else Path("./train_dir")
+
+
 def load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_spec: PolicySpec,
