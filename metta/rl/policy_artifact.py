@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, Mapping, MutableMapping
 from zipfile import BadZipFile
 
-import boto3
 import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
@@ -435,6 +434,16 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
     return None
 
 
+def _boto3_client():
+    try:
+        import boto3
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "boto3 is required for S3 checkpoint handling; install the RL extras or add boto3"
+        ) from exc
+    return boto3.client("s3")
+
+
 def _get_all_checkpoints(uri: str) -> list[dict[str, Any]]:
     """List checkpoint metadata for file:// or s3:// URIs."""
 
@@ -442,7 +451,7 @@ def _get_all_checkpoints(uri: str) -> list[dict[str, Any]]:
     if parsed.scheme == "file" and parsed.local_path:
         checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.mpt") if ckpt.stem]
     elif parsed.scheme == "s3" and parsed.bucket:
-        s3_client = boto3.client("s3")
+        s3_client = _boto3_client()
         prefix = parsed.key or ""
         response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
 
