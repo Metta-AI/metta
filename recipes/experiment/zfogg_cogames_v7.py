@@ -63,28 +63,20 @@ def make_reward_curriculum(
 
     tasks = cc.bucketed(env)
 
-    # Curriculum Axis 1: Reward coefficients for INTERMEDIATE behaviors
-    # High values = lots of guidance, Low values = learn the real objective
+    # Curriculum Axis 1: Reward coefficients for resource collection
+    # These are PROVEN to work from cvc/mission_variant_curriculum.py
     #
-    # These rewards help the policy discover the right actions:
-    # - Collecting resources (carbon, oxygen, germanium, silicon)
-    # - Holding diverse inventory (need multiple types for hearts)
-    # - Gaining hearts (the actual goal)
-
-    # Inventory diversity reward (encourages collecting different resources)
-    # 0.0 = no guidance, just final objective
-    # 1.0 = lots of feedback for collecting variety
-    tasks.add_bucket("game.agent.rewards.stats.inventory.diversity.ge.3", [0.0, 0.2, 0.5, 1.0])
-    tasks.add_bucket("game.agent.rewards.stats.inventory.diversity.ge.4", [0.0, 0.3, 0.6, 1.2])
-    tasks.add_bucket("game.agent.rewards.stats.inventory.diversity.ge.5", [0.0, 0.5, 1.0, 2.0])
+    # High values = lots of guidance for collecting resources
+    # Low values = only reward the final objective (hearts)
 
     # Resource collection rewards (encourages collecting each type)
+    # Start with higher coefficients, curriculum reduces them over time
     for resource in ["carbon", "oxygen", "germanium", "silicon"]:
-        tasks.add_bucket(f"game.agent.rewards.stats.{resource}.gained", [0.0, 0.01, 0.05, 0.1])
+        tasks.add_bucket(f"game.agent.rewards.stats.{resource}.gained", [0.0, 0.005, 0.01, 0.02])
 
     # Heart reward coefficient (the final objective)
-    # This should ALWAYS be present, but we can vary the weight
-    tasks.add_bucket("game.agent.rewards.stats.heart.gained", [0.5, 1.0, 2.0, 5.0])
+    # This should ALWAYS be high - it's the real goal
+    tasks.add_bucket("game.agent.rewards.stats.heart.gained", [1.0, 2.0, 5.0])
 
     # Curriculum Axis 2: Episode length (controls sample efficiency)
     tasks.add_bucket("game.max_steps", [1000, 1250, 1500])
