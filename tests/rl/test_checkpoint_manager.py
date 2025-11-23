@@ -412,7 +412,8 @@ class TestBasicSaveLoad:
 
         monkeypatch.setattr("metta.common.util.file.write_file", fake_write_file)
         monkeypatch.setattr("metta.rl.policy_artifact.write_file", fake_write_file)
-        monkeypatch.setattr("metta.rl.system_config.guess_data_dir", fake_guess_data_dir)
+        monkeypatch.setattr("metta.rl.policy_artifact.guess_data_dir", fake_guess_data_dir)
+        monkeypatch.setattr("mettagrid.policy.loader.guess_data_dir", fake_guess_data_dir)
 
         dest = "s3://bucket/run/foo.mpt"
         result = save_policy(dest, policy, arch_hint=mock_policy_architecture)

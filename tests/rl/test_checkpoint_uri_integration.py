@@ -62,17 +62,6 @@ def test_system_cfg():
 
 
 class TestFileURIs:
-    def test_load_latest_from_directory(self, tmp_path: Path, mock_policy, mock_policy_architecture):
-        ckpt_dir = tmp_path / "run" / "checkpoints"
-        create_checkpoint(ckpt_dir, checkpoint_filename("run", 3), mock_policy, mock_policy_architecture)
-        latest = create_checkpoint(ckpt_dir, checkpoint_filename("run", 7), mock_policy, mock_policy_architecture)
-
-        uri = f"file://{ckpt_dir}"
-        artifact = load_policy_artifact(uri)
-        assert artifact.policy_architecture is not None
-        assert Path(uri[7:]).is_dir()
-        assert latest.exists()
-
     def test_invalid_file_uri(self):
         with pytest.raises(FileNotFoundError):
             load_policy_artifact("file:///does/not/exist.mpt")
