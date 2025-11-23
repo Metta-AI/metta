@@ -29,8 +29,8 @@ class SlicedKickstarterConfig(LossConfig):
     teacher_lead_prob: float = Field(default=1.0, ge=0, le=1.0)  # set to 1 since we slice teacher lead separately
 
     # remainder of the sum below is left for the PPO loss to use
-    student_led_proportion: float = Field(default=1.0, ge=0, le=1.0)
-    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    teacher_led_proportion: float = Field(default=1.0, ge=0, le=1.0)
 
     def create(
         self,
@@ -272,17 +272,13 @@ class SlicedKickstarter(Loss):
         shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
         # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
 
-        # Student forward pass
-        # leave to false if also running PPO since it forwards student during train
-        if self.student_forward:
-            student_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
-            flat_actions = minibatch["actions"].reshape(B * TT, -1)
-            self.policy.reset_memory()
-            student_td = self.policy.forward(student_td, action=flat_actions)
-            student_td = student_td.reshape(B, TT)
-            shared_loss_data["policy_td"] = student_td[train_ppo_mask]  # this is for passing to PPO losses
-        else:
-            student_td = shared_loss_data["policy_td"]  # shared_loss_data is populated by PPO
+        # sliced kickstarter MUST run first since it decides what to pass to PPO
+        student_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
+        flat_actions = minibatch["actions"].reshape(B * TT, -1)
+        self.policy.reset_memory()
+        student_td = self.policy.forward(student_td, action=flat_actions)
+        student_td = student_td.reshape(B, TT)
+        shared_loss_data["policy_td"] = student_td[train_ppo_mask]  # this is for passing to PPO losses
 
         minibatch = minibatch[train_teacher_mask | train_stud_mask]
         student_td = student_td[train_teacher_mask | train_stud_mask]
@@ -334,11 +330,11 @@ class SlicedKickstarter(Loss):
             raise ValueError("PPO count error in sliced Kickstarter loss. Bad proportions.")
         ppo_slice = slice(stud_led_count + teacher_led_count, B)
 
-        self.stud_mask = torch.zeros(B, dtype=torch.bool)
+        self.stud_mask = torch.zeros(B, dtype=torch.bool, device=self.device)
         self.stud_mask[stud_slice] = True
-        self.teacher_mask = torch.zeros(B, dtype=torch.bool)
+        self.teacher_mask = torch.zeros(B, dtype=torch.bool, device=self.device)
         self.teacher_mask[teacher_slice] = True
-        self.ppo_mask = torch.zeros(B, dtype=torch.bool)
+        self.ppo_mask = torch.zeros(B, dtype=torch.bool, device=self.device)
         self.ppo_mask[ppo_slice] = True
 
     def _update_slices(self) -> None:
