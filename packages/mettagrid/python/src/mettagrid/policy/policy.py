@@ -11,6 +11,7 @@ import torch.nn as nn
 from pydantic import BaseModel, Field
 
 from mettagrid.mettagrid_c import dtype_observations
+from mettagrid.policy.artifact import load_policy_artifact, save_policy_artifact_safetensors
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -96,11 +97,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         path = Path(policy_data_path).expanduser()
 
         if path.suffix.lower() == ".mpt":
-            try:
-                from metta.rl.policy_artifact import load_policy_artifact
-            except ImportError as e:
-                raise ImportError("Loading .mpt checkpoints requires metta RL components") from e
-
             state_dict = load_policy_artifact(path).state_dict
 
             # Handle key prefix mismatch: if saved without module prefix but model expects it
@@ -136,10 +132,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         if path.suffix.lower() == ".mpt" and architecture is None:
             raise ValueError("Cannot save .mpt without policy_architecture; use .pt or pass policy_architecture")
         if architecture is not None and path.suffix.lower() == ".mpt":
-            try:
-                from metta.rl.policy_artifact import save_policy_artifact_safetensors
-            except ImportError as e:
-                raise ImportError("Saving .mpt checkpoints requires metta RL components") from e
             save_policy_artifact_safetensors(path, policy_architecture=architecture, state_dict=network.state_dict())
             return
 

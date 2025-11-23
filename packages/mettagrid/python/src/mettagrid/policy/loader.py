@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from mettagrid.policy.artifact import load_policy_artifact
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
@@ -34,8 +35,6 @@ def initialize_or_load_policy(
             init_kwargs = policy_spec.init_kwargs or {}
             if "config" not in init_kwargs and "policy_architecture" not in init_kwargs:
                 try:
-                    from metta.rl.policy_artifact import load_policy_artifact
-
                     artifact = load_policy_artifact(data_path)
                     if artifact.policy_architecture is not None:
                         init_kwargs = {**init_kwargs, "config": artifact.policy_architecture}
