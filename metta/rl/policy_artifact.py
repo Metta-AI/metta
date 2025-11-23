@@ -416,7 +416,11 @@ def _load_pt_artifact(path: Path) -> PolicyArtifact:
     # Extract architecture if present (legacy keys)
     policy_architecture = None
     if "state_dict" in payload or "weights" in payload:
-        arch_value = payload.get("policy_architecture") or payload.get("policy_architecture_spec") or payload.get("policy_architecture_str")
+        arch_value = (
+            payload.get("policy_architecture")
+            or payload.get("policy_architecture_spec")
+            or payload.get("policy_architecture_str")
+        )
         if isinstance(arch_value, str):
             policy_architecture = policy_architecture_from_string(arch_value)
         elif hasattr(arch_value, "__class__") and arch_value.__class__.__name__ == "PolicyArchitecture":
