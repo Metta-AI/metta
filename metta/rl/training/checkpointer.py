@@ -74,7 +74,11 @@ class Checkpointer(TrainerComponent):
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
-                spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+                spec = CheckpointManager.policy_spec_from_uri(
+                    normalized_uri,
+                    device=load_device,
+                    policy_architecture=self._policy_architecture,
+                )
                 payload = None
                 if self._distributed.is_master():
                     loaded_policy = initialize_or_load_policy(
@@ -111,7 +115,11 @@ class Checkpointer(TrainerComponent):
         # Non-distributed or fallthrough: load locally (fail hard on errors)
         if candidate_uri:
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
-            spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+            spec = CheckpointManager.policy_spec_from_uri(
+                normalized_uri,
+                device=load_device,
+                policy_architecture=self._policy_architecture,
+            )
             policy = initialize_or_load_policy(
                 policy_env_info,
                 spec,
