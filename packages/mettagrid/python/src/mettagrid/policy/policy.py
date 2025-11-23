@@ -107,9 +107,7 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
             if state_dict and not any(k.startswith("module.") for k in state_dict):
                 model_keys = network.state_dict().keys()
                 if any(k.startswith("module.") for k in model_keys):
-                    state_dict = OrderedDict(
-                        (f"module.{k}", v) for k, v in state_dict.items()
-                    )
+                    state_dict = OrderedDict((f"module.{k}", v) for k, v in state_dict.items())
 
             network.load_state_dict(state_dict)
         else:
