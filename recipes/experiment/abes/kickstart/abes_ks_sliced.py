@@ -107,8 +107,8 @@ def train(
     eval_simulations = simulations()
     losses_config = LossesConfig()
     losses_config.sliced_kickstarter.enabled = True
-    losses_config.sliced_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.ppo_divorced.mb.11.18.01/av.ppo_divorced.mb.11.18.01:v7500.mpt"
+    losses_config.slicedkickstarter.teacher_uri = (
+        "s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt"
     )
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
