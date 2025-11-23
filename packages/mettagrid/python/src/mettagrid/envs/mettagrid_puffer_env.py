@@ -242,6 +242,11 @@ class MettaGridPufferEnv(PufferEnv):
     def teacher_actions(self, teacher_actions: np.ndarray) -> None:
         self._buffers.teacher_actions = teacher_actions
 
+    @property
+    def render_mode(self) -> str:
+        """PufferLib render mode - returns 'ansi' for text-based rendering."""
+        return "ansi"
+
     def render(self) -> str:
         """Render the current state as unicode text."""
         from mettagrid.renderer.miniscope.buffer import MapBuffer
