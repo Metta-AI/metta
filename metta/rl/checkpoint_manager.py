@@ -9,11 +9,10 @@ import torch
 
 from metta.agent.policy import PolicyArchitecture
 from metta.common.util.uri import ParsedURI
-from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, policy_spec_from_uri
+from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
 
@@ -286,22 +285,3 @@ class CheckpointManager:
 
         if remote_max_checkpoint:
             return remote_max_checkpoint["uri"]
-
-    @staticmethod
-    def policy_spec_from_uri(
-        uri: str,
-        *,
-        device: str | torch.device | None = None,
-        strict: bool = True,
-        display_name: str | None = None,
-        policy_architecture: PolicyArchitecture | None = None,
-        class_path: str | None = None,
-    ) -> PolicySpec:
-        return policy_spec_from_uri(
-            uri,
-            device=device,
-            strict=strict,
-            display_name=display_name,
-            policy_architecture=policy_architecture,
-            class_path=class_path,
-        )
