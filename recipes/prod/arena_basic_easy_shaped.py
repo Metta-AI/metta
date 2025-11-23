@@ -117,12 +117,18 @@ def train(
     )
 
 
-def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
+def evaluate(
+    policy_uris: Optional[Sequence[str]] = None, policy_architecture: Optional[PolicyArchitecture] = None
+) -> EvaluateTool:
     """Evaluate policies on arena simulations."""
-    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
+    if policy_architecture is None:
+        policy_architecture = ViTDefaultConfig()
+    return EvaluateTool(
+        simulations=simulations(), policy_uris=policy_uris or [], policy_architecture=policy_architecture
+    )
 
 
-def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
+def evaluate_latest_in_dir(dir_path: Path, policy_architecture: Optional[PolicyArchitecture] = None) -> EvaluateTool:
     """Evaluate the latest policy on arena simulations."""
     checkpoints = dir_path.glob("*.mpt")
     policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
@@ -130,8 +136,12 @@ def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
         raise ValueError(f"No policies found in {dir_path}")
     policy_uri = policy_uri[-1]
     sim = mettagrid(num_agents=6)
+    if policy_architecture is None:
+        policy_architecture = ViTDefaultConfig()
     return EvaluateTool(
-        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
+        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)],
+        policy_uris=[policy_uri],
+        policy_architecture=policy_architecture,
     )
 
 
