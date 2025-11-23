@@ -834,7 +834,14 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
         epoch_metrics.update(lp_distributions)
 
         # Add accumulated rollout stats (from info dicts)
-        # Process them the same way as real training (matching stats.py:121-127)
+        # Process them the same way as real training (matching stats.py:115-127)
+        # Stats that should be summed instead of averaged (matching refactored stats.py)
+        SUM_STATS_PATTERNS = [
+            "env_curriculum_stats/per_label_samples_this_epoch",
+            "env_curriculum_stats/per_label_evictions_this_epoch",
+            "env_curriculum_stats/tracked_task_completions_this_epoch",
+        ]
+
         for key, values in rollout_stats.items():
             # Skip dict-valued or complex structure stats that can't be averaged
             # These include: per_label_lp_scores, pool_composition_fraction, etc.
@@ -844,9 +851,11 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
                 epoch_metrics[key] = values[-1]
                 continue
 
-            # Per-label samples and tracked task completions should be summed (exact match)
-            if "per_label_samples_this_epoch" in key or "tracked_task_completions_this_epoch" in key:
-                epoch_metrics[key] = np.sum(values)
+            # Sum stats that represent counts/totals (matching stats.py aggregation logic)
+            should_sum = any(pattern in key for pattern in SUM_STATS_PATTERNS)
+
+            if should_sum:
+                epoch_metrics[key] = np.sum(values) if isinstance(values, (list, np.ndarray)) else values
             else:
                 # All other metrics (including LP scores) should be averaged
                 epoch_metrics[key] = np.mean(values)
