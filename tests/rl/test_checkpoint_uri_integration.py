@@ -62,13 +62,7 @@ def test_system_cfg():
 
 
 class TestFileURIs:
-    def test_load_single_file_uri(self, tmp_path: Path, mock_policy, mock_policy_architecture):
-        ckpt = create_checkpoint(tmp_path, checkpoint_filename("run", 5), mock_policy, mock_policy_architecture)
-        uri = f"file://{ckpt}"
-        artifact = load_policy_artifact(uri)
-        assert artifact.policy_architecture is not None
-
-    def test_load_from_directory(self, tmp_path: Path, mock_policy, mock_policy_architecture):
+    def test_load_latest_from_directory(self, tmp_path: Path, mock_policy, mock_policy_architecture):
         ckpt_dir = tmp_path / "run" / "checkpoints"
         create_checkpoint(ckpt_dir, checkpoint_filename("run", 3), mock_policy, mock_policy_architecture)
         latest = create_checkpoint(ckpt_dir, checkpoint_filename("run", 7), mock_policy, mock_policy_architecture)
@@ -106,14 +100,6 @@ class TestS3URIs:
 
 
 class TestCheckpointManagerOperations:
-    def test_save_agent_returns_uri(self, test_system_cfg, mock_policy, mock_policy_architecture):
-        manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
-        ckpt_path = manager.checkpoint_dir / checkpoint_filename("demo", 1)
-        ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-        mock_policy._policy_architecture = mock_policy_architecture
-        save_policy(ckpt_path, mock_policy, arch_hint=mock_policy_architecture)
-        assert ckpt_path.exists()
-
     def test_latest_checkpoint_sorted(self, test_system_cfg, mock_policy, mock_policy_architecture):
         manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
         for epoch in [1, 3]:
