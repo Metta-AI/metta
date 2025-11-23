@@ -102,33 +102,26 @@ class TestBasicSaveLoad:
         manager = CheckpointManager(run="test_run", system_cfg=test_system_cfg)
 
         expected_filename = "test_run:v3.mpt"
-        expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
+        local_path = manager.checkpoint_dir / expected_filename
 
-        try:
-            with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
-                local_path = manager.checkpoint_dir / expected_filename
-                save_policy_artifact_safetensors(
-                    local_path,
-                    policy_architecture=mock_policy_architecture,
-                    state_dict=mock_agent.state_dict(),
-                )
+        save_policy_artifact_safetensors(
+            local_path,
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
 
-                # Upload via the actual policy save path
-                env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-                policy_spec = CheckpointManager.policy_spec_from_uri(
-                    f"file://{local_path}", policy_architecture=mock_policy_architecture
-                )
-                policy = initialize_or_load_policy(env_info, policy_spec)
-                remote_uri = policy.save_policy(expected_remote, policy_architecture=mock_policy_architecture)
+        # Simulate remote prefix using a local directory
+        remote_dir = manager.checkpoint_dir / "remote"
+        remote_dir.mkdir(parents=True, exist_ok=True)
+        manager._remote_prefix = f"file://{remote_dir}"
 
-                assert remote_uri == expected_remote
-                mock_write.assert_called_once()
-                remote_arg, local_arg = mock_write.call_args[0]
-                assert remote_arg == expected_remote
-                assert Path(local_arg).name == Path(expected_filename).name
-        finally:
-            if Path(expected_filename).exists():
-                os.remove(expected_filename)
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy_spec = CheckpointManager.policy_spec_from_uri(f"file://{local_path}")
+        policy = initialize_or_load_policy(env_info, policy_spec)
+        remote_uri = policy.save_policy(f"{manager._remote_prefix}/{expected_filename}")
+
+        assert remote_uri == f"{manager._remote_prefix}/{expected_filename}"
+        assert (remote_dir / expected_filename).exists()
 
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         epochs = [1, 5, 10]
@@ -279,7 +272,7 @@ class TestBasicSaveLoad:
         assert spec.init_kwargs["checkpoint_uri"] == CheckpointManager.normalize_uri(latest)
         assert spec.init_kwargs["display_name"] == "custom"
         assert spec.init_kwargs["device"] == "cpu"
-        assert "policy_architecture" in spec.init_kwargs
+        assert spec.init_kwargs.get("policy_architecture") is not None
 
 
 class TestErrorHandling:
