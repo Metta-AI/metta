@@ -418,7 +418,10 @@ def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
     if isinstance(path_or_uri, Path):
         input_path = path_or_uri
     else:
-        input_path = Path(path_or_uri) if "://" not in path_or_uri and not str(path_or_uri).endswith(":latest") else None
+        if "://" not in path_or_uri and not str(path_or_uri).endswith(":latest"):
+            input_path = Path(path_or_uri)
+        else:
+            input_path = None
 
     if input_path is not None:
         if input_path.exists():
