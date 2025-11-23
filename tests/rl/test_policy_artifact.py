@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -237,6 +239,30 @@ def test_load_mpt_requires_architecture(tmp_path: Path) -> None:
     assert artifact.policy_architecture is not None
     assert artifact.state_dict is not None
     assert isinstance(artifact.policy_architecture, DummyPolicyArchitecture)
+
+
+def test_load_mpt_with_embedded_policy_pt(tmp_path: Path) -> None:
+    """Legacy .mpt archives with policy.pt should still load."""
+    policy_env_info = _policy_env_info()
+    policy = DummyPolicy(policy_env_info)
+    with torch.no_grad():
+        policy.linear.weight.fill_(2.0)
+        policy.linear.bias.fill_(1.0)
+
+    buffer = io.BytesIO()
+    torch.save(policy, buffer)
+    buffer.seek(0)
+
+    mpt_path = tmp_path / "legacy.mpt"
+    with zipfile.ZipFile(mpt_path, mode="w") as archive:
+        archive.writestr("policy.pt", buffer.getvalue())
+
+    artifact = load_policy_artifact(mpt_path)
+    assert artifact.policy is not None
+
+    reloaded = artifact.instantiate(policy_env_info, torch.device("cpu"))
+    assert torch.allclose(reloaded.linear.weight, policy.linear.weight)
+    assert torch.allclose(reloaded.linear.bias, policy.linear.bias)
 
 
 def test_load_invalid_extension_raises(tmp_path: Path) -> None:

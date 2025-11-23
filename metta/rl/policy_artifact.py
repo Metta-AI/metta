@@ -376,7 +376,11 @@ def _load_mpt_artifact(path: Path) -> PolicyArtifact:
                 if "policy.pt" in names:
                     try:
                         with archive.open("policy.pt") as payload_file:
-                            payload = torch.load(io.BytesIO(payload_file.read()), map_location="cpu", weights_only=False)
+                            payload = torch.load(
+                                io.BytesIO(payload_file.read()),
+                                map_location="cpu",
+                                weights_only=False,
+                            )
                     except Exception as exc:
                         raise ValueError(f"Failed to load policy.pt from .mpt file: {path}") from exc
                     return _artifact_from_payload(payload, source=".mpt policy.pt")

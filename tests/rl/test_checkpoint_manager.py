@@ -291,6 +291,21 @@ class TestBasicSaveLoad:
         assert spec.init_kwargs["device"] == "cpu"
         assert spec.init_kwargs.get("policy_architecture") is not None
 
+    def test_policy_spec_from_uri_supports_embedded_policy(self, tmp_path):
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = ParameterizedMockAgent(env_info)
+        with torch.no_grad():
+            policy.dummy_weight.fill_(7.0)
+
+        save_path = tmp_path / "embedded.pt"
+        torch.save(policy, save_path)
+
+        spec = CheckpointManager.policy_spec_from_uri(save_path.as_uri())
+        assert spec.class_path == "tests.rl.test_checkpoint_manager.ParameterizedMockAgent"
+
+        restored = initialize_or_load_policy(env_info, spec)
+        assert torch.allclose(restored.dummy_weight, torch.tensor([7.0]))
+
     def test_loader_uses_checkpoint_uri_when_data_path_missing(self, checkpoint_manager):
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         arch = ParameterizedMockArchitecture()
