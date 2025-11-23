@@ -31,6 +31,9 @@ def load_policy(
     """Initialize a policy from its spec and load weights if provided."""
 
     init_kwargs = dict(policy_spec.init_kwargs or {})
+    # Extract loader-only options (do not forward into policy constructors)
+    device_override = device if device is not None else init_kwargs.pop("device", None)
+    strict_override = init_kwargs.pop("strict", strict)
     state_dict: dict[str, torch.Tensor] | None = None
     architecture = arch_hint or init_kwargs.get("policy_architecture")
     artifact = None
@@ -45,6 +48,11 @@ def load_policy(
 
     if checkpoint_ref:
         artifact = load_policy_artifact_from_uri(checkpoint_ref)
+
+    # Drop loader-only keys before constructing policies to avoid TypeError
+    init_kwargs.pop("checkpoint_uri", None)
+    init_kwargs.pop("policy_architecture", None)
+    init_kwargs.pop("display_name", None)
 
     if artifact is not None:
         architecture = getattr(artifact, "policy_architecture", None) or architecture
@@ -75,12 +83,12 @@ def load_policy(
         raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
 
     if state_dict is not None:
-        missing, unexpected = policy.load_state_dict(state_dict, strict=strict)
-        if strict and (missing or unexpected):
+        missing, unexpected = policy.load_state_dict(state_dict, strict=strict_override)
+        if strict_override and (missing or unexpected):
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
 
-    if device is not None:
-        policy = policy.to(torch.device(device))  # type: ignore[assignment]
+    if device_override is not None:
+        policy = policy.to(torch.device(device_override))  # type: ignore[assignment]
 
     return policy
 

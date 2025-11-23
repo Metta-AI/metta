@@ -248,6 +248,41 @@ class TestBasicSaveLoad:
         assert policy is not None
         assert spec.init_kwargs["display_name"] == "friendly-name"
 
+    def test_policy_spec_respects_strict_flag(self, tmp_path: Path):
+        """Ensure strict=False in spec suppresses load errors."""
+        arch = ParameterizedMockArchitecture()
+        bad_state = {"unexpected": torch.tensor([1.0])}
+        checkpoint_path = tmp_path / "bad.mpt"
+        save_policy_artifact_safetensors(
+            checkpoint_path,
+            policy_architecture=arch,
+            state_dict=bad_state,
+        )
+
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        spec = CheckpointManager.policy_spec_from_uri(checkpoint_path.as_uri(), strict=False)
+        policy = initialize_or_load_policy(env_info, spec)
+        assert isinstance(policy, ParameterizedMockAgent)
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    def test_policy_spec_moves_policy_to_device(self, tmp_path: Path):
+        """Ensure device hint in spec moves loaded policy."""
+        arch = ParameterizedMockArchitecture()
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = arch.make_policy(env_info)
+
+        checkpoint_path = tmp_path / "device.mpt"
+        save_policy_artifact_safetensors(
+            checkpoint_path,
+            policy_architecture=arch,
+            state_dict=policy.state_dict(),
+        )
+
+        spec = CheckpointManager.policy_spec_from_uri(checkpoint_path.as_uri(), device=torch.device("cuda:0"))
+        loaded = initialize_or_load_policy(env_info, spec)
+        assert isinstance(loaded, ParameterizedMockAgent)
+        assert next(loaded.parameters()).device.type == "cuda"
+
     def test_checkpoint_policy_save_policy_round_trip(
         self,
         checkpoint_manager,
