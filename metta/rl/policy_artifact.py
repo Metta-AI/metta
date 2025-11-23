@@ -18,8 +18,9 @@ from safetensors.torch import save as save_safetensors
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.common.util.file import local_copy
+from metta.common.util.file import local_copy, write_file
 from metta.common.util.uri import ParsedURI
+from metta.rl.system_config import guess_data_dir
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
@@ -548,6 +549,43 @@ def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
         return PolicyArtifact(policy=MockAgent())
 
     raise ValueError(f"Invalid URI: {uri}")
+
+
+def save_policy_to_uri(
+    destination: str | Path,
+    *,
+    policy_architecture: PolicyArchitecture,
+    state_dict: Mapping[str, torch.Tensor],
+) -> str:
+    """Save weights to .mpt at a local path or s3:// URI using metta utilities."""
+    dest = str(destination)
+    suffix = Path(dest).suffix.lower()
+    if suffix != ".mpt":
+        raise ValueError("save_policy_to_uri only supports .mpt destinations")
+
+    parsed = ParsedURI.parse(dest)
+
+    if parsed.scheme == "s3":
+        temp_dir = guess_data_dir() / ".tmp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        filename = Path(parsed.path or parsed.key or "checkpoint.mpt").name
+        local_path = temp_dir / filename
+    elif parsed.scheme == "file" and parsed.local_path is not None:
+        local_path = parsed.local_path
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        raise ValueError(f"Unsupported destination URI: {dest}")
+
+    save_policy_artifact(local_path, policy_architecture=policy_architecture, state_dict=state_dict)
+
+    if parsed.scheme == "s3":
+        try:
+            write_file(dest, str(local_path))
+        finally:
+            local_path.unlink(missing_ok=True)
+        return dest
+
+    return f"file://{local_path.resolve()}"
 
 
 def policy_spec_from_uri(

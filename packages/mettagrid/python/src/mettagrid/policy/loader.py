@@ -7,14 +7,13 @@ import importlib
 import os
 import pkgutil
 import re
-import tempfile
 import urllib.parse
 from pathlib import Path
 from typing import Optional
 
 import torch
 
-from mettagrid.policy.artifact import load_policy_artifact, save_policy_artifact
+from mettagrid.policy.artifact import load_policy_artifact, save_policy_artifact, save_policy_to_uri
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
@@ -110,39 +109,23 @@ def save_policy(
     *,
     arch_hint: object | None = None,
 ) -> str:
-    """Persist a policy checkpoint to a local path."""
+    """Persist a policy checkpoint to a local path or S3 via the shim."""
     dest = str(destination)
-    is_s3 = dest.startswith("s3://")
-
-    if is_s3:
-        parsed = urllib.parse.urlparse(dest)
-        bucket = parsed.netloc
-        key = parsed.path.lstrip("/")
-        filename = Path(parsed.path).name
-        if not bucket or not key or not filename:
-            raise ValueError("S3 destination must include a bucket and filename")
-
-        try:
-            from metta.rl.system_config import guess_data_dir  # type: ignore
-        except ImportError:
-            temp_dir = Path(tempfile.gettempdir())
-        else:
-            temp_dir = guess_data_dir()
-
-        temp_dir = temp_dir / ".tmp"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        path = temp_dir / filename
-    else:
-        path = Path(dest).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-    suffix = path.suffix.lower()
+    suffix = Path(dest).suffix.lower()
 
     inner_policy = getattr(policy, "module", policy)
     state_dict = inner_policy.state_dict()
+    architecture = arch_hint or getattr(inner_policy, "_policy_architecture", None)
+
+    if suffix == ".mpt" and dest.startswith("s3://"):
+        if architecture is None:
+            raise ValueError("policy_architecture is required when saving .mpt")
+        return save_policy_to_uri(dest, policy_architecture=architecture, state_dict=state_dict)
+
+    path = Path(dest).expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
 
     if suffix == ".mpt":
-        architecture = arch_hint or getattr(inner_policy, "_policy_architecture", None)
         if architecture is None:
             raise ValueError("policy_architecture is required when saving .mpt")
         save_policy_artifact(path, policy_architecture=architecture, state_dict=state_dict)
@@ -150,29 +133,6 @@ def save_policy(
         torch.save(state_dict, path)
     else:
         raise ValueError(f"Unsupported checkpoint extension: {suffix}")
-
-    if is_s3:
-        try:
-            from metta.common.util.file import write_file  # type: ignore
-        except ImportError:
-            import boto3
-
-            try:
-                boto3.client("s3").upload_file(
-                    str(path),
-                    bucket,
-                    key,
-                    ExtraArgs={"ContentType": "application/octet-stream"},
-                )
-            finally:
-                path.unlink(missing_ok=True)
-            return dest
-
-        try:
-            write_file(dest, str(path))
-        finally:
-            path.unlink(missing_ok=True)
-        return dest
 
     uri = f"file://{path.resolve()}"
     return urllib.parse.unquote(uri)

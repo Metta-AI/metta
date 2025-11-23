@@ -33,3 +33,9 @@ def policy_spec_from_uri(uri: str, **kwargs: Any) -> Any:
     """Build a PolicySpec for a checkpoint URI using the optional metta loader."""
     module = _policy_artifact_module()
     return module.policy_spec_from_uri(uri, **kwargs)
+
+
+def save_policy_to_uri(destination: str | Path, *, policy_architecture: Any, state_dict: dict[str, Any]) -> str:
+    """Save a policy to a URI using the optional metta loader."""
+    module = _policy_artifact_module()
+    return module.save_policy_to_uri(destination, policy_architecture=policy_architecture, state_dict=state_dict)
