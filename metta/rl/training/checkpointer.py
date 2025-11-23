@@ -11,7 +11,7 @@ from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.loader import load_policy, save_policy
+from mettagrid.policy.loader import initialize_or_load_policy, save_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -77,13 +77,15 @@ class Checkpointer(TrainerComponent):
                 spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
                 payload = None
                 if self._distributed.is_master():
-                    loaded_policy = load_policy(
+                    loaded_policy = initialize_or_load_policy(
                         policy_env_info,
                         spec,
                         arch_hint=self._policy_architecture,
                         device=load_device,
                         strict=True,
                     )
+                    if hasattr(loaded_policy, "initialize_to_environment"):
+                        loaded_policy.initialize_to_environment(policy_env_info, load_device)
                     state_dict = {k: v.cpu() for k, v in loaded_policy.state_dict().items()}
                     arch = getattr(loaded_policy, "_policy_architecture", self._policy_architecture)
                     action_count = len(policy_env_info.actions.actions())
@@ -110,20 +112,27 @@ class Checkpointer(TrainerComponent):
         if candidate_uri:
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
             spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
-            policy = load_policy(
+            policy = initialize_or_load_policy(
                 policy_env_info,
                 spec,
                 arch_hint=self._policy_architecture,
                 device=load_device,
                 strict=True,
             )
+            if hasattr(policy, "initialize_to_environment"):
+                policy.initialize_to_environment(policy_env_info, load_device)
             self._latest_policy_uri = normalized_uri
             logger.info("Loaded policy from %s", normalized_uri)
             return policy
 
         logger.info("Creating new policy for training run")
         fresh_policy = self._policy_architecture.make_policy(policy_env_info)
-        return self._require_policy_instance(fresh_policy)
+        if hasattr(fresh_policy, "initialize_to_environment"):
+            fresh_policy.initialize_to_environment(policy_env_info, load_device)
+        if not isinstance(fresh_policy, Policy):
+            msg = "policy_architecture.make_policy must return a Policy instance"
+            raise TypeError(msg)
+        return fresh_policy
 
     def get_latest_policy_uri(self) -> Optional[str]:
         """Return the most recent checkpoint URI."""
