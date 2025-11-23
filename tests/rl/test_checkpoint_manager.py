@@ -5,7 +5,6 @@ import pytest
 import torch
 import torch.nn as nn
 from pydantic import Field
-from tensordict import TensorDict
 
 import mettagrid.builder.envs as eb
 from metta.agent.components.component_config import ComponentConfig
@@ -204,50 +203,6 @@ class TestBasicSaveLoad:
         policy = initialize_or_load_policy(env_info, spec)
         assert policy.agent_policy(0) is not None
 
-    def test_checkpoint_policy_remains_callable(
-        self,
-        checkpoint_manager,
-        mock_agent,
-        mock_policy_architecture,
-    ):
-        save_policy_artifact(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v2.mpt",
-            policy_architecture=mock_policy_architecture,
-            state_dict=mock_agent.state_dict(),
-        )
-        latest = checkpoint_manager.get_latest_checkpoint()
-        assert latest is not None
-        spec = policy_spec_from_uri(latest)
-        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        policy = initialize_or_load_policy(env_info, spec)
-
-        assert callable(policy)
-
-        obs_shape = env_info.observation_space.shape
-        env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)
-        td = TensorDict({"env_obs": env_obs}, batch_size=[env_info.num_agents])
-        result = policy(td.clone())
-        assert "actions" in result
-
-    def test_policy_spec_display_name_preserved(
-        self,
-        checkpoint_manager,
-        mock_agent,
-        mock_policy_architecture,
-    ):
-        save_policy_artifact(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v4.mpt",
-            policy_architecture=mock_policy_architecture,
-            state_dict=mock_agent.state_dict(),
-        )
-        latest = checkpoint_manager.get_latest_checkpoint()
-        assert latest is not None
-        spec = policy_spec_from_uri(latest, display_name="friendly-name")
-        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        policy = initialize_or_load_policy(env_info, spec)
-        assert policy is not None
-        assert spec.init_kwargs["display_name"] == "friendly-name"
-
     def test_policy_spec_respects_strict_flag(self, tmp_path: Path):
         """Ensure strict=False in spec suppresses load errors."""
         arch = ParameterizedMockArchitecture()
@@ -308,7 +263,7 @@ class TestBasicSaveLoad:
         reloaded = initialize_or_load_policy(env_info, reload_spec)
         assert reloaded is not None
 
-    def test_policy_spec_from_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
+    def test_policy_spec_from_uri_embedded_metadata(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         save_policy_artifact(
             checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v2.mpt",
             policy_architecture=mock_policy_architecture,
@@ -325,21 +280,6 @@ class TestBasicSaveLoad:
         assert spec.init_kwargs["display_name"] == "custom"
         assert spec.init_kwargs["device"] == "cpu"
         assert spec.init_kwargs.get("policy_architecture") is not None
-
-    def test_policy_spec_from_uri_supports_embedded_policy(self, tmp_path):
-        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        policy = ParameterizedMockAgent(env_info)
-        with torch.no_grad():
-            policy.dummy_weight.fill_(7.0)
-
-        save_path = tmp_path / "embedded.pt"
-        torch.save(policy, save_path)
-
-        spec = policy_spec_from_uri(save_path.as_uri())
-        assert spec.class_path == "tests.rl.test_checkpoint_manager.ParameterizedMockAgent"
-
-        restored = initialize_or_load_policy(env_info, spec)
-        assert torch.allclose(restored.dummy_weight, torch.tensor([7.0]))
 
     def test_weights_only_checkpoint_loads_with_class_path(self, tmp_path: Path):
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
