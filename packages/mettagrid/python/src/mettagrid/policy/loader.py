@@ -109,7 +109,22 @@ def save_policy(
 ) -> str:
     """Persist a policy checkpoint to a local path."""
     dest = str(destination)
-    path = Path(dest).expanduser()
+    is_s3 = dest.startswith("s3://")
+
+    if is_s3:
+        from metta.rl.system_config import guess_data_dir
+
+        parsed = urllib.parse.urlparse(dest)
+        filename = Path(parsed.path).name
+        if not filename:
+            raise ValueError("S3 destination must include a filename")
+        temp_dir = guess_data_dir() / ".tmp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        path = temp_dir / filename
+    else:
+        path = Path(dest).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+
     suffix = path.suffix.lower()
 
     inner_policy = getattr(policy, "module", policy)
@@ -125,22 +140,16 @@ def save_policy(
     else:
         raise ValueError(f"Unsupported checkpoint extension: {suffix}")
 
-    uri = f"file://{path.resolve()}"
-
-    if dest.startswith("s3://"):
+    if is_s3:
         from metta.common.util.file import write_file
-        from metta.rl.system_config import guess_data_dir
 
-        temp_dir = guess_data_dir() / ".tmp"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        tmp_copy = temp_dir / path.name
         try:
-            tmp_copy.write_bytes(path.read_bytes())
-            write_file(dest, str(tmp_copy))
+            write_file(dest, str(path))
         finally:
-            tmp_copy.unlink(missing_ok=True)
+            path.unlink(missing_ok=True)
         return dest
 
+    uri = f"file://{path.resolve()}"
     return urllib.parse.unquote(uri)
 
 

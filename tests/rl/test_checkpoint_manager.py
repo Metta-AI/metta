@@ -403,6 +403,50 @@ class TestBasicSaveLoad:
         restored = initialize_or_load_policy(env_info, spec)
         assert torch.allclose(restored.dummy_weight, torch.tensor([3.0]))
 
+    def test_policy_spec_from_directory_uri_does_not_set_data_path(self, tmp_path: Path):
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        arch = ParameterizedMockArchitecture()
+        policy = arch.make_policy(env_info)
+
+        ckpt_dir = tmp_path / "checkpoints"
+        ckpt_dir.mkdir()
+        save_policy_artifact(
+            ckpt_dir / "run:v1.mpt",
+            policy_architecture=arch,
+            state_dict=policy.state_dict(),
+        )
+
+        spec = CheckpointManager.policy_spec_from_uri(ckpt_dir.as_uri())
+        assert spec.data_path is None
+
+        restored = initialize_or_load_policy(env_info, spec)
+        assert isinstance(restored, ParameterizedMockAgent)
+
+    def test_save_policy_to_s3_uses_temp_file(self, tmp_path: Path, monkeypatch, mock_policy_architecture):
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = mock_policy_architecture.make_policy(env_info)
+
+        uploads: dict[str, str] = {}
+
+        def fake_write_file(path: str, local_file: str, **_: str) -> None:
+            uploads["path"] = path
+            uploads["local"] = local_file
+
+        def fake_guess_data_dir() -> Path:
+            return tmp_path / "data"
+
+        monkeypatch.setattr("metta.common.util.file.write_file", fake_write_file)
+        monkeypatch.setattr("metta.rl.system_config.guess_data_dir", fake_guess_data_dir)
+
+        dest = "s3://bucket/run/foo.mpt"
+        result = save_policy(dest, policy, arch_hint=mock_policy_architecture)
+
+        assert result == dest
+        assert uploads["path"] == dest
+        assert Path(uploads["local"]).parent == fake_guess_data_dir() / ".tmp"
+        assert not Path(uploads["local"]).exists()
+        assert not (tmp_path / "s3:").exists()
+
 
 class TestErrorHandling:
     def test_load_from_empty_directory(self, checkpoint_manager):

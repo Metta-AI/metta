@@ -327,5 +327,9 @@ class CheckpointManager:
             raise ValueError("policy_architecture or class_path is required to build a PolicySpec")
         if policy_architecture is not None:
             init_kwargs["policy_architecture"] = policy_architecture
-        data_path = str(parsed_uri.local_path) if parsed_uri.scheme == "file" and parsed_uri.local_path else None
+        data_path = (
+            str(parsed_uri.local_path)
+            if parsed_uri.scheme == "file" and parsed_uri.local_path and parsed_uri.local_path.is_file()
+            else None
+        )
         return PolicySpec(class_path=resolved_class_path, init_kwargs=init_kwargs, data_path=data_path)
