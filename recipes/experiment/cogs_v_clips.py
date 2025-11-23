@@ -53,7 +53,6 @@ PROC_MAP_MISSIONS: tuple[str, ...] = tuple(
     for mission in (
         "open_world",
         "hello_world_unclip",
-        "clipping",
         "oxygen_bottleneck",
         "energy_starved",
         "distant_resources",

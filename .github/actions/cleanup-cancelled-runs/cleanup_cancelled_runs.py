@@ -126,39 +126,36 @@ def process_workflow(
     workflow_limit: int,
     per_workflow_caps: Mapping[str, int],
     max_age_days: int,
-    all_runs_limit: int = 300,
+    all_runs_limit: int = 100,
 ) -> tuple[int, int, int]:
     """Process a single workflow and return (deleted, superseded, cancelled)."""
     print(f"\nWorkflow: {workflow.path} (ID: {workflow.id})")
-    all_runs = list(islice(workflow.get_runs(), all_runs_limit))
-    cancelled_runs = [run for run in all_runs if run.conclusion == "cancelled"]
-    if len(cancelled_runs) == 0:
-        print("  No cancelled runs.")
-        return (0, 0, 0)
 
     cutoff_date: datetime.datetime | None = None
     if max_age_days > 0:
         cutoff_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=max_age_days)
 
-    filtered_runs: list[Any] = []
-    old_skipped = 0
-    for run in cancelled_runs:
-        created_at = run.created_at
+    # Fetch runs and stop early if we hit one older than cutoff_date
+    # Runs are in reverse chronological order (newest first)
+    all_runs: list[Any] = []
+    for run in islice(workflow.get_runs(), all_runs_limit):
+        # If we have a cutoff date and this run is too old, stop fetching
+        # (all subsequent runs will also be too old)
         if cutoff_date:
-            created_at = (
-                created_at.astimezone(datetime.timezone.utc)
-                if created_at.tzinfo
-                else created_at.replace(tzinfo=datetime.timezone.utc)
-            )
-        if cutoff_date and created_at < cutoff_date:
-            old_skipped += 1
-            continue
-        filtered_runs.append(run)
+            created_at = run.created_at
+            if created_at.tzinfo:
+                created_at = created_at.astimezone(datetime.timezone.utc)
+            else:
+                created_at = created_at.replace(tzinfo=datetime.timezone.utc)
+            if created_at < cutoff_date:
+                # Found a run older than cutoff - can stop fetching
+                break
+        all_runs.append(run)
 
-    if filtered_runs:
-        cancelled_runs = filtered_runs
-    else:
-        cancelled_runs = []
+    cancelled_runs = [run for run in all_runs if run.conclusion == "cancelled"]
+    if len(cancelled_runs) == 0:
+        print("  No cancelled runs.")
+        return (0, 0, 0)
 
     superseded_runs = []
     for run in cancelled_runs:
@@ -178,8 +175,6 @@ def process_workflow(
             )
         else:
             print("  No superseded runs within the recent window.")
-        if old_skipped:
-            print(f"  Skipped {old_skipped} cancelled run(s) older than {max_age_days} days.")
         return (0, len(superseded_runs), len(cancelled_runs))
 
     print(
@@ -200,9 +195,6 @@ def process_workflow(
             deleted_count += 1
         except Exception as exc:  # pragma: no cover - API failures are logged
             print(f"      ⚠️ Failed to delete run #{run.run_number}: {exc}")
-
-    if old_skipped:
-        print(f"  Skipped {old_skipped} cancelled run(s) older than {max_age_days} days.")
 
     return (deleted_count, len(superseded_runs), len(cancelled_runs))
 
