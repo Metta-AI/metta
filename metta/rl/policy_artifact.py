@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import io
 import tempfile
 import zipfile
 from collections import OrderedDict
@@ -323,6 +324,44 @@ def _try_load_pufferlib_checkpoint(payload: object) -> Policy | None:
     return None
 
 
+def _artifact_from_payload(payload: object, *, source: str) -> PolicyArtifact:
+    if isinstance(payload, Policy):
+        return PolicyArtifact(policy=payload)
+
+    if not isinstance(payload, Mapping):
+        raise TypeError(f"{source} must contain a state_dict mapping, got {type(payload)}")
+
+    puffer_policy = _try_load_pufferlib_checkpoint(payload)
+    if puffer_policy is not None:
+        return PolicyArtifact(policy=puffer_policy)
+
+    # Backwards compat: handle wrapped dicts (old: {"state_dict": {...}}, new: {...})
+    state_dict = payload.get("state_dict") or payload.get("weights") or payload
+    if not isinstance(state_dict, Mapping):
+        raise TypeError(f"Wrapped state_dict must be a mapping, got {type(state_dict)}")
+
+    # Extract architecture if present (legacy keys)
+    policy_architecture = None
+    if "state_dict" in payload or "weights" in payload:
+        arch_value = (
+            payload.get("policy_architecture")
+            or payload.get("policy_architecture_spec")
+            or payload.get("policy_architecture_str")
+        )
+        if isinstance(arch_value, str):
+            policy_architecture = policy_architecture_from_string(arch_value)
+        elif hasattr(arch_value, "__class__") and arch_value.__class__.__name__ == "PolicyArchitecture":
+            policy_architecture = arch_value
+
+    if not all(isinstance(k, str) and isinstance(v, torch.Tensor) for k, v in state_dict.items()):
+        raise TypeError(f"{source} must contain string→Tensor mapping")
+
+    return PolicyArtifact(
+        policy_architecture=policy_architecture,
+        state_dict=_normalize_state_dict_keys(state_dict),
+    )
+
+
 def _load_mpt_artifact(path: Path) -> PolicyArtifact:
     """Load modern .mpt format: safetensors + architecture."""
     try:
@@ -334,6 +373,13 @@ def _load_mpt_artifact(path: Path) -> PolicyArtifact:
                 if any("data.pkl" in name for name in names):
                     state_dict = torch.load(path, map_location="cpu", weights_only=False)
                     return PolicyArtifact(state_dict=_normalize_state_dict_keys(state_dict))
+                if "policy.pt" in names:
+                    try:
+                        with archive.open("policy.pt") as payload_file:
+                            payload = torch.load(io.BytesIO(payload_file.read()), map_location="cpu", weights_only=False)
+                    except Exception as exc:
+                        raise ValueError(f"Failed to load policy.pt from .mpt file: {path}") from exc
+                    return _artifact_from_payload(payload, source=".mpt policy.pt")
                 raise ValueError(f".mpt file missing weights.safetensors: {path}")
 
             if "modelarchitecture.txt" not in names:
@@ -360,41 +406,7 @@ def _load_pt_artifact(path: Path) -> PolicyArtifact:
     except Exception as e:
         raise ValueError(f"Failed to load .pt file: {path}") from e
 
-    if isinstance(payload, Policy):
-        return PolicyArtifact(policy=payload)
-
-    if not isinstance(payload, Mapping):
-        raise TypeError(f".pt file must contain a state_dict mapping, got {type(payload)}")
-
-    puffer_policy = _try_load_pufferlib_checkpoint(payload)
-    if puffer_policy is not None:
-        return PolicyArtifact(policy=puffer_policy)
-
-    # Backwards compat: handle wrapped dicts (old: {"state_dict": {...}}, new: {...})
-    state_dict = payload.get("state_dict") or payload.get("weights") or payload
-    if not isinstance(state_dict, Mapping):
-        raise TypeError(f"Wrapped state_dict must be a mapping, got {type(state_dict)}")
-
-    # Extract architecture if present (legacy keys)
-    policy_architecture = None
-    if "state_dict" in payload or "weights" in payload:
-        arch_value = (
-            payload.get("policy_architecture")
-            or payload.get("policy_architecture_spec")
-            or payload.get("policy_architecture_str")
-        )
-        if isinstance(arch_value, str):
-            policy_architecture = policy_architecture_from_string(arch_value)
-        elif hasattr(arch_value, "__class__") and arch_value.__class__.__name__ == "PolicyArchitecture":
-            policy_architecture = arch_value
-
-    if not all(isinstance(k, str) and isinstance(v, torch.Tensor) for k, v in state_dict.items()):
-        raise TypeError(".pt file must contain string→Tensor mapping")
-
-    return PolicyArtifact(
-        policy_architecture=policy_architecture,
-        state_dict=_normalize_state_dict_keys(state_dict),
-    )
+    return _artifact_from_payload(payload, source=".pt file")
 
 
 def load_policy_artifact(path: str | Path) -> PolicyArtifact:

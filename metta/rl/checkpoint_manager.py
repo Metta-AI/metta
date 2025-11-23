@@ -342,10 +342,17 @@ class CheckpointManager:
     ) -> PolicySpec:
         normalized_uri = CheckpointManager.normalize_uri(uri)
         parsed_uri = ParsedURI.parse(normalized_uri)
+        artifact: Optional[PolicyArtifact] = None
+        embedded_policy_class_path: Optional[str] = None
         if policy_architecture is None:
             artifact = CheckpointManager.load_artifact_from_uri(normalized_uri)
             policy_architecture = artifact.policy_architecture
-        if policy_architecture is None and class_path is None:
+            embedded_policy = getattr(artifact, "policy", None)
+            if embedded_policy is not None and class_path is None:
+                embedded_policy_class_path = (
+                    f"{embedded_policy.__class__.__module__}.{embedded_policy.__class__.__qualname__}"
+                )
+        if policy_architecture is None and class_path is None and embedded_policy_class_path is None:
             raise ValueError("policy_architecture or class_path is required for checkpoints without embedded metadata")
         init_kwargs: dict[str, str | bool | PolicyArchitecture] = {
             "checkpoint_uri": normalized_uri,
@@ -354,10 +361,14 @@ class CheckpointManager:
         }
         if device is not None:
             init_kwargs["device"] = str(device)
+        resolved_class_path = (
+            policy_architecture.class_path
+            if policy_architecture is not None
+            else (class_path or embedded_policy_class_path)
+        )
+        if resolved_class_path is None:
+            raise ValueError("policy_architecture or class_path is required to build a PolicySpec")
         if policy_architecture is not None:
             init_kwargs["policy_architecture"] = policy_architecture
-            resolved_class_path = policy_architecture.class_path
-        else:
-            resolved_class_path = class_path  # type: ignore[assignment]
         data_path = str(parsed_uri.local_path) if parsed_uri.scheme == "file" and parsed_uri.local_path else None
         return PolicySpec(class_path=resolved_class_path, init_kwargs=init_kwargs, data_path=data_path)

@@ -13,11 +13,7 @@ from typing import Optional
 
 import torch
 
-from mettagrid.policy.artifact import (
-    load_policy_artifact,
-    load_policy_artifact_from_uri,
-    save_policy_artifact_safetensors,
-)
+from mettagrid.policy.artifact import load_policy_artifact_from_uri, save_policy_artifact_safetensors
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
@@ -41,9 +37,14 @@ def load_policy(
     policy_from_artifact: MultiAgentPolicy | None = None
 
     if policy_spec.data_path:
-        artifact = load_policy_artifact(Path(policy_spec.data_path).expanduser())
+        checkpoint_ref = str(Path(policy_spec.data_path).expanduser())
     elif init_kwargs.get("checkpoint_uri"):
-        artifact = load_policy_artifact_from_uri(str(init_kwargs["checkpoint_uri"]))
+        checkpoint_ref = str(init_kwargs["checkpoint_uri"])
+    else:
+        checkpoint_ref = None
+
+    if checkpoint_ref:
+        artifact = load_policy_artifact_from_uri(checkpoint_ref)
 
     if artifact is not None:
         architecture = getattr(artifact, "policy_architecture", None) or architecture
