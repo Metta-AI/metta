@@ -111,18 +111,15 @@ class TestBasicSaveLoad:
         # Simulate remote prefix using a local directory
         remote_dir = manager.checkpoint_dir / "remote"
         remote_dir.mkdir(parents=True, exist_ok=True)
-        manager._remote_prefix = f"file://{remote_dir}"
 
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy_spec = CheckpointManager.policy_spec_from_uri(f"file://{local_path}")
         policy = initialize_or_load_policy(env_info, policy_spec)
-        remote_uri = policy.save_policy(
-            f"{manager._remote_prefix}/{expected_filename}",
-            policy_architecture=mock_policy_architecture,
-        )
+        remote_path = remote_dir / expected_filename
+        remote_uri = policy.save_policy(remote_path, policy_architecture=mock_policy_architecture)
 
-        assert remote_uri == f"{manager._remote_prefix}/{expected_filename}"
-        assert (remote_dir / expected_filename).exists()
+        assert remote_uri == remote_path.as_uri()
+        assert remote_path.exists()
 
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         epochs = [1, 5, 10]
