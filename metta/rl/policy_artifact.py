@@ -376,31 +376,20 @@ def _load_mpt_artifact(path: Path) -> PolicyArtifact:
 
             # Backwards compat: old .mpt files are PyTorch ZIP format (data.pkl)
             if "weights.safetensors" not in names:
-                # Check if this is an old PyTorch ZIP format
                 if any("data.pkl" in name for name in names):
-                    # Load as PyTorch checkpoint (no architecture info)
                     state_dict = torch.load(path, map_location="cpu", weights_only=False)
-                    normalized_state = _normalize_state_dict_keys(state_dict)
-                    return PolicyArtifact(state_dict=normalized_state)
+                    return PolicyArtifact(state_dict=_normalize_state_dict_keys(state_dict))
                 raise ValueError(f".mpt file missing weights.safetensors: {path}")
 
-            # Load weights
-            weights_blob = archive.read("weights.safetensors")
-            state_dict = load_safetensors(weights_blob)
-
-            # Load architecture (required for .mpt files)
             if "modelarchitecture.txt" not in names:
                 raise ValueError(f".mpt file missing modelarchitecture.txt: {path}")
 
-            arch_blob = archive.read("modelarchitecture.txt").decode("utf-8")
-            architecture = policy_architecture_from_string(arch_blob)
-
-            # DDP normalization (ONLY legacy code we keep)
-            normalized_state = _normalize_state_dict_keys(state_dict)
+            state_dict = load_safetensors(archive.read("weights.safetensors"))
+            architecture = policy_architecture_from_string(archive.read("modelarchitecture.txt").decode("utf-8"))
 
             return PolicyArtifact(
                 policy_architecture=architecture,
-                state_dict=normalized_state,
+                state_dict=_normalize_state_dict_keys(state_dict),
             )
     except BadZipFile as e:
         raise ValueError(f"Invalid .mpt file (not a valid ZIP archive): {path}") from e
@@ -419,40 +408,26 @@ def _load_pt_artifact(path: Path) -> PolicyArtifact:
     if not isinstance(payload, Mapping):
         raise TypeError(f".pt file must contain a state_dict mapping, got {type(payload)}")
 
-    # Backwards compatibility: handle wrapped dicts from old checkpoints
-    # Old format: {"state_dict": {...}, "policy_architecture": ...}
-    # New format: {...} (direct state_dict)
-    state_dict = payload
+    # Backwards compat: handle wrapped dicts (old: {"state_dict": {...}}, new: {...})
+    state_dict = payload.get("state_dict") or payload.get("weights") or payload
+    if not isinstance(state_dict, Mapping):
+        raise TypeError(f"Wrapped state_dict must be a mapping, got {type(state_dict)}")
+
+    # Extract architecture if present (legacy keys)
     policy_architecture = None
-
     if "state_dict" in payload or "weights" in payload:
-        # Old wrapped format
-        state_dict = payload.get("state_dict") or payload.get("weights")
-        if not isinstance(state_dict, Mapping):
-            raise TypeError(f"Wrapped state_dict must be a mapping, got {type(state_dict)}")
+        arch_value = payload.get("policy_architecture") or payload.get("policy_architecture_spec") or payload.get("policy_architecture_str")
+        if isinstance(arch_value, str):
+            policy_architecture = policy_architecture_from_string(arch_value)
+        elif hasattr(arch_value, "__class__") and arch_value.__class__.__name__ == "PolicyArchitecture":
+            policy_architecture = arch_value
 
-        # Extract architecture if present (legacy keys)
-        arch_value = (
-            payload.get("policy_architecture")
-            or payload.get("policy_architecture_spec")
-            or payload.get("policy_architecture_str")
-        )
-        if arch_value is not None:
-            if isinstance(arch_value, str):
-                policy_architecture = policy_architecture_from_string(arch_value)
-            elif hasattr(arch_value, "__class__") and arch_value.__class__.__name__ == "PolicyArchitecture":
-                policy_architecture = arch_value
-
-    # Validate it's a state_dict (string keys → tensors)
     if not all(isinstance(k, str) and isinstance(v, torch.Tensor) for k, v in state_dict.items()):
         raise TypeError(".pt file must contain string→Tensor mapping")
 
-    # DDP normalization (ONLY legacy code we keep)
-    normalized_state = _normalize_state_dict_keys(state_dict)
-
     return PolicyArtifact(
         policy_architecture=policy_architecture,
-        state_dict=normalized_state,
+        state_dict=_normalize_state_dict_keys(state_dict),
     )
 
 
