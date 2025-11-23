@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 import torch
+import urllib.parse
 
 from mettagrid.policy.artifact import load_policy_artifact, save_policy_artifact_safetensors
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
@@ -128,7 +129,8 @@ def save_policy(
     else:
         raise ValueError(f"Unsupported checkpoint extension: {suffix}")
 
-    return f"file://{path.resolve()}"
+    uri = f"file://{path.resolve()}"
+    return urllib.parse.unquote(uri)
 
 
 def resolve_policy_class_path(policy: str) -> str:
