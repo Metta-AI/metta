@@ -86,11 +86,9 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         if network is None:
             return
 
-        # Unified device discovery with fallback
         try:
             device = next(network.parameters()).device
         except StopIteration:
-            # Network has no parameters yet, fallback to stored device or CPU
             device = getattr(self, "_device", None) or getattr(self, "device", torch.device("cpu"))
 
         path = Path(policy_data_path).expanduser()
@@ -101,12 +99,10 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
             except ImportError as exc:
                 raise ImportError("Loading .mpt checkpoints requires metta RL components") from exc
 
-            artifact = load_policy_artifact(path)
-            network.load_state_dict(artifact.state_dict)
+            network.load_state_dict(load_policy_artifact(path).state_dict)
         else:
             network.load_state_dict(torch.load(path, map_location=device))
 
-        # Hook for subclasses to perform post-load actions
         self._on_weights_loaded()
 
     def _on_weights_loaded(self) -> None:
@@ -121,23 +117,16 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         """
         network = self.network()
         if network is None:
-            # Non-trainable policy, do nothing
             return
 
-        # Trainable policy - save weights
         path = Path(policy_data_path).expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
 
         architecture = getattr(self, "_policy_architecture", None)
-        suffix = path.suffix.lower()
-        if architecture is not None and suffix == ".mpt":
+        if architecture is not None and path.suffix.lower() == ".mpt":
             from metta.rl.policy_artifact import save_policy_artifact_safetensors
 
-            save_policy_artifact_safetensors(
-                path,
-                policy_architecture=architecture,
-                state_dict=network.state_dict(),
-            )
+            save_policy_artifact_safetensors(path, policy_architecture=architecture, state_dict=network.state_dict())
             return
 
         torch.save(network.state_dict(), path)
