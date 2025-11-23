@@ -13,7 +13,7 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.common.util.uri import ParsedURI
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import load_policy_artifact, save_policy_artifact
+from metta.rl.policy_artifact import load_policy_artifact, policy_spec_from_uri, save_policy_artifact
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy, save_policy
@@ -129,7 +129,7 @@ class TestBasicSaveLoad:
         remote_dir.mkdir(parents=True, exist_ok=True)
 
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        policy_spec = CheckpointManager.policy_spec_from_uri(f"file://{local_path}")
+        policy_spec = policy_spec_from_uri(f"file://{local_path}")
         policy = initialize_or_load_policy(env_info, policy_spec)
         remote_path = remote_dir / expected_filename
         remote_uri = save_policy(remote_path, policy, arch_hint=mock_policy_architecture)
@@ -199,7 +199,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest)
+        spec = policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
         assert policy.agent_policy(0) is not None
@@ -217,7 +217,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest)
+        spec = policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
 
@@ -242,7 +242,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest, display_name="friendly-name")
+        spec = policy_spec_from_uri(latest, display_name="friendly-name")
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
         assert policy is not None
@@ -260,7 +260,7 @@ class TestBasicSaveLoad:
         )
 
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        spec = CheckpointManager.policy_spec_from_uri(checkpoint_path.as_uri(), strict=False)
+        spec = policy_spec_from_uri(checkpoint_path.as_uri(), strict=False)
         policy = initialize_or_load_policy(env_info, spec)
         assert isinstance(policy, ParameterizedMockAgent)
 
@@ -278,7 +278,7 @@ class TestBasicSaveLoad:
             state_dict=policy.state_dict(),
         )
 
-        spec = CheckpointManager.policy_spec_from_uri(checkpoint_path.as_uri(), device=torch.device("cuda:0"))
+        spec = policy_spec_from_uri(checkpoint_path.as_uri(), device=torch.device("cuda:0"))
         loaded = initialize_or_load_policy(env_info, spec)
         assert isinstance(loaded, ParameterizedMockAgent)
         assert next(loaded.parameters()).device.type == "cuda"
@@ -296,7 +296,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest)
+        spec = policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
 
@@ -304,7 +304,7 @@ class TestBasicSaveLoad:
         saved_uri = save_policy(save_path, policy, arch_hint=mock_policy_architecture)
 
         assert save_path.exists()
-        reload_spec = CheckpointManager.policy_spec_from_uri(saved_uri, device="cpu")
+        reload_spec = policy_spec_from_uri(saved_uri, device="cpu")
         reloaded = initialize_or_load_policy(env_info, reload_spec)
         assert reloaded is not None
 
@@ -317,7 +317,7 @@ class TestBasicSaveLoad:
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
 
-        spec = CheckpointManager.policy_spec_from_uri(latest, display_name="custom", device="cpu")
+        spec = policy_spec_from_uri(latest, display_name="custom", device="cpu")
         assert isinstance(spec, PolicySpec)
         assert spec.class_path == mock_policy_architecture.class_path
         assert spec.init_kwargs is not None
@@ -335,7 +335,7 @@ class TestBasicSaveLoad:
         save_path = tmp_path / "embedded.pt"
         torch.save(policy, save_path)
 
-        spec = CheckpointManager.policy_spec_from_uri(save_path.as_uri())
+        spec = policy_spec_from_uri(save_path.as_uri())
         assert spec.class_path == "tests.rl.test_checkpoint_manager.ParameterizedMockAgent"
 
         restored = initialize_or_load_policy(env_info, spec)
@@ -350,7 +350,7 @@ class TestBasicSaveLoad:
         save_path = tmp_path / "weights_only.pt"
         torch.save(policy.state_dict(), save_path)
 
-        spec = CheckpointManager.policy_spec_from_uri(
+        spec = policy_spec_from_uri(
             save_path.as_uri(),
             class_path="tests.rl.test_checkpoint_manager.ParameterizedMockAgent",
         )
@@ -369,7 +369,7 @@ class TestBasicSaveLoad:
         torch.save(policy.state_dict(), save_path)
 
         arch = ParameterizedMockArchitecture()
-        spec = CheckpointManager.policy_spec_from_uri(
+        spec = policy_spec_from_uri(
             save_path.as_uri(),
             policy_architecture=arch,
         )
@@ -431,7 +431,7 @@ class TestBasicSaveLoad:
         save_path = tmp_path / "embedded.pt"
         torch.save(policy, save_path)
 
-        spec = CheckpointManager.policy_spec_from_uri(save_path.as_uri())
+        spec = policy_spec_from_uri(save_path.as_uri())
         arch_hint = ParameterizedMockArchitecture()
 
         restored = initialize_or_load_policy(env_info, spec, arch_hint=arch_hint)
@@ -451,7 +451,7 @@ class TestBasicSaveLoad:
             state_dict=policy.state_dict(),
         )
 
-        spec = CheckpointManager.policy_spec_from_uri(ckpt_dir.as_uri())
+        spec = policy_spec_from_uri(ckpt_dir.as_uri())
         assert spec.data_path is None
 
         restored = initialize_or_load_policy(env_info, spec)

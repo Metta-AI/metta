@@ -27,3 +27,9 @@ def save_policy_artifact(path: str | Path, policy_architecture: Any, state_dict:
     """Save a policy artifact in safetensors format."""
     module = _policy_artifact_module()
     module.save_policy_artifact(Path(path), policy_architecture=policy_architecture, state_dict=state_dict)
+
+
+def policy_spec_from_uri(uri: str, **kwargs: Any) -> Any:
+    """Build a PolicySpec for a checkpoint URI using the optional metta loader."""
+    module = _policy_artifact_module()
+    return module.policy_spec_from_uri(uri, **kwargs)

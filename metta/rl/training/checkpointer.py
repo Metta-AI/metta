@@ -9,6 +9,7 @@ from pydantic import Field
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy, save_policy
@@ -74,7 +75,7 @@ class Checkpointer(TrainerComponent):
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
-                spec = CheckpointManager.policy_spec_from_uri(
+                spec = policy_spec_from_uri(
                     normalized_uri,
                     device=load_device,
                     policy_architecture=self._policy_architecture,
@@ -115,7 +116,7 @@ class Checkpointer(TrainerComponent):
         # Non-distributed or fallthrough: load locally (fail hard on errors)
         if candidate_uri:
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
-            spec = CheckpointManager.policy_spec_from_uri(
+            spec = policy_spec_from_uri(
                 normalized_uri,
                 device=load_device,
                 policy_architecture=self._policy_architecture,

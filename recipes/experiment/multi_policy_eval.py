@@ -5,7 +5,7 @@ from typing import Optional, Sequence
 
 from metta.agent.policy import PolicyArchitecture
 from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.sim.runner import SimulationRunConfig
 from metta.tools.multi_policy_eval import MultiPolicyEvalTool
 from mettagrid.policy.policy import PolicySpec
@@ -58,7 +58,7 @@ def run_old_uris(
     policy_specs = []
     for policy_uri in policy_uris or []:
         policy_specs.append(
-            CheckpointManager.policy_spec_from_uri(
+            policy_spec_from_uri(
                 policy_uri,
                 device="cpu",
                 policy_architecture=policy_architecture,

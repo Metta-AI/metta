@@ -9,6 +9,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult
 from metta.sim.simulate_and_record import (
@@ -60,7 +61,7 @@ class EvaluateTool(Tool):
     policy_architecture: PolicyArchitecture | None = None
 
     def _build_policy_spec(self, normalized_uri: str) -> PolicySpec:
-        spec = CheckpointManager.policy_spec_from_uri(
+        spec = policy_spec_from_uri(
             normalized_uri,
             device="cpu",
             policy_architecture=self.policy_architecture,

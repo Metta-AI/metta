@@ -80,7 +80,7 @@ def _():
         print("⚠️ MettaScope replay viewer not available")
 
     from metta.rl.checkpoint_manager import CheckpointManager
-    from metta.rl.policy_artifact import load_policy_artifact
+    from metta.rl.policy_artifact import load_policy_artifact, policy_spec_from_uri
 
     from metta.common.wandb.context import WandbConfig
     import wandb
@@ -1669,9 +1669,7 @@ def _(
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         run_name_from_ckpt = metadata["run_name"]
 
-        policy_spec = CheckpointManager.policy_spec_from_uri(
-            CheckpointManager.normalize_uri(str(latest_ckpt)), device=device
-        )
+        policy_spec = policy_spec_from_uri(CheckpointManager.normalize_uri(str(latest_ckpt)), device=device)
         trained_policy = initialize_or_load_policy(policy_env_info, policy_spec)
 
         # Create evaluation environment

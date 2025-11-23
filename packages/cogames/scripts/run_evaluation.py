@@ -5,7 +5,7 @@ Evaluation Script for Policies
 Supports:
 - Built-in shorthands: baseline, ladybug (`--agent all` runs both)
 - Any policy via full class path
-- Local or S3 checkpoints when CheckpointManager is available
+- Local or S3 checkpoints when checkpoint helpers are available
 
 Usage snippets:
   uv run python packages/cogames/scripts/run_evaluation.py --agent all
@@ -42,21 +42,11 @@ from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVarian
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.agent.policy import PolicyArchitecture
-from mettagrid.policy.loader import (
-    initialize_or_load_policy,
-    resolve_policy_data_path,
-)
+from mettagrid.policy.artifact import policy_spec_from_uri
+from mettagrid.policy.loader import initialize_or_load_policy, resolve_policy_data_path
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
-
-try:
-    from metta.rl.checkpoint_manager import CheckpointManager
-
-    CHECKPOINT_MANAGER_AVAILABLE = True
-except ImportError:
-    CHECKPOINT_MANAGER_AVAILABLE = False
-    CheckpointManager = None
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -117,17 +107,13 @@ def load_policy(
     device = device or torch.device("cpu")
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
-        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(checkpoint_path, device=device, class_path=policy_path)
+        policy_spec = policy_spec_from_uri(checkpoint_path, device=device, class_path=policy_path)
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     if is_s3_uri(policy_path):
-        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(policy_path, device=device, class_path=policy_path)
+        policy_spec = policy_spec_from_uri(policy_path, device=device, class_path=policy_path)
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     data_path = resolve_policy_data_path(checkpoint_path) if checkpoint_path else None

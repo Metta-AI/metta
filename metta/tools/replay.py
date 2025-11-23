@@ -11,7 +11,7 @@ from pydantic import Field
 from metta.agent.policy import PolicyArchitecture
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.sim.runner import run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
@@ -37,15 +37,14 @@ class ReplayTool(Tool):
     def _build_policy_spec(self, normalized_uri: Optional[str]) -> PolicySpec:
         if normalized_uri is None:
             return PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
-        return CheckpointManager.policy_spec_from_uri(
+        return policy_spec_from_uri(
             normalized_uri,
             device="cpu",
             policy_architecture=self.policy_architecture,
         )
 
     def invoke(self, args: dict[str, str]) -> Optional[int]:
-        normalized_uri = CheckpointManager.normalize_uri(self.policy_uri) if self.policy_uri else None
-        policy_spec = self._build_policy_spec(normalized_uri)
+        policy_spec = self._build_policy_spec(self.policy_uri)
 
         simulation_run = self.sim.to_simulation_run_config()
 
