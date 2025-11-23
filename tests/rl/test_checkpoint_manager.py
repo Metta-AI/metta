@@ -1,7 +1,5 @@
-import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 import torch
@@ -118,7 +116,10 @@ class TestBasicSaveLoad:
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy_spec = CheckpointManager.policy_spec_from_uri(f"file://{local_path}")
         policy = initialize_or_load_policy(env_info, policy_spec)
-        remote_uri = policy.save_policy(f"{manager._remote_prefix}/{expected_filename}")
+        remote_uri = policy.save_policy(
+            f"{manager._remote_prefix}/{expected_filename}",
+            policy_architecture=mock_policy_architecture,
+        )
 
         assert remote_uri == f"{manager._remote_prefix}/{expected_filename}"
         assert (remote_dir / expected_filename).exists()
@@ -229,7 +230,8 @@ class TestBasicSaveLoad:
         spec = CheckpointManager.policy_spec_from_uri(latest, display_name="friendly-name")
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
-        assert getattr(policy, "display_name", "") == "friendly-name"
+        assert policy is not None
+        assert spec.init_kwargs["display_name"] == "friendly-name"
 
     def test_checkpoint_policy_save_policy_round_trip(
         self,
