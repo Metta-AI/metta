@@ -15,6 +15,13 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
+# Optional metta dependencies
+try:
+    from metta.rl.policy_artifact import load_policy_artifact, save_policy_artifact_safetensors
+except ImportError:
+    load_policy_artifact = None  # type: ignore
+    save_policy_artifact_safetensors = None  # type: ignore
+
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
 
@@ -80,8 +87,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         Supports .mpt (metta format) and .pt (simple state dict) files for trainable policies.
         Non-trainable policies (network() returns None) do nothing by default.
         """
-        import torch
-
         network = self.network()
         if network is None:
             return
@@ -94,11 +99,8 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         path = Path(policy_data_path).expanduser()
 
         if path.suffix.lower() == ".mpt":
-            try:
-                from metta.rl.policy_artifact import load_policy_artifact
-            except ImportError as exc:
-                raise ImportError("Loading .mpt checkpoints requires metta RL components") from exc
-
+            if load_policy_artifact is None:
+                raise ImportError("Loading .mpt checkpoints requires metta RL components")
             network.load_state_dict(load_policy_artifact(path).state_dict)
         else:
             network.load_state_dict(torch.load(path, map_location=device))
@@ -126,8 +128,8 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         if path.suffix.lower() == ".mpt" and architecture is None:
             raise ValueError("Cannot save .mpt without policy_architecture; use .pt or pass policy_architecture")
         if architecture is not None and path.suffix.lower() == ".mpt":
-            from metta.rl.policy_artifact import save_policy_artifact_safetensors
-
+            if save_policy_artifact_safetensors is None:
+                raise ImportError("Saving .mpt checkpoints requires metta RL components")
             save_policy_artifact_safetensors(path, policy_architecture=architecture, state_dict=network.state_dict())
             return
 
