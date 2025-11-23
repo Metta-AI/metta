@@ -32,6 +32,14 @@ from pufferlib import pufferl
 from pufferlib import vector as pvector
 from pufferlib.pufferlib import set_buffers
 
+try:
+    from metta.rl.checkpoint_manager import CheckpointManager
+
+    CHECKPOINT_MANAGER_AVAILABLE = True
+except ImportError:
+    CHECKPOINT_MANAGER_AVAILABLE = False
+    CheckpointManager = None
+
 if TYPE_CHECKING:
     import torch
 
@@ -196,8 +204,14 @@ def train(
     resolved_initial_weights = initial_weights_path
     if initial_weights_path is not None:
         try:
-            resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
-        except FileNotFoundError as exc:
+            # Handle S3 URIs with CheckpointManager if available
+            if initial_weights_path.startswith("s3://"):
+                if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
+                    raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
+                resolved_initial_weights = CheckpointManager.normalize_uri(initial_weights_path)
+            else:
+                resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
+        except (FileNotFoundError, ImportError) as exc:
             console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
             resolved_initial_weights = None
 

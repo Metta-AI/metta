@@ -12,6 +12,14 @@ from cogames.cli.base import console
 from mettagrid.policy.loader import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid.policy.policy import PolicySpec
 
+try:
+    from metta.rl.checkpoint_manager import CheckpointManager
+
+    CHECKPOINT_MANAGER_AVAILABLE = True
+except ImportError:
+    CHECKPOINT_MANAGER_AVAILABLE = False
+    CheckpointManager = None
+
 RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
 
@@ -158,7 +166,14 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
 
     # It isn't strictly necessary to resolve these here, but doing so enables nicer error messages
     resolved_class_path = resolve_policy_class_path(raw_class_path)
-    resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
+
+    # Handle S3 URIs with CheckpointManager if available
+    if raw_policy_data and raw_policy_data.startswith("s3://"):
+        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
+            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
+        resolved_policy_data = CheckpointManager.normalize_uri(raw_policy_data)
+    else:
+        resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
 
     return PolicySpecWithProportion(
         class_path=resolved_class_path,

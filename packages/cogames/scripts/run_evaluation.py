@@ -5,7 +5,7 @@ Evaluation Script for Policies
 Supports:
 - Built-in shorthands: baseline, ladybug (`--agent all` runs both)
 - Any policy via full class path
-- Local checkpoints (.pt/.mpt) when providing `--checkpoint`
+- Local or S3 checkpoints when CheckpointManager is available
 
 Usage snippets:
   uv run python packages/cogames/scripts/run_evaluation.py --agent all
@@ -14,7 +14,9 @@ Usage snippets:
   uv run python packages/cogames/scripts/run_evaluation.py \
       --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy --cogs 1
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent cogames.policy.lstm.LSTMPolicy --checkpoint ./train_dir/run/model.mpt --cogs 1
+      --agent cogames.policy.lstm.LSTMPolicy --checkpoint s3://bucket/path/model.mpt --cogs 1
+  uv run python packages/cogames/scripts/run_evaluation.py \
+      --agent s3://bucket/path/model.mpt --cogs 1
 """
 
 import argparse
@@ -46,6 +48,14 @@ from mettagrid.policy.loader import (
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
+
+try:
+    from metta.rl.checkpoint_manager import CheckpointManager
+
+    CHECKPOINT_MANAGER_AVAILABLE = True
+except ImportError:
+    CHECKPOINT_MANAGER_AVAILABLE = False
+    CheckpointManager = None
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -92,6 +102,10 @@ class AgentConfig:
     data_path: Optional[str] = None
 
 
+def is_s3_uri(path: str) -> bool:
+    return path.startswith("s3://") if path else False
+
+
 def load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_path: str,
@@ -99,6 +113,21 @@ def load_policy(
     device: Optional[torch.device] = None,
 ):
     device = device or torch.device("cpu")
+
+    if checkpoint_path and is_s3_uri(checkpoint_path):
+        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
+            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
+        logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
+        policy_spec = CheckpointManager.policy_spec_from_uri(checkpoint_path, device=device)
+        return initialize_or_load_policy(policy_env_info, policy_spec)
+
+    if is_s3_uri(policy_path):
+        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
+            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
+        logger.info(f"Loading policy from S3 URI: {policy_path}")
+        policy_spec = CheckpointManager.policy_spec_from_uri(policy_path, device=device)
+        return initialize_or_load_policy(policy_env_info, policy_spec)
+
     data_path = resolve_policy_data_path(checkpoint_path) if checkpoint_path else None
     policy_spec = PolicySpec(class_path=policy_path, data_path=data_path)
     return initialize_or_load_policy(policy_env_info, policy_spec)
@@ -796,6 +825,9 @@ def main():
             configs.extend(list(AGENT_CONFIGS.values()))
         elif agent_key in AGENT_CONFIGS:
             configs.append(AGENT_CONFIGS[agent_key])
+        elif is_s3_uri(agent_key):
+            label = Path(agent_key).stem
+            configs.append(AgentConfig(key="custom", label=f"s3_{label}", policy_path=agent_key, data_path=None))
         else:
             label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
             configs.append(AgentConfig(key="custom", label=label, policy_path=agent_key, data_path=args.checkpoint))
