@@ -8,33 +8,20 @@ import os
 import pkgutil
 import re
 import urllib.parse
-from contextlib import nullcontext
 from pathlib import Path
 from typing import Optional
 
 import torch
 
-from metta.common.util.file import ParsedURI, local_copy
-from mettagrid.policy.artifact import load_policy_artifact, save_policy_artifact_safetensors
+from mettagrid.policy.artifact import (
+    load_policy_artifact,
+    load_policy_artifact_from_uri,
+    save_policy_artifact_safetensors,
+)
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
-
-
-def _unwrap_state_dict(payload: object) -> tuple[dict[str, torch.Tensor], object | None]:
-    """Extract a state_dict and optional architecture from torch load payloads."""
-    if isinstance(payload, dict):
-        state_dict = payload.get("state_dict") or payload.get("weights") or payload
-        arch = (
-            payload.get("policy_architecture")
-            or payload.get("policy_architecture_spec")
-            or payload.get("policy_architecture_str")
-        )
-        if not isinstance(state_dict, dict):
-            raise TypeError(f"state_dict payload must be a mapping, got {type(state_dict)}")
-        return dict(state_dict), arch  # type: ignore[arg-type]
-    raise TypeError(f"Checkpoint payload must be a mapping, got {type(payload)}")
 
 
 def load_policy(
@@ -50,38 +37,25 @@ def load_policy(
     init_kwargs = dict(policy_spec.init_kwargs or {})
     state_dict: dict[str, torch.Tensor] | None = None
     architecture = arch_hint or init_kwargs.get("policy_architecture")
-    checkpoint_ref = policy_spec.data_path or init_kwargs.get("checkpoint_uri")
+    artifact = None
+    policy_from_artifact: MultiAgentPolicy | None = None
 
-    if checkpoint_ref:
-        parsed = ParsedURI.parse(str(checkpoint_ref))
-        if parsed.scheme == "file":
-            ctx = nullcontext(parsed.require_local_path())
-        elif parsed.scheme == "s3":
-            ctx = local_copy(parsed.canonical)
-        else:
-            raise ValueError(f"Unsupported checkpoint scheme: {parsed.scheme}")
+    if policy_spec.data_path:
+        artifact = load_policy_artifact(Path(policy_spec.data_path).expanduser())
+    elif init_kwargs.get("checkpoint_uri"):
+        artifact = load_policy_artifact_from_uri(str(init_kwargs["checkpoint_uri"]))
 
-        with ctx as materialized_path:
-            data_path = Path(materialized_path).expanduser()
-            suffix = data_path.suffix.lower()
-            if suffix == ".mpt":
-                artifact = load_policy_artifact(data_path)
-                architecture = getattr(artifact, "policy_architecture", None) or architecture
-                state_dict = getattr(artifact, "state_dict", None)
-                if state_dict is not None and architecture is None:
-                    raise ValueError("Old-format .mpt requires policy_architecture (provide arch_hint)")
-            elif suffix == ".pt":
-                payload = torch.load(data_path, map_location="cpu", weights_only=False)
-                state_dict, arch_value = _unwrap_state_dict(payload)
-                if arch_value is not None:
-                    architecture = arch_value
-                if architecture is None:
-                    raise ValueError("Loading .pt requires policy_architecture when none is embedded")
-            else:
-                raise ValueError(f"Unsupported checkpoint extension: {suffix}")
+    if artifact is not None:
+        architecture = getattr(artifact, "policy_architecture", None) or architecture
+        state_dict = getattr(artifact, "state_dict", None)
+        policy_from_artifact = getattr(artifact, "policy", None)
+        if state_dict is not None and architecture is None:
+            raise ValueError("Loading checkpoints requires policy_architecture when none is embedded")
 
     if architecture is not None and hasattr(architecture, "make_policy"):
         policy = architecture.make_policy(policy_env_info)  # type: ignore[call-arg]
+    elif policy_from_artifact is not None:
+        policy = policy_from_artifact
     else:
         policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
         try:

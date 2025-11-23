@@ -311,6 +311,18 @@ def _normalize_state_dict_keys(state_dict: Mapping[str, torch.Tensor]) -> Mutabl
     return normalized
 
 
+def _try_load_pufferlib_checkpoint(payload: object) -> Policy | None:
+    """Best-effort pufferlib compatibility loader."""
+    try:
+        from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
+    except Exception:
+        return None
+
+    if _is_puffer_state_dict(payload):
+        return load_pufferlib_checkpoint(payload)
+    return None
+
+
 def _load_mpt_artifact(path: Path) -> PolicyArtifact:
     """Load modern .mpt format: safetensors + architecture."""
     try:
@@ -348,8 +360,15 @@ def _load_pt_artifact(path: Path) -> PolicyArtifact:
     except Exception as e:
         raise ValueError(f"Failed to load .pt file: {path}") from e
 
+    if isinstance(payload, Policy):
+        return PolicyArtifact(policy=payload)
+
     if not isinstance(payload, Mapping):
         raise TypeError(f".pt file must contain a state_dict mapping, got {type(payload)}")
+
+    puffer_policy = _try_load_pufferlib_checkpoint(payload)
+    if puffer_policy is not None:
+        return PolicyArtifact(policy=puffer_policy)
 
     # Backwards compat: handle wrapped dicts (old: {"state_dict": {...}}, new: {...})
     state_dict = payload.get("state_dict") or payload.get("weights") or payload
@@ -397,3 +416,10 @@ def load_policy_artifact(path: str | Path) -> PolicyArtifact:
         return _load_pt_artifact(input_path)
 
     raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
+
+
+def load_policy_artifact_from_uri(uri: str) -> PolicyArtifact:
+    """Load a policy artifact from a URI (file://, s3://, :latest, or mock://)."""
+    from metta.rl.checkpoint_manager import CheckpointManager
+
+    return CheckpointManager.load_artifact_from_uri(uri)

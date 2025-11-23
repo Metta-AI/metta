@@ -60,7 +60,11 @@ class EvaluateTool(Tool):
     policy_architecture: PolicyArchitecture | None = None
 
     def _build_policy_spec(self, normalized_uri: str) -> PolicySpec:
-        spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
+        spec = CheckpointManager.policy_spec_from_uri(
+            normalized_uri,
+            device="cpu",
+            policy_architecture=self.policy_architecture,
+        )
         return spec
 
     def _get_policy_metadata(self, policy_uri: str, stats_client: StatsClient) -> MyPolicyMetadata | None:
