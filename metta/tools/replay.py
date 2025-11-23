@@ -37,9 +37,7 @@ class ReplayTool(Tool):
     def _build_policy_spec(self, normalized_uri: Optional[str]) -> PolicySpec:
         if normalized_uri is None:
             return PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
-        return CheckpointManager.policy_spec_from_uri(
-            normalized_uri, device="cpu", policy_architecture=self.policy_architecture
-        )
+        return CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
 
     def invoke(self, args: dict[str, str]) -> Optional[int]:
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri) if self.policy_uri else None

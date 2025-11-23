@@ -57,13 +57,7 @@ def run_old_uris(
         policy_uris = [policy_uris]
     policy_specs = []
     for policy_uri in policy_uris or []:
-        policy_specs.append(
-            CheckpointManager.policy_spec_from_uri(
-                policy_uri,
-                device="cpu",
-                policy_architecture=policy_architecture,
-            )
-        )
+            policy_specs.append(CheckpointManager.policy_spec_from_uri(policy_uri, device="cpu"))
     return run(policy_specs)
 
 

@@ -190,7 +190,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest, policy_architecture=mock_policy_architecture)
+        spec = CheckpointManager.policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
         assert policy.agent_policy(0) is not None
@@ -208,7 +208,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest, policy_architecture=mock_policy_architecture)
+        spec = CheckpointManager.policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
 
@@ -233,9 +233,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(
-            latest, display_name="friendly-name", policy_architecture=mock_policy_architecture
-        )
+        spec = CheckpointManager.policy_spec_from_uri(latest, display_name="friendly-name")
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
         assert getattr(policy, "display_name", "") == "friendly-name"
@@ -253,7 +251,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest, policy_architecture=mock_policy_architecture)
+        spec = CheckpointManager.policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
 
@@ -261,9 +259,7 @@ class TestBasicSaveLoad:
         saved_uri = policy.save_policy(save_path, policy_architecture=mock_policy_architecture)
 
         assert save_path.exists()
-        reload_spec = CheckpointManager.policy_spec_from_uri(
-            saved_uri, device="cpu", policy_architecture=mock_policy_architecture
-        )
+        reload_spec = CheckpointManager.policy_spec_from_uri(saved_uri, device="cpu")
         reloaded = initialize_or_load_policy(env_info, reload_spec)
         assert reloaded is not None
 
@@ -276,16 +272,14 @@ class TestBasicSaveLoad:
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
 
-        spec = CheckpointManager.policy_spec_from_uri(
-            latest, display_name="custom", device="cpu", policy_architecture=mock_policy_architecture
-        )
+        spec = CheckpointManager.policy_spec_from_uri(latest, display_name="custom", device="cpu")
         assert isinstance(spec, PolicySpec)
         assert spec.class_path == mock_policy_architecture.class_path
         assert spec.init_kwargs is not None
         assert spec.init_kwargs["checkpoint_uri"] == CheckpointManager.normalize_uri(latest)
         assert spec.init_kwargs["display_name"] == "custom"
         assert spec.init_kwargs["device"] == "cpu"
-        assert spec.init_kwargs["policy_architecture"] == mock_policy_architecture
+        assert "policy_architecture" in spec.init_kwargs
 
 
 class TestErrorHandling:
