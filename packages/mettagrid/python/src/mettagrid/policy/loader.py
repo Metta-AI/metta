@@ -27,6 +27,25 @@ def initialize_or_load_policy(
     Returns:
         Initialized policy instance
     """
+    # Extract architecture from .mpt if needed
+    if policy_spec.data_path:
+        data_path = Path(policy_spec.data_path)
+        if data_path.suffix.lower() == ".mpt":
+            init_kwargs = policy_spec.init_kwargs or {}
+            if "config" not in init_kwargs and "policy_architecture" not in init_kwargs:
+                try:
+                    from metta.rl.policy_artifact import load_policy_artifact
+
+                    artifact = load_policy_artifact(data_path)
+                    if artifact.policy_architecture is not None:
+                        init_kwargs = {**init_kwargs, "config": artifact.policy_architecture}
+                        policy_spec = PolicySpec(
+                            class_path=policy_spec.class_path,
+                            init_kwargs=init_kwargs,
+                            data_path=policy_spec.data_path,
+                        )
+                except ImportError:
+                    pass  # metta RL not available, continue without
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
