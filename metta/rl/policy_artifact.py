@@ -211,7 +211,10 @@ class PolicyArtifact:
         valid_combo = (has_state and not has_policy) or (has_policy and not has_state and not has_arch)
 
         if not valid_combo:
-            msg = "PolicyArtifact must contain either (policy) or (state_dict [+ policy_architecture])."
+            msg = (
+                "PolicyArtifact must contain either (policy) or (state_dict). "
+                "When using state_dict, provide policy_architecture before calling instantiate()."
+            )
             raise ValueError(msg)
 
         if has_state and not isinstance(self.state_dict, MutableMapping):
