@@ -110,8 +110,11 @@ def train(
     loss_config.ppo.enabled = True
     loss_config.kickstarter.enabled = True
     loss_config.kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt"
+        "s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v8016.mpt"
     )
+    # loss_config.kickstarter.teacher_uri = (
+    #     "s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt"
+    # )
     # loss_config.kickstarter.teacher_uri=(
     #     "s3://softmax-public/policies/av.ppo_divorced.mb.11.18.01/av.ppo_divorced.mb.11.18.01:v7500.mpt"
     # )
