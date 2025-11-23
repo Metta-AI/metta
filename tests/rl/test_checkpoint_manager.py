@@ -411,6 +411,7 @@ class TestBasicSaveLoad:
             return tmp_path / "data"
 
         monkeypatch.setattr("metta.common.util.file.write_file", fake_write_file)
+        monkeypatch.setattr("metta.rl.policy_artifact.write_file", fake_write_file)
         monkeypatch.setattr("metta.rl.system_config.guess_data_dir", fake_guess_data_dir)
 
         dest = "s3://bucket/run/foo.mpt"
