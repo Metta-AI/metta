@@ -85,7 +85,7 @@ class TestFileURIs:
 
 
 class TestS3URIs:
-    @patch("metta.rl.checkpoint_manager.local_copy")
+    @patch("metta.rl.policy_artifact.local_copy")
     def test_s3_download(self, mock_local_copy, mock_policy, mock_policy_architecture, tmp_path: Path):
         checkpoint_file = create_checkpoint(
             tmp_path, checkpoint_filename("run", 12), mock_policy, mock_policy_architecture

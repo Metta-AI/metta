@@ -7,6 +7,7 @@ import importlib
 import os
 import pkgutil
 import re
+import tempfile
 import urllib.parse
 from pathlib import Path
 from typing import Optional
@@ -114,13 +115,14 @@ def save_policy(
     is_s3 = dest.startswith("s3://")
 
     if is_s3:
-        from metta.rl.system_config import guess_data_dir
-
         parsed = urllib.parse.urlparse(dest)
+        bucket = parsed.netloc
+        key = parsed.path.lstrip("/")
         filename = Path(parsed.path).name
-        if not filename:
-            raise ValueError("S3 destination must include a filename")
-        temp_dir = guess_data_dir() / ".tmp"
+        if not bucket or not key or not filename:
+            raise ValueError("S3 destination must include a bucket and filename")
+
+        temp_dir = Path(tempfile.gettempdir()) / "mettagrid_policy_tmp"
         temp_dir.mkdir(parents=True, exist_ok=True)
         path = temp_dir / filename
     else:
@@ -143,10 +145,15 @@ def save_policy(
         raise ValueError(f"Unsupported checkpoint extension: {suffix}")
 
     if is_s3:
-        from metta.common.util.file import write_file
+        import boto3
 
         try:
-            write_file(dest, str(path))
+            boto3.client("s3").upload_file(
+                str(path),
+                bucket,
+                key,
+                ExtraArgs={"ContentType": "application/octet-stream"},
+            )
         finally:
             path.unlink(missing_ok=True)
         return dest
