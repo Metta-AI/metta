@@ -7,11 +7,11 @@ import importlib
 import os
 import pkgutil
 import re
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
 import torch
-import urllib.parse
 
 from mettagrid.policy.artifact import load_policy_artifact, save_policy_artifact_safetensors
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
