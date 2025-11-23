@@ -374,7 +374,14 @@ def _load_mpt_artifact(path: Path) -> PolicyArtifact:
         with zipfile.ZipFile(path, mode="r") as archive:
             names = set(archive.namelist())
 
+            # Backwards compat: old .mpt files are PyTorch ZIP format (data.pkl)
             if "weights.safetensors" not in names:
+                # Check if this is an old PyTorch ZIP format
+                if any("data.pkl" in name for name in names):
+                    # Load as PyTorch checkpoint (no architecture info)
+                    state_dict = torch.load(path, map_location="cpu", weights_only=False)
+                    normalized_state = _normalize_state_dict_keys(state_dict)
+                    return PolicyArtifact(state_dict=normalized_state)
                 raise ValueError(f".mpt file missing weights.safetensors: {path}")
 
             # Load weights
