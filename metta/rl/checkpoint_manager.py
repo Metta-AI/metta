@@ -339,9 +339,12 @@ class CheckpointManager:
         display_name: str | None = None,
         policy_architecture: PolicyArchitecture | None = None,
     ) -> PolicySpec:
-        if policy_architecture is None:
-            raise ValueError("policy_architecture is required to build PolicySpec from a checkpoint URI")
         normalized_uri = CheckpointManager.normalize_uri(uri)
+        if policy_architecture is None:
+            artifact = CheckpointManager.load_artifact_from_uri(normalized_uri)
+            policy_architecture = artifact.policy_architecture
+            if policy_architecture is None:
+                raise ValueError("policy_architecture is required for checkpoints without embedded metadata")
         init_kwargs: dict[str, str | bool | PolicyArchitecture] = {
             "checkpoint_uri": normalized_uri,
             "display_name": display_name or normalized_uri,
