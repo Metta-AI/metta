@@ -123,6 +123,8 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         path.parent.mkdir(parents=True, exist_ok=True)
 
         architecture = getattr(self, "_policy_architecture", None)
+        if path.suffix.lower() == ".mpt" and architecture is None:
+            raise ValueError("Cannot save .mpt without policy_architecture; use .pt or pass policy_architecture")
         if architecture is not None and path.suffix.lower() == ".mpt":
             from metta.rl.policy_artifact import save_policy_artifact_safetensors
 
