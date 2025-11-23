@@ -244,7 +244,6 @@ class MettaGridPufferEnv(PufferEnv):
 
     def render(self) -> str:
         """Render the current state as unicode text."""
-        # Lazy import - rendering dependencies may not be available on remote machines
         from mettagrid.renderer.miniscope.buffer import MapBuffer
         from mettagrid.renderer.miniscope.symbol import DEFAULT_SYMBOL_MAP
 
