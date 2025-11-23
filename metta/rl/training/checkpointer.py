@@ -183,8 +183,5 @@ class Checkpointer(TrainerComponent):
 
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
-        try:
-            self.context.latest_saved_policy_epoch = epoch
-        except AttributeError:
-            logger.debug("Component context missing latest_saved_policy_epoch attribute")
+        self.context.latest_saved_policy_epoch = epoch
         logger.debug("Policy checkpoint saved to %s", uri)
