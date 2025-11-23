@@ -80,6 +80,7 @@ def _():
         print("⚠️ MettaScope replay viewer not available")
 
     from metta.rl.checkpoint_manager import CheckpointManager
+    from metta.rl.policy_artifact import load_policy_artifact
 
     from metta.common.wandb.context import WandbConfig
     import wandb
@@ -1006,7 +1007,7 @@ def _(
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(mg_config, render_mode="human")
 
-            trained_artifact = CheckpointManager.load_policy_artifact(str(latest_ckpt))
+            trained_artifact = load_policy_artifact(str(latest_ckpt))
 
             trained_policy = trained_artifact.instantiate(
                 policy_env_interface, torch.device("cpu")

@@ -9,7 +9,7 @@ import torch
 
 from metta.agent.policy import PolicyArchitecture
 from metta.common.util.uri import ParsedURI
-from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact_from_uri
+from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
@@ -172,14 +172,9 @@ class CheckpointManager:
         return self._remote_prefix is not None
 
     @staticmethod
-    def load_artifact_from_uri(uri: str) -> PolicyArtifact:
-        """Load a policy from a URI (file://, s3://, mock://); supports :latest selector."""
-        return load_policy_artifact_from_uri(uri)
-
-    @staticmethod
     def load_policy_artifact(uri: str) -> PolicyArtifact:
-        """Alias retained for backward compatibility."""
-        return load_policy_artifact_from_uri(uri)
+        """Load a policy from a URI (file://, s3://, mock://); supports :latest selector."""
+        return load_policy_artifact(uri)
 
     @staticmethod
     def normalize_uri(uri: str) -> str:
@@ -307,7 +302,7 @@ class CheckpointManager:
         artifact: Optional[PolicyArtifact] = None
         embedded_policy_class_path: Optional[str] = None
         if policy_architecture is None:
-            artifact = CheckpointManager.load_artifact_from_uri(normalized_uri)
+            artifact = CheckpointManager.load_policy_artifact(normalized_uri)
             policy_architecture = artifact.policy_architecture
             embedded_policy = getattr(artifact, "policy", None)
             if embedded_policy is not None and class_path is None:

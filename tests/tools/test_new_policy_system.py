@@ -4,7 +4,7 @@ import mettagrid.builder.envs as eb
 from metta.agent.mocks import MockAgent
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import load_policy_artifact_from_uri
+from metta.rl.policy_artifact import load_policy_artifact
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.runner import SimulationRunConfig, run_simulations
 from metta.sim.simulation_config import SimulationConfig
@@ -94,7 +94,7 @@ class TestNewPolicySystem:
 
         try:
             # Test with a mock URI that should be fully versioned
-            artifact = load_policy_artifact_from_uri("mock://test_policy")
+            artifact = load_policy_artifact("mock://test_policy")
             assert artifact.policy is not None
         except Exception as e:
             assert "not found" in str(e).lower() or "invalid" in str(e).lower()

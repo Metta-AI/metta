@@ -484,9 +484,27 @@ def _normalize_policy_uri(uri: str) -> str:
     return parsed.canonical
 
 
-def load_policy_artifact_from_uri(uri: str) -> PolicyArtifact:
-    """Load a policy artifact from URI (file://, s3://, mock://, supports :latest)."""
+def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
+    """Load a policy artifact from .mpt/.pt or URI (file://, s3://, :latest, mock://)."""
+    if isinstance(path_or_uri, Path):
+        input_path = path_or_uri
+    else:
+        if "://" not in path_or_uri and not str(path_or_uri).endswith(":latest"):
+            input_path = Path(path_or_uri)
+        else:
+            input_path = None
 
+    if input_path is not None:
+        if input_path.exists():
+            if input_path.suffix == ".mpt":
+                return _load_mpt_artifact(input_path)
+            if input_path.suffix == ".pt":
+                return _load_pt_artifact(input_path)
+            raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
+        else:
+            raise FileNotFoundError(f"Policy artifact not found: {input_path}")
+
+    uri = str(path_or_uri)
     if uri.startswith(("http://", "https://", "ftp://", "gs://")):
         raise ValueError(f"Invalid URI: {uri}")
 
@@ -514,26 +532,3 @@ def load_policy_artifact_from_uri(uri: str) -> PolicyArtifact:
         return PolicyArtifact(policy=MockAgent())
 
     raise ValueError(f"Invalid URI: {uri}")
-
-
-def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
-    """Load a policy artifact from .mpt/.pt or URI (file://, s3://, :latest, mock://)."""
-    if isinstance(path_or_uri, Path):
-        input_path = path_or_uri
-    else:
-        if "://" not in path_or_uri and not str(path_or_uri).endswith(":latest"):
-            input_path = Path(path_or_uri)
-        else:
-            input_path = None
-
-    if input_path is not None:
-        if input_path.exists():
-            if input_path.suffix == ".mpt":
-                return _load_mpt_artifact(input_path)
-            if input_path.suffix == ".pt":
-                return _load_pt_artifact(input_path)
-            raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
-        else:
-            raise FileNotFoundError(f"Policy artifact not found: {input_path}")
-
-    return load_policy_artifact_from_uri(str(path_or_uri))
