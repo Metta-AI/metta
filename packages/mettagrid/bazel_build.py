@@ -47,22 +47,44 @@ def _run_bazel_build() -> None:
     if shutil.which("bazel") is None:
         raise RuntimeError("Bazel is required to build mettagrid. Run ./devops/tools/install-system.sh to install it.")
 
+    env = os.environ.copy()
+
     # Determine build configuration from environment
-    debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
+    debug = env.get("DEBUG", "").lower() in ("1", "true", "yes")
 
     # Check if running in CI environment (GitHub Actions sets CI=true)
-    is_ci = os.environ.get("CI", "").lower() == "true" or os.environ.get("GITHUB_ACTIONS", "") == "true"
+    is_ci = env.get("CI", "").lower() == "true" or env.get("GITHUB_ACTIONS", "") == "true"
+
+    user_config = env.get("METTAGRID_BAZEL_CONFIG")
+    compiler: str | None = None
 
     if is_ci:
         # Use CI configuration to avoid root user issues with hermetic Python
-        config = "ci"
+        config = user_config or "ci"
+        if user_config:
+            print(f"Using Bazel config '{config}' from METTAGRID_BAZEL_CONFIG in CI.")
+        else:
+            print("Using default CI Bazel config 'ci'.")
     else:
-        config = "dbg" if debug else "opt"
+        if user_config:
+            # Honor explicit override without auto-detecting compiler
+            config = user_config
+            print(f"Using Bazel config '{config}' from METTAGRID_BAZEL_CONFIG; skipping compiler auto-detect.")
+        else:
+            # Prefer clang when available, otherwise fall back to gcc
+            has_clang = shutil.which("clang") is not None and shutil.which("clang++") is not None
+            if has_clang:
+                compiler = "clang"
+                config = "clang_dbg" if debug else "clang"
+            else:
+                compiler = "gcc"
+                config = "debug" if debug else "release"
+
+            print(f"Auto-selected compiler '{compiler}' via Bazel config '{config}'.")
 
     # Align Bazel's registered Python toolchain with the active interpreter.
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
 
-    env = os.environ.copy()
     env.setdefault("METTAGRID_BAZEL_PYTHON_VERSION", py_version)
 
     # Provide a writable output root for environments with restricted /var/tmp access.
@@ -75,7 +97,7 @@ def _run_bazel_build() -> None:
     Path(output_user_root).mkdir(parents=True, exist_ok=True)
 
     # Build the Python extension with auto-detected parallelism
-    cmd = [
+    cmdline = [
         "bazel",
         "--batch",
         f"--output_user_root={output_user_root}",
@@ -86,8 +108,27 @@ def _run_bazel_build() -> None:
         "//cpp:mettagrid_c",  # Build from new cpp location
     ]
 
-    print(f"Running Bazel build: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, env=env)
+    def _run_bazel_once() -> subprocess.CompletedProcess[str]:
+        print(f"Running Bazel build: {' '.join(cmdline)}")
+        return subprocess.run(
+            cmdline,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+    result = _run_bazel_once()
+
+    # Handle Bazel install-base corruption by cleaning and retrying once.
+    if result.returncode != 0 and "corrupt installation" in result.stderr:
+        install_dir = PROJECT_ROOT / ".bazel_output" / "install"
+        print(
+            f"Detected Bazel corrupt installation under {install_dir}; removing and retrying once.",
+            file=sys.stderr,
+        )
+        shutil.rmtree(install_dir, ignore_errors=True)
+        result = _run_bazel_once()
 
     if result.returncode != 0:
         print("Bazel build failed. STDERR:", file=sys.stderr)
