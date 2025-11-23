@@ -122,7 +122,14 @@ def save_policy(
         if not bucket or not key or not filename:
             raise ValueError("S3 destination must include a bucket and filename")
 
-        temp_dir = Path(tempfile.gettempdir()) / "mettagrid_policy_tmp"
+        try:
+            from metta.rl.system_config import guess_data_dir  # type: ignore
+        except ImportError:
+            temp_dir = Path(tempfile.gettempdir())
+        else:
+            temp_dir = guess_data_dir()
+
+        temp_dir = temp_dir / ".tmp"
         temp_dir.mkdir(parents=True, exist_ok=True)
         path = temp_dir / filename
     else:
@@ -145,15 +152,24 @@ def save_policy(
         raise ValueError(f"Unsupported checkpoint extension: {suffix}")
 
     if is_s3:
-        import boto3
+        try:
+            from metta.common.util.file import write_file  # type: ignore
+        except ImportError:
+            import boto3
+
+            try:
+                boto3.client("s3").upload_file(
+                    str(path),
+                    bucket,
+                    key,
+                    ExtraArgs={"ContentType": "application/octet-stream"},
+                )
+            finally:
+                path.unlink(missing_ok=True)
+            return dest
 
         try:
-            boto3.client("s3").upload_file(
-                str(path),
-                bucket,
-                key,
-                ExtraArgs={"ContentType": "application/octet-stream"},
-            )
+            write_file(dest, str(path))
         finally:
             path.unlink(missing_ok=True)
         return dest
