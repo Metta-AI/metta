@@ -254,3 +254,11 @@ class LSTMPolicy(MultiAgentPolicy):
 
     def is_recurrent(self) -> bool:
         return True
+
+    def state_dict(self, *args, **kwargs):
+        """Expose underlying network state for saving."""
+        return self._net.state_dict(*args, **kwargs)
+
+    def load_state_dict(self, state_dict, *args, **kwargs):
+        """Load weights into the underlying network."""
+        return self._net.load_state_dict(state_dict, *args, **kwargs)

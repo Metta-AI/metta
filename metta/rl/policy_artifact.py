@@ -601,13 +601,12 @@ def policy_spec_from_uri(
     normalized_uri = _normalize_policy_uri(uri)
     parsed_uri = ParsedURI.parse(normalized_uri)
 
-    artifact: Optional[PolicyArtifact] = None
     embedded_policy_class_path: Optional[str] = None
-    if policy_architecture is None:
+    if policy_architecture is None and class_path is None:
         artifact = load_policy_artifact(normalized_uri)
         policy_architecture = artifact.policy_architecture
         embedded_policy = getattr(artifact, "policy", None)
-        if embedded_policy is not None and class_path is None:
+        if embedded_policy is not None:
             embedded_policy_class_path = (
                 f"{embedded_policy.__class__.__module__}.{embedded_policy.__class__.__qualname__}"
             )
