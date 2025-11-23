@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import io
+import logging
 import tempfile
 import zipfile
 from collections import OrderedDict
@@ -10,14 +11,20 @@ from pathlib import Path
 from typing import Any, Mapping, MutableMapping
 from zipfile import BadZipFile
 
+import boto3
 import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.common.util.file import local_copy
+from metta.common.util.uri import ParsedURI
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
+
+logger = logging.getLogger(__name__)
 
 
 def _component_config_to_manifest(component: ComponentConfig) -> dict[str, Any]:
@@ -413,6 +420,102 @@ def _load_pt_artifact(path: Path) -> PolicyArtifact:
     return _artifact_from_payload(payload, source=".pt file")
 
 
+def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
+    """Infer run name and epoch from a checkpoint path."""
+
+    stem = path.stem
+
+    if ":v" in stem:
+        run_name, suffix = stem.rsplit(":v", 1)
+        if run_name and suffix.isdigit():
+            return (run_name, int(suffix))
+    return None
+
+
+def _get_all_checkpoints(uri: str) -> list[dict[str, Any]]:
+    """List checkpoint metadata for file:// or s3:// URIs."""
+
+    parsed = ParsedURI.parse(uri)
+    if parsed.scheme == "file" and parsed.local_path:
+        checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.mpt") if ckpt.stem]
+    elif parsed.scheme == "s3" and parsed.bucket:
+        s3_client = boto3.client("s3")
+        prefix = parsed.key or ""
+        response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
+
+        if response["KeyCount"] == 0:
+            return []
+
+        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
+    else:
+        raise ValueError(f"Cannot get checkpoints from uri: {uri}")
+
+    checkpoint_metadata: list[dict[str, Any]] = []
+    for path in checkpoint_files:
+        run_and_epoch = _extract_run_and_epoch(path)
+        if run_and_epoch:
+            path_uri = uri.rstrip("/") + "/" + path.name
+            checkpoint_metadata.append(
+                {
+                    "run_name": run_and_epoch[0],
+                    "epoch": run_and_epoch[1],
+                    "uri": path_uri,
+                }
+            )
+
+    return checkpoint_metadata
+
+
+def _latest_checkpoint_uri(uri: str) -> str:
+    checkpoints = _get_all_checkpoints(uri)
+    if not checkpoints:
+        raise FileNotFoundError(f"No checkpoint files in {uri}")
+    latest = max(checkpoints, key=lambda p: p["epoch"])
+    return latest["uri"]
+
+
+def _normalize_policy_uri(uri: str) -> str:
+    """Convert paths to file:// URIs and resolve :latest selectors."""
+
+    parsed = ParsedURI.parse(uri)
+    if uri.endswith(":latest"):
+        base_uri = uri[:-7]
+        return _latest_checkpoint_uri(base_uri)
+    return parsed.canonical
+
+
+def load_policy_artifact_from_uri(uri: str) -> PolicyArtifact:
+    """Load a policy artifact from URI (file://, s3://, mock://, supports :latest)."""
+
+    if uri.startswith(("http://", "https://", "ftp://", "gs://")):
+        raise ValueError(f"Invalid URI: {uri}")
+
+    normalized_uri = _normalize_policy_uri(uri)
+    parsed = ParsedURI.parse(normalized_uri)
+
+    if parsed.scheme == "file" and parsed.local_path is not None:
+        path = parsed.local_path
+        if path.is_dir():
+            latest_uri = _latest_checkpoint_uri(normalized_uri)
+            parsed_latest = ParsedURI.parse(latest_uri)
+            local_path = parsed_latest.local_path
+            if local_path is None:
+                raise FileNotFoundError(f"No checkpoint files in {normalized_uri}")
+            return load_policy_artifact(local_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Checkpoint file not found: {path}")
+        return load_policy_artifact(path)
+
+    if parsed.scheme == "s3":
+        with local_copy(parsed.canonical) as local_path:
+            return load_policy_artifact(local_path)
+
+    if parsed.scheme == "mock":
+        return PolicyArtifact(policy=MockAgent())
+
+    raise ValueError(f"Invalid URI: {uri}")
+
+
 def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
     """Load a policy artifact from .mpt/.pt or URI (file://, s3://, :latest, mock://)."""
     if isinstance(path_or_uri, Path):
@@ -433,6 +536,4 @@ def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
         else:
             raise FileNotFoundError(f"Policy artifact not found: {input_path}")
 
-    from metta.rl.checkpoint_manager import CheckpointManager
-
-    return CheckpointManager.load_artifact_from_uri(str(path_or_uri))
+    return load_policy_artifact_from_uri(str(path_or_uri))

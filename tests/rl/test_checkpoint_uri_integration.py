@@ -12,6 +12,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
+from metta.rl.policy_artifact import load_policy_artifact_from_uri
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import save_policy
@@ -64,7 +65,7 @@ class TestFileURIs:
     def test_load_single_file_uri(self, tmp_path: Path, mock_policy, mock_policy_architecture):
         ckpt = create_checkpoint(tmp_path, checkpoint_filename("run", 5), mock_policy, mock_policy_architecture)
         uri = f"file://{ckpt}"
-        artifact = CheckpointManager.load_artifact_from_uri(uri)
+        artifact = load_policy_artifact_from_uri(uri)
         assert artifact.policy_architecture is not None
 
     def test_load_from_directory(self, tmp_path: Path, mock_policy, mock_policy_architecture):
@@ -73,14 +74,14 @@ class TestFileURIs:
         latest = create_checkpoint(ckpt_dir, checkpoint_filename("run", 7), mock_policy, mock_policy_architecture)
 
         uri = f"file://{ckpt_dir}"
-        artifact = CheckpointManager.load_artifact_from_uri(uri)
+        artifact = load_policy_artifact_from_uri(uri)
         assert artifact.policy_architecture is not None
         assert Path(uri[7:]).is_dir()
         assert latest.exists()
 
     def test_invalid_file_uri(self):
         with pytest.raises(FileNotFoundError):
-            CheckpointManager.load_artifact_from_uri("file:///does/not/exist.mpt")
+            load_policy_artifact_from_uri("file:///does/not/exist.mpt")
 
 
 class TestS3URIs:
@@ -94,7 +95,7 @@ class TestS3URIs:
         mock_local_copy.return_value.__exit__ = Mock(return_value=None)
 
         uri = "s3://bucket/run/checkpoints/run:v12.mpt"
-        artifact = CheckpointManager.load_artifact_from_uri(uri)
+        artifact = load_policy_artifact_from_uri(uri)
 
         assert artifact.policy_architecture is not None
 

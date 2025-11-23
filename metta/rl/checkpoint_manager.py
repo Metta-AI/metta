@@ -3,16 +3,13 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional, TypedDict
-from zipfile import BadZipFile
 
 import boto3
 import torch
 
-from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
-from metta.common.util.file import local_copy
 from metta.common.util.uri import ParsedURI
-from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact
+from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact_from_uri
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
@@ -104,16 +101,6 @@ def _latest_checkpoint(uri: str) -> PolicyMetadata | None:
         return max(checkpoints, key=lambda p: p["epoch"])
 
 
-def _load_checkpoint_file(path: str) -> PolicyArtifact:
-    """Load a checkpoint file, raising FileNotFoundError on corruption."""
-    try:
-        return load_policy_artifact(Path(path))
-    except FileNotFoundError:
-        raise
-    except (BadZipFile, ValueError, TypeError) as err:
-        raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
-
-
 class CheckpointManager:
     """Checkpoint manager with filename-embedded metadata."""
 
@@ -186,38 +173,13 @@ class CheckpointManager:
 
     @staticmethod
     def load_artifact_from_uri(uri: str) -> PolicyArtifact:
-        """Load a policy from a URI (file://, s3://, or mock://).
+        """Load a policy from a URI (file://, s3://, mock://); supports :latest selector."""
+        return load_policy_artifact_from_uri(uri)
 
-        Supports :latest selector for automatic resolution to the most recent checkpoint:
-            file:///path/to/run/checkpoints/:latest
-            s3://bucket/path/run/checkpoints/:latest
-        """
-        if uri.startswith(("http://", "https://", "ftp://", "gs://")):
-            raise ValueError(f"Invalid URI: {uri}")
-
-        uri = CheckpointManager.normalize_uri(uri)
-        parsed = ParsedURI.parse(uri)
-
-        if parsed.scheme == "file" and parsed.local_path is not None:
-            path = parsed.local_path
-            if path.is_dir():
-                checkpoint_file = _latest_checkpoint(f"file://{path}")
-                if not checkpoint_file:
-                    raise FileNotFoundError(f"No checkpoint files in {uri}")
-                local_path = ParsedURI.parse(checkpoint_file["uri"]).local_path
-                return _load_checkpoint_file(local_path)  # type: ignore
-            if not path.exists():
-                raise FileNotFoundError(f"Checkpoint file not found: {path}")
-            return _load_checkpoint_file(str(path))
-
-        if parsed.scheme == "s3":
-            with local_copy(parsed.canonical) as local_path:
-                return _load_checkpoint_file(str(local_path))
-
-        if parsed.scheme == "mock":
-            return PolicyArtifact(policy=MockAgent())
-
-        raise ValueError(f"Invalid URI: {uri}")
+    @staticmethod
+    def load_policy_artifact(uri: str) -> PolicyArtifact:
+        """Alias retained for backward compatibility."""
+        return load_policy_artifact_from_uri(uri)
 
     @staticmethod
     def normalize_uri(uri: str) -> str:

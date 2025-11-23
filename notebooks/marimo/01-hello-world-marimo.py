@@ -1006,9 +1006,7 @@ def _(
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(mg_config, render_mode="human")
 
-            trained_artifact = CheckpointManager.load_artifact_from_uri(
-                str(latest_ckpt)
-            )
+            trained_artifact = CheckpointManager.load_policy_artifact(str(latest_ckpt))
 
             trained_policy = trained_artifact.instantiate(
                 policy_env_interface, torch.device("cpu")

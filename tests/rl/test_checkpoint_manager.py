@@ -13,7 +13,7 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.common.util.uri import ParsedURI
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact
+from metta.rl.policy_artifact import load_policy_artifact_from_uri, save_policy_artifact
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy, save_policy
@@ -83,7 +83,7 @@ class TestBasicSaveLoad:
             )
 
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}:latest"
-        artifact = CheckpointManager.load_artifact_from_uri(latest_uri)
+        artifact = load_policy_artifact_from_uri(latest_uri)
 
         assert artifact.state_dict is not None
         metadata = CheckpointManager.get_policy_metadata(latest_uri)
@@ -107,7 +107,7 @@ class TestBasicSaveLoad:
         assert metadata["run_name"] == "test_run"
         assert metadata["epoch"] == 5
 
-        artifact = CheckpointManager.load_artifact_from_uri(agent_file.as_uri())
+        artifact = load_policy_artifact_from_uri(agent_file.as_uri())
         assert artifact.state_dict is not None
 
     def test_remote_prefix_upload(self, test_system_cfg, mock_agent, mock_policy_architecture):
@@ -152,7 +152,7 @@ class TestBasicSaveLoad:
         latest_checkpoint = checkpoint_manager.get_latest_checkpoint()
         assert latest_checkpoint is not None
         assert latest_checkpoint.endswith(":v10.mpt")
-        artifact = CheckpointManager.load_artifact_from_uri(latest_checkpoint)
+        artifact = load_policy_artifact_from_uri(latest_checkpoint)
         assert artifact.state_dict is not None
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent, mock_policy_architecture):

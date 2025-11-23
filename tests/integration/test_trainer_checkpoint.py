@@ -157,6 +157,6 @@ class TestTrainerCheckpointIntegration:
         policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert policy_uri, "Expected at least one policy checkpoint"
 
-        artifact = checkpoint_manager.load_artifact_from_uri(policy_uri)
+        artifact = checkpoint_manager.load_policy_artifact(policy_uri)
         assert artifact.policy_architecture is not None
         assert artifact.state_dict is not None
