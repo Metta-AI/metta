@@ -7,7 +7,6 @@ from typing import Any, Dict, Optional, TypedDict
 import boto3
 import torch
 
-from metta.agent.policy import PolicyArchitecture
 from metta.common.util.uri import ParsedURI
 from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact
 from metta.rl.system_config import SystemConfig
