@@ -5,6 +5,7 @@ import torch
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.rl.policy_artifact import load_policy_artifact
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.policy.loader import save_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
@@ -15,7 +16,7 @@ def test_policy_save_data_includes_architecture(tmp_path: Path) -> None:
     policy = arch.make_policy(env_info)
 
     destination = tmp_path / "policy.mpt"
-    policy.save_policy_data(str(destination))
+    save_policy(destination, policy, arch_hint=arch)
 
     artifact = load_policy_artifact(destination)
     assert artifact.policy_architecture is not None
@@ -30,10 +31,11 @@ def test_policy_load_data_reads_artifacts(tmp_path: Path) -> None:
 
     source_policy = arch.make_policy(env_info)
     destination = tmp_path / "policy.mpt"
-    source_policy.save_policy_data(str(destination))
+    save_policy(destination, source_policy, arch_hint=arch)
 
     target_policy = arch.make_policy(env_info)
-    target_policy.load_policy_data(str(destination))
+    artifact = load_policy_artifact(destination)
+    target_policy.load_state_dict(artifact.state_dict)
 
     for p_ref, p_loaded in zip(
         source_policy.parameters(),

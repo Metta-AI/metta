@@ -10,53 +10,73 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from mettagrid.policy.artifact import load_policy_artifact
+import torch
+
+from mettagrid.policy.artifact import load_policy_artifact, save_policy_artifact_safetensors
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
 
 
-def initialize_or_load_policy(
+def _unwrap_state_dict(payload: object) -> tuple[dict[str, torch.Tensor], object | None]:
+    """Extract a state_dict and optional architecture from torch load payloads."""
+    if isinstance(payload, dict):
+        state_dict = payload.get("state_dict") or payload.get("weights") or payload
+        arch = (
+            payload.get("policy_architecture")
+            or payload.get("policy_architecture_spec")
+            or payload.get("policy_architecture_str")
+        )
+        if not isinstance(state_dict, dict):
+            raise TypeError(f"state_dict payload must be a mapping, got {type(state_dict)}")
+        return dict(state_dict), arch  # type: ignore[arg-type]
+    raise TypeError(f"Checkpoint payload must be a mapping, got {type(payload)}")
+
+
+def load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_spec: PolicySpec,
+    *,
+    arch_hint: object | None = None,
+    device: torch.device | str | None = None,
+    strict: bool = True,
 ) -> MultiAgentPolicy:
-    """Initialize a policy from its class path and optionally load weights.
+    """Initialize a policy from its spec and load weights if provided."""
 
-    Expects PolicySpec to have local paths, shorthand or fully-specified. But should not have remote paths (e.g. s3://).
-
-    Returns:
-        Initialized policy instance
-    """
-    # Extract architecture from .mpt if needed
-    if policy_spec.data_path:
-        data_path = Path(policy_spec.data_path)
-        if data_path.suffix.lower() == ".mpt":
-            init_kwargs = policy_spec.init_kwargs or {}
-            if "config" not in init_kwargs and "policy_architecture" not in init_kwargs:
-                try:
-                    artifact = load_policy_artifact(data_path)
-                    if artifact.policy_architecture is not None:
-                        init_kwargs = {**init_kwargs, "config": artifact.policy_architecture}
-                        policy_spec = PolicySpec(
-                            class_path=policy_spec.class_path,
-                            init_kwargs=init_kwargs,
-                            data_path=policy_spec.data_path,
-                        )
-                except ImportError:
-                    pass  # metta RL not available, continue without
-
-    policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
-
-    try:
-        policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
-    except TypeError as e:
-        raise TypeError(
-            f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"
-        ) from e
+    init_kwargs = dict(policy_spec.init_kwargs or {})
+    state_dict: dict[str, torch.Tensor] | None = None
+    architecture = arch_hint
+    artifact_policy: object | None = None
 
     if policy_spec.data_path:
-        policy.load_policy_data(policy_spec.data_path)
+        data_path = Path(policy_spec.data_path).expanduser()
+        suffix = data_path.suffix.lower()
+        if suffix == ".mpt":
+            artifact = load_policy_artifact(data_path)
+            artifact_policy = getattr(artifact, "policy", None)
+            architecture = getattr(artifact, "policy_architecture", None) or architecture
+            state_dict = getattr(artifact, "state_dict", None)
+        elif suffix == ".pt":
+            payload = torch.load(data_path, map_location="cpu", weights_only=False)
+            state_dict, arch_value = _unwrap_state_dict(payload)
+            if arch_value is not None:
+                architecture = arch_value
+        else:
+            raise ValueError(f"Unsupported checkpoint extension: {suffix}")
+
+    if artifact_policy is not None:
+        policy = artifact_policy
+    elif architecture is not None and hasattr(architecture, "make_policy"):
+        policy = architecture.make_policy(policy_env_info)  # type: ignore[call-arg]
+    else:
+        policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+        try:
+            policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
+        except TypeError as e:
+            raise TypeError(
+                f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"
+            ) from e
 
     if not isinstance(policy, MultiAgentPolicy):
         if isinstance(policy, AgentPolicy):
@@ -66,7 +86,46 @@ def initialize_or_load_policy(
             )
         raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
 
+    if state_dict is not None:
+        missing, unexpected = policy.load_state_dict(state_dict, strict=strict)
+        if strict and (missing or unexpected):
+            raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+
+    if device is not None:
+        policy = policy.to(torch.device(device))  # type: ignore[assignment]
+
     return policy
+
+
+# Backwards compatibility
+initialize_or_load_policy = load_policy
+
+
+def save_policy(
+    destination: str | Path,
+    policy: MultiAgentPolicy,
+    *,
+    arch_hint: object | None = None,
+) -> str:
+    """Persist a policy checkpoint to a local path."""
+    path = Path(destination).expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    suffix = path.suffix.lower()
+
+    inner_policy = getattr(policy, "module", policy)
+    state_dict = inner_policy.state_dict()
+
+    if suffix == ".mpt":
+        architecture = arch_hint or getattr(inner_policy, "_policy_architecture", None)
+        if architecture is None:
+            raise ValueError("policy_architecture is required when saving .mpt")
+        save_policy_artifact_safetensors(path, policy_architecture=architecture, state_dict=state_dict)
+    elif suffix == ".pt":
+        torch.save(state_dict, path)
+    else:
+        raise ValueError(f"Unsupported checkpoint extension: {suffix}")
+
+    return f"file://{path.resolve()}"
 
 
 def resolve_policy_class_path(policy: str) -> str:

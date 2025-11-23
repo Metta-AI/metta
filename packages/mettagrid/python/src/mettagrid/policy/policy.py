@@ -11,7 +11,6 @@ import torch.nn as nn
 from pydantic import BaseModel, Field
 
 from mettagrid.mettagrid_c import dtype_observations
-from mettagrid.policy.artifact import load_policy_artifact, save_policy_artifact_safetensors
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -58,9 +57,8 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     This class manages policy lifecycle including:
     1. Creating per-agent policy instances (agent_policy)
-    2. Serialization/deserialization (load_policy_data/save_policy_data)
-    3. Optional: Providing network for training (network)
-    4. Optional: Batch stepping optimization (step_batch)
+    2. Optional: Providing network for training (network)
+    3. Optional: Batch stepping optimization (step_batch)
 
     Subclasses can register themselves by defining:
     - short_names: list[str] = ["name1", "name2"] for one or more aliases
@@ -76,66 +74,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Get an AgentPolicy instance for a specific agent."""
         ...
-
-    def load_policy_data(self, policy_data_path: str) -> None:
-        """Load policy data from a file.
-
-        Supports .mpt (metta format) and .pt (simple state dict) files for trainable policies.
-        Non-trainable policies (network() returns None) do nothing by default.
-        """
-        from collections import OrderedDict
-
-        network = self.network()
-        if network is None:
-            return
-
-        try:
-            device = next(network.parameters()).device
-        except StopIteration:
-            device = getattr(self, "_device", None) or getattr(self, "device", torch.device("cpu"))
-
-        path = Path(policy_data_path).expanduser()
-
-        if path.suffix.lower() == ".mpt":
-            state_dict = load_policy_artifact(path).state_dict
-
-            # Handle key prefix mismatch: if saved without module prefix but model expects it
-            if state_dict and not any(k.startswith("module.") for k in state_dict):
-                model_keys = network.state_dict().keys()
-                if any(k.startswith("module.") for k in model_keys):
-                    state_dict = OrderedDict((f"module.{k}", v) for k, v in state_dict.items())
-
-            network.load_state_dict(state_dict)
-        else:
-            network.load_state_dict(torch.load(path, map_location=device))
-
-        self._on_weights_loaded()
-
-    def _on_weights_loaded(self) -> None:
-        """Hook called after weights are loaded. Override for custom post-load actions."""
-        pass
-
-    def save_policy_data(self, policy_data_path: str) -> None:
-        """Save policy data to a file.
-
-        Supports .mpt (metta format) and .pt (simple state dict) files for trainable policies.
-        Non-trainable policies (network() returns None) do nothing by default.
-        """
-        network = self.network()
-        if network is None:
-            return
-
-        path = Path(policy_data_path).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        architecture = getattr(self, "_policy_architecture", None)
-        if path.suffix.lower() == ".mpt" and architecture is None:
-            raise ValueError("Cannot save .mpt without policy_architecture; use .pt or pass policy_architecture")
-        if architecture is not None and path.suffix.lower() == ".mpt":
-            save_policy_artifact_safetensors(path, policy_architecture=architecture, state_dict=network.state_dict())
-            return
-
-        torch.save(network.state_dict(), path)
 
     def network(self) -> Optional[nn.Module]:
         """Get the underlying neural network for training.

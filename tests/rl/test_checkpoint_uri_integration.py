@@ -14,6 +14,7 @@ from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
+from mettagrid.policy.loader import save_policy
 
 
 def checkpoint_filename(run: str, epoch: int) -> str:
@@ -24,7 +25,7 @@ def create_checkpoint(tmp_path: Path, filename: str, policy: MockAgent, architec
     checkpoint_path = tmp_path / filename
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     policy._policy_architecture = architecture
-    policy.save_policy_data(str(checkpoint_path))
+    save_policy(checkpoint_path, policy, arch_hint=architecture)
     return checkpoint_path
 
 
@@ -109,7 +110,7 @@ class TestCheckpointManagerOperations:
         ckpt_path = manager.checkpoint_dir / checkpoint_filename("demo", 1)
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
         mock_policy._policy_architecture = mock_policy_architecture
-        mock_policy.save_policy_data(str(ckpt_path))
+        save_policy(ckpt_path, mock_policy, arch_hint=mock_policy_architecture)
         assert ckpt_path.exists()
 
     def test_latest_checkpoint_sorted(self, test_system_cfg, mock_policy, mock_policy_architecture):
@@ -118,7 +119,7 @@ class TestCheckpointManagerOperations:
             ckpt_path = manager.checkpoint_dir / checkpoint_filename("demo", epoch)
             ckpt_path.parent.mkdir(parents=True, exist_ok=True)
             mock_policy._policy_architecture = mock_policy_architecture
-            mock_policy.save_policy_data(str(ckpt_path))
+            save_policy(ckpt_path, mock_policy, arch_hint=mock_policy_architecture)
 
         uri = manager.get_latest_checkpoint()
         assert uri is not None

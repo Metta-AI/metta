@@ -94,7 +94,3 @@ class StatelessPolicy(MultiAgentPolicy):
 
     def is_recurrent(self) -> bool:
         return False
-
-    def save_policy_data(self, checkpoint_path: str) -> None:
-        """Save network weights to file."""
-        torch.save(self._net.state_dict(), checkpoint_path)

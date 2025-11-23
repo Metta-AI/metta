@@ -108,31 +108,6 @@ class Policy(MultiAgentPolicy, nn.Module):
         """Return the nn.Module representing the policy."""
         return self
 
-    def save_policy_data(self, policy_data_path: str) -> None:
-        """Save network weights to file in .mpt format (metta safetensors + architecture).
-
-        Metta policies require .mpt format for proper serialization with architecture metadata.
-        """
-        from pathlib import Path
-
-        network = self.network()
-        path = Path(policy_data_path).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        if path.suffix.lower() != ".mpt":
-            raise ValueError(f"Metta policies require .mpt format, got: {path.suffix}")
-
-        architecture = getattr(self, "_policy_architecture", None)
-        if architecture is None:
-            raise ValueError("Cannot save policy without _policy_architecture attribute")
-
-        try:
-            from metta.rl.policy_artifact import save_policy_artifact_safetensors
-        except ImportError as e:
-            raise ImportError("Saving .mpt checkpoints requires metta RL components") from e
-
-        save_policy_artifact_safetensors(path, policy_architecture=architecture, state_dict=network.state_dict())
-
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy adapter for the specified agent index."""
         return StatefulAgentPolicy(self._stateful_impl, self._policy_env_info, agent_id)
@@ -146,21 +121,17 @@ class Policy(MultiAgentPolicy, nn.Module):
         """Persist the policy using the safetensors artifact format."""
 
         dest = str(destination)
+        from mettagrid.policy.loader import save_policy as _save_policy_helper
 
         if dest.startswith("s3://"):
             temp_dir = guess_data_dir() / ".tmp"
             temp_dir.mkdir(parents=True, exist_ok=True)
             local_copy: Path | None = None
             try:
-                with tempfile.NamedTemporaryFile(
-                    dir=temp_dir,
-                    prefix="policy-upload-",
-                    suffix=".mpt",
-                    delete=False,
-                ) as tmp_file:
+                with tempfile.NamedTemporaryFile(dir=temp_dir, prefix="policy-upload-", suffix=Path(dest).suffix or ".mpt", delete=False) as tmp_file:
                     local_copy = Path(tmp_file.name)
 
-                self.save_policy_data(str(local_copy))
+                _save_policy_helper(local_copy, self, arch_hint=policy_architecture)
                 write_file(dest, str(local_copy))
             finally:
                 if local_copy is not None:
@@ -169,8 +140,7 @@ class Policy(MultiAgentPolicy, nn.Module):
             return dest
 
         path = Path(destination).expanduser()
-        self.save_policy_data(str(path))
-        return f"file://{path.resolve()}"
+        return _save_policy_helper(path, self, arch_hint=policy_architecture)
 
     def make_stateful_policy_impl(self) -> StatefulPolicyImpl[Any]:
         return _PolicyStateImpl(self)

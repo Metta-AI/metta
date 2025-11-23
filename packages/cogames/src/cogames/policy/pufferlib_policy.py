@@ -66,10 +66,6 @@ class PufferlibCogsPolicy(MultiAgentPolicy, AgentPolicy):
         # No internal state to reset; signature satisfies AgentPolicy and MultiAgentPolicy
         return None
 
-    def save_policy_data(self, policy_data_path: str) -> None:
-        """Save weights as simple .pt format (cogames standard)."""
-        torch.save(self._net.state_dict(), policy_data_path)
-
     def step(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> Action:  # type: ignore[override]
         if isinstance(obs, AgentObservation):
             obs_tensor = torch.full(

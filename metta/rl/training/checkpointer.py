@@ -11,7 +11,7 @@ from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.loader import load_policy, save_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -81,10 +81,15 @@ class Checkpointer(TrainerComponent):
                 )
                 payload = None
                 if self._distributed.is_master():
-                    loaded_policy = initialize_or_load_policy(policy_env_info, spec)
-                    policy_obj = self._require_policy_instance(loaded_policy)
-                    state_dict = {k: v.cpu() for k, v in policy_obj.state_dict().items()}
-                    arch = getattr(policy_obj, "_policy_architecture", self._policy_architecture)
+                    loaded_policy = load_policy(
+                        policy_env_info,
+                        spec,
+                        arch_hint=self._policy_architecture,
+                        device=load_device,
+                        strict=True,
+                    )
+                    state_dict = {k: v.cpu() for k, v in loaded_policy.state_dict().items()}
+                    arch = getattr(loaded_policy, "_policy_architecture", self._policy_architecture)
                     action_count = len(policy_env_info.actions.actions())
                     payload = (state_dict, arch, action_count, normalized_uri)
                 state_dict, arch, action_count, normalized_uri = self._distributed.broadcast_from_master(payload)
@@ -113,8 +118,13 @@ class Checkpointer(TrainerComponent):
                 device=load_device,
                 policy_architecture=self._policy_architecture,
             )
-            policy = initialize_or_load_policy(policy_env_info, spec)
-            policy = self._require_policy_instance(policy)
+            policy = load_policy(
+                policy_env_info,
+                spec,
+                arch_hint=self._policy_architecture,
+                device=load_device,
+                strict=True,
+            )
             self._latest_policy_uri = normalized_uri
             logger.info("Loaded policy from %s", normalized_uri)
             return policy
@@ -148,32 +158,15 @@ class Checkpointer(TrainerComponent):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _policy_to_save(self) -> Policy:
-        policy: Policy = self.context.policy
-        if hasattr(policy, "module"):
-            return policy.module  # type: ignore[return-value]
-        return policy
-
-    def _require_policy_instance(self, candidate: object) -> Policy:
-        if isinstance(candidate, Policy):
-            return candidate
-
-        # Unwrap CheckpointPolicy to get the actual Policy instance
-        if hasattr(candidate, "_policy") and isinstance(candidate._policy, Policy):  # type: ignore[attr-defined]
-            return candidate._policy  # type: ignore[attr-defined]
-
-        msg = f"Checkpointer expected Policy, got {type(candidate).__name__}"
-        raise TypeError(msg)
-
     def _save_policy(self, epoch: int) -> None:
-        policy = self._policy_to_save()
+        policy = self.context.policy
 
         filename = f"{self._checkpoint_manager.run_name}:v{epoch}.mpt"
         checkpoint_dir = self._checkpoint_manager.checkpoint_dir
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         local_path = checkpoint_dir / filename
 
-        local_uri = policy.save_policy(local_path, policy_architecture=self._policy_architecture)
+        local_uri = save_policy(local_path, policy, arch_hint=self._policy_architecture)
 
         uri = local_uri
         if getattr(self._checkpoint_manager, "_remote_prefix", None):

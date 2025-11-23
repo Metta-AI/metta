@@ -119,6 +119,8 @@ def test_policy_load_save_delegates_to_network():
     import tempfile
     from pathlib import Path
 
+    from mettagrid.policy.loader import save_policy
+
     actions = ActionsConfig()
     from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -128,11 +130,12 @@ def test_policy_load_save_delegates_to_network():
     # Save
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / "policy.pt"
-        policy.save_policy_data(str(path))
+        save_policy(path, policy)
 
         # Load into new policy
         new_policy = SimplePolicy(actions, policy_env_info)
-        new_policy.load_policy_data(str(path))
+        state_dict = torch.load(path, map_location="cpu")
+        new_policy.load_state_dict(state_dict)
 
         # Verify weights match
         for p1, p2 in zip(policy.parameters(), new_policy.parameters(), strict=True):
