@@ -144,7 +144,9 @@ def local_copy(path: str):
 
     if parsed.scheme == "s3":
         data = read(parsed.canonical)
-        tmp = tempfile.NamedTemporaryFile(delete=False)
+        # Preserve file extension from original URI for proper format detection
+        suffix = Path(parsed.key or "").suffix if parsed.key else ""
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
         tmp.write(data)
         tmp.flush()
         tmp.close()
