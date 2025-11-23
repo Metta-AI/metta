@@ -6,6 +6,10 @@
 locals {
   audience = "sts.amazonaws.com"
   repo     = "${var.github_org}/${var.github_repo}"
+  github_oidc_subjects = concat(
+    ["repo:${local.repo}:*"],
+    [for repo in var.extra_oidc_repos : "repo:${repo}:*"]
+  )
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
@@ -31,9 +35,7 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:aud" = local.audience
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = concat([
-              "repo:${local.repo}:*"
-            ], [for repo in var.extra_oidc_repos : "repo:${repo}:*"])
+            "token.actions.githubusercontent.com:sub" = local.github_oidc_subjects
           }
         }
       }
