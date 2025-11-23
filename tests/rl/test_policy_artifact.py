@@ -19,7 +19,7 @@ from metta.rl.policy_artifact import (
     load_policy_artifact,
     policy_architecture_from_string,
     policy_architecture_to_string,
-    save_policy_artifact_safetensors,
+    save_policy_artifact,
 )
 from mettagrid.base_config import Config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -81,7 +81,7 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     policy = architecture.make_policy(policy_env_info)
 
     artifact_path = tmp_path / "artifact.mpt"
-    artifact = save_policy_artifact_safetensors(
+    artifact = save_policy_artifact(
         artifact_path,
         policy_architecture=architecture,
         state_dict=policy.state_dict(),
@@ -166,7 +166,7 @@ def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
     policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
     artifact_path = tmp_path / "artifact.mpt"
-    save_policy_artifact_safetensors(
+    save_policy_artifact(
         artifact_path,
         policy_architecture=architecture,
         state_dict=policy.state_dict(),
@@ -229,7 +229,7 @@ def test_load_mpt_requires_architecture(tmp_path: Path) -> None:
     policy = architecture.make_policy(policy_env_info)
 
     mpt_path = tmp_path / "checkpoint.mpt"
-    save_policy_artifact_safetensors(
+    save_policy_artifact(
         mpt_path,
         policy_architecture=architecture,
         state_dict=policy.state_dict(),

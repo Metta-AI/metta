@@ -17,26 +17,13 @@ def _policy_artifact_module() -> Any:
         ) from e
 
 
-def load_policy_artifact(path: str | Path) -> Any:
-    """Load a policy artifact from the given path."""
+def load_policy_artifact(path_or_uri: str | Path) -> Any:
+    """Load a policy artifact from a path or URI."""
     module = _policy_artifact_module()
-    return module.load_policy_artifact(Path(path))
+    return module.load_policy_artifact(path_or_uri)
 
 
-def load_policy_artifact_from_uri(uri: str) -> Any:
-    """Load a policy artifact from a URI, falling back to local paths if needed."""
-    module = _policy_artifact_module()
-    loader = getattr(module, "load_policy_artifact_from_uri", None)
-    if loader is not None:
-        return loader(uri)
-
-    # Fallback: treat URI as a local path
-    if uri.startswith("file://"):
-        uri = uri[len("file://") :]
-    return module.load_policy_artifact(Path(uri))
-
-
-def save_policy_artifact_safetensors(path: str | Path, policy_architecture: Any, state_dict: dict[str, Any]) -> None:
+def save_policy_artifact(path: str | Path, policy_architecture: Any, state_dict: dict[str, Any]) -> None:
     """Save a policy artifact in safetensors format."""
     module = _policy_artifact_module()
-    module.save_policy_artifact_safetensors(Path(path), policy_architecture=policy_architecture, state_dict=state_dict)
+    module.save_policy_artifact(Path(path), policy_architecture=policy_architecture, state_dict=state_dict)

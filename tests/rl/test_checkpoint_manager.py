@@ -13,7 +13,7 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.common.util.uri import ParsedURI
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
+from metta.rl.policy_artifact import save_policy_artifact
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy, save_policy
@@ -76,7 +76,7 @@ class TestBasicSaveLoad:
     def test_load_from_uri_with_latest(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Test loading policy with :latest selector."""
         for epoch in [1, 7, 3]:
-            save_policy_artifact_safetensors(
+            save_policy_artifact(
                 checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}.mpt",
                 policy_architecture=mock_policy_architecture,
                 state_dict=mock_agent.state_dict(),
@@ -91,7 +91,7 @@ class TestBasicSaveLoad:
         assert metadata["epoch"] == 7
 
     def test_save_and_load_agent(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
@@ -118,7 +118,7 @@ class TestBasicSaveLoad:
         expected_filename = "test_run:v3.mpt"
         local_path = manager.checkpoint_dir / expected_filename
 
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             local_path,
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
@@ -143,7 +143,7 @@ class TestBasicSaveLoad:
         epochs = [1, 5, 10]
 
         for epoch in epochs:
-            save_policy_artifact_safetensors(
+            save_policy_artifact(
                 checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}.mpt",
                 policy_architecture=mock_policy_architecture,
                 state_dict=mock_agent.state_dict(),
@@ -156,7 +156,7 @@ class TestBasicSaveLoad:
         assert artifact.state_dict is not None
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
@@ -178,7 +178,7 @@ class TestBasicSaveLoad:
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is None
 
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v1.mpt",
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
@@ -192,7 +192,7 @@ class TestBasicSaveLoad:
         mock_agent,
         mock_policy_architecture,
     ):
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v1.mpt",
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
@@ -210,7 +210,7 @@ class TestBasicSaveLoad:
         mock_agent,
         mock_policy_architecture,
     ):
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v2.mpt",
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
@@ -235,7 +235,7 @@ class TestBasicSaveLoad:
         mock_agent,
         mock_policy_architecture,
     ):
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v4.mpt",
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
@@ -253,7 +253,7 @@ class TestBasicSaveLoad:
         arch = ParameterizedMockArchitecture()
         bad_state = {"unexpected": torch.tensor([1.0])}
         checkpoint_path = tmp_path / "bad.mpt"
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             checkpoint_path,
             policy_architecture=arch,
             state_dict=bad_state,
@@ -272,7 +272,7 @@ class TestBasicSaveLoad:
         policy = arch.make_policy(env_info)
 
         checkpoint_path = tmp_path / "device.mpt"
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             checkpoint_path,
             policy_architecture=arch,
             state_dict=policy.state_dict(),
@@ -289,7 +289,7 @@ class TestBasicSaveLoad:
         mock_agent,
         mock_policy_architecture,
     ):
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
@@ -309,7 +309,7 @@ class TestBasicSaveLoad:
         assert reloaded is not None
 
     def test_policy_spec_from_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v2.mpt",
             policy_architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
@@ -367,7 +367,7 @@ class TestBasicSaveLoad:
             policy.dummy_weight.fill_(5.0)
 
         ckpt_path = checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v_uri.mpt"
-        save_policy_artifact_safetensors(
+        save_policy_artifact(
             ckpt_path,
             policy_architecture=arch,
             state_dict=policy.state_dict(),

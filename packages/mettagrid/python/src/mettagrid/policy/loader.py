@@ -13,7 +13,7 @@ from typing import Optional
 
 import torch
 
-from mettagrid.policy.artifact import load_policy_artifact_from_uri, save_policy_artifact_safetensors
+from mettagrid.policy.artifact import load_policy_artifact, save_policy_artifact
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
@@ -47,7 +47,7 @@ def load_policy(
         checkpoint_ref = None
 
     if checkpoint_ref:
-        artifact = load_policy_artifact_from_uri(checkpoint_ref)
+        artifact = load_policy_artifact(checkpoint_ref)
 
     # Drop loader-only keys before constructing policies to avoid TypeError
     init_kwargs.pop("checkpoint_uri", None)
@@ -119,7 +119,7 @@ def save_policy(
         architecture = arch_hint or getattr(inner_policy, "_policy_architecture", None)
         if architecture is None:
             raise ValueError("policy_architecture is required when saving .mpt")
-        save_policy_artifact_safetensors(path, policy_architecture=architecture, state_dict=state_dict)
+        save_policy_artifact(path, policy_architecture=architecture, state_dict=state_dict)
     elif suffix == ".pt":
         torch.save(state_dict, path)
     else:

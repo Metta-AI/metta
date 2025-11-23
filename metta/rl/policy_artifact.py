@@ -255,7 +255,7 @@ class PolicyArtifact:
         raise ValueError(msg)
 
 
-def save_policy_artifact_safetensors(
+def save_policy_artifact(
     path: str | Path,
     *,
     policy_architecture: PolicyArchitecture,
@@ -420,12 +420,15 @@ def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
     else:
         input_path = Path(path_or_uri) if "://" not in path_or_uri and not str(path_or_uri).endswith(":latest") else None
 
-    if input_path is not None and input_path.exists():
-        if input_path.suffix == ".mpt":
-            return _load_mpt_artifact(input_path)
-        if input_path.suffix == ".pt":
-            return _load_pt_artifact(input_path)
-        raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
+    if input_path is not None:
+        if input_path.exists():
+            if input_path.suffix == ".mpt":
+                return _load_mpt_artifact(input_path)
+            if input_path.suffix == ".pt":
+                return _load_pt_artifact(input_path)
+            raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
+        else:
+            raise FileNotFoundError(f"Policy artifact not found: {input_path}")
 
     from metta.rl.checkpoint_manager import CheckpointManager
 
