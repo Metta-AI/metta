@@ -20,7 +20,8 @@ from metta.setup.utils import error, info, warning
 # Bootstrap dependency versions
 REQUIRED_NIM_VERSION = "2.2.6"
 REQUIRED_NIMBY_VERSION = "0.1.6"
-REQUIRED_BAZEL_VERSION = "7.0.0"
+MIN_BAZEL_VERSION = "7.0.0"
+DEFAULT_BAZEL_VERSION = "latest"
 BAZELISK_VERSION = "v1.19.0"
 
 # Common install directories in order of preference
@@ -61,6 +62,26 @@ def ensure_paths() -> None:
         os.environ["PATH"] = f"{cargo_bin}:{os.environ.get('PATH', '')}"
 
 
+def ensure_bazel_version_file(version: str) -> None:
+    """Ensure a workspace-level .bazelversion exists to pin Bazelisk."""
+    workspace = Path.cwd()
+    version_file = workspace / ".bazelversion"
+    if version_file.exists():
+        return
+    try:
+        version_file.write_text(f"{version}\n")
+        info(f"Created {version_file} to request Bazel '{version}'.")
+    except Exception as exc:  # pragma: no cover - informational only
+        warning(f"Could not write {version_file}: {exc}")
+
+
+def bazel_env() -> dict[str, str]:
+    """Environment dict ensuring Bazelisk uses the desired default version."""
+    env = os.environ.copy()
+    env.setdefault("USE_BAZEL_VERSION", DEFAULT_BAZEL_VERSION)
+    return env
+
+
 def version_ge(current: str, required: str) -> bool:
     """Check if current version >= required version."""
     try:
@@ -75,6 +96,10 @@ def version_ge(current: str, required: str) -> bool:
         max_len = max(len(current_parts), len(required_parts))
         current_parts.extend(["0"] * (max_len - len(current_parts)))
         required_parts.extend(["0"] * (max_len - len(required_parts)))
+
+        # Explicit length check for clarity (though they should match after padding)
+        if len(current_parts) != len(required_parts):
+            raise ValueError("Mismatched lengths: current_parts and required_parts must have the same length") from None
 
         for c, r in zip(current_parts, required_parts, strict=False):
             c_int = int(c) if c.isdigit() else 0
@@ -102,12 +127,18 @@ def check_bootstrap_deps() -> bool:
     if not shutil.which("bazel"):
         return False
     try:
-        result = subprocess.run(["bazel", "--version"], check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            ["bazel", "--version"],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=bazel_env(),
+        )
         version_line = result.stdout.strip()
         version_raw = version_line.split()[1] if len(version_line.split()) > 1 else ""
         version_match = re.match(r"^(\d+(?:\.\d+)*)", version_raw)
         version = version_match.group(1) if version_match else ""
-        if version and not version_ge(version, REQUIRED_BAZEL_VERSION):
+        if version and not version_ge(version, MIN_BAZEL_VERSION):
             return False
     except (subprocess.CalledProcessError, IndexError, ValueError):
         return False
@@ -235,15 +266,22 @@ def get_bazelisk_url() -> str:
 def install_bazel(run_command=None, non_interactive: bool = False) -> None:
     """Install bazel via bazelisk."""
     ensure_paths()
+    ensure_bazel_version_file(DEFAULT_BAZEL_VERSION)
 
     if shutil.which("bazel"):
         try:
-            result = subprocess.run(["bazel", "--version"], check=True, capture_output=True, text=True)
+            result = subprocess.run(
+                ["bazel", "--version"],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=bazel_env(),
+            )
             version_line = result.stdout.strip()
             version_raw = version_line.split()[1] if len(version_line.split()) > 1 else ""
             version_match = re.match(r"^(\d+(?:\.\d+)*)", version_raw)
             version = version_match.group(1) if version_match else ""
-            if version and version_ge(version, REQUIRED_BAZEL_VERSION):
+            if version and version_ge(version, MIN_BAZEL_VERSION):
                 return  # Already installed with correct version
         except (subprocess.CalledProcessError, IndexError, ValueError):
             pass
@@ -280,15 +318,19 @@ def install_bazel(run_command=None, non_interactive: bool = False) -> None:
 
     # Check version
     try:
-        result = subprocess.run(["bazel", "--version"], check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            ["bazel", "--version"],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=bazel_env(),
+        )
         version_line = result.stdout.strip()
         version_raw = version_line.split()[1] if len(version_line.split()) > 1 else ""
         version_match = re.match(r"^(\d+(?:\.\d+)*)", version_raw)
         version = version_match.group(1) if version_match else ""
-        if version and not version_ge(version, REQUIRED_BAZEL_VERSION):
-            error(
-                f"Bazel version {version} is too old. Minimum required: {REQUIRED_BAZEL_VERSION}. Please upgrade bazel."
-            )
+        if version and not version_ge(version, MIN_BAZEL_VERSION):
+            error(f"Bazel version {version} is too old. Minimum required: {MIN_BAZEL_VERSION}. Please upgrade bazel.")
             raise RuntimeError(f"Bazel version {version} is too old")
     except (subprocess.CalledProcessError, IndexError, ValueError) as e:
         error(f"Failed to determine bazel version: {e}")
