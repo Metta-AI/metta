@@ -64,15 +64,18 @@ def ensure_paths() -> None:
 
 def ensure_bazel_version_file(version: str) -> None:
     """Ensure a workspace-level .bazelversion exists to pin Bazelisk."""
-    workspace = Path.cwd()
-    version_file = workspace / ".bazelversion"
-    if version_file.exists():
-        return
     try:
+        workspace = Path.cwd()
+        version_file = workspace / ".bazelversion"
+        if version_file.exists():
+            return
+        # Check if directory is writable (skip in Docker builds or read-only contexts)
+        if not os.access(workspace, os.W_OK):
+            return  # Not writable, skip silently
         version_file.write_text(f"{version}\n")
         info(f"Created {version_file} to request Bazel '{version}'.")
-    except Exception as exc:  # pragma: no cover - informational only
-        warning(f"Could not write {version_file}: {exc}")
+    except Exception:  # pragma: no cover - silently fail in Docker builds or other non-writable contexts
+        pass
 
 
 def bazel_env() -> dict[str, str]:
