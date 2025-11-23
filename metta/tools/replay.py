@@ -4,9 +4,11 @@ import logging
 import os
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from pydantic import Field
 
+from metta.agent.policy import PolicyArchitecture
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -26,18 +28,20 @@ class ReplayTool(Tool):
 
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
-    policy_uri: str | None = None
+    policy_uri: Optional[str] = None
+    policy_architecture: Optional[PolicyArchitecture] = None
     replay_dir: str = Field(default_factory=auto_replay_dir)
     open_browser_on_start: bool = True
     launch_viewer: bool = True
 
-    @staticmethod
-    def _build_policy_spec(normalized_uri: str | None) -> PolicySpec:
+    def _build_policy_spec(self, normalized_uri: Optional[str]) -> PolicySpec:
         if normalized_uri is None:
             return PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
-        return CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
+        return CheckpointManager.policy_spec_from_uri(
+            normalized_uri, device="cpu", policy_architecture=self.policy_architecture
+        )
 
-    def invoke(self, args: dict[str, str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> Optional[int]:
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri) if self.policy_uri else None
         policy_spec = self._build_policy_spec(normalized_uri)
 

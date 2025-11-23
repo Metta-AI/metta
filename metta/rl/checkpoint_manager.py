@@ -10,7 +10,7 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
-from metta.common.util.file import local_copy, write_file
+from metta.common.util.file import local_copy
 from metta.common.util.uri import ParsedURI
 from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact
 from metta.rl.system_config import SystemConfig

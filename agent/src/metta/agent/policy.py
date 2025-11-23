@@ -128,7 +128,12 @@ class Policy(MultiAgentPolicy, nn.Module):
             temp_dir.mkdir(parents=True, exist_ok=True)
             local_copy: Path | None = None
             try:
-                with tempfile.NamedTemporaryFile(dir=temp_dir, prefix="policy-upload-", suffix=Path(dest).suffix or ".mpt", delete=False) as tmp_file:
+                with tempfile.NamedTemporaryFile(
+                    dir=temp_dir,
+                    prefix="policy-upload-",
+                    suffix=Path(dest).suffix or ".mpt",
+                    delete=False,
+                ) as tmp_file:
                     local_copy = Path(tmp_file.name)
 
                 _save_policy_helper(local_copy, self, arch_hint=policy_architecture)

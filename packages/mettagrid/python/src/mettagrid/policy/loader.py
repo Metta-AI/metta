@@ -46,28 +46,28 @@ def load_policy(
 
     init_kwargs = dict(policy_spec.init_kwargs or {})
     state_dict: dict[str, torch.Tensor] | None = None
-    architecture = arch_hint
-    artifact_policy: object | None = None
+    architecture = arch_hint or init_kwargs.get("policy_architecture")
 
     if policy_spec.data_path:
         data_path = Path(policy_spec.data_path).expanduser()
         suffix = data_path.suffix.lower()
         if suffix == ".mpt":
             artifact = load_policy_artifact(data_path)
-            artifact_policy = getattr(artifact, "policy", None)
             architecture = getattr(artifact, "policy_architecture", None) or architecture
             state_dict = getattr(artifact, "state_dict", None)
+            if state_dict is not None and architecture is None:
+                raise ValueError("Old-format .mpt requires policy_architecture (provide arch_hint)")
         elif suffix == ".pt":
             payload = torch.load(data_path, map_location="cpu", weights_only=False)
             state_dict, arch_value = _unwrap_state_dict(payload)
             if arch_value is not None:
                 architecture = arch_value
+            if architecture is None:
+                raise ValueError("Loading .pt requires policy_architecture when none is embedded")
         else:
             raise ValueError(f"Unsupported checkpoint extension: {suffix}")
 
-    if artifact_policy is not None:
-        policy = artifact_policy
-    elif architecture is not None and hasattr(architecture, "make_policy"):
+    if architecture is not None and hasattr(architecture, "make_policy"):
         policy = architecture.make_policy(policy_env_info)  # type: ignore[call-arg]
     else:
         policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
@@ -97,7 +97,10 @@ def load_policy(
     return policy
 
 
-# Backwards compatibility
+# Alias retained for callers familiar with the old name
+initialize_or_load_policy = load_policy
+
+
 initialize_or_load_policy = load_policy
 
 

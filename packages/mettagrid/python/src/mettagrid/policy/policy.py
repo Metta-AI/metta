@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
 
 import numpy as np
-import torch
 import torch.nn as nn
 from pydantic import BaseModel, Field
 

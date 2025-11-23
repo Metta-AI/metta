@@ -73,7 +73,9 @@ class Kickstarter(Loss):
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-        teacher_spec = CheckpointManager.policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
+        teacher_spec = CheckpointManager.policy_spec_from_uri(
+            self.cfg.teacher_uri, device=self.device, policy_architecture=self._policy_architecture
+        )
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
     def get_experience_spec(self) -> Composite:

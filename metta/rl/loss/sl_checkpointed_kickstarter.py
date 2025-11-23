@@ -88,7 +88,9 @@ class SLCheckpointedKickstarter(Loss):
         # Lazy import to avoid circular dependency
         from metta.rl.checkpoint_manager import CheckpointManager
 
-        teacher_spec = CheckpointManager.policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
+        teacher_spec = CheckpointManager.policy_spec_from_uri(
+            self.cfg.teacher_uri, device=self.device, policy_architecture=self._policy_architecture
+        )
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
@@ -192,7 +194,9 @@ class SLCheckpointedKickstarter(Loss):
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to reload teacher policy")
 
-        teacher_spec = CheckpointManager.policy_spec_from_uri(new_uri, device=self.device)
+        teacher_spec = CheckpointManager.policy_spec_from_uri(
+            new_uri, device=self.device, policy_architecture=self._policy_architecture
+        )
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
         # Detach gradient

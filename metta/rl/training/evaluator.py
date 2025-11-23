@@ -196,6 +196,7 @@ class Evaluator(TrainerComponent):
         return CheckpointManager.policy_spec_from_uri(
             policy_uri,
             device=self._device,
+            policy_architecture=self._policy_architecture,
         )
 
     @staticmethod

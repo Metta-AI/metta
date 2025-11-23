@@ -41,6 +41,7 @@ from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
+from metta.agent.policy import PolicyArchitecture
 from mettagrid.policy.loader import (
     initialize_or_load_policy,
     resolve_policy_data_path,
@@ -111,6 +112,7 @@ def load_policy(
     policy_path: str,
     checkpoint_path: Optional[str] = None,
     device: Optional[torch.device] = None,
+    policy_architecture: Optional[PolicyArchitecture] = None,
 ):
     device = device or torch.device("cpu")
 
@@ -118,14 +120,18 @@ def load_policy(
         if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
             raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(checkpoint_path, device=device)
+        policy_spec = CheckpointManager.policy_spec_from_uri(
+            checkpoint_path, device=device, policy_architecture=policy_architecture
+        )
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     if is_s3_uri(policy_path):
         if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
             raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(policy_path, device=device)
+        policy_spec = CheckpointManager.policy_spec_from_uri(
+            policy_path, device=device, policy_architecture=policy_architecture
+        )
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     data_path = resolve_policy_data_path(checkpoint_path) if checkpoint_path else None
