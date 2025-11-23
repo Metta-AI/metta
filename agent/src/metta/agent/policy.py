@@ -109,10 +109,29 @@ class Policy(MultiAgentPolicy, nn.Module):
         return self
 
     def save_policy_data(self, policy_data_path: str) -> None:
-        """Save network weights to file using torch.save."""
-        import torch
+        """Save network weights to file in .mpt format (metta safetensors + architecture).
 
-        torch.save(self.state_dict(), policy_data_path)
+        Metta policies require .mpt format for proper serialization with architecture metadata.
+        """
+        from pathlib import Path
+
+        network = self.network()
+        path = Path(policy_data_path).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        if path.suffix.lower() != ".mpt":
+            raise ValueError(f"Metta policies require .mpt format, got: {path.suffix}")
+
+        architecture = getattr(self, "_policy_architecture", None)
+        if architecture is None:
+            raise ValueError("Cannot save policy without _policy_architecture attribute")
+
+        try:
+            from metta.rl.policy_artifact import save_policy_artifact_safetensors
+        except ImportError as e:
+            raise ImportError("Saving .mpt checkpoints requires metta RL components") from e
+
+        save_policy_artifact_safetensors(path, policy_architecture=architecture, state_dict=network.state_dict())
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy adapter for the specified agent index."""

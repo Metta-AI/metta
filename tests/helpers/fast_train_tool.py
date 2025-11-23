@@ -9,7 +9,6 @@ from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import Policy
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_pt
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
@@ -22,9 +21,10 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 class DummyPolicy(Policy, nn.Module):
     """Lightweight torch module used to populate fake checkpoints quickly."""
 
-    def __init__(self, epoch: int) -> None:
+    def __init__(self, epoch: int, policy_architecture: FastConfig) -> None:
         policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
         super().__init__(policy_env_info)
+        self._policy_architecture = policy_architecture
         self.register_buffer("epoch_tensor", torch.tensor(epoch, dtype=torch.float32))
 
     def forward(self, td) -> None:
@@ -75,8 +75,8 @@ class FastCheckpointTrainTool(TrainTool):
         )
 
         policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.mpt"
-        policy = DummyPolicy(epoch)
-        save_policy_artifact_pt(policy_path, policy=policy)
+        policy = DummyPolicy(epoch, policy_architecture=FastConfig())
+        policy.save_policy_data(str(policy_path))
 
         return 0
 

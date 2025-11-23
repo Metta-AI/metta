@@ -15,12 +15,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
-# Optional metta dependencies
-try:
-    from metta.rl.policy_artifact import load_policy_artifact, save_policy_artifact_safetensors
-except ImportError:
-    load_policy_artifact = None  # type: ignore
-    save_policy_artifact_safetensors = None  # type: ignore
+# Optional metta dependencies - imported lazily in methods to avoid circular imports
 
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
@@ -87,6 +82,8 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         Supports .mpt (metta format) and .pt (simple state dict) files for trainable policies.
         Non-trainable policies (network() returns None) do nothing by default.
         """
+        from collections import OrderedDict
+
         network = self.network()
         if network is None:
             return
@@ -99,9 +96,22 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         path = Path(policy_data_path).expanduser()
 
         if path.suffix.lower() == ".mpt":
-            if load_policy_artifact is None:
-                raise ImportError("Loading .mpt checkpoints requires metta RL components")
-            network.load_state_dict(load_policy_artifact(path).state_dict)
+            try:
+                from metta.rl.policy_artifact import load_policy_artifact
+            except ImportError as e:
+                raise ImportError("Loading .mpt checkpoints requires metta RL components") from e
+
+            state_dict = load_policy_artifact(path).state_dict
+
+            # Handle key prefix mismatch: if saved without module prefix but model expects it
+            if state_dict and not any(k.startswith("module.") for k in state_dict):
+                model_keys = network.state_dict().keys()
+                if any(k.startswith("module.") for k in model_keys):
+                    state_dict = OrderedDict(
+                        (f"module.{k}", v) for k, v in state_dict.items()
+                    )
+
+            network.load_state_dict(state_dict)
         else:
             network.load_state_dict(torch.load(path, map_location=device))
 
@@ -128,8 +138,10 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         if path.suffix.lower() == ".mpt" and architecture is None:
             raise ValueError("Cannot save .mpt without policy_architecture; use .pt or pass policy_architecture")
         if architecture is not None and path.suffix.lower() == ".mpt":
-            if save_policy_artifact_safetensors is None:
-                raise ImportError("Saving .mpt checkpoints requires metta RL components")
+            try:
+                from metta.rl.policy_artifact import save_policy_artifact_safetensors
+            except ImportError as e:
+                raise ImportError("Saving .mpt checkpoints requires metta RL components") from e
             save_policy_artifact_safetensors(path, policy_architecture=architecture, state_dict=network.state_dict())
             return
 
