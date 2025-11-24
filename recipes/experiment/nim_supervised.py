@@ -30,7 +30,7 @@ def train(
     variants: Iterable[str] | None = ("lonely_heart",),
     cogs: int = 1,
     max_steps: int = 1000,
-    total_timesteps: int = 262_144 * 10,
+    total_timesteps: int = 50_000_000_000,
     vectorization: Literal["serial", "multiprocessing"] = "serial",
     resume_policy_uri: str | None = None,
     learning_rate: float = 0.001153637 * 1,
@@ -64,9 +64,9 @@ def train(
     tool.trainer.behavior_cloning.student_led = False
 
     tool.trainer.total_timesteps = total_timesteps
-    tool.trainer.minibatch_size = 512
-    tool.trainer.batch_size = 4096 * 4
-    tool.trainer.bptt_horizon = 16
+    tool.trainer.minibatch_size = 16_384
+    tool.trainer.batch_size = 524_288
+    tool.trainer.bptt_horizon = 64
     tool.trainer.optimizer.learning_rate = learning_rate
 
     tool.trainer.losses.supervisor.teacher_random_walk_prob = 0.0
