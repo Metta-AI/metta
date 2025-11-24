@@ -207,13 +207,25 @@ class WandbRunAppendContext:
 
         os.environ.setdefault("WANDB_DISABLE_CODE", "true")
 
+        settings = wandb.Settings(
+            quiet=True,
+            init_timeout=self.timeout,
+            save_code=False,
+            x_primary=False,  # worker, not allowed to mutate shared meta
+            x_update_finish_state=False,  # worker can't finish the run
+            x_disable_meta=True,  # don't collect system metadata
+            x_disable_stats=True,  # don't collect system stats
+            disable_code=True,  # don't capture code
+            disable_git=True,  # don't capture git state
+        )
+
         self.run = wandb.init(
             mode="shared",
             id=self.wandb_config.run_id,
             project=self.wandb_config.project,
             entity=self.wandb_config.entity,
             reinit="return_previous",
-            settings=wandb.Settings(quiet=True, init_timeout=self.timeout, save_code=False),
+            settings=settings,
         )
 
         logger.info("Opened append-only W&B session for %s", self.run.path)
