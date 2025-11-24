@@ -59,6 +59,7 @@ class WandbContext:
         run_config: Config | dict[str, Any] | str | None = None,
         timeout: int = 30,
         run_config_name: str | None = None,
+        finalize_on_exit: bool = True,
     ):
         """
         Initialize WandbContext.
@@ -77,6 +78,7 @@ class WandbContext:
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
+        self._finalize_on_exit = finalize_on_exit
         self._generated_ipc_file_path: str | None = None  # To store path if generated
 
     def __enter__(self) -> WandbRun | None:
@@ -179,4 +181,5 @@ class WandbContext:
                 logger.error(f"Error during W&B cleanup: {str(e)}", exc_info=True)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.cleanup_run(self.run)
+        if self._finalize_on_exit:
+            self.cleanup_run(self.run)
