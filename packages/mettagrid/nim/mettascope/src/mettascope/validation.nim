@@ -9,11 +9,11 @@ type
 # Important: Never use obj["key"] unless we previously checked that the key exists.
 # validator functions must not throw exceptions, they must append issues.
 
-# Required top-level keys for replay version 2.
+# Required top-level keys for replay version 3.
 const RequiredKeys = ["version", "num_agents", "max_steps", "map_size", "action_names",
   "item_names", "type_names", "objects"]
 
-# Optional new top-level keys for replay version 2.
+# Optional new top-level keys for replay version 3.
 const OptionalKeys = ["file_name", "group_names", "reward_sharing_matrix", "mg_config"]
 
 proc requireFields*(obj: JsonNode, fields: openArray[string], objName: string, issues: var seq[ValidationIssue]) =
@@ -268,7 +268,7 @@ proc validateTimeSeries*(obj: JsonNode, key: string, fieldName: string, expected
   ))
 
 proc validateInventoryFormat*(obj: JsonNode, key: string, fieldName: string, issues: var seq[ValidationIssue]) =
-  ## Validate inventory: flat array of item IDs, or time series of [step, inventory_array] pairs.
+  ## Validate inventory: array of [itemId, count] pairs, or time series of [step, inventory_array] pairs.
   if key notin obj:
     issues.add(ValidationIssue(
       message: &"'{fieldName}' is missing (required)",
@@ -294,7 +294,7 @@ proc validateInventoryFormat*(obj: JsonNode, key: string, fieldName: string, iss
     let step = firstItem[0]
     let inventoryArray = firstItem[1]
     if step.kind == JInt and step.getInt() >= 0 and inventoryArray.kind == JArray:
-      # This is time series format: [[step, [item_id, item_id, ...]], ...]
+      # This is time series format: [[step, [[itemId, count], [itemId, count], ...]], ...]
       for item in inventory.getElems():
         if item.kind != JArray or item.len != 2:
           issues.add(ValidationIssue(
@@ -314,25 +314,57 @@ proc validateInventoryFormat*(obj: JsonNode, key: string, fieldName: string, iss
 
         if tsInventory.kind != JArray:
           issues.add(ValidationIssue(
-            message: &"'{fieldName}' inventory must be array of item IDs, got {tsInventory.kind}",
+            message: &"'{fieldName}' inventory must be array of item amounts, got {tsInventory.kind}",
             field: fieldName
           ))
           continue
 
-        # Validate the inventory array contents
-        for itemId in tsInventory.getElems():
+        # Validate the inventory array contents (compressed [itemId, count] format)
+        for itemAmount in tsInventory.getElems():
+          if itemAmount.kind != JArray or itemAmount.len != 2:
+            issues.add(ValidationIssue(
+              message: &"'{fieldName}' item amounts must be [itemId, count] pairs, got {itemAmount}",
+              field: fieldName
+            ))
+            continue
+
+          let itemId = itemAmount[0]
+          let count = itemAmount[1]
+
           if itemId.kind != JInt or itemId.getInt() < 0:
             issues.add(ValidationIssue(
               message: &"'{fieldName}' item IDs must be non-negative integers, got {itemId}",
               field: fieldName
             ))
+
+          if count.kind != JInt or count.getInt() < 0:
+            issues.add(ValidationIssue(
+              message: &"'{fieldName}' item counts must be non-negative integers, got {count}",
+              field: fieldName
+            ))
       return
 
-  # Otherwise, treat as single inventory array that does not change over time: [item_id, item_id, ...]
-  for itemId in inventory.getElems():
+  # Otherwise, treat as single inventory array that does not change over time: [[itemId, count], [itemId, count], ...]
+  for itemAmount in inventory.getElems():
+    if itemAmount.kind != JArray or itemAmount.len != 2:
+      issues.add(ValidationIssue(
+        message: &"'{fieldName}' item amounts must be [itemId, count] pairs, got {itemAmount}",
+        field: fieldName
+      ))
+      continue
+
+    let itemId = itemAmount[0]
+    let count = itemAmount[1]
+
     if itemId.kind != JInt or itemId.getInt() < 0:
       issues.add(ValidationIssue(
         message: &"'{fieldName}' item IDs must be non-negative integers, got {itemId}",
+        field: fieldName
+      ))
+
+    if count.kind != JInt or count.getInt() < 0:
+      issues.add(ValidationIssue(
+        message: &"'{fieldName}' item counts must be non-negative integers, got {count}",
         field: fieldName
       ))
 
@@ -662,7 +694,7 @@ proc validateObject*(obj: JsonNode, objIndex: int, replayData: JsonNode, issues:
     validateBuildingFields(obj, objName, issues)
 
 proc validateReplaySchema*(data: JsonNode, issues: var seq[ValidationIssue]) =
-  ## Validate that replay data matches the version 2 schema specification.
+  ## Validate that replay data matches the version 3 schema specification.
   # Check required keys and absence of unexpected keys.
   let dataKeys = toSeq(keys(data))
   var missing: seq[string]
@@ -695,9 +727,9 @@ proc validateReplaySchema*(data: JsonNode, issues: var seq[ValidationIssue]) =
   # Top-level field validation.
   if "version" in data:
     let version = data["version"].getInt()
-    if version != 2:
+    if version != 3:
       issues.add(ValidationIssue(
-        message: &"'version' must equal 2, got {version}",
+        message: &"'version' must equal 3, got {version}",
         field: "version"
       ))
 
@@ -788,7 +820,7 @@ proc validateReplaySchema*(data: JsonNode, issues: var seq[ValidationIssue]) =
       ))
 
 proc validateReplay*(data: JsonNode): seq[ValidationIssue] =
-  ## Validate that replay data matches the version 2 schema specification.
+  ## Validate that replay data matches the version 3 schema specification.
   ## Returns a sequence of validation issues found. Empty sequence means valid.
   var issues: seq[ValidationIssue]
   validateReplaySchema(data, issues)
