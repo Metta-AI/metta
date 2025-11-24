@@ -804,7 +804,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Learning progress stats from scorer with lp/ prefix
         lp_stats = self.scorer.get_stats()
-        for key, value in lp_stats.items():
+        for key, value in lp_stats.model_dump().items():
             stats[f"lp/{key}"] = value
 
         return stats

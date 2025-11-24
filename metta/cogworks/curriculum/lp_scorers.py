@@ -28,6 +28,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict
 
 import numpy as np
+from pydantic import BaseModel, Field
 
 from .task_tracker import TaskTracker
 
@@ -36,6 +37,16 @@ if TYPE_CHECKING:
 
 # Constants for bidirectional learning progress
 DEFAULT_SUCCESS_RATE = 0.0
+
+
+class LPScorerStats(BaseModel):
+    """Statistics returned by learning progress scorers."""
+
+    mean_learning_progress: float = Field(default=0.0, description="Mean learning progress across all tasks")
+    mean_lp_score: float = Field(default=0.0, description="Mean LP score (sampling probability)")
+    mean_task_success_rate: float = Field(default=0.0, description="Mean task success rate (bidirectional only)")
+    mean_sample_prob: float = Field(default=0.0, description="Mean sampling probability (bidirectional only)")
+    num_zeros_lp_dist: float = Field(default=0.0, description="Number of tasks with zero LP score (bidirectional only)")
 
 
 class LPScorer(ABC):
@@ -84,11 +95,11 @@ class LPScorer(ABC):
         ...
 
     @abstractmethod
-    def get_stats(self) -> Dict[str, float]:
+    def get_stats(self) -> LPScorerStats:
         """Get scorer-specific statistics for monitoring.
 
         Returns:
-            Dictionary of stat_name -> value
+            LPScorerStats object with scorer statistics
         """
         ...
 
@@ -203,15 +214,17 @@ class BidirectionalLPScorer(LPScorer):
         # Mark distribution as stale - it will be recalculated on next score_task() call
         self._stale_dist = True
 
-    def get_stats(self) -> Dict[str, float]:
+    def get_stats(self) -> LPScorerStats:
         """Get detailed bidirectional learning progress statistics."""
         task_ids = self.tracker.get_all_tracked_tasks()
         if not task_ids:
-            return {
-                "mean_task_success_rate": 0.0,
-                "mean_learning_progress": 0.0,
-                "mean_lp_score": 0.0,
-            }
+            return LPScorerStats(
+                mean_task_success_rate=0.0,
+                mean_learning_progress=0.0,
+                mean_lp_score=0.0,
+                mean_sample_prob=0.0,
+                num_zeros_lp_dist=0.0,
+            )
 
         # Compute mean task success rate from shared memory success_rate_ema
         task_success_rates = []
@@ -222,10 +235,8 @@ class BidirectionalLPScorer(LPScorer):
                 task_success_rates.append(task_stats["success_rate_ema"])
                 lp_scores.append(task_stats.get("lp_score", 0.0))
 
-        stats = {
-            "mean_task_success_rate": float(np.mean(task_success_rates)) if task_success_rates else 0.0,
-            "mean_lp_score": float(np.mean(lp_scores)) if lp_scores else 0.0,
-        }
+        mean_task_success_rate = float(np.mean(task_success_rates)) if task_success_rates else 0.0
+        mean_lp_score = float(np.mean(lp_scores)) if lp_scores else 0.0
 
         # Calculate learning progress from shared memory
         # Pass task_ids to prevent race condition in multi-process environment
@@ -233,23 +244,21 @@ class BidirectionalLPScorer(LPScorer):
         if len(learning_progress) > 0:
             # Count zeros in lp_scores list (convert to numpy for element-wise comparison)
             num_zeros = float(np.sum(np.array(lp_scores) == 0)) if lp_scores else 0.0
-            stats.update(
-                {
-                    "mean_sample_prob": stats["mean_lp_score"],  # Approximate (after normalization)
-                    "num_zeros_lp_dist": num_zeros,
-                    "mean_learning_progress": float(np.mean(learning_progress)),
-                }
+            return LPScorerStats(
+                mean_task_success_rate=mean_task_success_rate,
+                mean_lp_score=mean_lp_score,
+                mean_sample_prob=mean_lp_score,  # Approximate (after normalization)
+                num_zeros_lp_dist=num_zeros,
+                mean_learning_progress=float(np.mean(learning_progress)),
             )
         else:
-            stats.update(
-                {
-                    "mean_sample_prob": 0.0,
-                    "num_zeros_lp_dist": 0.0,
-                    "mean_learning_progress": 0.0,
-                }
+            return LPScorerStats(
+                mean_task_success_rate=mean_task_success_rate,
+                mean_lp_score=mean_lp_score,
+                mean_sample_prob=0.0,
+                num_zeros_lp_dist=0.0,
+                mean_learning_progress=0.0,
             )
-
-        return stats
 
     def get_state(self) -> Dict[str, Any]:
         """Serialize bidirectional scorer state.
@@ -523,16 +532,16 @@ class BasicLPScorer(LPScorer):
         # Mark distribution as stale
         self._stale_dist = True
 
-    def get_stats(self) -> Dict[str, float]:
+    def get_stats(self) -> LPScorerStats:
         """Get detailed basic learning progress statistics.
 
         Stage 6: Stats calculated from shared memory, no local caches.
         """
         # Basic mode stats are minimal since all data is in TaskTracker
-        return {
-            "mean_learning_progress": 0.0,  # Could compute from all tasks if needed
-            "mean_lp_score": 0.0,
-        }
+        return LPScorerStats(
+            mean_learning_progress=0.0,  # Could compute from all tasks if needed
+            mean_lp_score=0.0,
+        )
 
     def get_state(self) -> Dict[str, Any]:
         """Serialize basic scorer state.

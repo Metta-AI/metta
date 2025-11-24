@@ -463,8 +463,9 @@ class TestBidirectionalLearningProgressBehavior:
 
         # Bidirectional scorer should provide these specific stats
         expected_keys = ["mean_task_success_rate", "mean_learning_progress", "mean_sample_prob"]
+        stats_dict = stats.model_dump()
         for key in expected_keys:
-            assert key in stats, f"Missing stat key: {key}"
+            assert key in stats_dict, f"Missing stat key: {key}"
 
-        assert stats["mean_task_success_rate"] >= 0, "Should have task success rate stats"
-        assert stats["mean_learning_progress"] >= 0, "Should have learning progress stats"
+        assert stats.mean_task_success_rate >= 0, "Should have task success rate stats"
+        assert stats.mean_learning_progress >= 0, "Should have learning progress stats"
