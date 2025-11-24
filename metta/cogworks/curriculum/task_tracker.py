@@ -193,8 +193,7 @@ class TaskTracker:
         NOTE: This method is kept for backward compatibility. New code should use
         update_task_performance_with_bidirectional_emas() for atomic updates.
 
-        HOT PATH: Uses raw array access for performance (~1000s calls/sec).
-        TaskState overhead is ~20x slower. See benchmark results for details.
+        Uses TaskState for type-safe read-modify-write (~1Hz frequency).
         """
         # Create task if needed (outside the main lock to avoid deadlock)
         if task_id not in self._task_id_to_index:
@@ -207,54 +206,44 @@ class TaskTracker:
                 return
 
             index = self._task_id_to_index[task_id]
-            task_data = self._backend.get_task_data(index)
 
-            # Read current values
-            completion_count = int(task_data[2])
-            reward_ema = task_data[3]
-            old_lp_score = task_data[4]
-            success_rate_ema = task_data[5]
-            total_score = task_data[6]
-            task_success_threshold = task_data[8]
-            ema_squared = task_data[11]
+            # Read current state (type-safe)
+            state = self._backend.get_task_state(index)
+            completion_count = int(state.completion_count)
 
             # Update counts and totals
-            new_completion_count = completion_count + 1
-            new_total_score = total_score + score
+            state.completion_count = float(completion_count + 1)
+            state.total_score += score
+            state.last_score = score
 
             # Update reward EMA
             if completion_count == 0:
-                new_reward_ema = score
+                state.reward_ema = score
             else:
-                new_reward_ema = (1 - self.ema_alpha) * reward_ema + self.ema_alpha * score
+                state.reward_ema = (1 - self.ema_alpha) * state.reward_ema + self.ema_alpha * score
 
             # Update EMA of squared scores (for variance calculation)
             score_squared = score * score
             if completion_count == 0:
-                new_ema_squared = score_squared
+                state.ema_squared = score_squared
             else:
-                new_ema_squared = (1 - self.ema_alpha) * ema_squared + self.ema_alpha * score_squared
+                state.ema_squared = (1 - self.ema_alpha) * state.ema_squared + self.ema_alpha * score_squared
 
             # Update LP score if provided
-            new_lp_score = lp_score if lp_score is not None else old_lp_score
+            if lp_score is not None:
+                state.lp_score = lp_score
 
             # Update success rate EMA
-            current_threshold = success_threshold if success_threshold is not None else task_success_threshold
+            current_threshold = success_threshold if success_threshold is not None else state.success_threshold
+            state.success_threshold = current_threshold
             is_success = float(score >= current_threshold)
             if completion_count == 0:
-                new_success_rate_ema = is_success
+                state.success_rate_ema = is_success
             else:
-                new_success_rate_ema = (1 - self.ema_alpha) * success_rate_ema + self.ema_alpha * is_success
+                state.success_rate_ema = (1 - self.ema_alpha) * state.success_rate_ema + self.ema_alpha * is_success
 
-            # Write updated values
-            task_data[2] = float(new_completion_count)
-            task_data[3] = new_reward_ema
-            task_data[4] = new_lp_score
-            task_data[5] = new_success_rate_ema
-            task_data[6] = new_total_score
-            task_data[7] = score
-            task_data[8] = current_threshold
-            task_data[11] = new_ema_squared
+            # Write back updated state
+            self._backend.set_task_state(index, state)
 
             # Update running statistics (replaces completion_history)
             self._total_completions += 1
@@ -273,9 +262,7 @@ class TaskTracker:
         1. Basic EMAs (completion_count, reward_ema, success_rate_ema, ema_squared)
         2. Bidirectional EMAs (p_fast, p_slow, p_true, random_baseline)
 
-        HOT PATH: Uses raw array access for performance.
-        TaskState read-modify-write overhead is ~20x slower (4.3µs per operation).
-        Direct array indexing is valuable for training throughput.
+        Uses TaskState for type-safe read-modify-write (~1Hz frequency).
 
         Args:
             task_id: Task to update
@@ -294,98 +281,76 @@ class TaskTracker:
                 return
 
             index = self._task_id_to_index[task_id]
-            task_data = self._backend.get_task_data(index)
 
-            # === PART 1: Basic EMA updates (same as before) ===
-            completion_count = int(task_data[2])
-            reward_ema = task_data[3]
-            old_lp_score = task_data[4]
-            success_rate_ema = task_data[5]
-            total_score = task_data[6]
-            task_success_threshold = task_data[8]
-            ema_squared = task_data[11]
+            # Read current state (type-safe, no magic offsets!)
+            state = self._backend.get_task_state(index)
+            completion_count = int(state.completion_count)
 
+            # === PART 1: Basic EMA updates ===
             # Update counts and totals
-            new_completion_count = completion_count + 1
-            new_total_score = total_score + score
+            state.completion_count = float(completion_count + 1)
+            state.total_score += score
+            state.last_score = score
 
             # Update reward EMA
             if completion_count == 0:
-                new_reward_ema = score
+                state.reward_ema = score
             else:
-                new_reward_ema = (1 - self.ema_alpha) * reward_ema + self.ema_alpha * score
+                state.reward_ema = (1 - self.ema_alpha) * state.reward_ema + self.ema_alpha * score
 
             # Update EMA of squared scores
             score_squared = score * score
             if completion_count == 0:
-                new_ema_squared = score_squared
+                state.ema_squared = score_squared
             else:
-                new_ema_squared = (1 - self.ema_alpha) * ema_squared + self.ema_alpha * score_squared
+                state.ema_squared = (1 - self.ema_alpha) * state.ema_squared + self.ema_alpha * score_squared
 
             # Update success rate EMA
-            current_threshold = success_threshold if success_threshold is not None else task_success_threshold
+            current_threshold = success_threshold if success_threshold is not None else state.success_threshold
+            state.success_threshold = current_threshold
             is_success = float(score >= current_threshold)
             if completion_count == 0:
-                new_success_rate_ema = is_success
+                state.success_rate_ema = is_success
             else:
-                new_success_rate_ema = (1 - self.ema_alpha) * success_rate_ema + self.ema_alpha * is_success
+                state.success_rate_ema = (1 - self.ema_alpha) * state.success_rate_ema + self.ema_alpha * is_success
 
             # === PART 2: Bidirectional EMA updates (if scorer provided) ===
             if scorer is not None and hasattr(scorer, "config"):
-                # Read current bidirectional EMAs
-                p_fast = task_data[13]
-                p_slow = task_data[14]
-                p_true = task_data[15]
-                random_baseline = task_data[16]
-
                 task_success_rate = score
 
                 # Handle baseline normalization if enabled
                 if scorer.config.use_baseline_normalization:
                     # Set baseline on first update (capped at 0.75)
-                    if random_baseline == 0.0:
-                        random_baseline = min(task_success_rate, 0.75)
+                    if state.random_baseline == 0.0:
+                        state.random_baseline = min(task_success_rate, 0.75)
 
                     # Calculate normalized "mastery" score
-                    improvement_over_baseline = max(task_success_rate - random_baseline, 0.0)
-                    total_possible_improvement = max(1.0 - random_baseline, 1e-10)
+                    improvement_over_baseline = max(task_success_rate - state.random_baseline, 0.0)
+                    total_possible_improvement = max(1.0 - state.random_baseline, 1e-10)
                     normalized_task_success_rate = improvement_over_baseline / total_possible_improvement
                 else:
                     # Use raw success rate
                     normalized_task_success_rate = task_success_rate
 
                 # Initialize or update bidirectional EMAs
-                if p_fast == 0.0 and p_slow == 0.0:
+                if state.p_fast == 0.0 and state.p_slow == 0.0:
                     # First update - initialize to current value
-                    p_fast = normalized_task_success_rate
-                    p_slow = normalized_task_success_rate
-                    p_true = task_success_rate
+                    state.p_fast = normalized_task_success_rate
+                    state.p_slow = normalized_task_success_rate
+                    state.p_true = task_success_rate
                 else:
                     # Update EMAs
-                    p_fast = normalized_task_success_rate * scorer.config.ema_timescale + p_fast * (
+                    state.p_fast = normalized_task_success_rate * scorer.config.ema_timescale + state.p_fast * (
                         1.0 - scorer.config.ema_timescale
                     )
                     slow_timescale = scorer.config.ema_timescale * scorer.config.slow_timescale_factor
-                    p_slow = normalized_task_success_rate * slow_timescale + p_slow * (1.0 - slow_timescale)
-                    p_true = task_success_rate * scorer.config.ema_timescale + p_true * (
+                    state.p_slow = normalized_task_success_rate * slow_timescale + state.p_slow * (1.0 - slow_timescale)
+                    state.p_true = task_success_rate * scorer.config.ema_timescale + state.p_true * (
                         1.0 - scorer.config.ema_timescale
                     )
 
-                # Write bidirectional EMAs
-                task_data[13] = p_fast
-                task_data[14] = p_slow
-                task_data[15] = p_true
-                task_data[16] = random_baseline
-
-            # === PART 3: Write all basic values ===
-            task_data[2] = float(new_completion_count)
-            task_data[3] = new_reward_ema
-            task_data[4] = old_lp_score  # LP score updated lazily during sampling
-            task_data[5] = new_success_rate_ema
-            task_data[6] = new_total_score
-            task_data[7] = score
-            task_data[8] = current_threshold
-            task_data[11] = new_ema_squared
+            # Write back updated state
+            self._backend.set_task_state(index, state)
 
             # Update running statistics
             self._total_completions += 1
@@ -404,8 +369,8 @@ class TaskTracker:
         # Slow path for shared memory: scan to find task from another worker
         if isinstance(self._backend, SharedMemoryBackend):
             for i in range(self._backend.max_tasks):
-                task_data = self._backend.get_task_data(i)
-                if int(task_data[0]) == task_id and bool(task_data[12]):  # is_active
+                state = self._backend.get_task_state(i)
+                if int(state.task_id) == task_id and bool(state.is_active):
                     return i
 
         return None
@@ -417,8 +382,9 @@ class TaskTracker:
             return
 
         with self._backend.acquire_lock():
-            task_data = self._backend.get_task_data(index)
-            task_data[4] = lp_score
+            state = self._backend.get_task_state(index)
+            state.lp_score = lp_score
+            self._backend.set_task_state(index, state)
 
     def update_bidirectional_emas(
         self, task_id: int, p_fast: float, p_slow: float, p_true: float, random_baseline: float
@@ -437,11 +403,12 @@ class TaskTracker:
             return
 
         with self._backend.acquire_lock():
-            task_data = self._backend.get_task_data(index)
-            task_data[13] = p_fast
-            task_data[14] = p_slow
-            task_data[15] = p_true
-            task_data[16] = random_baseline
+            state = self._backend.get_task_state(index)
+            state.p_fast = p_fast
+            state.p_slow = p_slow
+            state.p_true = p_true
+            state.random_baseline = random_baseline
+            self._backend.set_task_state(index, state)
 
     def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
         """Get statistics for a specific task.
@@ -530,13 +497,11 @@ class TaskTracker:
         if isinstance(self._backend, SharedMemoryBackend):
             task_ids = []
             for i in range(self._backend.max_tasks):
-                task_data = self._backend.get_task_data(i)
-                is_active = bool(task_data[12])
+                state = self._backend.get_task_state(i)
                 # A slot is active if is_active flag is True
                 # (task_id == 0 with is_active == False means free slot)
-                if is_active:
-                    task_id = int(task_data[0])
-                    task_ids.append(task_id)
+                if bool(state.is_active):
+                    task_ids.append(int(state.task_id))
             return task_ids
         else:
             # Local memory: use mapping (only this process's tasks)
@@ -600,11 +565,12 @@ class TaskTracker:
         hash_int = int.from_bytes(sha256_hash[:8], byteorder="big")
         label_hash = hash_int & 0x1FFFFFFFFFFFFF  # 53-bit mask
 
-        # Store hash in shared memory at index 17
+        # Store hash in shared memory
         with self._backend.acquire_lock():
             index = self._task_id_to_index[task_id]
-            task_data = self._backend.get_task_data(index)
-            task_data[17] = float(label_hash)
+            state = self._backend.get_task_state(index)
+            state.label_hash = float(label_hash)
+            self._backend.set_task_state(index, state)
 
         # Maintain local hash-to-string mapping
         self._label_hash_to_string[label_hash] = label
@@ -622,8 +588,8 @@ class TaskTracker:
             return None
 
         index = self._task_id_to_index[task_id]
-        task_data = self._backend.get_task_data(index)
-        label_hash = int(task_data[17])
+        state = self._backend.get_task_state(index)
+        label_hash = int(state.label_hash)
 
         if label_hash == 0:
             return None  # No label set
@@ -643,13 +609,12 @@ class TaskTracker:
 
         # Scan ALL slots in shared memory to find tasks from all processes
         for slot_index in range(self._backend.max_tasks):
-            task_data = self._backend.get_task_data(slot_index)
-            is_active = bool(task_data[12])
+            state = self._backend.get_task_state(slot_index)
 
-            if not is_active:
+            if not bool(state.is_active):
                 continue
 
-            label_hash = int(task_data[17])
+            label_hash = int(state.label_hash)
             if label_hash == 0:
                 continue  # No label
 
@@ -657,7 +622,7 @@ class TaskTracker:
             if label is None:
                 continue  # Hash not in local mapping (from another process)
 
-            completion_count = int(task_data[2])
+            completion_count = int(state.completion_count)
             label_counts[label] = label_counts.get(label, 0) + completion_count
 
         return label_counts
@@ -670,28 +635,30 @@ class TaskTracker:
         """
         task_memory = {}
         for task_id, index in self._task_id_to_index.items():
-            task_data = self._backend.get_task_data(index)
-            if task_data[12] > 0:  # is_active
+            state = self._backend.get_task_state(index)
+            if state.is_active > 0:
                 task_memory[task_id] = {
-                    "creation_time": task_data[1],
-                    "completion_count": int(task_data[2]),
-                    "reward_ema": task_data[3],
-                    "lp_score": task_data[4],
-                    "success_rate_ema": task_data[5],
-                    "total_score": task_data[6],
-                    "last_score": task_data[7],
-                    "success_threshold": task_data[8],
-                    "seed": task_data[9],
-                    "generator_type": task_data[10],
-                    "ema_squared": task_data[11],
-                    "p_fast": task_data[13],
-                    "p_slow": task_data[14],
-                    "p_true": task_data[15],
-                    "random_baseline": task_data[16],
-                    "label_hash": task_data[17],
+                    "creation_time": state.creation_time,
+                    "completion_count": int(state.completion_count),
+                    "reward_ema": state.reward_ema,
+                    "lp_score": state.lp_score,
+                    "success_rate_ema": state.success_rate_ema,
+                    "total_score": state.total_score,
+                    "last_score": state.last_score,
+                    "success_threshold": state.success_threshold,
+                    "seed": state.seed,
+                    "generator_type": state.generator_type,
+                    "ema_squared": state.ema_squared,
+                    "p_fast": state.p_fast,
+                    "p_slow": state.p_slow,
+                    "p_true": state.p_true,
+                    "random_baseline": state.random_baseline,
+                    "label_hash": state.label_hash,
                 }
 
-        total_completions = sum(int(self._backend.get_task_data(idx)[2]) for idx in self._task_id_to_index.values())
+        total_completions = sum(
+            int(self._backend.get_task_state(idx).completion_count) for idx in self._task_id_to_index.values()
+        )
 
         # Determine tracker type based on backend
         tracker_type = "centralized" if isinstance(self._backend, SharedMemoryBackend) else "local"
@@ -724,27 +691,29 @@ class TaskTracker:
                     break
 
                 self._task_id_to_index[int(task_id)] = i
-                data = self._backend.get_task_data(i)
-                data[0] = float(task_id)
-                data[1] = task_data.get("creation_time", time.time())
-                data[2] = float(task_data.get("completion_count", 0))
-                data[3] = task_data.get("reward_ema", 0.0)
-                data[4] = task_data.get("lp_score", 0.0)
-                data[5] = task_data.get("success_rate_ema", 0.0)
-                data[6] = task_data.get("total_score", 0.0)
-                data[7] = task_data.get("last_score", 0.0)
-                data[8] = task_data.get("success_threshold", 0.5)
-                data[9] = task_data.get("seed", 0.0)
-                data[10] = task_data.get("generator_type", 0.0)
-                data[11] = task_data.get("ema_squared", 0.0)
-                data[12] = 1.0  # is_active
-                # Bidirectional LP EMAs (indices 13-16)
-                data[13] = task_data.get("p_fast", 0.0)
-                data[14] = task_data.get("p_slow", 0.0)
-                data[15] = task_data.get("p_true", 0.0)
-                data[16] = task_data.get("random_baseline", 0.0)
-                # Label hash (index 17)
-                data[17] = task_data.get("label_hash", 0.0)
+
+                # Create TaskState from checkpoint data (type-safe)
+                restored_state = TaskState(
+                    task_id=float(task_id),
+                    creation_time=task_data.get("creation_time", time.time()),
+                    completion_count=float(task_data.get("completion_count", 0)),
+                    reward_ema=task_data.get("reward_ema", 0.0),
+                    lp_score=task_data.get("lp_score", 0.0),
+                    success_rate_ema=task_data.get("success_rate_ema", 0.0),
+                    total_score=task_data.get("total_score", 0.0),
+                    last_score=task_data.get("last_score", 0.0),
+                    success_threshold=task_data.get("success_threshold", 0.5),
+                    seed=task_data.get("seed", 0.0),
+                    generator_type=task_data.get("generator_type", 0.0),
+                    ema_squared=task_data.get("ema_squared", 0.0),
+                    is_active=1.0,
+                    p_fast=task_data.get("p_fast", 0.0),
+                    p_slow=task_data.get("p_slow", 0.0),
+                    p_true=task_data.get("p_true", 0.0),
+                    random_baseline=task_data.get("random_baseline", 0.0),
+                    label_hash=task_data.get("label_hash", 0.0),
+                )
+                self._backend.set_task_state(i, restored_state)
 
             self._next_free_index = len(state["task_memory"])
 
