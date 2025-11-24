@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
-from metta.common.wandb.context import WandbConfig, WandbContext
+from metta.common.wandb.context import WandbConfig, WandbRunAppendContext
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult
@@ -105,7 +105,7 @@ class EvaluateTool(Tool):
 
                 if self.push_metrics_to_wandb:
                     wandb_config = _get_wandb_config(normalized_uri, self.group)
-                    wandb_context = WandbContext(wandb_config, self, finalize_on_exit=False)
+                    wandb_context = WandbRunAppendContext(wandb_config)
 
         with wandb_context as wandb_run:
             if wandb_run and policy_metadata:
@@ -171,7 +171,7 @@ class EvaluatePolicyVersionTool(Tool):
         if self.write_to_wandb:
             if epoch and agent_step:
                 wandb_config = _get_wandb_config(policy_version.name, self.group)
-                wandb_context = WandbContext(wandb_config, self, finalize_on_exit=False)
+                wandb_context = WandbRunAppendContext(wandb_config)
 
         with wandb_context as wandb_run:
             if wandb_run and epoch and agent_step:
