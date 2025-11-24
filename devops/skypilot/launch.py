@@ -262,24 +262,25 @@ Examples:
         return 1
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
+    task._user_specified_yaml = None
 
-    # Prepare environment variables including status parameters
-    env_updates = dict(
-        METTA_RUN_ID=run_id,
-        METTA_MODULE_PATH=module_path,
-        METTA_ARGS=" ".join(filtered_args),
-        METTA_GIT_REF=commit_hash,
-        HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
-        GITHUB_PAT=args.github_pat,
-        MAX_RUNTIME_HOURS=args.max_runtime_hours,
-        DISCORD_WEBHOOK_URL=args.discord_webhook_url,
-        TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
-        TEST_NCCL="true" if args.run_ci_tests else "false",
-        DD_LOGS_ENABLED="true",
+    # Configure environment variables
+    task.update_envs(
+        dict(
+            METTA_RUN_ID=run_id,
+            METTA_MODULE_PATH=module_path,
+            METTA_ARGS=" ".join(filtered_args),
+            METTA_GIT_REF=commit_hash,
+            TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
+            TEST_NCCL="true" if args.run_ci_tests else "false",
+            DD_LOGS_ENABLED="true",
+        )
     )
+    if args.heartbeat_timeout_seconds:
+        task.update_envs({"HEARTBEAT_TIMEOUT": str(args.heartbeat_timeout_seconds)})
+    if args.max_runtime_hours:
+        task.update_envs({"MAX_RUNTIME_HOURS": str(args.max_runtime_hours)})
 
-    env_updates = {k: v for k, v in env_updates.items() if v is not None}
-    task = task.update_envs(env_updates)
     task.name = run_id
     task.validate_name()
 
@@ -341,6 +342,12 @@ Examples:
 
     # Set secrets only when actually launching (not for dry-run or dump-config)
     set_task_secrets(task)
+    task.update_secrets(
+        dict(
+            DISCORD_WEBHOOK_URL=args.discord_webhook_url or "",
+            GITHUB_PAT=args.github_pat or "",
+        )
+    )
 
     # Launch the task(s)
     if args.copies == 1:
