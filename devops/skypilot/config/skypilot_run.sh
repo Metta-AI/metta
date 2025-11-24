@@ -208,7 +208,6 @@ start_monitors() {
 }
 
 start_datadog_agent() {
-  # Start Datadog agent (non-blocking, non-fatal)
   uv run python devops/skypilot/utils/start_datadog_agent.py &
 }
 
@@ -227,9 +226,6 @@ run_cmd() {
 
   echo "[INFO] Running command: ${cmd[*]}"
 
-  # Start training process
-  # We do NOT redirect stdout/stderr here because devops/run.sh handles piping to the log file
-  # and we want the output to also appear in the SkyPilot console (sky logs).
   export PYTHONUNBUFFERED=1
   setsid "${cmd[@]}" &
   export CMD_PID=$!

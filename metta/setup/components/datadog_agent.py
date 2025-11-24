@@ -260,11 +260,7 @@ class DatadogAgentSetup(SetupModule):
         success("Datadog agent installed successfully.")
 
     def _start_agent_process(self) -> subprocess.Popen | None:
-        """Start Datadog agent as a background process (Docker-compatible).
-
-        Returns:
-            Popen process object if started successfully, None otherwise.
-        """
+        """Start Datadog agent as a background process."""
         agent_binary = "/opt/datadog-agent/bin/agent/agent"
 
         if not os.path.exists(agent_binary):
@@ -285,11 +281,7 @@ class DatadogAgentSetup(SetupModule):
             return None
 
     def _verify_agent_running(self) -> bool:
-        """Verify that Datadog agent is actually running.
-
-        Returns:
-            True if agent is running, False otherwise.
-        """
+        """Verify that Datadog agent is running."""
         agent_binary = "/opt/datadog-agent/bin/agent/agent"
 
         if not os.path.exists(agent_binary):
