@@ -2,6 +2,14 @@
 
 set -uo pipefail
 
+cd /workspace/metta
+
+# Drop any preloaded venv; activate your own
+if [ -n "${VIRTUAL_ENV:-}" ]; then
+  deactivate 2> /dev/null || true
+fi
+. .venv/bin/activate
+
 export WRAPPER_PID=$BASHPID
 
 # Determine node role using SkyPilot environment variables
@@ -73,12 +81,12 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME:-'NOT SET'}"
 [[ ${remaining_at_start} -gt 0 ]] && echo "     ↳ remaining runtime seconds: ${remaining_at_start}"
-echo "  - RESTART_COUNT: ${RESTART_COUNT}"
+echo "  - RESTART_COUNT: ${RESTART_COUNT:-0}"
 echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-false}" # used in timeout_monitor
 [[ ${force_restart_seconds} -gt 0 ]] && echo "     ↳ job restart test delay: ${force_restart_seconds}"
 echo "  - TEST_NCCL: ${TEST_NCCL:-false}"
 [[ "${TEST_NCCL:-false}" == "true" ]] && [[ "${RESTART_COUNT:-0}" -eq 0 ]] && echo " ↳ will run"
-[[ "${TEST_NCCL:-false}" == "true" ]] && [[ "${RESTART_COUNT:-0}" -gt 0 ]] && echo " ↳ skipping on restart #${RESTART_COUNT}"
+[[ "${TEST_NCCL:-false}" == "true" ]] && [[ "${RESTART_COUNT:-0}" -gt 0 ]] && echo " ↳ skipping on restart #${RESTART_COUNT:-0}"
 echo "  - JOB_METADATA_DIR: $JOB_METADATA_DIR"
 echo "     ↳ TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
 echo "     ↳ CLUSTER_STOP_FILE: $CLUSTER_STOP_FILE"
@@ -235,7 +243,7 @@ TEST_NCCL="${TEST_NCCL:-false}"
 if [[ "$TEST_NCCL" == "false" ]]; then
   echo "[SKIP] Skipping NCCL test (TEST_NCCL=false)"
 elif [ "${RESTART_COUNT:-0}" -ne 0 ]; then
-  echo "[SKIP] Skipping NCCL test on restarted job (RESTART_COUNT=${RESTART_COUNT})"
+  echo "[SKIP] Skipping NCCL test on restarted job (RESTART_COUNT=${RESTART_COUNT:-0})"
 else
   echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
 
