@@ -135,7 +135,7 @@ ensure_tool() {
 
 # Required tool versions
 REQUIRED_NIM_VERSION="2.2.6"
-REQUIRED_NIMBY_VERSION="0.1.6"
+REQUIRED_NIMBY_VERSION="0.1.13"
 REQUIRED_BAZEL_VERSION="7.0.0"
 
 # Common install directories in order of preference

@@ -1,6 +1,3 @@
-import tempfile
-from pathlib import Path
-
 import pytest
 
 import mettagrid.builder.envs as eb
@@ -8,14 +5,32 @@ from metta.agent.mocks import MockAgent
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
-from metta.sim.simulation import Simulation
+from metta.sim.runner import SimulationRunConfig, run_simulations
 from metta.sim.simulation_config import SimulationConfig
-from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from recipes.experiment.arena import mettagrid
+from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
+
+
+@pytest.fixture
+def real_checkpoint_uri(tmp_path):
+    trainer_cfg, training_env_cfg, policy_cfg, system_cfg = create_minimal_training_setup(tmp_path)
+    checkpoint_manager = run_fast_train_tool(
+        run_name="eval_tool_real_checkpoint",
+        system_cfg=system_cfg,
+        trainer_cfg=trainer_cfg,
+        training_env_cfg=training_env_cfg,
+        policy_cfg=policy_cfg,
+    )
+    latest = checkpoint_manager.get_latest_checkpoint()
+    assert latest is not None
+    return latest, system_cfg.model_copy(deep=True)
 
 
 class TestNewPolicySystem:
@@ -38,29 +53,40 @@ class TestNewPolicySystem:
         """Test policy metadata extraction from URIs."""
         assert hasattr(CheckpointManager, "get_policy_metadata")
 
-    def test_simulation_creation_with_policy_uri(self):
-        """Test creating simulations with policy URIs."""
+    def test_simulation_runner_with_mock_policy(self):
+        """Test that the simulation runner works with a mock policy initializer."""
         env_config = eb.make_navigation(num_agents=2)
-        sim = Simulation.create(
-            sim_config=SimulationConfig(suite="sim_suite", name="test", env=env_config),
-            policy_uri=None,
+        sim_run_config = SimulationRunConfig(env=env_config)
+
+        policy_spec = PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
+        results = run_simulations(
+            policy_specs=[policy_spec],
+            simulations=[sim_run_config],
+            replay_dir=None,
+            seed=0,
         )
 
-        assert sim is not None
-        assert sim.full_name == "sim_suite/test"
+        assert results
+        assert results[0].run.num_episodes == sim_run_config.num_episodes
 
-    def test_eval_tool_with_policy_uris(self):
-        """Test EvaluateTool with policy URIs."""
+    def test_eval_tool_with_policy_uris(self, real_checkpoint_uri):
+        """Test EvaluateTool can build policies from a real checkpoint URI."""
+        checkpoint_uri, system_cfg = real_checkpoint_uri
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
         eval_tool = EvaluateTool(
             simulations=[sim_config],
-            policy_uris=["mock://test_policy"],
-            stats_db_uri=None,
+            policy_uris=[checkpoint_uri],
+            system=system_cfg,
         )
 
         assert eval_tool.simulations[0].name == "test_arena"
-        assert eval_tool.policy_uris == ["mock://test_policy"]
+        assert eval_tool.policy_uris == [checkpoint_uri]
+
+        policy_spec = eval_tool._build_policy_spec(checkpoint_uri)
+        env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+        policy = initialize_or_load_policy(env_info, policy_spec)
+        assert policy.agent_policy(0) is not None
 
     def test_policy_loading_interface(self):
         """Test that policy loading functions work with versioned URIs."""
@@ -86,16 +112,6 @@ class TestNewPolicySystem:
             assert "://" in uri, f"URI {uri} missing protocol separator"
             protocol = uri.split("://")[0]
             assert protocol in ["file", "s3", "wandb", "mock"], f"Unknown protocol {protocol}"
-
-    def test_simulation_stats_integration(self):
-        """Test that simulations integrate with the stats system."""
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test_stats.db"
-            stats_db = SimulationStatsDB(db_path)
-            stats_db.initialize_schema()
-            assert hasattr(stats_db, "get_replay_urls")
-            stats_db.close()
 
     def test_tool_configuration_consistency(self):
         """Test that all tools have consistent configuration interfaces."""

@@ -20,6 +20,8 @@ import shlex
 import subprocess
 import sys
 import traceback
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Annotated, Callable, Sequence
 
@@ -143,6 +145,16 @@ def _run_python_tests(
     return CheckResult("Python Tests", passed)
 
 
+def _run_nim_tests(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
+    """Run Nim tests."""
+    _ensure_no_extra_args("nim-tests", extra_args)
+    _print_header("Nim Tests")
+
+    cmd = ["uv", "run", "metta", "nimtest"]
+    passed = _run_command(cmd, "Nim tests", verbose=verbose)
+    return CheckResult("Nim Tests", passed)
+
+
 def _run_cpp_tests(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
     """Run C++ unit tests (excludes benchmarks)."""
     _ensure_no_extra_args("cpp-tests", extra_args)
@@ -169,17 +181,22 @@ def _run_cpp_benchmarks(*, verbose: bool = False, extra_args: Sequence[str] | No
     return CheckResult("C++ Benchmarks", passed)
 
 
-def _setup_recipe_logging(log_file: Path) -> None:
+def _setup_recipe_logging(log_file: Path, group: str) -> None:
     """Configure logging to write to file for recipe tests.
 
     All log messages (including from background threads) will be written to the log file.
     This keeps console output clean while still capturing detailed logs.
+    Uses rotating file handler to prevent unbounded log growth.
     """
 
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Create file handler for all logs
-    file_handler = logging.FileHandler(log_file, mode="a")
+    # Create rotating file handler: max 10MB per file, keep 5 backups (50MB total)
+    file_handler = RotatingFileHandler(
+        log_file,
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=5,  # Keep 5 backup files
+    )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(
         logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
@@ -194,8 +211,33 @@ def _setup_recipe_logging(log_file: Path) -> None:
     metta_logger = logging.getLogger("metta")
     metta_logger.setLevel(logging.DEBUG)
 
+    # Log run delimiter for easy identification in continuous stream
+    separator = "=" * 80
+    db_filename = f"{group}.sqlite"
+    metta_logger.info(separator)
+    metta_logger.info(f"CI RUN STARTED: {group}")
+    metta_logger.info(f"Database: {db_filename}")
+    metta_logger.info(f"Timestamp: {datetime.now().isoformat()}")
+    metta_logger.info(separator)
 
-def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None) -> CheckResult:
+
+def _run_cleanup_cancelled_runs(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
+    """Clean up cancelled workflow runs from concurrency settings."""
+    _ensure_no_extra_args("cleanup-cancelled-runs", extra_args)
+    _print_header("Cleanup Cancelled Runs")
+
+    cmd = [
+        "uv",
+        "run",
+        str(get_repo_root() / ".github/actions/cleanup-cancelled-runs/cleanup_cancelled_runs.py"),
+    ]
+    passed = _run_command(cmd, "Cleanup cancelled runs", verbose=verbose)
+    return CheckResult("Cleanup Cancelled Runs", passed)
+
+
+def _run_recipe_tests(
+    *, verbose: bool = False, name_filter: str | None = None, no_interactive: bool = False, max_local_jobs: int = 2
+) -> CheckResult:
     """Run recipe CI tests from stable recipes."""
     _print_header("Recipe CI Tests")
 
@@ -228,12 +270,11 @@ def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None) 
 
         # Set up logging to file BEFORE creating JobManager
         log_file = jobs_dir / "ci_runner.log"
-        _setup_recipe_logging(log_file)
+        _setup_recipe_logging(log_file, group)
         console.print(f"💡 Detailed logs: tail -f {log_file}\n")
 
         # Create JobManager after logging is configured
-        # Use 2 workers for local CI to speed up parallel execution
-        manager = JobManager(base_dir=jobs_dir, max_local_jobs=2)
+        manager = JobManager(base_dir=jobs_dir, max_local_jobs=max_local_jobs)
 
         # Submit, monitor, and report with group name
         all_passed = submit_monitor_and_report(
@@ -241,6 +282,7 @@ def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None) 
             recipe_jobs,
             title="Recipe CI Tests",
             group=group,
+            no_interactive=no_interactive,
         )
 
         if all_passed:
@@ -273,14 +315,27 @@ def _print_summary(results: list[CheckResult]) -> None:
     console.print()
 
 
-StageRunner = Callable[[bool, Sequence[str] | None, str | None], CheckResult]
+StageRunner = Callable[[bool, Sequence[str] | None, str | None, bool], CheckResult]
 
 stages: dict[str, StageRunner] = {
-    "lint": lambda v, args, name: _run_lint(verbose=v, extra_args=args),
-    "python-tests-and-benchmarks": lambda v, args, name: _run_python_tests(verbose=v, extra_args=args),
-    "cpp-tests": lambda v, args, name: _run_cpp_tests(verbose=v, extra_args=args),
-    "cpp-benchmarks": lambda v, args, name: _run_cpp_benchmarks(verbose=v, extra_args=args),
-    "recipe-tests": lambda v, args, name: _run_recipe_tests(verbose=v, name_filter=name),
+    "lint": lambda v, args, name, _: _run_lint(verbose=v, extra_args=args),
+    "python-tests-and-benchmarks": lambda v, args, name, _: _run_python_tests(verbose=v, extra_args=args),
+    "cpp-tests": lambda v, args, name, _: _run_cpp_tests(verbose=v, extra_args=args),
+    "cpp-benchmarks": lambda v, args, name, _: _run_cpp_benchmarks(verbose=v, extra_args=args),
+    "nim-tests": lambda v, args, name, _: _run_nim_tests(verbose=v, extra_args=args),
+    "recipe-tests": lambda v, args, name, ni: _run_recipe_tests(verbose=v, name_filter=name, no_interactive=ni),
+    "cleanup-cancelled-runs": lambda v, args, name, _: _run_cleanup_cancelled_runs(verbose=v, extra_args=args),
+}
+
+# Stages that run by default when `metta ci` is called without --stage
+# Excludes stages that require GitHub Actions context (e.g., cleanup-cancelled-runs)
+DEFAULT_STAGES = {
+    "lint",
+    "python-tests-and-benchmarks",
+    "cpp-tests",
+    "cpp-benchmarks",
+    "nim-tests",
+    "recipe-tests",
 }
 
 
@@ -296,6 +351,9 @@ def cmd_ci(
     ] = None,
     continue_on_error: Annotated[bool, typer.Option("--continue-on-error", help="Don't stop on first failure")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show detailed output")] = False,
+    no_interactive: Annotated[
+        bool, typer.Option("--no-interactive", help="Disable live display for CI environments")
+    ] = False,
 ):
     """Run CI checks locally to match remote CI behavior."""
     extra_args = list(getattr(ctx, "args", []))
@@ -316,7 +374,7 @@ def cmd_ci(
             raise typer.Exit(1)
 
         # Run the specific stage
-        result = stages[stage](verbose, extra_args, name)
+        result = stages[stage](verbose, extra_args, name, no_interactive)
         if result.passed:
             success(f"Stage '{stage}' passed!")
             sys.exit(0)
@@ -324,14 +382,16 @@ def cmd_ci(
             error(f"Stage '{stage}' failed.")
             sys.exit(1)
 
-    # Otherwise run all stages (local development workflow)
+    # Otherwise run all default stages (local development workflow)
     console.print(Panel.fit("[bold]Running All CI Checks[/bold]", border_style="cyan"))
 
     results: list[CheckResult] = []
 
-    # Run all stages in order
+    # Run only default stages (excludes stages that require GitHub Actions context)
     for stage_name, stage_func in stages.items():
-        result = stage_func(verbose, None, None)
+        if stage_name not in DEFAULT_STAGES:
+            continue
+        result = stage_func(verbose, None, None, no_interactive)
         results.append(result)
         if not result.passed and not continue_on_error:
             _print_summary(results)

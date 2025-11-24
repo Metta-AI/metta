@@ -6,7 +6,7 @@ class TestAgentResourceSharing:
     """Test agent resource sharing functionality when agents use each other."""
 
     def test_basic_resource_sharing(self):
-        """Test that agents can share resources when one moves onto another."""
+        """Test that agents can share resources via vibe_transfers when one moves onto another."""
         # Create a simple environment with 2 agents
         cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
             [
@@ -16,14 +16,23 @@ class TestAgentResourceSharing:
             ]
         )
 
-        # Configure resources and sharing
+        # Configure resources and sharing via vibe_transfers
         cfg.game.resource_names = ["energy", "water", "food"]
         cfg.game.agent.initial_inventory = {"energy": 10, "water": 8, "food": 6}
-        cfg.game.agent.shareable_resources = ["energy", "water"]  # Only energy and water are shareable
 
-        # Enable the move action to allow agents to interact
+        # Configure vibe_transfers to share half of energy and water when using default vibe
+        cfg.game.agent.vibe_transfers = {
+            "default": {
+                "energy": 5,  # Share half of initial energy
+                "water": 4,  # Share half of initial water
+            }
+        }
+
+        # Enable the move action and change_vibe to allow agents to interact
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
+        cfg.game.actions.change_vibe.enabled = True
+        cfg.game.actions.change_vibe.number_of_vibes = 10
 
         sim = Simulation(cfg)
 
@@ -73,10 +82,10 @@ class TestAgentResourceSharing:
         assert (agent0_after["r"], agent0_after["c"]) == (1, 1), "Agent 0 should still be at (1,1)"
         assert (agent1_after["r"], agent1_after["c"]) == (1, 2), "Agent 1 should still be at (1,2)"
 
-        # Agent 0 should have given half of shareable resources to agent 1
+        # Agent 0 should have transferred resources according to vibe_transfers config
         # Energy: 10 -> 5 (agent 0), 10 -> 15 (agent 1)
         # Water: 8 -> 4 (agent 0), 8 -> 12 (agent 1)
-        # Food: 6 -> 6 (agent 0, unchanged), 6 -> 6 (agent 1, unchanged)
+        # Food: 6 -> 6 (agent 0, unchanged), 6 -> 6 (agent 1, unchanged - not configured)
         assert agent0_after["inventory"][energy_idx] == 5, (
             f"Agent 0 should have 5 energy after sharing. Has {agent0_after['inventory'][energy_idx]}"
         )
@@ -84,7 +93,7 @@ class TestAgentResourceSharing:
             f"Agent 0 should have 4 water after sharing. Has {agent0_after['inventory'][water_idx]}"
         )
         assert agent0_after["inventory"][food_idx] == 6, (
-            f"Agent 0 should still have 6 food (not shareable). Has {agent0_after['inventory'][food_idx]}"
+            f"Agent 0 should still have 6 food (not configured). Has {agent0_after['inventory'][food_idx]}"
         )
 
         assert agent1_after["inventory"][energy_idx] == 15, (
@@ -94,5 +103,5 @@ class TestAgentResourceSharing:
             f"Agent 1 should have 12 water after receiving. Has {agent1_after['inventory'][water_idx]}"
         )
         assert agent1_after["inventory"][food_idx] == 6, (
-            f"Agent 1 should still have 6 food (not shareable). Has {agent1_after['inventory'][food_idx]}"
+            f"Agent 1 should still have 6 food (not configured). Has {agent1_after['inventory'][food_idx]}"
         )

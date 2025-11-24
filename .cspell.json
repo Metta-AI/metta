@@ -245,6 +245,7 @@
     "representer",
     "richcmp",
     "Roguelike",
+    "rollouts",
     "ruffignore",
     "runstore",
     "scanline",

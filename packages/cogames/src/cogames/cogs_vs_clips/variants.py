@@ -1,14 +1,18 @@
-from typing import override
+from typing import Iterable, Sequence, override
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
 from cogames.cogs_vs_clips.procedural import BaseHubVariant, MachinaArenaVariant
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig, ResourceLimitsConfig
+from mettagrid.map_builder.map_builder import MapBuilderConfig
+from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scenes.base_hub import DEFAULT_EXTRACTORS as HUB_EXTRACTORS
+from mettagrid.mapgen.scenes.building_distributions import DistributionConfig, DistributionType
 
 
 class MinedOutVariant(MissionVariant):
     name: str = "mined_out"
-    description: str = "Some resources are depleted. You must be efficient to survive."
+    description: str = "All resources are depleted. You must be efficient to survive."
 
     @override
     def modify_mission(self, mission):
@@ -117,25 +121,48 @@ class EnergizedVariant(MissionVariant):
         mission.energy_regen_amount = mission.energy_capacity
 
 
-class NeutralFacedVariant(MissionVariant):
-    name: str = "neutral_faced"
-    description: str = "Disable vibe swapping; keep neutral face."
+class ResourceBottleneckVariant(MissionVariant):
+    name: str = "resource_bottleneck"
+    description: str = "A resource is the limiting factor. Agents must prioritize it over other resources."
+    resource: Sequence[str] | str = ("oxygen", "germanium", "silicon", "carbon")
+
+    @override
+    def modify_mission(self, mission):
+        # Accept either a single resource or an iterable of resources to bottleneck
+        if isinstance(self.resource, str):
+            resources: Iterable[str] = [self.resource]
+        else:
+            resources = list(self.resource)
+
+        for resource in resources:
+            if resource in {"carbon", "oxygen", "germanium", "silicon"}:
+                extractor_attr = f"{resource}_extractor"
+            elif resource == "energy":
+                extractor_attr = "charger"
+            else:
+                raise ValueError(f"Unsupported resource for bottleneck: {resource}")
+
+            extractor = getattr(mission, extractor_attr, None)
+            if extractor is None:
+                raise AttributeError(f"Mission has no extractor attribute '{extractor_attr}'")
+
+            extractor.efficiency = max(1, int(extractor.efficiency) - 50)
+
+
+class SingleToolUnclipVariant(MissionVariant):
+    name: str = "single_tool_unclip"
+    description: str = "Only one tool is available: the decoder."
+    resource: str = "carbon"
 
     @override
     def modify_env(self, mission, env):
-        change_vibe = env.game.actions.change_vibe
-        change_vibe.enabled = False
-        change_vibe.number_of_vibes = 1
-
-        neutral_vibe_name = "default"
-        env.game.vibe_names = [neutral_vibe_name]
-        for name, obj in env.game.objects.items():
-            if isinstance(obj, AssemblerConfig) and obj.protocols:
-                primary_protocol = obj.protocols[0].model_copy(deep=True)
-                primary_protocol.vibes = [neutral_vibe_name]
-                obj.protocols = [primary_protocol]
-            elif isinstance(obj, ChestConfig) and name == "chest":
-                obj.vibe_transfers = {neutral_vibe_name: {"heart": 255}}
+        # Restrict assembler to a single generic gear recipe: carbon -> decoder (no vibes required)
+        # Since the protocol doesn't require vibes, agents won't need to change vibes
+        assembler = env.game.objects.get("assembler")
+        if isinstance(assembler, AssemblerConfig):
+            assembler.protocols = [
+                ProtocolConfig(vibes=[], input_resources={self.resource: 1}, output_resources={"decoder": 1})
+            ]
 
 
 class CompassVariant(MissionVariant):
@@ -153,20 +180,68 @@ class HeartChorusVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        env.game.agent.rewards.stats = {
-            "heart.gained": 1.0,
-            "chest.heart.deposited": 1.0,
-            "chest.heart.withdrawn": -1.0,
-            "inventory.diversity.ge.2": 0.17,
-            "inventory.diversity.ge.3": 0.18,
-            "inventory.diversity.ge.4": 0.60,
-            "inventory.diversity.ge.5": 0.97,
+        # Supplemental shaping: keep the base rewards (e.g., chest.heart.amount)
+        # and add heart-centric/collection bonuses on top.
+        rewards = dict(env.game.agent.rewards.stats)
+        rewards.update(
+            {
+                "heart.gained": 1.0,
+                "chest.heart.deposited": 1.0,
+                "chest.heart.withdrawn": -1.0,
+                "inventory.diversity.ge.2": 0.17,
+                "inventory.diversity.ge.3": 0.18,
+                "inventory.diversity.ge.4": 0.60,
+                "inventory.diversity.ge.5": 0.97,
+            }
+        )
+        env.game.agent.rewards.stats = rewards
+
+
+class TinyHeartProtocolsVariant(MissionVariant):
+    """Prepend low-cost heart/red-heart assembler protocols for easy hearts."""
+
+    name: str = "tiny_heart_protocols"
+    description: str = "Prepend low-cost heart/red-heart assembler protocols."
+
+    # Allow customization if ever needed; defaults match prior inline block.
+    carbon_cost: int = 2
+    oxygen_cost: int = 2
+    germanium_cost: int = 1
+    silicon_cost: int = 3
+    energy_cost: int = 2
+
+    @override
+    def modify_env(self, mission, env) -> None:
+        assembler = env.game.objects.get("assembler")
+        if not isinstance(assembler, AssemblerConfig):
+            raise TypeError("Expected 'assembler' to be AssemblerConfig")
+
+        tiny_inputs = {
+            "carbon": self.carbon_cost,
+            "oxygen": self.oxygen_cost,
+            "germanium": self.germanium_cost,
+            "silicon": self.silicon_cost,
+            "energy": self.energy_cost,
         }
+
+        tiny_protocols = [
+            ProtocolConfig(
+                vibes=[vibe] * (i + 1),
+                input_resources=tiny_inputs,
+                output_resources={"heart": i + 1},
+            )
+            for vibe in ("heart_a", "red-heart")
+            for i in range(4)
+        ]
+        tiny_keys = {(tuple(p.vibes), p.min_agents) for p in tiny_protocols}
+        existing = [p for p in assembler.protocols if (tuple(p.vibes), p.min_agents) not in tiny_keys]
+        assembler.protocols = [*tiny_protocols, *existing]
 
 
 class VibeCheckMin2Variant(MissionVariant):
     name: str = "vibe_check_min_2"
     description: str = "Require at least 2 heart vibes to craft a heart."
+    min_vibes: int = 2
 
     @override
     def modify_env(self, mission, env):
@@ -191,7 +266,13 @@ class Small50Variant(MissionVariant):
     description: str = "Set map size to 50x50 for quick runs."
 
     def modify_env(self, mission, env) -> None:
-        env.game.map_builder = env.game.map_builder.model_copy(update={"width": 50, "height": 50})
+        map_builder = env.game.map_builder
+        # Only set width/height if instance is a SceneConfig, not a MapBuilderConfig
+        # When instance is a MapBuilderConfig, width and height must be None
+        if isinstance(map_builder, MapGen.Config) and isinstance(map_builder.instance, MapBuilderConfig):
+            # Skip setting width/height for MapBuilderConfig instances
+            return
+        env.game.map_builder = map_builder.model_copy(update={"width": 50, "height": 50})
 
 
 class CogToolsOnlyVariant(MissionVariant):
@@ -223,25 +304,19 @@ class InventoryHeartTuneVariant(MissionVariant):
 
         heart_cost = mission.assembler.first_heart_cost
         per_heart = {
-            "carbon": heart_cost * 2,
-            "oxygen": heart_cost * 2,
-            "germanium": max(heart_cost // 2, 1),
-            "silicon": heart_cost * 5,
-            "energy": heart_cost * 2,
+            "carbon": heart_cost,
+            "oxygen": heart_cost,
+            "germanium": max(heart_cost // 10, 1),
+            "silicon": 3 * heart_cost,
+            "energy": 0,
         }
 
         if hearts > 0:
             agent_cfg = env.game.agent
             agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
-            resource_limits = dict(agent_cfg.resource_limits)
 
             def _limit_for(resource: str) -> int:
-                if resource in resource_limits:
-                    return int(resource_limits[resource])
-                for key, limit in resource_limits.items():
-                    if isinstance(key, tuple) and resource in key:
-                        return int(limit)
-                return int(agent_cfg.default_resource_limit)
+                return agent_cfg.get_limit_for_resource(resource)
 
             for resource_name, per_heart_value in per_heart.items():
                 current = int(agent_cfg.initial_inventory.get(resource_name, 0))
@@ -251,9 +326,11 @@ class InventoryHeartTuneVariant(MissionVariant):
 
         if self.heart_capacity is not None:
             agent_cfg = env.game.agent
-            limits = dict(agent_cfg.resource_limits)
-            limits["heart"] = max(int(limits.get("heart", 0)), int(self.heart_capacity))
-            agent_cfg.resource_limits = limits
+            hearts_limit = agent_cfg.resource_limits.get("heart")
+            if hearts_limit is None:
+                hearts_limit = ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"])
+            hearts_limit.limit = max(int(hearts_limit.limit), int(self.heart_capacity))
+            agent_cfg.resource_limits["heart"] = hearts_limit
 
 
 class ChestHeartTuneVariant(MissionVariant):
@@ -268,10 +345,10 @@ class ChestHeartTuneVariant(MissionVariant):
             return
         heart_cost = mission.assembler.first_heart_cost
         per_heart = {
-            "carbon": heart_cost * 2,
-            "oxygen": heart_cost * 2,
-            "germanium": max(heart_cost // 2, 1),
-            "silicon": heart_cost * 5,
+            "carbon": heart_cost,
+            "oxygen": heart_cost,
+            "germanium": max(heart_cost // 10, 1),
+            "silicon": 3 * heart_cost,
         }
         chest_cfg = env.game.objects["chest"]
         if not isinstance(chest_cfg, ChestConfig):
@@ -285,7 +362,7 @@ class ChestHeartTuneVariant(MissionVariant):
 class ExtractorHeartTuneVariant(MissionVariant):
     name: str = "extractor_heart_tune"
     description: str = "Tune extractors for N hearts production capability."
-    hearts: int = 5
+    hearts: int = 1
 
     @override
     def modify_mission(self, mission):
@@ -294,10 +371,10 @@ class ExtractorHeartTuneVariant(MissionVariant):
             return
         heart_cost = mission.assembler.first_heart_cost
         one_heart = {
-            "carbon": heart_cost * 2,
-            "oxygen": heart_cost * 2,
-            "germanium": max(heart_cost // 2, 1),
-            "silicon": heart_cost * 5,
+            "carbon": heart_cost,
+            "oxygen": heart_cost,
+            "germanium": max(heart_cost // 10, 1),
+            "silicon": 3 * heart_cost,
         }
 
         # Carbon per-use depends on efficiency
@@ -320,38 +397,44 @@ class ExtractorHeartTuneVariant(MissionVariant):
         mission.germanium_extractor.efficiency = int(one_heart["germanium"] * hearts)
 
 
-class ClipBaseExceptCarbonVariant(MissionVariant):
-    name: str = "clip_base_except_carbon"
-    description: str = "Start base extractors clipped except carbon."
+class CyclicalUnclipVariant(MissionVariant):
+    name: str = "cyclical_unclip"
+    description: str = "Required resources for unclipping recipes are cyclical. \
+                        So Germanium extractors require silicon-based unclipping recipes."
 
     @override
-    def modify_mission(self, mission):
-        mission.carbon_extractor.start_clipped = False
-        mission.oxygen_extractor.start_clipped = True
-        mission.germanium_extractor.start_clipped = True
-        mission.silicon_extractor.start_clipped = True
+    def modify_env(self, mission, env):
+        if env.game.clipper is not None:
+            env.game.clipper.unclipping_protocols = [
+                ProtocolConfig(input_resources={"scrambler": 1}, cooldown=1),
+                ProtocolConfig(input_resources={"resonator": 1}, cooldown=1),
+                ProtocolConfig(input_resources={"modulator": 1}, cooldown=1),
+                ProtocolConfig(input_resources={"decoder": 1}, cooldown=1),
+            ]
 
 
 class ClipHubStationsVariant(MissionVariant):
     name: str = "clip_hub_stations"
-    description: str = "Start base extractors and charger clipped."
+    description: str = "Clip the specified base stations (by name)."
+    # Valid names: "carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor", "charger"
+    clip: list[str] = ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor", "charger"]
 
     @override
     def modify_mission(self, mission):
-        mission.carbon_extractor.start_clipped = True
-        mission.oxygen_extractor.start_clipped = True
-        mission.germanium_extractor.start_clipped = True
-        mission.silicon_extractor.start_clipped = True
-        mission.charger.start_clipped = True
+        for station_name in self.clip:
+            station = getattr(mission, station_name, None)
+            if station is not None:
+                station.start_clipped = True
 
 
 class ClipPeriodOnVariant(MissionVariant):
     name: str = "clip_period_on"
     description: str = "Enable global clipping with a small non-zero clip period."
+    clip_period: int = 50
 
     @override
     def modify_mission(self, mission):
-        mission.clip_period = 50
+        mission.clip_period = self.clip_period
 
 
 # Biome variants (weather) for procedural maps
@@ -399,64 +482,188 @@ class CavesVariant(MachinaArenaVariant):
         node.base_biome = "caves"
 
 
-class EmptyBaseVariant(BaseHubVariant):
-    name: str = "empty_base"
-    description: str = "Empty base with no extractors or chests."
+class DistantResourcesVariant(MachinaArenaVariant):
+    name: str = "distant_resources"
+    description: str = "Resources scattered far from base; heavy routing coordination."
+    building_names: list[str] = ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"]
 
     @override
     def modify_node(self, node):
-        # Explicit objects/generators take precedence over bundles in BaseHub.
-        # Clear them so the 'none' bundles are respected.
-        node.corner_objects = None
-        node.corner_generator = None
-        node.cross_objects = None
-        node.corner_bundle = "none"
-        node.cross_bundle = "none"
+        # Bias buildings toward the map edges using bimodal clusters centered at
+        node.building_coverage = 0.01
+
+        vertical_edges = DistributionConfig(
+            type=DistributionType.BIMODAL,
+            center1_x=0.92,  # top right corner
+            center1_y=0.08,
+            center2_x=0.08,  # bottom left corner
+            center2_y=0.92,
+            cluster_std=0.18,
+        )
+        horizontal_edges = DistributionConfig(
+            type=DistributionType.BIMODAL,
+            center1_x=0.08,  # top left corner
+            center1_y=0.08,
+            center2_x=0.92,  # bottom right corner
+            center2_y=0.92,
+            cluster_std=0.18,
+        )
+
+        # Apply edge-biased distributions to extractors; other buildings follow the global distribution
+        names = list(self.building_names)
+        node.building_distributions = {
+            name: (vertical_edges if i % 2 == 0 else horizontal_edges) for i, name in enumerate(names)
+        }
+        # Fallback for any unspecified building types
+        node.distribution = DistributionConfig(type=DistributionType.UNIFORM)
 
 
-class CyclicalUnclipVariant(MissionVariant):
-    name: str = "cyclical_unclip"
-    description: str = "Required resources for unclipping recipes are cyclical. \
-                        So Germanium extractors require silicon-based unclipping recipes."
+class SingleUseSwarmVariant(MissionVariant):
+    name: str = "single_use_swarm"
+    description: str = "Everything is single use; agents must fan out and reconverge."
+    building_coverage: float = 0.03
+
+    @override
+    def modify_mission(self, mission):
+        # Make each extractor single-use
+        for res in ("carbon", "oxygen", "silicon"):
+            extractor = getattr(mission, f"{res}_extractor", None)
+            if extractor is not None:
+                extractor.max_uses = 1
 
     @override
     def modify_env(self, mission, env):
-        if env.game.clipper is not None:
-            env.game.clipper.unclipping_protocols = [
-                ProtocolConfig(input_resources={"scrambler": 1}, cooldown=1),
-                ProtocolConfig(input_resources={"resonator": 1}, cooldown=1),
-                ProtocolConfig(input_resources={"modulator": 1}, cooldown=1),
-                ProtocolConfig(input_resources={"decoder": 1}, cooldown=1),
-            ]
+        # Ensure charger is also single-use (its Config defaults to unlimited)
+        charger = env.game.objects.get("charger")
+        if isinstance(charger, AssemblerConfig):
+            charger.max_uses = 1
+
+        # Increase building coverage a bit to create many single-use points
+        map_builder = getattr(env.game, "map_builder", None)
+        instance = getattr(map_builder, "instance", None)
+        if instance is not None and hasattr(instance, "building_coverage"):
+            current = float(getattr(instance, "building_coverage", 0.01))
+            instance.building_coverage = max(current, float(self.building_coverage))
+
+
+class QuadrantBuildingsVariant(MachinaArenaVariant):
+    name: str = "quadrant_buildings"
+    description: str = "Place buildings in the four quadrants of the map."
+    building_names: list[str] = ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"]
+
+    @override
+    def modify_node(self, node):
+        node.building_names = self.building_names
+
+        names = list(node.building_names or self.building_names)
+        centers = [
+            (0.25, 0.25),  # top-left
+            (0.75, 0.25),  # top-right
+            (0.25, 0.75),  # bottom-left
+            (0.75, 0.75),  # bottom-right
+        ]
+        dists: dict[str, DistributionConfig] = {}
+        for i, name in enumerate(names):
+            cx, cy = centers[i % len(centers)]
+            dists[name] = DistributionConfig(
+                type=DistributionType.NORMAL,
+                mean_x=cx,
+                mean_y=cy,
+                std_x=0.18,
+                std_y=0.18,
+            )
+        node.building_distributions = dists
+        node.distribution = DistributionConfig(type=DistributionType.UNIFORM)
+
+
+class SingleResourceUniformVariant(MachinaArenaVariant):
+    name: str = "single_resource_uniform"
+    description: str = "Place only a single building via uniform distribution across the map."
+    building_name: str = "oxygen_extractor"
+
+    @override
+    def modify_node(self, node):
+        # Resolve resource to a concrete building name
+        # Restrict building set to only the chosen building and enforce uniform distribution
+        node.building_names = [self.building_name]
+        node.building_weights = {self.building_name: 1.0}
+        node.building_distributions = None
+        node.distribution = DistributionConfig(type=DistributionType.UNIFORM)
+
+
+class EmptyBaseVariant(BaseHubVariant):
+    name: str = "empty_base"
+    description: str = "Base hub with extractors removed from the four corners."
+    # Extractor object names to remove, e.g., ["oxygen_extractor"]
+    missing: list[str] = list(HUB_EXTRACTORS)
+
+    @override
+    def modify_node(self, node):
+        # Use the default extractor order and blank out any that are missing
+        missing_set = set(self.missing or [])
+        corner_objects = [name if name not in missing_set else "" for name in HUB_EXTRACTORS]
+        node.corner_objects = corner_objects
+        node.corner_bundle = "custom"
+
+
+class TraderVariant(MissionVariant):
+    name: str = "trader"
+    description: str = "Agents can trade resources with each other."
+
+    @override
+    def modify_env(self, mission, env):
+        env.game.agent.vibe_transfers.update(
+            {
+                "carbon_a": {"carbon": 1},
+                "carbon_b": {"carbon": 10},
+                "oxygen_a": {"oxygen": 1},
+                "oxygen_b": {"oxygen": 10},
+                "germanium_a": {"germanium": 1},
+                "germanium_b": {"germanium": 4},
+                "silicon_a": {"silicon": 10},
+                "silicon_b": {"silicon": 50},
+                "heart_a": {"heart": 1},
+                "heart_b": {"heart": 4},
+            }
+        )
 
 
 # TODO - validate that all variant names are unique
 VARIANTS: list[MissionVariant] = [
-    MinedOutVariant(),
-    DarkSideVariant(),
-    SuperChargedVariant(),
-    RoughTerrainVariant(),
-    SolarFlareVariant(),
-    HeartChorusVariant(),
-    VibeCheckMin2Variant(),
-    DesertVariant(),
-    ForestVariant(),
-    CityVariant(),
     CavesVariant(),
-    EmptyBaseVariant(),
-    LonelyHeartVariant(),
-    PackRatVariant(),
-    EnergizedVariant(),
-    NeutralFacedVariant(),
-    CompassVariant(),
-    Small50Variant(),
-    CogToolsOnlyVariant(),
-    InventoryHeartTuneVariant(),
     ChestHeartTuneVariant(),
-    ExtractorHeartTuneVariant(),
-    ClipBaseExceptCarbonVariant(),
+    CityVariant(),
     ClipHubStationsVariant(),
-    CyclicalUnclipVariant(),
     ClipPeriodOnVariant(),
+    CogToolsOnlyVariant(),
+    CompassVariant(),
+    CyclicalUnclipVariant(),
+    DarkSideVariant(),
+    DesertVariant(),
+    EmptyBaseVariant(),
+    EnergizedVariant(),
+    ExtractorHeartTuneVariant(),
+    ForestVariant(),
+    HeartChorusVariant(),
+    InventoryHeartTuneVariant(),
+    LonelyHeartVariant(),
+    MinedOutVariant(),
+    PackRatVariant(),
+    QuadrantBuildingsVariant(),
+    ResourceBottleneckVariant(),
+    RoughTerrainVariant(),
+    SingleResourceUniformVariant(),
+    SingleToolUnclipVariant(),
+    Small50Variant(),
+    SolarFlareVariant(),
+    SuperChargedVariant(),
+    TraderVariant(),
+    TinyHeartProtocolsVariant(),
+    VibeCheckMin2Variant(),
     *DIFFICULTY_VARIANTS,
+]
+
+# Hidden variants registry: Remains usable but will NOT appear in `cogames variants` listing
+HIDDEN_VARIANTS: list[MissionVariant] = [
+    # Example: ExperimentalVariant(),  # keep empty by default
 ]

@@ -230,3 +230,116 @@ bazel build --config=opt //:mettagrid_c
 # Run benchmarks
 ./build-release/benchmarks/grid_object_benchmark
 ```
+
+## Debugging C++ Code
+
+MettaGrid is written in C++ with Python bindings via pybind11. You can debug C++ code directly in VSCode/Cursor by
+setting breakpoints in the C++ source files.
+
+### Prerequisites
+
+1. **VSCode Extension**: Install the
+   [Python C++ Debugger](https://marketplace.visualstudio.com/items?itemName=benjamin-simmonds.pythoncpp-debug)
+   extension (`pythoncpp`)
+2. **Debug Build**: Always build with `DEBUG=1` to enable debug symbols and dSYM generation
+
+### Setup
+
+The repository includes pre-configured launch configurations in `.vscode/launch.json`:
+
+- **MettaGrid Demo** and other pythoncpp configurations - Combined Python + C++ debugging session for the demo script
+  (requires the pythoncpp extension)
+- **\_C++ Attach** - Attach C++ debugger to any running Python process (shared by all configurations but can be ran
+  manually).
+
+### Quick Start
+
+1. **Build with debug symbols**:
+   - Clean everything up
+
+     ```sh
+     cd packages/mettagrid # (from root of the repository)
+     bazel clean --expunge
+     ```
+
+   - Rebuild with debug flags
+
+     ```sh
+     bazel build --config=dbg //:mettagrid_c
+     ```
+
+   - Or Reinstall with DEBUG=1 to trigger dSYM generation
+
+     ```sh
+     cd ../..
+     export DEBUG=1
+     uv sync --reinstall-package mettagrid
+     ```
+
+2. **Set breakpoints** in both Python and C++ files (e.g., `packages/mettagrid/cpp/bindings/mettagrid_c.cpp`,
+   `packages/mettagrid/demos/demo_train_pettingzoo.py`)
+
+3. **Launch debugger** using the "MettaGrid Demo" or any other pythoncpp configuration from the VSCode Run panel.
+
+4. **Alternatively**, you can use the "\_C++ Attach" configuration to attach the debugger to any running Python process.
+   It will ask you to select a process - type "metta" or "python" to filter the list.
+
+### Testing C++ Debugging
+
+To verify that C++ breakpoints are working correctly, use a simple test that calls from Python into C++:
+
+#### Quick Test Method
+
+1. **Add a test call** to any Python entrypoint that uses mettagrid:
+
+   ```python
+   def test_cpp_debugging() -> None:
+       """Test function to trigger C++ code for debugging."""
+       try:
+           from mettagrid.mettagrid_c import PackedCoordinate
+
+           # Call a simple C++ function
+           packed = PackedCoordinate.pack(5, 10)
+           print(f"C++ test: PackedCoordinate.pack(5, 10) = {packed}")
+
+           # Unpack it back
+           r, c = PackedCoordinate.unpack(packed)
+           print(f"C++ test: PackedCoordinate.unpack({packed}) = ({r}, {c})")
+       except Exception as e:
+           print(f"C++ debugging test failed: {e}")
+
+   # Call at module level or early in your script
+   test_cpp_debugging()
+   ```
+
+2. **Set a C++ breakpoint** in the corresponding C++ implementation:
+   - Open `packages/mettagrid/cpp/include/mettagrid/systems/packed_coordinate.hpp`
+   - Find the `pack()` or `unpack()` function implementation
+   - Set a breakpoint inside the function body (e.g., on the return statement)
+
+3. **Launch your debug configuration** (e.g., "MettaGrid Demo" or any pythoncpp configuration)
+
+4. **Verify the breakpoint hits** when the Python code calls `PackedCoordinate.pack()`
+
+#### Where to Add the Test
+
+Add the test call early in any Python entrypoint that uses mettagrid:
+
+- Demo scripts (e.g., `packages/mettagrid/demos/demo_train_*.py`)
+- CLI entrypoints (e.g., `packages/cogames/src/cogames/main.py`)
+- Tool runners (e.g., `common/src/metta/common/tool/run_tool.py`)
+- Training scripts (e.g., `metta/tools/train.py`)
+
+**Note**: This test is only for verifying your debugging setup. Remove it before committing.
+
+### Configuration Files
+
+- **`.bazelrc`** - Defines the `--config=dbg` build mode with debug flags (`-g`, `-O0`, `--apple_generate_dsym`)
+- **`.vscode/launch.json`** - Contains launch configurations for combined Python/C++ debugging
+
+### Important Notes
+
+- **Always use `DEBUG=1`**: Without this environment variable, dSYM files won't be generated and C++ breakpoints won't
+  work.
+- **Source maps**: The launch config includes source maps to correctly locate C++ files in the packages/mettagrid's
+  workspace.

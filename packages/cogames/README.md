@@ -1,81 +1,124 @@
-# CoGames: Cogs vs Clips Multi-Agent RL Environment
+# CoGames: A Game Environment for the Alignment League Benchmark
 
-CoGames is a collection of multi-agent cooperative and competitive environments designed for reinforcement learning
-research.
+CoGames is the game environment for Softmax's
+[Alignment League Benchmark (ALB)](https://www.softmax.com/alignmentleague) — a suite of multi-agent games designed to
+measure how well AI agents align, coordinate, and collaborate with others (both AIs and humans).
+
+The first ALB game, Cogs vs Clips, is implemented entirely within the CoGames environment. You can create your own
+policy and submit it to our benchmark/pool.
 
 ## The game: Cogs vs Clips
 
-Multiple "Cog" agents, controlled by user-provided policies, must cooperate to extract Hearts from the environment.
-Doing so requires gathering resources, operating machinery, and assembling components. Many steps will require
-interacting with a "station". Many such interactions will require multiple cogs working in tandem.
-
-Your Cogs' efforts may be thwarted by Clips: NPC agents that disable stations or otherwise impede progress.
+Cogs vs Clips is a cooperative production-and-survival game where teams of AI agents ("Cogs") work together on the
+asteroid Machina VII. Their mission: Produce and protect **HEARTs** (Holon Enabled Agent Replication Templates) by
+gathering resources, operating machinery, and assembling components. Success is impossible alone! Completing these
+missions requires multiple cogs working in tandem.
 
 <p align="middle">
-<img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
+<img src="assets/cvc-reel.gif" alt="Example Cogs vs Clips">
 <br>
 
 There are many mission configurations available, with different map sizes, resource and station layouts, and game rules.
-Overall, Cogs vs Clips aims to present rich environments with:
+Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description of the game mechanics. Overall, Cogs vs
+Clips aims to present rich environments with:
 
 - **Resource management**: Energy, materials (carbon, oxygen, germanium, silicon), and crafted components
 - **Station-based interactions**: Different stations provide unique capabilities (extractors, assemblers, chargers,
   chests)
 - **Sparse rewards**: Agents receive rewards only upon successfully crafting target items (hearts)
 - **Partial observability**: Agents have limited visibility of the environment
-- **Required multi-agent cooperation**: Agents must coordinate to efficiently use shared resources and stations
+- **Required multi-agent cooperation**: Agents must coordinate to efficiently use shared resources and stations, while
+  only communicating through movement and emotes (❤️, 🔄, 💯, etc.)
 
-Cogs should refer to their [MISSION.md](MISSION.md) for a thorough description of the game mechanics.
+Once your policy is successfully assembling hearts, submit it to our Alignment League Benchmark. ALB evaluates how your
+policy plays with other policies in the pool through running multi-policy, multi-agent games. Our focal metric is VORP
+(Value Over Replacement Policy), an estimate of how much your agent improves team performance in scoring hearts.
 
 ## Quick Start
 
+Let's walk through playing an easy mission in Cogs vs. Clips, then training a simple starter policy. `easy_mode` uses
+three variants to simplify training:
+
+- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
+  energy)
+- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
+- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
+
 ```bash
-# Install
+# We recommend using a virtual env
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv venv .venv
+source .venv/bin/activate
+
+# Install cogames
 uv pip install cogames
 
+# Play an episode yourself
+cogames tutorial
+
+# Play an episode of the easy_mode mission with a scripted policy
+cogames play -m easy_mode -p baseline
+
+# Try the scripted policy on a set of eval missions
+cogames eval -set integrated_evals -p baseline
+
+# Train with an LSTM policy on easy_mode
+cogames train -m easy_mode -p lstm
+```
+
+Other useful commands:
+
+```bash
 # List available missions
 cogames missions
 
-# Play an episode of the training_facility_1 mission
-cogames play -m training_facility_1 -p random
+# Describe a specific mission in detail
+cogames missions -m [MISSION]
 
-# Train a policy in that environment using an out-of-the-box, stateless network architecture
-cogames train -m training_facility_1 -p stateless
+# List available variants for modifying missions
+cogames variants
 
-# Watch or play along side your trained policy
-cogames play -m training_facility_1 -p stateless:train_dir/policy.pt
+# List all missions used as evals for analyzing the behaviour of agents
+cogames evals
 
-# Evaluate how your policy performs on a different mission
-cogames eval -m machina_1 -p stateless:./train_dir/policy.pt
+# Shows all policies available and their shorthands
+cogames policies
+
+# Authenticate before submitting or checking leaderboard
+cogames login
+
+# Inspect your leaderboard submissions
+cogames submissions
+
+# Show current leaderboard
+cogames leaderboard
+
+# Show version info for the installed tooling stack
+cogames version
 ```
 
-## Commands
+## Play, Train, and Eval
 
-Most commands are of the form `cogames <command> -p [MISSION] -p [POLICY] [OPTIONS]`
+Most commands are of the form `cogames <command> -m [MISSION] -p [POLICY] [OPTIONS]`
 
 To specify a `MISSION`, you can:
 
-- Use a mission name from the default registry emitted by `cogames missions`, e.g. `training_facility_1`
-- Use a path to a mission configuration file, e.g. path/to/mission.yaml"
+- Use a mission name from the registry given by `cogames missions`, e.g. `training_facility_1`.
+- Use a path to a mission configuration file, e.g. `path/to/mission.yaml`.
+- Alternatively, specify a set of missions with `-set` or `-S`.
 
 To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][:PROPORTION]`:
 
-- `CLASS`: Policy shorthand (`noop`, `random`, `lstm`, `stateless`) or fully qualified class path like
-  `cogames.policy.random.RandomPolicy`. Use `cogames policies` to see a full list of default policies.
+- `CLASS`: Use a policy shorthand or full path from the registry given by `cogames policies`, e.g. `lstm` or
+  `cogames.policy.random.RandomPolicy`.
 - `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
 - `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
-
-### `cogames missions -m [MISSION]`
-
-Lists all missions and their high-level specs.
-
-If a mission is provided, it describe a specific mission in detail.
 
 ### `cogames play -m [MISSION] -p [POLICY]`
 
 Play an episode of the specified mission.
 
-**Policy** Cogs' actions are determined by the provided policy, except if you take over their actions manually.
+Cogs' actions are determined by the provided policy, except if you take over their actions manually.
 
 If not specified, this command will use the `noop`-policy agent -- do not be surprised if when you play you don't see
 other agents moving around! Just provide a different policy, like `random`.
@@ -93,11 +136,11 @@ and manually play alongside them.
 
 Train a policy on a mission.
 
-**Policy** By default, our `stateless` policy architecture will be used. But as is explained above, you can select a
-different policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
+By default, our `stateless` policy architecture will be used. But as is explained above, you can select a different
+policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
 
-Any policy provided must implement the `TrainablePolicy` interface, which you can find in
-`cogames/policy/interfaces.py`.
+Any policy provided must implement the `MultiAgentPolicy` interface with a trainable `network()` method, which you can
+find in `mettagrid/policy/policy.py`.
 
 You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
 
@@ -105,8 +148,8 @@ You can continue training an already-initialized policy by also supplying a path
 cogames train -m [MISSION] -p path/to/policy.py:train_dir/my_checkpoint.pt
 ```
 
-**Mission** Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through
-those environments:
+Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those
+environments:
 
 ```
 cogames train -m training_facility_1 -m training_facility_2 -p stateless
@@ -128,12 +171,12 @@ You can also specify multiple missions with `*` wildcards:
 ### Custom Policy Architectures
 
 To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as StatelessPolicy). To
-supply your own, you will want to extend `cogames.policy.Policy`.
+supply your own, extend the canonical `cogames.policy.MultiAgentPolicy` base class.
 
 ```python
-from mettagrid.policy.policy import MultiAgentPolicy as Policy
+from cogames.policy import MultiAgentPolicy
 
-class MyPolicy(Policy):
+class MyPolicy(MultiAgentPolicy):
     def __init__(self, observation_space, action_space):
         self.network = MyNetwork(observation_space, action_space)
 
@@ -189,16 +232,21 @@ for step in range(1000):
 
 ### `cogames eval -m [MISSION] [-m MISSION...] -p POLICY [-p POLICY...]`
 
-Evaluate one or more policies on one more more missions
+Evaluate one or more policies on one or more missions.
 
-**Policy** Note that here, you can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy
-populations.
+We provide a set of eval missions which you can use instead of missions `-m`. Specify `-set` or `-S` among:
+`eval_missions`, `integrated_evals`, `spanning_evals`, `diagnostic_evals`, `all`.
+
+You can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy populations.
 
 **Examples:**
 
 ```bash
 # Evaluate a single trained policy checkpoint
 cogames eval -m machina_1 -p stateless:train_dir/model.pt
+
+# Evaluate a single trained policy across a mission set with multiple agents
+cogames eval -set integrated_evals -p stateless:train_dir/model.pt
 
 # Mix two policies: 3 parts your policy, 5 parts random policy
 cogames eval -m machina_1 -p stateless:train_dir/model.pt:3 -p random::5
@@ -216,7 +264,7 @@ their assignments each episode.
 
 ### `cogames make-mission -m [BASE_MISSION]`
 
-Create custom mission configuration. In this case, the mission provided is the template mission to which you'll apply
+Create a custom mission configuration. In this case, the mission provided is the template mission to which you'll apply
 modifications.
 
 **Options:**
@@ -226,25 +274,33 @@ modifications.
 - `--height H`: Map height (default: 10)
 - `--output PATH`: Save to file
 
-You will be able to provide your specified `--output` path as the `MISSION` argument to other `cogames` commmands.
+You will be able to provide your specified `--output` path as the `MISSION` argument to other `cogames` commands.
 
-### `cogames version`
+## Policy Submission
 
-Show version info for mettagrid, pufferlib-core, and cogames.
+### `cogames login`
 
-### `cogames policies`
+Make sure you have authenticated before submitting a policy.
 
-Shows a list of default policies available to you, and the shorthands with which you can use them.
+### `cogames submit -p [POLICY] -n [NAME]`
+
+**Options:**
+
+- `--include-files`: Can be specified multiple times, such as --include-files file1.py --include-files dir1/
+- `--dry-run`: Validates the policy works for submission without uploading it
+
+When a new policy is submitted, it is queued up for evals with other policies, both randomly selected and designated
+policies for the Alignment League Benchmark.
 
 ## Citation
 
 If you use CoGames in your research, please cite:
 
 ```bibtex
-@software{cogames2024,
+@software{cogames2025,
   title={CoGames: Multi-Agent Cooperative Game Environments},
   author={Metta AI},
-  year={2024},
+  year={2025},
   url={https://github.com/metta-ai/metta}
 }
 ```

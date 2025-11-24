@@ -5,11 +5,15 @@ import os
 import subprocess
 from pathlib import Path
 
+from pydantic import Field
+
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
-from metta.sim.simulation import Simulation
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.sim.runner import run_simulations
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
+from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
 
@@ -23,29 +27,36 @@ class ReplayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
-    replay_dir: str = "./train_dir/replays"
-    stats_dir: str = "./train_dir/stats"
+    replay_dir: str = Field(default_factory=auto_replay_dir)
     open_browser_on_start: bool = True
     launch_viewer: bool = True
 
+    @staticmethod
+    def _build_policy_spec(normalized_uri: str | None) -> PolicySpec:
+        if normalized_uri is None:
+            return PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
+        return CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
+
     def invoke(self, args: dict[str, str]) -> int | None:
-        # Create simulation using CheckpointManager integration
-        sim = Simulation.create(
-            sim_config=self.sim,
-            stats_dir=self.stats_dir,
+        normalized_uri = CheckpointManager.normalize_uri(self.policy_uri) if self.policy_uri else None
+        policy_spec = self._build_policy_spec(normalized_uri)
+
+        simulation_run = self.sim.to_simulation_run_config()
+
+        simulation_results = run_simulations(
+            policy_specs=[policy_spec],
+            simulations=[simulation_run],
             replay_dir=self.replay_dir,
-            policy_uri=self.policy_uri,
+            seed=self.system.seed,
         )
 
-        result = sim.simulate()
+        result = simulation_results[0]
+        replay_url = result.results.episodes[0].replay_path
+        if not replay_url:
+            logger.error("No replay path found in simulation results", exc_info=True)
+            return 1
 
         if self.launch_viewer:
-            # Get all replay URLs (needed for viewer)
-            replay_urls = result.stats_db.get_replay_urls()
-            if not replay_urls:
-                logger.error("No replay URLs found in simulation results", exc_info=True)
-                return 1
-            replay_url = replay_urls[0]
             launch_mettascope(replay_url)
         else:
             # For CI/non-visualization, just confirm replays were generated
@@ -87,7 +98,7 @@ def launch_mettascope(replay_url: str) -> None:
     # Launch mettascope with the replay file
     try:
         logger.info(f"Launching MettaScope with replay: {replay_path}")
-        cmd = ["nim", "r", str(mettascope_src), "--replay=./" + replay_path]
+        cmd = ["nim", "r", "-d:fidgetUseFigma", str(mettascope_src), "--replay=./" + replay_path]
         subprocess.run(cmd, cwd=project_root, check=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to launch MettaScope: {e}")

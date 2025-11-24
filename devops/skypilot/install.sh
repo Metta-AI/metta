@@ -11,4 +11,6 @@ echo "Skypilot might ask you to copy the token. What you need to do is:
 
 Some popup, ad, and tracker blockers (like Brave Shield) may also prevent the token from being automatically passed back to the cli."
 
+echo "IMPORTANT: When the browser window opens for SkyPilot login, do NOT use Safari—it fails to hand the token back. Use Chrome, Firefox, or another browser instead."
+
 uv run sky api login -e "$SERVER"

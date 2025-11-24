@@ -11,7 +11,7 @@ from filelock import FileLock
 from pydantic import ConfigDict, Field
 
 from metta.common.util.log_config import getRankAwareLogger
-from metta.utils.uri import ParsedURI
+from metta.common.util.uri import ParsedURI
 from mettagrid.map_builder import MapGrid
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig, WithMaxRetriesConfig
 

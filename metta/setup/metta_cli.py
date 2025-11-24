@@ -1,9 +1,15 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 import concurrent.futures
 import re
 import subprocess
 import sys
 import webbrowser
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -14,14 +20,15 @@ from rich.table import Table
 
 import gitta as git
 from metta.common.util.fs import get_repo_root
+from metta.common.util.log_config import init_logging
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
-from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.tools.ci_runner import cmd_ci
 from metta.setup.tools.clean import cmd_clean
 from metta.setup.tools.code_formatters import app as code_formatters_app
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
+from metta.setup.tools.test_runner.test_nim import app as nim_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
@@ -32,6 +39,15 @@ if TYPE_CHECKING:
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
+
+
+class PRStatus(StrEnum):
+    """GitHub PR status filter options."""
+
+    OPEN = "open"
+    CLOSED = "closed"
+    MERGED = "merged"
+    ALL = "all"
 
 
 class MettaCLI:
@@ -229,7 +245,7 @@ def _get_selected_modules(components: list[str] | None = None, ensure_required: 
     _ensure_components_initialized()
     from metta.setup.registry import get_all_modules
 
-    return [
+    component_objs = [
         m
         for m in get_all_modules()
         if (
@@ -237,6 +253,13 @@ def _get_selected_modules(components: list[str] | None = None, ensure_required: 
             or (components is None and m.is_enabled())
         )
     ]
+    if components:
+        component_names = {m.name for m in component_objs}
+        not_found_components = [c for c in components if c not in component_names]
+        if not_found_components:
+            error(f"Unknown components: {', '.join(not_found_components)}")
+            raise typer.Exit(1)
+    return component_objs
 
 
 def _get_all_package_names() -> list[str]:
@@ -548,11 +571,10 @@ def cmd_publish(
             info(f"Pushing {package} as child repo...")
             subprocess.run([f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"], check=True)
     except subprocess.CalledProcessError as exc:
-        error(
-            f"Failed to publish: {exc}. {tag_name} was still published to {remote}."
+        warning(
+            f"Failed to push child repo: {exc}. {tag_name} was still published to {remote}."
             + " Use --no-repo to skip pushing to github repo."
         )
-        raise typer.Exit(exc.returncode) from exc
 
     if publish_mettagrid_after:
         info("")
@@ -611,6 +633,137 @@ def cmd_go(ctx: typer.Context):
     webbrowser.open(url)
 
 
+@app.command(name="pr-feed", help="Show PRs that touch a specific path")
+def cmd_pr_feed(
+    path: Annotated[str, typer.Argument(help="Path filter (e.g., metta/jobs)")],
+    status: Annotated[PRStatus, typer.Option("--status", help="PR status filter")] = PRStatus.OPEN,
+    num_days: Annotated[int, typer.Option("--num_days", help="Search PRs updated in last N days")] = 30,
+):
+    """Show PRs that touch files in a specific path.
+
+    Automatically fetches all pages within the time window.
+    """
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    # Convert status to GraphQL enum
+    # Note: "closed" includes both CLOSED (without merge) and MERGED
+    status_mapping = {
+        PRStatus.OPEN: ("OPEN", "OPEN"),
+        PRStatus.CLOSED: ("CLOSED, MERGED", "CLOSED/MERGED"),
+        PRStatus.MERGED: ("MERGED", "MERGED"),
+        PRStatus.ALL: ("OPEN, CLOSED, MERGED", "ALL"),
+    }
+    states, status_display = status_mapping[status]
+
+    console = Console()
+    console.print(
+        f"🔍 Searching for [yellow]{status_display}[/yellow] PRs touching: [cyan]{path}[/cyan] (last {num_days} days)"
+    )
+    console.print()
+
+    # Calculate cutoff date
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=num_days)
+
+    try:
+        cursor = None
+        total_found = 0
+        page_num = 0
+
+        while True:
+            page_num += 1
+            # Build pagination parameter
+            after_clause = f', after: "{cursor}"' if cursor else ""
+
+            # Run GraphQL query via gh CLI (ordered by most recently updated)
+            query = f"""
+            query {{
+              repository(owner: "Metta-AI", name: "metta") {{
+                pullRequests(
+                  first: 100,
+                  states: [{states}],
+                  orderBy: {{field: UPDATED_AT, direction: DESC}}{after_clause}
+                ) {{
+                  pageInfo {{
+                    hasNextPage
+                    endCursor
+                  }}
+                  nodes {{
+                    number
+                    title
+                    url
+                    author {{ login }}
+                    updatedAt
+                    files(first: 100) {{
+                      nodes {{ path }}
+                    }}
+                  }}
+                }}
+              }}
+            }}
+            """
+
+            result = subprocess.run(
+                ["gh", "api", "graphql", "-f", f"query={query}"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            data = json.loads(result.stdout)
+            pull_requests = data["data"]["repository"]["pullRequests"]
+            prs = pull_requests["nodes"]
+            page_info = pull_requests["pageInfo"]
+
+            # Filter and display PRs that touch the specified path
+            page_matches = 0
+            oldest_pr_date = None
+
+            for pr in prs:
+                # Parse update date
+                updated = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
+                oldest_pr_date = updated  # Track oldest in this batch
+
+                # Skip if older than cutoff
+                if updated < cutoff_date:
+                    break
+
+                # Check if touches our path
+                if any(file["path"].startswith(path) for file in pr["files"]["nodes"]):
+                    page_matches += 1
+                    total_found += 1
+                    updated_str = updated.strftime("%Y-%m-%d")
+
+                    console.print(f"[green]PR #{pr['number']}:[/green] {pr['title']}")
+                    console.print(f"  Author: [cyan]@{pr['author']['login']}[/cyan] • Updated: {updated_str}")
+                    console.print(f"  {pr['url']}")
+                    console.print()
+
+            # Check if we should continue
+            if not page_info["hasNextPage"]:
+                break
+
+            # Stop if we've gone past the cutoff date
+            if oldest_pr_date and oldest_pr_date < cutoff_date:
+                break
+
+            # Continue to next page
+            cursor = page_info["endCursor"]
+
+        # Summary
+        if total_found == 0:
+            console.print(f"[yellow]No {status_display} PRs found touching {path} in the last {num_days} days[/yellow]")
+        else:
+            console.print(f"[green]✅ Found {total_found} {status_display} PR(s)[/green]")
+
+    except subprocess.CalledProcessError as e:
+        error(f"Failed to fetch PRs: {e.stderr}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        error(f"Error: {e}")
+        raise typer.Exit(1) from e
+
+
 # Report env details command
 @app.command(name="report-env-details", help="Report environment details including UV project directory")
 def cmd_report_env_details():
@@ -657,10 +810,10 @@ def cmd_gridworks(ctx: typer.Context):
 app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
-app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
 app.add_typer(python_test_runner_app, name="pytest")
 app.add_typer(cpp_test_runner_app, name="cpptest")
+app.add_typer(nim_test_runner_app, name="nimtest")
 app.command(
     name="ci",
     help="Run CI checks locally",
@@ -674,4 +827,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    init_logging()
     main()

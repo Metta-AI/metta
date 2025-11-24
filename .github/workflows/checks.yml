@@ -3,7 +3,7 @@ name: "Test and Benchmark"
 # This workflow uses metta ci as the single source of truth for CI checks.
 # Each job calls metta ci with a specific stage:
 #   --stage lint, --stage python-tests-and-benchmarks,
-#   --stage cpp-tests, --stage cpp-benchmarks
+#   --stage cpp-tests, --stage cpp-benchmarks, --stage nim-tests, --stage recipe-tests
 # Local development can run all stages with: metta ci
 
 on:
@@ -258,8 +258,31 @@ jobs:
           fi
           uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
 
+  recipe-tests:
+    name: "Tests - Recipes (recipes.validation.ci_suite.py)"
+    needs: [graphite-ci-optimizer, setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_test == 'true')
+    runs-on: ubuntu-8core
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "runtime"
+
+      - name: Run Recipe tests
+        shell: bash
+        run: |
+          set -eo pipefail
+          uv run python .github/scripts/run_ci_stage.py recipe-tests --no-interactive
+
   cpp-tests:
-    name: "Tests - C++"
+    name: "Tests - C++ and Nim"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -316,9 +339,13 @@ jobs:
         id: mettagrid-cpp-benchmarks
         run: uv run python .github/scripts/run_ci_stage.py cpp-benchmarks
 
+      - name: Run Nim tests
+        id: mettagrid-nim-tests
+        run: uv run python .github/scripts/run_ci_stage.py nim-tests
+
   tests-summary:
     name: "Tests"
-    needs: [python-tests, cpp-tests]
+    needs: [python-tests, cpp-tests, recipe-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -18,7 +18,6 @@ from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
-from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sweep import SweepTool
@@ -149,18 +148,6 @@ def evaluate(
     )
 
 
-def evaluate_remote(
-    policy_uri: str,
-    eval_simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> EvalRemoteTool:
-    """Remote evaluation with sparse reward environments."""
-    sims = list(eval_simulations) if eval_simulations is not None else simulations()
-    return EvalRemoteTool(
-        simulations=sims,
-        policy_uri=policy_uri,
-    )
-
-
 # Sweep section
 
 SWEEP_EVAL_SUITE = "sweep_arena_sparse"
@@ -206,7 +193,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="experiments.recipes.arena_with_sparse_rewards",
+        recipe="recipes.experiment.arena_with_sparse_rewards",
         train_entrypoint="train",
         # We can set global overrides for training here.
         # These are passed via the CLI

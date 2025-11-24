@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import List, Optional
+from typing import Optional
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.envs.stats_tracker import StatsTracker
@@ -19,20 +19,18 @@ class Rollout:
         self,
         config: MettaGridConfig,
         policies: list[AgentPolicy],
-        max_action_time_ms: int = 10000,
+        max_action_time_ms: int | None = 10000,
         render_mode: Optional[RenderMode] = None,
         seed: int = 0,
-        pass_sim_to_policies: bool = False,
-        event_handlers: Optional[List[SimulatorEventHandler]] = None,
+        event_handlers: Optional[list[SimulatorEventHandler]] = None,
         stats_writer: Optional[StatsWriter] = None,
     ):
         self._config = config
         self._policies = policies
         self._simulator = Simulator()
-        self._max_action_time_ms = max_action_time_ms
+        self._max_action_time_ms: int = max_action_time_ms or 10000
         self._renderer: Optional[Renderer] = None
         self._timeout_counts: list[int] = [0] * len(policies)
-        self._pass_sim_to_policies = pass_sim_to_policies  # Whether to pass the simulation to the policies
         # Attach renderer if specified
         if render_mode is not None:
             self._renderer = create_renderer(render_mode)
@@ -41,9 +39,8 @@ class Rollout:
         if stats_writer is not None:
             self._simulator.add_event_handler(StatsTracker(stats_writer))
         # Attach additional event handlers
-        if event_handlers:
-            for handler in event_handlers:
-                self._simulator.add_event_handler(handler)
+        for handler in event_handlers or []:
+            self._simulator.add_event_handler(handler)
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 

@@ -7,12 +7,6 @@
 
 #include "core/types.hpp"
 
-enum EventType {
-  FinishConverting = 0,
-  CoolDown = 1,
-  EventTypeCount
-};
-
 // We want empty tokens to be 0xff, since 0s are very natural numbers to have in the observations, and we want
 // empty to be obviously different.
 const uint8_t EmptyTokenByte = 0xff;

@@ -10,7 +10,6 @@
 #include "actions/resource_mod.hpp"
 #include "config/mettagrid_config.hpp"
 #include "config/observation_features.hpp"
-#include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
@@ -54,16 +53,11 @@ protected:
         {"type_id", 0},
         {"agent:group", 1},
         {"agent:frozen", 2},
-        {"agent:orientation", 3},
-        {"agent:reserved_for_future_use", 4},
-        {"converting", 5},
         {"episode_completion_pct", 7},
         {"last_action", 8},
-        {"last_action_arg", 9},
         {"last_reward", 10},
         {"vibe", 11},
         {"agent:vibe", 12},
-        {"agent:visitation_counts", 13},
         {"agent:compass", 14},
         {"tag", 15},
         {"cooldown_remaining", 16},
@@ -119,7 +113,6 @@ protected:
                        create_test_inventory_config(),  // resource_limits
                        create_test_stats_rewards(),     // stats_rewards
                        create_test_stats_reward_max(),  // stats_reward_max
-                       0.0f,                            // group_reward_pct
                        {});                             // initial_inventory
   }
 };
@@ -230,7 +223,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   std::unordered_map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;  // Cap at 2.0 instead of 10.0
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max);
 
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
@@ -297,7 +290,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   stats_reward_max[std::string(TestItemStrings::HEART) + ".amount"] = 30.0f;  // Cap for HEART
   // LASER and ARMOR have no caps
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max);
 
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
@@ -354,7 +347,7 @@ TEST_F(MettaGridCppTest, SharedInventoryLimits) {
   auto rewards = create_test_stats_rewards();
   auto stats_reward_max = create_test_stats_reward_max();
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max);
 
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
@@ -871,17 +864,6 @@ TEST_F(MettaGridCppTest, FractionalConsumptionDeterministicWithSameSeed) {
   EXPECT_EQ(agent1->inventory.amount(TestItems::ORE), agent2->inventory.amount(TestItems::ORE));
 }
 
-// ==================== Event System Tests ====================
-
-TEST_F(MettaGridCppTest, EventManager) {
-  Grid grid(10, 10);
-  EventManager event_manager;
-
-  // Test that event manager can be initialized
-  // (This is a basic test - more complex event testing would require more setup)
-  EXPECT_NO_THROW(event_manager.process_events(1));
-}
-
 // ==================== Assembler Tests ====================
 
 TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
@@ -1028,7 +1010,7 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentProtocol) {
   auto protocol0 = std::make_shared<Protocol>();  // Default protocol (vibe 0)
   protocol0->input_resources[0] = 1;
 
-  auto protocol1 = std::make_shared<Protocol>(std::vector<ObservationType>{1});  // Protocol for vibe 1
+  auto protocol1 = std::make_shared<Protocol>(0, std::vector<ObservationType>{1});  // Protocol for vibe 1
   protocol1->input_resources[1] = 2;
 
   config.protocols.push_back(protocol0);
@@ -1074,9 +1056,9 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   protocol0->input_resources[0] = 2;              // 2 units of item 0
   protocol0->output_resources[1] = 1;             // 1 unit of output item 1
 
-  auto protocol1 = std::make_shared<Protocol>(std::vector<ObservationType>{1});  // Protocol for vibe 1
-  protocol1->input_resources[2] = 3;                                             // 3 units of item 2
-  protocol1->output_resources[3] = 2;                                            // 2 units of output item 3
+  auto protocol1 = std::make_shared<Protocol>(0, std::vector<ObservationType>{1});  // Protocol for vibe 1
+  protocol1->input_resources[2] = 3;                                                // 3 units of item 2
+  protocol1->output_resources[3] = 2;                                               // 2 units of output item 3
 
   config.protocols.push_back(protocol0);
   config.protocols.push_back(protocol1);
@@ -1126,7 +1108,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
   std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
-  auto protocol = std::make_shared<Protocol>(std::vector<ObservationType>{}, input_resources, output_resources, 0);
+  auto protocol = std::make_shared<Protocol>(0, std::vector<ObservationType>{}, input_resources, output_resources, 0);
 
   // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
@@ -1179,7 +1161,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
   std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
-  auto protocol = std::make_shared<Protocol>(std::vector<ObservationType>{}, input_resources, output_resources, 0);
+  auto protocol = std::make_shared<Protocol>(0, std::vector<ObservationType>{}, input_resources, output_resources, 0);
 
   // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
@@ -1409,20 +1391,136 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 3) << "Should still have 3 lasers (no production)";
 }
 
-TEST_F(MettaGridCppTest, AssemblerExhaustion) {
+TEST_F(MettaGridCppTest, AssemblerMinAgentsProtocolSelection) {
   // Create a simple grid
   Grid grid(10, 10);
   unsigned int current_timestep = 0;
 
-  // Create an assembler with exhaustion enabled
+  // Create an assembler with multiple protocols with different min_agents values
   AssemblerConfig config(1, "test_assembler");
-  config.exhaustion = 0.5f;  // 50% exhaustion rate - multiplier grows by 1.5x each use
 
-  // Create protocol with cooldown
+  // Protocol 1: min_agents = 0 (can be used with any number of agents)
+  auto protocol_0 = std::make_shared<Protocol>(0, std::vector<ObservationType>{});
+  protocol_0->input_resources[TestItems::ORE] = 1;
+  protocol_0->output_resources[TestItems::LASER] = 1;
+  protocol_0->cooldown = 0;
+
+  // Protocol 2: min_agents = 2 (requires at least 2 agents)
+  auto protocol_2 = std::make_shared<Protocol>(2, std::vector<ObservationType>{});
+  protocol_2->input_resources[TestItems::ORE] = 2;
+  protocol_2->output_resources[TestItems::ARMOR] = 1;
+  protocol_2->cooldown = 0;
+
+  // Protocol 3: min_agents = 4 (requires at least 4 agents)
+  auto protocol_4 = std::make_shared<Protocol>(4, std::vector<ObservationType>{});
+  protocol_4->input_resources[TestItems::ORE] = 3;
+  protocol_4->output_resources[TestItems::HEART] = 1;
+  protocol_4->cooldown = 0;
+
+  // Add protocols in order (they should be sorted by min_agents descending)
+  config.protocols.push_back(protocol_0);
+  config.protocols.push_back(protocol_2);
+  config.protocols.push_back(protocol_4);
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  auto resource_names = create_test_resource_names();
+
+  // Positions around (5, 5): (4, 4), (4, 5), (4, 6), (5, 4), (5, 6), (6, 4), (6, 5), (6, 6)
+  std::vector<std::pair<GridCoord, GridCoord>> positions = {
+      {4, 4}, {4, 5}, {4, 6}, {5, 4}, {5, 6}, {6, 4}, {6, 5}, {6, 6}};
+
+  // Helper function to count and place agents around the assembler
+  // Returns the total number of agents after placement
+  auto place_agents = [&](int target_count) -> int {
+    int current_count = 0;
+    // Count existing agents
+    for (const auto& pos : positions) {
+      GridObject* obj = grid.object_at(GridLocation(pos.first, pos.second));
+      if (obj) {
+        Agent* agent = dynamic_cast<Agent*>(obj);
+        if (agent) {
+          current_count++;
+        }
+      }
+    }
+    // Add agents until we reach target_count
+    for (int i = 0; current_count < target_count && i < static_cast<int>(positions.size()); ++i) {
+      // Check if position is empty
+      if (grid.is_empty(positions[i].first, positions[i].second)) {
+        AgentConfig agent_cfg = create_test_agent_config();
+        agent_cfg.initial_inventory[TestItems::ORE] = 10;
+        Agent* agent = new Agent(positions[i].first, positions[i].second, agent_cfg, &resource_names);
+        float agent_reward = 0.0f;
+        agent->reward = &agent_reward;
+        grid.add_object(agent);
+        current_count++;
+      }
+    }
+    return current_count;
+  };
+
+  // Test 1: With 0 agents, should return protocol_0 (min_agents = 0)
+  const Protocol* current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 0 agents";
+  EXPECT_EQ(current_protocol->min_agents, 0) << "Should return protocol with min_agents = 0";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::LASER), 1)
+      << "Should return protocol_0 (produces LASER)";
+
+  // Test 2: With 1 agent, should return protocol_0 (min_agents = 0)
+  place_agents(1);
+  current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 1 agent";
+  EXPECT_EQ(current_protocol->min_agents, 0) << "Should return protocol with min_agents = 0";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::LASER), 1)
+      << "Should return protocol_0 (produces LASER)";
+
+  // Test 3: With 2 agents, should return protocol_2 (min_agents = 2, highest that fits)
+  place_agents(2);
+  current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 2 agents";
+  EXPECT_EQ(current_protocol->min_agents, 2) << "Should return protocol with min_agents = 2";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::ARMOR), 1)
+      << "Should return protocol_2 (produces ARMOR)";
+
+  // Test 4: With 3 agents, should return protocol_2 (min_agents = 2, highest that fits)
+  place_agents(3);
+  current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 3 agents";
+  EXPECT_EQ(current_protocol->min_agents, 2) << "Should return protocol with min_agents = 2";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::ARMOR), 1)
+      << "Should return protocol_2 (produces ARMOR)";
+
+  // Test 5: With 4 agents, should return protocol_4 (min_agents = 4, highest that fits)
+  place_agents(4);
+  current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 4 agents";
+  EXPECT_EQ(current_protocol->min_agents, 4) << "Should return protocol with min_agents = 4";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::HEART), 1)
+      << "Should return protocol_4 (produces HEART)";
+
+  // Test 6: With 5 agents, should return protocol_4 (min_agents = 4, highest that fits)
+  place_agents(5);
+  current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 5 agents";
+  EXPECT_EQ(current_protocol->min_agents, 4) << "Should return protocol with min_agents = 4";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::HEART), 1)
+      << "Should return protocol_4 (produces HEART)";
+}
+
+TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with a protocol that produces output
+  AssemblerConfig config(1, "test_assembler");
   auto protocol = std::make_shared<Protocol>();
-  protocol->input_resources[TestItems::ORE] = 1;
-  protocol->output_resources[TestItems::LASER] = 1;
-  protocol->cooldown = 10;  // Base cooldown of 10 timesteps
+  protocol->input_resources[TestItems::ORE] = 2;
+  protocol->output_resources[TestItems::LASER] = 1;  // Produces 1 LASER
+  protocol->cooldown = 0;
 
   config.protocols.push_back(protocol);
 
@@ -1430,50 +1528,95 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   assembler.set_grid(&grid);
   assembler.set_current_timestep_ptr(&current_timestep);
 
-  // Create an agent with plenty of resources
-  AgentConfig agent_cfg = create_test_agent_config();
-  agent_cfg.initial_inventory[TestItems::ORE] = 10;
-
   auto resource_names = create_test_resource_names();
+
+  // Create a single agent that we'll reuse for different tests
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;  // Has input resources
+
   Agent* agent = new Agent(4, 5, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->reward = &agent_reward;
   grid.add_object(agent);
 
-  // Test 1: Verify initial state
-  EXPECT_EQ(assembler.exhaustion, 0.5f) << "Exhaustion rate should be 0.5";
-  EXPECT_EQ(assembler.cooldown_multiplier, 1.0f) << "Initial cooldown multiplier should be 1.0";
+  // Test 1: Agent with full inventory for output item - should fail
+  agent->update_inventory(TestItems::LASER, 50);  // Fill to limit (50)
 
-  // Test 2: First use should have normal cooldown
+  // Verify agent has full inventory
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 50);
+  EXPECT_EQ(agent->inventory.free_space(TestItems::LASER), 0);
+
+  // Try to use assembler - should fail because agent can't receive output
   bool success = assembler.onUse(*agent, 0);
-  EXPECT_TRUE(success) << "First use should succeed";
-  EXPECT_EQ(assembler.cooldown_end_timestep, 10) << "First cooldown should be 10 (base cooldown)";
-  EXPECT_EQ(assembler.cooldown_multiplier, 1.5f) << "Cooldown multiplier should be 1.5 after first use";
+  EXPECT_FALSE(success) << "Should fail when agents can't receive output";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 10) << "Input resources should not be consumed";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 50) << "Output should not be produced";
 
-  // Test 3: Wait for cooldown and use again
-  current_timestep = 10;
+  // Test 2: Agent with space for output - should succeed
+  // Remove all LASER to make space
+  agent->update_inventory(TestItems::LASER, -50);
+  // ORE should still be 10 since Test 1 failed and didn't consume it
 
+  // Verify agent has space
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 0);
+  EXPECT_GT(agent->inventory.free_space(TestItems::LASER), 0);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 10);
+
+  // Try to use assembler - should succeed
   success = assembler.onUse(*agent, 0);
-  EXPECT_TRUE(success) << "Second use should succeed";
-  // Second cooldown should be 10 * 1.5 = 15
-  EXPECT_EQ(assembler.cooldown_end_timestep, 25) << "Second cooldown should end at 25 (10 + 15)";
-  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 2.25f) << "Cooldown multiplier should be 2.25 after second use";
+  EXPECT_TRUE(success) << "Should succeed when agents can receive output";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 8) << "Should consume 2 ore";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 1) << "Should produce 1 laser";
 
-  // Test 4: Third use should have even longer cooldown
-  current_timestep = 25;
-  success = assembler.onUse(*agent, 0);
-  EXPECT_TRUE(success) << "Third use should succeed";
-  // Third cooldown should be 10 * 2.25 = 22.5, rounded to 22
-  EXPECT_EQ(assembler.cooldown_end_timestep, 47) << "Third cooldown should end at 47 (25 + 22)";
-  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 3.375f) << "Cooldown multiplier should be 3.375 after third use";
+  // Test 3: Protocol with no output - should always succeed (if inputs are available)
+  AssemblerConfig config_no_output(1, "test_assembler_no_output");
+  auto protocol_no_output = std::make_shared<Protocol>();
+  protocol_no_output->input_resources[TestItems::ORE] = 1;
+  // No output resources
+  protocol_no_output->cooldown = 0;
 
-  // Test 5: Verify exhaustion grows exponentially
-  current_timestep = 47;
-  success = assembler.onUse(*agent, 0);
-  EXPECT_TRUE(success) << "Fourth use should succeed";
-  // Fourth cooldown should be 10 * 3.375 = 33.75, rounded to 33
-  EXPECT_EQ(assembler.cooldown_end_timestep, 80) << "Fourth cooldown should end at 80 (47 + 33)";
-  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 5.0625f) << "Cooldown multiplier should be 5.0625 after fourth use";
+  config_no_output.protocols.push_back(protocol_no_output);
+
+  Assembler assembler_no_output(5, 5, config_no_output);
+  assembler_no_output.set_grid(&grid);
+  assembler_no_output.set_current_timestep_ptr(&current_timestep);
+
+  // Fill agent's inventory again
+  agent->update_inventory(TestItems::LASER, 50);  // Fill to limit
+  // Calculate delta needed to get ORE back to 10 (it was consumed to 8 in Test 2)
+  agent->update_inventory(TestItems::ORE, 2);  // Reset ORE to 10
+
+  // Agent with full inventory - should still succeed because protocol has no output
+  success = assembler_no_output.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should succeed when protocol has no output, even if inventory is full";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 1 ore";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 50) << "Output should remain unchanged";
+
+  // Test 4: Multiple agents, all with full inventory - should fail
+  Assembler assembler_multi(5, 5, config);
+  assembler_multi.set_grid(&grid);
+  assembler_multi.set_current_timestep_ptr(&current_timestep);
+
+  // Reset agent's state
+  agent->update_inventory(TestItems::ORE, 10);
+  agent->update_inventory(TestItems::LASER, 50);  // Full
+
+  // Add a second agent at a different surrounding position
+  AgentConfig agent_cfg2 = create_test_agent_config();
+  agent_cfg2.initial_inventory[TestItems::ORE] = 10;
+  agent_cfg2.initial_inventory[TestItems::LASER] = 50;  // Full
+
+  Agent* agent2 = new Agent(4, 6, agent_cfg2, &resource_names);
+  float reward2 = 0.0f;
+  agent2->reward = &reward2;
+  grid.add_object(agent2);
+
+  // Both agents have full inventory
+  EXPECT_EQ(agent->inventory.free_space(TestItems::LASER), 0);
+  EXPECT_EQ(agent2->inventory.free_space(TestItems::LASER), 0);
+
+  success = assembler_multi.onUse(*agent, 0);
+  EXPECT_FALSE(success) << "Should fail when all surrounding agents can't receive output";
 }
 
 // ==================== ResourceMod Tests ====================

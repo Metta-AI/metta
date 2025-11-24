@@ -8,12 +8,12 @@ import pufferlib
 import pufferlib.vector
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
-from metta.sim.replay_log_writer import ReplayLogWriter
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.simulator import Simulator
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.util.stats_writer import NoopStatsWriter, StatsWriter
 
 logger = logging.getLogger("vecenv")
@@ -27,6 +27,7 @@ def make_env_func(
     replay_writer: Optional[ReplayLogWriter] = None,
     run_dir: str | None = None,
     buf: Optional[Any] = None,
+    maps_cache_size: Optional[int] = None,
     **kwargs,
 ):
     if run_dir is not None:
@@ -34,7 +35,7 @@ def make_env_func(
 
     env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig()
 
-    sim = Simulator()
+    sim = Simulator(maps_cache_size=maps_cache_size)
     # Replay writer is added first so it can complete the replay_url for stats tracker
     if replay_writer is not None:
         sim.add_event_handler(replay_writer)
@@ -55,6 +56,7 @@ def make_vecenv(
     num_envs: int = 1,
     batch_size: int | None = None,
     num_workers: int = 1,
+    maps_cache_size: int | None = None,
     stats_writer: StatsWriter | None = None,
     replay_writer: ReplayLogWriter | None = None,
     run_dir: str | None = None,
@@ -81,6 +83,7 @@ def make_vecenv(
         "replay_writer": replay_writer,
         "run_dir": run_dir,
         "env_supervisor_cfg": env_supervisor_cfg,
+        "maps_cache_size": maps_cache_size,
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,

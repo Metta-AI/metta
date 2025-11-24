@@ -11,13 +11,13 @@ from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
-
-# Import everything from the base arena recipe
 from recipes.experiment.arena import (
     make_curriculum,
     mettagrid,
     simulations,
 )
+
+DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
 
 
 def train(
@@ -33,7 +33,7 @@ def train(
     # Configure ScheduleFree AdamW optimizer
     optimizer_config = OptimizerConfig(
         type="adamw_schedulefree",
-        learning_rate=0.001153637,  # Same as default
+        learning_rate=DEFAULT_LR,
         beta1=0.9,
         beta2=0.999,
         eps=3.186531e-07,
@@ -67,7 +67,7 @@ def train_shaped(rewards: bool = True) -> TrainTool:
     # Configure ScheduleFree AdamW optimizer (using native implementation)
     optimizer_config = OptimizerConfig(
         type="adamw_schedulefree",
-        learning_rate=0.01,  # Same as default
+        learning_rate=0.01,
         beta1=0.9,
         beta2=0.999,
         eps=3.186531e-07,
@@ -185,7 +185,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="experiments.recipes.losses.schedulefree",
+        recipe="recipes.experiment.losses.schedulefree",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
         objective="evaluator/eval_sweep/score",

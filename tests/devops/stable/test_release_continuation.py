@@ -207,11 +207,12 @@ def test_cmd_validate_runs_validation_pipeline(monkeypatch, tmp_path):
 
     from devops.stable.stable import cmd_validate
 
-    # Create mock context with version and skip_commit_match
+    # Create mock context with version, skip_commit_match, and no_interactive
     mock_ctx = MagicMock()
     mock_ctx.obj = {
         "version": "2025.10.09-143000",
         "skip_commit_match": False,
+        "no_interactive": True,  # Tests should default to non-interactive
     }
 
     # Mock all the step functions
@@ -239,11 +240,12 @@ def test_cmd_hotfix_skips_validation(monkeypatch, tmp_path):
 
     from devops.stable.stable import cmd_hotfix
 
-    # Create mock context with version and skip_commit_match
+    # Create mock context with version, skip_commit_match, and no_interactive
     mock_ctx = MagicMock()
     mock_ctx.obj = {
         "version": "2025.10.09-143000",
         "skip_commit_match": False,
+        "no_interactive": True,  # Tests should default to non-interactive
     }
 
     # Mock all the step functions
@@ -260,27 +262,32 @@ def test_cmd_hotfix_skips_validation(monkeypatch, tmp_path):
 
 
 def test_cmd_release_runs_bug_check_and_release(monkeypatch, tmp_path):
-    """Test that cmd_release runs bug check then creates release."""
+    """Test that cmd_release runs full pipeline: prepare-tag -> validation -> bug check -> release."""
     monkeypatch.setattr("devops.stable.state.get_repo_root", lambda: tmp_path)
 
     from unittest.mock import MagicMock
 
     from devops.stable.stable import cmd_release
 
-    # Create mock context with version and skip_commit_match
+    # Create mock context with version, skip_commit_match, and no_interactive
     mock_ctx = MagicMock()
     mock_ctx.obj = {
         "version": "2025.10.09-143000",
         "skip_commit_match": False,
+        "no_interactive": True,  # Tests should default to non-interactive
     }
 
-    # Mock the step functions
-    with patch("devops.stable.stable.step_bug_check") as mock_bug:
-        with patch("devops.stable.stable.step_release") as mock_release:
-            with patch("gitta.get_current_commit", return_value="abc123"):
-                cmd_release(ctx=mock_ctx)
+    # Mock all the step functions that cmd_release now calls
+    with patch("devops.stable.stable.step_prepare_tag") as mock_prepare:
+        with patch("devops.stable.stable.step_job_validation") as mock_validation:
+            with patch("devops.stable.stable.step_bug_check") as mock_bug:
+                with patch("devops.stable.stable.step_release") as mock_release:
+                    with patch("gitta.get_current_commit", return_value="abc123"):
+                        cmd_release(ctx=mock_ctx)
 
-    # Verify release pipeline: bug check then release
+    # Verify full release pipeline runs all steps
+    assert mock_prepare.called
+    assert mock_validation.called
     assert mock_bug.called
     assert mock_release.called
 

@@ -198,7 +198,6 @@ class LocalJob(Job):
     ):
         super().__init__(config.name, log_dir, config.timeout_s, config)
         self.cwd = cwd or get_repo_root()
-
         if "cmd" in config.metadata:
             cmd = config.metadata["cmd"]
             if isinstance(cmd, str):
@@ -360,13 +359,13 @@ class RemoteJob(Job):
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
         arg_list = config.args
-
         if config.remote:
             base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
             if not config.remote.spot:
                 base_args.insert(0, "--no-spot")
         else:
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
+
         self.module = config.module
         self.args = arg_list
         self.base_args = base_args

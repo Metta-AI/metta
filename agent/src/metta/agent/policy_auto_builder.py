@@ -1,6 +1,7 @@
 import logging
 from collections import OrderedDict
 from contextlib import ExitStack
+from functools import partial
 from typing import Any, Optional
 
 import torch
@@ -16,9 +17,12 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 logger = logging.getLogger("metta_agent")
 
 
-def log_on_master(*args, **argv):
+def log_on_master_with_level(log_level: str | int, *args, **argv) -> None:
     if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-        logger.info(*args, **argv)
+        logger.log(log_level, *args, **argv)
+
+
+log_on_master = partial(log_on_master_with_level, logging.INFO)
 
 
 class PolicyAutoBuilder(Policy):
@@ -71,7 +75,7 @@ class PolicyAutoBuilder(Policy):
 
         for log in logs:
             if log is not None:
-                log_on_master(log)
+                log_on_master_with_level(logging.DEBUG, log)
 
     def _configure_sdp(self) -> None:
         self._sdpa_context.close()

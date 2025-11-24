@@ -10,9 +10,6 @@ from pathlib import Path
 import pytest
 
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
-from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -122,36 +119,13 @@ class TestBasicPolicyEnvironment:
         assert kwargs["cwd"] == Path.cwd()
         assert kwargs["env"]["AWS_ACCESS_KEY_ID"] == "dummy_for_test"
 
-    def test_simulation_creation(self, monkeypatch):
-        """Test simulation configuration creation and instantiation."""
-
-        env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(suite="test", name="test_nav", env=env_config)
-
-        assert sim_config.name == "test_nav"
-        assert sim_config.env.game.num_agents == 2
-
-        def _small_curriculum(cls, mg_config):
-            return CurriculumConfig(
-                task_generator=SingleTaskGenerator.Config(env=mg_config),
-                num_active_tasks=1,
-                max_task_id=1,
-            )
-
-        monkeypatch.setattr(CurriculumConfig, "from_mg", classmethod(_small_curriculum))
-        simulation = Simulation.create(
-            sim_config=sim_config,
-            policy_uri=None,
-        )
-        assert simulation.full_name == "test/test_nav"
-
     def test_eval_tool_config_with_policy_uri(self):
         """Test that EvaluateTool accepts policy URIs."""
 
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
 
-        eval_tool = EvaluateTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
+        eval_tool = EvaluateTool(simulations=[sim_config], policy_uris=["mock://test_policy"])
 
         assert eval_tool.simulations[0].name == "test_arena"
         assert eval_tool.policy_uris == ["mock://test_policy"]

@@ -1,9 +1,9 @@
 # metta/sim/simulation_config.py
 
-from typing import Optional
 
 from pydantic import Field
 
+from metta.sim.runner import SimulationRunConfig
 from mettagrid import MettaGridConfig
 from mettagrid.base_config import Config
 
@@ -19,11 +19,13 @@ class SimulationConfig(Config):
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
     max_time_s: int = Field(default=120, description="Maximum time in seconds to run the simulation", ge=0)
 
-    npc_policy_uri: Optional[str] = Field(default=None, description="URI of the policy to use for NPC agents")
-    policy_agents_pct: float = Field(default=1.0, description="pct of agents to be controlled by policies", ge=0, le=1)
-
-    episode_tags: Optional[list[str]] = Field(default=None, description="Tags to add to each episode")
-
     @property
     def full_name(self) -> str:
         return f"{self.suite}/{self.name}"
+
+    def to_simulation_run_config(self) -> SimulationRunConfig:
+        return SimulationRunConfig(
+            env=self.env,
+            num_episodes=self.num_episodes,
+            episode_tags={"name": self.name, "category": self.suite},
+        )

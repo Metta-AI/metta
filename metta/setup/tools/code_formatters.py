@@ -1,4 +1,5 @@
 import subprocess
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -237,6 +238,13 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 extensions=(".cpp", ".hpp", ".h"),
                 accepts_file_args=False,
             ),
+            FormatterConfig(
+                name="Javascript",
+                extensions=(".js", ".jsx", ".ts", ".tsx"),
+                runner=_make_prettier_runner(
+                    extensions=(".js", ".jsx", ".ts", ".tsx"),
+                ),
+            ),
         ]
     }
 
@@ -252,6 +260,7 @@ def cmd_lint(
     files: Annotated[Optional[list[str]], typer.Argument()] = None,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Print total lint time")] = False,
 ):
     """Run linting and formatting on code files.
 
@@ -261,6 +270,8 @@ def cmd_lint(
         metta lint --staged --fix                      # Autofix staged files
         metta lint path/to/file1 path/to/file2 --fix   # Autofix specific files
     """
+    start_time = time.perf_counter()
+
     # Get available formatters
     formatters = get_formatters()
 
@@ -278,6 +289,9 @@ def cmd_lint(
     # Run formatters for each type
     if not files_by_formatter:
         info("No matching files to lint.")
+        if verbose:
+            elapsed = time.perf_counter() - start_time
+            info(f"Lint finished in {elapsed:.2f}s")
         return
 
     failed_formatters: list[tuple[str, str]] = []
@@ -326,3 +340,15 @@ def cmd_lint(
         raise typer.Exit(1)
     else:
         success("All formatting complete")
+
+    if verbose:
+        elapsed = time.perf_counter() - start_time
+        info(f"Lint finished in {elapsed:.2f}s")
+
+
+def main() -> None:
+    app()
+
+
+if __name__ == "__main__":
+    main()

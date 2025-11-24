@@ -39,8 +39,8 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.policy.loader import initialize_or_load_policy, resolve_policy_class_path
-from mettagrid.policy.policy import MultiAgentPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation, Simulator
 from mettagrid.simulator.simulator import Buffers
@@ -87,7 +87,8 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._buffers: Buffers = Buffers(
             observations=np.zeros(
-                (policy_env_info.num_agents, *policy_env_info.observation_space.shape), dtype=dtype_observations
+                (policy_env_info.num_agents, *policy_env_info.observation_space.shape),
+                dtype=dtype_observations,
             ),
             terminals=np.zeros(policy_env_info.num_agents, dtype=dtype_terminals),
             truncations=np.zeros(policy_env_info.num_agents, dtype=dtype_truncations),
@@ -133,8 +134,10 @@ class MettaGridPufferEnv(PufferEnv):
         if self._env_supervisor_cfg.policy is not None:
             self._env_supervisor = initialize_or_load_policy(
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),
-                resolve_policy_class_path(self._env_supervisor_cfg.policy),
-                self._env_supervisor_cfg.policy_data_path,
+                PolicySpec(
+                    class_path=self._env_supervisor_cfg.policy,
+                    data_path=self._env_supervisor_cfg.policy_data_path,
+                ),
             )
 
             self._compute_supervisor_actions()
@@ -155,6 +158,11 @@ class MettaGridPufferEnv(PufferEnv):
         if sim._c_sim.terminals().all() or sim._c_sim.truncations().all():
             self._new_sim()
             sim = cast(Simulation, self._sim)
+
+        # Gymnasium returns int64 arrays by default when sampling MultiDiscrete spaces,
+        # so coerce here to keep callers simple while preserving strict bounds checking.
+        actions_to_copy = actions if actions.dtype == dtype_actions else np.asarray(actions, dtype=dtype_actions)
+        np.copyto(self._buffers.actions, actions_to_copy, casting="safe")
 
         sim.step()
 
@@ -233,6 +241,31 @@ class MettaGridPufferEnv(PufferEnv):
     @teacher_actions.setter
     def teacher_actions(self, teacher_actions: np.ndarray) -> None:
         self._buffers.teacher_actions = teacher_actions
+
+    @property
+    def render_mode(self) -> str:
+        """PufferLib render mode - returns 'ansi' for text-based rendering."""
+        return "ansi"
+
+    def render(self) -> str:
+        """Render the current state as unicode text."""
+        from mettagrid.renderer.miniscope.buffer import MapBuffer
+        from mettagrid.renderer.miniscope.symbol import DEFAULT_SYMBOL_MAP
+
+        sim = cast(Simulation, self._sim)
+
+        symbol_map = DEFAULT_SYMBOL_MAP.copy()
+        for obj in self._current_cfg.game.objects.values():
+            if obj.render_name:
+                symbol_map[obj.render_name] = obj.render_symbol
+            symbol_map[obj.name] = obj.render_symbol
+
+        return MapBuffer(
+            object_type_names=sim.object_type_names,
+            symbol_map=symbol_map,
+            initial_height=sim.map_height,
+            initial_width=sim.map_width,
+        ).render_full_map(sim._c_sim.grid_objects())
 
     def close(self) -> None:
         """Close the environment."""

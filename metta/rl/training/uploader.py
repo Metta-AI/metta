@@ -8,10 +8,10 @@ from urllib.parse import urlparse
 
 import wandb
 
+from metta.common.util.file import local_copy
 from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
-from metta.utils.file import local_copy
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -84,13 +84,6 @@ class Uploader(TrainerComponent):
         }
         if final:
             metadata["final"] = True
-
-        scores = self.context.latest_eval_scores
-        if scores and (scores.category_scores or scores.simulation_scores):
-            metadata.update(
-                score=scores.avg_simulation_score,
-                avg_reward=scores.avg_category_score,
-            )
 
         self._upload(checkpoint_uri, epoch, metadata)
 

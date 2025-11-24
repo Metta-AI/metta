@@ -82,7 +82,7 @@ class Recipe:
 
     @classmethod
     def load(cls, module_path: str) -> Optional["Recipe"]:
-        """Try to load a recipe from a module path. e.g. 'experiments.recipes.arena'"""
+        """Try to load a recipe from a module path. e.g. 'recipes.experiment.arena'"""
         if importlib.util.find_spec(module_path) is None:
             return None
 

@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Optional
 
 import torch
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -15,7 +15,7 @@ from metta.cogworks.curriculum import Curriculum
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
-from metta.common.wandb.context import WandbConfig, WandbContext
+from metta.common.wandb.context import WandbConfig, WandbContext, WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
@@ -31,8 +31,6 @@ from metta.rl.training import (
     Heartbeat,
     Monitor,
     ProgressLogger,
-    Scheduler,
-    SchedulerConfig,
     StatsReporter,
     StatsReporterConfig,
     TorchProfiler,
@@ -45,6 +43,7 @@ from metta.rl.training import (
     WandbAborterConfig,
     WandbLogger,
 )
+from metta.rl.training.scheduler import LossScheduler, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import (
     auto_run_name,
@@ -71,6 +70,7 @@ class TrainTool(Tool):
     group: Optional[str] = None
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
+    scheduler: SchedulerConfig | None = None
 
     context_checkpointer: dict[str, Any] = Field(default_factory=dict)
     stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
@@ -79,17 +79,6 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
     sandbox: bool = False
-
-    @model_validator(mode="after")
-    def validate_fields(self) -> "TrainTool":
-        if self.evaluator.epoch_interval != 0:
-            if self.evaluator.epoch_interval < self.checkpointer.epoch_interval:
-                raise ValueError(
-                    "evaluator.epoch_interval must be at least as large as checkpointer.epoch_interval "
-                    "to ensure policies are saved before evaluation"
-                )
-
-        return self
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:
@@ -111,6 +100,19 @@ class TrainTool(Tool):
         if self.sandbox:
             self._apply_sandbox_config()
             logger.info("Running in sandbox mode (fast validation: 1M steps, epoch-1 checkpoints/evals)")
+
+        # Ensure we checkpoint whenever we evaluate by making checkpointer.epoch_interval
+        # a divisor of evaluator.epoch_interval
+        if self.evaluator.epoch_interval != 0:
+            if self.evaluator.epoch_interval % self.checkpointer.epoch_interval != 0:
+                logger.warning(
+                    "evaluator.epoch_interval (%d) is not a multiple of checkpointer.epoch_interval (%d). "
+                    "Adjusting checkpointer.epoch_interval to %d to ensure checkpoints occur during evaluations.",
+                    self.evaluator.epoch_interval,
+                    self.checkpointer.epoch_interval,
+                    self.evaluator.epoch_interval,
+                )
+                self.checkpointer.epoch_interval = self.evaluator.epoch_interval
 
         if self.evaluator and self.evaluator.evaluate_local:
             # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
@@ -157,6 +159,7 @@ class TrainTool(Tool):
                     checkpoint_manager=checkpoint_manager,
                     stats_client=stats_client,
                     policy_checkpointer=policy_checkpointer,
+                    run_name=self.run,
                     wandb_run=wandb_run,
                 )
 
@@ -230,7 +233,8 @@ class TrainTool(Tool):
         checkpoint_manager: CheckpointManager,
         stats_client: Optional[StatsClient],
         policy_checkpointer: Checkpointer,
-        wandb_run,
+        run_name: str,
+        wandb_run: WandbRun | None,
     ) -> None:
         components: list[TrainerComponent] = []
 
@@ -238,27 +242,17 @@ class TrainTool(Tool):
         if heartbeat_cfg is not None:
             components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
 
-        # Ensure learning-rate schedules stay in sync across ranks
-        hyper_cfg = getattr(self.trainer, "hyperparameter_scheduler", None)
-        if hyper_cfg and getattr(hyper_cfg, "enabled", False):
-            interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
-            hyper_component = Scheduler(SchedulerConfig(interval=max(1, int(interval))))
-            components.append(hyper_component)
-
         stats_component: TrainerComponent | None = None
 
         if distributed_helper.is_master():
             stats_config = self.stats_reporter.model_copy(update={"report_to_wandb": bool(wandb_run)})
-            reporting_enabled = (
-                stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
-            )
+            reporting_enabled = stats_config.report_to_wandb or stats_config.report_to_console
 
             if self.gradient_reporter.epoch_interval:
                 components.append(GradientReporter(self.gradient_reporter))
 
             stats_component = StatsReporter.from_config(
                 stats_config,
-                stats_client=stats_client,
                 wandb_run=wandb_run,
             )
 
@@ -272,8 +266,10 @@ class TrainTool(Tool):
                 Evaluator(
                     config=self.evaluator,
                     device=torch.device(self.system.device),
-                    system_cfg=self.system,
+                    seed=self.system.seed,
+                    run_name=run_name,
                     stats_client=stats_client,
+                    wandb_run=wandb_run,
                 )
             )
 
@@ -322,6 +318,9 @@ class TrainTool(Tool):
 
         if wandb_run is not None and distributed_helper.is_master():
             trainer.register(WandbLogger(wandb_run))
+
+        if self.scheduler is not None:
+            trainer.register(LossScheduler(self.scheduler))
 
     def _configure_torch_backends(self) -> None:
         if not torch.cuda.is_available():

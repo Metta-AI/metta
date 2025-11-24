@@ -18,7 +18,6 @@ struct AssemblerConfig : public GridObjectConfig {
       : GridObjectConfig(type_id, type_name, initial_vibe),
         allow_partial_usage(false),
         max_uses(0),             // 0 means unlimited uses
-        exhaustion(0.0f),        // 0 means no exhaustion
         clip_immune(false),      // Not immune by default
         start_clipped(false) {}  // Not clipped at start by default
 
@@ -29,9 +28,6 @@ struct AssemblerConfig : public GridObjectConfig {
   bool allow_partial_usage;
   // Maximum number of uses (0 = unlimited)
   unsigned int max_uses;
-
-  // Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) each use
-  float exhaustion;
 
   // Clip immunity - if true, this assembler cannot be clipped
   bool clip_immune;
@@ -54,7 +50,6 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("protocols", &AssemblerConfig::protocols)
       .def_readwrite("allow_partial_usage", &AssemblerConfig::allow_partial_usage)
       .def_readwrite("max_uses", &AssemblerConfig::max_uses)
-      .def_readwrite("exhaustion", &AssemblerConfig::exhaustion)
       .def_readwrite("clip_immune", &AssemblerConfig::clip_immune)
       .def_readwrite("start_clipped", &AssemblerConfig::start_clipped)
       .def_readwrite("initial_vibe", &AssemblerConfig::initial_vibe);

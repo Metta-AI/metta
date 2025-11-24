@@ -1,4 +1,10 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
+
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 
 import asyncio
 import logging
@@ -12,13 +18,11 @@ from pydantic.main import BaseModel
 from metta.app_backend.auth import user_from_header_or_token
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
-    cogames_routes,
-    entity_routes,
     eval_task_routes,
+    leaderboard_routes,
     sql_routes,
     stats_routes,
     sweep_routes,
-    token_routes,
 )
 
 
@@ -53,8 +57,6 @@ def setup_logging():
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-
-    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     # Configure scorecard performance logger specifically
     scorecard_logger = logging.getLogger("dashboard_performance")
@@ -113,25 +115,21 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     )
 
     # Create routers with the provided StatsRepo
-    cogames_router = cogames_routes.create_cogames_router(stats_repo)
     eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
     sql_router = sql_routes.create_sql_router(stats_repo)
     stats_router = stats_routes.create_stats_router(stats_repo)
-    token_router = token_routes.create_token_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
-    entity_router = entity_routes.create_entity_router(stats_repo)
+    leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
 
-    app.include_router(cogames_router)
     app.include_router(eval_task_router)
     app.include_router(sql_router)
     app.include_router(stats_router)
-    app.include_router(token_router)
     app.include_router(sweep_router)
-    app.include_router(entity_router)
+    app.include_router(leaderboard_router)
 
     @app.get("/whoami")
     async def whoami(request: fastapi.Request) -> WhoAmIResponse:
-        user_id = await user_from_header_or_token(request, stats_repo)
+        user_id = await user_from_header_or_token(request)
         return WhoAmIResponse(user_email=user_id or "unknown")
 
     return app

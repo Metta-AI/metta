@@ -1,15 +1,18 @@
+from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
+from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
+from cogames.cogs_vs_clips.machina_missions_trainer import MACHINA_TRAINER_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
+from cogames.cogs_vs_clips.sites import EASY_MODE, HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
-    ChestHeartTuneVariant,
     ClipHubStationsVariant,
     ClipPeriodOnVariant,
+    EmptyBaseVariant,
+    ExtractorHeartTuneVariant,
     HeartChorusVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
-    NeutralFacedVariant,
     PackRatVariant,
     VibeCheckMin2Variant,
 )
@@ -17,29 +20,19 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 
 # Training Facility Missions
 
-
-# Recreated with existing variant(s)
 HarvestMission = Mission(
     name="harvest",
     description="Collect resources, assemble hearts, and deposit them in the chest. Make sure to stay charged!",
     site=TRAINING_FACILITY,
+    variants=[ExtractorHeartTuneVariant(hearts=10), PackRatVariant(), LonelyHeartVariant()],
 )
-
-
-AssembleMission = Mission(
-    name="assemble",
-    description="Make HEARTs by using the assembler. Coordinate your team to maximize efficiency.",
-    site=TRAINING_FACILITY,
-    variants=[InventoryHeartTuneVariant(hearts=5), PackRatVariant()],
-)
-
 
 VibeCheckMission = Mission(
     name="vibe_check",
     description="Modulate the group vibe to assemble HEARTs.",
     site=TRAINING_FACILITY,
     num_cogs=4,
-    variants=[VibeCheckMin2Variant(), InventoryHeartTuneVariant(hearts=1)],
+    variants=[VibeCheckMin2Variant(), ExtractorHeartTuneVariant(hearts=10)],
 )
 
 
@@ -48,63 +41,48 @@ RepairMission = Mission(
     description="Repair disabled stations to restore their functionality.",
     site=TRAINING_FACILITY,
     num_cogs=2,
-    variants=[InventoryHeartTuneVariant(hearts=1), ClipPeriodOnVariant(), ClipHubStationsVariant()],
-)
+    variants=[
+        InventoryHeartTuneVariant(hearts=1),
+        ExtractorHeartTuneVariant(hearts=10),
+        LonelyHeartVariant(),
+        ClipPeriodOnVariant(),
+        ClipHubStationsVariant(),
+    ],
+)  # If you get only two hearts you failed.
 
-
-UnclipDrillsMission = Mission(
-    name="unclip_drills",
-    description="Practice unclipping hub facilities after a grid outage.",
-    site=TRAINING_FACILITY,
-    variants=[ClipPeriodOnVariant(), InventoryHeartTuneVariant(hearts=1), ClipHubStationsVariant()],
-)
-
-
-SignsAndPortentsMission = Mission(
-    name="signs_and_portents",
-    description="Interpret the signs and portents to discover new assembler protocols.",
-    site=TRAINING_FACILITY,
-)
 
 # Easy Hearts: simplified heart crafting and generous limits with extractor hub
-EasyHeartsMission = Mission(
-    name="easy_hearts",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+EasyHeartsTrainingMission = Mission(
+    name="easy_hearts_training_facility",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=TRAINING_FACILITY,
     variants=[
         LonelyHeartVariant(),
         HeartChorusVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
+    ],
+)
+
+# Easy Hearts: simplified heart crafting and generous limits with extractor hub
+EasyHeartsHelloWorldMission = Mission(
+    name="easy_hearts_hello_world",
+    description="Simplified heart crafting with generous caps and extractor base.",
+    site=HELLO_WORLD,
+    variants=[
+        LonelyHeartVariant(),
+        HeartChorusVariant(),
+        PackRatVariant(),
     ],
 )
 
 
 # Hello World Missions
-ExploreMission = Mission(
-    name="explore",
-    description="There are HEART chests scattered around the map. Put your HEARTs in them.",
-    site=HELLO_WORLD,
-    variants=[InventoryHeartTuneVariant(hearts=1, heart_capacity=10), PackRatVariant()],
-)
-
-
-TreasureHuntMission = Mission(
-    name="treasure_hunt",
-    description=(
-        "The solar flare is making the germanium extractors really fiddly. "
-        "A team of 4 is required to harvest germanium."
-    ),
-    site=HELLO_WORLD,
-    num_cogs=4,
-    variants=[ClipPeriodOnVariant()],
-)
-
 
 HelloWorldOpenWorldMission = Mission(
     name="open_world",
     description="Collect resources and assemble HEARTs.",
     site=HELLO_WORLD,
+    variants=[EmptyBaseVariant()],
 )
 
 
@@ -113,6 +91,7 @@ Machina1OpenWorldMission = Mission(
     name="open_world",
     description="Collect resources and assemble HEARTs.",
     site=MACHINA_1,
+    variants=[EmptyBaseVariant()],
 )
 
 
@@ -121,23 +100,37 @@ HelloWorldUnclipMission = Mission(
     description="Stabilize clipped extractors scattered across the hello_world sector.",
     site=HELLO_WORLD,
     num_cogs=4,
-    variants=[ClipPeriodOnVariant(), ChestHeartTuneVariant(hearts=2)],
+    variants=[ClipPeriodOnVariant(), InventoryHeartTuneVariant(hearts=1), ClipHubStationsVariant()],
 )
+
+
+# Easy Mode: Simplified training mission with extractor hub and generous variants
+EasyMode = Mission(
+    name="easy_mode",
+    description="Easy training: extractor_hub_30 with lonely_heart, heart_chorus, and pack_rat variants.",
+    site=EASY_MODE,
+    variants=[
+        LonelyHeartVariant(),
+        HeartChorusVariant(),
+        PackRatVariant(),
+    ],
+)
+
 
 MISSIONS: list[Mission] = [
     HarvestMission,
-    AssembleMission,
     VibeCheckMission,
     RepairMission,
-    UnclipDrillsMission,
-    SignsAndPortentsMission,
-    ExploreMission,
-    TreasureHuntMission,
-    EasyHeartsMission,
+    EasyHeartsTrainingMission,
+    EasyHeartsHelloWorldMission,
     HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
+    EasyMode,
     *EVAL_MISSIONS,
+    *INTEGRATED_EVAL_MISSIONS,
+    *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
+    *MACHINA_TRAINER_MISSIONS,
 ]
 
 
