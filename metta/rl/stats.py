@@ -106,9 +106,9 @@ def process_training_stats(
     # Stats that should be summed instead of averaged
     # These are typically counts or totals that accumulate across rollout steps
     SUM_STATS_PATTERNS = [
-        "env_curriculum_stats/per_label_samples_this_epoch",
-        "env_curriculum_stats/per_label_evictions_this_epoch",
-        "env_curriculum_stats/tracked_task_completions_this_epoch",
+        "env_curriculum_stats/per_label_samples",
+        "env_curriculum_stats/per_label_evictions",
+        "env_curriculum_stats/tracked_task_completions",
     ]
 
     # Convert lists to means or sums based on stat type

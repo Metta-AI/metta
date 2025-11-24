@@ -123,17 +123,17 @@ class CurriculumEnv(PufferEnv):
             # Get per-environment rewards for completed episodes
             episode_rewards = self._env.get_episode_rewards()
 
-            # Get per-epoch evictions and add to info dict (for gini calculation)
-            # NOTE: Use get_evictions_this_epoch() NOT get_and_reset_evictions_this_epoch()
+            # Get evictions and add to info dict (for gini calculation)
+            # NOTE: Use get_evictions() NOT get_and_reset_evictions()
             # The reset should only happen at epoch boundaries (in training loop),
             # not on every episode completion.
-            evictions_this_epoch = self._curriculum.get_evictions_this_epoch()
-            if evictions_this_epoch:
-                if "env_curriculum_stats/per_label_evictions_this_epoch" not in infos:
-                    infos["env_curriculum_stats/per_label_evictions_this_epoch"] = {}
-                for label, count in evictions_this_epoch.items():
-                    infos["env_curriculum_stats/per_label_evictions_this_epoch"][label] = (
-                        infos["env_curriculum_stats/per_label_evictions_this_epoch"].get(label, 0) + count
+            evictions = self._curriculum.get_evictions()
+            if evictions:
+                if "env_curriculum_stats/per_label_evictions" not in infos:
+                    infos["env_curriculum_stats/per_label_evictions"] = {}
+                for label, count in evictions.items():
+                    infos["env_curriculum_stats/per_label_evictions"][label] = (
+                        infos["env_curriculum_stats/per_label_evictions"].get(label, 0) + count
                     )
 
             # Calculate mean reward across all agents in this environment
@@ -155,10 +155,10 @@ class CurriculumEnv(PufferEnv):
             # ALWAYS emit per-label sample count (needed for basic curriculum monitoring)
             # Note: get_label() always returns a string (enforced in CurriculumTask.__init__)
             label = self._current_task.get_label()
-            if "env_curriculum_stats/per_label_samples_this_epoch" not in infos:
-                infos["env_curriculum_stats/per_label_samples_this_epoch"] = {}
-            infos["env_curriculum_stats/per_label_samples_this_epoch"][label] = (
-                infos["env_curriculum_stats/per_label_samples_this_epoch"].get(label, 0) + 1
+            if "env_curriculum_stats/per_label_samples" not in infos:
+                infos["env_curriculum_stats/per_label_samples"] = {}
+            infos["env_curriculum_stats/per_label_samples"][label] = (
+                infos["env_curriculum_stats/per_label_samples"].get(label, 0) + 1
             )
 
             # Get new task with retry logic for invalid configurations

@@ -179,16 +179,16 @@ class CurriculumAlgorithm(ABC):
         """
         return {}
 
-    def get_evictions_this_epoch(self) -> Dict[str, int]:
-        """Get per-label eviction counts for this epoch WITHOUT resetting (optional).
+    def get_evictions(self) -> Dict[str, int]:
+        """Get per-label eviction counts WITHOUT resetting (optional).
 
         Returns:
             Dictionary mapping label -> eviction count (empty dict by default)
         """
         return {}
 
-    def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
-        """Get and reset per-label eviction counts for this epoch (optional).
+    def get_and_reset_evictions(self) -> Dict[str, int]:
+        """Get and reset per-label eviction counts (optional).
 
         This should ONLY be called at epoch boundaries.
 
@@ -197,8 +197,8 @@ class CurriculumAlgorithm(ABC):
         """
         return {}
 
-    def get_and_reset_sampling_counts_this_epoch(self) -> Dict[str, int]:
-        """Get and reset per-label sampling counts for this epoch (optional).
+    def get_and_reset_sampling_counts(self) -> Dict[str, int]:
+        """Get and reset per-label sampling counts (optional).
 
         Returns:
             Dictionary mapping label -> sampling count (empty dict by default)

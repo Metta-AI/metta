@@ -296,31 +296,31 @@ class Curriculum(StatsLogger):
         """
         return self._algorithm.get_task_score(task_id)
 
-    def get_evictions_this_epoch(self) -> Dict[str, int]:
-        """Get per-epoch evictions WITHOUT resetting the counter.
+    def get_evictions(self) -> Dict[str, int]:
+        """Get evictions WITHOUT resetting the counter.
 
         Use this for reporting evictions in infos during episodes.
 
         Returns:
-            Dictionary mapping label -> eviction count this epoch
+            Dictionary mapping label -> eviction count
         """
-        return self._algorithm.get_evictions_this_epoch()
+        return self._algorithm.get_evictions()
 
-    def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
-        """Get per-epoch evictions and reset the counter.
+    def get_and_reset_evictions(self) -> Dict[str, int]:
+        """Get evictions and reset the counter.
 
         This should ONLY be called at epoch boundaries, not per-episode.
 
         Returns:
-            Dictionary mapping label -> eviction count this epoch
+            Dictionary mapping label -> eviction count
         """
-        return self._algorithm.get_and_reset_evictions_this_epoch()
+        return self._algorithm.get_and_reset_evictions()
 
     def reset_epoch_counters(self) -> None:
-        """Reset per-epoch counters in the curriculum algorithm.
+        """Reset epoch counters in the curriculum algorithm.
 
         This is called by the training infrastructure at epoch boundaries
-        to ensure per-epoch metrics start fresh each epoch.
+        to ensure metrics start fresh each epoch.
         """
         self._algorithm.reset_epoch_counters()
 

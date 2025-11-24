@@ -293,8 +293,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._label_eviction_counts: Dict[str, int] = {}  # label -> eviction count (cumulative)
 
         # Per-epoch tracking (for gini calculation and epoch-level metrics)
-        self._label_evictions_this_epoch: Dict[str, int] = {}  # label -> evictions this epoch
-        self._label_sampling_counts_this_epoch: Dict[str, int] = {}  # label -> samples this epoch
+        self._label_evictions: Dict[str, int] = {}  # label -> evictions
+        self._label_sampling_counts: Dict[str, int] = {}  # label -> samples
 
         # Track which labels are currently active (have tasks in pool)
         self._active_labels: set[str] = set()
@@ -379,7 +379,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._label_eviction_counts[evicted_label] = self._label_eviction_counts.get(evicted_label, 0) + 1
 
             # Track per-epoch eviction count (for gini calculation)
-            self._label_evictions_this_epoch[evicted_label] = self._label_evictions_this_epoch.get(evicted_label, 0) + 1
+            self._label_evictions[evicted_label] = self._label_evictions.get(evicted_label, 0) + 1
 
             # Check if this label still has any active tasks
             # get_all_tracked_tasks() only returns ACTIVE tasks, so this is safe
@@ -435,49 +435,49 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         label = self.task_tracker.get_task_label(task_id)
         if label:
             self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
-            self._label_sampling_counts_this_epoch[label] = self._label_sampling_counts_this_epoch.get(label, 0) + 1
+            self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
 
-    def get_evictions_this_epoch(self) -> Dict[str, int]:
-        """Get per-epoch evictions WITHOUT resetting the counter.
+    def get_evictions(self) -> Dict[str, int]:
+        """Get evictions WITHOUT resetting the counter.
 
         Use this for reporting evictions in infos during episodes.
 
         Returns:
-            Dictionary mapping label -> eviction count this epoch
+            Dictionary mapping label -> eviction count
         """
-        return self._label_evictions_this_epoch.copy()
+        return self._label_evictions.copy()
 
-    def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
-        """Get per-epoch evictions and reset the counter.
+    def get_and_reset_evictions(self) -> Dict[str, int]:
+        """Get evictions and reset the counter.
 
         This should ONLY be called at epoch boundaries, not per-episode.
-        For per-episode reporting, use get_evictions_this_epoch() instead.
+        For per-episode reporting, use get_evictions() instead.
 
         Returns:
-            Dictionary mapping label -> eviction count this epoch
+            Dictionary mapping label -> eviction count
         """
-        evictions = self._label_evictions_this_epoch.copy()
-        self._label_evictions_this_epoch.clear()
+        evictions = self._label_evictions.copy()
+        self._label_evictions.clear()
         return evictions
 
-    def get_and_reset_sampling_counts_this_epoch(self) -> Dict[str, int]:
-        """Get per-epoch sampling counts and reset the counter.
+    def get_and_reset_sampling_counts(self) -> Dict[str, int]:
+        """Get sampling counts and reset the counter.
 
         Returns:
-            Dictionary mapping label -> sampling count this epoch
+            Dictionary mapping label -> sampling count
         """
-        sampling_counts = self._label_sampling_counts_this_epoch.copy()
-        self._label_sampling_counts_this_epoch.clear()
+        sampling_counts = self._label_sampling_counts.copy()
+        self._label_sampling_counts.clear()
         return sampling_counts
 
     def reset_epoch_counters(self) -> None:
-        """Reset per-epoch counters at the start of a new epoch.
+        """Reset counters at the start of a new epoch.
 
         This is called by the training infrastructure at epoch boundaries
-        to ensure per-epoch metrics start fresh.
+        to ensure metrics start fresh.
         """
-        self._label_sampling_counts_this_epoch.clear()
-        self._label_evictions_this_epoch.clear()
+        self._label_sampling_counts.clear()
+        self._label_evictions.clear()
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance atomically.
@@ -571,10 +571,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             if label:
                 pool_composition[label] = pool_composition.get(label, 0) + 1
 
-        # Return per-epoch sampling counts (reset each epoch)
+        # Return sampling counts (reset each epoch)
         return {
             "pool_composition": pool_composition,
-            "sampling_counts": self._label_sampling_counts_this_epoch.copy(),
+            "sampling_counts": self._label_sampling_counts.copy(),
         }
 
     def get_base_stats(self) -> Dict[str, float]:
@@ -765,8 +765,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     label_prob_values
                 )
 
-        if self._label_sampling_counts_this_epoch:
-            label_sampling_values = list(self._label_sampling_counts_this_epoch.values())
+        if self._label_sampling_counts:
+            label_sampling_values = list(self._label_sampling_counts.values())
             gini_stats["curriculum_gini/sampling_by_label"] = self._calculate_gini_coefficient(label_sampling_values)
 
         if self._label_eviction_counts:

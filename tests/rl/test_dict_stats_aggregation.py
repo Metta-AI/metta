@@ -1,6 +1,6 @@
 """Test stats aggregation for dictionary-based curriculum stats.
 
-This test verifies that count-based stats (like per_label_samples_this_epoch)
+This test verifies that count-based stats (like per_label_samples)
 are summed across rollout steps, while rate-based stats are averaged.
 """
 
@@ -18,9 +18,9 @@ def test_curriculum_count_stats_are_summed():
     raw_stats = {
         # These are counts that accumulated across rollout steps
         # e.g., rollout 1 had 2 completions, rollout 2 had 1, rollout 3 had 3
-        "env_curriculum_stats/per_label_samples_this_epoch/lonely_heart": [2, 1, 3],
-        "env_curriculum_stats/per_label_samples_this_epoch/heart_chorus": [1, 2],
-        "env_curriculum_stats/per_label_evictions_this_epoch/lonely_heart": [1, 0, 1],
+        "env_curriculum_stats/per_label_samples/lonely_heart": [2, 1, 3],
+        "env_curriculum_stats/per_label_samples/heart_chorus": [1, 2],
+        "env_curriculum_stats/per_label_evictions/lonely_heart": [1, 0, 1],
         # Regular stats should still be averaged
         "agent/rewards": [0.5, 0.6, 0.7],
     }
@@ -33,9 +33,9 @@ def test_curriculum_count_stats_are_summed():
     mean_stats = result["mean_stats"]
 
     # Count stats should be summed
-    assert mean_stats["env_curriculum_stats/per_label_samples_this_epoch/lonely_heart"] == 6  # 2+1+3
-    assert mean_stats["env_curriculum_stats/per_label_samples_this_epoch/heart_chorus"] == 3  # 1+2
-    assert mean_stats["env_curriculum_stats/per_label_evictions_this_epoch/lonely_heart"] == 2  # 1+0+1
+    assert mean_stats["env_curriculum_stats/per_label_samples/lonely_heart"] == 6  # 2+1+3
+    assert mean_stats["env_curriculum_stats/per_label_samples/heart_chorus"] == 3  # 1+2
+    assert mean_stats["env_curriculum_stats/per_label_evictions/lonely_heart"] == 2  # 1+0+1
 
     # Regular stats should be averaged
     assert mean_stats["agent/rewards"] == pytest.approx(0.6)  # (0.5+0.6+0.7)/3
@@ -44,8 +44,8 @@ def test_curriculum_count_stats_are_summed():
 def test_tracked_task_completions_are_summed():
     """Test that tracked task completion counts are summed."""
     raw_stats = {
-        "env_curriculum_stats/tracked_task_completions_this_epoch/task_0": [3, 2, 1],
-        "env_curriculum_stats/tracked_task_completions_this_epoch/task_1": [1, 1],
+        "env_curriculum_stats/tracked_task_completions/task_0": [3, 2, 1],
+        "env_curriculum_stats/tracked_task_completions/task_1": [1, 1],
     }
 
     losses_stats = {}
@@ -56,14 +56,14 @@ def test_tracked_task_completions_are_summed():
     mean_stats = result["mean_stats"]
 
     # Task completions should be summed
-    assert mean_stats["env_curriculum_stats/tracked_task_completions_this_epoch/task_0"] == 6  # 3+2+1
-    assert mean_stats["env_curriculum_stats/tracked_task_completions_this_epoch/task_1"] == 2  # 1+1
+    assert mean_stats["env_curriculum_stats/tracked_task_completions/task_0"] == 6  # 3+2+1
+    assert mean_stats["env_curriculum_stats/tracked_task_completions/task_1"] == 2  # 1+1
 
 
 def test_non_list_stats_pass_through():
     """Test that non-list stats are passed through unchanged."""
     raw_stats = {
-        "env_curriculum_stats/per_label_samples_this_epoch/lonely_heart": 5,  # Already a scalar
+        "env_curriculum_stats/per_label_samples/lonely_heart": 5,  # Already a scalar
         "agent/some_metric": "not_a_number",  # Non-numeric
     }
 
@@ -75,7 +75,7 @@ def test_non_list_stats_pass_through():
     mean_stats = result["mean_stats"]
 
     # Scalar should pass through
-    assert mean_stats["env_curriculum_stats/per_label_samples_this_epoch/lonely_heart"] == 5
+    assert mean_stats["env_curriculum_stats/per_label_samples/lonely_heart"] == 5
     # Non-numeric should pass through
     assert mean_stats["agent/some_metric"] == "not_a_number"
 
