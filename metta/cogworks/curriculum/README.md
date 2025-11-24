@@ -1,158 +1,89 @@
 # Curriculum Learning System
 
-Comprehensive curriculum learning framework for adaptive task selection and intelligent training. The system
-automatically selects training tasks based on agent learning progress, enabling more efficient and effective training on
-complex task distributions.
+Adaptive task selection framework that automatically selects training tasks based on agent learning progress.
 
 ## Core Components
 
-### Main Classes
-
 - **`Curriculum`**: Main curriculum manager coordinating task generation and selection
 - **`LearningProgressAlgorithm`**: Intelligent task selection based on learning progress
-- **`TaskTracker`**: Performance tracking with shared memory support for multi-process training
+- **`TaskTracker`**: Performance tracking with pluggable memory backends (Local/Shared)
 - **`TaskGenerator`**: Flexible task generation (single, bucketed, or merged task sets)
-
-### Supporting Components
-
-- **`CurriculumEnv`**: Wrapper environment that integrates curriculum with PufferLib
-- **`SharedMemoryBackend`**: Cross-process data sharing with synchronization
-- **`LPScorer`**: Learning progress scoring strategies (Variance and bidirectional)
+- **`CurriculumEnv`**: PufferLib environment wrapper
+- **`TaskState`**: Pydantic model for type-safe task data access
 
 ## Key Features
 
-### Bidirectional Learning Progress
-
-Tracks fast/slow EMAs to detect learning opportunities:
-
-- Fast EMA responds quickly to recent performance changes
-- Slow EMA provides stable baseline
-- Learning progress = |fast - slow| indicates learning potential
-
-### Shared Memory Backend
-
-True multi-process training with atomic updates:
-
-- Manager.Lock() for proper cross-process synchronization
-- Deterministic SHA256-based label hashing
-- Clean slot management prevents data corruption
-- Cross-process task visibility for accurate statistics
-
-### Comprehensive Statistics
-
-Per-task metrics, Gini coefficients, and learning progress tracking:
-
-- Per-task: completion counts, success rates, LP scores
-- Per-label: aggregated completions, eviction counts
-- Gini coefficients: measure task distribution uniformity
-- Epoch-level tracking: evictions, sampling counts
-
-### Flexible Task Generation
-
-Support for parameterized, bucketed, and merged task distributions:
-
-- **SingleTaskGenerator**: Single fixed environment configuration
-- **BucketedTaskGenerator**: Tasks organized into difficulty buckets
-- **TaskGeneratorSet**: Merge multiple generators with weights
+- **Bidirectional Learning Progress**: Tracks fast/slow EMAs to identify learning opportunities
+- **Multi-Process Support**: Shared memory backend with atomic updates and cross-process synchronization
+- **Pluggable Backends**: Local memory (single-process) or shared memory (multi-process)
+- **Flexible Task Generation**: Single, bucketed, or merged task distributions
+- **Comprehensive Statistics**: Per-task metrics, Gini coefficients, label tracking
 
 ## Quick Start
-
-### Basic Curriculum with Learning Progress
 
 ```python
 from metta.cogworks.curriculum import LearningProgressConfig, Curriculum
 
-# Create configuration
-config = LearningProgressConfig(
-    use_bidirectional=True,
+# Use preset configurations
+config = LearningProgressConfig.default(num_active_tasks=256)
+# Also available: .stable() for noisy environments, .fast_learning() for fast learners
+
+# Multi-process: use shared memory with session_id
+config = LearningProgressConfig.default(
     num_active_tasks=256,
-    use_shared_memory=True,
+    session_id="my_training_session",  # All workers must use same ID
 )
 
-# Initialize curriculum
+# Single-process: use local memory for better performance
+config = LearningProgressConfig.default(num_active_tasks=256, use_shared_memory=False)
+
+# Initialize and use
 curriculum = Curriculum(config)
-
-# Get a task
 task = curriculum.get_task()
-env_cfg = task.get_env_cfg()
-
-# Update performance after completion
 curriculum.update_task_performance(task._task_id, score=0.75)
 ```
 
-### Multi-Process Training
+## Configuration Presets
 
-```python
-from metta.cogworks.curriculum import LearningProgressConfig
+| Preset             | Use Case                      | EMA Convergence        | Exploration    |
+| ------------------ | ----------------------------- | ---------------------- | -------------- |
+| `.default()`       | Most RL environments          | Fast (~10 samples)     | Standard (0.1) |
+| `.stable()`        | Noisy/stochastic environments | Slow (~100 samples)    | High (0.15)    |
+| `.fast_learning()` | Fast-learning agents          | Very fast (~5 samples) | Low (0.05)     |
 
-# Shared memory configuration (same session_id across all processes)
-config = LearningProgressConfig(
-    use_bidirectional=True,
-    num_active_tasks=256,
-    use_shared_memory=True,
-    session_id="my_training_session",  # All processes must use same ID
-)
-
-# In each worker process
-curriculum = Curriculum(config)
-# Workers automatically connect to shared memory
-```
+All presets support parameter overrides: `LearningProgressConfig.default(num_active_tasks=512, ema_timescale=0.05)`
 
 ## Architecture
 
-### Data Flow
-
 ```
-TaskGenerator → Curriculum → CurriculumEnv → Agent
-                    ↓
-        LearningProgressAlgorithm
-                    ↓
-              TaskTracker
-                    ↓
-          SharedMemoryBackend
+TaskGenerator → Curriculum → LearningProgressAlgorithm → TaskTracker → Backend (Local/Shared)
+                      ↓
+                CurriculumEnv → Agent
 ```
 
-### Multi-Process Design
+### Memory Backends
 
-Each worker process has:
+| Backend                 | Use Case       | Storage              | Performance        |
+| ----------------------- | -------------- | -------------------- | ------------------ |
+| **LocalMemoryBackend**  | Single-process | Numpy arrays         | Fastest (no IPC)   |
+| **SharedMemoryBackend** | Multi-process  | Shared memory + Lock | Cross-process sync |
 
-- **Local**: `_task_id_to_index` mapping for O(1) lookups
-- **Shared**: Task performance data in shared memory
-- **Shared**: Manager.Lock() for synchronization
+**TaskState** provides type-safe access: `task_id`, `creation_time`, `is_active`, `num_completions`, `fast_ema`,
+`slow_ema`, `success_threshold`, `seed`
 
-Operations:
-
-- **Fast path (O(1))**: Task updates, queries by task_id
-- **Slow path (O(max_tasks))**: Cross-process aggregations, label statistics
+**Operations**: O(1) for task updates, O(max_tasks) for cross-process aggregations
 
 ## Key Algorithms
 
-### Learning Progress Calculation
+**Learning Progress**: `lp_score = abs(fast_ema - slow_ema)` (bidirectional mode: normalized by random baseline)
 
-```python
-# Standard LP: Rate of change in performance
-lp_score = abs(fast_ema - slow_ema)
+**Task Sampling**: Calculate LP scores → add exploration bonus → z-score normalize → softmax → sample
 
-# Bidirectional LP: Compare against random baseline
-p_fast = fast_ema - random_baseline
-p_slow = slow_ema - random_baseline
-lp_score = abs(p_fast - p_slow)
-```
+**Task Eviction**: Evict tasks at capacity with minimum samples and low LP scores
 
-### Task Sampling
+## Recent Improvements
 
-1. Calculate LP scores for all tasks
-2. Add exploration bonus for under-sampled tasks
-3. Z-score normalization
-4. Softmax over scores → sampling probabilities
-5. Sample task proportional to probability
-
-### Task Eviction
-
-Tasks are evicted when:
-
-- Pool is at capacity AND
-- Task has minimum presentations AND
-- Task has low learning progress (no longer useful)
-
-Future Features will add a exploration-exploitation pool design (removed to reduce diff)
+- **Pydantic Migration**: Type-safe `TaskState` models replace raw arrays with magic offsets
+- **Pluggable Backends**: Unified `TaskTracker` with `create_task_tracker()` factory function
+- **Configuration Presets**: `.default()`, `.stable()`, `.fast_learning()` helper methods
+- **Performance**: O(1) fast path for updates, type-safe cold path for initialization
