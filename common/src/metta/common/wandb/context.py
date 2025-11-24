@@ -190,7 +190,7 @@ class WandbRunAppendContext:
     so it can be used by helper processes to stream metrics to an existing run.
     """
 
-    def __init__(self, wandb_config: WandbConfig, timeout: int = 15, init_mode: str = "shared"):
+    def __init__(self, wandb_config: WandbConfig, timeout: int = 15) -> None:
         self.wandb_config = wandb_config
         self.timeout = timeout
         self.run: Optional[WandbRun] = None
@@ -207,22 +207,16 @@ class WandbRunAppendContext:
 
         os.environ.setdefault("WANDB_DISABLE_CODE", "true")
 
-        try:
-            # mode="shared" is best-effort; fall back if the installed wandb does not support it.
-            self.run = wandb.init(
-                mode="shared",
-                id=self.wandb_config.run_id,
-                project=self.wandb_config.project,
-                entity=self.wandb_config.entity,
-                reinit="return_previous",
-                settings=wandb.Settings(quiet=True, init_timeout=self.timeout, save_code=False),
-            )
-        except Exception as exc:
-            logger.warning("Failed to resume W&B run %s: %s", self.wandb_config.run_id, exc)
-            self.run = None
-            return None
+        self.run = wandb.init(
+            mode="shared",
+            id=self.wandb_config.run_id,
+            project=self.wandb_config.project,
+            entity=self.wandb_config.entity,
+            reinit="return_previous",
+            settings=wandb.Settings(quiet=True, init_timeout=self.timeout, save_code=False),
+        )
 
-        logger.info("Opened append-only W&B session for %s", self.run.path if self.run else self.wandb_config.run_id)
+        logger.info("Opened append-only W&B session for %s", self.run.path)
         return self.run
 
     def __exit__(self, exc_type, exc_val, exc_tb):
