@@ -8,6 +8,7 @@ from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
+from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
@@ -36,6 +37,7 @@ class LossesConfig(Config):
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
     kickstarter: KickstarterConfig = Field(default_factory=lambda: KickstarterConfig(enabled=False))
     sliced_kickstarter: SlicedKickstarterConfig = Field(default_factory=lambda: SlicedKickstarterConfig(enabled=False))
+    logit_kickstarter: LogitKickstarterConfig = Field(default_factory=lambda: LogitKickstarterConfig(enabled=False))
 
     def _configs(self) -> dict[str, LossConfig]:
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
@@ -57,6 +59,8 @@ class LossesConfig(Config):
             loss_configs["grpo"] = self.grpo
         if self.kickstarter.enabled:
             loss_configs["kickstarter"] = self.kickstarter
+        if self.logit_kickstarter.enabled:
+            loss_configs["logit_kickstarter"] = self.logit_kickstarter
         return loss_configs
 
     def init_losses(
