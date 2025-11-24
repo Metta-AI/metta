@@ -331,6 +331,48 @@ class Curriculum(StatsLogger):
         """
         return self._algorithm.get_evictions()
 
+    def get_episode_stats(self, completed_task_label: str) -> Dict[str, Any]:
+        """Get curriculum stats to include in episode info.
+
+        This includes:
+        - Per-label eviction counts (for Gini calculation)
+        - Per-label sample counts (for basic curriculum monitoring)
+
+        Args:
+            completed_task_label: Label of the task that just completed
+
+        Returns:
+            Dictionary of curriculum stats formatted for episode info
+        """
+        stats = {}
+
+        # Add eviction counts by label
+        evictions = self.get_evictions()
+        if evictions:
+            stats["env_curriculum_stats/per_label_evictions"] = evictions
+
+        # Add sample count for the completed task
+        stats["env_curriculum_stats/per_label_samples"] = {completed_task_label: 1}
+
+        return stats
+
+    @staticmethod
+    def merge_episode_stats_into_infos(infos: Dict[str, Any], curriculum_stats: Dict[str, Any]) -> None:
+        """Merge curriculum episode stats into the infos dictionary.
+
+        This handles nested dictionaries and accumulates values properly.
+
+        Args:
+            infos: The infos dictionary to merge into (modified in place)
+            curriculum_stats: The curriculum stats to merge
+        """
+        for key, value in curriculum_stats.items():
+            if key not in infos:
+                infos[key] = {}
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    infos[key][sub_key] = infos[key].get(sub_key, 0) + sub_value
+
     def get_and_reset_evictions(self) -> Dict[str, int]:
         """Get evictions and reset the counter.
 

@@ -123,43 +123,19 @@ class CurriculumEnv(PufferEnv):
             # Get per-environment rewards for completed episodes
             episode_rewards = self._env.get_episode_rewards()
 
-            # Get evictions and add to info dict (for gini calculation)
-            # NOTE: Use get_evictions() NOT get_and_reset_evictions()
-            # The reset should only happen at epoch boundaries (in training loop),
-            # not on every episode completion.
-            evictions = self._curriculum.get_evictions()
-            if evictions:
-                if "env_curriculum_stats/per_label_evictions" not in infos:
-                    infos["env_curriculum_stats/per_label_evictions"] = {}
-                for label, count in evictions.items():
-                    infos["env_curriculum_stats/per_label_evictions"][label] = (
-                        infos["env_curriculum_stats/per_label_evictions"].get(label, 0) + count
-                    )
-
             # Calculate mean reward across all agents in this environment
             # All agents in the same environment complete simultaneously, so take mean
             mean_reward = float(episode_rewards.mean())
-
-            # Debug logging for reward tracking (can be removed after verification)
-            logger.debug(
-                f"Task {self._current_task._task_id} (label={self._current_task.get_label()}) "
-                f"completed with mean_reward={mean_reward:.4f} "
-                f"(raw episode_rewards: min={episode_rewards.min():.4f}, "
-                f"max={episode_rewards.max():.4f}, mean={episode_rewards.mean():.4f})"
-            )
 
             # Record ONE completion for this environment episode
             self._current_task.complete(mean_reward)
             self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
 
-            # ALWAYS emit per-label sample count (needed for basic curriculum monitoring)
-            # Note: get_label() always returns a string (enforced in CurriculumTask.__init__)
+            # Get curriculum stats and merge into infos
+            # This includes eviction counts and per-label sample counts
             label = self._current_task.get_label()
-            if "env_curriculum_stats/per_label_samples" not in infos:
-                infos["env_curriculum_stats/per_label_samples"] = {}
-            infos["env_curriculum_stats/per_label_samples"][label] = (
-                infos["env_curriculum_stats/per_label_samples"].get(label, 0) + 1
-            )
+            curriculum_stats = self._curriculum.get_episode_stats(label)
+            self._curriculum.merge_episode_stats_into_infos(infos, curriculum_stats)
 
             # Get new task with retry logic for invalid configurations
             self._get_task_with_retries(context="on episode completion")
