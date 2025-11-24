@@ -257,31 +257,67 @@ def upload_submission(
     submit_server_url: str,
     console: Console,
 ) -> uuid.UUID | None:
-    """Upload submission to CoGames backend.
-
-    Uses the provided auth token to POST to the submit server's /cogames/submit_policy endpoint.
-    Returns the created policy version ID on success, None otherwise.
-    """
-    # Prepare multipart form data
+    """Upload submission to CoGames backend using a presigned S3 URL."""
     console.print(f"[yellow]Uploading submission to {submit_server_url}...[/yellow]")
+
+    headers = {"X-Auth-Token": token}
+
+    try:
+        presigned_response = httpx.post(
+            f"{submit_server_url}/stats/policies/submit/presigned-url",
+            headers=headers,
+            timeout=60.0,
+        )
+
+        if presigned_response.status_code != 200:
+            console.print(f"[red]✗ Failed to get upload URL ({presigned_response.status_code})[/red]")
+            console.print(f"[red]Response: {presigned_response.text}[/red]")
+            return None
+
+        presigned_data = presigned_response.json()
+        upload_url = presigned_data.get("upload_url")
+        upload_id = presigned_data.get("upload_id")
+
+        if not upload_url or not upload_id:
+            console.print("[red]✗ Upload URL missing from response[/red]")
+            return None
+    except httpx.TimeoutException:
+        console.print("[red]✗ Timed out while requesting presigned URL[/red]")
+        return None
+    except Exception as e:
+        console.print(f"[red]✗ Error requesting presigned URL: {e}[/red]")
+        return None
 
     try:
         with open(zip_path, "rb") as f:
-            files = {"file": ("submission.zip", f, "application/zip")}
-            data = {"name": submission_name}
-
-            headers = {"X-Auth-Token": token}
-
-            response = httpx.post(
-                f"{submit_server_url}/stats/policies/submit",
-                files=files,
-                data=data,
-                headers=headers,
-                timeout=300.0,  # 5 minute timeout for upload
+            upload_response = httpx.put(
+                upload_url,
+                content=f,
+                headers={"Content-Type": "application/zip"},
+                timeout=600.0,  # Allow large uploads
             )
+        upload_response.raise_for_status()
+    except httpx.TimeoutException:
+        console.print("[red]✗ Upload timed out after 10 minutes[/red]")
+        return None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]✗ Upload failed with status {exc.response.status_code}[/red]")
+        console.print(f"[red]Response: {exc.response.text}[/red]")
+        return None
+    except Exception as e:
+        console.print(f"[red]✗ Upload error: {e}[/red]")
+        return None
 
-        if response.status_code == 200:
-            result = response.json()
+    try:
+        complete_response = httpx.post(
+            f"{submit_server_url}/stats/policies/submit/complete",
+            json={"upload_id": upload_id, "name": submission_name},
+            headers=headers,
+            timeout=120.0,
+        )
+
+        if complete_response.status_code == 200:
+            result = complete_response.json()
             console.print("[green]✓ Submitted successfully![/green]")
             submission_id = result.get("id") or result.get("submission_id")
             if submission_id:
@@ -295,16 +331,16 @@ def upload_submission(
 
             console.print("[red]✗ Submission ID missing from response[/red]")
             return None
-        else:
-            console.print(f"[red]✗ Upload failed with status {response.status_code}[/red]")
-            console.print(f"[red]Response: {response.text}[/red]")
-            return None
+
+        console.print(f"[red]✗ Submission finalize failed with status {complete_response.status_code}[/red]")
+        console.print(f"[red]Response: {complete_response.text}[/red]")
+        return None
 
     except httpx.TimeoutException:
-        console.print("[red]✗ Upload timed out after 5 minutes[/red]")
+        console.print("[red]✗ Finalizing submission timed out[/red]")
         return None
     except Exception as e:
-        console.print(f"[red]✗ Upload error: {e}[/red]")
+        console.print(f"[red]✗ Submission finalize error: {e}[/red]")
         return None
 
 
