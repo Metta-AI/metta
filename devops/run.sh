@@ -7,7 +7,6 @@ MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-12345}
 NODE_INDEX=${NODE_INDEX:-0}
 
-# Display configuration
 echo "[CONFIG] Training configuration:"
 echo "  - GPUs: $NUM_GPUS"
 echo "  - Nodes: $NUM_NODES"

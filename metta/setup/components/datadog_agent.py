@@ -116,7 +116,6 @@ class DatadogAgentSetup(SetupModule):
                     os.makedirs(custom_logs_dir, exist_ok=True)
                     log_config_dict = self._build_log_config_dict()
                     with open(log_config_file, "w") as f:
-                        f.write("# Custom log collection for SkyPilot jobs\n")
                         yaml.dump(log_config_dict, f, default_flow_style=False, sort_keys=False)
 
                 with open(log_config_file, "r") as f:
@@ -129,7 +128,6 @@ class DatadogAgentSetup(SetupModule):
                             log_entry["tags"] = log_tags
 
                     with open(log_config_file, "w") as f:
-                        f.write("# Custom log collection for SkyPilot jobs\n")
                         yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
                     os.chmod(log_config_file, 0o644)
 
@@ -248,8 +246,6 @@ class DatadogAgentSetup(SetupModule):
                     log_config_file = os.path.join(custom_logs_dir, "conf.yaml")
                     log_config_dict = self._build_log_config_dict()
                     with open(log_config_file, "w") as f:
-                        f.write("# Custom log collection for SkyPilot jobs\n")
-                        f.write("# Tags will be added at runtime when environment variables are available\n")
                         yaml.dump(log_config_dict, f, default_flow_style=False, sort_keys=False)
                     os.chmod(log_config_file, 0o644)
             except Exception as e:

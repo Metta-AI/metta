@@ -57,7 +57,6 @@ def main():
     if not instance:
         raise ValueError(f"Could not find EC2 instance for job {job_id}")
 
-    # Query only the specific job we need instead of fetching all jobs
     request_id = sky.jobs.queue(refresh=True, skip_finished=True, all_users=True, job_ids=[job_id])
     jobs = sky.get(request_id)
     if not jobs:
