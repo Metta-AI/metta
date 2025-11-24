@@ -158,7 +158,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
             # Clean the repository
             result = subprocess.run(
-                ["git", "clean", "-xdf"],
+                ["git", "clean", "-df"],
                 cwd=self._versioned_path,
                 capture_output=True,
                 text=True,
