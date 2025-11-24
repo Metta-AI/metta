@@ -13,7 +13,7 @@ EXIT_SUCCESS=0
 EXIT_FAILURE=1
 EXIT_NCCL_TEST_FAILURE=42
 
-echo "pwd: $(pwd)"
+cd /workspace/metta
 
 echo "[CONFIG] Run Configuration:"
 echo "  - NODE_RANK: ${RANK}"
