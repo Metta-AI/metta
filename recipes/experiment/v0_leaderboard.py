@@ -5,6 +5,7 @@ from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from metta.app_backend.leaderboard_constants import LEADERBOARD_SIM_NAME_EPISODE_KEY
 from metta.sim.runner import SimulationRunConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluatePolicyVersionTool
 from metta.tools.multi_versioned_policy_eval import MultiPolicyVersionEvalTool
 from metta.tools.play import PlayTool
 from metta.tools.utils.auto_config import auto_stats_server_uri
@@ -111,4 +112,18 @@ def play(policy_version_id: str | None = None, s3_path: str | None = None) -> Pl
         sim=SimulationConfig(env=simulations()[0].env, suite="v0_leaderboard", name="play"),
         policy_version_id=policy_version_id,
         s3_path=s3_path,
+    )
+
+
+# This is similar to what evaluate_remote() ultimately calls within remote_eval_worker
+# ./tools/run.py recipes.experiment.v0_leaderboard.test_remote_eval
+#   policy_version_id=99810f21-d73d-4e72-8082-70516f2b6b2a
+def test_remote_eval(policy_version_id: str) -> EvaluatePolicyVersionTool:
+    sims = simulations()
+    for sim in sims:
+        sim.proportions = [1.0]
+    return EvaluatePolicyVersionTool(
+        simulations=sims,
+        policy_version_id=policy_version_id,
+        stats_server_uri=auto_stats_server_uri(),
     )
