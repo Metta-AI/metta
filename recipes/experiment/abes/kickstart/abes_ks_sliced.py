@@ -17,7 +17,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -153,26 +153,26 @@ def train(
             #     start_agent_step=500_000_000,
             #     end_agent_step=1_000_000_000,
             # ),
-            HyperUpdateRule(
-                loss_instance_name="sliced_kickstarter",
-                attr_path="teacher_led_proportion",
-                mode="progress",
-                style="linear",
-                start_value=0.2,
-                end_value=0.0,
-                start_agent_step=0,
-                end_agent_step=500_000_000,
-            ),
-            HyperUpdateRule(
-                loss_instance_name="sliced_kickstarter",
-                attr_path="student_led_proportion",
-                mode="progress",
-                style="linear",
-                start_value=0.3,
-                end_value=0.0,
-                start_agent_step=0,
-                end_agent_step=500_000_000,
-            ),
+            # HyperUpdateRule(
+            #     loss_instance_name="sliced_kickstarter",
+            #     attr_path="teacher_led_proportion",
+            #     mode="progress",
+            #     style="linear",
+            #     start_value=0.2,
+            #     end_value=0.0,
+            #     start_agent_step=0,
+            #     end_agent_step=500_000_000,
+            # ),
+            # HyperUpdateRule(
+            #     loss_instance_name="sliced_kickstarter",
+            #     attr_path="student_led_proportion",
+            #     mode="progress",
+            #     style="linear",
+            #     start_value=0.3,
+            #     end_value=0.0,
+            #     start_agent_step=0,
+            #     end_agent_step=500_000_000,
+            # ),
             # HyperUpdateRule(
             #     loss_instance_name="sliced_kickstarter",
             #     attr_path="student_led_proportion",
