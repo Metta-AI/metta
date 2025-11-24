@@ -28,9 +28,9 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Any, ClassVar, Dict, List, Literal, Optional, Union
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union
 
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from metta.cogworks.curriculum.curriculum_base import (
     CurriculumAlgorithm,
@@ -44,6 +44,31 @@ from mettagrid.base_config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
+
+
+class CurriculumTaskState(BaseModel):
+    """State for a single curriculum task."""
+
+    num_completions: int
+    total_score: float
+    mean_score: float
+    num_scheduled: int
+    slice_values: Dict[str, Any]
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CurriculumState(BaseModel):
+    """State for curriculum checkpointing."""
+
+    config: Dict[str, Any]
+    seed: Tuple[Any, ...]  # Random state from random.Random.getstate()
+    num_created: int
+    num_evicted: int
+    tasks: Dict[int, CurriculumTaskState]
+    algorithm_state: Dict[str, Any]
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class DiscreteRandomCurriculumConfig(CurriculumAlgorithmConfig):
@@ -511,31 +536,28 @@ class Curriculum(StatsLogger):
         # Use the StatsLogger implementation
         return super().stats()
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> CurriculumState:
         """Get curriculum state for checkpointing."""
-        state = {
-            "config": self._config.model_dump(),  # Save config for validation
-            "seed": self._rng.getstate(),
-            "num_created": self._num_created,
-            "num_evicted": self._num_evicted,
-            "tasks": {},
-        }
-
-        # Serialize task data (without env_cfg to save space)
+        tasks = {}
         for task_id, task in self._tasks.items():
-            state["tasks"][task_id] = {
-                "num_completions": task._num_completions,
-                "total_score": task._total_score,
-                "mean_score": task._mean_score,
-                "num_scheduled": task._num_scheduled,
-                "slice_values": task._slice_values,
-            }
+            tasks[task_id] = CurriculumTaskState(
+                num_completions=task._num_completions,
+                total_score=task._total_score,
+                mean_score=task._mean_score,
+                num_scheduled=task._num_scheduled,
+                slice_values=task._slice_values,
+            )
 
-        # Save algorithm state
-        state["algorithm_state"] = self._algorithm.get_state()
+        state = CurriculumState(
+            config=self._config.model_dump(),
+            seed=self._rng.getstate(),
+            num_created=self._num_created,
+            num_evicted=self._num_evicted,
+            tasks=tasks,
+            algorithm_state=self._algorithm.get_state(),
+        )
 
-        num_tasks = len(state["tasks"])
-        logger.info(f"Curriculum: Saving state with {num_tasks} tasks, algorithm_state=present")
+        logger.info(f"Curriculum: Saving state with {len(tasks)} tasks, algorithm_state=present")
 
         return state
 
@@ -596,25 +618,20 @@ class Curriculum(StatsLogger):
 
         logger.info("=" * 80)
 
-    def load_state(self, state: Dict[str, Any]) -> None:
+    def load_state(self, state: CurriculumState) -> None:
         """Load curriculum state from checkpoint."""
-        num_tasks_to_load = len(state.get("tasks", {}))
-        has_algo_state = "algorithm_state" in state
-        logger.info(
-            f"Curriculum: Loading state with {num_tasks_to_load} tasks, "
-            f"algorithm_state={'present' if has_algo_state else 'missing'}"
-        )
+        logger.info(f"Curriculum: Loading state with {len(state.tasks)} tasks, algorithm_state=present")
 
         # Validate config matches
-        if state["config"] != self._config.model_dump():
+        if state.config != self._config.model_dump():
             logger.warning("Curriculum config mismatch during restore")
 
         # Restore counters first
-        self._num_created = state["num_created"]
-        self._num_evicted = state["num_evicted"]
+        self._num_created = state.num_created
+        self._num_evicted = state.num_evicted
 
         # Restore random state before any RNG operations
-        self._rng.setstate(state["seed"])
+        self._rng.setstate(state.seed)
 
         # Clear existing tasks (no need to notify algorithm - we're doing full restore)
         self._tasks.clear()
@@ -622,19 +639,17 @@ class Curriculum(StatsLogger):
 
         # Restore algorithm state BEFORE recreating tasks
         # Algorithm's load_state will handle clearing and restoring its internal state atomically
-        if "algorithm_state" in state:
-            self._algorithm.load_state(state["algorithm_state"])
+        self._algorithm.load_state(state.algorithm_state)
 
         # Restore tasks
-        for task_id_str, task_data in state["tasks"].items():
+        for task_id, task_state in state.tasks.items():
             # Recreate env_cfg using task_id
-            task_id = int(task_id_str)
             env_cfg = self._task_generator.get_task(task_id)
-            task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
-            task._num_completions = task_data["num_completions"]
-            task._total_score = task_data["total_score"]
-            task._mean_score = task_data["mean_score"]
-            task._num_scheduled = task_data["num_scheduled"]
+            task = CurriculumTask(task_id, env_cfg, task_state.slice_values)
+            task._num_completions = task_state.num_completions
+            task._total_score = task_state.total_score
+            task._mean_score = task_state.mean_score
+            task._num_scheduled = task_state.num_scheduled
 
             self._tasks[task_id] = task
             self._task_ids.add(task_id)

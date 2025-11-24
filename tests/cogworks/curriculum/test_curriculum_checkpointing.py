@@ -57,24 +57,24 @@ class TestCurriculumStateSerialization:
         state = curriculum.get_state()
 
         # Verify state structure
-        assert "config" in state
-        assert "seed" in state
-        assert "num_created" in state
-        assert "num_evicted" in state
-        assert "tasks" in state
-        assert "algorithm_state" in state
+        assert hasattr(state, "config")
+        assert hasattr(state, "seed")
+        assert hasattr(state, "num_created")
+        assert hasattr(state, "num_evicted")
+        assert hasattr(state, "tasks")
+        assert hasattr(state, "algorithm_state")
 
         # Verify task data is saved
-        assert len(state["tasks"]) > 0
-        for _task_id, task_data in state["tasks"].items():
-            assert "num_completions" in task_data
-            assert "total_score" in task_data
-            assert "mean_score" in task_data
-            assert "num_scheduled" in task_data
-            assert "slice_values" in task_data
+        assert len(state.tasks) > 0
+        for _task_id, task_data in state.tasks.items():
+            assert hasattr(task_data, "num_completions")
+            assert hasattr(task_data, "total_score")
+            assert hasattr(task_data, "mean_score")
+            assert hasattr(task_data, "num_scheduled")
+            assert hasattr(task_data, "slice_values")
 
         # Verify algorithm state is saved
-        algorithm_state = state["algorithm_state"]
+        algorithm_state = state.algorithm_state
         assert algorithm_state["type"] == "learning_progress"
         assert "task_tracker" in algorithm_state
         assert "outcomes" in algorithm_state or "hypers" in algorithm_state
@@ -309,15 +309,18 @@ class TestCurriculumStateSerialization:
         curriculum = Curriculum(curriculum_config_seed42)
 
         # Create corrupted state (missing required fields)
-        corrupted_state = {
-            "config": curriculum_config.model_dump(),
-            "seed": curriculum._rng.getstate(),
-            # Missing num_created, num_evicted, tasks
-        }
+        # Pydantic will validate and raise an error for missing fields
+        from pydantic import ValidationError
 
-        # Loading should raise an error
-        with pytest.raises(KeyError):
-            curriculum.load_state(corrupted_state)
+        from metta.cogworks.curriculum.curriculum import CurriculumState
+
+        # Loading should raise a validation error
+        with pytest.raises(ValidationError):
+            CurriculumState(
+                config=curriculum_config.model_dump(),
+                seed=curriculum._rng.getstate(),
+                # Missing num_created, num_evicted, tasks, algorithm_state
+            )
 
     def test_random_state_preservation(self):
         """Test that random state is preserved correctly."""
@@ -400,9 +403,9 @@ class TestCheckpointManagerIntegration:
 
             # Verify curriculum state is preserved
             loaded_curriculum_state = loaded_state["curriculum_state"]
-            assert loaded_curriculum_state["num_created"] == curriculum_state["num_created"]
-            assert loaded_curriculum_state["num_evicted"] == curriculum_state["num_evicted"]
-            assert len(loaded_curriculum_state["tasks"]) == len(curriculum_state["tasks"])
+            assert loaded_curriculum_state.num_created == curriculum_state.num_created
+            assert loaded_curriculum_state.num_evicted == curriculum_state.num_evicted
+            assert len(loaded_curriculum_state.tasks) == len(curriculum_state.tasks)
 
     def test_checkpoint_manager_without_curriculum_state(self):
         """Test CheckpointManager works without curriculum state (backward compatibility)."""
