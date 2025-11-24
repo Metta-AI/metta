@@ -53,6 +53,80 @@ def list_ollama_models() -> list[str]:
         return []
 
 
+def select_openai_model() -> str:
+    """Prompt user to select an OpenAI model.
+
+    Returns:
+        Selected model name
+    """
+    models = [
+        ("gpt-4o", "Standard - Most capable, best reasoning"),
+        ("gpt-4o-mini", "Small - Fast and cost-effective"),
+        ("o1-mini", "Thinking - Advanced reasoning model"),
+    ]
+
+    print("\n" + "="*60)
+    print("Select OpenAI Model:")
+    print("="*60)
+    for idx, (model_name, description) in enumerate(models, 1):
+        print(f"  [{idx}] {model_name}")
+        print(f"      {description}")
+    print("="*60)
+
+    while True:
+        try:
+            selection = input(f"\nSelect a model (1-{len(models)}): ").strip()
+            idx = int(selection) - 1
+            if 0 <= idx < len(models):
+                model = models[idx][0]
+                print(f"\n✓ Selected: {model}\n")
+                return model
+            else:
+                print(f"Please enter a number between 1 and {len(models)}")
+        except ValueError:
+            print("Please enter a valid number")
+        except (KeyboardInterrupt, EOFError):
+            print("\n\n⚠️  No model selected. Exiting.\n")
+            sys.exit(0)
+
+
+def select_anthropic_model() -> str:
+    """Prompt user to select an Anthropic Claude model.
+
+    Returns:
+        Selected model name
+    """
+    models = [
+        ("claude-3-opus-20240229", "Standard - Most capable model"),
+        ("claude-3-haiku-20240307", "Small - Fast and cost-effective"),
+        ("claude-3-opus-20240229", "Thinking - Extended context reasoning (same as standard)"),
+    ]
+
+    print("\n" + "="*60)
+    print("Select Claude Model:")
+    print("="*60)
+    for idx, (model_name, description) in enumerate(models, 1):
+        print(f"  [{idx}] {model_name}")
+        print(f"      {description}")
+    print("="*60)
+
+    while True:
+        try:
+            selection = input(f"\nSelect a model (1-{len(models)}): ").strip()
+            idx = int(selection) - 1
+            if 0 <= idx < len(models):
+                model = models[idx][0]
+                print(f"\n✓ Selected: {model}\n")
+                return model
+            else:
+                print(f"Please enter a number between 1 and {len(models)}")
+        except ValueError:
+            print("Please enter a valid number")
+        except (KeyboardInterrupt, EOFError):
+            print("\n\n⚠️  No model selected. Exiting.\n")
+            sys.exit(0)
+
+
 def ensure_ollama_model(model: str | None = None) -> str:
     """Ensure an Ollama model is available, pulling if necessary.
 
@@ -460,7 +534,7 @@ class LLMAgentPolicy(AgentPolicy):
     Args:
         policy_env_info: Policy environment interface
         provider: LLM provider ("openai", "anthropic", or "ollama")
-        model: Model name (defaults: gpt-4o-mini, claude-3-5-sonnet, or llama3.2 for ollama)
+        model: Model name (defaults: gpt-4o-mini, claude-3-5-sonnet-20240620, or llama3.2 for ollama)
         temperature: Sampling temperature for LLM
         debug_mode: If True, print human-readable observation debug info
     """
@@ -485,13 +559,15 @@ class LLMAgentPolicy(AgentPolicy):
             self.client: OpenAI | None = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             self.anthropic_client = None
             self.ollama_client = None
-            self.model = model or "gpt-4o-mini"
+            # Prompt user to select model if not specified
+            self.model = model if model else select_openai_model()
         elif self.provider == "anthropic":
             from anthropic import Anthropic
             self.client = None
             self.anthropic_client: Anthropic | None = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
             self.ollama_client = None
-            self.model = model or "claude-3-5-sonnet-20241022"
+            # Prompt user to select model if not specified
+            self.model = model if model else select_anthropic_model()
         elif self.provider == "ollama":
             from openai import OpenAI
             self.client = None
