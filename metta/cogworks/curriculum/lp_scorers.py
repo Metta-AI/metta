@@ -25,7 +25,7 @@ can coexist and be swapped at runtime via config, following the strategy pattern
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict
 
 import numpy as np
 
@@ -41,12 +41,12 @@ DEFAULT_SUCCESS_RATE = 0.0
 class LPScorer(ABC):
     """Abstract base class for learning progress scoring strategies."""
 
-    def __init__(self, config: "LearningProgressConfig", tracker: Optional[TaskTracker] = None):
+    def __init__(self, config: "LearningProgressConfig", tracker: TaskTracker):
         """Initialize scorer with configuration.
 
         Args:
             config: Learning progress configuration object
-            tracker: Optional TaskTracker instance for shared memory access
+            tracker: TaskTracker instance for task performance data access
         """
         self.config = config
         self.tracker = tracker
@@ -124,12 +124,12 @@ class BidirectionalLPScorer(LPScorer):
     learning progress (fast EMA > slow EMA) are prioritized.
     """
 
-    def __init__(self, config: "LearningProgressConfig", tracker: Optional[TaskTracker] = None):
+    def __init__(self, config: "LearningProgressConfig", tracker: TaskTracker):
         """Initialize bidirectional scorer.
 
         Args:
             config: Learning progress configuration
-            tracker: TaskTracker instance for shared memory access (required for EMAs)
+            tracker: TaskTracker instance for task performance data access
         """
         super().__init__(config, tracker)
 
@@ -165,19 +165,6 @@ class BidirectionalLPScorer(LPScorer):
             task_stats.get("p_true", 0.0),
             task_stats.get("random_baseline", 0.0),
         )
-
-    def _write_ema(self, task_id: int, p_fast: float, p_slow: float, p_true: float, random_baseline: float) -> None:
-        """Write EMA values for a task."""
-        index = self.tracker.get_task_index(task_id)
-        if index is None:
-            return
-
-        with self.tracker._backend.acquire_lock():
-            task_data = self.tracker._backend.get_task_data(index)
-            task_data[13] = p_fast
-            task_data[14] = p_slow
-            task_data[15] = p_true
-            task_data[16] = random_baseline
 
     def score_task(self, task_id: int, tracker: TaskTracker) -> float:
         """Calculate bidirectional learning progress score for a task.
@@ -218,13 +205,6 @@ class BidirectionalLPScorer(LPScorer):
 
     def get_stats(self) -> Dict[str, float]:
         """Get detailed bidirectional learning progress statistics."""
-        if self.tracker is None:
-            return {
-                "mean_task_success_rate": 0.0,
-                "mean_learning_progress": 0.0,
-                "mean_lp_score": 0.0,
-            }
-
         task_ids = self.tracker.get_all_tracked_tasks()
         if not task_ids:
             return {
@@ -334,8 +314,8 @@ class BidirectionalLPScorer(LPScorer):
             p_slow = normalized_task_success_rate * slow_timescale + p_slow * (1.0 - slow_timescale)
             p_true = task_success_rate * self.config.ema_timescale + p_true * (1.0 - self.config.ema_timescale)
 
-        # Write updated EMAs back
-        self._write_ema(task_id, p_fast, p_slow, p_true, random_baseline)
+        # Write updated EMAs back to tracker
+        self.tracker.update_bidirectional_emas(task_id, p_fast, p_slow, p_true, random_baseline)
 
         # Mark distribution as stale since EMAs changed
         self._stale_dist = True
@@ -384,9 +364,6 @@ class BidirectionalLPScorer(LPScorer):
             task_ids: Optional list of task IDs to calculate LP for. If None, fetches from tracker.
                      Providing task_ids prevents race conditions in multi-process environments.
         """
-        if self.tracker is None:
-            return np.array([])
-
         # Build arrays from tracker
         if task_ids is None:
             task_ids = self.tracker.get_all_tracked_tasks()
@@ -493,12 +470,12 @@ class BasicLPScorer(LPScorer):
     more learning opportunity.
     """
 
-    def __init__(self, config: "LearningProgressConfig", tracker: Optional[TaskTracker] = None):
+    def __init__(self, config: "LearningProgressConfig", tracker: TaskTracker):
         """Initialize basic scorer.
 
         Args:
             config: Learning progress configuration
-            tracker: Optional TaskTracker instance (for consistency with BidirectionalLPScorer)
+            tracker: TaskTracker instance for task performance data access
         """
         super().__init__(config, tracker)
 

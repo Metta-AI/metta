@@ -408,6 +408,29 @@ class TaskTracker:
             task_data = self._backend.get_task_data(index)
             task_data[4] = lp_score
 
+    def update_bidirectional_emas(
+        self, task_id: int, p_fast: float, p_slow: float, p_true: float, random_baseline: float
+    ) -> None:
+        """Update bidirectional EMA values for a task.
+
+        Args:
+            task_id: Task ID to update
+            p_fast: Fast EMA value
+            p_slow: Slow EMA value
+            p_true: True performance EMA value
+            random_baseline: Random baseline value
+        """
+        index = self.get_task_index(task_id)
+        if index is None:
+            return
+
+        with self._backend.acquire_lock():
+            task_data = self._backend.get_task_data(index)
+            task_data[13] = p_fast
+            task_data[14] = p_slow
+            task_data[15] = p_true
+            task_data[16] = random_baseline
+
     def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
         """Get statistics for a specific task.
 
