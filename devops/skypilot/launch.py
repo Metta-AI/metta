@@ -275,6 +275,7 @@ Examples:
         DISCORD_WEBHOOK_URL=args.discord_webhook_url,
         TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
         TEST_NCCL="true" if args.run_ci_tests else "false",
+        DD_LOGS_ENABLED="true",
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}

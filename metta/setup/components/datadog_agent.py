@@ -1,6 +1,7 @@
 import os
 import platform
 import subprocess
+import time
 from shutil import which
 
 from metta.setup.components.base import SetupModule
@@ -80,6 +81,78 @@ class DatadogAgentSetup(SetupModule):
             if value := os.environ.get(env_var):
                 tags.append(f"{tag}:{value}")
         return tags
+
+    def update_log_config_and_start_agent(self) -> None:
+        """Update Datadog log config with runtime tags and start agent."""
+        agent_binary = "/opt/datadog-agent/bin/agent/agent"
+        if not os.path.exists(agent_binary):
+            return  # Agent not installed, skip silently
+
+        try:
+            # Update existing log config with runtime tags
+            conf_d_dir = "/etc/datadog-agent/conf.d"
+            if os.path.exists(conf_d_dir):
+                custom_logs_dir = os.path.join(conf_d_dir, "skypilot_training.d")
+                log_config_file = os.path.join(custom_logs_dir, "conf.yaml")
+
+                if not os.path.exists(log_config_file):
+                    # Config should have been created at setup, but create it if missing
+                    os.makedirs(custom_logs_dir, exist_ok=True)
+                    log_config_template = """# Custom log collection for SkyPilot jobs
+logs:
+  - type: file
+    path: /tmp/datadog-agent.log
+    service: datadog-agent
+    source: datadog-agent
+    sourcecategory: monitoring
+  - type: file
+    path: /tmp/datadog-training.log
+    service: skypilot-training
+    source: training
+    sourcecategory: application
+"""
+                    with open(log_config_file, "w") as f:
+                        f.write(log_config_template)
+
+                # Read existing config and add tags
+                with open(log_config_file, "r") as f:
+                    config_content = f.read()
+
+                log_tags = self._build_tags()
+                if log_tags:
+                    tags_lines = "\n".join([f'      - "{tag}"' for tag in log_tags])
+                    tags_yaml = f"    tags:\n{tags_lines}\n"
+
+                    # Add tags to each log entry if not already present
+                    if "tags:" not in config_content:
+                        # Insert tags after each log entry's sourcecategory line
+                        updated_config = config_content
+                        for log_entry in ["datadog-agent", "skypilot-training"]:
+                            pattern = f"sourcecategory: {log_entry}\n"
+                            replacement = f"sourcecategory: {log_entry}\n{tags_yaml}"
+                            updated_config = updated_config.replace(pattern, replacement, 1)
+
+                        with open(log_config_file, "w") as f:
+                            f.write(updated_config)
+                        os.chmod(log_config_file, 0o644)
+
+            # Restart agent to pick up config
+            subprocess.run(["pkill", "-f", "datadog-agent.*run"], check=False, capture_output=True)
+            time.sleep(2)
+
+            # Start agent with DD_LOGS_ENABLED=true
+            env = os.environ.copy()
+            env["DD_LOGS_ENABLED"] = "true"
+            with open("/tmp/datadog-agent.log", "a") as log_file:
+                subprocess.Popen(
+                    [agent_binary, "run"],
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    env=env,
+                    start_new_session=True,
+                )
+        except Exception:
+            pass  # Non-fatal
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Getting Datadog API key...")
@@ -199,64 +272,35 @@ class DatadogAgentSetup(SetupModule):
                 except Exception as e:
                     warning(f"Could not update Datadog config file: {e}")
 
-            # Configure log collection paths
+            # Create log collection config at setup (template, tags added at runtime)
             try:
                 conf_d_dir = "/etc/datadog-agent/conf.d"
                 if os.path.exists(conf_d_dir):
-                    # Use standard Datadog integration directory format: <name>.d
-                    # The .d suffix is required for Datadog to recognize the integration
                     custom_logs_dir = os.path.join(conf_d_dir, "skypilot_training.d")
                     os.makedirs(custom_logs_dir, exist_ok=True)
 
-                    log_tags = self._build_tags()
-
-                    # Format tags as YAML list
-                    tags_yaml = ""
-                    if log_tags:
-                        tags_lines = "\n".join([f'      - "{tag}"' for tag in log_tags])
-                        tags_yaml = f"    tags:\n{tags_lines}\n"
-
                     log_config_file = os.path.join(custom_logs_dir, "conf.yaml")
-                    # Use explicit file paths (Datadog doesn't reliably support wildcards)
-                    # Create empty log files to ensure they exist when agent starts
-                    log_config = f"""# Custom log collection for SkyPilot jobs
+                    # Write template config (tags will be added at runtime)
+                    log_config = """# Custom log collection for SkyPilot jobs
+# Tags will be added at runtime when environment variables are available
 logs:
   - type: file
     path: /tmp/datadog-agent.log
     service: datadog-agent
     source: datadog-agent
     sourcecategory: monitoring
-{tags_yaml}
   - type: file
-    path: /tmp/training_logs/training_combined.log
+    path: /tmp/datadog-training.log
     service: skypilot-training
     source: training
     sourcecategory: application
-{tags_yaml}
 """
-                    # Ensure log directory and files exist before writing config
-                    training_log_dir = "/tmp/training_logs"
-                    os.makedirs(training_log_dir, exist_ok=True)
-                    # Create empty log files so Datadog agent can start collecting immediately
-                    for log_file in ["training_combined.log"]:
-                        log_path = os.path.join(training_log_dir, log_file)
-                        if not os.path.exists(log_path):
-                            with open(log_path, "a") as f:
-                                f.write("")  # Create empty file
-                            os.chmod(log_path, 0o666)  # Ensure readable/writable by everyone
                     with open(log_config_file, "w") as f:
                         f.write(log_config)
-                    # Set proper permissions so agent can read it
                     os.chmod(log_config_file, 0o644)
-                    info(f"Created custom log collection configuration at {log_config_file}")
-                    info(f"Config file size: {os.path.getsize(log_config_file)} bytes")
-                    # Verify the YAML is valid by checking basic structure
-                    if "logs:" in log_config and "type: file" in log_config:
-                        info("Log collection config appears valid (contains 'logs:' and 'type: file')")
-                    else:
-                        warning("Log collection config might be malformed!")
+                    info(f"Created Datadog log collection config at {log_config_file} (tags will be added at runtime)")
             except Exception as e:
-                warning(f"Could not create log collection config: {e}")
+                warning(f"Could not create Datadog log collection config: {e}")
 
             success("Datadog agent installed successfully (binary found).")
             return

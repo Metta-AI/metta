@@ -24,26 +24,15 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
-# Set up a single log file for Datadog and debugging
-TRAINING_LOG_DIR="/tmp/training_logs"
-mkdir -p "$TRAINING_LOG_DIR"
-chmod 777 "$TRAINING_LOG_DIR"
-
-TRAINING_COMBINED_LOG="$TRAINING_LOG_DIR/training_combined.log"
-touch "$TRAINING_COMBINED_LOG"
-# Ensure file is readable by dd-agent user (Datadog agent runs as dd-agent)
-chmod 666 "$TRAINING_COMBINED_LOG"
-# Also ensure directory is executable by all (needed for dd-agent to access the file)
-chmod o+x "$TRAINING_LOG_DIR" 2> /dev/null || true
-# If running as root, try to set ownership to dd-agent if it exists
-if [ "$(id -u)" = "0" ] && id dd-agent > /dev/null 2>&1; then
-  chown dd-agent:dd-agent "$TRAINING_COMBINED_LOG" 2> /dev/null || true
-  chown dd-agent:dd-agent "$TRAINING_LOG_DIR" 2> /dev/null || true
-fi
-
-echo "[INFO] Logging training output to: $TRAINING_COMBINED_LOG"
+# Log file for Datadog (captures ALL stdout/stderr, not just Python logging)
+DATADOG_LOG="/tmp/datadog-training.log"
+mkdir -p "$(dirname "$DATADOG_LOG")"
+touch "$DATADOG_LOG"
+chmod 666 "$DATADOG_LOG" 2>/dev/null || true
 
 # run torchrun; preserve exit code and print a friendly line
+# Output goes to stdout/stderr (visible in SkyPilot logs) AND to Datadog log file via tee
+# Python logging handler also writes to same file (when SKYPILOT_TASK_ID is set)
 set +e
 uv run torchrun \
   --nnodes=$NUM_NODES \
@@ -52,7 +41,7 @@ uv run torchrun \
   --master-port=$MASTER_PORT \
   --node-rank=$NODE_INDEX \
   tools/run.py \
-  "$@" 2>&1 | tee -a "$TRAINING_COMBINED_LOG"
+  "$@" 2>&1 | tee -a "$DATADOG_LOG"
 EXIT_CODE=${PIPESTATUS[0]} # real torchrun exit code
 set -e
 

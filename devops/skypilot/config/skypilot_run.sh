@@ -208,18 +208,8 @@ start_monitors() {
 }
 
 start_datadog_agent() {
-  local script_path="./devops/skypilot/config/lifecycle/start_datadog_agent.sh"
-  if [ -f "$script_path" ]; then
-    echo "[INFO] Starting Datadog agent..."
-    if bash "$script_path"; then
-      echo "[INFO] Datadog agent startup completed"
-    else
-      local exit_code=$?
-      echo "[WARN] Datadog agent startup failed with exit code $exit_code, continuing without it"
-    fi
-  else
-    echo "[INFO] Datadog agent startup script not found at $script_path, skipping"
-  fi
+  # Start Datadog agent (non-blocking, non-fatal)
+  uv run python devops/skypilot/utils/start_datadog_agent.py &
 }
 
 run_cmd() {
@@ -236,9 +226,6 @@ run_cmd() {
   fi
 
   echo "[INFO] Running command: ${cmd[*]}"
-
-  # Log file for Datadog collection (created by devops/run.sh)
-  TRAINING_COMBINED_LOG="/tmp/training_logs/training_combined.log"
 
   # Start training process
   # We do NOT redirect stdout/stderr here because devops/run.sh handles piping to the log file
