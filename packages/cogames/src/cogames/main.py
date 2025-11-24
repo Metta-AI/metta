@@ -146,8 +146,10 @@ def tutorial_cmd(
                 "title": "Step 2 — Movement & Energy",
                 "lines": (
                     "Use WASD or Arrow Keys to move your Cog.",
-                    "Every move costs Energy, every time step recovers eEnergy. Watch your battery bar on the Cog or in the HUD.",
-                    "If low, rest (skip turn), lean against a wall (walk into it), vibe, or find a Charger [yellow]+[/yellow].",
+                    "Every move costs Energy, every time step recovers Energy.",
+                    "Watch your battery bar on the Cog or in the HUD.",
+                    "If low, rest (skip turn), lean against a wall (walk into it), vibe, or",
+                    "find a Charger [yellow]+[/yellow].",
                 ),
             },
             {
