@@ -56,12 +56,12 @@ def _smollm_config(
     trainer_updates = {
         "compile": False,
         "batch_size": 131072,
-        "minibatch_size": 4096,
+        "minibatch_size": 8192,
         "bptt_horizon": 16,
     }
 
     env_updates = {
-        "forward_pass_minibatch_target_size": 8192,
+        "forward_pass_minibatch_target_size": 16384,
         "auto_workers": False,
         "num_workers": 1,
         "async_factor": 1,
