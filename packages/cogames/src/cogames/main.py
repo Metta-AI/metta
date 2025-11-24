@@ -29,7 +29,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
-import cogames.policy.scripted_agent.sample_policy as sample_policy
+import cogames.policy.scripted_agent.starter_agent as starter_agent
 from cogames import evaluate as evaluate_module
 from cogames import game, verbose
 from cogames import play as play_module
@@ -456,16 +456,16 @@ def make_mission(
         raise typer.Exit(1) from exc
 
 
-@app.command("make-policy", help="Create a new sample policy")
+@app.command("make-policy", help="Create a new starter policy")
 def make_policy(
     output: Path = typer.Option("my_policy.py", "--output", "-o", help="Output file path"),  # noqa: B008
 ) -> None:
-    """Create a new sample policy in the current directory."""
+    """Create a new starter policy in the current directory."""
     try:
-        # Get the path to the sample_policy.py file
-        sample_policy_path = Path(sample_policy.__file__)
-        if not sample_policy_path.exists():
-            console.print("[red]Error: Sample policy file not found[/red]")
+        # Get the path to the starter_policy.py file
+        starter_policy_path = Path(starter_agent.__file__)
+        if not starter_policy_path.exists():
+            console.print("[red]Error: Starter policy file not found[/red]")
             raise typer.Exit(1)
 
         # Copy to current working directory
@@ -475,8 +475,8 @@ def make_policy(
         if dest_path.exists():
             console.print(f"[yellow]Warning: {dest_path} already exists. Overwriting...[/yellow]")
 
-        shutil.copy2(sample_policy_path, dest_path)
-        console.print(f"[green]Sample policy copied to: {dest_path}[/green]")
+        shutil.copy2(starter_policy_path, dest_path)
+        console.print(f"[green]Starter policy copied to: {dest_path}[/green]")
         console.print(f"[dim]You can now modify {dest_path} to create your own policy.[/dim]")
 
     except Exception as exc:  # pragma: no cover - user input
