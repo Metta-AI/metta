@@ -559,7 +559,7 @@ class AsanaTask:
                     )
                     # Create a new subtask for re-requested review (prefer new task over reopening)
                     subtask_name = f"Review #{pr_number} by {pr_author}: {pr_title}"
-                    subtask_notes = f"Review requested from {reviewer_login}\n\nPR: {pr_url}"
+                    subtask_notes = pr_url
                     self.create_subtask(
                         name=subtask_name,
                         assignee=reviewer_email,
@@ -570,7 +570,7 @@ class AsanaTask:
             else:
                 print(f"[synchronize_review_subtasks] Creating new review subtask for {reviewer_login}")
                 subtask_name = f"Review #{pr_number} by {pr_author}: {pr_title}"
-                subtask_notes = f"Review requested from {reviewer_login}\n\nPR: {pr_url}"
+                subtask_notes = pr_url
                 self.create_subtask(
                     name=subtask_name,
                     assignee=reviewer_email,
