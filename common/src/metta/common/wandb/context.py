@@ -1,7 +1,7 @@
 import logging
 import os
 import socket
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from mettagrid.base_config import Config
 
@@ -59,7 +59,6 @@ class WandbContext:
         run_config: Config | dict[str, Any] | str | None = None,
         timeout: int = 30,
         run_config_name: str | None = None,
-        finalize_on_exit: bool = True,
     ):
         """
         Initialize WandbContext.
@@ -78,7 +77,6 @@ class WandbContext:
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
-        self._finalize_on_exit = finalize_on_exit
         self._generated_ipc_file_path: str | None = None  # To store path if generated
 
     def __enter__(self) -> WandbRun | None:
@@ -181,5 +179,52 @@ class WandbContext:
                 logger.error(f"Error during W&B cleanup: {str(e)}", exc_info=True)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self._finalize_on_exit:
-            self.cleanup_run(self.run)
+        self.cleanup_run(self.run)
+
+
+class WandbRunAppendContext:
+    """
+    Append-only context for logging to an existing W&B run without finishing it.
+
+    This intentionally avoids mutating config/tags/name and never calls finish(),
+    so it can be used by helper processes to stream metrics to an existing run.
+    """
+
+    def __init__(self, wandb_config: WandbConfig, timeout: int = 15, init_mode: str = "shared"):
+        self.wandb_config = wandb_config
+        self.timeout = timeout
+        self.run: Optional[WandbRun] = None
+
+    def __enter__(self) -> Optional[WandbRun]:
+        if not self.wandb_config.enabled:
+            return None
+
+        if not self.wandb_config.run_id:
+            logger.warning("WandbRunAppendContext requires a run_id to resume a run.")
+            return None
+
+        import wandb
+
+        os.environ.setdefault("WANDB_DISABLE_CODE", "true")
+
+        try:
+            # mode="shared" is best-effort; fall back if the installed wandb does not support it.
+            self.run = wandb.init(
+                mode="shared",
+                id=self.wandb_config.run_id,
+                project=self.wandb_config.project,
+                entity=self.wandb_config.entity,
+                reinit="return_previous",
+                settings=wandb.Settings(quiet=True, init_timeout=self.timeout, save_code=False),
+            )
+        except Exception as exc:
+            logger.warning("Failed to resume W&B run %s: %s", self.wandb_config.run_id, exc)
+            self.run = None
+            return None
+
+        logger.info("Opened append-only W&B session for %s", self.run.path if self.run else self.wandb_config.run_id)
+        return self.run
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Do not finish the run; leave ownership to the primary writer.
+        return False
