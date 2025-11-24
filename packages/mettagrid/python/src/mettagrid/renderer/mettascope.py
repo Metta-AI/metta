@@ -137,7 +137,6 @@ class MettascopeRenderer(Renderer):
                 if not action_name:
                     continue
 
-                logger.debug("Setting action '%s' for agent %s", action_name, action.agent_id)
                 try:
                     self._sim.agent(action.agent_id).set_action(Action(name=action_name))
                 except KeyError as e:
