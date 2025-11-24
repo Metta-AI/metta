@@ -6,14 +6,10 @@ interface allows TaskTracker to work identically regardless of whether training 
 single-process or multi-process.
 
 Key components:
+- TaskState: Pydantic model defining the task data structure
 - TaskMemoryBackend: Abstract interface defining storage operations
 - LocalMemoryBackend: Fast numpy array storage for single-process use
 - SharedMemoryBackend: Cross-process shared memory with multiprocessing.Lock for synchronization
-
-Task data structure (18 floats per task):
-[task_id, creation_time, completion_count, reward_ema, lp_score, success_rate_ema,
- total_score, last_score, success_threshold, seed, generator_type, ema_squared,
- is_active, p_fast, p_slow, p_true, random_baseline, label_hash]
 
 Synchronization: SharedMemoryBackend uses multiprocessing.Manager().Lock() to ensure atomic
 multi-field updates across processes. Manager.Lock() returns a proxy object that can be
@@ -34,8 +30,102 @@ from multiprocessing import Manager, shared_memory
 from typing import Any, ContextManager, Optional
 
 import numpy as np
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
+
+
+class TaskState(BaseModel):
+    """Task performance data structure.
+
+    This model defines all fields stored for each task. The struct_size is computed
+    dynamically from the number of float fields, eliminating magic offsets.
+    """
+
+    model_config = ConfigDict(validate_assignment=True)
+
+    # Core task metadata
+    task_id: float = Field(default=0.0, description="Unique task identifier")
+    creation_time: float = Field(default=0.0, description="Timestamp when task was created")
+    is_active: float = Field(default=0.0, description="Whether task is active (1.0) or evicted (0.0)")
+
+    # Performance tracking
+    completion_count: float = Field(default=0.0, description="Number of times task was completed")
+    reward_ema: float = Field(default=0.0, description="Exponential moving average of rewards")
+    success_rate_ema: float = Field(default=0.0, description="EMA of success rate (0-1)")
+    ema_squared: float = Field(default=0.0, description="EMA of squared rewards (for variance)")
+    total_score: float = Field(default=0.0, description="Sum of all scores")
+    last_score: float = Field(default=0.0, description="Most recent score")
+
+    # Learning progress scoring
+    lp_score: float = Field(default=0.0, description="Learning progress score (sampling probability)")
+
+    # Bidirectional learning progress EMAs
+    p_fast: float = Field(default=0.0, description="Fast EMA for bidirectional LP")
+    p_slow: float = Field(default=0.0, description="Slow EMA for bidirectional LP")
+    p_true: float = Field(default=0.0, description="True performance EMA (unnormalized)")
+    random_baseline: float = Field(default=0.0, description="Random agent baseline performance")
+
+    # Task configuration
+    success_threshold: float = Field(default=0.0, description="Success threshold for this task")
+    seed: float = Field(default=0.0, description="Random seed for task generation")
+    generator_type: float = Field(default=0.0, description="Type of task generator used")
+    label_hash: float = Field(default=0.0, description="Hash of task label for grouping")
+
+    @classmethod
+    def struct_size(cls) -> int:
+        """Compute the struct size dynamically from the number of fields."""
+        return len(cls.model_fields)
+
+    def to_array(self) -> np.ndarray:
+        """Convert TaskState to numpy array for storage."""
+        return np.array(
+            [
+                self.task_id,
+                self.creation_time,
+                self.completion_count,
+                self.reward_ema,
+                self.lp_score,
+                self.success_rate_ema,
+                self.total_score,
+                self.last_score,
+                self.success_threshold,
+                self.seed,
+                self.generator_type,
+                self.ema_squared,
+                self.is_active,
+                self.p_fast,
+                self.p_slow,
+                self.p_true,
+                self.random_baseline,
+                self.label_hash,
+            ],
+            dtype=np.float64,
+        )
+
+    @classmethod
+    def from_array(cls, arr: np.ndarray) -> "TaskState":
+        """Create TaskState from numpy array."""
+        return cls(
+            task_id=float(arr[0]),
+            creation_time=float(arr[1]),
+            completion_count=float(arr[2]),
+            reward_ema=float(arr[3]),
+            lp_score=float(arr[4]),
+            success_rate_ema=float(arr[5]),
+            total_score=float(arr[6]),
+            last_score=float(arr[7]),
+            success_threshold=float(arr[8]),
+            seed=float(arr[9]),
+            generator_type=float(arr[10]),
+            ema_squared=float(arr[11]),
+            is_active=float(arr[12]),
+            p_fast=float(arr[13]),
+            p_slow=float(arr[14]),
+            p_true=float(arr[15]),
+            random_baseline=float(arr[16]),
+            label_hash=float(arr[17]),
+        )
 
 
 class TaskMemoryBackend(ABC):
@@ -45,15 +135,8 @@ class TaskMemoryBackend(ABC):
     allowing the rest of the curriculum system to work identically regardless
     of whether running single-process or multi-process training.
 
-    The task_struct_size is configured at initialization to allow different
-    learning progress algorithms to specify their storage requirements.
+    The task_struct_size is computed dynamically from TaskState.struct_size().
     """
-
-    # Task structure: [task_id, creation_time, completion_count, reward_ema, lp_score,
-    #                  success_rate_ema, total_score, last_score, success_threshold,
-    #                  seed, generator_type, ema_squared, is_active,
-    #                  p_fast, p_slow, p_true, random_baseline, label_hash]
-    # Note: Actual sizes are configured per instance in __init__
 
     # Required attributes (must be set by subclasses)
     max_tasks: int
@@ -63,9 +146,27 @@ class TaskMemoryBackend(ABC):
     def get_task_data(self, index: int) -> np.ndarray:
         """Get task data at given index (raw array view).
 
-        Returns numpy array of length TASK_STRUCT_SIZE that can be read/written.
+        Returns numpy array of length task_struct_size that can be read/written directly.
+        Prefer get_task_state() for type-safe access.
         """
         ...
+
+    def get_task_state(self, index: int) -> TaskState:
+        """Get task state at given index (type-safe).
+
+        Returns TaskState object with typed fields.
+        """
+        return TaskState.from_array(self.get_task_data(index))
+
+    def set_task_state(self, index: int, state: TaskState) -> None:
+        """Set task state at given index (type-safe).
+
+        Args:
+            index: Task index
+            state: TaskState object to write
+        """
+        task_data = self.get_task_data(index)
+        task_data[:] = state.to_array()
 
     @abstractmethod
     def acquire_lock(self) -> ContextManager[Any]:
@@ -97,16 +198,16 @@ class LocalMemoryBackend(TaskMemoryBackend):
     def __init__(
         self,
         max_tasks: int,
-        task_struct_size: int = 17,
+        task_struct_size: Optional[int] = None,
     ):
         """Initialize local memory backend.
 
         Args:
             max_tasks: Maximum number of tasks to track (required, set from LearningProgressConfig)
-            task_struct_size: Size of each task's data structure (default: 17)
+            task_struct_size: Size of each task's data structure (default: computed from TaskState)
         """
         self.max_tasks = max_tasks
-        self.task_struct_size = task_struct_size
+        self.task_struct_size = task_struct_size if task_struct_size is not None else TaskState.struct_size()
 
         # Allocate local numpy arrays
         self._task_array = np.zeros((max_tasks, self.task_struct_size), dtype=np.float64)
@@ -152,7 +253,7 @@ class SharedMemoryBackend(TaskMemoryBackend):
         self,
         max_tasks: int,
         session_id: Optional[str] = None,
-        task_struct_size: int = 18,
+        task_struct_size: Optional[int] = None,
     ):
         """Initialize shared memory backend.
 
@@ -164,10 +265,10 @@ class SharedMemoryBackend(TaskMemoryBackend):
                        NOTE: When using LearningProgressConfig with use_shared_memory=True,
                        session_id is auto-generated at config creation time and shared across
                        all processes, so this fallback should rarely be used.
-            task_struct_size: Size of each task's data structure (default: 18, includes bidirectional EMAs + label)
+            task_struct_size: Size of each task's data structure (default: computed from TaskState)
         """
         self.max_tasks = max_tasks
-        self.task_struct_size = task_struct_size
+        self.task_struct_size = task_struct_size if task_struct_size is not None else TaskState.struct_size()
 
         # Initialize shared memory handle to None (set by _init_shared_memory)
         self._task_array_shm = None

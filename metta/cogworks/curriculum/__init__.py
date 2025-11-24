@@ -3,6 +3,7 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
 from .curriculum_env import CurriculumEnv
 from .learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+from .shared_memory_backend import TaskState
 from .stats import StatsLogger
 from .task_generator import (
     AnyTaskGeneratorConfig,
@@ -23,6 +24,7 @@ __all__ = [
     "LearningProgressConfig",
     "StatsLogger",
     "TaskTracker",
+    "TaskState",
     "TaskGenerator",
     "TaskGeneratorConfig",
     "AnyTaskGeneratorConfig",
