@@ -4,6 +4,7 @@ import multiprocessing
 import time
 
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+from metta.cogworks.curriculum.stats import NullStatsLogger
 
 
 def child_process_reader(
@@ -26,7 +27,7 @@ def child_process_reader(
             session_id=session_id,  # Use same session ID as parent
         )
 
-        algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=10, stats_logger=NullStatsLogger(), hypers=config)
 
         # Wait briefly to ensure parent has written the data
         time.sleep(0.1)
@@ -92,7 +93,7 @@ class TestSharedMemoryIntegration:
             use_shared_memory=True,
             session_id=session_id,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=10, stats_logger=NullStatsLogger(), hypers=config)
 
         # Create and track a task in parent process
         algorithm.task_tracker.track_task_creation(unique_task_id)
@@ -159,7 +160,7 @@ class TestSharedMemoryIntegration:
             use_shared_memory=True,
             session_id=session_id,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=10, stats_logger=NullStatsLogger(), hypers=config)
 
         # Write multiple tasks in parent process
         for task_id, score in task_data:
@@ -225,7 +226,7 @@ class TestSharedMemoryIntegration:
             use_shared_memory=True,
             session_id=session_id,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=10, stats_logger=NullStatsLogger(), hypers=config)
 
         # Write initial value
         algorithm.task_tracker.track_task_creation(task_id)
@@ -282,7 +283,7 @@ class TestSharedMemoryIntegration:
             use_shared_memory=True,
             session_id=session_id,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=10, stats_logger=NullStatsLogger(), hypers=config)
 
         # Phase 1: Fill up all slots
         initial_task_ids = list(range(1000, 1000 + max_tasks))
@@ -376,7 +377,7 @@ class TestSharedMemoryIntegration:
             use_shared_memory=True,
             session_id=session_id,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=10, stats_logger=NullStatsLogger(), hypers=config)
 
         # Create tasks at specific indices
         task_ids = list(range(100, 110))  # 10 tasks

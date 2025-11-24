@@ -76,7 +76,7 @@ class CurriculumAlgorithmConfig(Config, ABC):
         pass
 
     @abc.abstractmethod
-    def create(self, num_tasks: int) -> "CurriculumAlgorithm":
+    def create(self, num_tasks: int, stats_logger: "StatsLogger") -> "CurriculumAlgorithm":
         """Create the curriculum algorithm with these hyperparameters.
 
         Args:
@@ -94,16 +94,19 @@ class CurriculumAlgorithmConfig(Config, ABC):
     )
 
 
-class CurriculumAlgorithm(StatsLogger, ABC):
+class CurriculumAlgorithm(ABC):
     """Abstract base class for curriculum algorithms.
 
     Curriculum algorithms score tasks, recommend evictions, and track performance.
     The Curriculum maintains the task pool and lifecycle, while algorithms provide guidance.
+
+    Uses composition with StatsLogger rather than inheritance for better separation of concerns.
     """
 
     num_tasks: int
     hypers: CurriculumAlgorithmConfig
     task_tracker: Optional[Any] = None
+    stats_logger: "StatsLogger"
 
     @abc.abstractmethod
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
@@ -111,8 +114,16 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         pass
 
     @abc.abstractmethod
-    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
-        """Recommend which task to evict. Return None for random selection."""
+    def recommend_eviction(self, all_task_ids: List[int], min_presentations: int) -> Optional[int]:
+        """Recommend which task to evict.
+
+        Args:
+            all_task_ids: All active task IDs in the pool
+            min_presentations: Minimum presentations required before a task can be evicted
+
+        Returns:
+            Task ID to evict, or None if no eviction is recommended
+        """
         pass
 
     @abc.abstractmethod
@@ -129,31 +140,31 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         """Get algorithm state for checkpointing. Override in subclasses that have state."""
         return {"type": self.hypers.algorithm_type()}
 
-    def load_state(self, state: Dict[str, Any]) -> None:
+    def load_state(self, state: Dict[str, Any]) -> None:  # noqa: B027
         """Load algorithm state from checkpoint. Override in subclasses that have state."""
         pass
 
-    def on_task_created(self, task: CurriculumTask) -> None:
+    def on_task_created(self, task: CurriculumTask) -> None:  # noqa: B027
         """Notification that a new task has been created. Override if needed."""
         pass
 
-    def on_task_sampled(self, task_id: int) -> None:
+    def on_task_sampled(self, task_id: int) -> None:  # noqa: B027
         """Notification that a task has been sampled. Override if needed."""
         pass
 
-    def set_curriculum_reference(self, curriculum: "Curriculum") -> None:
+    def set_curriculum_reference(self, curriculum: "Curriculum") -> None:  # noqa: B027
         """Set reference to curriculum for stats updates. Override if needed."""
         pass
 
-    def reset_epoch_counters(self) -> None:
+    def reset_epoch_counters(self) -> None:  # noqa: B027
         """Reset per-epoch counters. Override if needed."""
         pass
 
-    def get_task_lp_score(self, task_id: int) -> float:
-        """Get learning progress score for a task.
+    def get_task_score(self, task_id: int) -> float:
+        """Get the score for a task (used for sampling/prioritization).
 
         Returns:
-            LP score, or 0.0 if not applicable
+            Task score, or 0.0 if not applicable
         """
         return 0.0
 
@@ -210,19 +221,50 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         return False
 
     def __init__(
-        self, num_tasks: int, hypers: Optional[CurriculumAlgorithmConfig] = None, initialize_weights: bool = True
+        self,
+        num_tasks: int,
+        stats_logger: "StatsLogger",
+        hypers: Optional[CurriculumAlgorithmConfig] = None,
+        initialize_weights: bool = True,
     ):
         if num_tasks <= 0:
             raise ValueError(f"Number of tasks must be positive. num_tasks {num_tasks}")
         self.num_tasks = num_tasks
         self.hypers = hypers  # type: ignore[assignment]
         self.task_tracker = None
-        StatsLogger.__init__(self)
+        self.stats_logger = stats_logger
 
+    @abc.abstractmethod
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic statistics. Override in subclasses."""
-        return {}
+        pass
 
     def get_detailed_stats(self) -> Dict[str, float]:
         """Get detailed statistics. Override in subclasses."""
         return {}
+
+    def stats(self, prefix: str = "") -> Dict[str, float]:
+        """Get all statistics with optional prefix (delegates to stats logger).
+
+        Args:
+            prefix: String to prepend to all stat keys
+
+        Returns:
+            Dictionary of statistics with prefixed keys
+        """
+        # Get base stats (required)
+        stats = self.get_base_stats()
+
+        # Add detailed stats
+        detailed = self.get_detailed_stats()
+        stats.update(detailed)
+
+        # Add prefix to all keys
+        if prefix:
+            stats = {f"{prefix}{k}": v for k, v in stats.items()}
+
+        return stats
+
+    def invalidate_cache(self):
+        """Invalidate the stats cache (delegates to stats logger)."""
+        self.stats_logger.invalidate_cache()

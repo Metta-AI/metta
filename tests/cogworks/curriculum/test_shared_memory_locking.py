@@ -11,6 +11,7 @@ from multiprocessing import Process
 import pytest
 
 import metta.cogworks.curriculum as cc
+from metta.cogworks.curriculum.stats import NullStatsLogger
 
 
 class TestSharedMemoryLocking:
@@ -70,7 +71,7 @@ class TestSharedMemoryLocking:
         assert task_stats["completion_count"] == 4
 
         # LP score should still be exploration_bonus (not enough samples)
-        lp_score = curriculum.get_task_lp_score(task._task_id)
+        lp_score = curriculum.get_task_score(task._task_id)
         assert lp_score == pytest.approx(0.1)  # exploration_bonus
 
         # Complete one more time (5th sample - reaches min_samples_for_lp)
@@ -82,7 +83,7 @@ class TestSharedMemoryLocking:
 
         # LP score should NOW be calculated from EMAs (not exploration_bonus)
         # Since all scores are 0.5, EMAs should converge and LP should be ~0
-        lp_score = curriculum.get_task_lp_score(task._task_id)
+        lp_score = curriculum.get_task_score(task._task_id)
         # It won't be exactly 0 due to z-score amplification, but should be different from exploration_bonus
         assert lp_score != 0.1  # Not exploration_bonus anymore
 
@@ -178,7 +179,7 @@ class TestSharedMemoryLocking:
             use_bidirectional=True,
         )
 
-        algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=10, stats_logger=NullStatsLogger(), hypers=config)
 
         # Create a task
         task_id = 1

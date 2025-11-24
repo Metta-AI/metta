@@ -54,8 +54,8 @@ class DiscreteRandomCurriculumConfig(CurriculumAlgorithmConfig):
     def algorithm_type(self) -> str:
         return "discrete_random"
 
-    def create(self, num_tasks: int) -> CurriculumAlgorithm:
-        return DiscreteRandomCurriculum(num_tasks, self)
+    def create(self, num_tasks: int, stats_logger: "StatsLogger") -> CurriculumAlgorithm:
+        return DiscreteRandomCurriculum(num_tasks, stats_logger, self)
 
 
 class DiscreteRandomCurriculum(CurriculumAlgorithm):
@@ -69,7 +69,7 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
         """All tasks have equal score for random selection."""
         return {task_id: 1.0 for task_id in task_ids}
 
-    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
+    def recommend_eviction(self, all_task_ids: List[int], min_presentations: int) -> Optional[int]:
         """No preference for eviction - let Curriculum choose randomly."""
         return None
 
@@ -80,6 +80,10 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
     def update_task_performance(self, task_id: int, score: float):
         """Update task performance - no-op for discrete random curriculum."""
         pass
+
+    def get_base_stats(self) -> Dict[str, float]:
+        """Get basic statistics for discrete random curriculum."""
+        return {"algorithm_type": 0.0}  # Categorical indicator: 0 = discrete random
 
 
 class CurriculumConfig(Config):
@@ -154,8 +158,9 @@ class Curriculum(StatsLogger):
         self._num_evicted = 0
 
         # Create algorithm from config (always present via default_factory)
+        # Pass self (StatsLogger) to algorithm for composition-based stats reporting
         num_tasks = config.algorithm_config.num_active_tasks
-        self._algorithm: CurriculumAlgorithm = config.algorithm_config.create(num_tasks)
+        self._algorithm: CurriculumAlgorithm = config.algorithm_config.create(num_tasks, stats_logger=self)
         # Pass curriculum reference to algorithm for stats updates
         self._algorithm.set_curriculum_reference(self)
 
@@ -188,29 +193,24 @@ class Curriculum(StatsLogger):
         Returns:
             CurriculumTask: A task sampled from the pool based on learning progress scores
         """
-        # Curriculum always manages the task pool - no delegation
         task = None
+
+        # Try to create a new task if below capacity
         if len(self._tasks) < self._num_active_tasks:
             task = self._create_task()
 
-        # If we couldn't create a task, try eviction or choose existing
-        if task is None:
-            # At capacity - check if any task meets eviction criteria first
-            evictable_tasks = [
-                tid
-                for tid in self._tasks.keys()
-                if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
-            ]
-            if evictable_tasks:
-                # Evict a task that meets the criteria and create a new one
-                evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
-                if evict_candidate is not None:
-                    self._evict_specific_task(evict_candidate)
-                    task = self._create_task()
+        # At capacity - try eviction, then create
+        if task is None and len(self._tasks) >= self._num_active_tasks:
+            evict_candidate = self._algorithm.recommend_eviction(
+                list(self._tasks.keys()), self._config.min_presentations_for_eviction
+            )
+            if evict_candidate is not None:
+                self._evict_specific_task(evict_candidate)
+                task = self._create_task()
 
-            # If no eviction happened, choose from existing tasks
-            if task is None:
-                task = self._choose_task()
+        # If still no task, choose from existing pool
+        if task is None:
+            task = self._choose_task()
 
         task._num_scheduled += 1
 
@@ -294,16 +294,16 @@ class Curriculum(StatsLogger):
         # Invalidate stats cache since task performance affects curriculum stats
         self.invalidate_cache()
 
-    def get_task_lp_score(self, task_id: int) -> float:
-        """Get the learning progress score for a specific task.
+    def get_task_score(self, task_id: int) -> float:
+        """Get the score for a specific task (used for sampling/prioritization).
 
         Args:
             task_id: The task ID to get the score for
 
         Returns:
-            The learning progress score, or 0.0 if not available
+            The task score, or 0.0 if not available
         """
-        return self._algorithm.get_task_lp_score(task_id)
+        return self._algorithm.get_task_score(task_id)
 
     def get_evictions_this_epoch(self) -> Dict[str, int]:
         """Get per-epoch evictions WITHOUT resetting the counter.

@@ -46,6 +46,7 @@ from pydantic import model_validator
 
 from .curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
+from .stats import StatsLogger
 from .task_tracker import TaskTracker
 
 logger = logging.getLogger(__name__)
@@ -132,8 +133,8 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     def algorithm_type(self) -> str:
         return "learning_progress"
 
-    def create(self, num_tasks: int) -> "LearningProgressAlgorithm":
-        return LearningProgressAlgorithm(num_tasks, self)
+    def create(self, num_tasks: int, stats_logger: "StatsLogger") -> "LearningProgressAlgorithm":
+        return LearningProgressAlgorithm(num_tasks, stats_logger, self)
 
     # Configuration Presets for Common Use Cases
     # These provide sensible defaults for different training scenarios
@@ -263,8 +264,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     intelligent task selection.
     """
 
-    def __init__(self, num_tasks: int, hypers: LearningProgressConfig):
-        super().__init__(num_tasks, hypers)
+    def __init__(self, num_tasks: int, stats_logger: "StatsLogger", hypers: LearningProgressConfig):
+        super().__init__(num_tasks, stats_logger, hypers)
 
         self.num_tasks = num_tasks
         self.hypers: LearningProgressConfig = hypers
@@ -310,15 +311,29 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Score tasks using the configured method (bidirectional by default)."""
         return {task_id: self.scorer.score_task(task_id, self.task_tracker) for task_id in task_ids}
 
-    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
-        """Recommend which task to evict based on learning progress."""
-        if not task_ids:
+    def recommend_eviction(self, all_task_ids: List[int], min_presentations: int) -> Optional[int]:
+        """Recommend which task to evict based on learning progress.
+
+        Args:
+            all_task_ids: All active task IDs in the pool
+            min_presentations: Minimum presentations required before a task can be evicted
+
+        Returns:
+            Task ID to evict, or None if no task meets eviction criteria
+        """
+        if not all_task_ids:
             return None
 
-        scores = self.score_tasks(task_ids)
+        # Filter to evictable tasks
+        evictable_tasks = [tid for tid in all_task_ids if self.should_evict_task(tid, min_presentations)]
+
+        if not evictable_tasks:
+            return None
+
+        scores = self.score_tasks(evictable_tasks)
 
         # Find task with minimum learning progress
-        min_task_id = min(task_ids, key=lambda tid: scores.get(tid, 0.0))
+        min_task_id = min(evictable_tasks, key=lambda tid: scores.get(tid, 0.0))
         return min_task_id
 
     def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
@@ -506,8 +521,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         weights = [scores.get(task_id, 0.0) for task_id in task_ids]
         return random.choices(task_ids, weights=weights)[0]
 
-    def get_task_lp_score(self, task_id: int) -> float:
-        """Get final learning progress score (sampling probability) for a specific task."""
+    def get_task_score(self, task_id: int) -> float:
+        """Get the score for a specific task (sampling probability)."""
         return self.scorer.score_task(task_id, self.task_tracker)
 
     def on_task_created(self, task: CurriculumTask) -> None:

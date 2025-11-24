@@ -6,6 +6,7 @@ import pytest
 
 from metta.cogworks.curriculum.curriculum import CurriculumTask
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+from metta.cogworks.curriculum.stats import NullStatsLogger
 
 from .test_helpers import CurriculumTestHelper
 
@@ -66,7 +67,9 @@ class TestLearningProgressCoreBehavior:
     def test_learning_progress_favors_fast_learning(self, random_seed, learning_progress_config):
         """Test that fast learning tasks get higher learning progress scores than slow learning."""
         # Set up algorithm with tasks (works for both standard and bidirectional)
-        algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=learning_progress_config)
+        algorithm = LearningProgressAlgorithm(
+            num_tasks=2, stats_logger=NullStatsLogger(), hypers=learning_progress_config
+        )
 
         rng = random.Random(random_seed)
         task1_id, task2_id = _create_tasks(algorithm, 2, rng)
@@ -95,7 +98,9 @@ class TestLearningProgressCoreBehavior:
     def test_learning_progress_favors_changing_performance(self, random_seed, learning_progress_config):
         """Test that changing performance has higher learning progress scores than consistent performance."""
         # Set up algorithm with tasks (works for both standard and bidirectional)
-        algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=learning_progress_config)
+        algorithm = LearningProgressAlgorithm(
+            num_tasks=2, stats_logger=NullStatsLogger(), hypers=learning_progress_config
+        )
 
         rng = random.Random(random_seed)
         task1_id, task2_id = _create_tasks(algorithm, 2, rng)
@@ -126,7 +131,9 @@ class TestLearningProgressCoreBehavior:
     def test_learning_progress_sampling_favors_high_lp_tasks(self, random_seed, learning_progress_config):
         """Test that sampling favors tasks with higher learning progress scores."""
         # Set up algorithm with tasks (works for both standard and bidirectional)
-        algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=learning_progress_config)
+        algorithm = LearningProgressAlgorithm(
+            num_tasks=3, stats_logger=NullStatsLogger(), hypers=learning_progress_config
+        )
 
         rng = random.Random(random_seed)
         task1_id, task2_id, task3_id = _create_tasks(algorithm, 3, rng)
@@ -190,7 +197,7 @@ class TestLearningProgressCoreBehavior:
             num_active_tasks=5,
             use_shared_memory=False,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=10, stats_logger=NullStatsLogger(), hypers=config)
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 2, rng)
@@ -211,7 +218,7 @@ class TestLearningProgressCoreBehavior:
             num_active_tasks=10,
             use_shared_memory=False,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=1, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=1, stats_logger=NullStatsLogger(), hypers=config)
 
         task_id = _create_tasks(algorithm, 1, random.Random(random_seed))[0]
 
@@ -233,7 +240,7 @@ class TestLearningProgressCoreBehavior:
             num_active_tasks=10,
             use_shared_memory=False,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=3, stats_logger=NullStatsLogger(), hypers=config)
 
         rng = random.Random(random_seed)
         task1_id, task2_id, task3_id = _create_tasks(algorithm, 3, rng)
@@ -250,7 +257,7 @@ class TestLearningProgressCoreBehavior:
 
         # Test eviction recommendation
         task_ids = [task1_id, task2_id, task3_id]
-        eviction_recommendation = algorithm.recommend_eviction(task_ids)
+        eviction_recommendation = algorithm.recommend_eviction(task_ids, min_presentations=5)
 
         # Should recommend task 2 (low variance) over task 1 (high variance)
         # Task 3 might be recommended due to exploration bonus
@@ -268,7 +275,8 @@ class TestLearningProgressProductionPatterns:
             ema_timescale=0.001,
             num_active_tasks=50,  # REDUCED from 100 for faster testing
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=20, hypers=config)  # REDUCED from 50
+        # REDUCED num_tasks from 50 for faster testing
+        algorithm = LearningProgressAlgorithm(num_tasks=20, stats_logger=NullStatsLogger(), hypers=config)
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 15, rng)
@@ -293,7 +301,7 @@ class TestLearningProgressProductionPatterns:
             ema_timescale=0.001,
             num_active_tasks=10,  # Small limit to trigger cleanup
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=20, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=20, stats_logger=NullStatsLogger(), hypers=config)
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 15, rng)
@@ -312,7 +320,7 @@ class TestLearningProgressProductionPatterns:
             ema_timescale=0.01,  # Higher for faster convergence
             num_active_tasks=20,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=5, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=5, stats_logger=NullStatsLogger(), hypers=config)
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 5, rng)
@@ -374,7 +382,7 @@ class TestBidirectionalLearningProgressBehavior:
             num_active_tasks=10,
             use_bidirectional=True,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=2, stats_logger=NullStatsLogger(), hypers=config)
 
         task1_id, task2_id = _create_tasks(algorithm, 2, random.Random(random_seed))
 
@@ -399,7 +407,7 @@ class TestBidirectionalLearningProgressBehavior:
             use_bidirectional=True,
             sample_threshold=5,  # Lower threshold for testing
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=3, stats_logger=NullStatsLogger(), hypers=config)
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 3, rng)
@@ -440,7 +448,7 @@ class TestBidirectionalLearningProgressBehavior:
             num_active_tasks=10,
             use_bidirectional=True,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=config)
+        algorithm = LearningProgressAlgorithm(num_tasks=2, stats_logger=NullStatsLogger(), hypers=config)
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 2, rng)

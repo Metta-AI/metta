@@ -73,3 +73,19 @@ class StatsLogger(ABC):
         self._stats_cache_valid = True
 
         return stats
+
+
+class NullStatsLogger(StatsLogger):
+    """Minimal stats logger implementation for testing.
+
+    Provides no-op implementations of all stats methods.
+    Useful for unit tests that don't need actual stats collection.
+    """
+
+    def get_base_stats(self) -> Dict[str, float]:
+        """Return empty stats dict."""
+        return {}
+
+    def get_detailed_stats(self) -> Dict[str, float]:
+        """Return empty stats dict."""
+        return {}

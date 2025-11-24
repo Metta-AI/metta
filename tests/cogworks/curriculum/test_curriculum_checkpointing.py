@@ -13,6 +13,7 @@ import pytest
 
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.stats import NullStatsLogger
 from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
 from metta.cogworks.curriculum.task_tracker import TaskTracker
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -186,7 +187,7 @@ class TestCurriculumStateSerialization:
         assert "tracker_type" in task_tracker_state
 
         # Test loading state
-        new_algorithm = curriculum_config.algorithm_config.create(8)
+        new_algorithm = curriculum_config.algorithm_config.create(8, stats_logger=NullStatsLogger())
         new_algorithm.load_state(state)
 
         # Verify state was loaded correctly - check task IDs match

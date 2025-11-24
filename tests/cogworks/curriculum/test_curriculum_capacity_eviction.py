@@ -375,7 +375,7 @@ class TestCurriculumCapacityAndEviction:
         )
 
         # Just verify the algorithm can identify a task for eviction (non-crashing)
-        recommended_eviction = algorithm.recommend_eviction(initial_task_ids)
+        recommended_eviction = algorithm.recommend_eviction(initial_task_ids, min_presentations=5)
         if recommended_eviction is not None:
             print(f"✓ Algorithm recommends evicting: {task_names[recommended_eviction]}")
         else:
