@@ -23,6 +23,7 @@ from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
 from mettagrid.renderer.mettascope import METTASCOPE_REPLAY_URL_PREFIX
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
+from mettagrid.util.file import http_url
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,7 @@ def to_eval_results(
 
         replay_paths = [episode.replay_path for episode in result.results.episodes if episode.replay_path]
         if replay_paths:
-            replay_urls[f"{category}.{sim_name}"] = replay_paths
+            replay_urls[f"{category}.{sim_name}"] = [http_url(path) for path in replay_paths]
 
     category_scores = {
         category: sum(values) / len(values) for category, values in category_scores_accum.items() if values
@@ -294,7 +295,7 @@ def render_eval_summary(
         replay_paths = [episode.replay_path for episode in result.results.episodes]
         for episode_idx, replay_path in enumerate(replay_paths):
             if replay_path:
-                viewer_url = f"{METTASCOPE_REPLAY_URL_PREFIX}{replay_path}"
+                viewer_url = f"{METTASCOPE_REPLAY_URL_PREFIX}{http_url(replay_path)}"
                 replay_rows.append((s_name, str(episode_idx), viewer_url))
 
     if replay_rows:
@@ -381,5 +382,4 @@ def write_eval_results_to_observatory(
         )
 
     except Exception as e:
-        logger.error(f"Failed to write evaluation results to observatory: {e}", exc_info=True)
-        raise
+        logger.warning(f"Failed to write evaluation results to observatory: {e}", exc_info=True)
