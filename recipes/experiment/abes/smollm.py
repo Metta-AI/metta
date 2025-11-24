@@ -55,7 +55,7 @@ def _smollm_config(
 
     trainer_updates = {
         "compile": False,
-        "batch_size": 131072,
+        "batch_size": 262144,
         "minibatch_size": 8192,
         "bptt_horizon": 16,
     }
