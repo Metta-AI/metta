@@ -533,13 +533,15 @@ class AsanaTask:
         existing_subtasks = self.get_subtasks()
 
         # Build mapping of assignee email to subtask for review subtasks
-        review_subtask_prefix = "Review #"
+        review_subtask_prefix = "Review "
         existing_review_subtasks = {}
         for subtask in existing_subtasks:
             if subtask["name"].startswith(review_subtask_prefix):
                 assignee_email = subtask.get("assignee", {}).get("email") if subtask.get("assignee") else None
                 if assignee_email:
-                    existing_review_subtasks[assignee_email] = subtask
+                    # Keep the most recent subtask for each assignee (in case there are duplicates)
+                    if assignee_email not in existing_review_subtasks:
+                        existing_review_subtasks[assignee_email] = subtask
 
         print(f"[synchronize_review_subtasks] Found {len(existing_review_subtasks)} existing review subtasks")
 
@@ -594,7 +596,7 @@ class AsanaTask:
 
         # Get existing subtasks
         existing_subtasks = self.get_subtasks()
-        review_subtask_prefix = "Review #"
+        review_subtask_prefix = "Review "
 
         # Find the subtask assigned to this reviewer
         for subtask in existing_subtasks:
@@ -619,7 +621,7 @@ class AsanaTask:
         print("[close_all_review_subtasks] Closing all review subtasks")
 
         existing_subtasks = self.get_subtasks()
-        review_subtask_prefix = "Review #"
+        review_subtask_prefix = "Review "
 
         closed_count = 0
         for subtask in existing_subtasks:
