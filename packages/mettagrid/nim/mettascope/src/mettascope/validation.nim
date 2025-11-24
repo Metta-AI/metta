@@ -473,16 +473,21 @@ proc validateActionIdRange*(obj: JsonNode, key: string, objName: string, actionN
 
 proc validateAgentFields*(obj: JsonNode, objName: string, replayData: JsonNode, issues: var seq[ValidationIssue]) =
   ## Validate all agent-specific fields.
-  let agentFields = [
-    "agent_id", "is_agent", "vision_size", "action_id", "action_param", "action_success",
-    "current_reward", "total_reward", "freeze_remaining", "is_frozen", "freeze_duration", "group_id"
+
+  let requiredAgentFields = [
+    "agent_id", "action_id", "action_success",
+    "total_reward", "current_reward", "group_id"
   ]
-  requireFields(obj, agentFields, objName, issues)
+  requireFields(obj, requiredAgentFields, objName, issues)
+
+  # let optionalAgentFields = [
+  #   "frozen", "frozen_time", "frozen_progress", "action_parameter"
+  # ]
 
   # Validate static agent fields.
   validateStaticValue(obj, "agent_id", "int", objName & ".agent_id", issues)
   validateNonNegativeNumber(obj, "agent_id", objName & ".agent_id", issues)
-  if "agent_id" in obj and "num_agents" in replayData:
+  if "num_agents" in replayData:
     let agentId = obj["agent_id"].getInt()
     if agentId >= replayData["num_agents"].getInt():
       issues.add(ValidationIssue(
@@ -490,30 +495,23 @@ proc validateAgentFields*(obj: JsonNode, objName: string, replayData: JsonNode, 
         field: objName & ".agent_id"
       ))
 
-  validateStaticValue(obj, "is_agent", "bool", objName & ".is_agent", issues)
-  if "is_agent" in obj:
-    let isAgentValue = obj["is_agent"]
-    if isAgentValue.kind == JBool and not isAgentValue.getBool():
-      issues.add(ValidationIssue(
-        message: &"{objName}.is_agent must be True",
-        field: objName & ".is_agent"
-      ))
-
-  validateStaticValue(obj, "vision_size", "int", objName & ".vision_size", issues)
-  validatePositiveInt(obj, "vision_size", objName & ".vision_size", issues)
-
   validateStaticValue(obj, "group_id", "int", objName & ".group_id", issues)
   validateNonNegativeNumber(obj, "group_id", objName & ".group_id", issues)
 
   # Validate dynamic agent fields (always time series).
   validateTimeSeries(obj, "action_id", objName & ".action_id", "int", issues)
-  validateTimeSeries(obj, "action_param", objName & ".action_param", "int", issues)
   validateTimeSeries(obj, "action_success", objName & ".action_success", "bool", issues)
   validateTimeSeries(obj, "current_reward", objName & ".current_reward", "float", issues)
   validateTimeSeries(obj, "total_reward", objName & ".total_reward", "float", issues)
-  validateTimeSeries(obj, "freeze_remaining", objName & ".freeze_remaining", "float", issues)
-  validateTimeSeries(obj, "is_frozen", objName & ".is_frozen", "bool", issues)
-  validateTimeSeries(obj, "freeze_duration", objName & ".freeze_duration", "float", issues)
+  # validate optional agent fields
+  if "action_parameter" in obj:
+    validateTimeSeries(obj, "action_parameter", objName & ".action_parameter", "int", issues)
+  if "frozen" in obj:
+    validateTimeSeries(obj, "frozen", objName & ".frozen", "bool", issues)
+  if "frozen_progress" in obj:
+    validateTimeSeries(obj, "frozen_progress", objName & ".frozen_progress", "int", issues)
+  if "frozen_time" in obj:
+    validateTimeSeries(obj, "frozen_time", objName & ".frozen_time", "int", issues)
 
   # Validate action_id values are in range.
   if "action_names" in replayData:
@@ -598,14 +596,13 @@ proc validateProtocol*(protocol: JsonNode, protocolIndex: int, objName: string, 
 proc validateAssemblerFields*(obj: JsonNode, objName: string, issues: var seq[ValidationIssue]) =
   ## Validate all assembler-specific fields.
   let assemblerFields = [
-    "protocols", "cooldown_remaining", "cooldown_duration", "is_clipped",
-    "is_clip_immune", "uses_count", "max_uses", "allow_partial_usage"
+    "protocols", "is_clipped", "is_clip_immune", "uses_count", "max_uses", "allow_partial_usage"
   ]
   requireFields(obj, assemblerFields, objName, issues)
 
   # Validate static assembler fields.
-  validateStaticValue(obj, "cooldown_duration", "int", objName & ".cooldown_duration", issues)
-  validateNonNegativeNumber(obj, "cooldown_duration", objName & ".cooldown_duration", issues)
+  validateStaticValue(obj, "max_uses", "int", objName & ".max_uses", issues)
+  validateNonNegativeNumber(obj, "max_uses", objName & ".max_uses", issues)
 
   validateStaticValue(obj, "max_uses", "int", objName & ".max_uses", issues)
   validateNonNegativeNumber(obj, "max_uses", objName & ".max_uses", issues)
@@ -622,7 +619,6 @@ proc validateAssemblerFields*(obj: JsonNode, objName: string, issues: var seq[Va
         validateProtocol(protocol, i, objName, issues)
 
   # Validate dynamic assembler fields (time series).
-  validateTimeSeries(obj, "cooldown_remaining", objName & ".cooldown_remaining", "int", issues)
   validateTimeSeries(obj, "is_clipped", objName & ".is_clipped", "bool", issues)
   validateTimeSeries(obj, "is_clip_immune", objName & ".is_clip_immune", "bool", issues)
   validateTimeSeries(obj, "uses_count", objName & ".uses_count", "int", issues)
@@ -631,8 +627,7 @@ proc validateBuildingFields*(obj: JsonNode, objName: string, issues: var seq[Val
   ## Validate all building-specific fields (legacy buildings).
   let buildingFields = [
     "input_resources", "output_resources", "output_limit", "conversion_remaining",
-    "is_converting", "conversion_duration", "cooldown_remaining", "is_cooling_down",
-    "cooldown_duration"
+    "is_converting", "conversion_duration"
   ]
   requireFields(obj, buildingFields, objName, issues)
 
@@ -643,16 +638,11 @@ proc validateBuildingFields*(obj: JsonNode, objName: string, issues: var seq[Val
   validateStaticValue(obj, "conversion_duration", "float", objName & ".conversion_duration", issues)
   validateNonNegativeNumber(obj, "conversion_duration", objName & ".conversion_duration", issues)
 
-  validateStaticValue(obj, "cooldown_duration", "float", objName & ".cooldown_duration", issues)
-  validateNonNegativeNumber(obj, "cooldown_duration", objName & ".cooldown_duration", issues)
-
   # Validate dynamic building fields (always time series).
   validateInventoryFormat(obj, "input_resources", objName & ".input_resources", issues)
   validateInventoryFormat(obj, "output_resources", objName & ".output_resources", issues)
   validateTimeSeries(obj, "conversion_remaining", objName & ".conversion_remaining", "float", issues)
   validateTimeSeries(obj, "is_converting", objName & ".is_converting", "bool", issues)
-  validateTimeSeries(obj, "cooldown_remaining", objName & ".cooldown_remaining", "float", issues)
-  validateTimeSeries(obj, "is_cooling_down", objName & ".is_cooling_down", "bool", issues)
 
 proc validateObject*(obj: JsonNode, objIndex: int, replayData: JsonNode, issues: var seq[ValidationIssue]) =
   ## Validate a single object in the replay.
