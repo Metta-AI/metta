@@ -159,7 +159,8 @@ class Curriculum(StatsLogger):
 
         # Create algorithm from config (always present via default_factory)
         # Pass self (StatsLogger) to algorithm for composition-based stats reporting
-        num_tasks = config.algorithm_config.num_active_tasks
+        # Use config.num_active_tasks as the source of truth (synced in model_post_init)
+        num_tasks = config.num_active_tasks
         self._algorithm: CurriculumAlgorithm = config.algorithm_config.create(num_tasks, stats_logger=self)
         # Pass curriculum reference to algorithm for stats updates
         self._algorithm.set_curriculum_reference(self)
@@ -170,18 +171,8 @@ class Curriculum(StatsLogger):
 
     @property
     def _num_active_tasks(self) -> int:
-        """Get the effective number of active tasks.
-
-        Handles two scenarios:
-        1. Algorithm_config in sync with config: use algorithm_config (allows CLI overrides)
-        2. Algorithm_config out of sync: use config (manual override after creation)
-        """
-        # If they match, they're in sync - use algorithm_config (allows CLI overrides to work)
-        if self._config.algorithm_config.num_active_tasks == self._config.num_active_tasks:
-            return self._config.algorithm_config.num_active_tasks
-
-        # If they differ, config was manually overridden - prefer config
-        return self._config.num_active_tasks
+        """Get the effective number of active tasks from the algorithm (single source of truth)."""
+        return self._algorithm.num_tasks
 
     def get_task(self) -> CurriculumTask:
         """Sample a task from the population with replacement.

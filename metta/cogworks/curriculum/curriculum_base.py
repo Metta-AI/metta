@@ -225,7 +225,6 @@ class CurriculumAlgorithm(ABC):
         num_tasks: int,
         stats_logger: "StatsLogger",
         hypers: Optional[CurriculumAlgorithmConfig] = None,
-        initialize_weights: bool = True,
     ):
         if num_tasks <= 0:
             raise ValueError(f"Number of tasks must be positive. num_tasks {num_tasks}")
