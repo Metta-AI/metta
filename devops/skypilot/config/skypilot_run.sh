@@ -13,6 +13,8 @@ EXIT_SUCCESS=0
 EXIT_FAILURE=1
 EXIT_NCCL_TEST_FAILURE=42
 
+echo "pwd: $(pwd)"
+
 echo "[CONFIG] Run Configuration:"
 echo "  - NODE_RANK: ${RANK}"
 echo "  - IS_MASTER: ${IS_MASTER}"
