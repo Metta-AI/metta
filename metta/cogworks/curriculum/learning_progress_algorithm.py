@@ -111,7 +111,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Memory backend configuration
     task_struct_size: int = 18  # DEPRECATED: Only for checkpoint compatibility. Auto-computed from TaskState.
     use_shared_memory: bool = True  # Enabled by default for production use
-    session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate shared ID
+    session_id: Optional[str] = None  # AUTO-GENERATED: Leave None. Only set manually in tests.
 
     # Logging configuration
     show_curriculum_troubleshooting_logging: bool = False  # Show high-cardinality per-task metrics for debugging
@@ -120,9 +120,9 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     def _validate_and_initialize(self) -> "LearningProgressConfig":
         """Validate configuration and initialize derived parameters.
 
-        This ensures session ID is generated when using shared memory.
+        This auto-generates session ID for shared memory coordination.
         """
-        # Generate session ID for shared memory if not provided
+        # Auto-generate session ID for shared memory if using shared memory
         if self.use_shared_memory and self.session_id is None:
             # Generate a unique session ID that will be shared across processes
             # This happens once at config creation time, before pickling
@@ -276,9 +276,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             max_memory_tasks=hypers.num_active_tasks,
             ema_alpha=hypers.task_tracker_ema_alpha,
             use_shared_memory=hypers.use_shared_memory,
-            session_id=hypers.session_id,
             default_success_threshold=hypers.task_default_success_threshold,
             default_generator_type=hypers.task_default_generator_type,
+            _session_id=hypers.session_id,  # Auto-generated, passed to backend
         )
 
         # Initialize scorer strategy (pass tracker for shared memory EMA access)

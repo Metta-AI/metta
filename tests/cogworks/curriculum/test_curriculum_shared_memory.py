@@ -24,7 +24,7 @@ def child_process_reader(
             ema_timescale=0.001,
             num_active_tasks=100,
             use_shared_memory=True,
-            session_id=session_id,  # Use same session ID as parent
+            session_id=session_id,  # Use same session ID as parent for test coordination
         )
 
         algorithm = LearningProgressAlgorithm(num_tasks=10, stats_logger=NullStatsLogger(), hypers=config)

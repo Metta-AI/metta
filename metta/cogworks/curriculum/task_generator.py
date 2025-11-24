@@ -92,6 +92,7 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
 
         # Default to LearningProgressConfig for to_curriculum() helper method
         # (CurriculumConfig itself defaults to DiscreteRandomCurriculumConfig)
+        # Note: session_id is auto-generated for shared memory coordination
         if algorithm_config is None:
             algorithm_config = LearningProgressConfig()
 
