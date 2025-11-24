@@ -322,21 +322,15 @@ class SlicedKickstarter(Loss):
     def _create_slices(self, B: int) -> None:
         assert self.cfg.student_led_proportion + self.cfg.teacher_led_proportion <= 1.0, "Proportions must be <= 1.0"
         self.rollout_batch_size = B
-        stud_led_count = int(B * self.cfg.student_led_proportion)
-        stud_slice = slice(0, stud_led_count)
-        teacher_led_count = int(B * self.cfg.teacher_led_proportion)
-        teacher_slice = slice(stud_led_count, stud_led_count + teacher_led_count)
-        ppo_count = B - stud_led_count - teacher_led_count
-        if ppo_count < 0:
-            raise ValueError("PPO count error in sliced Kickstarter loss. Bad proportions.")
-        ppo_slice = slice(stud_led_count + teacher_led_count, B)
 
-        self.stud_mask = torch.zeros(B, dtype=torch.bool, device=self.device)
-        self.stud_mask[stud_slice] = True
-        self.teacher_mask = torch.zeros(B, dtype=torch.bool, device=self.device)
-        self.teacher_mask[teacher_slice] = True
-        self.ppo_mask = torch.zeros(B, dtype=torch.bool, device=self.device)
-        self.ppo_mask[ppo_slice] = True
+        rand_assignments = torch.rand(B, device=self.device)
+
+        stud_threshold = self.cfg.student_led_proportion
+        teacher_threshold = stud_threshold + self.cfg.teacher_led_proportion
+
+        self.stud_mask = rand_assignments < stud_threshold
+        self.teacher_mask = (rand_assignments >= stud_threshold) & (rand_assignments < teacher_threshold)
+        self.ppo_mask = rand_assignments >= teacher_threshold
 
     def _update_slices(self) -> None:
         # we count on the hyperparmeter scheduler to update the cfg proportions
