@@ -50,8 +50,6 @@ setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_R
 run: set -e && /workspace/metta/devops/skypilot/config/skypilot_run.sh
 
 envs:
-  TEST_NCCL: "false"
-
   GITHUB_REPOSITORY: Metta-AI/metta
   GITHUB_PAT: ""
 
@@ -59,7 +57,6 @@ envs:
   METTA_MODULE_PATH: ""
   METTA_ARGS: ""
   METTA_GIT_REF: main
-  HEARTBEAT_TIMEOUT: 600
 
   # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
   DATA_DIR: /mnt/s3/train_dir

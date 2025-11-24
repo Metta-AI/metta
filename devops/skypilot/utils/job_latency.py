@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
-# /// script
-# requires-python = ">=3.12"
-# ///
+#!/usr/bin/env -S uv run
 """
 Calculate SkyPilot queue latency from SKYPILOT_TASK_ID env var.
 
@@ -20,6 +17,8 @@ from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.common.wandb.utils import log_to_wandb_summary
 from mettagrid.base_config import Config
+
+logger = logging.getLogger(__name__)
 
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
@@ -53,8 +52,6 @@ def calculate_queue_latency() -> float:
 
 if __name__ == "__main__":
     init_logging()
-    logger = logging.getLogger("metta_agent")
-
     script_start_time = datetime.datetime.now(_EPOCH).isoformat()
     task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
 
