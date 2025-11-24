@@ -72,6 +72,7 @@ def train(
     tool.trainer.losses.supervisor.teacher_random_walk_prob = 0.0
     tool.trainer.losses.supervisor.teacher_lead_prob = 0.9
     tool.trainer.losses.supervisor.enabled = True
+    tool.trainer.losses.ppo_actor.enabled = False
 
     tool.wandb.enabled = False
     tool.system.vectorization = vectorization
@@ -87,7 +88,7 @@ def train(
 
     tool.evaluator.epoch_interval = 0
 
-    tool.initial_policy_uri = "train_dir/local.dffarr.20251121.151430/checkpoints/local.dffarr.20251121.151430:v650.mpt"
+    # tool.initial_policy_uri = "train_dir/local.dffarr.20251121.151430/checkpoints/local.df...
 
     return tool
 
