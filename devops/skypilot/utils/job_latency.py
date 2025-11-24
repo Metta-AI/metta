@@ -95,7 +95,7 @@ if __name__ == "__main__":
         )
 
         try:
-            with WandbContext(wandb_config, Config(), timeout=15) as run:
+            with WandbContext(wandb_config, Config(), timeout=15, finalize_on_exit=False) as run:
                 if run:
                     log_to_wandb_summary(metrics)
                     logger.info(f"Logged metrics to W&B run: {run.id}")
