@@ -47,7 +47,7 @@ from pydantic import model_validator
 from .curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
 from .stats import StatsLogger
-from .task_tracker import TaskTracker
+from .task_tracker import create_task_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     task_default_generator_type: float = 0.0  # Default generator type identifier for tasks
 
     # Memory backend configuration
-    task_struct_size: int = 18  # Size of task data structure in shared memory (17 metrics + label_hash)
+    task_struct_size: int = 18  # DEPRECATED: Only for checkpoint compatibility. Auto-computed from TaskState.
     use_shared_memory: bool = True  # Enabled by default for production use
     session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate shared ID
 
@@ -270,13 +270,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.num_tasks = num_tasks
         self.hypers: LearningProgressConfig = hypers
 
-        # Initialize task tracker
-        self.task_tracker = TaskTracker(
+        # Initialize task tracker (factory creates appropriate backend)
+        # Note: task_struct_size is automatically computed from TaskState.struct_size()
+        self.task_tracker = create_task_tracker(
             max_memory_tasks=hypers.num_active_tasks,
             ema_alpha=hypers.task_tracker_ema_alpha,
-            session_id=hypers.session_id if hypers.use_shared_memory else None,
             use_shared_memory=hypers.use_shared_memory,
-            task_struct_size=hypers.task_struct_size,
+            session_id=hypers.session_id,
             default_success_threshold=hypers.task_default_success_threshold,
             default_generator_type=hypers.task_default_generator_type,
         )

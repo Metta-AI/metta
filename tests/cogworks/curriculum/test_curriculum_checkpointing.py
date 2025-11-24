@@ -197,7 +197,7 @@ class TestCurriculumStateSerialization:
 
     def test_task_tracker_state(self):
         """Test TaskTracker state serialization."""
-        tracker = TaskTracker(max_memory_tasks=100, use_shared_memory=False)
+        tracker = TaskTracker(max_memory_tasks=100)
 
         # Add some tasks and performance data
         for i in range(10):
@@ -218,7 +218,7 @@ class TestCurriculumStateSerialization:
         assert "tracker_type" in state
 
         # Test loading state
-        new_tracker = TaskTracker(max_memory_tasks=50, use_shared_memory=False)
+        new_tracker = TaskTracker(max_memory_tasks=50)
         new_tracker.load_state(state)
 
         # Verify state was loaded correctly - check task IDs match

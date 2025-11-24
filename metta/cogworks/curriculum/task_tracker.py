@@ -51,9 +51,6 @@ class TaskTracker:
         max_memory_tasks: int = 1000,
         ema_alpha: float = 0.1,
         backend: Optional[TaskMemoryBackend] = None,
-        session_id: Optional[str] = None,
-        use_shared_memory: bool = False,
-        task_struct_size: int = 18,
         default_success_threshold: float = 0.5,
         default_generator_type: float = 0.0,
     ):
@@ -62,10 +59,8 @@ class TaskTracker:
         Args:
             max_memory_tasks: Maximum number of tasks to track
             ema_alpha: Alpha parameter for exponential moving average
-            backend: Optional pre-configured backend. If None, creates based on use_shared_memory
-            session_id: Unique identifier for shared memory session (only for shared memory)
-            use_shared_memory: If True and backend is None, creates SharedMemoryBackend
-            task_struct_size: Size of each task's data structure (default: 18)
+            backend: Memory backend for task storage. If None, creates LocalMemoryBackend.
+                    Config is responsible for creating and passing the appropriate backend.
             default_success_threshold: Default success threshold for new tasks (default: 0.5)
             default_generator_type: Default generator type identifier (default: 0.0)
         """
@@ -80,17 +75,7 @@ class TaskTracker:
 
         # Initialize or use provided backend
         if backend is None:
-            if use_shared_memory:
-                backend = SharedMemoryBackend(
-                    max_tasks=max_memory_tasks,
-                    session_id=session_id,
-                    task_struct_size=task_struct_size,
-                )
-            else:
-                backend = LocalMemoryBackend(
-                    max_tasks=max_memory_tasks,
-                    task_struct_size=task_struct_size,
-                )
+            backend = LocalMemoryBackend(max_tasks=max_memory_tasks)
 
         self._backend: TaskMemoryBackend = backend
         self._task_id_to_index: Dict[int, int] = {}
@@ -761,6 +746,50 @@ class TaskTracker:
         self._rebuild_task_mapping()
 
 
+def create_task_tracker(
+    max_memory_tasks: int,
+    ema_alpha: float = 0.1,
+    use_shared_memory: bool = False,
+    session_id: Optional[str] = None,
+    default_success_threshold: float = 0.5,
+    default_generator_type: float = 0.0,
+) -> TaskTracker:
+    """Create a TaskTracker with appropriate backend based on configuration.
+
+    This factory function encapsulates backend selection logic so callers don't need
+    to know about backend classes. The task struct size is automatically computed from
+    TaskState.struct_size().
+
+    Args:
+        max_memory_tasks: Maximum number of tasks to track
+        ema_alpha: Alpha parameter for exponential moving average
+        use_shared_memory: If True, creates SharedMemoryBackend; else LocalMemoryBackend
+        session_id: Unique identifier for shared memory session (only used if use_shared_memory=True)
+        default_success_threshold: Default success threshold for new tasks
+        default_generator_type: Default generator type identifier
+
+    Returns:
+        TaskTracker instance with appropriate backend
+    """
+    if use_shared_memory:
+        backend = SharedMemoryBackend(
+            max_tasks=max_memory_tasks,
+            session_id=session_id,
+        )
+    else:
+        backend = LocalMemoryBackend(
+            max_tasks=max_memory_tasks,
+        )
+
+    return TaskTracker(
+        max_memory_tasks=max_memory_tasks,
+        ema_alpha=ema_alpha,
+        backend=backend,
+        default_success_threshold=default_success_threshold,
+        default_generator_type=default_generator_type,
+    )
+
+
 # Backwards compatibility factory functions
 def LocalTaskTracker(max_memory_tasks: int = 1000, ema_alpha: float = 0.1) -> TaskTracker:
     """Create a local (single-process) task tracker.
@@ -774,32 +803,30 @@ def LocalTaskTracker(max_memory_tasks: int = 1000, ema_alpha: float = 0.1) -> Ta
     Returns:
         TaskTracker instance with LocalMemoryBackend
     """
-    return TaskTracker(max_memory_tasks=max_memory_tasks, ema_alpha=ema_alpha, use_shared_memory=False)
+    backend = LocalMemoryBackend(max_tasks=max_memory_tasks)
+    return TaskTracker(max_memory_tasks=max_memory_tasks, ema_alpha=ema_alpha, backend=backend)
 
 
 def CentralizedTaskTracker(
     max_memory_tasks: int = 1000,
     session_id: Optional[str] = None,
     ema_alpha: float = 0.1,
-    task_struct_size: int = 18,
 ) -> TaskTracker:
     """Create a centralized (multi-process) task tracker with shared memory.
 
     Factory function for backwards compatibility with existing code.
+    Task struct size is automatically computed from TaskState.
 
     Args:
         max_memory_tasks: Maximum number of tasks to track
         session_id: Unique identifier for shared memory session
         ema_alpha: Alpha parameter for exponential moving average
-        task_struct_size: Size of each task's data structure (default: 18)
 
     Returns:
         TaskTracker instance with SharedMemoryBackend
     """
-    return TaskTracker(
-        max_memory_tasks=max_memory_tasks,
-        ema_alpha=ema_alpha,
+    backend = SharedMemoryBackend(
+        max_tasks=max_memory_tasks,
         session_id=session_id,
-        use_shared_memory=True,
-        task_struct_size=task_struct_size,
     )
+    return TaskTracker(max_memory_tasks=max_memory_tasks, ema_alpha=ema_alpha, backend=backend)
