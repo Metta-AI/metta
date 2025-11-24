@@ -319,12 +319,6 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         self._make_resource_chain(chain_length, width + height / 2, cfg, rng)
         self._make_sinks(num_sinks, cfg, rng)
 
-        # Ensure all assembler types are in game_objects to maintain constant invariants
-        # This prevents "Config invariants have changed" errors in the simulator
-        for name, assembler in self.assembler_types.items():
-            if name not in cfg.game_objects:
-                cfg.game_objects[name] = assembler.copy()
-
         return make_assembly_lines(
             num_agents=1,
             max_steps=max_steps,

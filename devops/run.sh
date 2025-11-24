@@ -24,15 +24,10 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
-# Log file for Datadog (captures ALL stdout/stderr, not just Python logging)
 DATADOG_LOG="/tmp/datadog-training.log"
 mkdir -p "$(dirname "$DATADOG_LOG")"
 touch "$DATADOG_LOG"
 chmod 666 "$DATADOG_LOG" 2>/dev/null || true
-
-# run torchrun; preserve exit code and print a friendly line
-# Output goes to stdout/stderr (visible in SkyPilot logs) AND to Datadog log file via tee
-# Python logging handler also writes to same file (when SKYPILOT_TASK_ID is set)
 set +e
 uv run torchrun \
   --nnodes=$NUM_NODES \
@@ -42,7 +37,7 @@ uv run torchrun \
   --node-rank=$NODE_INDEX \
   tools/run.py \
   "$@" 2>&1 | tee -a "$DATADOG_LOG"
-EXIT_CODE=${PIPESTATUS[0]} # real torchrun exit code
+EXIT_CODE=${PIPESTATUS[0]}
 set -e
 
 if [[ $EXIT_CODE -eq 0 ]]; then

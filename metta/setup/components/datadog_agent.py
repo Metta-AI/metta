@@ -26,16 +26,13 @@ class DatadogAgentSetup(SetupModule):
         return "Datadog agent for system monitoring and log aggregation"
 
     def _is_applicable(self) -> bool:
-        # Only applicable on Linux systems (EC2 instances)
         return platform.system() == "Linux"
 
     def check_installed(self) -> bool:
-        # Check if datadog-agent binary exists (works in Docker and regular systems)
         agent_binary = "/opt/datadog-agent/bin/agent/agent"
         if os.path.exists(agent_binary):
             return True
 
-        # Fallback: check for systemd service (for non-Docker environments)
         try:
             result = subprocess.run(
                 ["systemctl", "status", "datadog-agent"],
@@ -43,10 +40,8 @@ class DatadogAgentSetup(SetupModule):
                 text=True,
                 check=False,
             )
-            # Service exists if systemctl can find it (even if not running)
-            return result.returncode != 4  # 4 means service not found
+            return result.returncode != 4
         except FileNotFoundError:
-            # systemctl not available (e.g., in Docker containers)
             return False
 
     def _get_dd_api_key(self) -> str | None:
@@ -86,17 +81,15 @@ class DatadogAgentSetup(SetupModule):
         """Update Datadog log config with runtime tags and start agent."""
         agent_binary = "/opt/datadog-agent/bin/agent/agent"
         if not os.path.exists(agent_binary):
-            return  # Agent not installed, skip silently
+            return
 
         try:
-            # Update existing log config with runtime tags
             conf_d_dir = "/etc/datadog-agent/conf.d"
             if os.path.exists(conf_d_dir):
                 custom_logs_dir = os.path.join(conf_d_dir, "skypilot_training.d")
                 log_config_file = os.path.join(custom_logs_dir, "conf.yaml")
 
                 if not os.path.exists(log_config_file):
-                    # Config should have been created at setup, but create it if missing
                     os.makedirs(custom_logs_dir, exist_ok=True)
                     log_config_template = """# Custom log collection for SkyPilot jobs
 logs:
@@ -114,7 +107,6 @@ logs:
                     with open(log_config_file, "w") as f:
                         f.write(log_config_template)
 
-                # Read existing config and add tags
                 with open(log_config_file, "r") as f:
                     config_content = f.read()
 
@@ -123,9 +115,7 @@ logs:
                     tags_lines = "\n".join([f'      - "{tag}"' for tag in log_tags])
                     tags_yaml = f"    tags:\n{tags_lines}\n"
 
-                    # Add tags to each log entry if not already present
                     if "tags:" not in config_content:
-                        # Insert tags after each log entry's sourcecategory line
                         updated_config = config_content
                         for log_entry in ["datadog-agent", "skypilot-training"]:
                             pattern = f"sourcecategory: {log_entry}\n"
@@ -136,11 +126,9 @@ logs:
                             f.write(updated_config)
                         os.chmod(log_config_file, 0o644)
 
-            # Restart agent to pick up config
             subprocess.run(["pkill", "-f", "datadog-agent.*run"], check=False, capture_output=True)
             time.sleep(2)
 
-            # Start agent with DD_LOGS_ENABLED=true
             env = os.environ.copy()
             env["DD_LOGS_ENABLED"] = "true"
             with open("/tmp/datadog-agent.log", "a") as log_file:
@@ -152,7 +140,7 @@ logs:
                     start_new_session=True,
                 )
         except Exception:
-            pass  # Non-fatal
+            pass
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Getting Datadog API key...")
@@ -166,7 +154,6 @@ logs:
             warning("No Datadog API key found. Skipping Datadog agent installation.")
             return
 
-        # Set environment variables for the install script
         env = os.environ.copy()
         env["DD_API_KEY"] = api_key
         env["DD_SITE"] = os.environ.get("DD_SITE", "datadoghq.com")
@@ -180,13 +167,11 @@ logs:
         if tags:
             env["DD_TAGS"] = " ".join(tags)
 
-        # Check if already installed - verify binary exists (not just systemd service)
         agent_binary = "/opt/datadog-agent/bin/agent/agent"
         binary_exists = os.path.exists(agent_binary)
 
         if binary_exists:
             info("Datadog agent already installed (binary found).")
-            # Just restart with new config/tags if needed
             restart_cmd = ["systemctl", "restart", "datadog-agent"]
             if which("sudo"):
                 restart_cmd = ["sudo", *restart_cmd]
@@ -199,15 +184,12 @@ logs:
                 warning(f"Failed to restart Datadog agent using {' '.join(restart_cmd)}.")
             return
         elif self.check_installed() and not binary_exists:
-            # Systemd service exists but binary doesn't - need to reinstall
             info("Datadog service found but binary missing. Reinstalling...")
 
         info("Installing Datadog agent...")
 
-        # The install script needs to run with proper permissions
         install_cmd = 'bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"'
 
-        # Try with sudo if available
         if which("sudo"):
             install_cmd = f"sudo {install_cmd}"
 
@@ -220,10 +202,8 @@ logs:
             check=False,
         )
 
-        # Check if binary exists even if return code is non-zero (install script may return non-zero on warnings)
         agent_binary = "/opt/datadog-agent/bin/agent/agent"
         if os.path.exists(agent_binary):
-            # Configure datadog.yaml with hostname, logs, and tags
             config_file = "/etc/datadog-agent/datadog.yaml"
             if os.path.exists(config_file):
                 try:
@@ -237,42 +217,34 @@ logs:
                         config_updates.append(f"hostname: {hostname}")
                         info(f"Set hostname in Datadog config: {hostname}")
 
-                    # Enable logs if not already configured
                     if "logs_enabled:" not in config_content:
                         config_updates.append("logs_enabled: true")
                         info("Enabled log collection in Datadog config")
 
-                    # Add logs_config section for better reliability (recommended by Datadog docs)
                     if "logs_config:" not in config_content:
                         config_updates.append("logs_config:")
                         config_updates.append("  auto_multi_line_detection: true")
                         config_updates.append("  force_use_http: true")
                         info("Added logs_config section to Datadog config")
 
-                    # Set tags if not already configured
                     if tags and "tags:" not in config_content:
-                        # Filter out empty tags and format as YAML list
                         valid_tags = [tag for tag in tags if tag and tag.strip()]
                         if valid_tags:
                             tags_list = "[" + ", ".join([f'"{tag}"' for tag in valid_tags]) + "]"
                             config_updates.append(f"tags: {tags_list}")
                             info(f"Set tags in Datadog config: {tags_list}")
 
-                    # Append any updates to config file
                     if config_updates:
                         with open(config_file, "a") as f:
                             f.write("\n# Metta SkyPilot job configuration\n")
                             for update in config_updates:
                                 f.write(f"{update}\n")
 
-                        # If we enabled logs, we need to restart the agent to pick up the change
-                        # But we can't restart here (no systemd in Docker), so the run-phase script will handle it
                         if "logs_enabled: true" in config_updates:
                             info("logs_enabled set - agent will be restarted in run phase to pick up changes")
                 except Exception as e:
                     warning(f"Could not update Datadog config file: {e}")
 
-            # Create log collection config at setup (template, tags added at runtime)
             try:
                 conf_d_dir = "/etc/datadog-agent/conf.d"
                 if os.path.exists(conf_d_dir):
@@ -280,7 +252,6 @@ logs:
                     os.makedirs(custom_logs_dir, exist_ok=True)
 
                     log_config_file = os.path.join(custom_logs_dir, "conf.yaml")
-                    # Write template config (tags will be added at runtime)
                     log_config = """# Custom log collection for SkyPilot jobs
 # Tags will be added at runtime when environment variables are available
 logs:
@@ -324,12 +295,11 @@ logs:
             return None
 
         try:
-            # Start agent in background
             process = subprocess.Popen(
                 [agent_binary, "run"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                start_new_session=True,  # Detach from parent
+                start_new_session=True,
             )
             info(f"Started Datadog agent process (PID: {process.pid})")
             return process
@@ -349,7 +319,6 @@ logs:
             return False
 
         try:
-            # Check agent status
             result = subprocess.run(
                 [agent_binary, "status"],
                 capture_output=True,
@@ -357,7 +326,6 @@ logs:
                 timeout=5,
                 check=False,
             )
-            # Agent is running if status command succeeds
             return result.returncode == 0
         except Exception:
             return False
