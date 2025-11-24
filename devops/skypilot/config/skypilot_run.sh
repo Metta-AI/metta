@@ -2,6 +2,8 @@
 
 set -uo pipefail
 
+cd /workspace/metta
+
 export WRAPPER_PID=$BASHPID
 
 # Determine node role using SkyPilot environment variables
