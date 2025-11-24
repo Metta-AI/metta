@@ -109,7 +109,7 @@ def tutorial_cmd(
             "[bold cyan]MISSION BRIEFING: Tutorial Sector[/bold cyan]\n\n"
             "Welcome, Cognitive. This simulation mirrors frontline HEART ops.\n"
             "We will launch the Mettascope visual interface now.\n\n"
-            "When you are ready to deploy, press Enter below.",
+            "When you are ready to deploy, press Enter below and then return here to receive instructions.",
             title="Mission Briefing",
             border_style="green",
         )
@@ -137,15 +137,19 @@ def tutorial_cmd(
                     "Left Pane (Intel): Shows details for selected objects (Stations, Tiles, Cogs).",
                     "Right Pane (Vibe Deck): Select icons here to change your Cog's broadcast resonance.",
                     "Zoom/Pan: Scroll or pinch to zoom the arena; drag to pan.",
-                    "Click your Cog (or their portrait) to focus the camera on them.",
+                    "Click various buildings to view their details in the Left Pane.",
+                    "Look for the Chest, Assembler, Charger, and Extractor stations.",
+                    "Click your Cog to assume control.",
                 ),
             },
             {
                 "title": "Step 2 — Movement & Energy",
                 "lines": (
                     "Use WASD or Arrow Keys to move your Cog.",
-                    "Every move costs Energy. Watch your battery bar on the Cog or in the HUD.",
-                    "If low, rest (skip turn) or find a Charger [yellow]+[/yellow].",
+                    "Every move costs Energy, every time step recovers Energy.",
+                    "Watch your battery bar on the Cog or in the HUD.",
+                    "If low, rest (skip turn), lean against a wall (walk into it), vibe, or",
+                    "find a Charger [yellow]+[/yellow].",
                 ),
             },
             {
@@ -174,6 +178,14 @@ def tutorial_cmd(
                     "Switch your Vibe to [red]heart_b[/red] (Deposit Mode).",
                     "Walk into the Chest to deposit the HEART and complete the objective.",
                     "Note: To pull resources out of the Chest, you must vibe the matching resource *_a protocol.",
+                ),
+            },
+            {
+                "title": "Step 6 — Objective Complete",
+                "lines": (
+                    "[bold green]🎉 Congratulations![/bold green] You have completed the tutorial.",
+                    "You've mastered extraction, crafting, and resource management.",
+                    "[bold cyan]You're now ready to tackle the full mission![/bold cyan]",
                 ),
             },
         )
