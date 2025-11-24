@@ -4,7 +4,7 @@ This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.
 implement the required methods that MettaAgent depends on."""
 
 from abc import abstractmethod
-from typing import ClassVar, List, Optional
+from typing import Any, ClassVar, List, Optional
 
 import torch
 import torch.nn as nn
@@ -23,10 +23,15 @@ from metta.agent.components.obs_shim import (
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import (
+    AgentPolicy,
+    MultiAgentPolicy,
+    StatefulAgentPolicy,
+    StatefulPolicyImpl,
+)
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryABCMeta
-from mettagrid.simulator import Action, AgentObservation, Simulation
+from mettagrid.simulator import Action, AgentObservation
 from mettagrid.util.module import load_symbol
 
 
@@ -49,16 +54,18 @@ class PolicyArchitecture(Config):
         return AgentClass(policy_env_info, self)  # type: ignore[misc]
 
 
-class Policy(TrainablePolicy, nn.Module):
+class Policy(MultiAgentPolicy, nn.Module):
     """Abstract base class defining the interface that all policies must implement.
 
     This class provides both the PyTorch nn.Module interface for training
-    and the TrainablePolicy interface for compatibility with mettagrid Rollout.
+    and the MultiAgentPolicy interface for compatibility with mettagrid Rollout.
     """
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
-        TrainablePolicy.__init__(self, policy_env_info)
+        MultiAgentPolicy.__init__(self, policy_env_info)
         nn.Module.__init__(self)
+        self._actions_by_id = self._policy_env_info.actions.actions()
+        self._stateful_impl = self.make_stateful_policy_impl()
 
     @abstractmethod
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
@@ -94,38 +101,46 @@ class Policy(TrainablePolicy, nn.Module):
         """Return the nn.Module representing the policy."""
         return self
 
+    def load_policy_data(self, policy_data_path: str) -> None:
+        """Load network weights from file using PyTorch state dict."""
+        import torch
+
+        self.load_state_dict(torch.load(policy_data_path, map_location=self.device))
+
+    def save_policy_data(self, policy_data_path: str) -> None:
+        """Save network weights to file using torch.save."""
+        import torch
+
+        torch.save(self.state_dict(), policy_data_path)
+
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy adapter for the specified agent index."""
-        return _SingleAgentAdapter(self, agent_id)
+        return StatefulAgentPolicy(self._stateful_impl, self._policy_env_info, agent_id)
 
+    def make_stateful_policy_impl(self) -> StatefulPolicyImpl[Any]:
+        return _PolicyStateImpl(self)
 
-class _SingleAgentAdapter(AgentPolicy):
-    """Adapter to provide AgentPolicy interface for a single agent from a multi-agent Policy."""
+    def initial_agent_state(self) -> Any:
+        return None
 
-    def __init__(self, policy: "Policy", agent_id: int):
-        super().__init__(policy._policy_env_info)
-        self._policy = policy
-        self._agent_id = agent_id
-        self._actions_by_id = self._policy_env_info.actions.actions()
+    def load_agent_state(self, state: Any | None) -> None:
+        if state is not None:
+            raise RuntimeError(f"{self.__class__.__name__} does not store per-agent state")
 
-    def step(self, obs: AgentObservation) -> Action:
-        """Get action from Policy."""
-        # Convert observation to tensor dict format
-        td = self._obs_to_td(obs, self._policy.device)
+    def dump_agent_state(self) -> Any:
+        return None
 
-        # Get action from policy
-        self._policy(td)
-        return self._actions_by_id[int(td["actions"][0].item())]
+    def step_with_state(self, obs: AgentObservation, state: Any, agent_id: int | None = None) -> tuple[Action, Any]:
+        td = self._obs_to_td(obs, self.device, agent_id)
+        if state is not None:
+            self.load_agent_state(state)
+        self(td)
+        new_state = self.dump_agent_state()
+        action_idx = int(td["actions"][0].item())
+        return self._actions_by_id[action_idx], new_state
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
-        """Reset policy state if needed."""
-        self._policy.reset_memory()
-
-    def _obs_to_td(self, obs: AgentObservation, device: torch.device) -> TensorDict:
-        """Convert AgentObservation to TensorDict."""
-
+    def _obs_to_td(self, obs: AgentObservation, device: torch.device, agent_id: int | None = None) -> TensorDict:
         obs_tensor = obs_to_obs_tensor(obs, self._policy_env_info.observation_space.shape, device)
-
         td = TensorDict(
             {
                 "env_obs": obs_tensor,
@@ -135,16 +150,22 @@ class _SingleAgentAdapter(AgentPolicy):
             },
             batch_size=[1],
         )
-
-        ensure_sequence_metadata(td, batch_size=1, time_steps=1)
+        self._set_single_step_metadata(td, agent_slot=int(agent_id) if agent_id is not None else 0)
         return td
 
+    def _set_single_step_metadata(self, td: TensorDict, *, agent_slot: int) -> None:
+        ensure_sequence_metadata(td, batch_size=1, time_steps=1)
+        device = td.device
+        td.set("training_env_ids", torch.tensor([[agent_slot]], dtype=torch.long, device=device))
+        td.set("row_id", torch.tensor([agent_slot], dtype=torch.long, device=device))
+        td.set("t_in_row", torch.zeros(1, dtype=torch.long, device=device))
 
-class DistributedPolicy(TrainablePolicy, DistributedDataParallel, metaclass=PolicyRegistryABCMeta):
+
+class DistributedPolicy(MultiAgentPolicy, DistributedDataParallel, metaclass=PolicyRegistryABCMeta):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
 
     def __init__(self, policy: MultiAgentPolicy, device: torch.device):
-        TrainablePolicy.__init__(self, policy.policy_env_info)
+        MultiAgentPolicy.__init__(self, policy.policy_env_info)
 
         # Then initialize DistributedDataParallel
         kwargs = {
@@ -211,3 +232,21 @@ class ExternalPolicyWrapper(Policy):
 
     def reset_memory(self):
         pass
+
+
+class _PolicyStateImpl(StatefulPolicyImpl[Any]):
+    def __init__(self, policy: "Policy"):
+        self._policy = policy
+        self._active_agent_id: int | None = None
+
+    def set_active_agent(self, agent_id: Optional[int]) -> None:
+        self._active_agent_id = agent_id
+
+    def reset(self) -> None:
+        self._policy.reset_memory()
+
+    def initial_agent_state(self) -> Any:
+        return self._policy.initial_agent_state()
+
+    def step_with_state(self, obs: AgentObservation, state: Any) -> tuple[Action, Any]:
+        return self._policy.step_with_state(obs, state, agent_id=self._active_agent_id)

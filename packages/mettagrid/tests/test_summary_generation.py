@@ -17,6 +17,8 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
                     "agent": [{"stat_a": 2.0, "stat_b": 1.0}, {"stat_a": 2.0, "stat_b": 1.0}, {"stat_a": 4.0}],
                 },
                 replay_path=None,
+                steps=82,
+                max_steps=100,
             ),
             EpisodeRolloutResult(
                 assignments=np.array([0, 0, 1], dtype=int),
@@ -27,6 +29,8 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
                     "agent": [{"stat_a": 3.0, "stat_b": 2.0}, {"stat_a": 3.0, "stat_b": 2.0}, {"stat_a": 5.0}],
                 },
                 replay_path=None,
+                steps=97,
+                max_steps=100,
             ),
         ]
     )
@@ -42,6 +46,8 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
                     "agent": [{"stat_a": 3.0}, {"stat_a": 2.0, "stat_b": 1.0}, {"stat_a": 4.0, "stat_b": 2.0}],
                 },
                 replay_path=None,
+                steps=118,
+                max_steps=150,
             ),
             EpisodeRolloutResult(
                 assignments=np.array([1, 0, 1], dtype=int),
@@ -52,6 +58,8 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
                     "agent": [{"stat_a": 3.0, "stat_b": 1.0}, {"stat_a": 4.0}, {"stat_a": 4.0, "stat_b": 2.0}],
                 },
                 replay_path=None,
+                steps=105,
+                max_steps=150,
             ),
             EpisodeRolloutResult(
                 assignments=np.array([1, 1, 0], dtype=int),
@@ -62,6 +70,8 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
                     "agent": [{"stat_a": 2.0, "stat_b": 1.0}, {"stat_a": 3.0, "stat_b": 2.0}, {"stat_a": 5.0}],
                 },
                 replay_path=None,
+                steps=150,
+                max_steps=150,
             ),
         ]
     )

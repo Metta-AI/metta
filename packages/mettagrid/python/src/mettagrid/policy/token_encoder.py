@@ -8,7 +8,7 @@ import pufferlib.pytorch
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig
 from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action as MettaGridAction
 from mettagrid.simulator import AgentObservation as MettaGridObservation
@@ -144,7 +144,7 @@ class TokenAgentPolicyImpl(AgentPolicy):
             return dtype_actions.type(action)
 
 
-class TokenPolicy(TrainablePolicy):
+class TokenPolicy(MultiAgentPolicy):
     """Feed-forward token encoder baseline derived from Metta's token-based basic policy."""
 
     short_names = ["token"]
@@ -162,6 +162,7 @@ class TokenPolicy(TrainablePolicy):
         self._num_actions = len(actions_cfg.actions())
 
     def network(self) -> nn.Module:
+        """Return the underlying token encoder network for training."""
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
@@ -171,9 +172,11 @@ class TokenPolicy(TrainablePolicy):
         return False
 
     def load_policy_data(self, checkpoint_path: str) -> None:
+        """Load token encoder network weights from file."""
         state_dict = torch.load(checkpoint_path, map_location=self._device)
         self._net.load_state_dict(state_dict)
         self._net = self._net.to(self._device)
 
     def save_policy_data(self, checkpoint_path: str) -> None:
+        """Save token encoder network weights to file."""
         torch.save(self._net.state_dict(), checkpoint_path)

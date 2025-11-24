@@ -63,6 +63,13 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
     return validated_paths
 
 
+def get_latest_cogames_version() -> str:
+    """Get the latest published cogames version."""
+    response = httpx.get("https://pypi.org/pypi/cogames/json")
+    response.raise_for_status()
+    return response.json()["info"]["version"]
+
+
 def create_temp_validation_env(console: Console) -> Path:
     """Create a temporary directory with a minimal pyproject.toml.
 
@@ -70,11 +77,13 @@ def create_temp_validation_env(console: Console) -> Path:
     """
     temp_dir = Path(tempfile.mkdtemp(prefix="cogames_submit_"))
 
-    pyproject_content = """[project]
+    latest_cogames_version = get_latest_cogames_version()
+
+    pyproject_content = f"""[project]
 name = "cogames-submission-validator"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["cogames"]
+dependencies = ["cogames=={latest_cogames_version}"]
 
 [build-system]
 requires = ["setuptools>=42"]
@@ -155,31 +164,41 @@ def validate_policy_in_isolation(
 
         console.print(f"[yellow]Running validation with mission '{DEFAULT_VALIDATION_MISSION}'...[/yellow]")
 
-        cmd = [
-            "uv",
-            "run",
-            "cogames",
-            "validate-policy",
-            policy_arg,
-        ]
+        def _run_from_tmp_dir(cmd: list[str]) -> subprocess.CompletedProcess:
+            env = os.environ.copy()
+            env["UV_NO_CACHE"] = "1"
+            res = subprocess.run(
+                cmd,
+                cwd=temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+                env=env,
+            )
+            if not res.returncode == 0:
+                console.print("[red]✗ Setting up validation environment failed![/red]")
+                console.print("\n[red]Error output:[/red]")
+                console.print(res.stderr)
+                if res.stdout:
+                    console.print("\n[dim]Standard output:[/dim]")
+                    console.print(res.stdout)
+                raise Exception("Setting up validation environment failed")
+            return res
 
-        # Run in temp directory
-        result = subprocess.run(
-            cmd,
-            cwd=temp_dir,
-            capture_output=True,
-            text=True,
-            timeout=300,  # 5 minute timeout
+        result = _run_from_tmp_dir(["uv", "run", "cogames", "version"])
+        console.print(f"[dim]Cogames version: {result.stdout.strip()}[/dim]")
+
+        result = _run_from_tmp_dir(
+            [
+                "uv",
+                "run",
+                "cogames",
+                "validate-policy",
+                policy_arg,
+            ]
         )
 
-        if result.returncode != 0:
-            console.print("[red]✗ Validation failed![/red]")
-            console.print("\n[red]Error output:[/red]")
-            console.print(result.stderr)
-            if result.stdout:
-                console.print("\n[dim]Standard output:[/dim]")
-                console.print(result.stdout)
-            return False
+        console.print(f"[dim]Validation result: {result.stdout.strip()}[/dim]")
 
         console.print("[green]✓ Validation passed![/green]")
         return True

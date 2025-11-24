@@ -24,7 +24,7 @@ from mettagrid.policy.loader import (
     initialize_or_load_policy,
     resolve_policy_data_path,
 )
-from mettagrid.policy.policy import PolicySpec, TrainablePolicy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulator
 from mettagrid.util.stats_writer import NoopStatsWriter
@@ -208,10 +208,9 @@ def train(
             data_path=resolved_initial_weights,
         ),
     )
-    assert isinstance(policy, TrainablePolicy), (
-        f"Policy class {policy_class_path} must implement TrainablePolicy interface"
-    )
-    policy.network().to(device)
+    network = policy.network()
+    assert network is not None, f"Policy {policy_class_path} must be trainable (network() returned None)"
+    network.to(device)
 
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
     if not use_rnn:

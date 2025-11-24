@@ -1,7 +1,6 @@
 --define:gennyPython
 
 switch("app", "lib")
---define:fidgetUseCached
 switch("tlsEmulation", "off")
 when defined(windows):
   switch("out", "mettascope.dll")
