@@ -13,8 +13,21 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field, field_validator
 
+from metta.app_backend.leaderboard_constants import (
+    LEADERBOARD_CANDIDATE_COUNT_KEY,
+    LEADERBOARD_LADYBUG_COUNT_KEY,
+    LEADERBOARD_SCENARIO_KEY,
+    LEADERBOARD_SCENARIO_KIND_KEY,
+    LEADERBOARD_THINKY_COUNT_KEY,
+)
 from metta.app_backend.migrations import MIGRATIONS
 from metta.app_backend.schema_manager import run_migrations
+from metta.app_backend.value_over_replacement import (
+    RunningStats,
+    ScenarioAccumulator,
+    ValueOverReplacementSummary,
+    build_value_over_replacement_summary_from_stats,
+)
 
 TaskStatus = Literal["unprocessed", "running", "canceled", "done", "error", "system_error"]
 FinishedTaskStatus = Literal["done", "error", "canceled", "system_error"]
@@ -161,6 +174,70 @@ class LeaderboardPolicyEntry(BaseModel):
 
 
 logger = logging.getLogger(name="metta_repo")
+
+_SCENARIO_TAGS_CTE = f"""
+WITH scenario_tags AS (
+    SELECT
+        e.id AS episode_id,
+        e.internal_id,
+        MAX(CASE WHEN et.key = '{LEADERBOARD_SCENARIO_KEY}' THEN et.value END) AS scenario_name,
+        MAX(CASE WHEN et.key = '{LEADERBOARD_SCENARIO_KIND_KEY}' THEN et.value END) AS scenario_kind,
+        MAX(CASE WHEN et.key = '{LEADERBOARD_CANDIDATE_COUNT_KEY}' THEN et.value END)::int AS candidate_count,
+        MAX(CASE WHEN et.key = '{LEADERBOARD_THINKY_COUNT_KEY}' THEN et.value END)::int AS thinky_count,
+        MAX(CASE WHEN et.key = '{LEADERBOARD_LADYBUG_COUNT_KEY}' THEN et.value END)::int AS ladybug_count
+    FROM episodes e
+    LEFT JOIN episode_tags et ON et.episode_id = e.id
+    GROUP BY e.id, e.internal_id
+)
+"""
+
+_CANDIDATE_VOR_QUERY = (
+    _SCENARIO_TAGS_CTE
+    + """
+SELECT
+    st.scenario_name,
+    st.scenario_kind,
+    st.candidate_count,
+    st.thinky_count,
+    st.ladybug_count,
+    epm.value / NULLIF(ep.num_agents, 0) AS avg_reward
+FROM scenario_tags st
+JOIN episode_policies ep ON ep.episode_id = st.episode_id
+JOIN policy_versions pv ON pv.id = ep.policy_version_id
+JOIN episode_policy_metrics epm
+    ON epm.episode_internal_id = st.internal_id
+   AND epm.pv_internal_id = pv.internal_id
+WHERE st.scenario_name IS NOT NULL
+  AND st.candidate_count IS NOT NULL
+  AND st.candidate_count > 0
+  AND ep.policy_version_id = %s
+  AND epm.metric_name = 'reward'
+  AND ep.num_agents > 0
+"""
+)
+
+_REPLACEMENT_VOR_QUERY = (
+    _SCENARIO_TAGS_CTE
+    + """
+SELECT
+    st.scenario_name,
+    st.scenario_kind,
+    st.candidate_count,
+    st.thinky_count,
+    st.ladybug_count,
+    epm.value / NULLIF(ep.num_agents, 0) AS avg_reward
+FROM scenario_tags st
+JOIN episode_policies ep ON ep.episode_id = st.episode_id
+JOIN policy_versions pv ON pv.id = ep.policy_version_id
+JOIN episode_policy_metrics epm
+    ON epm.episode_internal_id = st.internal_id
+   AND epm.pv_internal_id = pv.internal_id
+WHERE st.scenario_name IS NOT NULL
+  AND st.candidate_count = 0
+  AND epm.metric_name = 'reward'
+  AND ep.num_agents > 0
+"""
+)
 
 
 class MettaRepo:
@@ -960,6 +1037,67 @@ GROUP BY pv.id, et.key, et.value
             )
         )
         return entries
+
+    async def get_value_over_replacement_summary(
+        self,
+        policy_version_id: uuid.UUID,
+    ) -> ValueOverReplacementSummary:
+        scenario_stats: dict[str, ScenarioAccumulator] = {}
+        candidate_count_stats: dict[int, RunningStats] = defaultdict(RunningStats)
+
+        def _accumulate(row: dict[str, Any], *, is_candidate: bool) -> None:
+            scenario_name = row.get("scenario_name")
+            candidate_count_value = row.get("candidate_count")
+            avg_reward = row.get("avg_reward")
+            if scenario_name is None or candidate_count_value is None or avg_reward is None:
+                return
+
+            candidate_count = int(candidate_count_value)
+            thinky_count = int(row.get("thinky_count") or 0)
+            ladybug_count = int(row.get("ladybug_count") or 0)
+            scenario_kind = row.get("scenario_kind") or "unknown"
+            reward = float(avg_reward)
+
+            entry = scenario_stats.setdefault(
+                scenario_name,
+                ScenarioAccumulator(
+                    candidate_count=candidate_count,
+                    thinky_count=thinky_count,
+                    ladybug_count=ladybug_count,
+                    scenario_kind=scenario_kind,
+                ),
+            )
+
+            if is_candidate:
+                entry.candidate_stats.update(reward)
+                candidate_count_stats[candidate_count].update(reward)
+            else:
+                entry.replacement_stats.update(reward)
+                candidate_count_stats[0].update(reward)
+
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(_CANDIDATE_VOR_QUERY, (policy_version_id,))
+                candidate_rows = await cur.fetchall()
+
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(_REPLACEMENT_VOR_QUERY)
+                replacement_rows = await cur.fetchall()
+
+        for row in candidate_rows:
+            _accumulate(row, is_candidate=True)
+        for row in replacement_rows:
+            _accumulate(row, is_candidate=False)
+
+        has_candidate_samples = any(acc.candidate_stats.count > 0 for acc in scenario_stats.values())
+        if not has_candidate_samples:
+            raise ValueError(f"No leaderboard episodes found for policy_version_id={policy_version_id}")
+
+        return build_value_over_replacement_summary_from_stats(
+            policy_version_id=str(policy_version_id),
+            scenario_stats=scenario_stats,
+            candidate_count_stats=candidate_count_stats,
+        )
 
     async def get_episodes(
         self,
