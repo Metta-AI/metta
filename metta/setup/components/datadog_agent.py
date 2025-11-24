@@ -4,6 +4,8 @@ import subprocess
 import time
 from shutil import which
 
+import yaml
+
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import error, info, success, warning
@@ -77,6 +79,27 @@ class DatadogAgentSetup(SetupModule):
                 tags.append(f"{tag}:{value}")
         return tags
 
+    def _build_log_config_dict(self) -> dict:
+        """Build Datadog log collection configuration as a dictionary."""
+        return {
+            "logs": [
+                {
+                    "type": "file",
+                    "path": "/tmp/datadog-agent.log",
+                    "service": "datadog-agent",
+                    "source": "datadog-agent",
+                    "sourcecategory": "monitoring",
+                },
+                {
+                    "type": "file",
+                    "path": "/tmp/datadog-training.log",
+                    "service": "skypilot-training",
+                    "source": "training",
+                    "sourcecategory": "application",
+                },
+            ]
+        }
+
     def update_log_config_and_start_agent(self) -> None:
         """Update Datadog log config with runtime tags and start agent."""
         agent_binary = "/opt/datadog-agent/bin/agent/agent"
@@ -91,40 +114,24 @@ class DatadogAgentSetup(SetupModule):
 
                 if not os.path.exists(log_config_file):
                     os.makedirs(custom_logs_dir, exist_ok=True)
-                    log_config_template = """# Custom log collection for SkyPilot jobs
-logs:
-  - type: file
-    path: /tmp/datadog-agent.log
-    service: datadog-agent
-    source: datadog-agent
-    sourcecategory: monitoring
-  - type: file
-    path: /tmp/datadog-training.log
-    service: skypilot-training
-    source: training
-    sourcecategory: application
-"""
+                    log_config_dict = self._build_log_config_dict()
                     with open(log_config_file, "w") as f:
-                        f.write(log_config_template)
+                        f.write("# Custom log collection for SkyPilot jobs\n")
+                        yaml.dump(log_config_dict, f, default_flow_style=False, sort_keys=False)
 
                 with open(log_config_file, "r") as f:
-                    config_content = f.read()
+                    config_dict = yaml.safe_load(f) or {}
 
                 log_tags = self._build_tags()
-                if log_tags:
-                    tags_lines = "\n".join([f'      - "{tag}"' for tag in log_tags])
-                    tags_yaml = f"    tags:\n{tags_lines}\n"
+                if log_tags and "logs" in config_dict:
+                    for log_entry in config_dict.get("logs", []):
+                        if "tags" not in log_entry:
+                            log_entry["tags"] = log_tags
 
-                    if "tags:" not in config_content:
-                        updated_config = config_content
-                        for log_entry in ["datadog-agent", "skypilot-training"]:
-                            pattern = f"sourcecategory: {log_entry}\n"
-                            replacement = f"sourcecategory: {log_entry}\n{tags_yaml}"
-                            updated_config = updated_config.replace(pattern, replacement, 1)
-
-                        with open(log_config_file, "w") as f:
-                            f.write(updated_config)
-                        os.chmod(log_config_file, 0o644)
+                    with open(log_config_file, "w") as f:
+                        f.write("# Custom log collection for SkyPilot jobs\n")
+                        yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
+                    os.chmod(log_config_file, 0o644)
 
             subprocess.run(["pkill", "-f", "datadog-agent.*run"], check=False, capture_output=True)
             time.sleep(2)
@@ -143,12 +150,10 @@ logs:
             pass
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        info("Getting Datadog API key...")
         try:
             api_key = self._get_dd_api_key()
         except Exception as e:
             warning(f"Could not get Datadog API key: {e}")
-            warning("Skipping Datadog agent installation.")
             return
         if not api_key:
             warning("No Datadog API key found. Skipping Datadog agent installation.")
@@ -171,22 +176,18 @@ logs:
         binary_exists = os.path.exists(agent_binary)
 
         if binary_exists:
-            info("Datadog agent already installed (binary found).")
             restart_cmd = ["systemctl", "restart", "datadog-agent"]
             if which("sudo"):
                 restart_cmd = ["sudo", *restart_cmd]
             try:
                 subprocess.run(restart_cmd, check=True)
-                success(f"Datadog agent restarted with updated configuration (cmd: {' '.join(restart_cmd)}).")
             except FileNotFoundError:
-                warning("systemctl not available; skipping Datadog agent restart.")
+                pass
             except subprocess.CalledProcessError:
-                warning(f"Failed to restart Datadog agent using {' '.join(restart_cmd)}.")
+                pass
             return
         elif self.check_installed() and not binary_exists:
-            info("Datadog service found but binary missing. Reinstalling...")
-
-        info("Installing Datadog agent...")
+            pass
 
         install_cmd = 'bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"'
 
@@ -215,33 +216,26 @@ logs:
                     if "hostname:" not in config_content:
                         hostname = self._sanitize_hostname()
                         config_updates.append(f"hostname: {hostname}")
-                        info(f"Set hostname in Datadog config: {hostname}")
 
                     if "logs_enabled:" not in config_content:
                         config_updates.append("logs_enabled: true")
-                        info("Enabled log collection in Datadog config")
 
                     if "logs_config:" not in config_content:
                         config_updates.append("logs_config:")
                         config_updates.append("  auto_multi_line_detection: true")
                         config_updates.append("  force_use_http: true")
-                        info("Added logs_config section to Datadog config")
 
                     if tags and "tags:" not in config_content:
                         valid_tags = [tag for tag in tags if tag and tag.strip()]
                         if valid_tags:
                             tags_list = "[" + ", ".join([f'"{tag}"' for tag in valid_tags]) + "]"
                             config_updates.append(f"tags: {tags_list}")
-                            info(f"Set tags in Datadog config: {tags_list}")
 
                     if config_updates:
                         with open(config_file, "a") as f:
                             f.write("\n# Metta SkyPilot job configuration\n")
                             for update in config_updates:
                                 f.write(f"{update}\n")
-
-                        if "logs_enabled: true" in config_updates:
-                            info("logs_enabled set - agent will be restarted in run phase to pick up changes")
                 except Exception as e:
                     warning(f"Could not update Datadog config file: {e}")
 
@@ -252,28 +246,15 @@ logs:
                     os.makedirs(custom_logs_dir, exist_ok=True)
 
                     log_config_file = os.path.join(custom_logs_dir, "conf.yaml")
-                    log_config = """# Custom log collection for SkyPilot jobs
-# Tags will be added at runtime when environment variables are available
-logs:
-  - type: file
-    path: /tmp/datadog-agent.log
-    service: datadog-agent
-    source: datadog-agent
-    sourcecategory: monitoring
-  - type: file
-    path: /tmp/datadog-training.log
-    service: skypilot-training
-    source: training
-    sourcecategory: application
-"""
+                    log_config_dict = self._build_log_config_dict()
                     with open(log_config_file, "w") as f:
-                        f.write(log_config)
+                        f.write("# Custom log collection for SkyPilot jobs\n")
+                        f.write("# Tags will be added at runtime when environment variables are available\n")
+                        yaml.dump(log_config_dict, f, default_flow_style=False, sort_keys=False)
                     os.chmod(log_config_file, 0o644)
-                    info(f"Created Datadog log collection config at {log_config_file} (tags will be added at runtime)")
             except Exception as e:
                 warning(f"Could not create Datadog log collection config: {e}")
 
-            success("Datadog agent installed successfully (binary found).")
             return
 
         if result.returncode != 0:
