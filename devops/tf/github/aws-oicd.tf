@@ -65,6 +65,7 @@ resource "aws_iam_role_policy" "github_s3_softmax_public" {
         Effect = "Allow"
         Action = [
           "s3:ListBucket",
+          "s3:ListBucketMultipartUploads",
         ]
         Resource = data.aws_s3_bucket.softmax_public.arn
       },
@@ -75,10 +76,9 @@ resource "aws_iam_role_policy" "github_s3_softmax_public" {
           "s3:PutObject",
           "s3:AbortMultipartUpload",
           "s3:CreateMultipartUpload",
-          "s3:ListMultipartUploadParts",
-          "s3:ListBucketMultipartUploads",
           "s3:UploadPart",
           "s3:CompleteMultipartUpload",
+          "s3:ListMultipartUploadParts",
         ]
         Resource = "${data.aws_s3_bucket.softmax_public.arn}/*"
       }
