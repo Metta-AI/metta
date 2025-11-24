@@ -30,6 +30,7 @@ from mettagrid.config.mettagrid_config import (
     MoveActionConfig,
     NoopActionConfig,
     ProtocolConfig,
+    ResourceLimitsConfig,
 )
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
@@ -49,6 +50,14 @@ class MissionVariant(Config, ABC):
         # Override this method to modify the produced environment.
         # Variants are allowed to modify the environment in-place.
         pass
+
+    def compat(self, mission: Mission) -> bool:
+        """Check if this variant is compatible with the given mission.
+
+        Returns True if the variant can be safely applied to the mission.
+        Override this method to add compatibility checks.
+        """
+        return True
 
     def apply(self, mission: Mission) -> Mission:
         mission = mission.model_copy(deep=True)
@@ -172,10 +181,14 @@ class Mission(Config):
             ),
             agent=AgentConfig(
                 resource_limits={
-                    "heart": self.heart_capacity,
-                    "energy": self.energy_capacity,
-                    ("carbon", "oxygen", "germanium", "silicon"): self.cargo_capacity,
-                    ("scrambler", "modulator", "decoder", "resonator"): self.gear_capacity,
+                    "heart": ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"]),
+                    "energy": ResourceLimitsConfig(limit=self.energy_capacity, resources=["energy"]),
+                    "cargo": ResourceLimitsConfig(
+                        limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
+                    ),
+                    "gear": ResourceLimitsConfig(
+                        limit=self.gear_capacity, resources=["scrambler", "modulator", "decoder", "resonator"]
+                    ),
                 },
                 rewards=AgentRewards(
                     stats={"chest.heart.amount": 1 / num_cogs},

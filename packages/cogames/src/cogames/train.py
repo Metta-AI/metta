@@ -17,13 +17,14 @@ from mettagrid import MettaGridConfig, PufferMettaGridEnv
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
+from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.loader import (
     find_policy_checkpoints,
     get_policy_class_shorthand,
     initialize_or_load_policy,
     resolve_policy_data_path,
 )
-from mettagrid.policy.policy import PolicySpec, TrainablePolicy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulator
 from mettagrid.util.stats_writer import NoopStatsWriter
@@ -207,10 +208,9 @@ def train(
             data_path=resolved_initial_weights,
         ),
     )
-    assert isinstance(policy, TrainablePolicy), (
-        f"Policy class {policy_class_path} must implement TrainablePolicy interface"
-    )
-    policy.network().to(device)
+    network = policy.network()
+    assert network is not None, f"Policy {policy_class_path} must be trainable (network() returned None)"
+    network.to(device)
 
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
     if not use_rnn:
@@ -436,6 +436,12 @@ class _EnvCreator:
         seed: Optional[int] = None,
     ) -> PufferMettaGridEnv:
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else self.clone_cfg()
+
+        # If this mission uses MapGen and the builder seed is unset, derive a deterministic
+        # MapGen seed from the per-env seed provided by the vectorized runner.
+        map_builder = getattr(target_cfg.game, "map_builder", None)
+        if isinstance(map_builder, MapGen.Config) and seed is not None and map_builder.seed is None:
+            map_builder.seed = seed
         simulator = Simulator()
         simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
         simulator.add_event_handler(EarlyResetHandler())

@@ -22,3 +22,6 @@ datadog:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
+
+evalScheduler:
+  enabled: false

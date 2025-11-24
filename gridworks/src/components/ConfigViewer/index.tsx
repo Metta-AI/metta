@@ -4,6 +4,7 @@ import { FC, useState } from "react";
 import { Menu } from "./Menu";
 import { YamlAny } from "./YamlAny";
 import { YamlContext } from "./YamlContext";
+import { configToYaml } from "./utils";
 
 export const ConfigViewer: FC<{
   value: unknown;
@@ -16,6 +17,18 @@ export const ConfigViewer: FC<{
 }> = ({ value, isSelected, onSelectLine, unsetFields, kind }) => {
   const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [showDefaultValues, setShowDefaultValues] = useState(true);
+
+  function handleCopyAsYaml() {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(
+        configToYaml({
+          value,
+          path: [],
+          depth: 0,
+        })
+      );
+    }
+  }
 
   return (
     <YamlContext
@@ -34,7 +47,7 @@ export const ConfigViewer: FC<{
       <div className="relative overflow-auto rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs">
         <YamlAny node={{ value, path: [], depth: 0 }} />
         <div className="absolute top-2 right-2">
-          <Menu />
+          <Menu onCopyAsYaml={handleCopyAsYaml} />
         </div>
       </div>
     </YamlContext>

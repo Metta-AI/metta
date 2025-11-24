@@ -1,4 +1,9 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 import concurrent.futures
 import re
 import subprocess
@@ -15,7 +20,7 @@ from rich.table import Table
 
 import gitta as git
 from metta.common.util.fs import get_repo_root
-from metta.common.util.log_config import init_logging, init_suppress_warnings
+from metta.common.util.log_config import init_logging
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.tools.book import app as book_app
@@ -240,7 +245,7 @@ def _get_selected_modules(components: list[str] | None = None, ensure_required: 
     _ensure_components_initialized()
     from metta.setup.registry import get_all_modules
 
-    return [
+    component_objs = [
         m
         for m in get_all_modules()
         if (
@@ -248,6 +253,13 @@ def _get_selected_modules(components: list[str] | None = None, ensure_required: 
             or (components is None and m.is_enabled())
         )
     ]
+    if components:
+        component_names = {m.name for m in component_objs}
+        not_found_components = [c for c in components if c not in component_names]
+        if not_found_components:
+            error(f"Unknown components: {', '.join(not_found_components)}")
+            raise typer.Exit(1)
+    return component_objs
 
 
 def _get_all_package_names() -> list[str]:
@@ -559,11 +571,10 @@ def cmd_publish(
             info(f"Pushing {package} as child repo...")
             subprocess.run([f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"], check=True)
     except subprocess.CalledProcessError as exc:
-        error(
-            f"Failed to publish: {exc}. {tag_name} was still published to {remote}."
+        warning(
+            f"Failed to push child repo: {exc}. {tag_name} was still published to {remote}."
             + " Use --no-repo to skip pushing to github repo."
         )
-        raise typer.Exit(exc.returncode) from exc
 
     if publish_mettagrid_after:
         info("")
@@ -817,5 +828,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     init_logging()
-    init_suppress_warnings()
     main()

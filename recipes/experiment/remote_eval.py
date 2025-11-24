@@ -1,23 +1,18 @@
-import base64
 import json
 from typing import Sequence
 
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import HttpStatsClient
 from metta.common.tool.tool import ToolResult, ToolWithResult
-from metta.sim.handle_results import to_eval_results
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
+from metta.sim.runner import SimulationRunConfig
+from metta.tools.eval import EvaluatePolicyVersionTool
 from metta.tools.utils.auto_config import auto_replay_dir
 
 
 class ExecuteRemoteEvalTool(ToolWithResult):
-    simulations: Sequence[SimulationConfig]  # list of simulations to run
-    policy_uri: str  # policy uri to evaluate
-    eval_task_id: str
+    simulations: Sequence[SimulationRunConfig]  # list of simulations to run
+    policy_version_id: str  # policy uri to evaluate
     replay_dir: str = Field(default_factory=auto_replay_dir)
-    enable_replays: bool = True
     result_file_path: str  # path to the file where the results will be written
 
     group: str | None = None  # Separate group parameter like in train.py
@@ -27,54 +22,37 @@ class ExecuteRemoteEvalTool(ToolWithResult):
 
     def run_job(self) -> ToolResult:
         # Will error if stats_server_uri does not exist or we are not not authenticated with it
-        _ = HttpStatsClient.create(self.stats_server_uri)
+        if self.stats_server_uri is None:
+            raise ValueError("stats_server_uri is required")
 
-        eval_tool = EvaluateTool(
+        eval_tool = EvaluatePolicyVersionTool(
             simulations=self.simulations,
-            policy_uris=[self.policy_uri],
+            policy_version_id=self.policy_version_id,
             replay_dir=self.replay_dir,
-            enable_replays=self.enable_replays,
             group=self.group,
             stats_server_uri=self.stats_server_uri,
-            eval_task_id=self.eval_task_id,
-            push_metrics_to_wandb=self.push_metrics_to_wandb,
-            verbose=True,
         )
-        return_code, msg, results = eval_tool.handle_single_policy_uri(self.policy_uri)
-        if return_code != 0:
-            return ToolResult(result="failure", error=msg)
-        eval_results = to_eval_results(results, num_policies=1, target_policy_idx=0)
-        if len(eval_results.scores.simulation_scores) == 0:
-            return ToolResult(result="failure", error="No simulations were run")
-        elif len(eval_results.scores.simulation_scores) != len(self.simulations):
-            # Find missing simulations
-            missing_simulations = [
-                sim for sim in self.simulations if sim.full_name not in eval_results.scores.simulation_scores
-            ]
-            return ToolResult(
-                result="success",
-                warnings=[f"Failed to run simulations: {missing_simulations}"],
-            )
-
-        return ToolResult(result="success")
+        try:
+            eval_tool.invoke({})
+            return ToolResult(result="success")
+        except Exception as e:
+            return ToolResult(result="failure", error=str(e))
 
 
 # Used by eval_task_worker.py
 def eval(
-    policy_uri: str,
-    simulations_json_base64_path: str,
+    policy_version_id: str,
+    task_data_path: str,
     result_file_path: str,
-    eval_task_id: str,
 ) -> ExecuteRemoteEvalTool:
     # Decode from base64 to avoid OmegaConf auto-parsing issues
-    with open(simulations_json_base64_path, "rb") as f:
-        simulations_json_base64 = f.read()
-    simulations_json = base64.b64decode(simulations_json_base64).decode()
-    simulations = [SimulationConfig.model_validate(sim) for sim in json.loads(simulations_json)]
+    with open(task_data_path, "rb") as f:
+        simulations_json = f.read()
+    sim_json_array = json.loads(simulations_json)["simulations"]
+    simulations = [SimulationRunConfig.model_validate(sim) for sim in sim_json_array]
 
     return ExecuteRemoteEvalTool(
         simulations=simulations,
-        policy_uri=policy_uri,
+        policy_version_id=policy_version_id,
         result_file_path=result_file_path,
-        eval_task_id=eval_task_id,
     )

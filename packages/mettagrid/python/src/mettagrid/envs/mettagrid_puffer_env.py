@@ -242,6 +242,31 @@ class MettaGridPufferEnv(PufferEnv):
     def teacher_actions(self, teacher_actions: np.ndarray) -> None:
         self._buffers.teacher_actions = teacher_actions
 
+    @property
+    def render_mode(self) -> str:
+        """PufferLib render mode - returns 'ansi' for text-based rendering."""
+        return "ansi"
+
+    def render(self) -> str:
+        """Render the current state as unicode text."""
+        from mettagrid.renderer.miniscope.buffer import MapBuffer
+        from mettagrid.renderer.miniscope.symbol import DEFAULT_SYMBOL_MAP
+
+        sim = cast(Simulation, self._sim)
+
+        symbol_map = DEFAULT_SYMBOL_MAP.copy()
+        for obj in self._current_cfg.game.objects.values():
+            if obj.render_name:
+                symbol_map[obj.render_name] = obj.render_symbol
+            symbol_map[obj.name] = obj.render_symbol
+
+        return MapBuffer(
+            object_type_names=sim.object_type_names,
+            symbol_map=symbol_map,
+            initial_height=sim.map_height,
+            initial_width=sim.map_width,
+        ).render_full_map(sim._c_sim.grid_objects())
+
     def close(self) -> None:
         """Close the environment."""
         if self._sim is None:

@@ -10,7 +10,6 @@
 #include "actions/resource_mod.hpp"
 #include "config/mettagrid_config.hpp"
 #include "config/observation_features.hpp"
-#include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
@@ -54,12 +53,8 @@ protected:
         {"type_id", 0},
         {"agent:group", 1},
         {"agent:frozen", 2},
-        {"agent:orientation", 3},
-        {"agent:reserved_for_future_use", 4},
-        {"converting", 5},
         {"episode_completion_pct", 7},
         {"last_action", 8},
-        {"last_action_arg", 9},
         {"last_reward", 10},
         {"vibe", 11},
         {"agent:vibe", 12},
@@ -867,17 +862,6 @@ TEST_F(MettaGridCppTest, FractionalConsumptionDeterministicWithSameSeed) {
 
   // Should have identical results with same seed
   EXPECT_EQ(agent1->inventory.amount(TestItems::ORE), agent2->inventory.amount(TestItems::ORE));
-}
-
-// ==================== Event System Tests ====================
-
-TEST_F(MettaGridCppTest, EventManager) {
-  Grid grid(10, 10);
-  EventManager event_manager;
-
-  // Test that event manager can be initialized
-  // (This is a basic test - more complex event testing would require more setup)
-  EXPECT_NO_THROW(event_manager.process_events(1));
 }
 
 // ==================== Assembler Tests ====================
