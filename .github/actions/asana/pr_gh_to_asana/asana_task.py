@@ -521,6 +521,10 @@ class AsanaTask:
         self,
         requested_reviewers: list[str],
         github_asana_mapping: dict[str, str],
+        pr_number: str,
+        pr_author: str,
+        pr_title: str,
+        pr_url: str,
     ) -> None:
         """Synchronize review subtasks based on requested reviewers"""
         print(f"[synchronize_review_subtasks] Synchronizing subtasks for {len(requested_reviewers)} reviewers")
@@ -529,7 +533,7 @@ class AsanaTask:
         existing_subtasks = self.get_subtasks()
 
         # Build mapping of assignee email to subtask for review subtasks
-        review_subtask_prefix = "Review by "
+        review_subtask_prefix = "Review #"
         existing_review_subtasks = {}
         for subtask in existing_subtasks:
             if subtask["name"].startswith(review_subtask_prefix):
@@ -549,30 +553,73 @@ class AsanaTask:
             if reviewer_email in existing_review_subtasks:
                 subtask = existing_review_subtasks[reviewer_email]
                 if subtask["completed"]:
-                    print(f"[synchronize_review_subtasks] Reopening completed review subtask for {reviewer_login}")
-                    # Reopen the subtask
-                    body = {"data": {"completed": False}}
-                    try:
-                        self.tasks_api.update_task(body, subtask["gid"], {})
-                    except Exception as e:
-                        print(f"[synchronize_review_subtasks] Failed to reopen subtask: {e}")
+                    print(
+                        f"[synchronize_review_subtasks] Creating new review subtask for "
+                        f"re-requested review from {reviewer_login}"
+                    )
+                    # Create a new subtask for re-requested review (prefer new task over reopening)
+                    subtask_name = f"Review #{pr_number} by {pr_author}: {pr_title}"
+                    subtask_notes = f"Review requested from {reviewer_login}\n\nPR: {pr_url}"
+                    self.create_subtask(
+                        name=subtask_name,
+                        assignee=reviewer_email,
+                        notes=subtask_notes,
+                    )
                 else:
                     print(f"[synchronize_review_subtasks] Review subtask already exists for {reviewer_login}")
             else:
                 print(f"[synchronize_review_subtasks] Creating new review subtask for {reviewer_login}")
-                subtask_name = f"{review_subtask_prefix}{reviewer_login}"
+                subtask_name = f"Review #{pr_number} by {pr_author}: {pr_title}"
+                subtask_notes = f"Review requested from {reviewer_login}\n\nPR: {pr_url}"
                 self.create_subtask(
                     name=subtask_name,
                     assignee=reviewer_email,
-                    notes=f"Review requested from {reviewer_login}",
+                    notes=subtask_notes,
                 )
+
+    def complete_review_subtask_for_reviewer(
+        self,
+        reviewer_login: str,
+        github_asana_mapping: dict[str, str],
+    ) -> None:
+        """Mark review subtask as complete when reviewer submits a review"""
+        print(f"[complete_review_subtask_for_reviewer] Marking review complete for {reviewer_login}")
+
+        reviewer_email = github_asana_mapping.get(reviewer_login)
+        if not reviewer_email:
+            print(
+                f"[complete_review_subtask_for_reviewer] No Asana email found for reviewer {reviewer_login}, skipping"
+            )
+            return
+
+        # Get existing subtasks
+        existing_subtasks = self.get_subtasks()
+        review_subtask_prefix = "Review #"
+
+        # Find the subtask assigned to this reviewer
+        for subtask in existing_subtasks:
+            if subtask["name"].startswith(review_subtask_prefix) and not subtask["completed"]:
+                assignee_email = subtask.get("assignee", {}).get("email") if subtask.get("assignee") else None
+                if assignee_email == reviewer_email:
+                    try:
+                        body = {"data": {"completed": True}}
+                        self.tasks_api.update_task(body, subtask["gid"], {})
+                        print(f"[complete_review_subtask_for_reviewer] Completed subtask: {subtask['name']}")
+                        return
+                    except Exception as e:
+                        print(
+                            f"[complete_review_subtask_for_reviewer] Failed to complete subtask {subtask['gid']}: {e}"
+                        )
+                        return
+
+        print(f"[complete_review_subtask_for_reviewer] No open review subtask found for {reviewer_login}")
 
     def close_all_review_subtasks(self) -> None:
         """Close all review subtasks when PR is merged or closed"""
         print("[close_all_review_subtasks] Closing all review subtasks")
 
         existing_subtasks = self.get_subtasks()
-        review_subtask_prefix = "Review by "
+        review_subtask_prefix = "Review #"
 
         closed_count = 0
         for subtask in existing_subtasks:
