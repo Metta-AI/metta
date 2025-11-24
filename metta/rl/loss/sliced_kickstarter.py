@@ -287,6 +287,9 @@ class SlicedKickstarter(Loss):
         minibatch = minibatch.reshape(sliced_b * sliced_tt)
         student_td = student_td.reshape(sliced_b * sliced_tt)
 
+        if minibatch.batch_size.numel() == 0 or student_td.batch_size.numel() == 0:  # early exit if minibatch is empty
+            return self._zero_tensor, shared_loss_data, False
+
         # action loss
         temperature = self.cfg.temperature
         teacher_logits = minibatch["teacher_logits"]
