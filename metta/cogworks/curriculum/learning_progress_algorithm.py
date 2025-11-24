@@ -470,8 +470,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._label_sampling_counts.clear()
         return sampling_counts
 
-    def reset_epoch_counters(self) -> None:
-        """Reset counters at the start of a new epoch.
+    def on_epoch_end(self) -> None:
+        """Handle epoch end event.
 
         This is called by the training infrastructure at epoch boundaries
         to ensure metrics start fresh.

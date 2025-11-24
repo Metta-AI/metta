@@ -156,8 +156,8 @@ class CurriculumAlgorithm(ABC):
         """Set reference to curriculum for stats updates. Override if needed."""
         pass
 
-    def reset_epoch_counters(self) -> None:  # noqa: B027
-        """Reset per-epoch counters. Override if needed."""
+    def on_epoch_end(self) -> None:  # noqa: B027
+        """Handle epoch end event. Override if needed."""
         pass
 
     def get_task_score(self, task_id: int) -> float:

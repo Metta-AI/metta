@@ -192,14 +192,14 @@ class ComponentContext:
     def reset_for_epoch(self) -> None:
         self.training_env_id = None
 
-    def reset_epoch_counters(self) -> None:
-        """Reset per-epoch counters after stats have been collected.
+    def on_epoch_end(self) -> None:
+        """Handle epoch end event after stats have been collected.
 
         This is called AFTER epoch-end callbacks to ensure stats collection
         sees the data from the completed epoch before it's cleared.
         """
-        if hasattr(self.env, "reset_epoch_counters"):
-            self.env.reset_epoch_counters()
+        if hasattr(self.env, "on_epoch_end"):
+            self.env.on_epoch_end()
 
     def record_rollout(self, agent_steps: int, world_size: int) -> None:
         self.agent_step += agent_steps * world_size

@@ -316,13 +316,13 @@ class Curriculum(StatsLogger):
         """
         return self._algorithm.get_and_reset_evictions()
 
-    def reset_epoch_counters(self) -> None:
-        """Reset epoch counters in the curriculum algorithm.
+    def on_epoch_end(self) -> None:
+        """Handle epoch end event in the curriculum algorithm.
 
         This is called by the training infrastructure at epoch boundaries
         to ensure metrics start fresh each epoch.
         """
-        self._algorithm.reset_epoch_counters()
+        self._algorithm.on_epoch_end()
 
     def calculate_per_label_mean_lp_stats(self) -> Dict[str, float]:
         """Calculate per-label mean LP scores and reward EMAs.

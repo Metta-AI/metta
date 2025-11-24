@@ -205,8 +205,8 @@ class Trainer:
         # registered on other ranks.
         self._invoke_callback(TrainerCallback.EPOCH_END)
 
-        # Reset per-epoch counters AFTER stats have been collected
-        self._context.reset_epoch_counters()
+        # Handle epoch end AFTER stats have been collected
+        self._context.on_epoch_end()
 
         # Progress logging handled by ProgressLogger component
 
