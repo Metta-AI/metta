@@ -40,6 +40,7 @@ DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "energy_starved",
     "divide_and_conquer",
     "go_together",
+    "machina_1.open_world",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
@@ -48,20 +49,22 @@ COORDINATION_MISSIONS: list[str] = [
     "collect_resources_spread",
 ]
 
-PROC_MAP_MISSIONS: tuple[str, ...] = tuple(
-    f"hello_world{MAP_MISSION_DELIMITER}{mission}"
-    for mission in (
-        "open_world",
-        "hello_world_unclip",
-        "clipping",
-        "oxygen_bottleneck",
-        "energy_starved",
-        "distant_resources",
-        "quadrant_buildings",
-        "single_use_swarm",
-        "vibe_check",
-        "easy_hearts",
-    )
+PROC_MAP_MISSIONS: tuple[str, ...] = (
+    f"training_facility{MAP_MISSION_DELIMITER}harvest",
+    f"training_facility{MAP_MISSION_DELIMITER}vibe_check",
+    f"training_facility{MAP_MISSION_DELIMITER}repair",
+    f"training_facility{MAP_MISSION_DELIMITER}easy_hearts_training_facility",
+    f"hello_world{MAP_MISSION_DELIMITER}open_world",
+    f"hello_world{MAP_MISSION_DELIMITER}hello_world_unclip",
+    f"hello_world{MAP_MISSION_DELIMITER}oxygen_bottleneck",
+    f"hello_world{MAP_MISSION_DELIMITER}energy_starved",
+    f"hello_world{MAP_MISSION_DELIMITER}distant_resources",
+    f"hello_world{MAP_MISSION_DELIMITER}quadrant_buildings",
+    f"hello_world{MAP_MISSION_DELIMITER}single_use_swarm",
+    f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
+    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
+    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
+    f"machina_1{MAP_MISSION_DELIMITER}open_world",
 )
 
 

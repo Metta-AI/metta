@@ -8,7 +8,6 @@ from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 
 T = TypeVar("T", bound=BaseModel)
-ClientT = TypeVar("ClientT", bound="BaseAppBackendClient")
 
 
 class NotAuthenticatedError(Exception):

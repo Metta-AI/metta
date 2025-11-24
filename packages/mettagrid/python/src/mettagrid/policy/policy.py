@@ -48,23 +48,15 @@ class AgentPolicy:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
-    def step_batch(self, _raw_observations, raw_actions) -> None:
-        """Optional fast-path for policies that consume raw buffers.
-
-        Policies that support raw NumPy pointers should override this method.
-        The default implementation raises so callers get a clear error if a
-        policy without batch support is used in a context that requires it."""
-
-        raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
-
 
 class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
-    """Abstract base class for multi-agent policies.
+    """Unified policy interface for multi-agent systems.
 
-    A Policy manages creating AgentPolicy instances for multiple agents.
-    This is the class users instantiate and pass to training/play functions.
-    Training uses the Policy directly, while play calls agent_policy() to
-    get per-agent instances.
+    This class manages policy lifecycle including:
+    1. Creating per-agent policy instances (agent_policy)
+    2. Serialization/deserialization (load_policy_data/save_policy_data)
+    3. Optional: Providing network for training (network)
+    4. Optional: Batch stepping optimization (step_batch)
 
     Subclasses can register themselves by defining:
     - short_names: list[str] = ["name1", "name2"] for one or more aliases
@@ -78,35 +70,32 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     @abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            An AgentPolicy instance for this agent
-        """
+        """Get an AgentPolicy instance for a specific agent."""
         ...
 
     def load_policy_data(self, policy_data_path: str) -> None:
         """Load policy data from a file.
 
-        Args:
-            policy_data_path: Path to the policy data file
-
         Default implementation does nothing. Override to load weights/parameters.
+        For trainable policies, override to load torch state_dict.
         """
-        pass  # Default: no-op for policies without learnable parameters
+        pass
 
     def save_policy_data(self, policy_data_path: str) -> None:
         """Save policy data to a file.
 
-        Args:
-            policy_data_path: Path to save the policy data
-
         Default implementation does nothing. Override to save weights/parameters.
+        For trainable policies, override to save torch state_dict.
         """
-        pass  # Default: no-op for policies without learnable parameters
+        pass
+
+    def network(self) -> Optional[nn.Module]:
+        """Get the underlying neural network for training.
+
+        Returns None if this policy is not trainable.
+        Override this method in trainable policies to return the network.
+        """
+        return None
 
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
@@ -119,10 +108,9 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         """Optional fast-path for policies that consume raw buffers.
 
-        Policies that support raw NumPy pointers should override this method.
-        The default implementation raises so callers get a clear error if a
-        policy without batch support is used in a context that requires it."""
-
+        Override this method in policies that support batch stepping.
+        The default implementation raises NotImplementedError.
+        """
         raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
 
 
@@ -274,9 +262,6 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         """Reset the hidden state to initial state."""
         self._initialize_state(simulation)
 
-    def step_batch(self, _raw_observations, raw_actions) -> None:
-        raise NotImplementedError("StatefulAgentPolicy does not support batch stepping")
-
     def _initialize_state(self, simulation: Optional[Simulation]) -> None:
         self._simulation = simulation
         self._base_policy.reset()
@@ -323,55 +308,6 @@ class StatefulPolicyImpl(Generic[StateType]):
     def set_active_agent(self, agent_id: Optional[int]) -> None:
         """Optional hook for implementations that need the calling agent id."""
         _ = agent_id
-
-
-class TrainablePolicy(MultiAgentPolicy):
-    """Abstract base class for trainable policies.
-
-    TrainablePolicy extends Policy and manages a neural network that can be trained.
-    It creates per-agent AgentPolicy instances that share the same network.
-    """
-
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
-
-    @abstractmethod
-    def network(self) -> nn.Module:
-        """Get the underlying neural network for training."""
-        ...
-
-    @abstractmethod
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent.
-
-        This must be overridden by trainable policies to return
-        per-agent policy instances.
-
-        Args:
-            agent_id: The ID of the agent
-
-        Returns:
-            An AgentPolicy instance for this agent
-        """
-        ...
-
-    def load_policy_data(self, policy_data_path: str) -> None:
-        """Load network weights from file.
-
-        Default implementation loads PyTorch state dict.
-        """
-        import torch
-
-        self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu"))
-
-    def save_policy_data(self, policy_data_path: str) -> None:
-        """Save network weights to file.
-
-        Default implementation uses torch.save.
-        """
-        import torch
-
-        torch.save(self.network().state_dict(), policy_data_path)
 
 
 class PolicySpec(BaseModel):

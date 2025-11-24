@@ -1,4 +1,4 @@
-from typing import Annotated, Callable
+from typing import Annotated
 
 import httpx
 from fastapi import Depends, HTTPException, Request, status
@@ -44,17 +44,8 @@ def user_from_email_or_raise(request: Request) -> str:
     return user_email
 
 
-def create_user_or_token_dependency() -> Callable[[Request], str]:
-    """Create a dependency function that validates either user email or machine token."""
-
-    async def get_user_or_token_user(request: Request) -> str:
-        return await user_from_header_or_token_or_raise(request)
-
-    return get_user_or_token_user
-
-
 # Dependency types for use in route decorators
-UserEmail = Annotated[str, Depends(user_from_email_or_raise)]
+UserOrToken = Annotated[str, Depends(user_from_header_or_token_or_raise)]
 
 
 async def validate_token_via_login_service(token: str) -> str | None:
