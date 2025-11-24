@@ -55,11 +55,6 @@ proc drawAsciiMap(replay: Replay): string =
       if map.hasKey((x, y)):
         cell = map[(x, y)]
       else:
-        cell = "~~" # Treat empty space as unseen/water/void in this style? Or "  "? Common uses "~~" for unseen, "  " for empty seen. Here everything is "seen".
-        # If we want to match common.nim exactly:
-        # if location notin seen: cell = "~~"
-        # Here we are god mode, so everything is seen. But empty cells are just empty.
-        # "  " is better for empty space.
         cell = "  "
       line.add cell
     line.add "|"
