@@ -63,6 +63,13 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
     return validated_paths
 
 
+def get_latest_cogames_version() -> str:
+    """Get the latest published cogames version."""
+    response = httpx.get("https://pypi.org/pypi/cogames/json")
+    response.raise_for_status()
+    return response.json()["info"]["version"]
+
+
 def create_temp_validation_env(console: Console) -> Path:
     """Create a temporary directory with a minimal pyproject.toml.
 
@@ -70,11 +77,13 @@ def create_temp_validation_env(console: Console) -> Path:
     """
     temp_dir = Path(tempfile.mkdtemp(prefix="cogames_submit_"))
 
-    pyproject_content = """[project]
+    latest_cogames_version = get_latest_cogames_version()
+
+    pyproject_content = f"""[project]
 name = "cogames-submission-validator"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["cogames"]
+dependencies = ["cogames=={latest_cogames_version}"]
 
 [build-system]
 requires = ["setuptools>=42"]
