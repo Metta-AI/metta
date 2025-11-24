@@ -29,8 +29,8 @@ class SlicedKickstarterConfig(LossConfig):
     teacher_lead_prob: float = Field(default=1.0, ge=0, le=1.0)  # set to 1 since we slice teacher lead separately
 
     # remainder of the sum below is left for the PPO loss to use
-    student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
-    teacher_led_proportion: float = Field(default=1.0, ge=0, le=1.0)
+    student_led_proportion: float = Field(default=0.3, ge=0, le=1.0)
+    teacher_led_proportion: float = Field(default=0.2, ge=0, le=1.0)
 
     def create(
         self,
@@ -305,7 +305,7 @@ class SlicedKickstarter(Loss):
         teacher_value = minibatch["teacher_values"].detach()
         student_value = student_td["values"]
         ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
-        print(f"ks_action_loss: {ks_action_loss.item()}, ks_value_loss: {ks_value_loss.item()}")
+
         loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
 
         self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
