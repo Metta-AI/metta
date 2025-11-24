@@ -150,13 +150,13 @@ class BidirectionalLPScorer(LPScorer):
         # Distribution staleness flag (only state we keep)
         self._stale_dist = True
 
-    def _get_ema_from_shared_memory(self, task_id: int, tracker: TaskTracker) -> tuple[float, float, float, float]:
-        """Get EMA values from shared memory for a task.
+    def _get_ema(self, task_id: int) -> tuple[float, float, float, float]:
+        """Get EMA values for a task.
 
         Returns:
             Tuple of (p_fast, p_slow, p_true, random_baseline)
         """
-        task_stats = tracker.get_task_stats(task_id)
+        task_stats = self.tracker.get_task_stats(task_id)
         if task_stats is None:
             return 0.0, 0.0, 0.0, 0.0
         return (
@@ -166,16 +166,14 @@ class BidirectionalLPScorer(LPScorer):
             task_stats.get("random_baseline", 0.0),
         )
 
-    def _write_ema_to_shared_memory(
-        self, task_id: int, tracker: TaskTracker, p_fast: float, p_slow: float, p_true: float, random_baseline: float
-    ) -> None:
-        """Write EMA values to shared memory for a task."""
-        index = tracker.get_task_index(task_id)
+    def _write_ema(self, task_id: int, p_fast: float, p_slow: float, p_true: float, random_baseline: float) -> None:
+        """Write EMA values for a task."""
+        index = self.tracker.get_task_index(task_id)
         if index is None:
             return
 
-        with tracker._backend.acquire_lock():
-            task_data = tracker._backend.get_task_data(index)
+        with self.tracker._backend.acquire_lock():
+            task_data = self.tracker._backend.get_task_data(index)
             task_data[13] = p_fast
             task_data[14] = p_slow
             task_data[15] = p_true
@@ -295,16 +293,15 @@ class BidirectionalLPScorer(LPScorer):
         """Invalidate distribution (mark as stale)."""
         self._stale_dist = True
 
-    def _update_task_emas(self, task_id: int, score: float, tracker: TaskTracker) -> None:
+    def _update_task_emas(self, task_id: int, score: float) -> None:
         """Update bidirectional EMAs for a single task with a new score.
 
         Args:
             task_id: ID of the task to update
             score: New performance score for the task
-            tracker: TaskTracker instance for shared memory access
         """
-        # Get current EMA values from shared memory
-        p_fast, p_slow, p_true, random_baseline = self._get_ema_from_shared_memory(task_id, tracker)
+        # Get current EMA values
+        p_fast, p_slow, p_true, random_baseline = self._get_ema(task_id)
 
         task_success_rate = score
 
@@ -337,8 +334,8 @@ class BidirectionalLPScorer(LPScorer):
             p_slow = normalized_task_success_rate * slow_timescale + p_slow * (1.0 - slow_timescale)
             p_true = task_success_rate * self.config.ema_timescale + p_true * (1.0 - self.config.ema_timescale)
 
-        # Write updated EMAs back to shared memory
-        self._write_ema_to_shared_memory(task_id, tracker, p_fast, p_slow, p_true, random_baseline)
+        # Write updated EMAs back
+        self._write_ema(task_id, p_fast, p_slow, p_true, random_baseline)
 
         # Mark distribution as stale since EMAs changed
         self._stale_dist = True
@@ -383,8 +380,6 @@ class BidirectionalLPScorer(LPScorer):
         This amplifies learning signal from unsolved tasks when early_progress_amplification
         is set to a low value (e.g., 0.05).
 
-        Now builds arrays from shared memory instead of using cached arrays.
-
         Args:
             task_ids: Optional list of task IDs to calculate LP for. If None, fetches from tracker.
                      Providing task_ids prevents race conditions in multi-process environments.
@@ -392,14 +387,14 @@ class BidirectionalLPScorer(LPScorer):
         if self.tracker is None:
             return np.array([])
 
-        # Build arrays from shared memory
+        # Build arrays from tracker
         if task_ids is None:
             task_ids = self.tracker.get_all_tracked_tasks()
         if not task_ids:
             return np.array([])
 
-        p_fast_array = np.array([self._get_ema_from_shared_memory(tid, self.tracker)[0] for tid in task_ids])
-        p_slow_array = np.array([self._get_ema_from_shared_memory(tid, self.tracker)[1] for tid in task_ids])
+        p_fast_array = np.array([self._get_ema(tid)[0] for tid in task_ids])
+        p_slow_array = np.array([self._get_ema(tid)[1] for tid in task_ids])
 
         # Apply reweighting if not at default (0.5)
         if abs(self.config.early_progress_amplification - 0.5) > 1e-6:
@@ -446,8 +441,8 @@ class BidirectionalLPScorer(LPScorer):
 
         # Add performance bonus if configured
         if self.config.performance_bonus_weight > 0:
-            # Build p_true array from shared memory (using same task_ids from above)
-            p_true_array = np.array([self._get_ema_from_shared_memory(tid, tracker)[2] for tid in task_ids])
+            # Build p_true array (using same task_ids from above)
+            p_true_array = np.array([self._get_ema(tid)[2] for tid in task_ids])
             performance_bonus = p_true_array * self.config.performance_bonus_weight
             subprobs = subprobs + performance_bonus
 
