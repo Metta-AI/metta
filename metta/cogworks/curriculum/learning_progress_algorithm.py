@@ -374,28 +374,26 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._remove_task_from_scoring(task_id)
 
         # Track eviction by label
-        if evicted_label:
-            # Track cumulative eviction count for this label
-            self._label_eviction_counts[evicted_label] = self._label_eviction_counts.get(evicted_label, 0) + 1
+        # Track cumulative eviction count for this label
+        self._label_eviction_counts[evicted_label] = self._label_eviction_counts.get(evicted_label, 0) + 1
 
-            # Track per-epoch eviction count (for gini calculation)
-            self._label_evictions[evicted_label] = self._label_evictions.get(evicted_label, 0) + 1
+        # Track per-epoch eviction count (for gini calculation)
+        self._label_evictions[evicted_label] = self._label_evictions.get(evicted_label, 0) + 1
 
-            # Check if this label still has any active tasks
-            # get_all_tracked_tasks() only returns ACTIVE tasks, so this is safe
-            all_active_labels = set()
-            for tid in self.task_tracker.get_all_tracked_tasks():
-                label = self.task_tracker.get_task_label(tid)
-                if label:
-                    all_active_labels.add(label)
+        # Check if this label still has any active tasks
+        # get_all_tracked_tasks() only returns ACTIVE tasks, so this is safe
+        all_active_labels = set()
+        for tid in self.task_tracker.get_all_tracked_tasks():
+            label = self.task_tracker.get_task_label(tid)
+            all_active_labels.add(label)
 
-            if evicted_label not in all_active_labels:
-                # No more tasks with this label - remove from active set and track as inactive
-                self._active_labels.discard(evicted_label)
-                self._inactive_labels_fifo.append(evicted_label)
+        if evicted_label not in all_active_labels:
+            # No more tasks with this label - remove from active set and track as inactive
+            self._active_labels.discard(evicted_label)
+            self._inactive_labels_fifo.append(evicted_label)
 
-                # Clean up old inactive labels to prevent memory leak
-                self._cleanup_old_inactive_labels()
+            # Clean up old inactive labels to prevent memory leak
+            self._cleanup_old_inactive_labels()
 
         # Invalidate stats cache when task state changes
         self.invalidate_cache()
@@ -433,9 +431,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """
         # Track sampling counts per label (both cumulative and per-epoch)
         label = self.task_tracker.get_task_label(task_id)
-        if label:
-            self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
-            self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
+        self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
+        self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
 
     def get_evictions(self) -> Dict[str, int]:
         """Get evictions WITHOUT resetting the counter.
@@ -543,16 +540,17 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.task_tracker.update_lp_score(task._task_id, self.hypers.exploration_bonus)
 
         # Handle label tracking
+        # Note: task.get_label() always returns a string (defaults to "unknown")
         label = task.get_label()
-        if label:
-            # Store label in TaskTracker's shared memory
-            self.task_tracker.set_task_label(task._task_id, label)
 
-            # If label was inactive, remove it from the inactive queue (reactivating it)
-            if label in self._inactive_labels_fifo:
-                self._inactive_labels_fifo.remove(label)
+        # Store label in TaskTracker's shared memory
+        self.task_tracker.set_task_label(task._task_id, label)
 
-            self._active_labels.add(label)
+        # If label was inactive, remove it from the inactive queue (reactivating it)
+        if label in self._inactive_labels_fifo:
+            self._inactive_labels_fifo.remove(label)
+
+        self._active_labels.add(label)
 
         # Invalidate stats cache when task state changes
         self.invalidate_cache()
@@ -568,8 +566,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         pool_composition = {}
         for task_id in self.task_tracker.get_all_tracked_tasks():
             label = self.task_tracker.get_task_label(task_id)
-            if label:
-                pool_composition[label] = pool_composition.get(label, 0) + 1
+            pool_composition[label] = pool_composition.get(label, 0) + 1
 
         # Return sampling counts (reset each epoch)
         return {
@@ -690,34 +687,33 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         for task_id in all_task_ids:
             task_stats = self.task_tracker.get_task_stats(task_id)
-            if task_stats:
-                completion_count = float(task_stats["completion_count"])
-                completion_counts.append(completion_count)
+            completion_count = float(task_stats["completion_count"])
+            completion_counts.append(completion_count)
 
-                # Get final sampling probability (after all transformations)
-                sampling_prob = self.scorer.score_task(task_id, self.task_tracker)
-                sampling_probs.append(float(sampling_prob))
-                z_scored_lp_scores.append(float(sampling_prob))  # Currently same as sampling_prob
+            # Get final sampling probability (after all transformations)
+            sampling_prob = self.scorer.score_task(task_id, self.task_tracker)
+            sampling_probs.append(float(sampling_prob))
+            z_scored_lp_scores.append(float(sampling_prob))  # Currently same as sampling_prob
 
-                # Get actual raw learning progress: |p_fast - p_slow|
-                # This is the true LP signal before smoothing/normalization
-                p_fast = float(task_stats.get("p_fast", 0.0))
-                p_slow = float(task_stats.get("p_slow", 0.0))
-                raw_lp = abs(p_fast - p_slow)
-                raw_lp_scores.append(raw_lp)
+            # Get actual raw learning progress: |p_fast - p_slow|
+            # This is the true LP signal before smoothing/normalization
+            p_fast = float(task_stats.get("p_fast", 0.0))
+            p_slow = float(task_stats.get("p_slow", 0.0))
+            raw_lp = abs(p_fast - p_slow)
+            raw_lp_scores.append(raw_lp)
 
-                # Calculate task age
-                creation_time = float(task_stats.get("creation_time", current_time))
-                task_age = current_time - creation_time
-                task_ages.append(task_age)
+            # Calculate task age
+            creation_time = float(task_stats.get("creation_time", current_time))
+            task_age = current_time - creation_time
+            task_ages.append(task_age)
 
-                label = self.task_tracker.get_task_label(task_id)
-                task_labels_list.append(label if label else "unknown")
+            label = self.task_tracker.get_task_label(task_id)
+            task_labels_list.append(label)
 
-                if self.hypers.show_curriculum_troubleshooting_logging:
-                    gini_stats[f"task_metrics/{task_id}/completion_count"] = completion_count
-                    gini_stats[f"task_metrics/{task_id}/raw_lp"] = raw_lp
-                    gini_stats[f"task_metrics/{task_id}/sampling_prob"] = sampling_prob
+            if self.hypers.show_curriculum_troubleshooting_logging:
+                gini_stats[f"task_metrics/{task_id}/completion_count"] = completion_count
+                gini_stats[f"task_metrics/{task_id}/raw_lp"] = raw_lp
+                gini_stats[f"task_metrics/{task_id}/sampling_prob"] = sampling_prob
 
         if completion_counts:
             gini_stats["curriculum_gini/pool_occupancy"] = self._calculate_gini_coefficient(completion_counts)
@@ -872,18 +868,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def cleanup_shared_memory(self) -> None:
         """Clean up shared memory resources with better error handling."""
-        task_tracker = getattr(self, "task_tracker", None)
-        if task_tracker is None:
-            return
-
         try:
-            task_tracker.cleanup_shared_memory()
+            self.task_tracker.cleanup_shared_memory()
         except Exception as e:
             # Log but don't raise - cleanup should be best-effort
             logging.warning(f"Failed to cleanup shared memory: {e}")
 
     def __del__(self):
         """Cleanup when object is destroyed."""
-        hypers = getattr(self, "hypers", None)
-        if hypers is not None and getattr(hypers, "use_shared_memory", False):
+        if self.hypers.use_shared_memory:
             self.cleanup_shared_memory()
