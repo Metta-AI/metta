@@ -76,30 +76,25 @@ var count = 0
 for file in walkDirRec(replayDir):
   if file.endsWith(".json.z") or file.endsWith(".json"):
     echo "Loading ", file.extractFilename
-    try:
-      let r = loadReplay(file)
-      doAssert r != nil
-      doAssert r.version == 2
 
-      # Draw ASCII map for the first step
-      let mapFile = file.parentDir / (file.extractFilename & ".map.txt")
-      let map = drawAsciiMap(r)
+    let r = loadReplay(file)
+    doAssert r != nil
+    doAssert r.version == 2
 
-      when defined(writeMaps):
-        writeFile(mapFile, map)
-        echo "Saved map to ", mapFile
+    # Draw ASCII map for the first step
+    let mapFile = file.parentDir / (file.extractFilename & ".map.txt")
+    let map = drawAsciiMap(r)
+
+    when defined(writeMaps):
+      writeFile(mapFile, map)
+      echo "Saved map to ", mapFile
+    else:
+      if not fileExists(mapFile):
+        doAssert false, "Map file does not exist: " & mapFile
       else:
-        if not fileExists(mapFile):
-          doAssert false, "Map file does not exist: " & mapFile
-        else:
-          let expectedMap = readFile(mapFile)
-          doAssert map == expectedMap, "Map does not match expected map: " & mapFile
+        let expectedMap = readFile(mapFile)
+        doAssert map == expectedMap, "Map does not match expected map: " & mapFile
 
-      count += 1
-    except:
-      echo "Failed to load ", file
-      echo getCurrentExceptionMsg()
-      echo getStackTrace()
-      doAssert false
+    count += 1
 
 echo "Loaded ", count, " replays successfully."
