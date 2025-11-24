@@ -18,8 +18,8 @@ The curriculum is agnostic to how tasks are actually used - this wrapper impleme
 from __future__ import annotations
 
 import logging
-from typing import Any
 
+from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from pufferlib import PufferEnv
 
 from .curriculum import Curriculum
@@ -36,12 +36,16 @@ class CurriculumEnv(PufferEnv):
     - All other curriculum stats are collected centrally at epoch boundaries by StatsReporter
     """
 
-    def __init__(self, env: Any, curriculum: Curriculum):
+    def __init__(self, env: MettaGridPufferEnv, curriculum: Curriculum):
         """Initialize the curriculum environment wrapper.
 
         Args:
-            env: The environment to wrap
+            env: The environment to wrap (currently typed as MettaGridPufferEnv)
             curriculum: The curriculum system to use for task generation
+
+        TODO: For more flexibility and type safety, replace MettaGridPufferEnv with a Protocol
+        that defines the required interface (set_mg_config, get_episode_rewards, reset, step).
+        This would enable structural typing and support any environment implementing these methods.
         """
 
         assert hasattr(env, "set_mg_config"), "Environment must have set_mg_config method"
@@ -49,7 +53,7 @@ class CurriculumEnv(PufferEnv):
 
         # We don't call super().__init__() because this wrapper
         # proxies all calls to the wrapped environment.
-        self._env = env
+        self._env: MettaGridPufferEnv = env
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
 
