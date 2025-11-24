@@ -492,11 +492,11 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   doAssert jsonObj["version"].getInt == 2
 
   # Check for validation issues and log them to console
-  # let issues = validateReplay(jsonObj)
-  # if issues.len > 0:
-  #   issues.prettyPrint()
-  # else:
-  #   echo "No validation issues found"
+  let issues = validateReplay(jsonObj)
+  if issues.len > 0:
+    issues.prettyPrint()
+  else:
+    echo "No validation issues found"
 
   let replay = Replay(
     version: jsonObj["version"].getInt,
