@@ -62,7 +62,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         self._backend_url = backend_url
         self._temp_dir = tempfile.mkdtemp()
         self._versioned_path = f"{self._temp_dir}/workdir"
-        self._success_file = f"{self._temp_dir}/success"
+        self.checkout_success_file = f"{self._temp_dir}/checkout_success"
 
     def _run_cmd_from_versioned_checkout(
         self,
@@ -118,7 +118,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         try:
             logger.info(f"Setting up versioned checkout at {self._versioned_path}")
 
-            if not os.path.exists(self._success_file):
+            if not os.path.exists(self.checkout_success_file):
                 logger.info("Cloning repository for the first time")
                 if os.path.exists(self._versioned_path):
                     shutil.rmtree(self._versioned_path)
@@ -133,7 +133,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
                 if result.returncode != 0:
                     raise RuntimeError(f"Failed to clone repository: {result.stderr}")
 
-                with open(self._success_file, "w") as f:
+                with open(self.checkout_success_file, "w") as f:
                     f.write("Success")
 
             # Pull the latest changes
