@@ -264,10 +264,8 @@ class SlicedKickstarter(Loss):
         train_ppo_mask = minibatch["ppo_mask"][:, 0]
 
         shared_loss_data["sampled_mb"] = minibatch
-
         # cut down all of shared_loss_data to just the ppo mask before passing out to PPO losses
         shared_loss_data = shared_loss_data[train_ppo_mask]
-
         # slice - minus teacher led minus student led
         shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
         # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
