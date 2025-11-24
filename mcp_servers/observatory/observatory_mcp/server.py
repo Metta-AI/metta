@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 
 import boto3
 import mcp.types as types
-from botocore.exceptions import ClientError, NoCredentialsError
+from botocore.exceptions import ClientError, NoCredentialsError, ProfileNotFound
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
@@ -21,8 +21,8 @@ except ImportError:
 from pydantic import BaseModel, ValidationError
 
 from metta.adaptive.stores.wandb import WandbStore
-from metta.app_backend.clients.scorecard_client import ScorecardClient
-from metta.app_backend.routes.scorecard_routes import (
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.routes.stats_routes import (
     EvalsRequest,
     MetricsRequest,
     PoliciesSearchRequest,
@@ -96,7 +96,7 @@ class ObservatoryMCPServer:
             for error in config_errors:
                 logger.warning(f"  - {error}")
 
-        self.scorecard_client = ScorecardClient(
+        self.stats_client = StatsClient(
             backend_url=self.config.backend_url,
             machine_token=self.config.machine_token,
         )
@@ -153,16 +153,21 @@ class ObservatoryMCPServer:
         # Always try to initialize S3 client - it can use profile or default credentials
         try:
             if self.config.aws_profile:
-                session = boto3.Session(profile_name=self.config.aws_profile)
-                self.s3_client = session.client("s3")
-                logger.info(f"S3 client initialized (profile={self.config.aws_profile}, bucket={self.s3_bucket})")
+                try:
+                    session = boto3.Session(profile_name=self.config.aws_profile)
+                    self.s3_client = session.client("s3")
+                    logger.info(f"S3 client initialized (profile={self.config.aws_profile}, bucket={self.s3_bucket})")
+                except ProfileNotFound:
+                    logger.warning(f"AWS profile '{self.config.aws_profile}' not found. Trying default credentials...")
+                    self.s3_client = boto3.client("s3")
+                    logger.info(f"S3 client initialized with default credentials (bucket={self.s3_bucket})")
             else:
                 self.s3_client = boto3.client("s3")
                 logger.info(f"S3 client initialized (bucket={self.s3_bucket})")
 
             # Create S3 store instance
             self.s3_store = S3Store(self.s3_client, self.s3_bucket)
-        except (NoCredentialsError, ClientError) as e:
+        except (NoCredentialsError, ClientError, ProfileNotFound) as e:
             logger.warning(f"Failed to initialize S3 client: {e}. S3 tools will be unavailable.")
             self.s3_client = None
             self.s3_store = None
@@ -277,6 +282,7 @@ class ObservatoryMCPServer:
     def _setup_tool_handlers(self) -> Dict[str, Any]:
         """Create dispatch dictionary mapping tool names to handler methods."""
         return {
+            "get_training_runs": self._handle_get_training_runs,
             "get_policies": self._handle_get_policies,
             "search_policies": self._handle_search_policies,
             "get_eval_names": self._handle_get_eval_names,
@@ -380,14 +386,18 @@ class ObservatoryMCPServer:
                     )
                 ]
 
+    async def _handle_get_training_runs(self, arguments: Dict[str, Any]) -> str:
+        """Handle get_training_runs tool."""
+        return await scorecard.get_training_runs(self.stats_client)
+
     async def _handle_get_policies(self, arguments: Dict[str, Any]) -> str:
         """Handle get_policies tool."""
-        return await scorecard.get_policies(self.scorecard_client)
+        return await scorecard.get_policies(self.stats_client)
 
     async def _handle_search_policies(self, arguments: Dict[str, Any]) -> str:
         """Handle search_policies tool."""
         return await scorecard.search_policies(
-            self.scorecard_client,
+            self.stats_client,
             search=arguments.get("search"),
             policy_type=arguments.get("policy_type"),
             tags=arguments.get("tags"),
@@ -405,7 +415,7 @@ class ObservatoryMCPServer:
                 "At least one of training_run_ids or run_free_policy_ids must be provided", "get_eval_names"
             )
         return await scorecard.get_eval_names(
-            self.scorecard_client,
+            self.stats_client,
             training_run_ids=training_run_ids,
             run_free_policy_ids=run_free_policy_ids,
         )
@@ -420,7 +430,7 @@ class ObservatoryMCPServer:
                 "At least one of training_run_ids or run_free_policy_ids must be provided", "get_available_metrics"
             )
         return await scorecard.get_available_metrics(
-            self.scorecard_client,
+            self.stats_client,
             training_run_ids=training_run_ids,
             run_free_policy_ids=run_free_policy_ids,
             eval_names=eval_names,
@@ -442,7 +452,7 @@ class ObservatoryMCPServer:
         if not metric:
             return self._create_error_response("metric is required", "generate_scorecard")
         return await scorecard.generate_scorecard(
-            self.scorecard_client,
+            self.stats_client,
             training_run_ids=training_run_ids,
             run_free_policy_ids=run_free_policy_ids,
             eval_names=eval_names,
@@ -455,14 +465,14 @@ class ObservatoryMCPServer:
         sql = arguments.get("sql")
         if not sql:
             return self._create_error_response("sql parameter is required", "run_sql_query")
-        return await scorecard.run_sql_query(self.scorecard_client, sql=sql)
+        return await scorecard.run_sql_query(self.stats_client, sql=sql)
 
     async def _handle_generate_ai_query(self, arguments: Dict[str, Any]) -> str:
         """Handle generate_ai_query tool."""
         description = arguments.get("description")
         if not description:
             return self._create_error_response("description parameter is required", "generate_ai_query")
-        return await scorecard.generate_ai_query(self.scorecard_client, description=description)
+        return await scorecard.generate_ai_query(self.stats_client, description=description)
 
     async def _handle_list_wandb_runs(self, arguments: Dict[str, Any]) -> str:
         """Handle list_wandb_runs tool."""
@@ -1049,9 +1059,9 @@ async def main() -> None:
     finally:
         if server is not None:
             try:
-                await server.scorecard_client.close()
+                server.stats_client.close()
             except Exception as e:
-                logger.warning(f"Error closing scorecard client: {e}")
+                logger.warning(f"Error closing stats client: {e}")
         logger.info("Observatory MCP Server shutdown complete")
 
 

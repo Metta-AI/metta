@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 # Import backend models to reuse instead of duplicating
-from metta.app_backend.routes.scorecard_routes import (
+from metta.app_backend.routes.stats_routes import (
     EvalsRequest,
     MetricsRequest,
     PoliciesSearchRequest,

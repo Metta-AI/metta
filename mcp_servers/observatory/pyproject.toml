@@ -4,7 +4,14 @@ version = "0.1.0"
 description = "Model Context Protocol server for accessing Metta Observatory backend functionality."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["mcp>=1.0.0", "numpy>=1.24.0", "scipy>=1.10.0"]
+dependencies = [
+    "mcp>=1.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "boto3>=1.38.32",
+    "httpx>=0.28.1",
+    "metta-app-backend",
+]
 
 [project.scripts]
 observatory-mcp = "observatory_mcp.server:cli_main"
