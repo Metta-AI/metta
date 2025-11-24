@@ -21,9 +21,6 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
-DEFAULT_VALIDATION_MISSION = "vanilla"
-VALIDATION_EPISODES = 1
-VALIDATION_MAX_STEPS = 10
 SUBMISSION_TAGS = {"cogames-submitted": "true"}
 
 
@@ -162,8 +159,6 @@ def validate_policy_in_isolation(
         if policy_spec.data_path:
             policy_arg += f":{policy_spec.data_path}"
 
-        console.print(f"[yellow]Running validation with mission '{DEFAULT_VALIDATION_MISSION}'...[/yellow]")
-
         def _run_from_tmp_dir(cmd: list[str]) -> subprocess.CompletedProcess:
             env = os.environ.copy()
             env["UV_NO_CACHE"] = "1"
@@ -185,6 +180,7 @@ def validate_policy_in_isolation(
                 raise Exception("Setting up validation environment failed")
             return res
 
+        console.print("[yellow] Validating policy...[/yellow]")
         result = _run_from_tmp_dir(["uv", "run", "cogames", "version"])
         console.print(f"[dim]Cogames version: {result.stdout.strip()}[/dim]")
 
@@ -258,7 +254,7 @@ def upload_submission(
     console: Console,
 ) -> uuid.UUID | None:
     """Upload submission to CoGames backend using a presigned S3 URL."""
-    console.print(f"[yellow]Uploading submission to {submit_server_url}...[/yellow]")
+    console.print("[yellow]Uploading submission...[/yellow]")
 
     headers = {"X-Auth-Token": token}
 
@@ -288,6 +284,8 @@ def upload_submission(
         console.print(f"[red]✗ Error requesting presigned URL: {e}[/red]")
         return None
 
+    console.print(f"[dim]  Upload ID: {upload_id}[/dim]")
+
     try:
         with open(zip_path, "rb") as f:
             upload_response = httpx.put(
@@ -307,6 +305,8 @@ def upload_submission(
     except Exception as e:
         console.print(f"[red]✗ Upload error: {e}[/red]")
         return None
+
+    console.print("[dim]  Uploaded successfully. Registering...[/dim]")
 
     try:
         complete_response = httpx.post(
