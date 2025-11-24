@@ -2,9 +2,10 @@ import { FC, useContext, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
+import { ReplayViewer, normalizeReplayUrl } from './components/ReplayViewer'
 import { TaskBadge } from './components/TaskBadge'
 import type { EpisodeWithTags, EvalTask, LeaderboardPolicyEntry } from './repo'
-import { LEADERBOARD_SIM_NAME_EPISODE_KEY, METTASCOPE_REPLAY_URL_PREFIX } from './constants'
+import { LEADERBOARD_SIM_NAME_EPISODE_KEY } from './constants'
 
 const TASK_PAGE_SIZE = 100
 
@@ -76,6 +77,7 @@ export const PolicyPage: FC = () => {
   const [episodesState, setEpisodesState] = useState<LoadState<EpisodeWithTags[]>>(() =>
     createInitialState<EpisodeWithTags[]>([])
   )
+  const [episodeReplayPreview, setEpisodeReplayPreview] = useState<{ url: string; label: string } | null>(null)
 
   useEffect(() => {
     if (!policyVersionId) {
@@ -198,6 +200,19 @@ export const PolicyPage: FC = () => {
     return { value: leaderboardValue, tooltip }
   }
 
+  const toggleEpisodeReplayPreview = (episode: EpisodeWithTags) => {
+    const normalized = normalizeReplayUrl(episode.replay_url)
+    if (!normalized) {
+      return
+    }
+    setEpisodeReplayPreview((prev) => {
+      if (prev?.url === normalized) {
+        return null
+      }
+      return { url: normalized, label: `Episode ${episode.id.slice(0, 8)}` }
+    })
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -244,64 +259,87 @@ export const PolicyPage: FC = () => {
           ) : episodesState.data.length === 0 ? (
             <div className="text-gray-500 text-sm">No episodes found for this policy version.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-                    <th className="px-3 py-2 border-b border-gray-200">ID</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Leaderboard Tag</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Replay</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Created</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Avg Reward (policy)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {episodesState.data.map((episode) => (
-                    <tr key={episode.id} className="border-b border-gray-100 align-top">
-                      <td className="px-3 py-2">
-                        <Link
-                          to={`/episodes/${episode.id}`}
-                          className="font-mono text-xs text-blue-600 no-underline hover:underline break-words max-w-xs"
-                        >
-                          {episode.id}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-2">
-                        {(() => {
-                          const { value, tooltip } = getLeaderboardTagDisplay(episode)
-                          return (
-                            <span
-                              className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-200 font-mono"
-                              title={tooltip}
-                            >
-                              {value}
-                            </span>
-                          )
-                        })()}
-                      </td>
-                      <td className="px-3 py-2">
-                        {episode.replay_url ? (
-                          <a
-                            href={METTASCOPE_REPLAY_URL_PREFIX + episode.replay_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 no-underline hover:underline"
-                          >
-                            Replay
-                          </a>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="px-3 py-2" title={formatDate(episode.created_at)}>
-                        {formatRelativeTime(episode.created_at)}
-                      </td>
-                      <td className="px-3 py-2 font-mono">{formatScore(getPolicyAvgReward(episode))}</td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+                      <th className="px-3 py-2 border-b border-gray-200">ID</th>
+                      <th className="px-3 py-2 border-b border-gray-200">Leaderboard Tag</th>
+                      <th className="px-3 py-2 border-b border-gray-200">Replay</th>
+                      <th className="px-3 py-2 border-b border-gray-200">Created</th>
+                      <th className="px-3 py-2 border-b border-gray-200">Avg Reward (policy)</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {episodesState.data.map((episode) => (
+                      <tr key={episode.id} className="border-b border-gray-100 align-top">
+                        <td className="px-3 py-2">
+                          <Link
+                            to={`/episodes/${episode.id}`}
+                            className="font-mono text-xs text-blue-600 no-underline hover:underline break-words max-w-xs"
+                          >
+                            {episode.id}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2">
+                          {(() => {
+                            const { value, tooltip } = getLeaderboardTagDisplay(episode)
+                            return (
+                              <span
+                                className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-200 font-mono"
+                                title={tooltip}
+                              >
+                                {value}
+                              </span>
+                            )
+                          })()}
+                        </td>
+                        <td className="px-3 py-2">
+                          {(() => {
+                            const replayUrl = normalizeReplayUrl(episode.replay_url)
+                            if (!replayUrl) {
+                              return '—'
+                            }
+                            return (
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={replayUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 no-underline hover:underline"
+                                >
+                                  Replay
+                                </a>
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 text-xs rounded border border-blue-200 text-blue-700 bg-white hover:bg-blue-50"
+                                  onClick={() => toggleEpisodeReplayPreview(episode)}
+                                >
+                                  Show below
+                                </button>
+                              </div>
+                            )
+                          })()}
+                        </td>
+                        <td className="px-3 py-2" title={formatDate(episode.created_at)}>
+                          {formatRelativeTime(episode.created_at)}
+                        </td>
+                        <td className="px-3 py-2 font-mono">{formatScore(getPolicyAvgReward(episode))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {episodeReplayPreview ? (
+                <div className="mt-4">
+                  <ReplayViewer
+                    replayUrl={episodeReplayPreview.url}
+                    label={`Replay preview (${episodeReplayPreview.label})`}
+                  />
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       </div>
