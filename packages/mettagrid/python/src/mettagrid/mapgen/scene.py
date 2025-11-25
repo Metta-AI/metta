@@ -240,6 +240,11 @@ class Scene(Generic[ConfigT]):
     # { "lock_name": [area_id1, area_id2, ...] }
     _locks: dict[str, set[int]]
 
+    # Will be set by Scene.render_with_children()
+    _render_start_time: float | None = None
+    _render_end_time: float | None = None
+    _render_with_children_end_time: float | None = None
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
