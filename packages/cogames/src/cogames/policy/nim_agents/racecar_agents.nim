@@ -30,6 +30,9 @@ type
 
     clippedExtractors: HashSet[Location]
 
+    stepCount: int
+    prevCompletion: int
+
     carbonTarget: int
     oxygenTarget: int
     germaniumTarget: int
@@ -120,17 +123,30 @@ proc getActiveRecipe(agent: RaceCarAgent): RecipeInfo {.measure.} =
       elif feature.featureId == agent.cfg.features.protocolOutputScrambler:
         result.scramblerCost = feature.value
 
+proc resetAgent(agent: RaceCarAgent) =
+  agent.map = initTable[Location, seq[FeatureValue]]()
+  agent.seen = initHashSet[Location]()
+  agent.clippedExtractors = initHashSet[Location]()
+  agent.location = Location(x: 0, y: 0)
+  agent.lastActions = @[]
+  agent.stepCount = 0
+  agent.prevCompletion = 0
+  agent.carbonTarget = PutCarbonAmount
+  agent.oxygenTarget = PutOxygenAmount
+  agent.germaniumTarget = PutGermaniumAmount
+  agent.siliconTarget = PutSiliconAmount
+  agent.bump = false
+  agent.seenAssembler = false
+  agent.seenChest = false
+  agent.exploreLocations = @[]
+
 proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   ## Create a new thinky agent, the fastest and the smartest agent.
 
   var config = parseConfig(environmentConfig)
   result = RaceCarAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
-  result.map = initTable[Location, seq[FeatureValue]]()
-  result.seen = initHashSet[Location]()
-  result.clippedExtractors = initHashSet[Location]()
-  result.location = Location(x: 0, y: 0)
-  result.lastActions = @[]
+  resetAgent(result)
   # Randomize the offsets4 for each agent, so they take different directions.
   var offsets4 = Offsets4
   result.random.shuffle(offsets4)
@@ -395,6 +411,13 @@ proc step*(
         visible[location] = @[]
       visible[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
+    # Detect episode resets via episodeCompletionPct wrapping to 0.
+    let completionPct = agent.cfg.getFeature(visible, agent.cfg.features.episodeCompletionPct)
+    if agent.stepCount > 0 and (completionPct == 0 or completionPct < agent.prevCompletion):
+      resetAgent(agent)
+    if completionPct >= 0:
+      agent.prevCompletion = completionPct
+
     proc doAction(action: int) {.measure.} =
 
       # Get last action from observations, in case something else moved us.
@@ -500,6 +523,23 @@ proc step*(
 
         let neededAmount = if needed > 0: needed else: 1
         if tool.len > 0 and invTool < neededAmount:
+          # Check chest for the tool first (gear vibe).
+          if agent.findAndTakeResource(
+            vibe,
+            (if tool == "decoder": agent.cfg.features.invDecoder
+             elif tool == "modulator": agent.cfg.features.invModulator
+             elif tool == "resonator": agent.cfg.features.invResonator
+             elif tool == "scrambler": agent.cfg.features.invScrambler
+             else: 0),
+            neededAmount,
+            invTool,
+            agent.cfg.vibes.gear,
+            agent.cfg.actions.vibeGear,
+            agent.cfg.tags.chest,
+            tool
+          ):
+            return
+
           # Gather craft inputs for this gear from assembler protocols (fallback: single resource)
           let craftInputs = agent.getToolCraftInputs(tool)
           for res, amount in craftInputs:
@@ -561,14 +601,18 @@ proc step*(
 
         # If we have the tool now, move to the clipped extractor and use it (stay in gear vibe).
         invTool = agent.getToolInventory(tool)
-        if tool.len > 0 and invTool >= neededAmount:
-          if agent.cfg.actions.vibeGear != 0 and vibe != agent.cfg.vibes.gear:
-            doAction(agent.cfg.actions.vibeGear.int32)
-            return
-          let action = agent.cfg.aStar(agent.location, clipTarget.get(), agent.map)
-          if action.isSome():
-            doAction(action.get().int32)
-            return
+    if tool.len > 0 and invTool >= neededAmount:
+      if agent.cfg.actions.vibeGear != 0 and vibe != agent.cfg.vibes.gear:
+        doAction(agent.cfg.actions.vibeGear.int32)
+        return
+      if agent.location == clipTarget.get():
+        # Already on target; wait to let unclipping resolve.
+        doAction(agent.cfg.actions.noop.int32)
+        return
+      let action = agent.cfg.aStar(agent.location, clipTarget.get(), agent.map)
+      if action.isSome():
+        doAction(action.get().int32)
+        return
 
     # Are we running low on energy?
     if invEnergy < MaxEnergy div 4:
@@ -885,6 +929,8 @@ proc step*(
     let action = agent.random.rand(1 .. 4).int32
     echo "taking random action " & $action
     doAction(action.int32)
+
+    inc agent.stepCount
 
   except:
     echo getCurrentException().getStackTrace()
