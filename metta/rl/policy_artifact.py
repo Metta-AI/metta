@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import ast
 import io
-import pickle
+import logging
 import tempfile
 import zipfile
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import Any, Mapping, MutableMapping, Optional
 from zipfile import BadZipFile
 
 import torch
@@ -16,10 +16,16 @@ from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
+from metta.common.util.file import local_copy, write_file
+from metta.common.util.uri import ParsedURI
+from metta.rl.system_config import guess_data_dir
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
+
+logger = logging.getLogger(__name__)
 
 
 def _component_config_to_manifest(component: ComponentConfig) -> dict[str, Any]:
@@ -204,10 +210,13 @@ class PolicyArtifact:
         has_state = self.state_dict is not None
         has_policy = self.policy is not None
 
-        valid_combo = (has_state and has_arch and not has_policy) or (has_policy and not has_state and not has_arch)
+        valid_combo = (has_state and not has_policy) or (has_policy and not has_state and not has_arch)
 
         if not valid_combo:
-            msg = "PolicyArtifact must contain either (policy) or (state_dict + policy_architecture)."
+            msg = (
+                "PolicyArtifact must contain either (policy) or (state_dict). "
+                "When using state_dict, provide policy_architecture before calling instantiate()."
+            )
             raise ValueError(msg)
 
         if has_state and not isinstance(self.state_dict, MutableMapping):
@@ -221,7 +230,10 @@ class PolicyArtifact:
         *,
         strict: bool = True,
     ) -> Policy:
-        if self.state_dict is not None and self.policy_architecture is not None:
+        if self.state_dict is not None:
+            if self.policy_architecture is None:
+                msg = "policy_architecture is required to instantiate weights-only artifacts"
+                raise ValueError(msg)
             policy = self.policy_architecture.make_policy(policy_env_info)
             policy = policy.to(device)
 
@@ -229,6 +241,15 @@ class PolicyArtifact:
                 policy.initialize_to_environment(policy_env_info, device)
 
             ordered_state = OrderedDict(self.state_dict.items())
+
+            # If saved without the policy prefix, add it for AutoBuilder-style policies
+            if ordered_state and not any(k.startswith("_sequential_network") for k in ordered_state):
+                model_keys = policy.state_dict().keys()
+                if any(k.startswith("_sequential_network.module.") for k in model_keys):
+                    ordered_state = OrderedDict(
+                        (f"_sequential_network.module.{k}", v) for k, v in ordered_state.items()
+                    )
+
             missing, unexpected = policy.load_state_dict(ordered_state, strict=strict)
             if strict and (missing or unexpected):
                 msg = f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}"
@@ -245,7 +266,7 @@ class PolicyArtifact:
         raise ValueError(msg)
 
 
-def save_policy_artifact_safetensors(
+def save_policy_artifact(
     path: str | Path,
     *,
     policy_architecture: PolicyArchitecture,
@@ -253,66 +274,11 @@ def save_policy_artifact_safetensors(
     detach_buffers: bool = True,
 ) -> PolicyArtifact:
     """Persist weights + architecture using the safetensors format."""
-    return _save_policy_artifact(
-        path,
-        policy_architecture=policy_architecture,
-        state_dict=state_dict,
-        detach_buffers=detach_buffers,
-    )
-
-
-def save_policy_artifact_pt(
-    path: str | Path,
-    *,
-    policy: Policy,
-) -> PolicyArtifact:
-    """Persist a policy object with torch.save (.pt)."""
-    return _save_policy_artifact(path, policy=policy, include_policy=True)
-
-
-def _save_policy_artifact(
-    path: str | Path,
-    *,
-    policy: Policy | None = None,
-    policy_architecture: PolicyArchitecture | None = None,
-    state_dict: Mapping[str, torch.Tensor] | None = None,
-    include_policy: bool = False,
-    detach_buffers: bool = True,
-) -> PolicyArtifact:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    has_state_input = state_dict is not None
-    if not has_state_input and policy is not None and policy_architecture is not None:
-        state_dict = policy.state_dict()
+    artifact_state = _to_safetensors_state_dict(state_dict, detach_buffers)
 
-    has_state_input = state_dict is not None
-
-    if has_state_input and policy_architecture is None:
-        msg = "policy_architecture is required when saving weights"
-        raise ValueError(msg)
-
-    if not has_state_input and not include_policy:
-        msg = "Saving requires weights/architecture or include_policy=True with a policy"
-        raise ValueError(msg)
-
-    artifact_state: MutableMapping[str, torch.Tensor] | None = None
-    if has_state_input:
-        artifact_state = _to_safetensors_state_dict(state_dict or {}, detach_buffers)
-
-    policy_payload: bytes | None = None
-    if include_policy:
-        if policy is None:
-            msg = "include_policy=True requires a policy instance"
-            raise ValueError(msg)
-        if has_state_input:
-            msg = "include_policy=True cannot be combined with weights/state_dict"
-            raise ValueError(msg)
-        buffer = io.BytesIO()
-        torch.save(policy, buffer)
-        policy_payload = buffer.getvalue()
-
-    # Atomic save: write to temporary file first, then move to final destination
     with tempfile.NamedTemporaryFile(
         dir=output_path.parent,
         prefix=f".{output_path.name}.",
@@ -323,84 +289,353 @@ def _save_policy_artifact(
 
         try:
             with zipfile.ZipFile(temp_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-                if artifact_state is not None and policy_architecture is not None:
-                    weights_blob = save_safetensors(artifact_state)
-                    archive.writestr("weights.safetensors", weights_blob)
-                    archive.writestr(
-                        "modelarchitecture.txt",
-                        policy_architecture_to_string(policy_architecture),
-                    )
+                weights_blob = save_safetensors(artifact_state)
+                archive.writestr("weights.safetensors", weights_blob)
+                archive.writestr(
+                    "modelarchitecture.txt",
+                    policy_architecture_to_string(policy_architecture),
+                )
 
-                if policy_payload is not None:
-                    archive.writestr("policy.pt", policy_payload)
-
-            # Atomic move: this operation is atomic on most filesystems
             temp_path.replace(output_path)
-
         except Exception:
-            # Clean up temporary file on error
             temp_path.unlink(missing_ok=True)
             raise
 
+    return PolicyArtifact(policy_architecture=policy_architecture, state_dict=artifact_state)
+
+
+def _normalize_state_dict_keys(state_dict: Mapping[str, torch.Tensor]) -> MutableMapping[str, torch.Tensor]:
+    """Strip common DDP prefixes and collapse duplicate '.module.' segments.
+
+    Handles checkpoints saved from distributed wrappers where keys are prefixed with
+    'module.' and cases where nested modules introduce '.module.module.' sequences.
+    """
+
+    normalized: MutableMapping[str, torch.Tensor] = OrderedDict()
+    has_global_ddp_prefix = state_dict and all(key.startswith("module.") for key in state_dict)
+    for key, value in state_dict.items():
+        new_key = key
+        if has_global_ddp_prefix and new_key.startswith("module."):
+            new_key = new_key[len("module.") :]
+        while ".module.module." in new_key:
+            new_key = new_key.replace(".module.module.", ".module.")
+        normalized[new_key] = value
+    return normalized
+
+
+def _try_load_pufferlib_checkpoint(payload: object) -> Policy | None:
+    """Best-effort pufferlib compatibility loader."""
+    try:
+        from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
+    except Exception:
+        return None
+
+    if _is_puffer_state_dict(payload):
+        return load_pufferlib_checkpoint(payload)
+    return None
+
+
+def _artifact_from_payload(payload: object, *, source: str) -> PolicyArtifact:
+    if isinstance(payload, Policy):
+        return PolicyArtifact(policy=payload)
+
+    if not isinstance(payload, Mapping):
+        raise TypeError(f"{source} must contain a state_dict mapping, got {type(payload)}")
+
+    puffer_policy = _try_load_pufferlib_checkpoint(payload)
+    if puffer_policy is not None:
+        return PolicyArtifact(policy=puffer_policy)
+
+    # Backwards compat: handle wrapped dicts (old: {"state_dict": {...}}, new: {...})
+    state_dict = payload.get("state_dict") or payload.get("weights") or payload
+    if not isinstance(state_dict, Mapping):
+        raise TypeError(f"Wrapped state_dict must be a mapping, got {type(state_dict)}")
+
+    # Extract architecture if present (legacy keys)
+    policy_architecture = None
+    if "state_dict" in payload or "weights" in payload:
+        arch_value = (
+            payload.get("policy_architecture")
+            or payload.get("policy_architecture_spec")
+            or payload.get("policy_architecture_str")
+        )
+        if isinstance(arch_value, str):
+            policy_architecture = policy_architecture_from_string(arch_value)
+        elif isinstance(arch_value, PolicyArchitecture):
+            policy_architecture = arch_value
+
+    if not all(isinstance(k, str) and isinstance(v, torch.Tensor) for k, v in state_dict.items()):
+        raise TypeError(f"{source} must contain string→Tensor mapping")
+
     return PolicyArtifact(
-        policy_architecture=policy_architecture if artifact_state is not None else None,
-        state_dict=artifact_state,
-        policy=policy if include_policy else None,
+        policy_architecture=policy_architecture,
+        state_dict=_normalize_state_dict_keys(state_dict),
     )
 
 
-def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyArtifact:
-    input_path = Path(path)
-    if not input_path.exists():
-        msg = f"Policy artifact not found: {input_path}"
-        raise FileNotFoundError(msg)
+def _load_mpt_artifact(path: Path) -> PolicyArtifact:
+    """Load modern .mpt format: safetensors + architecture."""
+    try:
+        with zipfile.ZipFile(path, mode="r") as archive:
+            names = set(archive.namelist())
 
-    if is_pt_file or input_path.suffix == ".pt":
+            # Backwards compat: old .mpt files are PyTorch ZIP format (data.pkl)
+            if "weights.safetensors" not in names:
+                if any("data.pkl" in name for name in names):
+                    payload = torch.load(path, map_location="cpu", weights_only=False)
+                    # Route legacy PyTorch ZIP payloads through the generic loader so we can
+                    # recover embedded metadata (e.g., policy_architecture_{spec,str}) when
+                    # present instead of treating them as raw weights only.
+                    return _artifact_from_payload(payload, source=".mpt data.pkl")
+                if "policy.pt" in names:
+                    try:
+                        with archive.open("policy.pt") as payload_file:
+                            payload = torch.load(
+                                io.BytesIO(payload_file.read()),
+                                map_location="cpu",
+                                weights_only=False,
+                            )
+                    except Exception as exc:
+                        raise ValueError(f"Failed to load policy.pt from .mpt file: {path}") from exc
+                    return _artifact_from_payload(payload, source=".mpt policy.pt")
+                raise ValueError(f".mpt file missing weights.safetensors: {path}")
+
+            if "modelarchitecture.txt" not in names:
+                raise ValueError(f".mpt file missing modelarchitecture.txt: {path}")
+
+            state_dict = load_safetensors(archive.read("weights.safetensors"))
+            architecture = policy_architecture_from_string(archive.read("modelarchitecture.txt").decode("utf-8"))
+
+            return PolicyArtifact(
+                policy_architecture=architecture,
+                state_dict=_normalize_state_dict_keys(state_dict),
+            )
+    except BadZipFile as e:
+        raise ValueError(f"Invalid .mpt file (not a valid ZIP archive): {path}") from e
+
+
+def _load_pt_artifact(path: Path) -> PolicyArtifact:
+    """Load simple .pt format: raw state_dict pickle.
+
+    Used for cogames-trained policies and backward compatibility.
+    """
+    try:
+        payload = torch.load(path, map_location="cpu", weights_only=False)
+    except Exception as e:
+        raise ValueError(f"Failed to load .pt file: {path}") from e
+
+    return _artifact_from_payload(payload, source=".pt file")
+
+
+def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
+    """Infer run name and epoch from a checkpoint path."""
+
+    stem = path.stem
+
+    if ":v" in stem:
+        run_name, suffix = stem.rsplit(":v", 1)
+        if run_name and suffix.isdigit():
+            return (run_name, int(suffix))
+    return None
+
+
+def _boto3_client():
+    try:
+        import boto3
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "boto3 is required for S3 checkpoint handling; install the RL extras or add boto3"
+        ) from exc
+    return boto3.client("s3")
+
+
+def _get_all_checkpoints(uri: str) -> list[dict[str, Any]]:
+    """List checkpoint metadata for file:// or s3:// URIs."""
+
+    parsed = ParsedURI.parse(uri)
+    if parsed.scheme == "file" and parsed.local_path:
+        checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.mpt") if ckpt.stem]
+    elif parsed.scheme == "s3" and parsed.bucket:
+        s3_client = _boto3_client()
+        prefix = parsed.key or ""
+        response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
+
+        if response["KeyCount"] == 0:
+            return []
+
+        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
+    else:
+        raise ValueError(f"Cannot get checkpoints from uri: {uri}")
+
+    checkpoint_metadata: list[dict[str, Any]] = []
+    for path in checkpoint_files:
+        run_and_epoch = _extract_run_and_epoch(path)
+        if run_and_epoch:
+            path_uri = uri.rstrip("/") + "/" + path.name
+            checkpoint_metadata.append(
+                {
+                    "run_name": run_and_epoch[0],
+                    "epoch": run_and_epoch[1],
+                    "uri": path_uri,
+                }
+            )
+
+    return checkpoint_metadata
+
+
+def _latest_checkpoint_uri(uri: str) -> str:
+    checkpoints = _get_all_checkpoints(uri)
+    if not checkpoints:
+        raise FileNotFoundError(f"No checkpoint files in {uri}")
+    latest = max(checkpoints, key=lambda p: p["epoch"])
+    return latest["uri"]
+
+
+def _normalize_policy_uri(uri: str) -> str:
+    """Convert paths to file:// URIs and resolve :latest selectors."""
+
+    parsed = ParsedURI.parse(uri)
+    if uri.endswith(":latest"):
+        base_uri = uri[:-7]
+        return _latest_checkpoint_uri(base_uri)
+    return parsed.canonical
+
+
+def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
+    """Load a policy artifact from .mpt/.pt or URI (file://, s3://, :latest, mock://)."""
+    if isinstance(path_or_uri, Path):
+        input_path = path_or_uri
+    else:
+        if "://" not in path_or_uri and not str(path_or_uri).endswith(":latest"):
+            input_path = Path(path_or_uri)
+        else:
+            input_path = None
+
+    if input_path is not None:
+        if input_path.exists():
+            if input_path.suffix == ".mpt":
+                return _load_mpt_artifact(input_path)
+            if input_path.suffix == ".pt":
+                return _load_pt_artifact(input_path)
+            raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
+        else:
+            raise FileNotFoundError(f"Policy artifact not found: {input_path}")
+
+    uri = str(path_or_uri)
+    if uri.startswith(("http://", "https://", "ftp://", "gs://")):
+        raise ValueError(f"Invalid URI: {uri}")
+
+    normalized_uri = _normalize_policy_uri(uri)
+    parsed = ParsedURI.parse(normalized_uri)
+
+    if parsed.scheme == "file" and parsed.local_path is not None:
+        path = parsed.local_path
+        if path.is_dir():
+            latest_uri = _latest_checkpoint_uri(normalized_uri)
+            parsed_latest = ParsedURI.parse(latest_uri)
+            local_path = parsed_latest.local_path
+            if local_path is None:
+                raise FileNotFoundError(f"No checkpoint files in {normalized_uri}")
+            return load_policy_artifact(local_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Checkpoint file not found: {path}")
+        return load_policy_artifact(path)
+
+    if parsed.scheme == "s3":
+        with local_copy(parsed.canonical) as local_path:
+            return load_policy_artifact(local_path)
+
+    if parsed.scheme == "mock":
+        return PolicyArtifact(policy=MockAgent())
+
+    raise ValueError(f"Invalid URI: {uri}")
+
+
+def save_policy_to_uri(
+    destination: str | Path,
+    *,
+    policy_architecture: PolicyArchitecture,
+    state_dict: Mapping[str, torch.Tensor],
+) -> str:
+    """Save weights to .mpt at a local path or s3:// URI using metta utilities."""
+    dest = str(destination)
+    suffix = Path(dest).suffix.lower()
+    if suffix != ".mpt":
+        raise ValueError("save_policy_to_uri only supports .mpt destinations")
+
+    parsed = ParsedURI.parse(dest)
+
+    if parsed.scheme == "s3":
+        temp_dir = guess_data_dir() / ".tmp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        filename = Path(parsed.path or parsed.key or "checkpoint.mpt").name
+        local_path = temp_dir / filename
+    elif parsed.scheme == "file" and parsed.local_path is not None:
+        local_path = parsed.local_path
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        raise ValueError(f"Unsupported destination URI: {dest}")
+
+    save_policy_artifact(local_path, policy_architecture=policy_architecture, state_dict=state_dict)
+
+    if parsed.scheme == "s3":
         try:
-            legacy_payload = torch.load(input_path, map_location="cpu", weights_only=False)
-        except FileNotFoundError:
-            raise
-        except (pickle.UnpicklingError, RuntimeError, OSError, TypeError, BadZipFile) as err:
-            raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {input_path}") from err
+            write_file(dest, str(local_path))
+        finally:
+            local_path.unlink(missing_ok=True)
+        return dest
 
-        if _is_puffer_state_dict(legacy_payload):
-            policy = load_pufferlib_checkpoint(legacy_payload, device="cpu")
-            return PolicyArtifact(policy=policy)
+    return f"file://{local_path.resolve()}"
 
-        return PolicyArtifact(policy=legacy_payload)
 
-    architecture: PolicyArchitecture | None = None
-    state_dict: MutableMapping[str, torch.Tensor] | None = None
-    policy: Policy | None = None
+def policy_spec_from_uri(
+    uri: str,
+    *,
+    device: str | torch.device | None = None,
+    strict: bool = True,
+    display_name: str | None = None,
+    policy_architecture: PolicyArchitecture | None = None,
+    class_path: str | None = None,
+) -> PolicySpec:
+    """Construct a PolicySpec for a checkpoint URI, with legacy metadata support."""
+    normalized_uri = _normalize_policy_uri(uri)
+    parsed_uri = ParsedURI.parse(normalized_uri)
 
-    with zipfile.ZipFile(input_path, mode="r") as archive:
-        names = set(archive.namelist())
+    embedded_policy_class_path: Optional[str] = None
+    if policy_architecture is None and class_path is None:
+        artifact = load_policy_artifact(normalized_uri)
+        policy_architecture = artifact.policy_architecture
+        embedded_policy = getattr(artifact, "policy", None)
+        if embedded_policy is not None:
+            embedded_policy_class_path = (
+                f"{embedded_policy.__class__.__module__}.{embedded_policy.__class__.__qualname__}"
+            )
 
-        if "modelarchitecture.txt" in names and "weights.safetensors" in names:
-            architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
-            architecture = policy_architecture_from_string(architecture_blob)
+    if policy_architecture is None and class_path is None and embedded_policy_class_path is None:
+        raise ValueError("policy_architecture or class_path is required for checkpoints without embedded metadata")
 
-            weights_blob = archive.read("weights.safetensors")
-            loaded_state = load_safetensors(weights_blob)
-            if not isinstance(loaded_state, MutableMapping):
-                msg = "Loaded safetensors state_dict is not a mutable mapping"
-                raise TypeError(msg)
-            state_dict = loaded_state
+    init_kwargs: dict[str, str | bool | PolicyArchitecture] = {
+        "checkpoint_uri": normalized_uri,
+        "display_name": display_name or normalized_uri,
+        "strict": strict,
+    }
+    if device is not None:
+        init_kwargs["device"] = str(device)
 
-        elif "policy.pt" in names:
-            buffer = io.BytesIO(archive.read("policy.pt"))
-            loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
+    resolved_class_path = (
+        policy_architecture.class_path
+        if policy_architecture is not None
+        else (class_path or embedded_policy_class_path)
+    )
+    if resolved_class_path is None:
+        raise ValueError("policy_architecture or class_path is required to build a PolicySpec")
+    if policy_architecture is not None:
+        init_kwargs["policy_architecture"] = policy_architecture
 
-            if _is_puffer_state_dict(loaded_policy):
-                policy = load_pufferlib_checkpoint(loaded_policy, device="cpu")
-            else:
-                if not isinstance(loaded_policy, Policy):
-                    msg = "Loaded policy payload is not a Policy instance"
-                    raise TypeError(msg)
-                policy = loaded_policy
+    data_path = (
+        str(parsed_uri.local_path)
+        if parsed_uri.scheme == "file" and parsed_uri.local_path and parsed_uri.local_path.is_file()
+        else None
+    )
 
-    if architecture is None and state_dict is None and policy is None:
-        msg = f"Policy artifact {input_path} contained no usable payload"
-        raise ValueError(msg)
-
-    return PolicyArtifact(policy_architecture=architecture, state_dict=state_dict, policy=policy)
+    return PolicySpec(class_path=resolved_class_path, init_kwargs=init_kwargs, data_path=data_path)
