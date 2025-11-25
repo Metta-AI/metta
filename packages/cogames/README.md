@@ -15,7 +15,7 @@ gathering resources, operating machinery, and assembling components. Success is 
 missions requires multiple cogs working in tandem.
 
 <p align="middle">
-<img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
+<img src="assets/cvc-reel.gif" alt="Example Cogs vs Clips">
 <br>
 
 There are many mission configurations available, with different map sizes, resource and station layouts, and game rules.
@@ -139,8 +139,8 @@ Train a policy on a mission.
 By default, our `stateless` policy architecture will be used. But as is explained above, you can select a different
 policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
 
-Any policy provided must implement the `TrainablePolicy` interface, which you can find in
-`cogames/policy/interfaces.py`.
+Any policy provided must implement the `MultiAgentPolicy` interface with a trainable `network()` method, which you can
+find in `mettagrid/policy/policy.py`.
 
 You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
 
