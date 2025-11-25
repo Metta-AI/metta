@@ -7,7 +7,6 @@ import tempfile
 import uuid
 import zipfile
 from pathlib import Path
-from typing import Any
 
 import httpx
 import typer
@@ -126,13 +125,6 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
     rollout.step()
 
 
-def validate_policy_command(ctx: typer.Context, policy: str) -> None:
-    policy_spec = get_policy_spec(ctx, policy)
-    validate_policy_spec(policy_spec)
-    console.print("[green]Policy validated successfully[/green]")
-    raise typer.Exit(0)
-
-
 def validate_policy_in_isolation(
     policy_spec: PolicySpec,
     include_files: list[Path],
@@ -145,6 +137,15 @@ def validate_policy_in_isolation(
 
     Returns True if validation succeeds, False otherwise.
     """
+
+    def _format_policy_arg(spec: PolicySpec) -> str:
+        parts = [f"class={spec.class_path}"]
+        if spec.data_path:
+            parts.append(f"data={spec.data_path}")
+        for key, value in spec.init_kwargs.items():
+            parts.append(f"kw.{key}={value}")
+        return ",".join(parts)
+
     temp_dir = None
     try:
         # Create temp validation environment
@@ -155,10 +156,7 @@ def validate_policy_in_isolation(
         copy_files_maintaining_structure(include_files, temp_dir, console)
 
         # Build cogames eval command
-        # Policy spec format: CLASS:DATA:PROPORTION
-        policy_arg = policy_spec.class_path
-        if policy_spec.data_path:
-            policy_arg += f":{policy_spec.data_path}"
+        policy_arg = _format_policy_arg(policy_spec)
 
         def _run_from_tmp_dir(cmd: list[str]) -> subprocess.CompletedProcess:
             env = os.environ.copy()
@@ -380,7 +378,7 @@ def submit_command(
     include_files: list[str] | None = None,
     login_server: str = DEFAULT_COGAMES_SERVER,
     server: str = DEFAULT_SUBMIT_SERVER,
-    init_kwargs: dict[str, Any] | None = None,
+    init_kwargs: dict[str, str] | None = None,
     dry_run: bool = False,
     skip_validation: bool = False,
 ) -> None:
@@ -394,7 +392,7 @@ def submit_command(
 
     Args:
         ctx: Typer context
-        policy: Policy specification in format CLASS[:DATA[:PROPORTION]]
+        policy: Policy specification as comma-separated key=value pairs
         name: Optional name for the submission
         include_files: List of files/directories to include in submission
         login_server: Login/authentication server URL
