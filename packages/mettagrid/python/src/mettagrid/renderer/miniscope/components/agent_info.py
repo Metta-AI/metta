@@ -36,10 +36,6 @@ class AgentInfoComponent(MiniscopeComponent):
             sidebar_panel = panels.register_sidebar_panel("agent_info")
         self._set_panel(sidebar_panel)
 
-    def _get_object_type_names(self) -> list[str]:
-        """Get object type names from state."""
-        return self.state.object_type_names if self.state else []
-
     def _get_resource_names(self) -> list[str]:
         """Get resource names from state."""
         return self.state.resource_names if self.state else []
@@ -109,10 +105,9 @@ class AgentInfoComponent(MiniscopeComponent):
             reward = float(total_rewards[selected_agent])
 
         symbol_map = self._get_symbol_map()
-        object_type_names = self._get_object_type_names()
         agent_symbol = ""
-        if symbol_map and object_type_names:
-            agent_symbol = get_symbol_for_object(agent_obj, object_type_names, symbol_map)
+        if symbol_map:
+            agent_symbol = get_symbol_for_object(agent_obj, symbol_map)
 
         vibes = self._get_vibes()
         vibe_id = agent_obj.get("vibe")
