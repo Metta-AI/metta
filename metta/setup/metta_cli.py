@@ -245,7 +245,7 @@ def _get_selected_modules(components: list[str] | None = None, ensure_required: 
     _ensure_components_initialized()
     from metta.setup.registry import get_all_modules
 
-    return [
+    component_objs = [
         m
         for m in get_all_modules()
         if (
@@ -253,6 +253,13 @@ def _get_selected_modules(components: list[str] | None = None, ensure_required: 
             or (components is None and m.is_enabled())
         )
     ]
+    if components:
+        component_names = {m.name for m in component_objs}
+        not_found_components = [c for c in components if c not in component_names]
+        if not_found_components:
+            error(f"Unknown components: {', '.join(not_found_components)}")
+            raise typer.Exit(1)
+    return component_objs
 
 
 def _get_all_package_names() -> list[str]:

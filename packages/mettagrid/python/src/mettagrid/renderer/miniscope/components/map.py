@@ -33,7 +33,6 @@ class MapComponent(MiniscopeComponent):
 
         # Create map buffer - will be initialized with data from state
         self._map_buffer = MapBuffer(
-            object_type_names=state.object_type_names or [],
             symbol_map=state.symbol_map or {},
             initial_height=sim.map_height,
             initial_width=sim.map_width,
@@ -42,7 +41,6 @@ class MapComponent(MiniscopeComponent):
     def _update_buffer_config(self) -> None:
         """Update buffer configuration from state."""
         if self.state:
-            self._map_buffer._object_type_names = self.state.object_type_names or []
             self._map_buffer._symbol_map = self.state.symbol_map or {}
 
     def handle_input(self, ch: str) -> bool:

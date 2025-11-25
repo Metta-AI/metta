@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional
 
 import einops
@@ -97,6 +98,11 @@ class PufferPolicy(Policy):
         # Action probabilities component
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
+    @dataclass
+    class _AgentState:
+        hidden: torch.Tensor
+        cell: torch.Tensor
+
     def encode_observations(self, observations: torch.Tensor) -> torch.Tensor:
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
@@ -192,6 +198,27 @@ class PufferPolicy(Policy):
     def reset_memory(self):
         self._hidden_state = None
         self._cell_state = None
+
+    def initial_agent_state(self) -> "PufferPolicy._AgentState":
+        device = self.device
+        hidden = torch.zeros(1, 1, 512, device=device)
+        cell = torch.zeros(1, 1, 512, device=device)
+        return PufferPolicy._AgentState(hidden=hidden, cell=cell)
+
+    def load_agent_state(self, state: Optional["PufferPolicy._AgentState"]) -> None:
+        if state is None:
+            self.reset_memory()
+            return
+        self._hidden_state = state.hidden.clone()
+        self._cell_state = state.cell.clone()
+
+    def dump_agent_state(self) -> Optional["PufferPolicy._AgentState"]:
+        if self._hidden_state is None or self._cell_state is None:
+            return None
+        return PufferPolicy._AgentState(
+            hidden=self._hidden_state.detach().clone(),
+            cell=self._cell_state.detach().clone(),
+        )
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(

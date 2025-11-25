@@ -238,6 +238,13 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 extensions=(".cpp", ".hpp", ".h"),
                 accepts_file_args=False,
             ),
+            FormatterConfig(
+                name="Javascript",
+                extensions=(".js", ".jsx", ".ts", ".tsx"),
+                runner=_make_prettier_runner(
+                    extensions=(".js", ".jsx", ".ts", ".tsx"),
+                ),
+            ),
         ]
     }
 

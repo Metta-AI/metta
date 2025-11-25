@@ -22,3 +22,5 @@ cert_manager_issuer: letsencrypt
 
 secrets:
   anthropic: "anthropic-api-key"
+
+replicaCount: 2
