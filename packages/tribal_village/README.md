@@ -24,6 +24,16 @@ uv pip install -e packages/tribal_village
 nim r -d:release tribal_village.nim
 ```
 
+**Play via CLI (wraps build + launch)**
+
+```bash
+# GUI render (launches Nim viewer)
+uv run --project packages/tribal_village tribal-village play --render gui
+
+# Text-only render with random actions for a short run
+uv run --project packages/tribal_village tribal-village play --render ansi --steps 50
+```
+
 **PufferLib Training**
 
 ```bash
