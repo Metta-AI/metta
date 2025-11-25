@@ -54,10 +54,10 @@ COORDINATION_MISSIONS: list[str] = [
 ]
 
 PROC_MAP_MISSIONS: tuple[str, ...] = (
-    f"training_facility{MAP_MISSION_DELIMITER}harvest",
-    f"training_facility{MAP_MISSION_DELIMITER}vibe_check",
-    f"training_facility{MAP_MISSION_DELIMITER}repair",
-    f"training_facility{MAP_MISSION_DELIMITER}easy_hearts_training_facility",
+    # f"training_facility{MAP_MISSION_DELIMITER}harvest",
+    # f"training_facility{MAP_MISSION_DELIMITER}vibe_check",
+    # f"training_facility{MAP_MISSION_DELIMITER}repair",
+    # f"training_facility{MAP_MISSION_DELIMITER}easy_hearts_training_facility",
     f"hello_world{MAP_MISSION_DELIMITER}open_world",
     f"hello_world{MAP_MISSION_DELIMITER}hello_world_unclip",
     f"hello_world{MAP_MISSION_DELIMITER}oxygen_bottleneck",
@@ -67,7 +67,7 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"hello_world{MAP_MISSION_DELIMITER}single_use_swarm",
     f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
-    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
+    # f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
     # f"machina_1{MAP_MISSION_DELIMITER}open_world",
 )
 
