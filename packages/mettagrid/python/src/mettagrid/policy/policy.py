@@ -14,6 +14,8 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
+# Optional metta dependencies - imported lazily in methods to avoid circular imports
+
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
 
@@ -54,9 +56,8 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     This class manages policy lifecycle including:
     1. Creating per-agent policy instances (agent_policy)
-    2. Serialization/deserialization (load_policy_data/save_policy_data)
-    3. Optional: Providing network for training (network)
-    4. Optional: Batch stepping optimization (step_batch)
+    2. Optional: Providing network for training (network)
+    3. Optional: Batch stepping optimization (step_batch)
 
     Subclasses can register themselves by defining:
     - short_names: list[str] = ["name1", "name2"] for one or more aliases
@@ -72,22 +73,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Get an AgentPolicy instance for a specific agent."""
         ...
-
-    def load_policy_data(self, policy_data_path: str) -> None:
-        """Load policy data from a file.
-
-        Default implementation does nothing. Override to load weights/parameters.
-        For trainable policies, override to load torch state_dict.
-        """
-        pass
-
-    def save_policy_data(self, policy_data_path: str) -> None:
-        """Save policy data to a file.
-
-        Default implementation does nothing. Override to save weights/parameters.
-        For trainable policies, override to save torch state_dict.
-        """
-        pass
 
     def network(self) -> Optional[nn.Module]:
         """Get the underlying neural network for training.

@@ -86,7 +86,8 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(test_env_config)
     policy = LSTMPolicy(policy_env_info)
-    policy.load_policy_data(str(checkpoints[0]))
+    state_dict = torch.load(checkpoints[0], map_location="cpu")
+    policy.load_state_dict(state_dict)
 
     # Verify the policy network was loaded successfully
     import torch.nn as nn

@@ -62,17 +62,17 @@ class PufferlibCogsPolicy(MultiAgentPolicy, AgentPolicy):
     def is_recurrent(self) -> bool:
         return False
 
+    def state_dict(self, *args, **kwargs):
+        """Expose underlying network parameters for saving."""
+        return self._net.state_dict(*args, **kwargs)
+
+    def load_state_dict(self, state_dict, *args, **kwargs):
+        """Load parameters into the underlying network."""
+        return self._net.load_state_dict(state_dict, *args, **kwargs)
+
     def reset(self, simulation: Optional[Simulation] = None) -> None:  # type: ignore[override]
         # No internal state to reset; signature satisfies AgentPolicy and MultiAgentPolicy
         return None
-
-    def load_policy_data(self, policy_data_path: str) -> None:
-        state = torch.load(policy_data_path, map_location=next(self._net.parameters()).device)
-        self._net.load_state_dict(state)
-        self._net = self._net.to(next(self._net.parameters()).device)
-
-    def save_policy_data(self, policy_data_path: str) -> None:
-        torch.save(self._net.state_dict(), policy_data_path)
 
     def step(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> Action:  # type: ignore[override]
         if isinstance(obs, AgentObservation):

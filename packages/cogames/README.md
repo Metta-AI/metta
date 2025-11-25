@@ -192,7 +192,7 @@ class MyPolicy(MultiAgentPolicy):
     @classmethod
     def load(cls, path, env=None):
         policy = cls(env.observation_space, env.action_space)
-        policy.network.load_state_dict(torch.load(path))
+        policy.network.load_state_dict(torch.load(path, map_location="cpu"))
         return policy
 ```
 

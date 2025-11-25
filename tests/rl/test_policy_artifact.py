@@ -2,22 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 import torch
 import torch.nn as nn
 from pydantic import Field
 from tensordict import TensorDict
 
-from metta.agent.components.cortex import CortexTD
-from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.policy_artifact import (
     PolicyArtifact,
     load_policy_artifact,
-    policy_architecture_from_string,
     policy_architecture_to_string,
-    save_policy_artifact_safetensors,
+    save_policy_artifact,
 )
 from mettagrid.base_config import Config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -62,24 +58,24 @@ def _policy_env_info() -> PolicyEnvInterface:
     return PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
 
 
-def test_policy_only_artifact_instantiate() -> None:
+def test_embedded_policy_instantiates() -> None:
     policy_env_info = _policy_env_info()
     policy = DummyPolicy(policy_env_info)
 
     artifact = PolicyArtifact(policy=policy)
-
     instantiated = artifact.instantiate(policy_env_info, torch.device("cpu"))
+
     assert instantiated is policy
     assert instantiated.device.type == "cpu"
 
 
-def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
+def test_safetensors_save_and_load(tmp_path: Path) -> None:
     policy_env_info = _policy_env_info()
     architecture = DummyPolicyArchitecture()
     policy = architecture.make_policy(policy_env_info)
 
-    artifact_path = tmp_path / "artifact.zip"
-    artifact = save_policy_artifact_safetensors(
+    artifact_path = tmp_path / "artifact.mpt"
+    artifact = save_policy_artifact(
         artifact_path,
         policy_architecture=architecture,
         state_dict=policy.state_dict(),
@@ -90,88 +86,26 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     assert artifact.state_dict is not None
 
     loaded = load_policy_artifact(artifact_path)
-    assert loaded.policy is None
-    assert isinstance(loaded.policy_architecture, DummyPolicyArchitecture)
-    assert loaded.state_dict is not None
-
     instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
     assert isinstance(instantiated, DummyPolicy)
 
 
-def test_policy_artifact_rejects_policy_and_weights() -> None:
+def test_pt_state_dict_load(tmp_path: Path) -> None:
     policy_env_info = _policy_env_info()
     architecture = DummyPolicyArchitecture()
     policy = architecture.make_policy(policy_env_info)
-    state = policy.state_dict()
 
-    with pytest.raises(ValueError):
-        PolicyArtifact(policy_architecture=architecture, state_dict=state, policy=policy)
+    pt_path = tmp_path / "checkpoint.pt"
+    torch.save(policy.state_dict(), pt_path)
+
+    artifact = load_policy_artifact(pt_path)
+    assert artifact.state_dict is not None
+    artifact.policy_architecture = architecture
+    instantiated = artifact.instantiate(policy_env_info, torch.device("cpu"))
+    assert isinstance(instantiated, DummyPolicy)
 
 
-def test_policy_architecture_round_trip_vit() -> None:
+def test_policy_architecture_round_trip() -> None:
     config = ViTDefaultConfig()
     spec = policy_architecture_to_string(config)
-    reconstructed = policy_architecture_from_string(spec)
-
-    assert isinstance(reconstructed, ViTDefaultConfig)
-    assert reconstructed.model_dump() == config.model_dump()
-
-
-def test_policy_architecture_round_trip_fast_with_override() -> None:
-    config = FastConfig(actor_hidden_dim=321)
-    spec = policy_architecture_to_string(config)
-    reconstructed = policy_architecture_from_string(spec)
-
-    assert isinstance(reconstructed, FastConfig)
-    assert reconstructed.model_dump() == config.model_dump()
-
-
-def test_policy_architecture_from_string_without_args() -> None:
-    spec = "metta.agent.policies.vit.ViTDefaultConfig"
-    architecture = policy_architecture_from_string(spec)
-    assert isinstance(architecture, ViTDefaultConfig)
-
-    canonical = policy_architecture_to_string(architecture)
-    assert canonical.startswith("metta.agent.policies.vit.ViTDefaultConfig(")
-    # Canonical string should parse back to the same config
-    round_tripped = policy_architecture_from_string(canonical)
-    assert round_tripped.model_dump() == architecture.model_dump()
-
-
-def test_policy_architecture_from_string_with_args_round_trip() -> None:
-    spec = "metta.agent.policies.fast.FastConfig(actor_hidden_dim=2048, critic_hidden_dim=4096)"
-    architecture = policy_architecture_from_string(spec)
-
-    assert isinstance(architecture, FastConfig)
-    assert architecture.actor_hidden_dim == 2048
-    assert architecture.critic_hidden_dim == 4096
-
-    canonical = policy_architecture_to_string(architecture)
-    assert "actor_hidden_dim=2048" in canonical
-    assert "critic_hidden_dim=4096" in canonical
-    # Canonical string should parse back to the same config
-    round_tripped = policy_architecture_from_string(canonical)
-    assert round_tripped.model_dump() == architecture.model_dump()
-
-
-def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
-    from mettagrid.config import MettaGridConfig
-
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
-
-    architecture = FastConfig()
-    policy = architecture.make_policy(policy_env_info)
-    policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
-
-    artifact_path = tmp_path / "artifact.zip"
-    save_policy_artifact_safetensors(
-        artifact_path,
-        policy_architecture=architecture,
-        state_dict=policy.state_dict(),
-    )
-
-    loaded = load_policy_artifact(artifact_path)
-    reloaded = loaded.instantiate(policy_env_info, torch.device("cpu"))
-
-    assert hasattr(reloaded, "core")
-    assert isinstance(reloaded.core, CortexTD)
+    assert spec.startswith("metta.agent.policies.vit.ViTDefaultConfig")

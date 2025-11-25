@@ -255,13 +255,10 @@ class LSTMPolicy(MultiAgentPolicy):
     def is_recurrent(self) -> bool:
         return True
 
-    def load_policy_data(self, checkpoint_path: str) -> None:
-        """Load LSTM network weights from file."""
-        self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))
-        self._net = self._net.to(self._device)
-        self._agent_policy._net = self._net
-        self._agent_policy._device = self._device
+    def state_dict(self, *args, **kwargs):
+        """Expose underlying network state for saving."""
+        return self._net.state_dict(*args, **kwargs)
 
-    def save_policy_data(self, checkpoint_path: str) -> None:
-        """Save LSTM network weights to file."""
-        torch.save(self._net.state_dict(), checkpoint_path)
+    def load_state_dict(self, state_dict, *args, **kwargs):
+        """Load weights into the underlying network."""
+        return self._net.load_state_dict(state_dict, *args, **kwargs)
