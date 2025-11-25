@@ -1,7 +1,7 @@
 import numpy as np
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.utils.dither import vectorized_dither_edges
+from mettagrid.mapgen.scenes.dither import dither_edges
 
 
 class BiomeCavesConfig(SceneConfig):
@@ -51,4 +51,4 @@ class BiomeCaves(Scene[BiomeCavesConfig]):
 
         # Apply edge dithering for organic look
         if p.dither_edges:
-            vectorized_dither_edges(grid, prob=p.dither_prob, depth=p.dither_depth, rng=self.rng)
+            dither_edges(grid, prob=p.dither_prob, depth=p.dither_depth, rng=self.rng)

@@ -33,10 +33,6 @@ class ObjectInfoComponent(MiniscopeComponent):
             sidebar_panel = panels.register_sidebar_panel("object_info")
         self._set_panel(sidebar_panel)
 
-    def _get_object_type_names(self) -> list[str]:
-        """Get object type names from state."""
-        return self.state.object_type_names if self.state else []
-
     def _get_resource_names(self) -> list[str]:
         """Get resource names from state."""
         return self.state.resource_names if self.state else []
