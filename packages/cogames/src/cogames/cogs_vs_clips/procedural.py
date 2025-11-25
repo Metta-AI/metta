@@ -42,6 +42,11 @@ class MachinaArenaConfig(SceneConfig):
     base_biome: str = "caves"
     base_biome_config: dict[str, Any] = {}
 
+    # Corner balancing: ensure roughly equal path distance from center to each corner.
+    balance_corners: bool = False
+    balance_tolerance: float = 3
+    max_balance_shortcuts: int = 10
+
     #### Building placement ####
 
     # How much of the map is covered by buildings
@@ -318,7 +323,11 @@ class MachinaArena(Scene[MachinaArenaConfig]):
 
         children.append(
             ChildrenAction(
-                scene=MakeConnected.Config(),
+                scene=MakeConnected.Config(
+                    balance_corners=cfg.balance_corners,
+                    balance_tolerance=cfg.balance_tolerance,
+                    max_balance_shortcuts=cfg.max_balance_shortcuts,
+                ),
                 where="full",
             )
         )

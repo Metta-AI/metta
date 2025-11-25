@@ -21,7 +21,18 @@ Cell = tuple[int, int]
 
 
 class MakeConnectedConfig(SceneConfig):
-    pass
+    # Corner balancing: ensure roughly equal path distance from center to each corner.
+    # Useful for fair gameplay when players spawn in corners.
+    balance_corners: bool = False
+
+    # Maximum allowed ratio of (furthest corner distance) / (nearest corner distance).
+    # 1.0 = perfect balance required (may dig many shortcuts)
+    # 1.5 = allow 50% deviation (moderate digging)
+    # 2.0 = allow 100% deviation (minimal digging)
+    balance_tolerance: float = 1.5
+
+    # Maximum shortcuts to dig when balancing. Prevents runaway digging.
+    max_balance_shortcuts: int = 10
 
 
 class MakeConnected(Scene[MakeConnectedConfig]):
@@ -32,6 +43,9 @@ class MakeConnected(Scene[MakeConnectedConfig]):
     - Prefer traversing existing corridors (low cost)
     - Only dig through walls when necessary (high cost)
     - Punch through at the thinnest wall sections
+
+    Optionally balances corner distances so all corners are roughly equidistant
+    from the map center (useful for fair multiplayer spawns).
 
     Algorithm: Dial's algorithm with bucket queues - O(n * K) where K = WALL_COST_RATIO.
     For typical grids this is effectively O(n), much faster than heap-based Dijkstra.
@@ -45,12 +59,17 @@ class MakeConnected(Scene[MakeConnectedConfig]):
         height, width = self.grid.shape
         empty = self.grid == "empty"
 
-        # Use scipy for fast component labeling (4-connectivity)
+        # === Phase 1: Ensure connectivity ===
         labels, num = ndimage.label(empty, structure=STRUCTURE_4_CONNECTED)
-        if num <= 1:
-            logger.debug("Map is already connected")
-            return
+        if num > 1:
+            self._connect_components(labels, num, empty, height, width)
 
+        # === Phase 2: Balance corners (optional) ===
+        if self.config.balance_corners:
+            self._balance_corners(height, width)
+
+    def _connect_components(self, labels: np.ndarray, num: int, empty: np.ndarray, height: int, width: int) -> None:
+        """Connect all components to the largest one via minimal tunnels."""
         # Find the largest component (labels are 1-based in scipy)
         counts = np.bincount(labels.ravel())
         counts[0] = 0  # ignore background
@@ -58,7 +77,7 @@ class MakeConnected(Scene[MakeConnectedConfig]):
 
         logger.debug(f"Found {num} components, largest is {largest_id}")
 
-        # Compute weighted distances and predecessors using Dial's algorithm
+        # Compute weighted distances from largest component
         distances, predecessors = self._weighted_distances(labels == largest_id, empty, height, width)
 
         # Connect each non-largest component
@@ -168,3 +187,134 @@ class MakeConnected(Scene[MakeConnectedConfig]):
             # Decode predecessor from flat index
             prev_flat = predecessors[y, x]
             y, x = prev_flat // width, prev_flat % width
+
+    # =========================================================================
+    # Corner Balancing
+    # =========================================================================
+
+    def _balance_corners(self, height: int, width: int) -> None:
+        """
+        Iteratively add shortcuts to equalize path distances from center to corners.
+
+        Strategy:
+        1. Compute distances from map center to all cells
+        2. Check if corners are within tolerance (max/min ratio)
+        3. If not, find the wall cell that best shortcuts the path to the furthest corner
+        4. Open that wall and repeat until balanced or max iterations reached
+        """
+        # Define the 4 corners and center
+        corners = [
+            (1, 1),  # top-left (avoid edge)
+            (1, width - 2),  # top-right
+            (height - 2, 1),  # bottom-left
+            (height - 2, width - 2),  # bottom-right
+        ]
+        center = (height // 2, width // 2)
+
+        for iteration in range(self.config.max_balance_shortcuts):
+            empty = self.grid == "empty"
+
+            # Compute distances from center
+            center_mask = np.zeros((height, width), dtype=bool)
+            center_mask[center] = True
+            dist_from_center, _ = self._weighted_distances(center_mask, empty, height, width)
+
+            # Get corner distances
+            corner_dists = [int(dist_from_center[cy, cx]) for cy, cx in corners]
+            min_dist = min(corner_dists)
+            max_dist = max(corner_dists)
+
+            # Check if balanced
+            if min_dist == 0:
+                logger.warning("Corner has zero distance from center - skipping balance")
+                return
+
+            ratio = max_dist / min_dist
+            if ratio <= self.config.balance_tolerance:
+                logger.debug(f"Corners balanced after {iteration} shortcuts (ratio={ratio:.2f})")
+                return
+
+            # Find the furthest corner
+            furthest_idx = corner_dists.index(max_dist)
+            furthest_corner = corners[furthest_idx]
+
+            logger.debug(
+                f"Balance iteration {iteration}: ratio={ratio:.2f}, furthest corner={furthest_corner} (dist={max_dist})"
+            )
+
+            # Find the best shortcut for this corner
+            shortcut = self._find_best_shortcut(dist_from_center, empty, furthest_corner, height, width)
+
+            if shortcut is None:
+                logger.debug("No beneficial shortcut found - stopping balance")
+                return
+
+            shortcut_y, shortcut_x, improvement = shortcut
+            logger.debug(f"Opening shortcut at ({shortcut_y}, {shortcut_x}), improvement={improvement}")
+            self.grid[shortcut_y, shortcut_x] = "empty"
+
+        logger.debug(f"Reached max shortcuts ({self.config.max_balance_shortcuts})")
+
+    def _find_best_shortcut(
+        self,
+        dist_from_center: np.ndarray,
+        empty: np.ndarray,
+        corner: Cell,
+        height: int,
+        width: int,
+    ) -> tuple[int, int, int] | None:
+        """
+        Find the wall cell that, if opened, would most reduce distance to the given corner.
+
+        Returns (y, x, improvement) or None if no beneficial shortcut exists.
+
+        The algorithm:
+        1. Run Dijkstra from the corner to get distances from corner to all cells
+        2. For each wall with ≥2 empty neighbors:
+           - Estimate new path cost = (dist to wall from center) + 1 + (dist from wall to corner)
+           - Improvement = current_dist - new_path_cost
+        3. Return the wall with maximum improvement
+        """
+        corner_y, corner_x = corner
+        current_dist = int(dist_from_center[corner_y, corner_x])
+
+        # Compute distances from the corner
+        corner_mask = np.zeros((height, width), dtype=bool)
+        corner_mask[corner_y, corner_x] = True
+        dist_from_corner, _ = self._weighted_distances(corner_mask, empty, height, width)
+
+        best_cell: tuple[int, int] | None = None
+        best_improvement = 0
+
+        for y in range(height):
+            for x in range(width):
+                if empty[y, x]:
+                    continue  # Only consider walls
+
+                # Collect empty neighbors
+                empty_neighbors: list[Cell] = []
+                for dy, dx in DIRECTIONS:
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < height and 0 <= nx < width and empty[ny, nx]:
+                        empty_neighbors.append((ny, nx))
+
+                # Need at least 2 empty neighbors to create a useful shortcut
+                # (otherwise we're just making a dead-end accessible)
+                if len(empty_neighbors) < 2:
+                    continue
+
+                # Best path through this cell if opened:
+                # = (center → nearest neighbor) + 1 (enter cell) + (nearest neighbor → corner)
+                best_entry = min(dist_from_center[ny, nx] for ny, nx in empty_neighbors)
+                best_exit = min(dist_from_corner[ny, nx] for ny, nx in empty_neighbors)
+
+                new_dist = best_entry + 1 + best_exit
+                improvement = current_dist - new_dist
+
+                if improvement > best_improvement:
+                    best_improvement = improvement
+                    best_cell = (y, x)
+
+        if best_cell is None:
+            return None
+        return (best_cell[0], best_cell[1], best_improvement)
