@@ -41,9 +41,9 @@ class TorchProfileSession:
         self._first_profile_epoch = 300  # allow torch warmup cycles before profiling
 
     def on_epoch_end(self, epoch: int) -> None:
-        force = (epoch == self._first_profile_epoch) if not self._active else False
-        if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
-            self._setup_profiler(epoch)
+        force = (epoch + 1 == self._first_profile_epoch) if not self._active else False
+        if should_run(epoch + 1, getattr(self._profiler_config, "interval_epochs", 0), force=force):
+            self._setup_profiler(epoch + 1)
 
     def _setup_profiler(self, epoch: int) -> None:
         if self._active:
@@ -173,6 +173,10 @@ class TorchProfiler(TrainerComponent):
                 wandb_run=self._wandb_run,
                 run_dir=run_dir,
             )
+            # Arm profiler for epoch 0 if interval matches
+            interval = getattr(self._config, "interval_epochs", 0)
+            if interval and should_run(0, interval):
+                self._session._setup_profiler(0)
 
         original_train_epoch = context.get_train_epoch_callable()
 
