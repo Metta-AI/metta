@@ -9,7 +9,6 @@ from torchrl.data import Composite
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -82,11 +81,14 @@ class SLCheckpointedKickstarter(Loss):
         self._terminating_epoch = self.cfg.terminating_epoch
         self._final_checkpoint = self.cfg.final_checkpoint
 
+        # Lazy import to avoid circular dependency
+        from metta.rl.checkpoint_manager import CheckpointManager
+
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
+        teacher_spec = CheckpointManager.policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
@@ -183,12 +185,14 @@ class SLCheckpointedKickstarter(Loss):
 
     def load_teacher_policy(self, checkpointed_epoch: Optional[int] = None) -> Policy:
         """Load the teacher policy from a specific checkpoint."""
+        from metta.rl.checkpoint_manager import CheckpointManager
+
         new_uri = self._construct_checkpoint_uri(checkpointed_epoch)
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to reload teacher policy")
 
-        teacher_spec = policy_spec_from_uri(new_uri, device=self.device)
+        teacher_spec = CheckpointManager.policy_spec_from_uri(new_uri, device=str(self.device))
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
         # Detach gradient

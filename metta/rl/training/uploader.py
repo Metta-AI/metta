@@ -11,7 +11,6 @@ import wandb
 from metta.common.util.file import local_copy
 from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import normalize_policy_uri
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 
@@ -112,7 +111,7 @@ class Uploader(TrainerComponent):
     @contextmanager
     def _materialize_checkpoint(self, checkpoint_uri: str) -> Iterator[Optional[Path]]:
         """Yield a local file path for the given checkpoint URI."""
-        normalized_uri = normalize_policy_uri(checkpoint_uri)
+        normalized_uri = CheckpointManager.normalize_uri(checkpoint_uri)
         parsed = urlparse(normalized_uri)
 
         if parsed.scheme in ("", "file"):
