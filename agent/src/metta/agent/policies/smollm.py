@@ -30,7 +30,7 @@ class SmolLLMConfig(PolicyArchitecture):
     mem_len: int = 128
 
     tokens_key: str = "smollm_tokens"
-    logits_key: str = "smollm_logits"
+    logits_key: str = "logits"
     values_key: str = "values"
 
     _token_embed_dim: int = 8
