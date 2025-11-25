@@ -89,14 +89,9 @@ class TestNewPolicySystem:
         assert policy.agent_policy(0) is not None
 
     def test_policy_loading_interface(self):
-        """Test that policy loading functions work with versioned URIs."""
-
-        try:
-            # Test with a mock URI that should be fully versioned
-            artifact = CheckpointManager.load_artifact_from_uri("mock://test_policy")
-            assert artifact.policy is not None
-        except Exception as e:
-            assert "not found" in str(e).lower() or "invalid" in str(e).lower()
+        """Test that policy loading functions raise appropriate errors for unsupported URIs."""
+        with pytest.raises((FileNotFoundError, ValueError)):
+            CheckpointManager.load_artifact_from_uri("mock://test_policy")
 
     def test_policy_uri_formats(self):
         """Test different policy URI formats are recognized."""
