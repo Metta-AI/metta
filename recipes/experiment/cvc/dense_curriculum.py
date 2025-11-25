@@ -30,7 +30,7 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from recipes.experiment.cvc.dense_training_env import DENSE_TRAINING_MISSIONS
+from recipes.experiment.cvc.dense_training_curriculum import DENSE_TRAINING_MISSIONS
 
 
 class ResourceReductionVariant(MissionVariant):

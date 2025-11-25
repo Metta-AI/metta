@@ -19,7 +19,7 @@ from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
-    DiscreteRandomConfig,
+    DiscreteRandomCurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
@@ -279,7 +279,7 @@ def train(
     if mission is not None:
         training_missions = [mission]
 
-    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
+    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomCurriculumConfig()
     curriculum = curriculum or make_curriculum(
         num_cogs=num_cogs,
         missions=training_missions,
