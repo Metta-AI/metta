@@ -272,6 +272,18 @@ proc getNearbyExtractor*(
     return some(closestLocation)
   return none(Location)
 
+proc getResourceForTag(cfg: Config, tagId: int): string =
+  if tagId == cfg.tags.carbonExtractor:
+    return "carbon"
+  elif tagId == cfg.tags.oxygenExtractor:
+    return "oxygen"
+  elif tagId == cfg.tags.germaniumExtractor:
+    return "germanium"
+  elif tagId == cfg.tags.siliconExtractor:
+    return "silicon"
+  else:
+    return ""
+
 proc isClipped(agent: RaceCarAgent, location: Location): bool =
   if location notin agent.map:
     return false
@@ -307,6 +319,52 @@ proc getClipRequirement(agent: RaceCarAgent, location: Location): (string, int) 
     if f.featureId == agent.cfg.features.protocolInputScrambler and f.value > 0:
       return ("scrambler", f.value)
   return ("", 0)
+
+proc getExtractorResource(agent: RaceCarAgent, location: Location): string =
+  if location notin agent.map:
+    return ""
+  for f in agent.map[location]:
+    if f.featureId == agent.cfg.features.tag:
+      return agent.cfg.getResourceForTag(f.value)
+  return ""
+
+proc getToolInventory(agent: RaceCarAgent, tool: string): int =
+  case tool
+  of "decoder":
+    agent.cfg.getInventory(agent.map, agent.cfg.features.invDecoder, agent.location)
+  of "modulator":
+    agent.cfg.getInventory(agent.map, agent.cfg.features.invModulator, agent.location)
+  of "resonator":
+    agent.cfg.getInventory(agent.map, agent.cfg.features.invResonator, agent.location)
+  of "scrambler":
+    agent.cfg.getInventory(agent.map, agent.cfg.features.invScrambler, agent.location)
+  else:
+    0
+
+proc getToolCraftInputs(agent: RaceCarAgent, tool: string): Table[string, int] =
+  result = initTable[string, int]()
+  if tool.len == 0:
+    return
+
+  # Prefer explicit assembler protocol that outputs the tool
+  for proto in agent.cfg.assemblerProtocols:
+    if tool in proto.outputResources:
+      for k, v in proto.inputResources:
+        result[k] = v
+      return
+
+  # Fallback: standard mapping (one resource crafts the tool)
+  case tool
+  of "decoder":
+    result["carbon"] = 1
+  of "modulator":
+    result["oxygen"] = 1
+  of "resonator":
+    result["silicon"] = 1
+  of "scrambler":
+    result["germanium"] = 1
+  else:
+    discard
 
 proc step*(
   agent: RaceCarAgent,
@@ -423,46 +481,94 @@ proc step*(
       let clipTarget = agent.findNearestClipped()
       if clipTarget.isSome():
         let (toolName, needed) = agent.getClipRequirement(clipTarget.get())
-        var invTool = 0
-        var toolFeature = 0
-        case toolName
-        of "decoder":
-          invTool = invDecoder
-          toolFeature = agent.cfg.features.invDecoder
-        of "modulator":
-          invTool = invModulator
-          toolFeature = agent.cfg.features.invModulator
-        of "resonator":
-          invTool = invResonator
-          toolFeature = agent.cfg.features.invResonator
-        of "scrambler":
-          invTool = invScrambler
-          toolFeature = agent.cfg.features.invScrambler
+        let resourceBlocked = agent.getExtractorResource(clipTarget.get())
+        # Fallback mapping if protocol inputs are missing.
+        var tool = toolName
+        if tool.len == 0:
+          case resourceBlocked
+          of "oxygen":
+            tool = "decoder"
+          of "carbon":
+            tool = "modulator"
+          of "germanium":
+            tool = "resonator"
+          of "silicon":
+            tool = "scrambler"
         else:
           discard
+        var invTool = agent.getToolInventory(tool)
 
         let neededAmount = if needed > 0: needed else: 1
-        if toolFeature != 0 and invTool < neededAmount:
-          if agent.findAndTakeResource(
-            vibe,
-            toolFeature,
-            neededAmount,
-            invTool,
-            agent.cfg.vibes.gear,
-            agent.cfg.actions.vibeGear,
-            agent.cfg.tags.chest,
-            toolName
-          ):
+        if tool.len > 0 and invTool < neededAmount:
+          # Gather craft inputs for this gear from assembler protocols (fallback: single resource)
+          let craftInputs = agent.getToolCraftInputs(tool)
+          for res, amount in craftInputs:
+            if res == "carbon" and invCarbon < amount and agent.findAndTakeResource(
+              vibe,
+              agent.cfg.features.invCarbon,
+              amount,
+              invCarbon,
+              agent.cfg.vibes.carbonA,
+              agent.cfg.actions.vibeCarbonA,
+              agent.cfg.tags.carbonExtractor,
+              res
+            ):
+              return
+            if res == "oxygen" and invOxygen < amount and agent.findAndTakeResource(
+              vibe,
+              agent.cfg.features.invOxygen,
+              amount,
+              invOxygen,
+              agent.cfg.vibes.oxygenA,
+              agent.cfg.actions.vibeOxygenA,
+              agent.cfg.tags.oxygenExtractor,
+              res
+            ):
+              return
+            if res == "germanium" and invGermanium < amount and agent.findAndTakeResource(
+              vibe,
+              agent.cfg.features.invGermanium,
+              amount,
+              invGermanium,
+              agent.cfg.vibes.germaniumA,
+              agent.cfg.actions.vibeGermaniumA,
+              agent.cfg.tags.germaniumExtractor,
+              res
+            ):
+              return
+            if res == "silicon" and invSilicon < amount and agent.findAndTakeResource(
+              vibe,
+              agent.cfg.features.invSilicon,
+              amount,
+              invSilicon,
+              agent.cfg.vibes.siliconA,
+              agent.cfg.actions.vibeSiliconA,
+              agent.cfg.tags.siliconExtractor,
+              res
+            ):
+              return
+
+          # Go craft gear at assembler (stay in gear vibe).
+          let assembler = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+          if assembler.isSome():
+            if agent.cfg.actions.vibeGear != 0 and vibe != agent.cfg.vibes.gear:
+              doAction(agent.cfg.actions.vibeGear.int32)
+              return
+            let action = agent.cfg.aStar(agent.location, assembler.get(), agent.map)
+            if action.isSome():
+              doAction(action.get().int32)
+              return
+
+        # If we have the tool now, move to the clipped extractor and use it (stay in gear vibe).
+        invTool = agent.getToolInventory(tool)
+        if tool.len > 0 and invTool >= neededAmount:
+          if agent.cfg.actions.vibeGear != 0 and vibe != agent.cfg.vibes.gear:
+            doAction(agent.cfg.actions.vibeGear.int32)
             return
-
-        if toolName.len > 0 and agent.cfg.actions.vibeGear != 0 and vibe != agent.cfg.vibes.gear:
-          doAction(agent.cfg.actions.vibeGear.int32)
-          return
-
-        let action = agent.cfg.aStar(agent.location, clipTarget.get(), agent.map)
-        if action.isSome():
-          doAction(action.get().int32)
-          return
+          let action = agent.cfg.aStar(agent.location, clipTarget.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            return
 
     # Are we running low on energy?
     if invEnergy < MaxEnergy div 4:
