@@ -1,7 +1,6 @@
-# Cortex Agent Playbook
+# Cortex Guidelines
 
-These instructions extend the repository-wide guidance in the root `AGENTS.md`. Always read both documents before making
-changes inside `packages/cortex`.
+See root `CLAUDE.md` and `STYLE_GUIDE.md` for general guidance. This file covers Triton kernel development.
 
 ## 1. Establish the PyTorch Ground Truth
 
