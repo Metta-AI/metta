@@ -1,5 +1,5 @@
 import
-  std/[strformat, tables, random, sets, options, json, deques],
+  std/[strformat, tables, random, sets, options, deques],
   fidget2/measure,
   common
 
@@ -493,6 +493,10 @@ proc step*(
       invResonator = agent.cfg.getInventory(visible, agent.cfg.features.invResonator)
       invScrambler = agent.cfg.getInventory(visible, agent.cfg.features.invScrambler)
 
+    proc vibeUnavailable(v: int, action: int): bool =
+      ## True when the environment exposes neither the vibe value nor an action to change it.
+      v == -1 or action == 0
+
     echo &"vibe:{vibe} H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
     let activeRecipe = agent.getActiveRecipe()
@@ -541,7 +545,7 @@ proc step*(
       # Ensure we're in deposit vibe.
       let depositAction = agent.cfg.actions.vibeHeartB
       let depositVibe = agent.cfg.vibes.heartB
-      if depositAction != 0 and vibe != depositVibe:
+      if not vibeUnavailable(depositVibe, depositAction) and vibe != depositVibe:
         doAction(depositAction.int32)
         echo "heart mission: switching to heart deposit vibe"
         return
@@ -604,7 +608,7 @@ proc step*(
       if closeChest.isSome():
         let chestInventory = agent.cfg.getInventory(agent.map, resource, closeChest.get())
         if chestInventory > 0:
-          if vibe != vibeGetResource:
+          if not vibeUnavailable(vibeGetResource, vibeAction) and vibe != vibeGetResource:
             doAction(vibeAction.int32)
             echo "vibing " & name & " to take from chest"
             return true
@@ -720,7 +724,7 @@ proc step*(
           # Go craft gear at assembler (stay in gear vibe).
           let assembler = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
           if assembler.isSome():
-            if agent.cfg.actions.vibeGear != 0 and vibe != agent.cfg.vibes.gear:
+            if not vibeUnavailable(agent.cfg.vibes.gear, agent.cfg.actions.vibeGear) and vibe != agent.cfg.vibes.gear:
               doAction(agent.cfg.actions.vibeGear.int32)
               return
             let action = agent.cfg.aStar(agent.location, assembler.get(), agent.map)
@@ -731,7 +735,7 @@ proc step*(
         # If we have the tool now, move to the clipped extractor and use it (stay in gear vibe).
         invTool = agent.getToolInventory(tool)
         if tool.len > 0 and invTool >= neededAmount:
-          if agent.cfg.actions.vibeGear != 0 and vibe != agent.cfg.vibes.gear:
+          if not vibeUnavailable(agent.cfg.vibes.gear, agent.cfg.actions.vibeGear) and vibe != agent.cfg.vibes.gear:
             doAction(agent.cfg.actions.vibeGear.int32)
             return
           if agent.location == clipTarget.get():
@@ -783,7 +787,7 @@ proc step*(
       # We have all the resources we need, so we can build a heart.
       echo "trying to build a heart"
 
-      if vibe != agent.cfg.vibes.heartA:
+      if not vibeUnavailable(agent.cfg.vibes.heartA, agent.cfg.actions.vibeHeartA) and vibe != agent.cfg.vibes.heartA:
         doAction(agent.cfg.actions.vibeHeartA.int32)
         echo "vibing heart for assembler"
         return
@@ -813,7 +817,7 @@ proc step*(
     if atMaxInventory and invCarbon > avgResource and invCarbon > agent.carbonTarget + PutCarbonAmount:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
-        if vibe != agent.cfg.vibes.carbonB:
+        if not vibeUnavailable(agent.cfg.vibes.carbonB, agent.cfg.actions.vibeCarbonB) and vibe != agent.cfg.vibes.carbonB:
           doAction(agent.cfg.actions.vibeCarbonB.int32)
           echo "vibing carbon B to dump excess carbon"
           return
@@ -828,7 +832,7 @@ proc step*(
     if atMaxInventory and invSilicon > avgResource and invSilicon > agent.siliconTarget + PutSiliconAmount:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
-        if vibe != agent.cfg.vibes.siliconB:
+        if not vibeUnavailable(agent.cfg.vibes.siliconB, agent.cfg.actions.vibeSiliconB) and vibe != agent.cfg.vibes.siliconB:
           doAction(agent.cfg.actions.vibeSiliconB.int32)
           echo "vibing silicon B to dump excess silicon"
           return
@@ -841,7 +845,7 @@ proc step*(
     if atMaxInventory and invOxygen > avgResource and invOxygen > agent.oxygenTarget + PutOxygenAmount:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
-        if vibe != agent.cfg.vibes.oxygenB:
+        if not vibeUnavailable(agent.cfg.vibes.oxygenB, agent.cfg.actions.vibeOxygenB) and vibe != agent.cfg.vibes.oxygenB:
           doAction(agent.cfg.actions.vibeOxygenB.int32)
           echo "vibing oxygen B to dump excess oxygen"
           return
@@ -856,7 +860,7 @@ proc step*(
     if atMaxInventory and invGermanium > avgResource and invGermanium > agent.germaniumTarget + PutGermaniumAmount:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
-        if vibe != agent.cfg.vibes.germaniumB:
+        if not vibeUnavailable(agent.cfg.vibes.germaniumB, agent.cfg.actions.vibeGermaniumB) and vibe != agent.cfg.vibes.germaniumB:
           doAction(agent.cfg.actions.vibeGermaniumB.int32)
           echo "vibing germanium B to dump excess germanium"
           return

@@ -139,6 +139,7 @@ packages/cogames/src/cogames/policy/nim_agents/nim.cfg
 
 # Nim Agents
 packages/cogames/src/cogames/policy/nim_agents/bindings/generated
+packages/cogames/src/cogames/policy/nim_agents/racecar_agents
 
 # Uncategorized
 .terraform*
