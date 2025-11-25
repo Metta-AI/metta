@@ -16,7 +16,7 @@ from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)

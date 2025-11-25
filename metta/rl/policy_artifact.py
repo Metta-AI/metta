@@ -20,8 +20,8 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.common.util.file import write_file
 from metta.common.util.uri import ParsedURI
-from metta.rl.system_config import guess_data_dir
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
+from metta.rl.system_config import guess_data_dir
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 

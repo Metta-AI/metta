@@ -10,8 +10,7 @@ from pydantic import Field
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import policy_spec_from_uri
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
+from metta.rl.policy_artifact import policy_spec_from_uri, save_policy_artifact_safetensors
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy

@@ -14,7 +14,6 @@ from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.wandb.context import WandbRun
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer

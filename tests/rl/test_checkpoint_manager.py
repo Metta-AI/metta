@@ -14,8 +14,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import policy_spec_from_uri
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
+from metta.rl.policy_artifact import policy_spec_from_uri, save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy

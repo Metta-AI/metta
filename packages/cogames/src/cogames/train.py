@@ -18,7 +18,6 @@ from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.policy.artifact import policy_spec_from_uri
 from mettagrid.policy.loader import (
     find_policy_checkpoints,
     get_policy_class_shorthand,
@@ -194,34 +193,21 @@ def train(
         env_kwargs={"cfg": base_cfg},
     )
 
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg)
-
-    if initial_weights_path is not None and initial_weights_path.startswith("s3://"):
-        # Let the policy-spec helper handle S3/legacy checkpoints directly.
+    resolved_initial_weights = initial_weights_path
+    if initial_weights_path is not None:
         try:
-            policy_spec = policy_spec_from_uri(initial_weights_path, class_path=policy_class_path)
-            policy = initialize_or_load_policy(policy_env_info, policy_spec)
-        except Exception as exc:  # pragma: no cover - warning path
-            console.print(
-                f"[yellow]Initial weights not loaded ({exc}). Continuing with random initialization.[/yellow]"
-            )
-            policy = initialize_or_load_policy(policy_env_info, PolicySpec(class_path=policy_class_path))
-    else:
-        resolved_initial_weights = None
-        if initial_weights_path is not None:
-            try:
-                resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
-            except (FileNotFoundError, ImportError) as exc:
-                console.print(
-                    f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]"
-                )
-        policy = initialize_or_load_policy(
-            policy_env_info,
-            PolicySpec(
-                class_path=policy_class_path,
-                data_path=resolved_initial_weights,
-            ),
-        )
+            resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
+        except FileNotFoundError as exc:
+            console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
+            resolved_initial_weights = None
+
+    policy = initialize_or_load_policy(
+        PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
+        PolicySpec(
+            class_path=policy_class_path,
+            data_path=resolved_initial_weights,
+        ),
+    )
     network = policy.network()
     assert network is not None, f"Policy {policy_class_path} must be trainable (network() returned None)"
     network.to(device)
