@@ -247,26 +247,14 @@ def train(
     optimizer = "adam"
     adam_eps = 1e-8
 
+    # Align PPO batch size with vecenv agents_per_batch to avoid buffer shape mismatches.
     total_agents = max(1, getattr(vecenv, "num_agents", getattr(driver_env, "num_agents", 1)))
     env_count = max(1, getattr(vecenv, "num_environments", num_envs))
     num_workers = max(1, getattr(vecenv, "num_workers", num_workers))
     envs_per_worker = max(1, getattr(vecenv, "envs_per_worker", env_count // num_workers))
 
-    original_batch_size = batch_size
-    amended_batch_size = max(original_batch_size, total_agents * bptt_horizon)
-    remainder = amended_batch_size % envs_per_worker
-    if remainder:
-        amended_batch_size += envs_per_worker - remainder
-
-    if amended_batch_size != original_batch_size:
-        logger.info(
-            "Adjusted batch_size from %s to %s (agents=%s, horizon=%s, envs/worker=%s)",
-            original_batch_size,
-            amended_batch_size,
-            total_agents,
-            bptt_horizon,
-            envs_per_worker,
-        )
+    effective_agents_per_batch = agents_per_batch or total_agents
+    amended_batch_size = effective_agents_per_batch
 
     amended_minibatch_size = min(minibatch_size, amended_batch_size)
     if amended_minibatch_size != minibatch_size:
