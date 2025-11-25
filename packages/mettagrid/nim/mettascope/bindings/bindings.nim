@@ -26,6 +26,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     #echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
     playMode = Realtime
+    common.replay = loadReplayString(replay, "MettaScope")
     startFidget(
       figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
       windowTitle = "MetaScope V2",
@@ -33,7 +34,6 @@ proc init(dataDir: string, replay: string): RenderResponse =
       windowStyle = DecoratedResizable,
       dataDir = dataDir
     )
-    common.replay = loadReplayString(replay, "MettaScope")
     updateEnvConfig()
     updateVibePanel()
     return

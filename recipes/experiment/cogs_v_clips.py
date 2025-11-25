@@ -7,6 +7,7 @@ recipes should import from here and extend via custom defaults, similar to how
 
 from __future__ import annotations
 
+import logging
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -18,6 +19,7 @@ from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
+    DiscreteRandomConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
@@ -28,6 +30,8 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "extractor_hub_30",
@@ -40,7 +44,7 @@ DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "energy_starved",
     "divide_and_conquer",
     "go_together",
-    "machina_1.open_world",
+    # "machina_1.open_world",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
@@ -64,7 +68,7 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
-    f"machina_1{MAP_MISSION_DELIMITER}open_world",
+    # f"machina_1{MAP_MISSION_DELIMITER}open_world",
 )
 
 
@@ -128,6 +132,7 @@ def make_eval_suite(
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
     variants: Optional[Sequence[str]] = None,
+    max_evals: Optional[int] = None,
 ) -> list[SimulationConfig]:
     """Create a suite of evaluation simulations from CoGames missions.
 
@@ -171,6 +176,10 @@ def make_eval_suite(
             env=env_cfg,
         )
         simulations.append(sim)
+
+    if max_evals is not None:
+        logger.info(f"Limiting evaluations to {max_evals} (got {len(simulations)})")
+        simulations = simulations[:max_evals]
 
     return simulations
 
@@ -260,16 +269,22 @@ def train(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    max_evals: Optional[int] = None,
+    bc_policy_uri: Optional[str] = None,
+    bc_teacher_lead_prob: float = 1.0,
+    use_lp: bool = True,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
     if mission is not None:
         training_missions = [mission]
 
+    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
     curriculum = curriculum or make_curriculum(
         num_cogs=num_cogs,
         missions=training_missions,
         variants=variants,
+        algorithm_config=cur_alg,
     )
 
     trainer_cfg = TrainerConfig(
@@ -281,17 +296,31 @@ def train(
         num_cogs=num_cogs,
         difficulty=eval_difficulty,
         variants=resolved_eval_variants,
+        max_evals=max_evals,
     )
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
     )
 
-    return TrainTool(
+    tt = TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
     )
+
+    if bc_policy_uri is not None:
+        tt.trainer.losses.supervisor.enabled = True
+        tt.trainer.losses.ppo.enabled = False
+        tt.trainer.losses.ppo_actor.enabled = False
+        tt.trainer.losses.ppo_critic.enabled = True
+        tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
+        tt.trainer.losses.ppo_critic.sample_enabled = False
+        tt.trainer.losses.ppo_critic.train_forward_enabled = False
+        tt.training_env.supervisor.policy = bc_policy_uri
+        tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+
+    return tt
 
 
 def train_variants(
