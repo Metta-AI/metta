@@ -1,0 +1,57 @@
+--- a/metta/cogworks/curriculum/lp_scorers.py
++++ b/metta/cogworks/curriculum/lp_scorers.py
+@@ -5,6 +5,7 @@ import numpy as np
+ from typing import Optional
+ from abc import ABC, abstractmethod
+ import logging
++import time
+
+ logger = logging.getLogger(__name__)
+
+@@ -130,6 +131,13 @@ class BidirectionalLPScorer(LPScorer):
+     """
+
+     def __init__(self, config: LearningProgressConfig, tracker: TaskTracker):
++        # PROFILING: Track scoring performance
++        self._prof_call_count = 0
++        self._prof_total_time = 0.0
++        self._prof_last_log = time.time()
++        self._prof_max_tasks = 0
++        self._prof_epoch_calls = 0
++
+         super().__init__(config, tracker)
+
+         # Store config for EMA calculations
+@@ -200,6 +208,29 @@ class BidirectionalLPScorer(LPScorer):
+         Returns:
+             Dictionary mapping task_id -> sampling probability (0.0 to 1.0)
+         """
++        # PROFILING: Start timer
++        t0 = time.perf_counter()
++
++        # Call original implementation
++        result = self._score_tasks_impl(task_ids)
++
++        # PROFILING: Record metrics
++        elapsed = time.perf_counter() - t0
++        self._prof_call_count += 1
++        self._prof_epoch_calls += 1
++        self._prof_total_time += elapsed
++        self._prof_max_tasks = max(self._prof_max_tasks, len(task_ids))
++
++        # Log every 10 seconds
++        if time.time() - self._prof_last_log > 10.0:
++            avg_ms = (self._prof_total_time / self._prof_call_count) * 1000
++            logger.warning(
++                f"[LP_PROFILING] calls={self._prof_call_count} epoch_calls={self._prof_epoch_calls} "
++                f"avg_time={avg_ms:.2f}ms total_time={self._prof_total_time:.1f}s max_tasks={self._prof_max_tasks}"
++            )
++            self._prof_last_log = time.time()
++            self._prof_epoch_calls = 0
++
++        return result
++
++    def _score_tasks_impl(self, task_ids: list[int]) -> dict[int, float]:
+         # Get LP scores from cache or compute
+         lp_scores = self._get_lp_scores(task_ids)
+
