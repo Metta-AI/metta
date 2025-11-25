@@ -285,6 +285,12 @@ Make sure you have authenticated before submitting a policy.
 
 ### `cogames submit -p [POLICY] -n [NAME]`
 
+Example:
+
+```
+cogames submit -p class=stateless,data=train_dir/model.pt -n my_policy
+```
+
 **Options:**
 
 - `--include-files`: Can be specified multiple times, such as --include-files file1.py --include-files dir1/
