@@ -1,4 +1,4 @@
-import std/[json, tables, strformat],
+import std/[json, tables],
   boxy, fidget2/[hybridrender],
   zippy, vmath, jsony,
   ./validation
@@ -482,6 +482,115 @@ proc computeGainMap(replay: Replay) =
             gainMap.add(ItemAmount(itemId: j, count: items[n][j] - items[m][j]))
       agent.gainMap[i] = gainMap
 
+proc isInventoryCompressed(inventory: JsonNode): bool =
+  ## Check if inventory is already in V3 compressed format [[itemId, count], ...]
+  if inventory.kind != JArray or inventory.len == 0:
+    return false
+
+  for item in inventory.getElems():
+    if item.kind != JArray or item.len != 2:
+      return false
+    let itemId = item[0]
+    let count = item[1]
+    if itemId.kind != JInt or count.kind != JInt:
+      return false
+  return true
+
+proc compressInventoryArray(inventory: JsonNode): JsonNode =
+  ## Compress a flat inventory array [itemId, itemId, ...] to [[itemId, count], ...]
+  result = newJArray()
+  if inventory.kind != JArray:
+    return result
+
+  var counts: seq[int]
+  for itemId in inventory.getElems():
+    if itemId.kind == JInt:
+      let id = itemId.getInt()
+      if id < 0:
+        continue
+      if id >= counts.len:
+        counts.setLen(id + 1)
+      counts[id] += 1
+
+  for itemId, count in counts.pairs():
+    if count > 0:
+      var pair = newJArray()
+      pair.add(newJInt(itemId))
+      pair.add(newJInt(count))
+      result.add(pair)
+
+proc convertInventoryField(obj: JsonNode, fieldName: string) =
+  ## Convert a single inventory field from V2 to V3 format.
+  if fieldName notin obj:
+    return
+
+  let field = obj[fieldName]
+  if field.kind == JArray and field.len > 0:
+    # Check if this is a time series format [[step, inventory_array], ...]
+    let firstItem = field[0]
+    if firstItem.kind == JArray and firstItem.len == 2:
+      # Time series format: convert each inventory array if needed
+      var newTimeSeries = newJArray()
+      var needsConversion = false
+      for item in field.getElems():
+        if item.kind == JArray and item.len == 2:
+          let step = item[0]
+          let inventoryArray = item[1]
+          if inventoryArray.kind == JArray and not isInventoryCompressed(inventoryArray):
+            let compressed = compressInventoryArray(inventoryArray)
+            var newItem = newJArray()
+            newItem.add(step)
+            newItem.add(compressed)
+            newTimeSeries.add(newItem)
+            needsConversion = true
+          else:
+            newTimeSeries.add(item)
+        else:
+          newTimeSeries.add(item)
+      if needsConversion:
+        obj[fieldName] = newTimeSeries
+    else:
+      # Single inventory array: convert directly if needed
+      if not isInventoryCompressed(field):
+        obj[fieldName] = compressInventoryArray(field)
+  elif field.kind == JArray and field.len == 0:
+    # Empty array stays empty
+    discard
+
+proc convertReplayV2ToV3*(replayData: JsonNode): JsonNode =
+  ## Convert a V2 replay to V3 format by compressing inventory arrays.
+  ## V2: inventory as [itemId, itemId, ...] (repeated IDs)
+  ## V3: inventory as [[itemId, count], [itemId, count], ...] (compressed pairs)
+  echo "Converting replay from version 2 to version 3..."
+
+  # Create a deep copy of the data
+  var data = replayData.copy()
+
+  # Update version to 3
+  data["version"] = newJInt(3)
+
+  # Convert inventory fields in all objects
+  if "objects" in data and data["objects"].kind == JArray:
+    for obj in data["objects"].getElems():
+      if obj.kind != JObject:
+        continue
+
+      # Convert inventory field
+      convertInventoryField(obj, "inventory")
+
+      # Convert recipe_input field
+      convertInventoryField(obj, "recipe_input")
+
+      # Convert recipe_output field
+      convertInventoryField(obj, "recipe_output")
+
+      # Convert input_resources and output_resources (legacy building fields)
+      convertInventoryField(obj, "input_resources")
+
+      convertInventoryField(obj, "output_resources")
+
+  return data
+
 proc loadReplayString*(jsonData: string, fileName: string): Replay =
   ## Load a replay from a string.
   var jsonObj = fromJson(jsonData)
@@ -489,14 +598,17 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   if jsonObj["version"].getInt == 1:
     jsonObj = convertReplayV1ToV2(jsonObj)
 
-  doAssert jsonObj["version"].getInt == 2
+  if jsonObj["version"].getInt == 2:
+    jsonObj = convertReplayV2ToV3(jsonObj)
+
+  doAssert jsonObj["version"].getInt == 3
 
   # Check for validation issues and log them to console
-  # let issues = validateReplay(jsonObj)
-  # if issues.len > 0:
-  #   issues.prettyPrint()
-  # else:
-  #   echo "No validation issues found"
+  let issues = validateReplay(jsonObj)
+  if issues.len > 0:
+    issues.prettyPrint()
+  else:
+    echo "No validation issues found"
 
   let replay = Replay(
     version: jsonObj["version"].getInt,
@@ -564,9 +676,11 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     entity.isAgent = resolvedTypeName == "agent"
     if "agent_id" in obj:
       entity.agentId = obj["agent_id"].getInt
-      entity.isFrozen = expand[bool](obj["is_frozen"], replay.maxSteps, false)
+      let frozenField = if "frozen" in obj: obj["frozen"] elif "is_frozen" in obj: obj["is_frozen"] else: newJBool(false)
+      entity.isFrozen = expand[bool](frozenField, replay.maxSteps, false)
       entity.actionId = expand[int](obj["action_id"], replay.maxSteps, 0)
-      entity.actionParameter = expand[int](obj["action_param"], replay.maxSteps, 0)
+      let actionParamField = if "action_parameter" in obj: obj["action_parameter"] elif "action_param" in obj: obj["action_param"] else: newJInt(0)
+      entity.actionParameter = expand[int](actionParamField, replay.maxSteps, 0)
       entity.actionSuccess = expand[bool](obj["action_success"],
           replay.maxSteps, false)
       entity.currentReward = expand[float](obj["current_reward"],

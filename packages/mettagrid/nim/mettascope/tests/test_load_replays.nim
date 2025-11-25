@@ -74,7 +74,7 @@ for file in walkDirRec(replayDir):
 
     let r = loadReplay(file)
     doAssert r != nil
-    doAssert r.version == 2
+    doAssert r.version == 3
 
     # Draw ASCII map for the first step
     let mapFile = file.parentDir / (file.extractFilename & ".map.txt")
