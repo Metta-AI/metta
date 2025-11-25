@@ -7,6 +7,7 @@ import tempfile
 import uuid
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import httpx
 import typer
@@ -379,6 +380,7 @@ def submit_command(
     include_files: list[str] | None = None,
     login_server: str = DEFAULT_COGAMES_SERVER,
     server: str = DEFAULT_SUBMIT_SERVER,
+    init_kwargs: dict[str, Any] | None = None,
     dry_run: bool = False,
     skip_validation: bool = False,
 ) -> None:
@@ -428,6 +430,19 @@ def submit_command(
         console.print(f"[red]Error parsing policy:[/red] {e}")
         return
 
+    # Merge init_kwargs into policy_spec
+    if init_kwargs:
+        merged_kwargs = {**policy_spec.init_kwargs, **init_kwargs}
+        policy_spec = PolicySpec(
+            class_path=policy_spec.class_path,
+            data_path=policy_spec.data_path,
+            init_kwargs=merged_kwargs,
+        )
+        console.print("\n[bold]Policy init_kwargs:[/bold]")
+        for key, value in init_kwargs.items():
+            console.print(f"  {key}: {value}")
+        console.print()
+
     # Validate and collect all files to include
     files_to_include = []
 
@@ -439,22 +454,18 @@ def submit_command(
     if include_files:
         files_to_include.extend(include_files)
 
-    if not files_to_include:
-        console.print(
-            "[red]Error:[/red] No files to include. Please specify --include-files or provide a policy checkpoint path."
-        )
-        return
-
     # Validate all paths
-    try:
-        validated_paths = validate_paths(files_to_include, console)
-    except (ValueError, FileNotFoundError):
-        return
+    validated_paths: list[Path] = []
+    if files_to_include:
+        try:
+            validated_paths = validate_paths(files_to_include, console)
+        except (ValueError, FileNotFoundError):
+            return
 
-    console.print("\n[bold]Files to include:[/bold]")
-    for path in validated_paths:
-        console.print(f"  • {path}")
-    console.print()
+        console.print("\n[bold]Files to include:[/bold]")
+        for path in validated_paths:
+            console.print(f"  • {path}")
+        console.print()
 
     # Validate policy in isolated environment (unless skipped)
     if not skip_validation:

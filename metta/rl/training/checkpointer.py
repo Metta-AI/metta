@@ -10,7 +10,7 @@ from pydantic import Field
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
+from metta.rl.policy_artifact import normalize_policy_uri, policy_spec_from_uri, save_policy_artifact_safetensors
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -69,14 +69,12 @@ class Checkpointer(TrainerComponent):
         # Distributed: master loads once, broadcasts payload; workers rebuild locally.
         if self._distributed.is_distributed:
             normalized_uri = (
-                CheckpointManager.normalize_uri(candidate_uri)
-                if self._distributed.is_master() and candidate_uri
-                else None
+                normalize_policy_uri(candidate_uri) if self._distributed.is_master() and candidate_uri else None
             )
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
-                spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+                spec = policy_spec_from_uri(normalized_uri, device=load_device)
                 payload = None
                 if self._distributed.is_master():
                     loaded_policy = initialize_or_load_policy(policy_env_info, spec)
@@ -106,8 +104,8 @@ class Checkpointer(TrainerComponent):
 
         # Non-distributed or fallthrough: load locally (fail hard on errors)
         if candidate_uri:
-            normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
-            spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+            normalized_uri = normalize_policy_uri(candidate_uri)
+            spec = policy_spec_from_uri(normalized_uri, device=load_device)
             policy = initialize_or_load_policy(policy_env_info, spec)
             policy = self._ensure_save_capable(policy)
             self._latest_policy_uri = normalized_uri
