@@ -81,8 +81,8 @@ def train(
 
     backend = pvector.Multiprocessing
     if platform.system() == "Darwin":
+        # macOS requires spawn for Multiprocessing to work reliably
         multiprocessing.set_start_method("spawn", force=True)
-        backend = pvector.Serial
 
     try:
         cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
@@ -91,10 +91,6 @@ def train(
 
     desired_workers = vector_num_workers or cpu_cores or 4
     num_workers = min(desired_workers, max(1, cpu_cores or desired_workers))
-
-    if backend is pvector.Multiprocessing and device.type != "cuda":
-        backend = pvector.Serial
-        num_workers = 1
 
     num_envs = vector_num_envs or 64
 
@@ -129,14 +125,15 @@ def train(
         num_workers = adjusted_workers
 
     envs_per_worker = max(1, num_envs // num_workers)
-    base_batch_size = vector_batch_size or 128
-    vector_batch_size = max(base_batch_size, envs_per_worker)
-    remainder = vector_batch_size % envs_per_worker
-    if remainder:
-        vector_batch_size += envs_per_worker - remainder
 
-    if backend is pvector.Serial:
-        vector_batch_size = num_envs
+    def _divisible_batch(min_size: int) -> int:
+        for candidate in range(num_envs, min_size - 1, -1):
+            if num_envs % candidate == 0:
+                return candidate
+        return num_envs
+
+    target_min = max(envs_per_worker, vector_batch_size or envs_per_worker)
+    vector_batch_size = _divisible_batch(target_min)
 
     logger.debug(
         "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
