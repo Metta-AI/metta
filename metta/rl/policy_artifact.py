@@ -1,5 +1,4 @@
 from __future__ import annotations
-import urllib.parse as urllib_parse
 
 import ast
 import io
