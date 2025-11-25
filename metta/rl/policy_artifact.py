@@ -470,26 +470,79 @@ def normalize_policy_uri(uri: str) -> str:
     return parsed.canonical
 
 
+def get_policy_metadata(uri: str) -> dict[str, object]:
+    """Extract run_name/epoch/uri from a checkpoint URI or path."""
+    normalized = normalize_policy_uri(uri)
+    parsed = ParsedURI.parse(normalized)
+    path_for_meta: Optional[Path] = None
+
+    if parsed.scheme == "file" and parsed.local_path is not None:
+        path_for_meta = parsed.local_path
+    elif parsed.scheme == "s3" and parsed.key is not None:
+        path_for_meta = Path(parsed.key)
+
+    if path_for_meta is None:
+        raise ValueError(f"Could not extract metadata from uri {uri}")
+
+    meta = extract_run_and_epoch(path_for_meta)
+    if meta is None:
+        raise ValueError(f"Could not extract metadata from uri {uri}")
+
+    run_name, epoch = meta
+    return {"run_name": run_name, "epoch": epoch, "uri": normalized}
+
+
 def policy_spec_from_uri(
     uri: str,
     *,
     device: Optional[str | torch.device] = None,
     strict: bool = True,
     display_name: Optional[str] = None,
+    policy_architecture: PolicyArchitecture | None = None,
+    class_path: str | None = None,
 ) -> PolicySpec:
-    """Build a PolicySpec that loads checkpoints via CheckpointPolicy."""
+    """Construct a PolicySpec for a checkpoint URI, with legacy metadata support."""
     normalized_uri = normalize_policy_uri(uri)
-    init_kwargs: dict[str, str | bool] = {
+    parsed_uri = ParsedURI.parse(normalized_uri)
+
+    embedded_policy_class_path: Optional[str] = None
+    if policy_architecture is None and class_path is None:
+        artifact = load_policy_artifact(normalized_uri)
+        policy_architecture = artifact.policy_architecture
+        embedded_policy = getattr(artifact, "policy", None)
+        if embedded_policy is not None:
+            embedded_policy_class_path = (
+                f"{embedded_policy.__class__.__module__}.{embedded_policy.__class__.__qualname__}"
+            )
+
+    if policy_architecture is None and class_path is None and embedded_policy_class_path is None:
+        raise ValueError("policy_architecture or class_path is required for checkpoints without embedded metadata")
+
+    init_kwargs: dict[str, str | bool | PolicyArchitecture] = {
         "checkpoint_uri": normalized_uri,
         "display_name": display_name or normalized_uri,
         "strict": strict,
     }
     if device is not None:
         init_kwargs["device"] = str(device)
-    return PolicySpec(
-        class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
-        init_kwargs=init_kwargs,
+
+    resolved_class_path = (
+        policy_architecture.class_path
+        if policy_architecture is not None
+        else (class_path or embedded_policy_class_path)
     )
+    if resolved_class_path is None:
+        raise ValueError("policy_architecture or class_path is required to build a PolicySpec")
+    if policy_architecture is not None:
+        init_kwargs["policy_architecture"] = policy_architecture
+
+    data_path = (
+        str(parsed_uri.local_path)
+        if parsed_uri.scheme == "file" and parsed_uri.local_path and parsed_uri.local_path.is_file()
+        else None
+    )
+
+    return PolicySpec(class_path=resolved_class_path, init_kwargs=init_kwargs, data_path=data_path)
 
 
 def save_policy_artifact(
