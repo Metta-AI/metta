@@ -17,9 +17,6 @@ import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.evals.diagnostic_evals import (
     DIAGNOSTIC_EVALS,
 )
-from cogames.cogs_vs_clips.evals.eval_missions import (
-    EVAL_MISSIONS,
-)
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.missions import (
     HarvestMission,
@@ -41,18 +38,6 @@ from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
-
-# Missions from eval_missions where scripted agents perform well
-MISSIONS: tuple[str, ...] = (
-    "go_together",  # 55.0% success, 5.22 avg reward
-    "oxygen_bottleneck",  # 51.2% success, 3.02 avg reward
-    "collect_resources_classic",  # 50.0% success, 4.90 avg reward
-    "collect_resources_spread",  # 50.0% success, 4.45 avg reward
-    "extractor_hub_70",  # 43.8% success, 1.79 avg reward
-    "extractor_hub_30",
-    "extractor_hub_50",
-    "single_use_swarm",  # 42.5% success, 0.46 avg reward
-)
 
 # Diagnostic missions where scripted agents can get reward
 DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
@@ -77,7 +62,6 @@ TRAINING_FACILITY_MISSIONS: tuple[str, ...] = (
 
 FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
     *cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS,  # Base curriculum missions
-    *MISSIONS,  # All eval missions
     # Training facility missions we currently support in this repo
     "harvest",
     "assemble",
@@ -88,8 +72,6 @@ FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
 
 # Create mission name mapping for eval missions and training facility missions
 _MISSION_BY_NAME: dict[str, Mission] = {}
-for mission in EVAL_MISSIONS:
-    _MISSION_BY_NAME[mission.name] = mission
 
 # Add training facility missions to the mapping
 TRAINING_FACILITY_MISSION_OBJECTS = [
@@ -117,7 +99,7 @@ def resolve_missions(
     Args:
         missions: Can be:
             - None: Returns FULL_CURRICULUM_MISSIONS
-            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A mission set name: "diagnostic_missions", "training_facility_missions", "all"
             - A comma-separated string of mission names or set names
             - A list of mission names or set names
 
@@ -125,10 +107,8 @@ def resolve_missions(
         List of mission name strings
 
     Examples:
-        >>> resolve_missions("eval_missions")
-        ['go_together', 'oxygen_bottleneck', ...]
-        >>> resolve_missions(["eval_missions", "diagnostic_missions"])
-        ['go_together', ..., 'diagnostic_assemble_seeded_near', ...]
+        >>> resolve_missions(["diagnostic_missions"])
+        ['diagnostic_assemble_seeded_near', ...]
         >>> resolve_missions("extractor_hub_30,extractor_hub_50")
         ['extractor_hub_30', 'extractor_hub_50']
     """
@@ -145,7 +125,6 @@ def resolve_missions(
 
     # Mission set name -> mission name list mapping
     MISSION_SETS: dict[str, tuple[str, ...]] = {
-        "eval_missions": MISSIONS,
         "diagnostic_missions": DIAGNOSTIC_MISSIONS,
         "training_facility_missions": TRAINING_FACILITY_MISSIONS,
         "all": FULL_CURRICULUM_MISSIONS,
@@ -208,9 +187,14 @@ def make_curriculum(
     Args:
         base_missions: Mission names to include. Can be:
             - None: Uses FULL_CURRICULUM_MISSIONS
-            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
-            - A comma-separated string of mission names or set names (e.g., "eval_missions,diagnostic_missions")
-            - A list of mission names or set names (e.g., ["eval_missions", "extractor_hub_30"])
+            - A mission set name:
+                - "integrated_evals"
+                - "spanning_evals"
+                - "diagnostic_missions"
+                - "training_facility_missions"
+                - "all"
+            - A comma-separated string of mission names or set names (e.g., "integrated_evals,diagnostic_missions")
+            - A list of mission names or set names (e.g., ["integrated_evals", "extractor_hub_30"])
         num_cogs: Number of agents per mission
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
@@ -452,7 +436,12 @@ def train(
     Args:
         base_missions: Mission names to include. Can be:
             - None: Uses FULL_CURRICULUM_MISSIONS
-            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A mission set name:
+                - "integrated_evals"
+                - "spanning_evals"
+                - "diagnostic_missions"
+                - "training_facility_missions"
+                - "all"
             - A comma-separated string of mission names or set names
             - A list of mission names or set names
             If None and all_variants_per_mission=False, defaults to FULL_CURRICULUM_MISSIONS.
@@ -559,7 +548,12 @@ def experiment(
     Args:
         base_missions: Optional mission names to include. Can be:
             - None: Uses FULL_CURRICULUM_MISSIONS (if all_variants_per_mission=False)
-            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A mission set name:
+                - "integrated_evals"
+                - "spanning_evals"
+                - "diagnostic_missions"
+                - "training_facility_missions"
+                - "all"
             - A list of mission names or set names
             Required if all_variants_per_mission=True.
         run_name: Optional run name. If not provided, generates one with timestamp.

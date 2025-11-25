@@ -630,7 +630,7 @@ def evaluate_cmd(
         None,
         "--mission-set",
         "-S",
-        help="Predefined mission set: eval_missions, integrated_evals, spanning_evals, diagnostic_evals, all",
+        help="Predefined mission set: integrated_evals, spanning_evals, diagnostic_evals, all",
     ),
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
