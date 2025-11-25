@@ -9,7 +9,7 @@ Quick reference for investigating and fixing the LP performance degradation from
 ./tools/fix_lp_performance.sh fix
 
 # 2. Test it
-timeout 180s uv run ./tools/run.py experiment.cogs_v_clips use_lp=True run=test_fix
+timeout 180s uv run ./tools/run.py cogs_v_clips.train use_lp=True run=test_fix
 
 # 3. Check SPS in logs
 grep -i sps outputs/*test_fix*/logs/train.log | tail -20
@@ -23,12 +23,12 @@ Run baseline tests to see the issue:
 
 ```bash
 # Test DiscreteRandom (should be fast)
-timeout 180s uv run ./tools/run.py experiment.cogs_v_clips \
+timeout 180s uv run ./tools/run.py cogs_v_clips.train \
     use_lp=False \
     run=baseline_discrete
 
 # Test Learning Progress (should be slow and degrade)
-timeout 180s uv run ./tools/run.py experiment.cogs_v_clips \
+timeout 180s uv run ./tools/run.py cogs_v_clips.train \
     use_lp=True \
     run=baseline_lp
 
@@ -79,7 +79,7 @@ def update_task_performance(self, task_id: int, score: float) -> None:
 ### Step 3: Test the Fix
 
 ```bash
-timeout 180s uv run ./tools/run.py experiment.cogs_v_clips \
+timeout 180s uv run ./tools/run.py cogs_v_clips.train \
     use_lp=True \
     run=fixed_lp
 
@@ -139,7 +139,7 @@ The `fix_lp_performance.sh` script automates the workflow:
 ### Test with Smaller Task Pool
 
 ```bash
-timeout 180s uv run ./tools/run.py experiment.cogs_v_clips \
+timeout 180s uv run ./tools/run.py cogs_v_clips.train \
     use_lp=True \
     num_active_tasks=100 \
     run=small_pool_test
@@ -255,7 +255,7 @@ grep "per.*second" outputs/*/logs/train.log
 Reduce timeout or run for fewer epochs:
 
 ```bash
-timeout 90s uv run ./tools/run.py experiment.cogs_v_clips \
+timeout 90s uv run ./tools/run.py cogs_v_clips.train \
     use_lp=True \
     trainer.total_timesteps=1000000 \
     run=quick_test
