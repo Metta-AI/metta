@@ -6,6 +6,7 @@ from typing import Optional
 
 import typer
 from rich.console import Console
+
 from tribal_village_env.build import ensure_nim_library_current
 from tribal_village_env.environment import TribalVillageEnv
 

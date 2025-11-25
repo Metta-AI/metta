@@ -14,6 +14,7 @@ from rich.console import Console
 from tribal_village_env.build import ensure_nim_library_current
 from tribal_village_env.environment import TribalVillageEnv
 
+from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.policy.tribal_village_policy import TribalPolicyEnvInfo
 from cogames.train import _resolve_vector_counts
 from mettagrid.policy.loader import (
@@ -269,22 +270,24 @@ def train(
         prio_beta0=0.2,
     )
 
-    trainer = pufferl.PuffeRL(train_args, vecenv, network)
-    if log_outputs:
-        console.clear()
-        console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
-        trainer.print_dashboard = lambda *_, **__: None  # type: ignore[assignment]
-
+    trainer: Optional[pufferl.PuffeRL] = None
     training_diverged = False
 
     try:
-        while trainer.global_step < num_steps:
-            eval_stats = trainer.evaluate()
-            if log_outputs and eval_stats:
-                console.log("Evaluation", eval_stats)
-            trainer_stats = trainer.train()
-            if log_outputs and trainer_stats:
-                console.log("Training", trainer_stats)
+        trainer = pufferl.PuffeRL(train_args, vecenv, network)
+        if log_outputs:
+            console.clear()
+            console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
+            trainer.print_dashboard = lambda *_, **__: None  # type: ignore[assignment]
+
+        with DeferSigintContextManager():
+            while trainer.global_step < num_steps:
+                eval_stats = trainer.evaluate()
+                if log_outputs and eval_stats:
+                    console.log("Evaluation", eval_stats)
+                trainer_stats = trainer.train()
+                if log_outputs and trainer_stats:
+                    console.log("Training", trainer_stats)
 
     except KeyboardInterrupt:  # pragma: no cover - user interrupt
         logger.warning("Training interrupted by user. Saving latest model if available.")
@@ -292,13 +295,28 @@ def train(
         training_diverged = True
         logger.exception("Training diverged with runtime error: %s", exc)
     finally:
+        if trainer is not None:
+            try:
+                trainer.print_dashboard()
+            except Exception:
+                pass
+            try:
+                trainer.close()
+            except Exception:
+                pass
+
+        try:
+            vecenv.close()
+        except Exception:
+            pass
+
         console.rule("[bold green]Training Summary")
         checkpoints = find_policy_checkpoints(checkpoints_path, env_name)
 
         if checkpoints and not training_diverged:
             final_checkpoint = checkpoints[-1]
             console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
-            if trainer.epoch < checkpoint_interval:
+            if trainer is not None and trainer.epoch < checkpoint_interval:
                 console.print(
                     f"Training stopped before first scheduled checkpoint (epoch {checkpoint_interval}). "
                     "Latest weights may be near-random.",
