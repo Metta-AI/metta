@@ -131,7 +131,7 @@ const InnerSceneTreeViewer: FC<TreeProps> = ({ sceneTree, depth = 0 }) => {
               <span className="truncate text-sm font-bold">
                 {sceneTree.config.type}
               </span>
-              <div className="flex flex-shrink-0 items-center gap-1 rounded px-2 py-0.5 font-mono text-xs">
+              <div className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 font-mono text-xs">
                 <span className="text-gray-600">
                   ({sceneTree.area.x}, {sceneTree.area.y})
                 </span>
@@ -140,6 +140,15 @@ const InnerSceneTreeViewer: FC<TreeProps> = ({ sceneTree, depth = 0 }) => {
                   {sceneTree.area.width}×{sceneTree.area.height}
                 </span>
               </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1 rounded font-mono text-xs">
+              <span className="text-gray-600">
+                {sceneTree.render_time.toFixed(3)}s
+              </span>
+              <span className="text-gray-400">•</span>
+              <span className="font-medium text-gray-800">
+                {sceneTree.render_with_children_time.toFixed(3)}s
+              </span>
             </div>
 
             <ParamsViewer params={sceneTree.config} />
