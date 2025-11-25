@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import time
 from enum import StrEnum, auto
 from typing import Any, ClassVar, Final, Generic, Self, TypeVar, get_args, get_origin
 
@@ -239,6 +240,11 @@ class Scene(Generic[ConfigT]):
     # { "lock_name": [area_id1, area_id2, ...] }
     _locks: dict[str, set[int]]
 
+    # Will be set by Scene.render_with_children()
+    _render_start_time: float = 0
+    _render_end_time: float = 0
+    _render_with_children_end_time: float = 0
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -336,6 +342,9 @@ class Scene(Generic[ConfigT]):
             "config": self.config.model_dump(),
             "area": self.area.as_dict(),
             "children": [child.get_scene_tree() for child in self.children],
+            "render_start_time": self._render_start_time,
+            "render_end_time": self._render_end_time,
+            "render_with_children_end_time": self._render_with_children_end_time,
         }
 
     def print_scene_tree(self, indent=0):
@@ -352,7 +361,9 @@ class Scene(Generic[ConfigT]):
 
     def render_with_children(self):
         # First, render the scene itself.
+        self._render_start_time = time.time()
         self.render()
+        self._render_end_time = time.time()
 
         # Then, render the children scenes based on the children actions.
         children_actions = self.get_children()
@@ -373,6 +384,8 @@ class Scene(Generic[ConfigT]):
                 )
                 self.children.append(child_scene)
                 child_scene.render_with_children()
+
+        self._render_with_children_end_time = time.time()
 
     def make_area(self, x: int, y: int, width: int, height: int, tags: list[str] | None = None) -> Area:
         inverse_transform = self.transform.inverse()

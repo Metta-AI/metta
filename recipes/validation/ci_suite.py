@@ -31,7 +31,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     arena_train_name = f"{group}.arena_train"
     arena_eval_name = f"{group}.arena_eval"
     arena_play_name = f"{group}.arena_play"
-    cvc_small_train_name = f"{group}.cvc_fixed_maps_train"
+    # cvc_small_train_name = f"{group}.cvc_fixed_maps_train"
     cvc_small_play_name = f"{group}.cvc_fixed_maps_play"
 
     arena_train = JobConfig(
@@ -70,20 +70,20 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     )
 
     # CvC Unified - Train just enough to get a single checkpoint
-    cvc_small_train = JobConfig(
-        name=cvc_small_train_name,
-        module="recipes.prod.cvc.fixed_maps.train",
-        args=[
-            f"run={cvc_small_train_name}",
-            "trainer.total_timesteps=100",
-            "checkpointer.epoch_interval=1",
-            "num_cogs=2",
-            'variants=["lonely_heart","heart_chorus","pack_rat"]',
-        ],
-        timeout_s=60,
-        is_training_job=True,
-        group=group,
-    )
+    # cvc_small_train = JobConfig(
+    #     name=cvc_small_train_name,
+    #     module="recipes.prod.cvc.fixed_maps.train",
+    #     args=[
+    #         f"run={cvc_small_train_name}",
+    #         "trainer.total_timesteps=100",
+    #         "checkpointer.epoch_interval=1",
+    #         "num_cogs=2",
+    #         'variants=["lonely_heart","heart_chorus","pack_rat"]',
+    #     ],
+    #     timeout_s=60,
+    #     is_training_job=True,
+    #     group=group,
+    # )
 
     # CvC Unified - Play test with random policy
     cvc_small_play = JobConfig(
@@ -98,6 +98,6 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         arena_train,
         arena_eval,
         arena_play,
-        cvc_small_train,
+        # cvc_small_train,
         cvc_small_play,
     ], group

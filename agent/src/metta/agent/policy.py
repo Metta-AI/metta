@@ -28,7 +28,6 @@ from mettagrid.policy.policy import (
     MultiAgentPolicy,
     StatefulAgentPolicy,
     StatefulPolicyImpl,
-    TrainablePolicy,
 )
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryABCMeta
@@ -55,15 +54,15 @@ class PolicyArchitecture(Config):
         return AgentClass(policy_env_info, self)  # type: ignore[misc]
 
 
-class Policy(TrainablePolicy, nn.Module):
+class Policy(MultiAgentPolicy, nn.Module):
     """Abstract base class defining the interface that all policies must implement.
 
     This class provides both the PyTorch nn.Module interface for training
-    and the TrainablePolicy interface for compatibility with mettagrid Rollout.
+    and the MultiAgentPolicy interface for compatibility with mettagrid Rollout.
     """
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
-        TrainablePolicy.__init__(self, policy_env_info)
+        MultiAgentPolicy.__init__(self, policy_env_info)
         nn.Module.__init__(self)
         self._actions_by_id = self._policy_env_info.actions.actions()
         self._stateful_impl = self.make_stateful_policy_impl()
@@ -101,6 +100,18 @@ class Policy(TrainablePolicy, nn.Module):
     def network(self) -> nn.Module:
         """Return the nn.Module representing the policy."""
         return self
+
+    def load_policy_data(self, policy_data_path: str) -> None:
+        """Load network weights from file using PyTorch state dict."""
+        import torch
+
+        self.load_state_dict(torch.load(policy_data_path, map_location=self.device))
+
+    def save_policy_data(self, policy_data_path: str) -> None:
+        """Save network weights to file using torch.save."""
+        import torch
+
+        torch.save(self.state_dict(), policy_data_path)
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy adapter for the specified agent index."""
@@ -152,11 +163,11 @@ class Policy(TrainablePolicy, nn.Module):
         td.set("t_in_row", torch.zeros(1, dtype=torch.long, device=device))
 
 
-class DistributedPolicy(TrainablePolicy, DistributedDataParallel, metaclass=PolicyRegistryABCMeta):
+class DistributedPolicy(MultiAgentPolicy, DistributedDataParallel, metaclass=PolicyRegistryABCMeta):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
 
     def __init__(self, policy: MultiAgentPolicy, device: torch.device):
-        TrainablePolicy.__init__(self, policy.policy_env_info)
+        MultiAgentPolicy.__init__(self, policy.policy_env_info)
 
         # Then initialize DistributedDataParallel
         kwargs = {
