@@ -241,9 +241,9 @@ class Scene(Generic[ConfigT]):
     _locks: dict[str, set[int]]
 
     # Will be set by Scene.render_with_children()
-    _render_start_time: float | None = None
-    _render_end_time: float | None = None
-    _render_with_children_end_time: float | None = None
+    _render_start_time: float = 0
+    _render_end_time: float = 0
+    _render_with_children_end_time: float = 0
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
