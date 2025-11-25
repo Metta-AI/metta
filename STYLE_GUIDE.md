@@ -6,7 +6,8 @@ Write lean code that will be kept. Favor simplicity over completeness.
 
 ## Working Principles
 
-**Write less code.** A smaller change that doesn't fully achieve the goal is better than a larger change that does. The goal is code that gets kept, not a messy MVP.
+**Write less code.** A smaller change that doesn't fully achieve the goal is better than a larger change that does. The
+goal is code that gets kept, not a messy MVP.
 
 **Search before writing.** The codebase likely has something similar. Look for existing implementations first.
 
