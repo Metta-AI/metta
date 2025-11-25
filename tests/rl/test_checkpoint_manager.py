@@ -14,7 +14,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import _normalize_policy_uri, policy_spec_from_uri, save_policy_artifact_safetensors
+from metta.rl.policy_artifact import normalize_policy_uri, policy_spec_from_uri, save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -274,7 +274,7 @@ class TestBasicSaveLoad:
         assert isinstance(spec, PolicySpec)
         assert spec.class_path == "metta.rl.checkpoint_manager.CheckpointPolicy"
         assert spec.init_kwargs is not None
-        assert spec.init_kwargs["checkpoint_uri"] == _normalize_policy_uri(latest)
+        assert spec.init_kwargs["checkpoint_uri"] == normalize_policy_uri(latest)
         assert spec.init_kwargs["display_name"] == "custom"
         assert spec.init_kwargs["device"] == "cpu"
 

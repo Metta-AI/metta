@@ -13,10 +13,10 @@ from metta.common.util.file import local_copy, write_file
 from metta.common.util.uri import ParsedURI
 from metta.rl.policy_artifact import (
     PolicyArtifact,
-    _extract_run_and_epoch,
-    _latest_checkpoint,
-    _normalize_policy_uri,
+    extract_run_and_epoch,
+    latest_checkpoint,
     load_policy_artifact,
+    normalize_policy_uri,
     save_policy_artifact_safetensors,
 )
 from metta.rl.system_config import SystemConfig
@@ -55,7 +55,7 @@ def key_and_version(uri: str) -> tuple[str, int] | None:
     else:
         raise ValueError(f"Could not extract key and version from {uri}")
 
-    return _extract_run_and_epoch(file_path)
+    return extract_run_and_epoch(file_path)
 
 
 def _load_checkpoint_file(path: str, is_pt_file: bool = False) -> PolicyArtifact:
@@ -149,13 +149,13 @@ class CheckpointManager:
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")
 
-        uri = _normalize_policy_uri(uri)
+        uri = normalize_policy_uri(uri)
         parsed = ParsedURI.parse(uri)
 
         if parsed.scheme == "file" and parsed.local_path is not None:
             path = parsed.local_path
             if path.is_dir():
-                checkpoint_file = _latest_checkpoint(f"file://{path}")
+                checkpoint_file = latest_checkpoint(f"file://{path}")
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
                 local_path = ParsedURI.parse(checkpoint_file["uri"]).local_path
@@ -173,12 +173,12 @@ class CheckpointManager:
 
         raise ValueError(f"Invalid URI: {uri}")
 
-    # normalize_uri kept for legacy callers; prefer metta.rl.policy_artifact._normalize_policy_uri
+    # normalize_uri kept for legacy callers; prefer metta.rl.policy_artifact.normalize_policy_uri
 
     @staticmethod
     def get_policy_metadata(uri: str) -> PolicyMetadata:
         """Extract metadata from policy URI."""
-        normalized_uri = _normalize_policy_uri(uri)
+        normalized_uri = normalize_policy_uri(uri)
         metadata = key_and_version(normalized_uri)
         if not metadata:
             raise ValueError(f"Could not extract metadata from uri {uri}")
@@ -256,8 +256,8 @@ class CheckpointManager:
             optimizer.train()
 
     def get_latest_checkpoint(self) -> str | None:
-        local_max_checkpoint = _latest_checkpoint(f"file://{self.checkpoint_dir}")
-        remote_max_checkpoint = _latest_checkpoint(self._remote_prefix) if self._remote_prefix else None
+        local_max_checkpoint = latest_checkpoint(f"file://{self.checkpoint_dir}")
+        remote_max_checkpoint = latest_checkpoint(self._remote_prefix) if self._remote_prefix else None
 
         if local_max_checkpoint and remote_max_checkpoint:
             if remote_max_checkpoint["epoch"] > local_max_checkpoint["epoch"]:

@@ -80,8 +80,7 @@ def _():
         print("⚠️ MettaScope replay viewer not available")
 
     from metta.rl.checkpoint_manager import CheckpointManager
-    from metta.rl.policy_artifact import policy_spec_from_uri
-    from metta.rl.policy_artifact import _normalize_policy_uri
+    from metta.rl.policy_artifact import policy_spec_from_uri, normalize_policy_uri
 
     from metta.common.wandb.context import WandbConfig
     import wandb
@@ -1667,13 +1666,13 @@ def _(
 
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-        checkpoint_uri = _normalize_policy_uri(str(latest_ckpt))
+        checkpoint_uri = normalize_policy_uri(str(latest_ckpt))
 
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         run_name_from_ckpt = metadata["run_name"]
 
         policy_spec = policy_spec_from_uri(
-            _normalize_policy_uri(str(latest_ckpt)), device=device
+            normalize_policy_uri(str(latest_ckpt)), device=device
         )
         trained_policy = initialize_or_load_policy(policy_env_info, policy_spec)
 

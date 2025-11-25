@@ -417,7 +417,7 @@ class _PolicyMetadata(TypedDict):
     uri: str
 
 
-def _extract_run_and_epoch(path: Path) -> Optional[tuple[str, int]]:
+def extract_run_and_epoch(path: Path) -> Optional[tuple[str, int]]:
     """Infer run name and epoch from a checkpoint filename."""
     stem = path.stem
     if ":v" in stem:
@@ -427,7 +427,7 @@ def _extract_run_and_epoch(path: Path) -> Optional[tuple[str, int]]:
     return None
 
 
-def _get_all_checkpoints(uri: str) -> list[_PolicyMetadata]:
+def get_all_checkpoints(uri: str) -> list[_PolicyMetadata]:
     """Enumerate checkpoint files beneath a file:// or s3:// prefix."""
     parsed = ParsedURI.parse(uri)
     if parsed.scheme == "file" and parsed.local_path:
@@ -444,7 +444,7 @@ def _get_all_checkpoints(uri: str) -> list[_PolicyMetadata]:
 
     metadata: list[_PolicyMetadata] = []
     for path in checkpoint_files:
-        run_and_epoch = _extract_run_and_epoch(path)
+        run_and_epoch = extract_run_and_epoch(path)
         if run_and_epoch:
             path_uri = uri.rstrip("/") + "/" + path.name
             metadata.append(
@@ -457,22 +457,22 @@ def _get_all_checkpoints(uri: str) -> list[_PolicyMetadata]:
     return metadata
 
 
-def _latest_checkpoint(uri: str) -> Optional[_PolicyMetadata]:
-    checkpoints = _get_all_checkpoints(uri)
+def latest_checkpoint(uri: str) -> Optional[_PolicyMetadata]:
+    checkpoints = get_all_checkpoints(uri)
     if checkpoints:
         return max(checkpoints, key=lambda p: p["epoch"])
     return None
 
 
-def _normalize_policy_uri(uri: str) -> str:
+def normalize_policy_uri(uri: str) -> str:
     """Convert paths to file:// URIs and resolve :latest selectors."""
     parsed = ParsedURI.parse(uri)
     if uri.endswith(":latest"):
         base_uri = uri[: -len(":latest")]
-        latest_checkpoint = _latest_checkpoint(base_uri)
-        if not latest_checkpoint:
+        latest_ckpt = latest_checkpoint(base_uri)
+        if not latest_ckpt:
             raise ValueError(f"No latest checkpoint found for {base_uri}")
-        return latest_checkpoint["uri"]
+        return latest_ckpt["uri"]
     return parsed.canonical
 
 
@@ -484,7 +484,7 @@ def policy_spec_from_uri(
     display_name: Optional[str] = None,
 ) -> PolicySpec:
     """Build a PolicySpec that loads checkpoints via CheckpointPolicy."""
-    normalized_uri = _normalize_policy_uri(uri)
+    normalized_uri = normalize_policy_uri(uri)
     init_kwargs: dict[str, str | bool] = {
         "checkpoint_uri": normalized_uri,
         "display_name": display_name or normalized_uri,
