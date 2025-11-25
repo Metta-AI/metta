@@ -12,3 +12,6 @@ switch("outdir", "bindings/generated")
 
 when not defined(debug):
   --define:release
+
+switch("threads", "on")
+switch("mm", "orc")

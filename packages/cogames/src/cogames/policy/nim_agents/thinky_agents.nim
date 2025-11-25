@@ -1,5 +1,5 @@
 import
-  std/[strformat, tables, random, sets, options, json, deques],
+  std/[strformat, tables, random, sets, options, json, deques, threadpool],
   fidget2/measure,
   common
 
@@ -62,7 +62,7 @@ const Offsets8 = [
   Location(x: -1, y: -1),
 ]
 
-proc getActiveRecipe(agent: ThinkyAgent): RecipeInfo {.measure.} =
+proc getActiveRecipe(agent: ThinkyAgent): RecipeInfo =
   ## Get the recipes form the assembler protocol inputs.
   let assemblerLocation = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
   if assemblerLocation.isSome():
@@ -143,7 +143,7 @@ proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   ]
   result.random.shuffle(result.exploreLocations)
 
-proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
+proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
 
   if agent.map.len == 0:
@@ -208,7 +208,7 @@ proc getNumAgentsNearby*(
   cfg: Config,
   location: Location,
   map: Table[Location, seq[FeatureValue]]
-): int {.measure.} =
+): int =
   ## Get the number of agents nearby.
   for offset in Offsets8:
     let at = location + offset
@@ -262,7 +262,7 @@ proc step*(
   rawObservation: pointer,
   numActions: int,
   agentAction: ptr int32
-) {.measure.} =
+) =
   try:
 
     let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
@@ -283,7 +283,7 @@ proc step*(
         visible[location] = @[]
       visible[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
-    proc doAction(action: int) {.measure.} =
+    proc doAction(action: int) =
 
       # Get last action from observations, in case something else moved us.
       agent.lastActions.add(agent.cfg.getLastAction(visible))
@@ -368,9 +368,9 @@ proc step*(
     if invEnergy < MaxEnergy div 4:
       let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
-        measurePush("charger nearby")
+        # measurePush("charger nearby")
         let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
-        measurePop()
+        # measurePop()
         if action.isSome():
           doAction(action.get().int32)
           log "going to charger"
@@ -381,9 +381,9 @@ proc step*(
       let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
         if manhattan(agent.location, chargerNearby.get()) < 2:
-          measurePush("charge nearby")
+          # measurePush("charge nearby")
           let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
-          measurePop()
+          # measurePop()
           if action.isSome():
             doAction(action.get().int32)
             log "charge nearby might as well charge"
@@ -406,9 +406,9 @@ proc step*(
         return
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
-        measurePush("chest nearby")
+        # measurePush("chest nearby")
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
-        measurePop()
+        # measurePop()
         if action.isSome():
           doAction(action.get().int32)
           log "going to chest"
@@ -425,9 +425,9 @@ proc step*(
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
       if assemblerNearby.isSome():
-        measurePush("assembler nearby")
+        # measurePush("assembler nearby")
         let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
-        measurePop()
+        # measurePop()
         if action.isSome():
           doAction(action.get().int32)
           log "going to assembler to build heart"
@@ -446,9 +446,9 @@ proc step*(
           doAction(agent.cfg.actions.vibeCarbonB.int32)
           log "vibing carbon B to dump excess carbon"
           return
-        measurePush("chest nearby excess carbon")
+        # measurePush("chest nearby excess carbon")
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
-        measurePop()
+        # measurePop()
         if action.isSome():
           doAction(action.get().int32)
           log "going to chest to dump excess carbon"
@@ -474,9 +474,9 @@ proc step*(
           doAction(agent.cfg.actions.vibeOxygenB.int32)
           log "vibing oxygen B to dump excess oxygen"
           return
-        measurePush("chest nearby excess oxygen")
+        # measurePush("chest nearby excess oxygen")
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
-        measurePop()
+        # measurePop()
         if action.isSome():
           doAction(action.get().int32)
           log "going to chest to dump excess oxygen"
@@ -489,9 +489,9 @@ proc step*(
           doAction(agent.cfg.actions.vibeGermaniumB.int32)
           log "vibing germanium B to dump excess germanium"
           return
-        measurePush("chest nearby excess germanium")
+        # measurePush("chest nearby excess germanium")
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
-        measurePop()
+        # measurePop()
         if action.isSome():
           doAction(action.get().int32)
           log "going to chest to dump excess germanium"
@@ -507,7 +507,7 @@ proc step*(
       vibeAction: int,
       extractorTag: int,
       name: string
-    ): bool {.measure.} =
+    ): bool =
       # Check the chest.
       var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if closeChest.isSome():
@@ -519,9 +519,9 @@ proc step*(
             doAction(vibeAction.int32)
             log "vibing " & name & " to take from chest"
             return true
-          measurePush("chest nearby to take " & name)
+          # measurePush("chest nearby to take " & name)
           let action = agent.cfg.aStar(agent.location, closeChest.get(), agent.map)
-          measurePop()
+          # measurePop()
           if action.isSome():
             doAction(action.get().int32)
             log "going to chest to take " & name & " from chest"
@@ -530,9 +530,9 @@ proc step*(
       # Check the carbon extractor.
       let extractorNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, extractorTag)
       if extractorNearby.isSome():
-        measurePush("extractor nearby to take " & name)
+        # measurePush("extractor nearby to take " & name)
         let action = agent.cfg.aStar(agent.location, extractorNearby.get(), agent.map)
-        measurePop()
+        # measurePop()
         if action.isSome():
           doAction(action.get().int32)
           log "going to " & name & ", need: " & $target & " have: " & $inventory
@@ -625,7 +625,7 @@ proc step*(
 
     # Do Exploration.
     if agent.exploreLocations.len == 0:
-      measurePush("exploration")
+      # measurePush("exploration")
       var locationFound = false
       var unexploredLocation: Location
       var visited: HashSet[Location]
@@ -655,9 +655,9 @@ proc step*(
       else:
         log "no unseen location found"
         # agent.cfg.drawMap(agent.map, visited)
-      measurePop()
+      # measurePop()
 
-    measurePush("explore locations")
+    # measurePush("explore locations")
     log "explore locations: " & $agent.exploreLocations
     if agent.exploreLocations.len > 0:
       for location in agent.exploreLocations:
@@ -673,7 +673,7 @@ proc step*(
         else:
           agent.exploreLocations.remove(location)
           break
-    measurePop()
+    # measurePop()
 
     # If all else fails, take a random move to explore the map or get unstuck.
     let action = agent.random.rand(1 .. 4).int32
@@ -702,7 +702,7 @@ proc stepBatch*(
     rawObservations: pointer,
     numActions: int,
     rawActions: pointer
-) {.measure.} =
+) =
   let ids = cast[ptr UncheckedArray[int32]](agentIds)
   let obsArray = cast[ptr UncheckedArray[uint8]](rawObservations)
   let actionArray = cast[ptr UncheckedArray[int32]](rawActions)
@@ -712,4 +712,5 @@ proc stepBatch*(
     let idx = int(ids[i])
     let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
     let actPtr = cast[ptr int32](actionArray[idx].addr)
-    step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
+    spawn step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
+  sync()

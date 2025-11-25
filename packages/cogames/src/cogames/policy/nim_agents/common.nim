@@ -144,6 +144,9 @@ type
     protocolOutputResonator*: int
     protocolOutputScrambler*: int
 
+    protocolInputs*: Table[string, int]
+    protocolOutputs*: Table[string, int]
+
   RecipeInfo* = object
     pattern*: seq[int] # In vibe indices
 
@@ -363,6 +366,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
   try:
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
+    result.features.protocolInputs = initTable[string, int]()
+    result.features.protocolOutputs = initTable[string, int]()
     result.assemblerProtocols = config.assemblerProtocols
 
     for feature in config.obsFeatures:
@@ -780,7 +785,7 @@ proc aStar*(
   currentLocation: Location,
   targetLocation: Location,
   map: Table[Location, seq[FeatureValue]]
-): Option[int] {.measure.} =
+): Option[int] =
   ## Navigate to the given location using A*. Returns the next action to take.
   if currentLocation == targetLocation:
     return none(int)

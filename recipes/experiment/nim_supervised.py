@@ -30,7 +30,7 @@ def train(
     variants: Iterable[str] | None = ("lonely_heart",),
     cogs: int = 1,
     max_steps: int = 1000,
-    total_timesteps: int = 50_000_000_000,
+    total_timesteps: int = 400_000,
     vectorization: Literal["serial", "multiprocessing"] = "serial",
     resume_policy_uri: str | None = None,
     learning_rate: float = 0.001153637 * 1,
@@ -39,7 +39,7 @@ def train(
 
     # decide if we want to just train on a single simple mission for debugging instead of using
     # a curriculum over all cogames missions
-    simple_mission = False
+    simple_mission = True
     if simple_mission:
         env_config = _load_env_from_mission(mission, tuple(variants) if variants else None, cogs, max_steps)
         curriculum = env_curriculum(env_config)
@@ -76,7 +76,7 @@ def train(
 
     tool.wandb.enabled = False
     tool.system.vectorization = vectorization
-    tool.system.device = "cpu"
+    tool.system.device = "cuda"
 
     # generate replays during training
     # tool.training_env.write_replays = True
