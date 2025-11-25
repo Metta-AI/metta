@@ -730,6 +730,9 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       else:
         entity.cooldownTime = 0
 
+    if "protocols" in obj:
+      entity.protocols = fromJson($(obj["protocols"]), seq[Protocol])
+
     replay.objects.add(entity)
 
     # Populate the agents field for agent entities
