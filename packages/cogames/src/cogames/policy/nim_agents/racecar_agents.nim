@@ -513,10 +513,10 @@ proc step*(
 
     # Adjust targets after each delivered heart (later hearts are cheaper on machina_1).
     if agent.heartsDelivered > 0:
-      agent.carbonTarget = min(agent.carbonTarget, 5)
-      agent.oxygenTarget = min(agent.oxygenTarget, 5)
+      agent.carbonTarget = min(agent.carbonTarget, 6)
+      agent.oxygenTarget = min(agent.oxygenTarget, 6)
       agent.germaniumTarget = min(agent.germaniumTarget, 1)
-      agent.siliconTarget = min(agent.siliconTarget, 12)
+      agent.siliconTarget = min(agent.siliconTarget, 15)
     else:
       # Make the first heart more reliable: modestly raise O2/Ge targets, allow a bit more silicon buffer.
       agent.oxygenTarget = max(agent.oxygenTarget, PutOxygenAmount + 2)   # was 10, now 12
@@ -574,7 +574,7 @@ proc step*(
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if agent.location == chestNearby.get():
-          agent.dwellChestTicks = max(agent.dwellChestTicks, 10)
+          agent.dwellChestTicks = max(agent.dwellChestTicks, 8)
           doAction(agent.cfg.actions.noop.int32)
           echo "heart mission: depositing at chest"
           return
