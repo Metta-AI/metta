@@ -70,6 +70,7 @@ class ActionSupervised(Loss):
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
         return Composite(
+            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
             teacher_actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
             rewards=scalar_f32,
             dones=scalar_f32,
@@ -80,9 +81,8 @@ class ActionSupervised(Loss):
         if not self.rollout_forward_enabled:  # this can also be achived with loss run gates
             return
 
-        if self.rollout_forward_enabled:  # flag offered for speed in cases where purely teacher led
-            with torch.no_grad():
-                self.policy.forward(td)
+        with torch.no_grad():
+            self.policy.forward(td)
 
         env_slice = context.training_env_id
         if env_slice is None:

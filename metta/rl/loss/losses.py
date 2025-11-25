@@ -39,14 +39,14 @@ class LossesConfig(Config):
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
         # also, the way it's setup doesn't let the experimenter give names to losses.
         loss_configs: dict[str, LossConfig] = {}
-        if self.supervisor.enabled:
-            loss_configs["action_supervisor"] = self.supervisor
         if self.ppo_critic.enabled:
             loss_configs["ppo_critic"] = self.ppo_critic
         if self.ppo_actor.enabled:
             loss_configs["ppo_actor"] = self.ppo_actor
         if self.ppo.enabled:
             loss_configs["ppo"] = self.ppo
+        if self.supervisor.enabled:
+            loss_configs["supervisor"] = self.supervisor
         if self.contrastive.enabled:
             loss_configs["contrastive"] = self.contrastive
         if self.grpo.enabled:
