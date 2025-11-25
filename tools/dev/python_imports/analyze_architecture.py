@@ -22,6 +22,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+import detect_cycles
+
 
 @dataclass
 class TypeDefinition:
@@ -258,7 +260,7 @@ def analyze_init_file(file_path: Path, package_root: Path) -> InitAnalysis:
             # PUBLIC PACKAGE: Encourage thoughtful exports with lazy loading
             # Check for empty/minimal files first
             if len(analyzer.exports) == 0 and total_lines < 10 and not analyzer.has_lazy_loading:
-                recommendation = "empty"
+                recommendation = "none"
                 reason = "Already minimal or empty"
             elif analyzer.has_lazy_loading or analyzer.has_getattr:
                 # Has lazy loading - is it justified?
@@ -404,12 +406,39 @@ def analyze_type_usage(types: list[TypeDefinition], root_path: Path) -> None:
             continue
 
 
-def recommend_type_extraction(types: list[TypeDefinition]) -> dict:
-    """Recommend which types should be extracted to types.py.
+def recommend_type_extraction(types: list[TypeDefinition], root_path: Path, cycle_info: dict) -> dict:
+    """Recommend which types should be extracted to shared type files.
 
     Groups types by second-level package (e.g., 'metta.rl', 'metta.agent')
-    to provide more granular recommendations.
+    and checks for existing shared locations (types.py, common.py, common/).
+    Cross-references with cycle detection to highlight extractions that break cycles.
+
+    Args:
+        types: List of type definitions found in codebase
+        root_path: Root path of the project
+        cycle_info: Cycle detection results from detect_cycles.py
+
+    Returns:
+        Dict mapping packages to type extraction recommendations
     """
+
+    # Extract modules involved in cycles and their details
+    modules_in_cycles = set()
+    module_cycle_info = {}  # module -> list of cycles it's in
+
+    all_cycles = cycle_info.get("cross_package_cycles", []) + cycle_info.get("same_package_cycles", [])
+    for cycle in all_cycles:
+        for module in cycle["modules"]:
+            modules_in_cycles.add(module)
+            if module not in module_cycle_info:
+                module_cycle_info[module] = []
+            module_cycle_info[module].append(
+                {
+                    "modules": cycle["modules"],
+                    "potential_false_positive": cycle.get("potential_false_positive", False),
+                    "review_hint": cycle.get("review_hint"),
+                }
+            )
 
     packages = defaultdict(list)
     for type_def in types:
@@ -423,20 +452,69 @@ def recommend_type_extraction(types: list[TypeDefinition]) -> dict:
     for package, package_types in packages.items():
         cross_module_types = [t for t in package_types if t.usage_count >= 2 and t.is_exported]
 
-        if cross_module_types:
-            recommendations[package] = {
-                "create_types_file": f"{package.replace('.', '/')}/types.py",
-                "types_to_extract": [
-                    {
-                        "name": t.name,
-                        "current_location": t.file,
-                        "usage_count": t.usage_count,
-                        "type_kind": t.type_kind,
-                        "unique_modules_count": len(set(t.used_in_modules)) if t.used_in_modules else 0,
-                    }
-                    for t in sorted(cross_module_types, key=lambda x: x.usage_count, reverse=True)
-                ],
-            }
+        if not cross_module_types:
+            continue
+
+        # Check for existing shared type locations
+        package_dir = root_path / package.replace(".", "/")
+
+        existing_locations = []
+        if (package_dir / "types.py").exists():
+            existing_locations.append("types.py")
+        if (package_dir / "common.py").exists():
+            existing_locations.append("common.py")
+        if (package_dir / "common" / "__init__.py").exists():
+            existing_locations.append("common/__init__.py")
+        if (package_dir / "common" / "types.py").exists():
+            existing_locations.append("common/types.py")
+
+        # Determine recommendation based on existing files
+        # Prefer types.py > common/types.py > common.py > common/__init__.py
+        if existing_locations:
+            if "types.py" in existing_locations:
+                target_file = "types.py"
+                action = "use_existing"
+            elif "common/types.py" in existing_locations:
+                target_file = "common/types.py"
+                action = "use_existing"
+            elif "common.py" in existing_locations:
+                target_file = "common.py"
+                action = "use_existing"
+            else:  # common/__init__.py
+                target_file = "common/__init__.py"
+                action = "use_existing"
+
+            reason = f"Use existing {target_file} for shared types"
+            if len(existing_locations) > 1:
+                reason += f" (consolidate from: {', '.join(existing_locations)})"
+        else:
+            # No existing shared location - recommend creating types.py
+            target_file = "types.py"
+            action = "create_new"
+            reason = "Create new types.py for shared types"
+
+        # Check if any types are in modules involved in cycles
+        types_in_cycles = [t for t in cross_module_types if t.module in modules_in_cycles]
+
+        recommendations[package] = {
+            "target_file": f"{package.replace('.', '/')}/{target_file}",
+            "action": action,
+            "reason": reason,
+            "existing_locations": existing_locations,
+            "has_types_in_cycles": len(types_in_cycles) > 0,
+            "types_to_extract": [
+                {
+                    "name": t.name,
+                    "current_location": t.file,
+                    "usage_count": t.usage_count,
+                    "type_kind": t.type_kind,
+                    "unique_modules_count": len(set(t.used_in_modules)) if t.used_in_modules else 0,
+                    "in_cycle": t.module in modules_in_cycles,
+                    "cycle_details": module_cycle_info.get(t.module) if t.module in modules_in_cycles else None,
+                }
+                for t in sorted(cross_module_types, key=lambda x: x.usage_count, reverse=True)
+            ],
+        }
 
     return recommendations
 
@@ -487,6 +565,12 @@ def main() -> int:
     print("Analyzing type usage...", file=sys.stderr)
     analyze_type_usage(all_types, args.path)
 
+    # Detect circular dependencies to cross-reference with type extraction
+    print("Detecting circular dependencies...", file=sys.stderr)
+    graph = detect_cycles.build_dependency_graph(args.path)
+    cycles = detect_cycles.find_cycles(graph)
+    cycle_info = detect_cycles.classify_cycles(cycles, graph)
+
     print("Analyzing __init__.py files...", file=sys.stderr)
     init_files = [f for f in python_files if f.name == "__init__.py"]
     init_analyses = []
@@ -496,7 +580,7 @@ def main() -> int:
             init_analyses.append(analysis)
 
     print("Generating recommendations...", file=sys.stderr)
-    type_recommendations = recommend_type_extraction(all_types)
+    type_recommendations = recommend_type_extraction(all_types, args.path, cycle_info)
 
     report = {
         "summary": {
@@ -524,6 +608,7 @@ def main() -> int:
                 "reason": a.reason,
             }
             for a in sorted(init_analyses, key=lambda x: x.complexity_score, reverse=True)
+            if a.recommendation != "none"
         ],
         "type_definitions_by_kind": {
             "class": len([t for t in all_types if t.type_kind == "class"]),
