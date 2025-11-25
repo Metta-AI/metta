@@ -76,10 +76,17 @@ class ConvChain(Scene[ConvChainConfig]):
 
         n = config.pattern_size
 
+        power_lookup = [1 << i for i in range(n * n)]
+
+        width = self.width
+        height = self.height
+        field_local = field
+        weights_local = weights
+
         r = 0
         for _ in range(config.iterations * self.width * self.height):
-            x0 = self.rng.integers(0, self.width, dtype=int)
-            y0 = self.rng.integers(0, self.height, dtype=int)
+            x0 = self.rng.integers(0, width, dtype=int)
+            y0 = self.rng.integers(0, height, dtype=int)
 
             # This algorithm applies some clever bitwise magic to calculate the
             # energy of the field.
@@ -89,22 +96,24 @@ class ConvChain(Scene[ConvChainConfig]):
             # https://github.com/mxgmn/ConvChain/blob/master/ConvChainFast.cs.
             q = 1
             for sy in range(y0 - n + 1, y0 + n):
+                y_vals = [(sy + dy) % height for dy in range(n)]
                 for sx in range(x0 - n + 1, x0 + n):
+                    x_vals = [(sx + dx) % width for dx in range(n)]
                     ind = 0
                     difference = 0
                     for dy in range(n):
                         for dx in range(n):
-                            x = (sx + dx) % self.width
-                            y = (sy + dy) % self.height
+                            x = x_vals[dx]
+                            y = y_vals[dy]
 
-                            value = field[y][x]
-                            power = 1 << (dy * n + dx)
+                            value = field_local[y][x]
+                            power = power_lookup[dy * n + dx]
                             if value:
                                 ind += power
                             if x == x0 and y == y0:
                                 difference = power if value else -power
 
-                    q *= weights[ind - difference] / weights[ind]
+                    q *= weights_local[ind - difference] / weights_local[ind]
 
             # For the sake of parity with ConvChainSlow class, we pre-generate a
             # random number.
