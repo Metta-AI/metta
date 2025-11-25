@@ -11,8 +11,6 @@ from typing import Any, Optional
 import psutil
 import torch
 from rich.console import Console
-from tribal_village_env.build import ensure_nim_library_current
-from tribal_village_env.environment import TribalVillageEnv
 
 from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.policy.tribal_village_policy import TribalPolicyEnvInfo
@@ -45,7 +43,9 @@ class _TribalEnvCreator:
         cfg: Optional[dict[str, Any]] = None,
         buf: Optional[Any] = None,
         seed: Optional[int] = None,
-    ) -> TribalVillageEnv:
+    ) -> Any:
+        from tribal_village_env.environment import TribalVillageEnv
+
         merged_cfg = dict(self._base_config)
         if cfg is not None:
             merged_cfg.update(cfg)
@@ -55,6 +55,34 @@ class _TribalEnvCreator:
         env = TribalVillageEnv(config=merged_cfg)
         set_buffers(env, buf)
         return env
+
+
+def _ensure_tribal_installed() -> None:
+    import sys
+
+    try:
+        import tribal_village_env  # type: ignore  # noqa: F401
+
+        return
+    except ModuleNotFoundError:
+        project_root = Path(__file__).resolve().parents[4] / "tribal_village"
+        if project_root.exists():
+            sys.path.insert(0, str(project_root))
+            sys.path.insert(0, str(project_root / "tribal_village_env"))
+        try:
+            import tribal_village_env  # type: ignore  # noqa: F401
+
+            return
+        except ModuleNotFoundError:
+            if not project_root.exists():
+                raise
+            # Best-effort local editable install so the import works
+            import subprocess
+
+            subprocess.run(
+                ["uv", "pip", "install", "-e", str(project_root)],
+                check=True,
+            )
 
 
 def train(
@@ -74,6 +102,9 @@ def train(
     log_outputs: bool = False,
 ) -> None:
     """Run PPO training for Tribal Village."""
+
+    _ensure_tribal_installed()
+    from tribal_village_env.build import ensure_nim_library_current
 
     ensure_nim_library_current()
 
@@ -126,14 +157,8 @@ def train(
 
     envs_per_worker = max(1, num_envs // num_workers)
 
-    def _divisible_batch(min_size: int) -> int:
-        for candidate in range(num_envs, min_size - 1, -1):
-            if num_envs % candidate == 0:
-                return candidate
-        return num_envs
-
-    target_min = max(envs_per_worker, vector_batch_size or envs_per_worker)
-    vector_batch_size = _divisible_batch(target_min)
+    # To keep pufferlib Multiprocessing happy (agents_per_batch == num_agents) keep batch_size == num_envs.
+    vector_batch_size = num_envs
 
     logger.debug(
         "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
@@ -194,9 +219,9 @@ def train(
     adam_eps = 1e-8
 
     total_agents = max(1, getattr(vecenv, "num_agents", getattr(driver_env, "num_agents", 1)))
-    num_envs = max(1, getattr(vecenv, "num_envs", num_envs))
+    env_count = max(1, getattr(vecenv, "num_environments", num_envs))
     num_workers = max(1, getattr(vecenv, "num_workers", num_workers))
-    envs_per_worker = max(1, num_envs // num_workers)
+    envs_per_worker = max(1, getattr(vecenv, "envs_per_worker", env_count // num_workers))
 
     original_batch_size = batch_size
     amended_batch_size = max(original_batch_size, total_agents * bptt_horizon)
@@ -272,6 +297,7 @@ def train(
 
     try:
         trainer = pufferl.PuffeRL(train_args, vecenv, network)
+        trainer.evaluate = lambda: {}
         if log_outputs:
             console.clear()
             console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")

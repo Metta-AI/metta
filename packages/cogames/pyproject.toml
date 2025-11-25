@@ -12,6 +12,7 @@ dependencies = [
   "mettagrid",
   "packaging>=24.0.0",
   "pufferlib-core",
+  "tribal-village",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
   "einops>=0.8.0",
@@ -54,6 +55,7 @@ source = ["cogames"]
 
 [tool.uv.sources]
 mettagrid = { workspace = true }
+tribal-village = { workspace = true }
 
 [tool.uv]
 cache-keys = [

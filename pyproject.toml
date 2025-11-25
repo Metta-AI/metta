@@ -150,6 +150,7 @@ members = [
   "agent",
   "app_backend",
   "common",
+  "packages/tribal_village",
   "packages/codebot",
   "packages/cogames",
   "packages/cortex",
@@ -173,3 +174,4 @@ pufferlib-core = { workspace = true }
 softmax = { workspace = true }
 wandb-dashboard-mcp = { workspace = true }
 metta-pr-similarity-mcp = { workspace = true }
+tribal-village = { workspace = true }
