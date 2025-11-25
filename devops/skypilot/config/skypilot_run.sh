@@ -4,20 +4,12 @@ set -uo pipefail
 
 cd /workspace/metta
 
-# Drop any preloaded venv; activate your own
-if [ -n "${VIRTUAL_ENV:-}" ]; then
-  deactivate 2> /dev/null || true
-fi
-. .venv/bin/activate
-
 export WRAPPER_PID=$BASHPID
 
 # Determine node role using SkyPilot environment variables
 export RANK=${SKYPILOT_NODE_RANK:-0}
 export IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
-
-DEBUG=${DEBUG:-0}
 
 EXIT_SUCCESS=0
 EXIT_FAILURE=1
@@ -33,32 +25,21 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
 echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
-[ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
-# Master-only: Collect SkyPilot latency
-if [[ "$IS_MASTER" == "true" ]]; then
-  if [ -f devops/skypilot/utils/job_latency.py ]; then
-    echo "[RUN] Collecting skypilot latency..."
-    uv run python devops/skypilot/utils/job_latency.py || true
-  else
-    echo "[RUN] Latency script is missing!"
-  fi
-fi
-
+cd /workspace/metta
 METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 
-# Master-only: Collect instance cost
+# Collect observability metrics
 if [[ "$IS_MASTER" == "true" ]]; then
-  if [ -f devops/skypilot/utils/cost_monitor.py ]; then
-    echo "[RUN] Collecting instance cost..."
-    if uv run python devops/skypilot/utils/cost_monitor.py; then
-      source "$METTA_ENV_FILE"
-      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
-    else
-      echo "[RUN] Cost monitor script failed to run."
-    fi
+  echo "[RUN] Collecting skypilot latency..."
+  uv run python devops/skypilot/utils/job_latency.py || true
+
+  echo "[RUN] Collecting instance cost..."
+  if uv run python devops/skypilot/utils/cost_monitor.py; then
+    source "$METTA_ENV_FILE"
+    echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
   else
-    echo "[RUN] Cost monitor script is missing!"
+    echo "[RUN] Cost monitor script failed to run."
   fi
 fi
 
