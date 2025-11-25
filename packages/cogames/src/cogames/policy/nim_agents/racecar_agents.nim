@@ -517,6 +517,11 @@ proc step*(
       agent.oxygenTarget = min(agent.oxygenTarget, 6)
       agent.germaniumTarget = min(agent.germaniumTarget, 1)
       agent.siliconTarget = min(agent.siliconTarget, 15)
+    else:
+      # Make the first heart more reliable: modestly raise O2/Ge targets, allow a bit more silicon buffer.
+      agent.oxygenTarget = max(agent.oxygenTarget, PutOxygenAmount + 2)   # was 10, now 12
+      agent.germaniumTarget = max(agent.germaniumTarget, PutGermaniumAmount + 1) # was 1, now 2
+      agent.siliconTarget = max(agent.siliconTarget, PutSiliconAmount + 8) # allow up to 33 early
 
     # If we're waiting on assembler crafting to finish, stay put until heart appears or timer expires.
     if agent.dwellAssemblerTicks > 0 and invHeart == 0:
