@@ -1,40 +1,45 @@
-"""Policy definition for SmolLLM-backed agents."""
+"""Policy definition for SmolLLM-backed agents with Cortex HF stack."""
 
 from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from metta.agent.components.actor import ActionProbsConfig
+import torch
+from cortex.stacks import build_hf_stack_config
+
+from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.components.cortex import CortexTDConfig
+from metta.agent.components.misc import MLPConfig
+from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
-from metta.agent.components.smollm import SmolLLMBackboneConfig
+from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.policy import PolicyArchitecture
+from metta.agent.utils import resolve_torch_dtype
 
 
 class SmolLLMConfig(PolicyArchitecture):
-    """Policy configuration for SmolLLM-backed agents."""
+    """Cortexified SmolLLM policy that wraps HF layers in a Cortex stack."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     model_name: str = "HuggingFaceTB/SmolLM2-135M"
     max_sequence_length: int = 32
-    token_stride: int = 1
-    freeze_llm: bool = True
-    torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
+    dtype: Literal["float32", "float16", "bfloat16"] = "bfloat16"
     attn_implementation: Optional[str] = "flash_attention_2"
+    mem_len: int = 128
 
     tokens_key: str = "smollm_tokens"
     logits_key: str = "smollm_logits"
     values_key: str = "values"
-    hidden_key: Optional[str] = None
 
-    actor_head_rank: Optional[int] = None
-    value_head_rank: Optional[int] = None
-    use_lora: bool = False
-    lora_rank: int = 8
-    lora_alpha: int = 16
-    lora_dropout: float = 0.05
-    lora_target_modules: Optional[List[str]] = None
+    _token_embed_dim: int = 8
+    _fourier_freqs: int = 3
+    _num_latents: int = 12
+    _num_heads: int = 4
+    _num_layers: int = 2
+    _actor_hidden: int = 256
+    _critic_hidden: int = 512
 
     components: List[ComponentConfig] = []
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="smollm_logits")
@@ -44,30 +49,69 @@ class SmolLLMConfig(PolicyArchitecture):
         if self.action_probs_config.in_key != self.logits_key:
             self.action_probs_config = self.action_probs_config.model_copy(update={"in_key": self.logits_key})
 
+    def _resolve_dtype(self) -> Optional[torch.dtype]:
+        return resolve_torch_dtype(self.dtype)
+
     def build_components(self) -> List[ComponentConfig]:
-        return [
+        stack_cfg = build_hf_stack_config(
+            self.model_name,
+            trust_remote_code=True,
+            dtype=self._resolve_dtype(),
+            attn_implementation=self.attn_implementation,
+            mem_len=int(self.mem_len),
+            compile_blocks=False,
+        )
+        hf_hidden = int(stack_cfg.d_hidden)
+
+        feat_dim = self._token_embed_dim + (4 * self._fourier_freqs) + 1
+
+        components: List[ComponentConfig] = [
             ObsShimTokensConfig(
                 in_key="env_obs",
                 out_key=self.tokens_key,
                 max_tokens=self.max_sequence_length,
             ),
-            SmolLLMBackboneConfig(
+            ObsAttrEmbedFourierConfig(
                 in_key=self.tokens_key,
-                logits_key=self.logits_key,
-                values_key=self.values_key,
-                hidden_key=self.hidden_key,
-                model_name=self.model_name,
-                max_sequence_length=self.max_sequence_length,
-                freeze_llm=self.freeze_llm,
-                torch_dtype=self.torch_dtype,
-                attn_implementation=self.attn_implementation,
-                token_stride=self.token_stride,
-                actor_head_rank=self.actor_head_rank,
-                value_head_rank=self.value_head_rank,
-                use_lora=self.use_lora,
-                lora_rank=self.lora_rank,
-                lora_alpha=self.lora_alpha,
-                lora_dropout=self.lora_dropout,
-                lora_target_modules=self.lora_target_modules,
+                out_key="obs_attr_embed",
+                attr_embed_dim=self._token_embed_dim,
+                num_freqs=self._fourier_freqs,
             ),
+            ObsPerceiverLatentConfig(
+                in_key="obs_attr_embed",
+                out_key="obs_latent_attn",
+                feat_dim=feat_dim,
+                latent_dim=hf_hidden,
+                num_latents=self._num_latents,
+                num_heads=self._num_heads,
+                num_layers=self._num_layers,
+            ),
+            CortexTDConfig(
+                in_key="obs_latent_attn",
+                out_key="core",
+                d_hidden=hf_hidden,
+                out_features=hf_hidden,
+                stack_cfg=stack_cfg,
+                key_prefix="cortex_state",
+                dtype=self.dtype,
+            ),
+            MLPConfig(
+                in_key="core",
+                out_key="actor_hidden",
+                name="actor_mlp",
+                in_features=hf_hidden,
+                hidden_features=[self._actor_hidden],
+                out_features=self._actor_hidden,
+            ),
+            MLPConfig(
+                in_key="core",
+                out_key=self.values_key,
+                name="critic",
+                in_features=hf_hidden,
+                out_features=1,
+                hidden_features=[self._critic_hidden],
+            ),
+            ActorHeadConfig(in_key="actor_hidden", out_key=self.logits_key, input_dim=self._actor_hidden),
         ]
+
+        return components

@@ -14,6 +14,7 @@ class MetricsSource(str, Enum):
 
     NONE = "none"  # No metrics tracking
     WANDB = "wandb"  # Fetch from WandB API
+    COGAMES_LOG = "cogames_log"  # Parse from cogames log output
 
 
 class RemoteConfig(Config):

@@ -39,9 +39,10 @@ from devops.stable.state import (
 )
 from metta.common.util.fs import get_repo_root
 from metta.common.util.text_styles import bold, cyan, green, yellow
-from metta.jobs.job_api import submit_monitor_and_report
+from metta.jobs.job_api import monitor_jobs_until_complete, submit_monitor_and_report
 from metta.jobs.job_config import JobConfig, MetricsSource
 from metta.jobs.job_manager import ExitCode, JobManager
+from metta.jobs.job_state import JobStatus
 
 # ============================================================================
 # Constants
@@ -462,14 +463,24 @@ def step_job_validation(
     # Prepare jobs with version prefixing and retry logic
     prepared_jobs = _prepare_jobs_for_release(job_configs, state_version, job_manager, retry)
 
-    if not prepared_jobs:
-        print("No jobs to run")
-        return
+    # Submit new jobs if any
+    if prepared_jobs:
+        submit_monitor_and_report(
+            job_manager,
+            prepared_jobs,
+            title=f"Release Validation: {state_version}",
+            group=state_version,
+            no_interactive=no_interactive,
+        )
+    else:
+        print("No new jobs to submit")
 
-    # Submit, monitor, and get initial report
-    submit_monitor_and_report(
+    # Now wait for ALL jobs in the group (including already-running ones)
+    print("\nWaiting for all jobs to complete...")
+    all_job_names = [job_config.name for job_config in job_configs]
+    monitor_jobs_until_complete(
+        all_job_names,
         job_manager,
-        prepared_jobs,
         title=f"Release Validation: {state_version}",
         group=state_version,
         no_interactive=no_interactive,
@@ -496,9 +507,10 @@ def step_job_validation(
         print(display)
         print()
 
-    # Count results (distinguish failed vs skipped)
+    # Count results (distinguish failed vs running vs skipped)
     passed = 0
     failed = 0
+    running = 0
     skipped = 0
 
     for job_config in job_configs:
@@ -507,6 +519,8 @@ def step_job_validation(
             skipped += 1
         elif job_state.exit_code == ExitCode.SKIPPED:
             skipped += 1
+        elif job_state.status == JobStatus.RUNNING:
+            running += 1
         elif job_state.is_successful:
             passed += 1
         else:
@@ -514,6 +528,20 @@ def step_job_validation(
 
     # Print verdict
     print()
+
+    # Check if jobs are still running
+    if running > 0:
+        msg = f"⏳ Task validation IN PROGRESS ({passed} passed, {running} still running"
+        if failed > 0:
+            msg += f", {failed} failed"
+        if skipped > 0:
+            msg += f", {skipped} skipped"
+        msg += ")"
+        print(msg)
+        print("\n⚠️  Cannot proceed to summary - jobs still running")
+        print("   Re-run this command to check status, or wait for jobs to complete")
+        sys.exit(1)
+
     if failed > 0:
         msg = f"❌ Task validation FAILED ({passed} passed, {failed} failed"
         if skipped > 0:
@@ -558,7 +586,10 @@ def step_summary(version: str, skip_commit_match: bool = False, **_kwargs) -> No
         job_name = job_config.name  # Already fully qualified
         job_state = job_manager.get_job_state(job_name)
         if job_state:
-            if job_state.is_successful:
+            # Determine icon based on status
+            if job_state.status == JobStatus.RUNNING:
+                icon = "⏳"
+            elif job_state.is_successful:
                 icon = "✅"
             else:
                 icon = "❌"

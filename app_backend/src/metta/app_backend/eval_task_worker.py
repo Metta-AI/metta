@@ -1,4 +1,6 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
 """
 Runs eval tasks inside a Docker container.
 
@@ -7,6 +9,10 @@ Runs eval tasks inside a Docker container.
 - Processes tasks one at a time
 - Reports success/failure back
 """
+
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 
 import asyncio
 import json
@@ -33,7 +39,6 @@ from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.file import local_copy
 from metta.common.util.git_repo import REPO_URL
-from metta.common.util.log_config import init_suppress_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +61,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
     def __init__(self, backend_url: str) -> None:
         self._backend_url = backend_url
         self._temp_dir = tempfile.mkdtemp()
+        self._versioned_path = f"{self._temp_dir}/workdir"
+        self.checkout_success_file = f"{self._temp_dir}/checkout_success"
 
     def _run_cmd_from_versioned_checkout(
         self,
@@ -109,34 +116,55 @@ class SimTaskExecutor(AbstractTaskExecutor):
     @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self, git_hash: str) -> None:
         try:
-            self._versioned_path = f"{self._temp_dir}/metta-versioned/{git_hash}"
-            checkout_success_file = f"{self._versioned_path}/checkout_success"
-
-            if os.path.exists(self._versioned_path) and os.path.exists(checkout_success_file):
-                logger.info(f"Versioned checkout already exists at {self._versioned_path}")
-                return
-
             logger.info(f"Setting up versioned checkout at {self._versioned_path}")
 
-            os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
+            if not os.path.exists(self.checkout_success_file):
+                logger.info("Cloning repository for the first time")
+                if os.path.exists(self._versioned_path):
+                    shutil.rmtree(self._versioned_path)
 
+                os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
+
+                result = subprocess.run(
+                    ["git", "clone", REPO_URL, self._versioned_path],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(f"Failed to clone repository: {result.stderr}")
+
+                with open(self.checkout_success_file, "w") as f:
+                    f.write("Success")
+
+            # Pull the latest changes
             result = subprocess.run(
-                ["git", "clone", REPO_URL, self._versioned_path],
+                ["git", "fetch", "origin"],
+                cwd=self._versioned_path,
                 capture_output=True,
                 text=True,
             )
             if result.returncode != 0:
-                raise RuntimeError(f"Failed to clone repository: {result.stderr}")
+                raise RuntimeError(f"Failed to fetch repository: {result.stderr}")
 
             # Checkout the specific commit
             result = subprocess.run(
-                ["git", "checkout", git_hash],
+                ["git", "reset", "--hard", git_hash],
                 cwd=self._versioned_path,
                 capture_output=True,
                 text=True,
             )
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
+
+            # Clean the repository
+            result = subprocess.run(
+                ["git", "clean", "-df"],
+                cwd=self._versioned_path,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to clean repository: {result.stderr}")
 
             # Install dependencies in the versioned checkout
             logger.info("Installing dependencies in versioned checkout...")
@@ -148,14 +176,9 @@ class SimTaskExecutor(AbstractTaskExecutor):
                 ["uv", "run", "metta", "install"],
             )
 
-            with open(checkout_success_file, "w") as f:
-                f.write("Success")
-
             logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
         except Exception as e:
             logger.error(f"Failed to set up versioned checkout: {e}", exc_info=True)
-            if os.path.exists(self._versioned_path):
-                shutil.rmtree(self._versioned_path)
             raise
 
     @trace("worker.execute_task")
@@ -172,7 +195,6 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         job_result_file_path = f"job_result_file_path_{task.id}.json"
         cmd.append(f"result_file_path={os.path.abspath(job_result_file_path)}")
-        cmd.append(f"eval_task_id='{task.id}'")
 
         # Download data file if data_uri is provided, using local_copy context manager
         if task.data_uri:
@@ -350,12 +372,9 @@ def init_logging():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-
 
 async def main() -> None:
     init_logging()
-    init_suppress_warnings()
     init_tracing()
 
     backend_url = os.environ["BACKEND_URL"]

@@ -5,6 +5,7 @@ from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from metta.app_backend.leaderboard_constants import LEADERBOARD_SIM_NAME_EPISODE_KEY
 from metta.sim.runner import SimulationRunConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvaluatePolicyVersionTool
 from metta.tools.multi_versioned_policy_eval import MultiPolicyVersionEvalTool
 from metta.tools.play import PlayTool
 from metta.tools.utils.auto_config import auto_stats_server_uri
@@ -12,16 +13,22 @@ from metta.tools.utils.auto_config import auto_stats_server_uri
 logger = logging.getLogger(__name__)
 
 
-# Baseline UUIDs
-THINKY_UUID = "4f00146e-7a14-4b5d-b15e-6068f1b82de6"
-LADYBUG_UUID = "3e9fca78-f179-47d8-bb56-63108a3ff7d3"
+# Whatever `thinky` resolves to in the policy shorthand registry.
+# Likely cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy.
+THINKY_UUID = "674fc022-5f1f-41e5-ab9e-551fa329b723"
+
+# Whatever `ladybug` resolves to in the policy shorthand registry.
+# Likely cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy
+LADYBUG_UUID = "5a491d05-7fb7-41a0-a250-fe476999edcd"
 
 
-def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
+def simulations(num_episodes: int = 1, map_seed: int | None = None) -> Sequence[SimulationRunConfig]:
     # Setup Environment: Machina 1 Open World
     num_cogs = 4
     mission = Machina1OpenWorldMission.model_copy(deep=True)
     mission.num_cogs = num_cogs
+    if map_seed is not None and hasattr(mission.site.map_builder, "seed"):
+        mission.site.map_builder.seed = map_seed
     env_config = mission.make_env()
 
     # We have 3 policies in the list: [Candidate, Thinky, Ladybug]
@@ -72,7 +79,6 @@ def evaluate(
     result_file_path: str | None = None,
     stats_server_uri: str | None = None,
     seed: int = 50,
-    eval_task_id: str | None = None,  # TODO: remove, this is not used
 ) -> MultiPolicyVersionEvalTool:
     """
     Run the V0 Leaderboard Evaluation.
@@ -87,7 +93,7 @@ def evaluate(
 
     tool = MultiPolicyVersionEvalTool(
         result_file_path=result_file_path or f"leaderboard_eval_{policy_version_id}.json",
-        simulations=simulations(),
+        simulations=simulations(map_seed=seed),
         policy_version_ids=policy_version_ids,
         primary_policy_version_id=policy_version_id,
         verbose=True,
@@ -106,4 +112,18 @@ def play(policy_version_id: str | None = None, s3_path: str | None = None) -> Pl
         sim=SimulationConfig(env=simulations()[0].env, suite="v0_leaderboard", name="play"),
         policy_version_id=policy_version_id,
         s3_path=s3_path,
+    )
+
+
+# This is similar to what evaluate_remote() ultimately calls within remote_eval_worker
+# ./tools/run.py recipes.experiment.v0_leaderboard.test_remote_eval
+#   policy_version_id=99810f21-d73d-4e72-8082-70516f2b6b2a
+def test_remote_eval(policy_version_id: str) -> EvaluatePolicyVersionTool:
+    sims = simulations()
+    for sim in sims:
+        sim.proportions = [1.0]
+    return EvaluatePolicyVersionTool(
+        simulations=sims,
+        policy_version_id=policy_version_id,
+        stats_server_uri=auto_stats_server_uri(),
     )

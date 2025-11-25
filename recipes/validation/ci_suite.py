@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
-from metta.jobs.job_config import JobConfig
+from metta.jobs.job_config import JobConfig, MetricsSource
 
 
 def get_user_timestamp() -> str:
@@ -31,8 +31,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     arena_train_name = f"{group}.arena_train"
     arena_eval_name = f"{group}.arena_eval"
     arena_play_name = f"{group}.arena_play"
-    cvc_small_train_name = f"{group}.cvc_small_train"
-    cvc_small_play_name = f"{group}.cvc_small_play"
+    cvc_play_name = f"{group}.cvc_fixed_maps_play"
     cogames_train_name = f"{group}.cogames_train"
     cogames_eval_name = f"{group}.cogames_eval"
 
@@ -67,25 +66,10 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         group=group,
     )
 
-    # CvC Small Maps - Train just enough to get a single checkpoint
-    cvc_small_train = JobConfig(
-        name=cvc_small_train_name,
-        recipe="recipes.prod.cvc.small_maps.train",
-        args={
-            "run": cvc_small_train_name,
-            "trainer.total_timesteps": "10000",
-            "checkpointer.epoch_interval": "1",
-            "num_cogs": "4",
-            "variants": "lonely_heart,heart_chorus,pack_rat,neutral_faced",
-        },
-        timeout_s=300,
-        group=group,
-    )
-
-    # CvC Small Maps - Play test with random policy
-    cvc_small_play = JobConfig(
-        name=cvc_small_play_name,
-        recipe="recipes.prod.cvc.small_maps.play",
+    # CvC Fixed Maps - Play test with random policy
+    cvc_play = JobConfig(
+        name=cvc_play_name,
+        recipe="recipes.prod.cvc.fixed_maps.play",
         args={"max_steps": "100", "render": "log", "open_browser_on_start": "False"},
         timeout_s=60,
         group=group,
@@ -102,6 +86,8 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
             "checkpoints": f"./train_dir/{cogames_train_name}",
         },
         timeout_s=300,
+        metrics_source=MetricsSource.COGAMES_LOG,
+        metrics_to_track=["reward", "SPS"],
         group=group,
     )
 
@@ -119,8 +105,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         arena_train,
         arena_eval,
         arena_play,
-        cvc_small_train,
-        cvc_small_play,
+        cvc_play,
         cogames_train,
         cogames_eval,
     ], group

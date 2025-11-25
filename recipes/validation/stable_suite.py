@@ -6,7 +6,7 @@ Job names are fully qualified with user/timestamp and version.
 
 from __future__ import annotations
 
-from metta.jobs.job_config import AcceptanceCriterion, JobConfig, RemoteConfig
+from metta.jobs.job_config import AcceptanceCriterion, JobConfig, MetricsSource, RemoteConfig
 
 
 def get_stable_jobs(prefix: str) -> list[JobConfig]:
@@ -133,6 +133,8 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         },
         timeout_s=3600,
         remote=RemoteConfig(gpus=1, nodes=1),
+        metrics_source=MetricsSource.COGAMES_LOG,
+        metrics_to_track=["reward", "SPS"],
     )
 
     # CoGames evaluation - downloads from S3 and evaluates

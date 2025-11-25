@@ -4,7 +4,7 @@ import warnings
 from pydantic.warnings import UnsupportedFieldAttributeWarning
 
 
-def init_suppress_warnings() -> None:
+def suppress_noisy_logs() -> None:
     warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning, module="pydantic")
     # Suppress deprecation warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -13,8 +13,8 @@ def init_suppress_warnings() -> None:
 
     # Silence PyTorch distributed elastic warning about redirects on MacOS/Windows
     logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
-    logging.getLogger("torch.distributed").setLevel(logging.ERROR)
+    warnings.filterwarnings(
+        "ignore",
+        message=r".*Redirects are currently not supported in Windows or MacOs.*",
+    )
     logging.getLogger("httpx").setLevel(logging.WARNING)
-
-
-init_suppress_warnings()

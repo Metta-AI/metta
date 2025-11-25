@@ -18,6 +18,37 @@ Before finalizing changes (e.g. before a commit), or upon request from the user:
   in tests/fixtures, treat that as delete-worthy cruft and remove it rather than keeping legacy shims, unless the user
   explicitly requests otherwise.
 
+## Import Patterns
+
+**Core rules:**
+
+- **Always use absolute imports**, not relative imports
+  - CORRECT: `from metta.rl.trainer import Trainer`
+  - INCORRECT: `from .trainer import Trainer`
+- **Use `from __future__ import annotations`** when needed for forward references (e.g., methods returning their own
+  class type, or type hints referencing classes defined later in the file)
+- **Use module imports** to break circular dependencies: `import metta.rl.trainer as trainer`
+- **Check `pyproject.toml`** dependencies - only import from packages in your dependency tree
+
+**When you hit a circular import:**
+
+1. Extract shared types to `types.py` at the lowest common package
+2. Convert to module imports: `import X as X_mod` instead of `from X import Y`
+3. If stuck, ask for review
+
+**Performance exceptions:**
+
+- Public packages (`packages/`): Use lazy loading via `__getattr__` for heavy imports (torch, gymnasium, etc.)
+- Internal modules (`metta/`): Keep `__init__.py` files empty or minimal
+- Module-level `__getattr__` allowed in regular `.py` files when documented performance benefit exists
+
+**Not allowed:**
+
+- Inline imports (imports inside function/method bodies) to work around circular dependencies
+- Use the resolution protocol above instead
+
+See `tools/dev/python_imports/SPECIFICATION.md` for detailed guidance
+
 ## Type Annotations
 
 - Always add type annotations to function parameters
