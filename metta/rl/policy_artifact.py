@@ -304,6 +304,34 @@ def save_policy_artifact(
     return PolicyArtifact(policy_architecture=policy_architecture, state_dict=artifact_state)
 
 
+def save_policy_artifact_safetensors(
+    path: str | Path,
+    *,
+    policy_architecture: PolicyArchitecture,
+    state_dict: Mapping[str, torch.Tensor],
+    detach_buffers: bool = True,
+) -> PolicyArtifact:
+    """Backward-compatible alias for safetensors artifact saving."""
+    return save_policy_artifact(
+        path,
+        policy_architecture=policy_architecture,
+        state_dict=state_dict,
+        detach_buffers=detach_buffers,
+    )
+
+
+def save_policy_artifact_pt(
+    path: str | Path,
+    *,
+    policy: Policy,
+) -> PolicyArtifact:
+    """Backward-compatible helper to persist a policy object with torch.save."""
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(policy, output_path)
+    return PolicyArtifact(policy=policy)
+
+
 def _normalize_state_dict_keys(state_dict: Mapping[str, torch.Tensor]) -> MutableMapping[str, torch.Tensor]:
     """Strip common DDP prefixes and collapse duplicate '.module.' segments.
 
@@ -501,7 +529,7 @@ def _normalize_policy_uri(uri: str) -> str:
     return parsed.canonical
 
 
-def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
+def load_policy_artifact(path_or_uri: str | Path, is_pt_file: bool = False) -> PolicyArtifact:
     """Load a policy artifact from .mpt/.pt or URI (file://, s3://, :latest, mock://)."""
     if isinstance(path_or_uri, Path):
         input_path = path_or_uri
@@ -512,14 +540,18 @@ def load_policy_artifact(path_or_uri: str | Path) -> PolicyArtifact:
             input_path = None
 
     if input_path is not None:
-        if input_path.exists():
-            if input_path.suffix == ".mpt":
-                return _load_mpt_artifact(input_path)
-            if input_path.suffix == ".pt":
-                return _load_pt_artifact(input_path)
-            raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
-        else:
+        if not input_path.exists():
             raise FileNotFoundError(f"Policy artifact not found: {input_path}")
+
+        if is_pt_file:
+            return _load_pt_artifact(input_path)
+
+        if input_path.suffix in {".mpt", ".zip"}:
+            # Legacy artifacts may use .zip extension
+            return _load_mpt_artifact(input_path)
+        if input_path.suffix == ".pt":
+            return _load_pt_artifact(input_path)
+        raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
 
     uri = str(path_or_uri)
     if uri.startswith(("http://", "https://", "ftp://", "gs://")):
@@ -639,3 +671,30 @@ def policy_spec_from_uri(
     )
 
     return PolicySpec(class_path=resolved_class_path, init_kwargs=init_kwargs, data_path=data_path)
+
+
+def normalize_policy_uri(uri: str) -> str:
+    """Public wrapper to normalize URIs (including :latest selection)."""
+    return _normalize_policy_uri(uri)
+
+
+def get_policy_metadata(uri: str) -> dict[str, Any]:
+    """Extract run/epoch metadata from a checkpoint URI or path."""
+    normalized_uri = _normalize_policy_uri(uri)
+    parsed = ParsedURI.parse(normalized_uri)
+    path_for_meta: Optional[Path] = None
+
+    if parsed.scheme == "file" and parsed.local_path is not None:
+        path_for_meta = parsed.local_path
+    elif parsed.scheme == "s3" and parsed.key is not None:
+        path_for_meta = Path(parsed.key)
+
+    if path_for_meta is None:
+        raise ValueError(f"Could not extract metadata from uri {uri}")
+
+    metadata = _extract_run_and_epoch(path_for_meta)
+    if metadata is None:
+        raise ValueError(f"Could not extract metadata from uri {uri}")
+
+    run_name, epoch = metadata
+    return {"run_name": run_name, "epoch": epoch, "uri": normalized_uri}

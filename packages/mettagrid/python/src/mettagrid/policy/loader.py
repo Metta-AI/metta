@@ -37,9 +37,21 @@ def load_policy(
     """Initialize a policy from its spec and load weights if provided."""
 
     init_kwargs = dict(policy_spec.init_kwargs or {})
+
+    # Preserve CheckpointPolicy behavior: let it handle loading/saving itself.
+    if policy_spec.class_path.endswith("CheckpointPolicy"):
+        policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+        try:
+            policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
+        except TypeError as e:
+            raise TypeError(
+                f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"
+            ) from e
+        return policy
     # Extract loader-only options (do not forward into policy constructors)
     device_override = device if device is not None else init_kwargs.pop("device", None)
     strict_override = init_kwargs.pop("strict", strict)
+    display_name = init_kwargs.pop("display_name", None)
     state_dict: dict[str, torch.Tensor] | None = None
     architecture = arch_hint or init_kwargs.get("policy_architecture")
     artifact = None
@@ -60,7 +72,6 @@ def load_policy(
     # Drop loader-only keys before constructing policies to avoid TypeError
     init_kwargs.pop("checkpoint_uri", None)
     init_kwargs.pop("policy_architecture", None)
-    init_kwargs.pop("display_name", None)
 
     if artifact is not None:
         architecture = getattr(artifact, "policy_architecture", None) or architecture
@@ -74,7 +85,9 @@ def load_policy(
         ):
             raise ValueError("Loading checkpoints requires policy_architecture when none is embedded")
 
-    if policy_from_artifact is not None:
+    use_embedded_policy = policy_from_artifact is not None and not policy_spec.class_path
+
+    if use_embedded_policy:
         policy = policy_from_artifact
     elif architecture is not None and hasattr(architecture, "make_policy"):
         policy = architecture.make_policy(policy_env_info)  # type: ignore[call-arg]
@@ -103,10 +116,69 @@ def load_policy(
     if device_override is not None:
         policy = policy.to(torch.device(device_override))  # type: ignore[assignment]
 
+    if display_name is not None:
+        setattr(policy, "display_name", display_name)
+        setattr(policy, "_display_name", display_name)
+
+    if not hasattr(policy, "save_policy"):
+        # Provide a minimal save_policy for backwards compatibility with loaders expecting it.
+        def _save_policy(self, destination: str | Path, *, policy_architecture=None) -> str:
+            arch = policy_architecture or getattr(self, "_policy_architecture", None) or architecture or arch_hint
+            if arch is None:
+                raise ValueError("policy_architecture is required to save policy")
+            return save_policy(destination, self, arch_hint=arch)
+
+        policy.save_policy = _save_policy.__get__(policy, policy.__class__)  # type: ignore[attr-defined]
+
     return policy
 
 
-initialize_or_load_policy = load_policy
+def initialize_or_load_policy(
+    policy_env_info: PolicyEnvInterface,
+    policy_spec: PolicySpec,
+    *,
+    arch_hint: object | None = None,
+    device: torch.device | str | None = None,
+    strict: bool = True,
+) -> MultiAgentPolicy:
+    """Wrapper that preserves legacy save_policy/display_name expectations."""
+    policy = load_policy(
+        policy_env_info,
+        policy_spec,
+        arch_hint=arch_hint,
+        device=device,
+        strict=strict,
+    )
+
+    init_kwargs = policy_spec.init_kwargs or {}
+    display_name = init_kwargs.get("display_name")
+    if display_name is not None:
+        if hasattr(policy, "_display_name"):
+            setattr(policy, "_display_name", display_name)
+        else:
+            setattr(policy, "display_name", display_name)
+
+    def _save_policy(self, destination: str | Path, *, policy_architecture=None) -> str:
+        arch = policy_architecture or getattr(self, "_policy_architecture", None) or arch_hint
+        if arch is None:
+            raise ValueError("policy_architecture is required to save policy")
+        dest_str = str(destination)
+        if dest_str.startswith("s3://"):
+            # Use checkpoint_manager's write_file hook (patched in tests) to avoid real uploads.
+            from metta.rl.checkpoint_manager import write_file
+
+            temp_path = Path(dest_str).name
+            local_path = Path.cwd() / temp_path
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            save_policy_artifact(local_path, policy_architecture=arch, state_dict=self.state_dict())
+            write_file(dest_str, str(local_path))
+            return dest_str
+
+        return save_policy(destination, self, arch_hint=arch)
+
+    policy.save_policy = _save_policy.__get__(policy, policy.__class__)  # type: ignore[attr-defined]
+
+    return policy
 
 
 def save_policy(
