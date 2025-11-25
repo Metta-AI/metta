@@ -1,5 +1,5 @@
 import
-  std/[strformat, tables, random, sets, options, json, deques],
+  std/[strformat, tables, random, sets, options, json, deques, threadpool],
   fidget2/measure,
   common
 
@@ -712,4 +712,5 @@ proc stepBatch*(
     let idx = int(ids[i])
     let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
     let actPtr = cast[ptr int32](actionArray[idx].addr)
-    step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
+    spawn step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
+  sync()
