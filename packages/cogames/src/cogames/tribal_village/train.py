@@ -8,9 +8,11 @@ import platform
 from pathlib import Path
 from typing import Any, Optional
 
+import numpy as np
 import psutil
 import torch
 from rich.console import Console
+from tribal_village_env.build import ensure_nim_library_current
 
 from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.policy.tribal_village_policy import TribalPolicyEnvInfo
@@ -85,6 +87,18 @@ def _ensure_tribal_installed() -> None:
             )
 
 
+def _normalize_vecenv_shapes(vecenv: Any, num_workers: int) -> None:
+    """Force vecenv to expose contiguous agent ids matching its batch."""
+
+    agents_per_batch = getattr(vecenv, "agents_per_batch", None)
+    if agents_per_batch is None:
+        return
+
+    vecenv.num_agents = agents_per_batch
+    if hasattr(vecenv, "agent_ids"):
+        vecenv.agent_ids = np.tile(np.arange(agents_per_batch, dtype=np.int32), (num_workers, 1))
+
+
 def train(
     config: Optional[dict[str, Any]],
     policy_class_path: str,
@@ -104,7 +118,6 @@ def train(
     """Run PPO training for Tribal Village."""
 
     _ensure_tribal_installed()
-    from tribal_village_env.build import ensure_nim_library_current
 
     ensure_nim_library_current()
 
@@ -184,9 +197,24 @@ def train(
         env_kwargs={"cfg": base_cfg},
     )
 
+    _normalize_vecenv_shapes(vecenv, num_workers)
+
     driver_env = getattr(vecenv, "driver_env", None)
     if driver_env is None:
         raise RuntimeError("Vectorized environment did not expose driver_env for shape inference.")
+
+    agents_per_batch = getattr(vecenv, "agents_per_batch", None)
+    logger.info(
+        "Vec preflight %s",
+        {
+            "vec_num_envs": num_envs,
+            "vec_num_workers": num_workers,
+            "vec_batch_size": vector_batch_size,
+            "envs_per_worker": envs_per_worker,
+            "agents_per_batch": agents_per_batch,
+            "driver_agents_per_env": getattr(driver_env, "num_agents", None),
+        },
+    )
 
     policy_env_info = TribalPolicyEnvInfo(
         observation_space=driver_env.single_observation_space,
