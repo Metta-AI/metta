@@ -7,7 +7,7 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_large_lstm import ViTLargeLSTMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -116,7 +116,7 @@ def train(
     trainer_cfg = TrainerConfig(losses=losses_config)
 
     if policy_architecture is None:
-        policy_architecture = ViTDefaultConfig()
+        policy_architecture = ViTLargeLSTMConfig()
 
     scheduler = SchedulerConfig(
         run_gates=[
