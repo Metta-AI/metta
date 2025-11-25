@@ -44,7 +44,7 @@ DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "energy_starved",
     "divide_and_conquer",
     "go_together",
-    "machina_1.open_world",
+    # "machina_1.open_world",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
@@ -68,7 +68,7 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
-    f"machina_1{MAP_MISSION_DELIMITER}open_world",
+    # f"machina_1{MAP_MISSION_DELIMITER}open_world",
 )
 
 
@@ -255,6 +255,19 @@ def make_curriculum(
         num_active_tasks=1500,
         algorithm_config=algorithm_config,
     )
+
+
+# How to submit a policy trained here to the CoGames leaderboard:
+#
+# uv run cogames submit \
+#   -p metta.rl.checkpoint_manager.CheckpointPolicy \
+#   -k checkpoint_uri=s3://softmax-public/policies/...:v1.mpt \
+#   -n your-policy-name-for-leaderboard \
+#   --skip-validation
+#
+# For now we need to run --skip-validation because cogames validation
+# doesn't assume the leaderboard runners get to run with the `metta` repo available,
+# but in practice they do
 
 
 def train(
