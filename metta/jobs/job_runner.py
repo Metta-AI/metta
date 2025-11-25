@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import select
 import shlex
 import signal
 import subprocess
@@ -269,7 +270,6 @@ class LocalJob(Job):
 
     def _read_output(self) -> None:
         """Non-blocking read of available output (called while job runs)."""
-        import select
 
         if not (self._proc and self._proc.stdout):
             return
