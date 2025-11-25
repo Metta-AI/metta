@@ -181,11 +181,18 @@ class MapBuilder(ABC, Generic[ConfigT]):
         assert isinstance(Config, type) and issubclass(Config, MapBuilderConfig)
 
         if Config._builder_cls:
-            # Already bound to another MapBuilder class, so we need to clone it
-            class CloneConfig(Config):
-                pass
-
-            Config = CloneConfig
+            # Already bound to another MapBuilder class, so we need to clone it.
+            # Use type() to create a new class that can be pickled (local classes cannot be pickled).
+            # The clone gets a unique qualified name based on the builder class to ensure picklability.
+            config_name = f"{Config.__name__}_for_{cls.__name__}"
+            Config = type(
+                config_name,
+                (Config,),
+                {
+                    "__module__": cls.__module__,
+                    "__qualname__": f"{cls.__qualname__}.Config",
+                },
+            )
 
         Config._builder_cls = cls
         cls.Config = Config  # pyright: ignore[reportAttributeAccessIssue]

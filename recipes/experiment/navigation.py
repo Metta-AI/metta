@@ -164,6 +164,7 @@ def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
                 "oxygen_extractor": 2,
             },
             dir="varied_terrain/dense_large",
+            remove_altars=True,
         ),
     )
     return make_cogames_nav_env(map_builder=map_builder, num_agents=num_agents * num_instances)
