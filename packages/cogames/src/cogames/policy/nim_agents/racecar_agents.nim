@@ -48,6 +48,8 @@ type
     dwellChestTicks: int      # stay on chest to let heart deposit register
     hasHeartMission: bool     # hard lock to deliver heart without other tasks
 
+    role: string              # simple role tag: "runner", "harvest_cosi", "harvest_og", "support"
+
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
 
@@ -167,6 +169,11 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
     Location(x: 0, y: -7),
   ]
   result.random.shuffle(result.exploreLocations)
+
+  # Assign simple roles:
+  # 0: runner/crafter, 1: carbon+silicon, 2: oxygen+germanium, 3: support/unclipping
+  # Default role for now: no specialization (reverts earlier experiment)
+  result.role = "support"
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
   ## Update the big map with the small visible map.
@@ -521,6 +528,14 @@ proc step*(
             doAction(action.get().int32)
             echo "heart mission: detouring to charger"
             return
+      elif invEnergy < (MaxEnergy * 7) div 10:
+        let charger = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
+        if charger.isSome():
+          let action = agent.cfg.aStar(agent.location, charger.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            echo "heart mission: topping to 70%"
+            return
 
       # Ensure we're in deposit vibe.
       let depositAction = agent.cfg.actions.vibeHeartB
@@ -852,7 +867,7 @@ proc step*(
           echo "going to chest to dump excess germanium"
           return
 
-    # Is there carbon nearby?
+    # Harvesting (role-agnostic after revert).
     if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
       if agent.findAndTakeResource(
         vibe,
@@ -866,7 +881,6 @@ proc step*(
       ):
         return
 
-    # Is there silicon nearby?
     if agent.siliconTarget > 0 and invSilicon < agent.siliconTarget:
       if agent.findAndTakeResource(
         vibe,
@@ -880,7 +894,6 @@ proc step*(
       ):
         return
 
-    # Is there oxygen nearby?
     if agent.oxygenTarget > 0 and invOxygen < agent.oxygenTarget:
       if agent.findAndTakeResource(
         vibe,
@@ -894,7 +907,6 @@ proc step*(
       ):
         return
 
-    # Is there germanium nearby?
     if agent.germaniumTarget > 0 and invGermanium < agent.germaniumTarget:
       if agent.findAndTakeResource(
         vibe,
