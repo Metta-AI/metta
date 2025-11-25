@@ -91,7 +91,6 @@ class MiniscopeRenderer(Renderer):
         )
 
         # Initialize configuration in state
-        self._state.object_type_names = self._sim.object_type_names
         self._state.resource_names = self._sim.resource_names
         self._state.symbol_map = DEFAULT_SYMBOL_MAP.copy()
 
