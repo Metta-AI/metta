@@ -12,11 +12,7 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.common.util.file import local_copy, write_file
 from metta.common.util.uri import ParsedURI
-from metta.rl.policy_artifact import (
-    PolicyArtifact,
-    load_policy_artifact,
-    save_policy_artifact_safetensors,
-)
+from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
@@ -334,28 +330,6 @@ class CheckpointManager:
 
         if remote_max_checkpoint:
             return remote_max_checkpoint["uri"]
-
-    @staticmethod
-    def policy_spec_from_uri(
-        uri: str,
-        *,
-        device: str | torch.device | None = None,
-        strict: bool = True,
-        display_name: str | None = None,
-    ) -> PolicySpec:
-        normalized_uri = CheckpointManager.normalize_uri(uri)
-        init_kwargs: dict[str, str | bool] = {
-            "checkpoint_uri": normalized_uri,
-            "display_name": display_name or normalized_uri,
-            "strict": strict,
-        }
-        if device is not None:
-            init_kwargs["device"] = str(device)
-        return PolicySpec(
-            class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
-            init_kwargs=init_kwargs,
-        )
-
 
 class CheckpointPolicy(MultiAgentPolicy):
     def __init__(
