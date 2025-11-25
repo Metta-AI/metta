@@ -65,35 +65,18 @@ class ConvChain(Scene[ConvChainConfig]):
         self._weights = np.maximum(self._weights, 0.1)
 
     def render(self):
-        # Generate the field using the ConvChain algorithm
-
         config = self.config
-
-        # Intentionally use a list here, to avoid numpy array overhead.
-        # (The code is not vectorized, so numpy is not faster here)
         field = self.rng.choice([False, True], size=self.grid.shape).tolist()
         weights = list(self._weights)
-
         n = config.pattern_size
-
         power_lookup = [1 << i for i in range(n * n)]
-
         width = self.width
         height = self.height
-        field_local = field
-        weights_local = weights
 
-        r = 0
         for _ in range(config.iterations * self.width * self.height):
             x0 = self.rng.integers(0, width, dtype=int)
             y0 = self.rng.integers(0, height, dtype=int)
 
-            # This algorithm applies some clever bitwise magic to calculate the
-            # energy of the field.
-            #
-            # Refer to the implementation in ConvChainSlow class for more
-            # details, and to the original C# code at
-            # https://github.com/mxgmn/ConvChain/blob/master/ConvChainFast.cs.
             q = 1
             for sy in range(y0 - n + 1, y0 + n):
                 y_vals = [(sy + dy) % height for dy in range(n)]
@@ -106,32 +89,26 @@ class ConvChain(Scene[ConvChainConfig]):
                             x = x_vals[dx]
                             y = y_vals[dy]
 
-                            value = field_local[y][x]
+                            value = field[y][x]
                             power = power_lookup[dy * n + dx]
                             if value:
                                 ind += power
                             if x == x0 and y == y0:
                                 difference = power if value else -power
 
-                    q *= weights_local[ind - difference] / weights_local[ind]
+                    q *= weights[ind - difference] / weights[ind]
 
-            # For the sake of parity with ConvChainSlow class, we pre-generate a
-            # random number.
-            # (This allows us to compare whether the output is identical to the
-            # ConvChainSlow version, can be optimized later)
             rnd = self.rng.random()
             if q >= 1:
                 field[y0][x0] = not field[y0][x0]
                 continue
 
-            if self.config.temperature != 1:
-                q = q ** (1.0 / self.config.temperature)
+            if config.temperature != 1:
+                q = q ** (1.0 / config.temperature)
 
-            r += 1
             if q > rnd:
                 field[y0][x0] = not field[y0][x0]
 
-        # Apply the generated field to the scene grid
         for y in range(self.height):
             for x in range(self.width):
                 self.grid[y, x] = "wall" if field[y][x] else "empty"
