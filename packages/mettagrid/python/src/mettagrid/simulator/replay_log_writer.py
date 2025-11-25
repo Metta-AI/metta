@@ -98,7 +98,7 @@ class EpisodeReplay:
         self._validate_non_empty_string_list(sim.resource_names, "item_names")
 
         self.replay_data = {
-            "version": 2,
+            "version": 3,
             "action_names": sim.action_names,
             "item_names": sim.resource_names,
             "type_names": sim.object_type_names,
