@@ -89,6 +89,7 @@ def make_nav_ascii_env(
     # Replace nav map objects with Cogames stations to match mission rules.
     map_instance.char_to_map_name["n"] = "assembler"
     map_instance.char_to_map_name["m"] = "chest"
+    map_instance.char_to_map_name["_"] = "empty"  # Remove altars (not supported in C++ simulator)
 
     map_builder = MapGen.Config(
         instances=num_instances,
