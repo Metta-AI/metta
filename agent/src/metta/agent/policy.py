@@ -51,9 +51,7 @@ class PolicyArchitecture(Config):
         """Create an agent instance from configuration."""
 
         AgentClass = load_symbol(self.class_path)
-        policy = AgentClass(policy_env_info, self)  # type: ignore[misc]
-        policy._policy_architecture = self
-        return policy
+        return AgentClass(policy_env_info, self)  # type: ignore[misc]
 
 
 class Policy(MultiAgentPolicy, nn.Module):
@@ -68,7 +66,6 @@ class Policy(MultiAgentPolicy, nn.Module):
         nn.Module.__init__(self)
         self._actions_by_id = self._policy_env_info.actions.actions()
         self._stateful_impl = self.make_stateful_policy_impl()
-        self._policy_architecture: PolicyArchitecture | None = None
 
     @abstractmethod
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
@@ -103,6 +100,18 @@ class Policy(MultiAgentPolicy, nn.Module):
     def network(self) -> nn.Module:
         """Return the nn.Module representing the policy."""
         return self
+
+    def load_policy_data(self, policy_data_path: str) -> None:
+        """Load network weights from file using PyTorch state dict."""
+        import torch
+
+        self.load_state_dict(torch.load(policy_data_path, map_location=self.device))
+
+    def save_policy_data(self, policy_data_path: str) -> None:
+        """Save network weights to file using torch.save."""
+        import torch
+
+        torch.save(self.state_dict(), policy_data_path)
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy adapter for the specified agent index."""
