@@ -12,7 +12,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
-from metta.rl.policy_artifact import save_policy_artifact_pt
+from metta.rl.policy_artifact import normalize_policy_uri, save_policy_artifact_pt
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 
@@ -123,5 +123,5 @@ class TestCheckpointManagerOperations:
     def test_normalize_uri(self, tmp_path: Path):
         path = tmp_path / "model.mpt"
         create_checkpoint(tmp_path, path.name, MockAgent())
-        normalized = CheckpointManager.normalize_uri(str(path))
+        normalized = normalize_policy_uri(str(path))
         assert normalized == f"file://{path}"

@@ -14,7 +14,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_safetensors
+from metta.rl.policy_artifact import normalize_policy_uri, policy_spec_from_uri, save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -115,7 +115,7 @@ class TestBasicSaveLoad:
 
                 # Upload via the actual policy save path
                 env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-                policy_spec = CheckpointManager.policy_spec_from_uri(f"file://{local_path}")
+                policy_spec = policy_spec_from_uri(f"file://{local_path}")
                 policy = initialize_or_load_policy(env_info, policy_spec)
                 remote_uri = policy.save_policy(expected_remote, policy_architecture=mock_policy_architecture)
 
@@ -188,7 +188,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest)
+        spec = policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
         assert policy.agent_policy(0) is not None
@@ -206,7 +206,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest)
+        spec = policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
 
@@ -231,7 +231,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest, display_name="friendly-name")
+        spec = policy_spec_from_uri(latest, display_name="friendly-name")
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
         assert getattr(policy, "display_name", "") == "friendly-name"
@@ -249,7 +249,7 @@ class TestBasicSaveLoad:
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        spec = CheckpointManager.policy_spec_from_uri(latest)
+        spec = policy_spec_from_uri(latest)
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
 
@@ -257,7 +257,7 @@ class TestBasicSaveLoad:
         saved_uri = policy.save_policy(save_path, policy_architecture=mock_policy_architecture)
 
         assert save_path.exists()
-        reload_spec = CheckpointManager.policy_spec_from_uri(saved_uri, device="cpu")
+        reload_spec = policy_spec_from_uri(saved_uri, device="cpu")
         reloaded = initialize_or_load_policy(env_info, reload_spec)
         assert reloaded is not None
 
@@ -270,11 +270,11 @@ class TestBasicSaveLoad:
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
 
-        spec = CheckpointManager.policy_spec_from_uri(latest, display_name="custom", device="cpu")
+        spec = policy_spec_from_uri(latest, display_name="custom", device="cpu")
         assert isinstance(spec, PolicySpec)
         assert spec.class_path == "metta.rl.checkpoint_manager.CheckpointPolicy"
         assert spec.init_kwargs is not None
-        assert spec.init_kwargs["checkpoint_uri"] == CheckpointManager.normalize_uri(latest)
+        assert spec.init_kwargs["checkpoint_uri"] == normalize_policy_uri(latest)
         assert spec.init_kwargs["display_name"] == "custom"
         assert spec.init_kwargs["device"] == "cpu"
 
