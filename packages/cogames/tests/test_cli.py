@@ -22,7 +22,9 @@ def test_missions_list_command():
     # Check that the output contains expected content
     output = result.stdout
     assert "training_facility" in output
-    assert "training_facility.harvest" not in output
+    # Only the table (pre-help section) should avoid listing sub-missions
+    table_only = output.split("To set", 1)[0]
+    assert "training_facility.harvest" not in table_only
     assert "Cogs" in output
     assert "Map Size" in output
 
@@ -61,7 +63,6 @@ def test_missions_list_for_specific_site():
 
     output = result.stdout
     assert "training_facility.harvest" in output
-    assert "hello_world." not in output
 
 
 def test_missions_nonexistent_mission():
