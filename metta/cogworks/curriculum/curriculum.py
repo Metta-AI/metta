@@ -543,18 +543,22 @@ class Curriculum(StatsLogger):
                 if stats:
                     completion_count = stats.get("completion_count", 0.0)
                     num_completed += completion_count
-                    # Track per-label completions
-                    label = self._algorithm.task_tracker.get_task_label(task_id)
-                    if label:
-                        per_label_completions[label] = per_label_completions.get(label, 0.0) + completion_count
+                    # Track per-label completions (skip in performance mode to reduce overhead)
+                    if not self.performance_mode:
+                        label = self._algorithm.task_tracker.get_task_label(task_id)
+                        if label:
+                            per_label_completions[label] = per_label_completions.get(label, 0.0) + completion_count
         else:
             # Fallback: sum completions for currently active tasks only
             # NOTE: This undercounts if tasks have been evicted!
             num_completed = float(sum(task._num_completions for task in self._tasks.values()))
-            for task in self._tasks.values():
-                label = task.get_label()
-                if label:
-                    per_label_completions[label] = per_label_completions.get(label, 0.0) + float(task._num_completions)
+            if not self.performance_mode:
+                for task in self._tasks.values():
+                    label = task.get_label()
+                    if label:
+                        per_label_completions[label] = per_label_completions.get(label, 0.0) + float(
+                            task._num_completions
+                        )
 
         # Get num_active_tasks from task tracker if using shared memory, otherwise from local dict
         # This is critical when using shared memory - self._tasks may be sparse but TaskTracker
@@ -572,9 +576,10 @@ class Curriculum(StatsLogger):
             "num_active_tasks": num_active_tasks,
         }
 
-        # Add per-label completion counts
-        for label, count in per_label_completions.items():
-            base_stats[f"per_label_completions/{label}"] = count
+        # Add per-label completion counts (skip in performance mode to reduce overhead)
+        if not self.performance_mode:
+            for label, count in per_label_completions.items():
+                base_stats[f"per_label_completions/{label}"] = count
 
         # Include algorithm stats
         algorithm_stats = self._algorithm.stats("algorithm/")
