@@ -27,15 +27,8 @@ def _run_gui() -> None:
     project_root = _project_root()
     cmd = ["nim", "r", "-d:release", "tribal_village.nim"]
 
-    try:
-        console.print("[cyan]Launching Tribal Village GUI via Nim...[/cyan]")
-        subprocess.run(cmd, cwd=project_root, check=True)
-    except FileNotFoundError as err:
-        console.print("[red]Error: 'nim' command not found. Please install Nim and ensure it is on your PATH.[/red]")
-        raise typer.Exit(1) from err
-    except subprocess.CalledProcessError as exc:
-        console.print(f"[red]Nim GUI run failed with exit code {exc.returncode}.[/red]")
-        raise typer.Exit(exc.returncode) from exc
+    console.print("[cyan]Launching Tribal Village GUI via Nim...[/cyan]")
+    subprocess.run(cmd, cwd=project_root, check=True)
 
 
 def _run_ansi(steps: int, max_steps: Optional[int], random_actions: bool) -> None:
