@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import shutil
 import tempfile
 from contextlib import contextmanager
@@ -41,6 +40,8 @@ class ParsedURI:
             return f"s3://{self.bucket}/{self.key}"
         if self.scheme == "mock":
             return f"mock://{self.path or ''}"
+        if self.scheme == "metta":
+            return f"metta://{self.path or ''}"
         return self.raw
 
     def require_local_path(self) -> Path:
@@ -53,27 +54,10 @@ class ParsedURI:
             raise ValueError(f"URI '{self.raw}' is not an s3:// path")
         return self.bucket, self.key
 
-    def is_remote(self) -> bool:
-        """Return True if the URI references a remote resource."""
-        return self.scheme in {"s3", "gdrive", "http"}
-
     @classmethod
     def parse(cls, value: str) -> "ParsedURI":
         if not value:
             raise ValueError("URI cannot be empty")
-
-        # Check if this is an S3 HTTPS URL and convert to s3:// URI
-        if value.startswith("https://") or value.startswith("http://"):
-            # Match patterns:
-            # - https://{bucket}.s3.amazonaws.com/{key}
-            # - https://{bucket}.s3.{region}.amazonaws.com/{key}
-            s3_pattern = r"^https?://([^.]+)\.s3(?:\.([^.]+))?\.amazonaws\.com/(.+)$"
-            match = re.match(s3_pattern, value)
-            if match:
-                bucket, region, key = match.groups()
-                # region is optional (None if not present), but we don't need it for s3:// URIs
-                # Convert to s3:// URI for proper handling
-                value = f"s3://{bucket}/{key}"
 
         if value.startswith("s3://"):
             remainder = value[5:]
@@ -90,14 +74,11 @@ class ParsedURI:
                 raise ValueError("mock:// URIs must include a path")
             return cls(raw=value, scheme="mock", path=path)
 
-        if value.startswith("gdrive://") or value.startswith("https://drive.google.com/"):
-            return cls(raw=value, scheme="gdrive", path=value)
-
-        if value.startswith("wandb://"):
-            path = value[len("wandb://") :]
+        if value.startswith("metta://"):
+            path = value[len("metta://") :]
             if not path:
-                raise ValueError("wandb:// URIs must include a path")
-            return cls(raw=value, scheme="wandb", path=path)
+                raise ValueError("metta:// URIs must include a path")
+            return cls(raw=value, scheme="metta", path=path)
 
         if value.startswith("file://"):
             parsed = urlparse(value)
@@ -109,9 +90,6 @@ class ParsedURI:
                 raise ValueError(f"Malformed file URI: {value}")
             local_path = Path(combined_path).expanduser().resolve()
             return cls(raw=value, scheme="file", local_path=local_path, path=str(local_path))
-
-        if value.startswith("http://") or value.startswith("https://"):
-            return cls(raw=value, scheme="http", path=value)
 
         # Treat everything else as a local filesystem path
         local_path = Path(value).expanduser().resolve()

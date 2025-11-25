@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional, TypedDict
 
@@ -9,7 +10,7 @@ import torch
 
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.tools.utils.auto_config import auto_policy_storage_decision
+from metta.tools.utils.auto_config import auto_policy_storage_decision, auto_stats_server_uri
 from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.file import ParsedURI
@@ -85,6 +86,41 @@ def _latest_checkpoint(uri: str) -> PolicyMetadata | None:
     return None
 
 
+def _resolve_metta_uri(uri: str) -> str:
+    """Resolve a metta:// URI to its underlying storage URI.
+
+    Supported formats:
+    - metta://policy/<policy_version_id> - resolves via observatory API to s3:// path
+    """
+    parsed = ParsedURI.parse(uri)
+    if parsed.scheme != "metta" or not parsed.path:
+        raise ValueError(f"Invalid metta:// URI: {uri}")
+
+    path_parts = parsed.path.split("/")
+    if len(path_parts) < 2 or path_parts[0] != "policy":
+        raise ValueError(f"Unsupported metta:// URI format: {uri}. Expected metta://policy/<policy_version_id>")
+
+    policy_version_id_str = path_parts[1]
+    try:
+        policy_version_id = uuid.UUID(policy_version_id_str)
+    except ValueError as e:
+        raise ValueError(f"Invalid policy version ID in URI: {policy_version_id_str}") from e
+
+    stats_server_uri = auto_stats_server_uri()
+    if not stats_server_uri:
+        raise ValueError("Cannot resolve metta:// URI: stats server not configured")
+
+    from metta.app_backend.clients.stats_client import StatsClient
+
+    stats_client = StatsClient.create(stats_server_uri)
+    policy_version = stats_client.get_policy_version(policy_version_id)
+
+    if not policy_version.s3_path:
+        raise ValueError(f"Policy version {policy_version_id} has no s3_path")
+
+    return policy_version.s3_path
+
+
 class CheckpointManager:
     """Manages run directories and trainer state checkpointing."""
 
@@ -145,8 +181,14 @@ class CheckpointManager:
 
     @staticmethod
     def normalize_uri(uri: str) -> str:
-        """Convert paths to file:// URIs, resolve :latest."""
+        """Convert paths to file:// URIs, resolve :latest and metta:// URIs."""
         parsed = ParsedURI.parse(uri)
+
+        # Resolve metta:// URIs first (they may resolve to URIs with :latest)
+        if parsed.scheme == "metta":
+            resolved_uri = _resolve_metta_uri(uri)
+            return CheckpointManager.normalize_uri(resolved_uri)
+
         if uri.endswith(":latest"):
             base_uri = uri[:-7]
             latest = _latest_checkpoint(base_uri)

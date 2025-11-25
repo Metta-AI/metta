@@ -74,8 +74,11 @@ def simulations(num_episodes: int = 1, map_seed: int | None = None) -> Sequence[
 
 
 # ./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_version_id=f32ca3a3-b6f0-479f-8105-27ce02b873cb
+# Or using metta:// URI:
+# ./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_uri=metta://policy/f32ca3a3-b6f0-479f-8105-27ce02b873cb
 def evaluate(
-    policy_version_id: str,
+    policy_version_id: str | None = None,
+    policy_uri: str | None = None,
     result_file_path: str | None = None,
     stats_server_uri: str | None = None,
     seed: int = 50,
@@ -85,7 +88,17 @@ def evaluate(
 
     Compares the candidate policy (policy_version_id) against known baselines
     (Thinky and Ladybug) in the Machina 1 Open World environment.
+
+    Args:
+        policy_version_id: Observatory policy version UUID (legacy parameter)
+        policy_uri: Policy URI (e.g., metta://policy/<uuid>, s3://..., file://...)
     """
+    # Support both legacy policy_version_id and new policy_uri parameter
+    if policy_uri and policy_uri.startswith("metta://policy/"):
+        policy_version_id = policy_uri.split("/")[-1]
+    elif not policy_version_id:
+        raise ValueError("Either policy_version_id or policy_uri is required")
+
     if (api_url := stats_server_uri or auto_stats_server_uri()) is None:
         raise ValueError("stats_server_uri is required")
 

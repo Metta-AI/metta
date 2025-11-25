@@ -99,14 +99,14 @@ class TestNewPolicySystem:
             "file://./checkpoints/model.mpt",
             "file:///absolute/path/model.mpt",
             "s3://bucket/path/model.mpt",
-            "wandb://project/artifact:version",
+            "metta://policy/acee831a-f409-4345-9c44-79b34af17c3e",
             "mock://test_policy",
         ]
 
         for uri in uri_formats:
             assert "://" in uri, f"URI {uri} missing protocol separator"
             protocol = uri.split("://")[0]
-            assert protocol in ["file", "s3", "wandb", "mock"], f"Unknown protocol {protocol}"
+            assert protocol in ["file", "s3", "metta", "mock"], f"Unknown protocol {protocol}"
 
     def test_tool_configuration_consistency(self):
         """Test that all tools have consistent configuration interfaces."""

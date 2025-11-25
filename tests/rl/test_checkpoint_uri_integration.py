@@ -10,10 +10,11 @@ from pydantic import Field
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
+from metta.rl.checkpoint_manager import CheckpointManager, _resolve_metta_uri, key_and_version
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
+from mettagrid.util.file import ParsedURI
 
 
 def checkpoint_filename(run: str, epoch: int) -> str:
@@ -115,3 +116,29 @@ class TestCheckpointManagerOperations:
         create_checkpoint(tmp_path, path.name, mock_policy_architecture, mock_policy.state_dict())
         normalized = CheckpointManager.normalize_uri(str(path))
         assert normalized == f"file://{path}"
+
+
+class TestMettaURIs:
+    def test_parsed_uri_recognizes_metta_scheme(self):
+        uri = "metta://policy/acee831a-f409-4345-9c44-79b34af17c3e"
+        parsed = ParsedURI.parse(uri)
+        assert parsed.scheme == "metta"
+        assert parsed.path == "policy/acee831a-f409-4345-9c44-79b34af17c3e"
+        assert parsed.canonical == uri
+
+    def test_metta_uri_requires_path(self):
+        with pytest.raises(ValueError, match="must include a path"):
+            ParsedURI.parse("metta://")
+
+    def test_resolve_metta_uri_invalid_format(self):
+        with pytest.raises(ValueError, match="Unsupported metta:// URI format"):
+            _resolve_metta_uri("metta://invalid")
+
+    def test_resolve_metta_uri_invalid_uuid(self):
+        with pytest.raises(ValueError, match="Invalid policy version ID"):
+            _resolve_metta_uri("metta://policy/not-a-uuid")
+
+    def test_resolve_metta_uri_requires_stats_server(self, monkeypatch):
+        monkeypatch.setattr("metta.rl.checkpoint_manager.auto_stats_server_uri", lambda: None)
+        with pytest.raises(ValueError, match="stats server not configured"):
+            _resolve_metta_uri("metta://policy/acee831a-f409-4345-9c44-79b34af17c3e")

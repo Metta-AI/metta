@@ -8,6 +8,7 @@ import torch
 from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.util.file import ParsedURI
 
 
 class MptPolicy(MultiAgentPolicy):
@@ -70,8 +71,6 @@ class MptPolicy(MultiAgentPolicy):
             raise ValueError("policy_architecture is required to save policy")
 
         save_mpt(str(destination), architecture=architecture, state_dict=self._policy.state_dict())
-
-        from mettagrid.util.file import ParsedURI
 
         parsed = ParsedURI.parse(str(destination))
         return parsed.canonical
