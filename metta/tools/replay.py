@@ -8,7 +8,6 @@ from typing import Optional
 
 from pydantic import Field
 
-from metta.agent.policy import PolicyArchitecture
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
 from metta.rl.policy_artifact import policy_spec_from_uri
@@ -29,7 +28,6 @@ class ReplayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: Optional[str] = None
-    policy_architecture: Optional[PolicyArchitecture] = None
     replay_dir: str = Field(default_factory=auto_replay_dir)
     open_browser_on_start: bool = True
     launch_viewer: bool = True
@@ -37,11 +35,7 @@ class ReplayTool(Tool):
     def _build_policy_spec(self, normalized_uri: Optional[str]) -> PolicySpec:
         if normalized_uri is None:
             return PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
-        return policy_spec_from_uri(
-            normalized_uri,
-            device="cpu",
-            policy_architecture=self.policy_architecture,
-        )
+        return policy_spec_from_uri(normalized_uri, device="cpu")
 
     def invoke(self, args: dict[str, str]) -> Optional[int]:
         policy_spec = self._build_policy_spec(self.policy_uri)
