@@ -47,6 +47,8 @@ type
     dwellAssemblerTicks: int  # stay on assembler to let crafting finish
     dwellChestTicks: int      # stay on chest to let heart deposit register
     hasHeartMission: bool     # hard lock to deliver heart without other tasks
+    heartsDelivered: int      # heuristic count of hearts turned in
+    prevHeartInv: int         # last seen heart inventory
 
     role: string              # simple role tag: "runner", "harvest_cosi", "harvest_og", "support"
 
@@ -148,6 +150,8 @@ proc resetAgent(agent: RaceCarAgent) =
   agent.dwellAssemblerTicks = 0
   agent.dwellChestTicks = 0
   agent.hasHeartMission = false
+  agent.heartsDelivered = 0
+  agent.prevHeartInv = 0
 
 proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   ## Create a new thinky agent, the fastest and the smartest agent.
@@ -493,6 +497,11 @@ proc step*(
       invResonator = agent.cfg.getInventory(visible, agent.cfg.features.invResonator)
       invScrambler = agent.cfg.getInventory(visible, agent.cfg.features.invScrambler)
 
+    # Track heart inventory delta to estimate deliveries.
+    if invHeart == 0 and agent.prevHeartInv > 0:
+      inc agent.heartsDelivered, agent.prevHeartInv
+    agent.prevHeartInv = invHeart
+
     proc vibeUnavailable(v: int, action: int): bool =
       ## True when the environment exposes neither the vibe value nor an action to change it.
       v == -1 or action == 0
@@ -501,6 +510,13 @@ proc step*(
 
     let activeRecipe = agent.getActiveRecipe()
     echo "active recipe: " & $activeRecipe
+
+    # Adjust targets after each delivered heart (later hearts are cheaper on machina_1).
+    if agent.heartsDelivered > 0:
+      agent.carbonTarget = min(agent.carbonTarget, 6)
+      agent.oxygenTarget = min(agent.oxygenTarget, 6)
+      agent.germaniumTarget = min(agent.germaniumTarget, 1)
+      agent.siliconTarget = min(agent.siliconTarget, 15)
 
     # If we're waiting on assembler crafting to finish, stay put until heart appears or timer expires.
     if agent.dwellAssemblerTicks > 0 and invHeart == 0:
@@ -553,7 +569,7 @@ proc step*(
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if agent.location == chestNearby.get():
-          agent.dwellChestTicks = max(agent.dwellChestTicks, 5)
+          agent.dwellChestTicks = max(agent.dwellChestTicks, 8)
           doAction(agent.cfg.actions.noop.int32)
           echo "heart mission: depositing at chest"
           return
@@ -655,82 +671,7 @@ proc step*(
         var invTool = agent.getToolInventory(tool)
 
         let neededAmount = if needed > 0: needed else: 1
-        if tool.len > 0 and invTool < neededAmount:
-          # Check chest for the tool first (gear vibe).
-          if agent.findAndTakeResource(
-            vibe,
-            (if tool == "decoder": agent.cfg.features.invDecoder
-             elif tool == "modulator": agent.cfg.features.invModulator
-             elif tool == "resonator": agent.cfg.features.invResonator
-             elif tool == "scrambler": agent.cfg.features.invScrambler
-             else: 0),
-            neededAmount,
-            invTool,
-            agent.cfg.vibes.gear,
-            agent.cfg.actions.vibeGear,
-            agent.cfg.tags.chest,
-            tool
-          ):
-            return
-
-          # Gather craft inputs for this gear from assembler protocols (fallback: single resource)
-          let craftInputs = agent.getToolCraftInputs(tool)
-          for res, amount in craftInputs:
-            if res == "carbon" and invCarbon < amount and agent.findAndTakeResource(
-              vibe,
-              agent.cfg.features.invCarbon,
-              amount,
-              invCarbon,
-              agent.cfg.vibes.carbonA,
-              agent.cfg.actions.vibeCarbonA,
-              agent.cfg.tags.carbonExtractor,
-              res
-            ):
-              return
-            if res == "oxygen" and invOxygen < amount and agent.findAndTakeResource(
-              vibe,
-              agent.cfg.features.invOxygen,
-              amount,
-              invOxygen,
-              agent.cfg.vibes.oxygenA,
-              agent.cfg.actions.vibeOxygenA,
-              agent.cfg.tags.oxygenExtractor,
-              res
-            ):
-              return
-            if res == "germanium" and invGermanium < amount and agent.findAndTakeResource(
-              vibe,
-              agent.cfg.features.invGermanium,
-              amount,
-              invGermanium,
-              agent.cfg.vibes.germaniumA,
-              agent.cfg.actions.vibeGermaniumA,
-              agent.cfg.tags.germaniumExtractor,
-              res
-            ):
-              return
-            if res == "silicon" and invSilicon < amount and agent.findAndTakeResource(
-              vibe,
-              agent.cfg.features.invSilicon,
-              amount,
-              invSilicon,
-              agent.cfg.vibes.siliconA,
-              agent.cfg.actions.vibeSiliconA,
-              agent.cfg.tags.siliconExtractor,
-              res
-            ):
-              return
-
-          # Go craft gear at assembler (stay in gear vibe).
-          let assembler = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
-          if assembler.isSome():
-            if not vibeUnavailable(agent.cfg.vibes.gear, agent.cfg.actions.vibeGear) and vibe != agent.cfg.vibes.gear:
-              doAction(agent.cfg.actions.vibeGear.int32)
-              return
-            let action = agent.cfg.aStar(agent.location, assembler.get(), agent.map)
-            if action.isSome():
-              doAction(action.get().int32)
-              return
+        # Skip crafting tools; only unclip if we already have the needed one.
 
         # If we have the tool now, move to the clipped extractor and use it (stay in gear vibe).
         invTool = agent.getToolInventory(tool)
@@ -796,7 +737,7 @@ proc step*(
       if assemblerNearby.isSome():
         # If already on assembler with proper vibe and resources, dwell to let craft resolve.
         if agent.location == assemblerNearby.get():
-          agent.dwellAssemblerTicks = max(agent.dwellAssemblerTicks, 3)
+          agent.dwellAssemblerTicks = max(agent.dwellAssemblerTicks, 4)
           doAction(agent.cfg.actions.noop.int32)
           echo "crafting heart at assembler"
           return
@@ -808,99 +749,27 @@ proc step*(
           echo "going to assembler to build heart"
           return
 
-    # Dump excess resources.
-    let atMaxInventory = invCarbon + invOxygen + invGermanium + invSilicon >= MaxResourceInventory
-    let avgResource = (invCarbon + invOxygen + invGermanium + invSilicon) div 4
-    if atMaxInventory:
-      echo "at max inventory"
+    # Simplified: don’t dump; keep focus on heart inputs.
 
-    if atMaxInventory and invCarbon > avgResource and invCarbon > agent.carbonTarget + PutCarbonAmount:
-      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-      if chestNearby.isSome():
-        if not vibeUnavailable(agent.cfg.vibes.carbonB, agent.cfg.actions.vibeCarbonB) and vibe != agent.cfg.vibes.carbonB:
-          doAction(agent.cfg.actions.vibeCarbonB.int32)
-          echo "vibing carbon B to dump excess carbon"
-          return
-        measurePush("chest nearby excess carbon")
-        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
-        measurePop()
-        if action.isSome():
-          doAction(action.get().int32)
-          echo "going to chest to dump excess carbon"
-          return
+    # Harvesting prioritised for heart inputs (favor bottlenecks first).
+    let haveAll =
+      invCarbon >= agent.carbonTarget and
+      invOxygen >= agent.oxygenTarget and
+      invGermanium >= agent.germaniumTarget and
+      invSilicon >= agent.siliconTarget
 
-    if atMaxInventory and invSilicon > avgResource and invSilicon > agent.siliconTarget + PutSiliconAmount:
-      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-      if chestNearby.isSome():
-        if not vibeUnavailable(agent.cfg.vibes.siliconB, agent.cfg.actions.vibeSiliconB) and vibe != agent.cfg.vibes.siliconB:
-          doAction(agent.cfg.actions.vibeSiliconB.int32)
-          echo "vibing silicon B to dump excess silicon"
-          return
-        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
-        if action.isSome():
-          doAction(action.get().int32)
-          echo "going to chest to dump excess silicon"
-          return
-
-    if atMaxInventory and invOxygen > avgResource and invOxygen > agent.oxygenTarget + PutOxygenAmount:
-      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-      if chestNearby.isSome():
-        if not vibeUnavailable(agent.cfg.vibes.oxygenB, agent.cfg.actions.vibeOxygenB) and vibe != agent.cfg.vibes.oxygenB:
-          doAction(agent.cfg.actions.vibeOxygenB.int32)
-          echo "vibing oxygen B to dump excess oxygen"
-          return
-        measurePush("chest nearby excess oxygen")
-        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
-        measurePop()
-        if action.isSome():
-          doAction(action.get().int32)
-          echo "going to chest to dump excess oxygen"
-          return
-
-    if atMaxInventory and invGermanium > avgResource and invGermanium > agent.germaniumTarget + PutGermaniumAmount:
-      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-      if chestNearby.isSome():
-        if not vibeUnavailable(agent.cfg.vibes.germaniumB, agent.cfg.actions.vibeGermaniumB) and vibe != agent.cfg.vibes.germaniumB:
-          doAction(agent.cfg.actions.vibeGermaniumB.int32)
-          echo "vibing germanium B to dump excess germanium"
-          return
-        measurePush("chest nearby excess germanium")
-        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
-        measurePop()
-        if action.isSome():
-          doAction(action.get().int32)
-          echo "going to chest to dump excess germanium"
-          return
-
-    # Harvesting (role-agnostic after revert). If episode almost over and we already have all heart inputs, skip harvesting.
-    if episodeEndingSoon and invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and
-        invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
-      discard  # fall through to crafting/deposit priorities
-    else:
-      # normal harvest
-      if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
+    if not haveAll:
+      # Order: germanium, oxygen, carbon, silicon (silicon last since often plentiful).
+      if agent.germaniumTarget > 0 and invGermanium < agent.germaniumTarget:
         if agent.findAndTakeResource(
           vibe,
-          agent.cfg.features.invCarbon,
-          agent.carbonTarget,
-          invCarbon,
-          agent.cfg.vibes.carbonA,
-          agent.cfg.actions.vibeCarbonA,
-          agent.cfg.tags.carbonExtractor,
-          "carbon"
-        ):
-          return
-
-      if agent.siliconTarget > 0 and invSilicon < agent.siliconTarget:
-        if agent.findAndTakeResource(
-          vibe,
-          agent.cfg.features.invSilicon,
-          agent.siliconTarget,
-          invSilicon,
-          agent.cfg.vibes.siliconA,
-          agent.cfg.actions.vibeSiliconA,
-          agent.cfg.tags.siliconExtractor,
-          "silicon"
+          agent.cfg.features.invGermanium,
+          agent.germaniumTarget,
+          invGermanium,
+          agent.cfg.vibes.germaniumA,
+          agent.cfg.actions.vibeGermaniumA,
+          agent.cfg.tags.germaniumExtractor,
+          "germanium"
         ):
           return
 
@@ -917,16 +786,29 @@ proc step*(
         ):
           return
 
-      if agent.germaniumTarget > 0 and invGermanium < agent.germaniumTarget:
+      if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
         if agent.findAndTakeResource(
           vibe,
-          agent.cfg.features.invGermanium,
-          agent.germaniumTarget,
-          invGermanium,
-          agent.cfg.vibes.germaniumA,
-          agent.cfg.actions.vibeGermaniumA,
-          agent.cfg.tags.germaniumExtractor,
-          "germanium"
+          agent.cfg.features.invCarbon,
+          agent.carbonTarget,
+          invCarbon,
+          agent.cfg.vibes.carbonA,
+          agent.cfg.actions.vibeCarbonA,
+          agent.cfg.tags.carbonExtractor,
+          "carbon"
+        ):
+          return
+
+      if agent.siliconTarget > 0 and invSilicon < agent.siliconTarget and invSilicon < agent.siliconTarget + 5:
+        if agent.findAndTakeResource(
+          vibe,
+          agent.cfg.features.invSilicon,
+          agent.siliconTarget,
+          invSilicon,
+          agent.cfg.vibes.siliconA,
+          agent.cfg.actions.vibeSiliconA,
+          agent.cfg.tags.siliconExtractor,
+          "silicon"
         ):
           return
     if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
