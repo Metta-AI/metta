@@ -67,10 +67,11 @@ def _ensure_tribal_installed() -> None:
 
         return
     except ModuleNotFoundError:
-        project_root = Path(__file__).resolve().parents[4] / "tribal_village"
+        project_root = Path(__file__).resolve().parents[4] / "packages" / "tribal_village"
+        # Prefer local checkout on sys.path
         if project_root.exists():
-            sys.path.insert(0, str(project_root))
-            sys.path.insert(0, str(project_root / "tribal_village_env"))
+            for path in (project_root, project_root / "tribal_village_env"):
+                sys.path.insert(0, str(path))
         try:
             import tribal_village_env  # type: ignore  # noqa: F401
 
