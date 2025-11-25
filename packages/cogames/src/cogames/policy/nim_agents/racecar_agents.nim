@@ -28,6 +28,8 @@ type
     lastActions: seq[int]
     recipes: seq[RecipeInfo]
 
+    clippedExtractors: HashSet[Location]
+
     carbonTarget: int
     oxygenTarget: int
     germaniumTarget: int
@@ -126,6 +128,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.random = initRand(agentId)
   result.map = initTable[Location, seq[FeatureValue]]()
   result.seen = initHashSet[Location]()
+  result.clippedExtractors = initHashSet[Location]()
   result.location = Location(x: 0, y: 0)
   result.lastActions = @[]
   # Randomize the offsets4 for each agent, so they take different directions.
@@ -149,6 +152,10 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
     # First time we're called, just copy the visible map to the big map.
     agent.map = visible
     agent.location = Location(x: 0, y: 0)
+    for loc, features in visible:
+      for fv in features:
+        if fv.featureId == agent.cfg.features.clipped and fv.value > 0:
+          agent.clippedExtractors.incl(loc)
     for x in -5 .. 5:
       for y in -5 .. 5:
         let visibleLocation = Location(x: x, y: y)
@@ -197,6 +204,15 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
       let mapLocation = Location(x: x + agent.location.x, y: y + agent.location.y)
       if visibleLocation in visible:
         agent.map[mapLocation] = visible[visibleLocation]
+        var isClipped = false
+        for fv in visible[visibleLocation]:
+          if fv.featureId == agent.cfg.features.clipped and fv.value > 0:
+            isClipped = true
+            break
+        if isClipped:
+          agent.clippedExtractors.incl(mapLocation)
+        else:
+          agent.clippedExtractors.excl(mapLocation)
       else:
         agent.map[mapLocation] = @[]
       agent.seen.incl(mapLocation)
@@ -239,6 +255,9 @@ proc getNearbyExtractor*(
           if f.featureId == cfg.features.remainingUses and f.value == 0:
             skip = true
             break
+          if f.featureId == cfg.features.clipped and f.value > 0:
+            skip = true
+            break
           # if f.featureId == cfg.features.cooldownRemaining and f.value > 50:
           #   skip = true
           #   break
@@ -252,6 +271,42 @@ proc getNearbyExtractor*(
   if found:
     return some(closestLocation)
   return none(Location)
+
+proc isClipped(agent: RaceCarAgent, location: Location): bool =
+  if location notin agent.map:
+    return false
+  for f in agent.map[location]:
+    if f.featureId == agent.cfg.features.clipped and f.value > 0:
+      return true
+  false
+
+proc findNearestClipped(agent: RaceCarAgent): Option[Location] =
+  var found = false
+  var best = Location(x: 0, y: 0)
+  var bestDist = high(int)
+  for loc in agent.clippedExtractors:
+    let dist = manhattan(agent.location, loc)
+    if dist < bestDist:
+      bestDist = dist
+      best = loc
+      found = true
+  if found:
+    return some(best)
+  return none(Location)
+
+proc getClipRequirement(agent: RaceCarAgent, location: Location): (string, int) =
+  if location notin agent.map:
+    return ("", 0)
+  for f in agent.map[location]:
+    if f.featureId == agent.cfg.features.protocolInputDecoder and f.value > 0:
+      return ("decoder", f.value)
+    if f.featureId == agent.cfg.features.protocolInputModulator and f.value > 0:
+      return ("modulator", f.value)
+    if f.featureId == agent.cfg.features.protocolInputResonator and f.value > 0:
+      return ("resonator", f.value)
+    if f.featureId == agent.cfg.features.protocolInputScrambler and f.value > 0:
+      return ("scrambler", f.value)
+  return ("", 0)
 
 proc step*(
   agent: RaceCarAgent,
@@ -362,6 +417,52 @@ proc step*(
       agent.oxygenTarget = max(agent.oxygenTarget, activeRecipe.oxygenCost)
       agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost)
       agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost)
+
+    # Unclipping: if we see a clipped extractor, grab the required tool and go unclip it.
+    block unclipping:
+      let clipTarget = agent.findNearestClipped()
+      if clipTarget.isSome():
+        let (toolName, needed) = agent.getClipRequirement(clipTarget.get())
+        var invTool = 0
+        var toolFeature = 0
+        case toolName
+        of "decoder":
+          invTool = invDecoder
+          toolFeature = agent.cfg.features.invDecoder
+        of "modulator":
+          invTool = invModulator
+          toolFeature = agent.cfg.features.invModulator
+        of "resonator":
+          invTool = invResonator
+          toolFeature = agent.cfg.features.invResonator
+        of "scrambler":
+          invTool = invScrambler
+          toolFeature = agent.cfg.features.invScrambler
+        else:
+          discard
+
+        let neededAmount = if needed > 0: needed else: 1
+        if toolFeature != 0 and invTool < neededAmount:
+          if agent.findAndTakeResource(
+            vibe,
+            toolFeature,
+            neededAmount,
+            invTool,
+            agent.cfg.vibes.gear,
+            agent.cfg.actions.vibeGear,
+            agent.cfg.tags.chest,
+            toolName
+          ):
+            return
+
+        if toolName.len > 0 and agent.cfg.actions.vibeGear != 0 and vibe != agent.cfg.vibes.gear:
+          doAction(agent.cfg.actions.vibeGear.int32)
+          return
+
+        let action = agent.cfg.aStar(agent.location, clipTarget.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          return
 
     # Are we running low on energy?
     if invEnergy < MaxEnergy div 4:
