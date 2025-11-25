@@ -8,7 +8,7 @@ import zipfile
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping, Optional, TypedDict
+from typing import Any, Mapping, MutableMapping, Optional
 from zipfile import BadZipFile
 
 import boto3
@@ -411,12 +411,6 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
     return PolicyArtifact(policy_architecture=architecture, state_dict=state_dict, policy=policy)
 
 
-class _PolicyMetadata(TypedDict):
-    run_name: str
-    epoch: int
-    uri: str
-
-
 def extract_run_and_epoch(path: Path) -> Optional[tuple[str, int]]:
     """Infer run name and epoch from a checkpoint filename."""
     stem = path.stem
@@ -427,7 +421,7 @@ def extract_run_and_epoch(path: Path) -> Optional[tuple[str, int]]:
     return None
 
 
-def get_all_checkpoints(uri: str) -> list[_PolicyMetadata]:
+def get_all_checkpoints(uri: str) -> list[dict[str, object]]:
     """Enumerate checkpoint files beneath a file:// or s3:// prefix."""
     parsed = ParsedURI.parse(uri)
     if parsed.scheme == "file" and parsed.local_path:
@@ -442,7 +436,7 @@ def get_all_checkpoints(uri: str) -> list[_PolicyMetadata]:
     else:
         raise ValueError(f"Cannot get checkpoints from uri: {uri}")
 
-    metadata: list[_PolicyMetadata] = []
+    metadata: list[dict[str, object]] = []
     for path in checkpoint_files:
         run_and_epoch = extract_run_and_epoch(path)
         if run_and_epoch:
@@ -457,7 +451,7 @@ def get_all_checkpoints(uri: str) -> list[_PolicyMetadata]:
     return metadata
 
 
-def latest_checkpoint(uri: str) -> Optional[_PolicyMetadata]:
+def latest_checkpoint(uri: str) -> Optional[dict[str, object]]:
     checkpoints = get_all_checkpoints(uri)
     if checkpoints:
         return max(checkpoints, key=lambda p: p["epoch"])
