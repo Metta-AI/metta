@@ -18,10 +18,8 @@ from safetensors.torch import save as save_safetensors
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.common.util.file import write_file
 from metta.common.util.uri import ParsedURI
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
-from metta.rl.system_config import guess_data_dir
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
@@ -490,58 +488,3 @@ def policy_spec_from_uri(
         class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
         init_kwargs=init_kwargs,
     )
-
-
-def save_policy_artifact(
-    path: str | Path,
-    *,
-    policy_architecture: PolicyArchitecture,
-    state_dict: Mapping[str, torch.Tensor],
-    detach_buffers: bool = True,
-) -> PolicyArtifact:
-    """Compatibility wrapper: alias to save_policy_artifact_safetensors."""
-    return save_policy_artifact_safetensors(
-        path,
-        policy_architecture=policy_architecture,
-        state_dict=state_dict,
-        detach_buffers=detach_buffers,
-    )
-
-
-def save_policy_to_uri(
-    destination: str | Path,
-    *,
-    policy_architecture: PolicyArchitecture,
-    state_dict: Mapping[str, torch.Tensor],
-) -> str:
-    """Save weights to a .mpt at a local path or s3:// URI."""
-    dest = str(destination)
-    if Path(dest).suffix.lower() != ".mpt":
-        raise ValueError("save_policy_to_uri only supports .mpt destinations")
-
-    parsed = ParsedURI.parse(dest)
-    if parsed.scheme == "s3":
-        temp_dir = guess_data_dir() / ".tmp"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        filename = Path(parsed.path or parsed.key or "checkpoint.mpt").name
-        local_path = temp_dir / filename
-    elif parsed.scheme in ("", "file") or parsed.local_path is not None:
-        local_path = parsed.local_path or Path(dest).expanduser()
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-    else:
-        raise ValueError(f"Unsupported destination URI: {dest}")
-
-    save_policy_artifact_safetensors(
-        local_path,
-        policy_architecture=policy_architecture,
-        state_dict=state_dict,
-    )
-
-    if parsed.scheme == "s3":
-        try:
-            write_file(parsed.canonical, str(local_path))
-        finally:
-            local_path.unlink(missing_ok=True)
-        return parsed.canonical
-
-    return f"file://{local_path.resolve()}"
