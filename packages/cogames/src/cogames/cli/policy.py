@@ -17,21 +17,8 @@ ParsedPolicies = list[PolicySpec]
 
 default_checkpoint_dir = Path("train_dir")
 
-policy_arg_w_proportion_example = ",".join(
-    (
-        "[blue]class[/blue]=CLASS",
-        "[cyan]data[/cyan]=DATA",
-        "[light_slate_grey]proportion[/light_slate_grey]=0.5",
-        "[magenta]kw.my_arg[/magenta]=value",
-    )
-)
-policy_arg_example = ",".join(
-    (
-        "[blue]class[/blue]=CLASS",
-        "[cyan]data[/cyan]=DATA",
-        "[magenta]kw.my_arg[/magenta]=value",
-    )
-)
+policy_arg_example = "class=CLASS[,data=PATH][,kw.x=val]"
+policy_arg_w_proportion_example = "class=CLASS[,data=PATH][,proportion=0.5][,kw.x=val]"
 
 
 class PolicySpecWithProportion(PolicySpec):
