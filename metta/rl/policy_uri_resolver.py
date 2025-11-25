@@ -1,6 +1,5 @@
 """Policy URI resolution for metta:// and :latest URIs."""
 
-import logging
 import uuid
 from pathlib import Path
 from typing import TypedDict
@@ -9,8 +8,6 @@ import boto3
 
 from metta.tools.utils.auto_config import auto_stats_server_uri
 from mettagrid.util.file import ParsedURI
-
-logger = logging.getLogger(__name__)
 
 
 class PolicyMetadata(TypedDict):

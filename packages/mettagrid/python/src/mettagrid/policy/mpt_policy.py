@@ -31,7 +31,6 @@ class MptPolicy(MultiAgentPolicy):
         uri_resolver: str | None = DEFAULT_URI_RESOLVER,
         device: str | torch.device = "cpu",
         strict: bool = True,
-        display_name: str | None = None,
     ):
         super().__init__(policy_env_info)
         torch_device = torch.device(device) if isinstance(device, str) else device

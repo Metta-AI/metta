@@ -157,7 +157,7 @@ class TestBasicSaveLoad:
         policy = MptPolicy(env_info, checkpoint_uri=latest)
         assert policy.agent_policy(0) is not None
 
-    def test_mpt_policy_remains_callable(
+    def test_mpt_policy_inner_policy_callable(
         self,
         checkpoint_manager,
         mock_agent,
@@ -173,30 +173,13 @@ class TestBasicSaveLoad:
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = MptPolicy(env_info, checkpoint_uri=latest)
 
-        assert callable(policy)
+        assert callable(policy._policy)
 
         obs_shape = env_info.observation_space.shape
         env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)
         td = TensorDict({"env_obs": env_obs}, batch_size=[env_info.num_agents])
-        result = policy(td.clone())
+        result = policy._policy(td.clone())
         assert "actions" in result
-
-    def test_mpt_policy_display_name_preserved(
-        self,
-        checkpoint_manager,
-        mock_agent,
-        mock_policy_architecture,
-    ):
-        save_mpt(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v4.mpt",
-            architecture=mock_policy_architecture,
-            state_dict=mock_agent.state_dict(),
-        )
-        latest = checkpoint_manager.get_latest_checkpoint()
-        assert latest is not None
-        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        policy = MptPolicy(env_info, checkpoint_uri=latest, display_name="friendly-name")
-        assert getattr(policy, "display_name", "") == "friendly-name"
 
     def test_mpt_policy_save_policy_round_trip(
         self,

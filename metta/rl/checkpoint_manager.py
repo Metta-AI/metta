@@ -178,7 +178,6 @@ class CheckpointManager:
     def policy_spec_from_uri(
         uri: str,
         *,
-        display_name: str | None = None,
         device: str = "cpu",
         strict: bool = True,
     ) -> PolicySpec:
@@ -187,7 +186,6 @@ class CheckpointManager:
             class_path="mettagrid.policy.mpt_policy.MptPolicy",
             init_kwargs={
                 "checkpoint_uri": normalized_uri,
-                "display_name": display_name,
                 "device": device,
                 "strict": strict,
             },
