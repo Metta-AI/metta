@@ -864,7 +864,6 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
 
   computeGainMap(replay)
 
-
 proc apply*(replay: Replay, replayStepJsonData: string) =
   ## Apply a replay step to the replay.
   let replayStep = fromJson(replayStepJsonData, ReplayStep)
