@@ -504,10 +504,14 @@ proc validateAgentFields*(obj: JsonNode, objName: string, replayData: JsonNode, 
   validateTimeSeries(obj, "current_reward", objName & ".current_reward", "float", issues)
   validateTimeSeries(obj, "total_reward", objName & ".total_reward", "float", issues)
   # validate optional agent fields
+  if "action_param" in obj:
+    validateTimeSeries(obj, "action_param", objName & ".action_param", "int", issues)
   if "action_parameter" in obj:
     validateTimeSeries(obj, "action_parameter", objName & ".action_parameter", "int", issues)
   if "frozen" in obj:
     validateTimeSeries(obj, "frozen", objName & ".frozen", "bool", issues)
+  if "is_frozen" in obj:
+    validateTimeSeries(obj, "is_frozen", objName & ".is_frozen", "bool", issues)
   if "frozen_progress" in obj:
     validateTimeSeries(obj, "frozen_progress", objName & ".frozen_progress", "int", issues)
   if "frozen_time" in obj:

@@ -676,9 +676,11 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     entity.isAgent = resolvedTypeName == "agent"
     if "agent_id" in obj:
       entity.agentId = obj["agent_id"].getInt
-      entity.isFrozen = expand[bool](obj["is_frozen"], replay.maxSteps, false)
+      let frozenField = if "frozen" in obj: obj["frozen"] elif "is_frozen" in obj: obj["is_frozen"] else: newJBool(false)
+      entity.isFrozen = expand[bool](frozenField, replay.maxSteps, false)
       entity.actionId = expand[int](obj["action_id"], replay.maxSteps, 0)
-      entity.actionParameter = expand[int](obj["action_param"], replay.maxSteps, 0)
+      let actionParamField = if "action_parameter" in obj: obj["action_parameter"] elif "action_param" in obj: obj["action_param"] else: newJInt(0)
+      entity.actionParameter = expand[int](actionParamField, replay.maxSteps, 0)
       entity.actionSuccess = expand[bool](obj["action_success"],
           replay.maxSteps, false)
       entity.currentReward = expand[float](obj["current_reward"],
