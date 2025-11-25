@@ -146,39 +146,39 @@ class Maze(Scene[MazeConfig]):
     def _render_kruskal(self):
         self.maze.clear_and_carve_all_cells()
 
-        cells = [(col, row) for row in range(self.maze.rows) for col in range(self.maze.cols)]
+        cols, rows = self.maze.cols, self.maze.rows
 
-        # DSU
-        parent = {cell: cell for cell in cells}
+        parent = np.arange(cols * rows)
 
-        def find(cell):
-            if parent[cell] != cell:
-                parent[cell] = find(parent[cell])
-            return parent[cell]
+        def find(idx: int) -> int:
+            root = idx
+            while parent[root] != root:
+                root = parent[root]
+            while parent[idx] != root:
+                idx, parent[idx] = parent[idx], root
+            return root
 
-        def union(c1, c2):
-            parent[find(c2)] = find(c1)
+        def union(i1: int, i2: int):
+            r1, r2 = find(i1), find(i2)
+            if r1 != r2:
+                parent[r2] = r1
 
-        # all horizontal and vertical walls, expressed as a list of tuples (col, row, direction)
-        walls: list[tuple[int, int, Direction]] = [
-            (col, row, (0, 1))  # direction between cells is "down", this is a horizontal wall
-            for col in range(self.maze.cols)
-            for row in range(self.maze.rows - 1)
-        ] + [
-            (col, row, (1, 0))  # direction between cells is "right", this is a vertical wall
-            for col in range(self.maze.cols - 1)
-            for row in range(self.maze.rows)
-        ]
+        walls = []
+        for col in range(cols):
+            for row in range(rows - 1):
+                walls.append((col, row, (0, 1)))
+        for col in range(cols - 1):
+            for row in range(rows):
+                walls.append((col, row, (1, 0)))
 
         self.rng.shuffle(walls)
 
-        for wall in walls:
-            col, row, direction = wall
-            cell1 = (col, row)
-            cell2 = (col + direction[0], row + direction[1])
-            if find(cell1) != find(cell2):
+        for col, row, direction in walls:
+            idx1 = row * cols + col
+            idx2 = (row + direction[1]) * cols + (col + direction[0])
+            if find(idx1) != find(idx2):
                 self.maze.remove_wall_in_direction(col, row, direction)
-                union(cell1, cell2)
+                union(idx1, idx2)
 
     def _render_dfs(self):
         # Initialize grid with walls and visited flags for maze cells.

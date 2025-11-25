@@ -33,130 +33,115 @@ class MakeConnected(Scene[MakeConnectedConfig]):
 
     def render(self):
         height, width = self.grid.shape
+        empty = self.grid == "empty"
 
-        component_cells = self._make_components()
-        component_sizes = [len(cells) for cells in component_cells]
+        def expand(mask: np.ndarray) -> np.ndarray:
+            up = np.zeros_like(mask, dtype=bool)
+            down = np.zeros_like(mask, dtype=bool)
+            left = np.zeros_like(mask, dtype=bool)
+            right = np.zeros_like(mask, dtype=bool)
+            up[:-1] = mask[1:]
+            down[1:] = mask[:-1]
+            left[:, :-1] = mask[:, 1:]
+            right[:, 1:] = mask[:, :-1]
+            return up | down | left | right
 
-        if len(component_sizes) == 1:
+        components: list[np.ndarray] = []
+        visited = np.zeros_like(empty, dtype=bool)
+
+        # Component labeling via frontier dilation.
+        while True:
+            remaining = (~visited) & empty
+            if not remaining.any():
+                break
+            y0, x0 = np.argwhere(remaining)[0]
+            frontier = np.zeros_like(empty, dtype=bool)
+            component_mask = np.zeros_like(empty, dtype=bool)
+            frontier[y0, x0] = True
+            component_mask[y0, x0] = True
+            visited[y0, x0] = True
+
+            while frontier.any():
+                frontier = expand(frontier) & empty & (~visited)
+                if not frontier.any():
+                    break
+                visited |= frontier
+                component_mask |= frontier
+
+            components.append(component_mask)
+
+        if len(components) <= 1:
             logger.debug("Map is already connected")
             return
 
-        # find the largest component
-        largest_component_id = max(range(len(component_sizes)), key=component_sizes.__getitem__)
-        logger.debug(f"Largest component: {largest_component_id}")
+        sizes = [int(comp.sum()) for comp in components]
+        largest_idx = int(np.argmax(sizes))
+        largest = components[largest_idx]
 
-        logger.debug("Populating distance to largest component")
-        distances_to_largest_component = self._distance_to_component(
-            component_cells[largest_component_id],
-        )
+        # Distance transform from largest component using BFS layers.
+        distances = np.full_like(empty, np.inf, dtype=np.float32)
+        frontier = largest.copy()
+        seen = largest.copy()
+        distances[frontier] = 0.0
+        dist_val = 0.0
 
-        # connect the largest component all other components
-        logger.debug(f"Connecting {len(component_sizes)} components")
-        for component_id, component in enumerate(component_cells):
-            if component_id == largest_component_id:
+        while frontier.any():
+            dist_val += 1.0
+            frontier = expand(frontier) & (~seen)
+            if not frontier.any():
+                break
+            distances[frontier] = dist_val
+            seen |= frontier
+
+        for idx, component in enumerate(components):
+            if idx == largest_idx:
                 continue
 
-            # find the cell that's closest to the largest component
-            min_distance_cell = min(component, key=lambda c: distances_to_largest_component[*c])
+            comp_dist = distances[component]
+            if not np.isfinite(comp_dist).any():
+                continue
+            flat_idx = int(np.argmin(comp_dist))
+            comp_coords = np.argwhere(component)
+            start_y, start_x = comp_coords[flat_idx]
 
-            # shouldn't happen
-            if min_distance_cell is None:
-                raise ValueError("No cell found for component")
+            # Trace shortest path downhill in distance grid.
+            y, x = int(start_y), int(start_x)
+            while distances[y, x] > 0:
+                self.grid[y, x] = "empty"
+                # Candidate neighbors with minimal distance
+                best_d = distances[y, x] - 1
+                candidates: list[Cell] = []
+                if y > 0 and distances[y - 1, x] == best_d:
+                    candidates.append((y - 1, x))
+                if y + 1 < height and distances[y + 1, x] == best_d:
+                    candidates.append((y + 1, x))
+                if x > 0 and distances[y, x - 1] == best_d:
+                    candidates.append((y, x - 1))
+                if x + 1 < width and distances[y, x + 1] == best_d:
+                    candidates.append((y, x + 1))
 
-            # connect the cell to the largest component by digging a tunnel based on the shortest path
-            current_cell = min_distance_cell
-            current_distance = distances_to_largest_component[*current_cell]
-            while current_distance > 0:
-                y, x = current_cell
-
-                # Find all neighbors with the minimum distance to the largest component
-                candidates: list[Cell] = [
-                    (y + dy, x + dx)
-                    for dy, dx in DIRECTIONS
-                    if 0 <= y + dy < height
-                    and 0 <= x + dx < width
-                    and distances_to_largest_component[y + dy, x + dx] == current_distance - 1
-                ]
-
-                # Pick a random candidate from those with the minimum distance
                 if not candidates:
-                    # This shouldn't happen if distances are calculated correctly
-                    raise ValueError("No next cell found")
+                    # Shouldn't happen if distances are consistent.
+                    break
 
-                next_cell = self.rng.choice(candidates)
-                current_cell = next_cell
-                current_distance -= 1
-                self.grid[*current_cell] = "empty"
+                y, x = candidates[int(self.rng.integers(0, len(candidates)))]
 
-        assert len(self._make_components()) == 1, "Map must end up with a single connected component"
+        # Final assertion: fully connected.
+        def _count_components(mask: np.ndarray) -> int:
+            seen = np.zeros_like(mask, dtype=bool)
+            count = 0
+            while True:
+                remaining = (~seen) & mask
+                if not remaining.any():
+                    break
+                count += 1
+                y_s, x_s = np.argwhere(remaining)[0]
+                front = np.zeros_like(mask, dtype=bool)
+                front[y_s, x_s] = True
+                seen[y_s, x_s] = True
+                while front.any():
+                    front = expand(front) & mask & (~seen)
+                    seen |= front
+            return count
 
-    def _make_components(self):
-        # run BFS from each empty cell, find connected components
-        height, width = self.grid.shape
-
-        visited = np.full((height, width), False)
-        component_id = 0
-        components_cells: list[list[Cell]] = []
-
-        logger.debug("Finding components")
-        for y in range(height):
-            for x in range(width):
-                if not self._is_empty(self.grid[y, x]):
-                    continue
-
-                # already visited
-                if visited[y, x]:
-                    continue
-
-                components_cells.append([])
-                queue = [(y, x)]
-                i = 0
-                while i < len(queue):
-                    y0, x0 = queue[i]
-                    i += 1
-                    if visited[y0, x0]:
-                        continue
-
-                    visited[y0, x0] = True
-                    components_cells[component_id].append((y0, x0))
-
-                    for dy, dx in DIRECTIONS:
-                        y1, x1 = y0 + dy, x0 + dx
-                        if (
-                            0 <= y1 < height
-                            and 0 <= x1 < width
-                            and self._is_empty(self.grid[y1, x1])
-                            and not visited[y1, x1]
-                        ):
-                            queue.append((y1, x1))
-
-                component_id += 1
-
-        logger.debug(f"Found {len(components_cells)} components")
-        return components_cells
-
-    def _distance_to_component(
-        self,
-        component_cells: list[Cell],
-    ):
-        height, width = self.grid.shape
-        # find the distance from the component to all other cells (ignoring the occupied cells - used for finding
-        # the optimal tunnels)
-        distances = np.full((height, width), np.inf)
-        queue = []
-        for cell in component_cells:
-            distances[*cell] = 0
-            queue.append(cell)
-
-        i = 0
-        while i < len(queue):
-            y, x = queue[i]
-            i += 1
-
-            for dy, dx in DIRECTIONS:
-                ny, nx = y + dy, x + dx
-                if 0 <= ny < height and 0 <= nx < width and distances[ny, nx] == np.inf:
-                    distances[ny, nx] = distances[y, x] + 1
-                    queue.append((ny, nx))
-
-        return distances
+        assert _count_components(self.grid == "empty") == 1, "Map must end up with a single connected component"
