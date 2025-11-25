@@ -82,7 +82,7 @@ def train(
     # Enable profiler: profiles every N epochs (set interval_epochs > 0)
     # profile_dir can be a local path or URI (e.g., "s3://bucket/profiles")
     tool.torch_profiler = TorchProfilerConfig(
-        interval_epochs=1,  # Profile every epoch (set higher to profile less frequently)
+        interval_epochs=10,  # Profile every 10 epochs (set to 1 to profile every epoch)
         profile_dir="train_dir/profiles",  # Change to your desired profile directory or URI
     )
 

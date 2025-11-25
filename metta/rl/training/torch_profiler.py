@@ -38,20 +38,21 @@ class TorchProfileSession:
         self._active = False
         self._start_epoch: int | None = None
         self._profile_filename_base: str | None = None
+        self._next_epoch_to_profile: int | None = None
         self._first_profile_epoch = 300  # allow torch warmup cycles before profiling
 
     def on_epoch_end(self, epoch: int) -> None:
-        force = (epoch + 1 == self._first_profile_epoch) if not self._active else False
-        if should_run(epoch + 1, getattr(self._profiler_config, "interval_epochs", 0), force=force):
-            self._setup_profiler(epoch + 1)
+        # Schedule profiling for next epoch if interval matches
+        next_epoch = epoch + 1
+        force = (next_epoch == self._first_profile_epoch) if not self._active else False
+        if should_run(next_epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
+            self._next_epoch_to_profile = next_epoch
+            logger.info("Torch profiler scheduled for epoch %s", next_epoch)
 
     def _setup_profiler(self, epoch: int) -> None:
-        if self._active:
-            logger.warning("Profiler already active; ignoring setup request")
-            return
         if self._profiler is not None:
-            logger.warning("Profiler instance exists while idle; resetting")
-            self._profiler = None
+            logger.warning("Profiler instance exists; ignoring setup request")
+            return
 
         self._active = True
         self._start_epoch = epoch
@@ -60,6 +61,12 @@ class TorchProfileSession:
         logger.info("Torch profiler armed for epoch %s", epoch)
 
     def __enter__(self):
+        # Check if we should profile this epoch
+        if self._next_epoch_to_profile is not None:
+            # We were scheduled to profile this epoch
+            self._setup_profiler(self._next_epoch_to_profile)
+            self._next_epoch_to_profile = None
+
         if not self._active:
             return self
 
@@ -79,7 +86,6 @@ class TorchProfileSession:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if not self._active or self._profiler is None:
-            self._active = False
             return False
 
         logger.info("Stopping torch profiler for epoch %s", self._start_epoch)
@@ -90,8 +96,10 @@ class TorchProfileSession:
             logger.exception("Failed to save torch profile")
         finally:
             self._profiler = None
-            self._active = False
+            # Clear state for current epoch
             self._profile_filename_base = None
+            self._active = False
+            # _next_epoch_to_profile is managed by on_epoch_end
 
         return False
 
@@ -150,7 +158,9 @@ class TorchProfiler(TrainerComponent):
         is_master: bool = True,
     ) -> None:
         interval = getattr(profiler_config, "interval_epochs", 0)
-        super().__init__(epoch_interval=max(1, interval) if interval else 0)
+        # We need on_epoch_end to run every epoch to schedule the next one correctly
+        # (e.g. at epoch 9, we need to schedule epoch 10)
+        super().__init__(epoch_interval=1)
         self._config = profiler_config
         self._wandb_run = wandb_run
         self._run_dir = run_dir
@@ -173,10 +183,10 @@ class TorchProfiler(TrainerComponent):
                 wandb_run=self._wandb_run,
                 run_dir=run_dir,
             )
-            # Arm profiler for epoch 0 if interval matches
+            # Schedule profiling for epoch 0 if interval matches
             interval = getattr(self._config, "interval_epochs", 0)
             if interval and should_run(0, interval):
-                self._session._setup_profiler(0)
+                self._session._next_epoch_to_profile = 0
 
         original_train_epoch = context.get_train_epoch_callable()
 
