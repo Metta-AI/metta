@@ -4,8 +4,6 @@ import tempfile
 import time
 from pathlib import Path
 
-import pytest
-
 from metta.jobs.job_config import JobConfig
 from metta.jobs.job_manager import ExitCode, JobManager
 from metta.jobs.job_state import JobStatus
@@ -102,15 +100,3 @@ def test_job_manager_timeout_enforcement():
             f"Exit code should be {ExitCode.TIMEOUT} (timeout), got {job_state.exit_code}"
         )
         assert job_state.acceptance_passed is False, "Timeout should mark acceptance as failed"
-
-
-@pytest.mark.skip(reason="Remote jobs require SkyPilot infrastructure")
-def test_job_manager_remote_timeout_enforcement():
-    """Test that JobManager enforces timeout_s for remote jobs.
-
-    Note: This test is skipped because it requires actual SkyPilot infrastructure.
-    The timeout logic for remote jobs is tested via the local job test above,
-    as both use the same _handle_job_completion_from_result() method and
-    Job.wait() handles timeout for both local and remote jobs.
-    """
-    pass
