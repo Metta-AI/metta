@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { StyledLink } from "@/components/StyledLink";
 import { viewConfigRoute } from "@/lib/routes";
 import { GroupedConfigMakers } from "@/lib/api";
+import clsx from "clsx";
 
 export const ConfigsPageRenderer: FC<{
   initialCfgs: GroupedConfigMakers;
@@ -23,8 +24,10 @@ export const ConfigsPageRenderer: FC<{
 
       if (!cfgList) continue;
 
-      const filteredCfgs = cfgList.filter((cfg) =>
-        cfg.path.toLowerCase().includes(filter.toLowerCase())
+      const filteredCfgs = cfgList.filter(
+        (cfg) =>
+          cfg.path.toLowerCase().includes(filter.toLowerCase()) ||
+          cfg.kind.toLowerCase().includes(filter.toLowerCase())
       );
 
       if (filteredCfgs.length > 0) {
@@ -42,9 +45,15 @@ export const ConfigsPageRenderer: FC<{
           type="text"
           value={filter}
           placeholder="Filter configs..."
-          className="w-full md:w-1/2 lg:w-1/3 rounded border border-gray-300 p-2"
+          className="w-full rounded border border-gray-300 p-2 md:w-1/2 lg:w-1/3"
           onChange={(e) => setFilter(e.target.value)}
         />
+      </div>
+
+      <div
+        className={clsx(Object.keys(filtered).length !== 0 && "hidden", "mb-4")}
+      >
+        <p className="text-gray-500">No Results Found</p>
       </div>
 
       {Object.keys(filtered).map((kind) => {
@@ -66,5 +75,5 @@ export const ConfigsPageRenderer: FC<{
         );
       })}
     </>
-  )
-}
+  );
+};
