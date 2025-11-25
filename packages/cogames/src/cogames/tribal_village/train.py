@@ -96,8 +96,54 @@ def _normalize_vecenv_shapes(vecenv: Any, num_workers: int) -> None:
         return
 
     vecenv.num_agents = agents_per_batch
-    if hasattr(vecenv, "agent_ids"):
-        vecenv.agent_ids = np.tile(np.arange(agents_per_batch, dtype=np.int32), (num_workers, 1))
+
+
+class _FlattenVecEnv:
+    """Adapter to present contiguous agents_per_batch to the trainer."""
+
+    def __init__(self, inner: Any):
+        self.inner = inner
+        self.driver_env = getattr(inner, "driver_env", None)
+        self.single_observation_space = inner.single_observation_space
+        self.single_action_space = inner.single_action_space
+        self.agents_per_batch = getattr(inner, "agents_per_batch", getattr(inner, "num_agents", 1))
+        self.num_agents = self.agents_per_batch
+        self.num_envs = getattr(inner, "num_envs", getattr(inner, "num_environments", None))
+        self.action_space = inner.action_space
+        self.observation_space = inner.observation_space
+        self.atn_batch_shape = getattr(inner, "atn_batch_shape", None)
+
+    def async_reset(self, seed: int = 0) -> None:
+        self.inner.async_reset(seed)
+
+    def reset(self, seed: int = 0):
+        self.async_reset(seed)
+        return self.recv()
+
+    def send(self, actions):
+        actions_arr = np.asarray(actions)
+        self.inner.send(actions_arr)
+
+    def recv(self):
+        result = self.inner.recv()
+        if len(result) == 8:
+            o, r, d, t, ta, infos, env_ids, masks = result
+        else:
+            o, r, d, t, infos, env_ids, masks = result
+            ta = None
+
+        o = np.asarray(o).reshape(self.agents_per_batch, *self.single_observation_space.shape)
+        r = np.asarray(r).reshape(self.agents_per_batch)
+        d = np.asarray(d).reshape(self.agents_per_batch)
+        t = np.asarray(t).reshape(self.agents_per_batch)
+        mask = np.ones(self.agents_per_batch, dtype=bool)
+        env_ids = np.arange(self.agents_per_batch, dtype=np.int32)
+        infos = infos if isinstance(infos, list) else []
+        return o, r, d, t, ta, infos, env_ids, mask
+
+    def close(self):
+        if hasattr(self.inner, "close"):
+            self.inner.close()
 
 
 def train(
@@ -199,6 +245,7 @@ def train(
     )
 
     _normalize_vecenv_shapes(vecenv, num_workers)
+    vecenv = _FlattenVecEnv(vecenv)
 
     driver_env = getattr(vecenv, "driver_env", None)
     if driver_env is None:
@@ -314,7 +361,6 @@ def train(
 
     try:
         trainer = pufferl.PuffeRL(train_args, vecenv, network)
-        trainer.evaluate = lambda: {}
         if log_outputs:
             console.clear()
             console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
