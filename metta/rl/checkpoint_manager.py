@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional, TypedDict
 from zipfile import BadZipFile
 
-import boto3
 import torch
 
 from metta.agent.mocks import MockAgent
@@ -14,13 +13,16 @@ from metta.common.util.file import local_copy, write_file
 from metta.common.util.uri import ParsedURI
 from metta.rl.policy_artifact import (
     PolicyArtifact,
+    extract_run_and_epoch,
+    latest_checkpoint,
     load_policy_artifact,
+    normalize_policy_uri,
     save_policy_artifact_safetensors,
 )
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -53,60 +55,7 @@ def key_and_version(uri: str) -> tuple[str, int] | None:
     else:
         raise ValueError(f"Could not extract key and version from {uri}")
 
-    return _extract_run_and_epoch(file_path)
-
-
-def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
-    """Infer run name and epoch from a checkpoint path.
-
-    Examples:
-        "file:///tmp/my_run/checkpoints/my_run:v5.mpt" -> ("my_run", 5)
-        "s3://bucket/policies/my_run/checkpoints/my_run:v10.mpt" -> ("my_run", 10)
-    """
-
-    stem = path.stem
-
-    if ":v" in stem:
-        run_name, suffix = stem.rsplit(":v", 1)
-        if run_name and suffix.isdigit():
-            return (run_name, int(suffix))
-
-
-def _get_all_checkpoints(uri: str) -> list[PolicyMetadata]:
-    parsed = ParsedURI.parse(uri)
-    if parsed.scheme == "file" and parsed.local_path:
-        checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.mpt") if ckpt.stem]
-    elif parsed.scheme == "s3" and parsed.bucket:
-        s3_client = boto3.client("s3")
-        prefix = parsed.key or ""
-        response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
-
-        if response["KeyCount"] == 0:
-            return []
-
-        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
-    else:
-        raise ValueError(f"Cannot get checkpoints from uri: {uri}")
-
-    checkpoint_metadata: list[PolicyMetadata] = []
-    for path in checkpoint_files:
-        run_and_epoch = _extract_run_and_epoch(path)
-        if run_and_epoch:
-            path_uri = uri.rstrip("/") + "/" + path.name
-            metadata: PolicyMetadata = {
-                "run_name": run_and_epoch[0],
-                "epoch": run_and_epoch[1],
-                "uri": path_uri,
-            }
-            checkpoint_metadata.append(metadata)
-
-    return checkpoint_metadata
-
-
-def _latest_checkpoint(uri: str) -> PolicyMetadata | None:
-    checkpoints = _get_all_checkpoints(uri)
-    if checkpoints:
-        return max(checkpoints, key=lambda p: p["epoch"])
+    return extract_run_and_epoch(file_path)
 
 
 def _load_checkpoint_file(path: str, is_pt_file: bool = False) -> PolicyArtifact:
@@ -200,13 +149,13 @@ class CheckpointManager:
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")
 
-        uri = CheckpointManager.normalize_uri(uri)
+        uri = normalize_policy_uri(uri)
         parsed = ParsedURI.parse(uri)
 
         if parsed.scheme == "file" and parsed.local_path is not None:
             path = parsed.local_path
             if path.is_dir():
-                checkpoint_file = _latest_checkpoint(f"file://{path}")
+                checkpoint_file = latest_checkpoint(f"file://{path}")
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
                 local_path = ParsedURI.parse(checkpoint_file["uri"]).local_path
@@ -224,25 +173,12 @@ class CheckpointManager:
 
         raise ValueError(f"Invalid URI: {uri}")
 
-    @staticmethod
-    def normalize_uri(uri: str) -> str:
-        """Convert paths to file:// URIs, and resolves :latest"""
-        parsed = ParsedURI.parse(uri)
-        if uri.endswith(":latest"):
-            # Remove ":latest" suffix to get the base URI
-            base_uri = uri[:-7]  # remove ":latest"
-            # Find the latest checkpoint in the base URI
-            latest_checkpoint = _latest_checkpoint(base_uri)
-            if not latest_checkpoint:
-                raise ValueError(f"No latest checkpoint found for {base_uri}")
-            return latest_checkpoint["uri"]
-        else:
-            return parsed.canonical
+    # normalize_uri kept for legacy callers; prefer metta.rl.policy_artifact.normalize_policy_uri
 
     @staticmethod
     def get_policy_metadata(uri: str) -> PolicyMetadata:
         """Extract metadata from policy URI."""
-        normalized_uri = CheckpointManager.normalize_uri(uri)
+        normalized_uri = normalize_policy_uri(uri)
         metadata = key_and_version(normalized_uri)
         if not metadata:
             raise ValueError(f"Could not extract metadata from uri {uri}")
@@ -320,8 +256,8 @@ class CheckpointManager:
             optimizer.train()
 
     def get_latest_checkpoint(self) -> str | None:
-        local_max_checkpoint = _latest_checkpoint(f"file://{self.checkpoint_dir}")
-        remote_max_checkpoint = _latest_checkpoint(self._remote_prefix) if self._remote_prefix else None
+        local_max_checkpoint = latest_checkpoint(f"file://{self.checkpoint_dir}")
+        remote_max_checkpoint = latest_checkpoint(self._remote_prefix) if self._remote_prefix else None
 
         if local_max_checkpoint and remote_max_checkpoint:
             if remote_max_checkpoint["epoch"] > local_max_checkpoint["epoch"]:
@@ -334,27 +270,6 @@ class CheckpointManager:
 
         if remote_max_checkpoint:
             return remote_max_checkpoint["uri"]
-
-    @staticmethod
-    def policy_spec_from_uri(
-        uri: str,
-        *,
-        device: str | torch.device | None = None,
-        strict: bool = True,
-        display_name: str | None = None,
-    ) -> PolicySpec:
-        normalized_uri = CheckpointManager.normalize_uri(uri)
-        init_kwargs: dict[str, str | bool] = {
-            "checkpoint_uri": normalized_uri,
-            "display_name": display_name or normalized_uri,
-            "strict": strict,
-        }
-        if device is not None:
-            init_kwargs["device"] = str(device)
-        return PolicySpec(
-            class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
-            init_kwargs=init_kwargs,
-        )
 
 
 class CheckpointPolicy(MultiAgentPolicy):
