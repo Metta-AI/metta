@@ -1,4 +1,5 @@
 import torch
+from pathlib import Path
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
@@ -144,3 +145,34 @@ class MockAgent(Policy):
     @property
     def total_params(self) -> int:
         return sum(param.numel() for param in self.parameters())
+
+    # ------------------------------------------------------------------
+    # Compatibility helpers for checkpointing paths used in tests
+    # ------------------------------------------------------------------
+    def save_policy(self, destination: str | Path, *, policy_architecture) -> str:
+        """Save checkpoint in safetensors zip format (used by checkpoint tests)."""
+        from metta.common.util.file import write_file
+        from metta.rl.policy_artifact import save_policy_artifact_safetensors
+
+        dest = str(destination)
+        parsed = dest.split("://", 1)
+
+        if len(parsed) == 2 and parsed[0] == "s3":
+            filename = Path(parsed[1]).name
+            local_path = Path.cwd() / filename
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            save_policy_artifact_safetensors(
+                local_path,
+                policy_architecture=policy_architecture,
+                state_dict=self.state_dict(),
+            )
+            write_file(dest, str(local_path))
+            return dest
+
+        path = Path(dest).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        save_policy_artifact_safetensors(path, policy_architecture=policy_architecture, state_dict=self.state_dict())
+        return f"file://{path.resolve()}"
+
+    # Allow callers to stash a human-friendly name on the mock
+    display_name: str = ""
