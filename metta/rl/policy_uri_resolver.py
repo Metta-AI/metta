@@ -7,6 +7,8 @@ from typing import TypedDict
 import boto3
 
 from metta.tools.utils.auto_config import auto_stats_server_uri
+from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.file import ParsedURI
 
 
@@ -84,11 +86,14 @@ def _resolve_metta_uri(uri: str) -> str:
     Supported formats:
     - metta://policy/<policy_version_id> - resolves via observatory API to s3:// path
     """
-    parsed = ParsedURI.parse(uri)
-    if parsed.scheme != "metta" or not parsed.path:
+    if not uri.startswith("metta://"):
         raise ValueError(f"Invalid metta:// URI: {uri}")
 
-    path_parts = parsed.path.split("/")
+    path = uri[len("metta://") :]
+    if not path:
+        raise ValueError(f"Invalid metta:// URI: {uri}")
+
+    path_parts = path.split("/")
     if len(path_parts) < 2 or path_parts[0] != "policy":
         raise ValueError(f"Unsupported metta:// URI format: {uri}. Expected metta://policy/<policy_version_id>")
 
@@ -122,10 +127,8 @@ def resolve_uri(uri: str) -> str:
     - file:// and s3:// URIs - normalized to canonical form
     - Plain paths - converted to file:// URIs
     """
-    parsed = ParsedURI.parse(uri)
-
     # Resolve metta:// URIs first (they may resolve to URIs with :latest)
-    if parsed.scheme == "metta":
+    if uri.startswith("metta://"):
         resolved_uri = _resolve_metta_uri(uri)
         return resolve_uri(resolved_uri)
 
@@ -137,6 +140,7 @@ def resolve_uri(uri: str) -> str:
             raise ValueError(f"No latest checkpoint found for {base_uri}")
         return latest["uri"]
 
+    parsed = ParsedURI.parse(uri)
     return parsed.canonical
 
 

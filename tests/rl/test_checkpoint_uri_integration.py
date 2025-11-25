@@ -120,16 +120,9 @@ class TestCheckpointManagerOperations:
 
 
 class TestMettaURIs:
-    def test_parsed_uri_recognizes_metta_scheme(self):
-        uri = "metta://policy/acee831a-f409-4345-9c44-79b34af17c3e"
-        parsed = ParsedURI.parse(uri)
-        assert parsed.scheme == "metta"
-        assert parsed.path == "policy/acee831a-f409-4345-9c44-79b34af17c3e"
-        assert parsed.canonical == uri
-
-    def test_metta_uri_requires_path(self):
-        with pytest.raises(ValueError, match="must include a path"):
-            ParsedURI.parse("metta://")
+    def test_parsed_uri_rejects_metta_scheme(self):
+        with pytest.raises(ValueError, match="Unsupported URI scheme: metta://"):
+            ParsedURI.parse("metta://policy/acee831a-f409-4345-9c44-79b34af17c3e")
 
     def test_resolve_metta_uri_invalid_format(self):
         with pytest.raises(ValueError, match="Unsupported metta:// URI format"):

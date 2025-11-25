@@ -1,9 +1,3 @@
-"""
-file.py
-================
-Read and write files to local or s3 destinations.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -40,8 +34,6 @@ class ParsedURI:
             return f"s3://{self.bucket}/{self.key}"
         if self.scheme == "mock":
             return f"mock://{self.path or ''}"
-        if self.scheme == "metta":
-            return f"metta://{self.path or ''}"
         return self.raw
 
     def require_local_path(self) -> Path:
@@ -74,12 +66,6 @@ class ParsedURI:
                 raise ValueError("mock:// URIs must include a path")
             return cls(raw=value, scheme="mock", path=path)
 
-        if value.startswith("metta://"):
-            path = value[len("metta://") :]
-            if not path:
-                raise ValueError("metta:// URIs must include a path")
-            return cls(raw=value, scheme="metta", path=path)
-
         if value.startswith("file://"):
             parsed = urlparse(value)
             # Combine netloc + path to support file://localhost/tmp
@@ -91,7 +77,12 @@ class ParsedURI:
             local_path = Path(combined_path).expanduser().resolve()
             return cls(raw=value, scheme="file", local_path=local_path, path=str(local_path))
 
-        # Treat everything else as a local filesystem path
+        # Check for unrecognized URI schemes
+        if "://" in value:
+            scheme = value.split("://", 1)[0]
+            raise ValueError(f"Unsupported URI scheme: {scheme}://")
+
+        # Treat as a local filesystem path
         local_path = Path(value).expanduser().resolve()
         return cls(raw=value, scheme="file", local_path=local_path, path=str(local_path))
 
