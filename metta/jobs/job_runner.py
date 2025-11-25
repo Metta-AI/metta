@@ -269,13 +269,29 @@ class LocalJob(Job):
 
     def _read_output(self) -> None:
         """Non-blocking read of available output (called while job runs)."""
+        import select
+
         if not (self._proc and self._proc.stdout):
             return
-        chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
-        if chunk:
-            log_path = self._get_log_path()
-            with open(log_path, "ab") as f:
-                f.write(chunk)
+
+        # Use select to check if data is available (with 0 timeout for non-blocking)
+        try:
+            readable, _, _ = select.select([self._proc.stdout], [], [], 0)
+            if not readable:
+                return
+        except (ValueError, TypeError):
+            # Handle mock objects or invalid file descriptors gracefully
+            return
+
+        try:
+            chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
+            if chunk:
+                log_path = self._get_log_path()
+                with open(log_path, "ab") as f:
+                    f.write(chunk)
+        except (OSError, AttributeError):
+            # Handle read errors gracefully
+            pass
 
     def _drain_output(self) -> None:
         """Blocking read of all remaining output (called when job completes)."""
