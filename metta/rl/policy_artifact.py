@@ -499,35 +499,20 @@ def policy_spec_from_uri(
     device: Optional[str | torch.device] = None,
     strict: bool = True,
     display_name: Optional[str] = None,
-    policy_architecture: PolicyArchitecture | None = None,
-    class_path: str | None = None,
 ) -> PolicySpec:
-    """Construct a PolicySpec for a checkpoint URI, with legacy metadata support."""
+    """Construct a PolicySpec for a checkpoint URI using CheckpointPolicy."""
     normalized_uri = normalize_policy_uri(uri)
-    parsed_uri = ParsedURI.parse(normalized_uri)
-
-    embedded_policy_class_path: Optional[str] = None
-    # Build a CheckpointPolicy wrapper spec by default
-    init_kwargs: dict[str, str | bool | PolicyArchitecture] = {
+    init_kwargs: dict[str, str | bool] = {
         "checkpoint_uri": normalized_uri,
         "display_name": display_name or normalized_uri,
         "strict": strict,
     }
     if device is not None:
         init_kwargs["device"] = str(device)
-    if policy_architecture is not None:
-        init_kwargs["policy_architecture"] = policy_architecture
-
-    parsed_uri = ParsedURI.parse(normalized_uri)
-    data_path = (
-        str(parsed_uri.local_path)
-        if parsed_uri.scheme == "file" and parsed_uri.local_path and parsed_uri.local_path.is_file()
-        else None
+    return PolicySpec(
+        class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
+        init_kwargs=init_kwargs,
     )
-
-    resolved_class_path = class_path or "metta.rl.checkpoint_manager.CheckpointPolicy"
-
-    return PolicySpec(class_path=resolved_class_path, init_kwargs=init_kwargs, data_path=data_path)
 
 
 def save_policy_artifact(
