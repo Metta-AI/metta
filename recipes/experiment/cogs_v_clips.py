@@ -257,6 +257,19 @@ def make_curriculum(
     )
 
 
+# How to submit a policy trained here to the CoGames leaderboard:
+#
+# uv run cogames submit \
+#   -p metta.rl.checkpoint_manager.CheckpointPolicy \
+#   -k checkpoint_uri=s3://softmax-public/policies/...:v1.mpt \
+#   -n your-policy-name-for-leaderboard \
+#   --skip-validation
+#
+# For now we need to run --skip-validation because cogames validation
+# doesn't assume the leaderboard runners get to run with the `metta` repo available,
+# but in practice they do
+
+
 def train(
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
