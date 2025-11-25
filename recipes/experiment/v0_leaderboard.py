@@ -79,6 +79,8 @@ def evaluate(
     result_file_path: str | None = None,
     stats_server_uri: str | None = None,
     seed: int = 50,
+    enable_doxascope: bool = False,
+    doxascope_output_dir: str = "./train_dir/doxascope/raw_data/",
 ) -> MultiPolicyVersionEvalTool:
     """
     Run the V0 Leaderboard Evaluation.
@@ -98,6 +100,8 @@ def evaluate(
         primary_policy_version_id=policy_version_id,
         verbose=True,
         stats_server_uri=api_url,
+        enable_doxascope=enable_doxascope,
+        doxascope_output_dir=doxascope_output_dir,
     )
 
     # Set the seed

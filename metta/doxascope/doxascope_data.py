@@ -147,9 +147,11 @@ class DoxascopeLogger:
 
         self.resource_names = resource_names
 
-        # Strip file:// prefix if present, since we need a path not a URI
+        # Strip URI prefixes if present, since we need a path not a URI
         if policy_uri.startswith("file://"):
             policy_uri = policy_uri[7:]  # Remove "file://"
+        elif policy_uri.startswith("s3://"):
+            policy_uri = policy_uri[5:]  # Remove "s3://"
 
         stem = Path(policy_uri).stem
         if ":" in stem:
@@ -286,14 +288,20 @@ class DoxascopeLogger:
         elif hasattr(first_adapter, "_base_policy"):
             # New StatefulAgentPolicy style - get the base policy implementation
             base = first_adapter._base_policy
-            # The base_policy is a StatefulPolicyImpl, we need to get the actual Policy
+            # The base_policy might wrap a Policy (has _policy attr), or be the policy itself
             if hasattr(base, "_policy"):
                 underlying_policy = base._policy
+            else:
+                # For scripted/LSTM policies, _base_policy IS the implementation
+                underlying_policy = base
+        elif hasattr(first_adapter, "_parent"):
+            # NimAgentPolicy style - get the parent NimMultiAgentPolicy
+            underlying_policy = first_adapter._parent
 
         if underlying_policy is None:
             if self.timestep == 1:
                 logger.warning(
-                    "Could not extract underlying policy from %s (expected _policy or _base_policy attribute)",
+                    "Could not extract underlying policy from %s (expected _policy, _base_policy, or _parent attribute)",
                     type(first_adapter)
                 )
             return

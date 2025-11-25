@@ -8,6 +8,7 @@ from pydantic import Field
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
 from metta.common.tool.tool import ToolResult, ToolWithResult
+from metta.doxascope.doxascope_data import DoxascopeLogger
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.runner import SimulationRunConfig
 from metta.sim.simulate_and_record import ObservatoryWriter, simulate_and_record
@@ -20,6 +21,8 @@ class MultiPolicyVersionEvalTool(ToolWithResult):
     simulations: Sequence[SimulationRunConfig] = Field(description="Simulations to evaluate")
     replay_dir: str = Field(default_factory=auto_replay_dir)
     verbose: bool = Field(default=True, description="Whether to log verbose output")
+    enable_doxascope: bool = Field(default=False, description="Whether to enable doxascope logging")
+    doxascope_output_dir: str = Field(default="./train_dir/doxascope/raw_data/", description="Directory for doxascope output")
 
     stats_server_uri: str
     policy_version_ids: list[str] = Field(description="Policy version ids to log to observatory")
@@ -36,6 +39,29 @@ class MultiPolicyVersionEvalTool(ToolWithResult):
             stats_client.get_policy_version(uuid.UUID(policy_version_id))
             for policy_version_id in self.policy_version_ids
         ]
+
+        # Create doxascope logger if enabled
+        doxascope_logger = None
+        if self.enable_doxascope and self.simulations:
+            # Get policy URI from primary policy version
+            primary_policy_version = policy_versions[0]
+            policy_uri = primary_policy_version.s3_path or "unknown"
+
+            # Get object type names from first simulation's environment
+            first_sim = self.simulations[0]
+            object_type_names = list(first_sim.env.game.objects.keys())
+
+            doxascope_logger = DoxascopeLogger(
+                enabled=True,
+                simulation_id=f"leaderboard_{self.primary_policy_version_id}",
+                output_dir=self.doxascope_output_dir
+            )
+            doxascope_logger.configure(
+                policy_uri=policy_uri,
+                object_type_names=object_type_names
+            )
+            logger.info(f"Doxascope logging enabled, output: {doxascope_logger.output_file}")
+
         with ExitStack() as stack:
             policy_specs = []
             paths = [policy_version.s3_path for policy_version in policy_versions]
@@ -53,6 +79,7 @@ class MultiPolicyVersionEvalTool(ToolWithResult):
                 observatory_writer=observatory_writer,
                 wandb_writer=None,
                 on_progress=logger.info,
+                doxascope_logger=doxascope_logger,
             )
             render_eval_summary(
                 rollout_results, policy_names=[spec.name for spec in policy_specs], verbose=self.verbose
