@@ -13,6 +13,7 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
 from metta.rl.loss.ppo_critic import PPOCriticConfig
+from metta.rl.loss.quantile_ppo_critic import QuantilePPOCriticConfig
 from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
@@ -25,6 +26,7 @@ class LossesConfig(Config):
     # ENABLED BY DEFAULT: PPO split into two terms for flexibility, simplicity, and separation of concerns
     ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=True))
     ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=True))
+    quantile_ppo_critic: QuantilePPOCriticConfig = Field(default_factory=lambda: QuantilePPOCriticConfig(enabled=False))
 
     # our original PPO in a single file
     ppo: PPOConfig = Field(default_factory=lambda: PPOConfig(enabled=False))
@@ -49,6 +51,8 @@ class LossesConfig(Config):
             loss_configs["sliced_kickstarter"] = self.sliced_kickstarter
         if self.ppo_critic.enabled:
             loss_configs["ppo_critic"] = self.ppo_critic
+        if self.quantile_ppo_critic.enabled:
+            loss_configs["quantile_ppo_critic"] = self.quantile_ppo_critic
         if self.ppo_actor.enabled:
             loss_configs["ppo_actor"] = self.ppo_actor
         if self.ppo.enabled:

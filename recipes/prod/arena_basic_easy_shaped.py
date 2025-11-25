@@ -7,13 +7,16 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_quantile import ViTQuantileConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss.losses import LossesConfig
+from metta.rl.loss.ppo_critic import PPOCriticConfig
+from metta.rl.loss.quantile_ppo_critic import QuantilePPOCriticConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -103,10 +106,15 @@ def train(
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
-    trainer_cfg = TrainerConfig()
+    trainer_cfg = TrainerConfig(
+        losses=LossesConfig(
+            ppo_critic=PPOCriticConfig(enabled=False),
+            quantile_ppo_critic=QuantilePPOCriticConfig(enabled=True),
+        )
+    )
 
     if policy_architecture is None:
-        policy_architecture = ViTDefaultConfig()
+        policy_architecture = ViTQuantileConfig()
 
     return TrainTool(
         trainer=trainer_cfg,

@@ -123,8 +123,12 @@ class PPOActor(Loss):
         else:
             raise ValueError("ppo_actor could not find gae_lambda in shared_loss_data")
 
+        values = minibatch["values"]
+        if hasattr(self.policy, "critic_quantiles"):
+            values = values.mean(dim=-1)
+
         adv = compute_advantage(
-            minibatch["values"],
+            values,
             minibatch["rewards"],
             minibatch["dones"],
             importance_sampling_ratio,

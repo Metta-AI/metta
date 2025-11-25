@@ -8,9 +8,9 @@
       "request": "launch",
       "module": "metta.common.tool.run_tool",
       // "args": ["recipes.experiment.scratchpad.${env:USER}.train"],
-      // "args": ["recipes.prod.arena_basic_easy_shaped.train"],
+      "args": ["recipes.prod.arena_basic_easy_shaped.train"],
       // "args": ["recipes.experiment.abes.kickstart.abes_ks_sliced.train"],
-      "args": ["recipes.experiment.abes.kickstart.abes_ks_logit.train"],
+      // "args": ["recipes.experiment.abes.kickstart.abes_ks_logit.train"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
