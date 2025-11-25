@@ -226,6 +226,7 @@ class CurriculumAlgorithm(ABC):
         self.hypers = hypers  # type: ignore[assignment]
         self.task_tracker = None
         self.stats_logger = stats_logger
+        self.performance_mode = getattr(hypers, "performance_mode", False) if hypers else False
 
     @abc.abstractmethod
     def get_base_stats(self) -> Dict[str, float]:
@@ -245,6 +246,10 @@ class CurriculumAlgorithm(ABC):
         Returns:
             Dictionary of statistics with prefixed keys
         """
+        # Performance mode: return minimal stats
+        if self.performance_mode:
+            return {}
+
         # Get base stats (required)
         stats = self.get_base_stats()
 

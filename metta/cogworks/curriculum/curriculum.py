@@ -184,6 +184,9 @@ class Curriculum(StatsLogger):
         # Pass curriculum reference to algorithm for stats updates
         self._algorithm.set_curriculum_reference(self)
 
+        # Cache performance mode from algorithm for quick access
+        self.performance_mode = self._algorithm.performance_mode
+
         # Initialize task pool at capacity unless deferred (e.g., for checkpoint loading)
         if not config.defer_init:
             self._initialize_at_capacity()
@@ -395,6 +398,10 @@ class Curriculum(StatsLogger):
         Returns:
             Dictionary of per-label statistics
         """
+        # Performance mode: skip expensive calculations
+        if self.performance_mode:
+            return {}
+
         if not hasattr(self._algorithm, "task_tracker"):
             return {}
 
@@ -460,6 +467,10 @@ class Curriculum(StatsLogger):
         Returns:
             Dictionary of raw LP debug statistics
         """
+        # Performance mode: skip expensive calculations
+        if self.performance_mode:
+            return {}
+
         if not hasattr(self._algorithm, "task_tracker"):
             return {}
 
@@ -509,6 +520,10 @@ class Curriculum(StatsLogger):
         Returns:
             Dictionary of Gini coefficients with curriculum_gini/ prefix
         """
+        # Performance mode: skip expensive calculations
+        if self.performance_mode:
+            return {}
+
         return self._algorithm.calculate_gini_coefficients()
 
     def get_base_stats(self) -> Dict[str, float]:
@@ -593,7 +608,8 @@ class Curriculum(StatsLogger):
             algorithm_state=self._algorithm.get_state(),
         )
 
-        logger.info(f"Curriculum: Saving state with {len(tasks)} tasks, algorithm_state=present")
+        if not self.performance_mode:
+            logger.info(f"Curriculum: Saving state with {len(tasks)} tasks, algorithm_state=present")
 
         return state
 
@@ -603,22 +619,30 @@ class Curriculum(StatsLogger):
         Directly reads the task tracker's shared memory arrays to show what's actually stored.
         This bypasses all caching and intermediate layers to provide ground truth.
         """
+        # Performance mode: skip logging
+        if self.performance_mode:
+            return
+
         if not hasattr(self._algorithm, "task_tracker"):
-            logger.info("SHARED MEMORY DEBUG: No task tracker found")
+            if not self.performance_mode:
+                logger.info("SHARED MEMORY DEBUG: No task tracker found")
             return
 
         task_tracker = self._algorithm.task_tracker
-        logger.info("=" * 80)
-        logger.info("SHARED MEMORY STATE (Direct Array Read)")
-        logger.info("=" * 80)
+        if not self.performance_mode:
+            logger.info("=" * 80)
+            logger.info("SHARED MEMORY STATE (Direct Array Read)")
+            logger.info("=" * 80)
 
         # Get all task IDs being tracked
         tracked_tasks = task_tracker.get_all_tracked_tasks()
-        logger.info(f"Total tracked tasks: {len(tracked_tasks)}")
+        if not self.performance_mode:
+            logger.info(f"Total tracked tasks: {len(tracked_tasks)}")
 
         if not tracked_tasks:
-            logger.info("No tasks tracked yet")
-            logger.info("=" * 80)
+            if not self.performance_mode:
+                logger.info("No tasks tracked yet")
+                logger.info("=" * 80)
             return
 
         # Count tasks by completion status
@@ -640,11 +664,12 @@ class Curriculum(StatsLogger):
                 if task_stats["p_fast"] != 0.0 or task_stats["p_slow"] != 0.0:
                     tasks_with_nonzero_ema += 1
 
-        logger.info("\nAggregate stats:")
-        logger.info(f"  Tasks with completions: {tasks_with_completions}/{len(tracked_tasks)}")
-        logger.info(f"  Total completions across all tasks: {total_completions}")
-        logger.info(f"  Tasks with non-zero LP scores: {tasks_with_nonzero_lp}/{len(tracked_tasks)}")
-        logger.info(f"  Tasks with non-zero EMAs: {tasks_with_nonzero_ema}/{len(tracked_tasks)}")
+        if not self.performance_mode:
+            logger.info("\nAggregate stats:")
+            logger.info(f"  Tasks with completions: {tasks_with_completions}/{len(tracked_tasks)}")
+            logger.info(f"  Total completions across all tasks: {total_completions}")
+            logger.info(f"  Tasks with non-zero LP scores: {tasks_with_nonzero_lp}/{len(tracked_tasks)}")
+            logger.info(f"  Tasks with non-zero EMAs: {tasks_with_nonzero_ema}/{len(tracked_tasks)}")
 
         # Check global tracker stats
         tracker_global_stats = task_tracker.get_global_stats()

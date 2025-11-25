@@ -113,7 +113,8 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     use_shared_memory: bool = True  # Enabled by default for production use
     session_id: Optional[str] = None  # AUTO-GENERATED: Leave None. Only set manually in tests.
 
-    # Logging configuration
+    # Performance and logging configuration
+    performance_mode: bool = False  # Disable all logging and expensive stats for maximum performance
     show_curriculum_troubleshooting_logging: bool = False  # Show high-cardinality per-task metrics for debugging
 
     @model_validator(mode="after")
@@ -265,6 +266,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         self.num_tasks = num_tasks
         self.hypers: LearningProgressConfig = hypers
+        self.performance_mode = hypers.performance_mode
 
         # Initialize task tracker (factory creates appropriate backend)
         # Note: task_struct_size is automatically computed from TaskState.struct_size()

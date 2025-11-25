@@ -108,6 +108,8 @@ class StatsReporterConfig(Config):
 
     report_to_wandb: bool = True
     report_to_console: bool = True
+    performance_mode: bool = False
+    """If True, skip expensive curriculum stats collection for maximum performance."""
     grad_mean_variance_interval: int = 50
     interval: int = 1
     """How often to report stats (in epochs)"""
@@ -560,39 +562,50 @@ class StatsReporter(TrainerComponent):
         This replaces the batched per-environment logging approach with
         centralized collection, providing smooth and consistent logging.
         """
+        # Performance mode: skip curriculum stats collection
+        if self._config.performance_mode:
+            return {}
+
         if not self.context or not hasattr(self.context, "curriculum") or not self.context.curriculum:
-            logger.info("No curriculum found in context, skipping curriculum stats collection")
+            if not self._config.performance_mode:
+                logger.info("No curriculum found in context, skipping curriculum stats collection")
             return {}
 
         curriculum = self.context.curriculum
-        logger.info(f"Collecting curriculum stats from curriculum: {type(curriculum).__name__}")
+        if not self._config.performance_mode:
+            logger.info(f"Collecting curriculum stats from curriculum: {type(curriculum).__name__}")
 
         # Direct shared memory inspection for debugging
-        curriculum.log_shared_memory_state()
+        if not self._config.performance_mode:
+            curriculum.log_shared_memory_state()
 
         stats = curriculum.stats()
-        logger.info(f"Got {len(stats)} base curriculum stats")
+        if not self._config.performance_mode:
+            logger.info(f"Got {len(stats)} base curriculum stats")
 
         # Calculate per-label mean LP scores and reward EMAs
         per_label_lp_stats = curriculum.calculate_per_label_mean_lp_stats()
         for key, value in per_label_lp_stats.items():
             stats[f"algorithm/{key}"] = value
-        logger.info(f"Calculated {len(per_label_lp_stats)} per-label LP stats")
+        if not self._config.performance_mode:
+            logger.info(f"Calculated {len(per_label_lp_stats)} per-label LP stats")
 
         # Calculate raw LP debug statistics
         raw_lp_debug_stats = curriculum.calculate_raw_lp_debug_stats()
         for key, value in raw_lp_debug_stats.items():
             stats[f"algorithm/{key}"] = value
-        logger.info(f"Calculated {len(raw_lp_debug_stats)} raw LP debug stats")
+        if not self._config.performance_mode:
+            logger.info(f"Calculated {len(raw_lp_debug_stats)} raw LP debug stats")
 
         # Compute Gini coefficients once per epoch (expensive operation)
         gini_stats = curriculum.calculate_gini_coefficients()
         for key, value in gini_stats.items():
             stats[f"algorithm/{key}"] = value
-        logger.info(f"Calculated {len(gini_stats)} Gini coefficient stats")
+        if not self._config.performance_mode:
+            logger.info(f"Calculated {len(gini_stats)} Gini coefficient stats")
 
-        sample_keys = list(stats.keys())[:10]
-        logger.info(f"Sample curriculum stat keys: {sample_keys}")
+            sample_keys = list(stats.keys())[:10]
+            logger.info(f"Sample curriculum stat keys: {sample_keys}")
+            logger.info(f"Total curriculum stats collected: {len(stats)}")
 
-        logger.info(f"Total curriculum stats collected: {len(stats)}")
         return stats
