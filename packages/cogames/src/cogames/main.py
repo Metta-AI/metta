@@ -819,6 +819,14 @@ def validate_policy_cmd(
     validate_policy_command(ctx, policy)
 
 
+def _parse_init_kwarg(value: str) -> tuple[str, str]:
+    """Parse a key=value string into a tuple."""
+    if "=" not in value:
+        raise typer.BadParameter(f"Expected key=value format, got: {value}")
+    key, _, val = value.partition("=")
+    return key.replace("-", "_"), val
+
+
 @app.command(name="submit", help="Submit a policy to CoGames competitions")
 def submit_cmd(
     ctx: typer.Context,
@@ -833,6 +841,12 @@ def submit_cmd(
         "--name",
         "-n",
         help="Policy name for the submission",
+    ),
+    init_kwarg: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--init-kwarg",
+        "-k",
+        help="Policy init kwargs as key=value (can be repeated)",
     ),
     include_files: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -870,6 +884,12 @@ def submit_cmd(
     The policy will be tested in an isolated environment before submission
     (unless --skip-validation is used).
     """
+    init_kwargs: dict[str, str] = {}
+    if init_kwarg:
+        for kv in init_kwarg:
+            key, val = _parse_init_kwarg(kv)
+            init_kwargs[key] = val
+
     submit_command(
         ctx=ctx,
         policy=policy,
@@ -879,6 +899,7 @@ def submit_cmd(
         server=server,
         dry_run=dry_run,
         skip_validation=skip_validation,
+        init_kwargs=init_kwargs if init_kwargs else None,
     )
 
 
