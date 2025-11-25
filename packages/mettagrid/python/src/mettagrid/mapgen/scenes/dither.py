@@ -41,8 +41,9 @@ def dither_edges(
         down_right[1:, 1:] = mask[:-1, :-1]
         return up | down | left | right | up_left | up_right | down_left | down_right
 
-    neighbor_diff = _expand(wall) ^ _expand(empty)
-    frontier = neighbor_diff
+    # Boundary cells = any cell adjacent (8-neighbor) to opposite type.
+    boundary = (_expand(wall) & empty) | (_expand(empty) & wall)
+    frontier = boundary
     dist = np.full(grid.shape, np.inf, dtype=np.float32)
     dist[frontier] = 0.0
     seen = frontier.copy()
@@ -66,7 +67,9 @@ def dither_edges(
     reachable[:, :depth] = False
     reachable[:, -depth:] = False
 
-    edge_prob = prob * (depth - dist + 1) / depth
+    # Ensure nearest edge distance is 1 (match legacy behavior: distance=1 => prob).
+    effective_dist = np.maximum(1.0, dist)
+    edge_prob = prob * (depth - effective_dist + 1) / depth
     flips = (rng.random(grid.shape) < edge_prob) & reachable
 
     grid[flips & wall] = "empty"
