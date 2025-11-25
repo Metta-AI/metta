@@ -173,6 +173,8 @@ class CheckpointManager:
 
         raise ValueError(f"Invalid URI: {uri}")
 
+    # normalize_uri kept for legacy callers; prefer metta.rl.policy_artifact.normalize_policy_uri
+
     @staticmethod
     def get_policy_metadata(uri: str) -> PolicyMetadata:
         """Extract metadata from policy URI."""

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import urllib.parse as urllib_parse
 
 import ast
 import io
@@ -18,8 +19,10 @@ from safetensors.torch import save as save_safetensors
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.common.util.file import write_file
 from metta.common.util.uri import ParsedURI
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
+from metta.rl.system_config import guess_data_dir
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
@@ -468,23 +471,115 @@ def normalize_policy_uri(uri: str) -> str:
     return parsed.canonical
 
 
+def get_policy_metadata(uri: str) -> dict[str, object]:
+    """Extract run_name/epoch/uri from a checkpoint URI or path."""
+    normalized = normalize_policy_uri(uri)
+    parsed = ParsedURI.parse(normalized)
+    path_for_meta: Optional[Path] = None
+
+    if parsed.scheme == "file" and parsed.local_path is not None:
+        path_for_meta = parsed.local_path
+    elif parsed.scheme == "s3" and parsed.key is not None:
+        path_for_meta = Path(parsed.key)
+
+    if path_for_meta is None:
+        raise ValueError(f"Could not extract metadata from uri {uri}")
+
+    meta = extract_run_and_epoch(path_for_meta)
+    if meta is None:
+        raise ValueError(f"Could not extract metadata from uri {uri}")
+
+    run_name, epoch = meta
+    return {"run_name": run_name, "epoch": epoch, "uri": normalized}
+
+
 def policy_spec_from_uri(
     uri: str,
     *,
     device: Optional[str | torch.device] = None,
     strict: bool = True,
     display_name: Optional[str] = None,
+    policy_architecture: PolicyArchitecture | None = None,
+    class_path: str | None = None,
 ) -> PolicySpec:
-    """Build a PolicySpec that loads checkpoints via CheckpointPolicy."""
+    """Construct a PolicySpec for a checkpoint URI, with legacy metadata support."""
     normalized_uri = normalize_policy_uri(uri)
-    init_kwargs: dict[str, str | bool] = {
+    parsed_uri = ParsedURI.parse(normalized_uri)
+
+    embedded_policy_class_path: Optional[str] = None
+    # Build a CheckpointPolicy wrapper spec by default
+    init_kwargs: dict[str, str | bool | PolicyArchitecture] = {
         "checkpoint_uri": normalized_uri,
         "display_name": display_name or normalized_uri,
         "strict": strict,
     }
     if device is not None:
         init_kwargs["device"] = str(device)
-    return PolicySpec(
-        class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
-        init_kwargs=init_kwargs,
+    if policy_architecture is not None:
+        init_kwargs["policy_architecture"] = policy_architecture
+
+    parsed_uri = ParsedURI.parse(normalized_uri)
+    data_path = (
+        str(parsed_uri.local_path)
+        if parsed_uri.scheme == "file" and parsed_uri.local_path and parsed_uri.local_path.is_file()
+        else None
     )
+
+    resolved_class_path = class_path or "metta.rl.checkpoint_manager.CheckpointPolicy"
+
+    return PolicySpec(class_path=resolved_class_path, init_kwargs=init_kwargs, data_path=data_path)
+
+
+def save_policy_artifact(
+    path: str | Path,
+    *,
+    policy_architecture: PolicyArchitecture,
+    state_dict: Mapping[str, torch.Tensor],
+    detach_buffers: bool = True,
+) -> PolicyArtifact:
+    """Compatibility wrapper: alias to save_policy_artifact_safetensors."""
+    return save_policy_artifact_safetensors(
+        path,
+        policy_architecture=policy_architecture,
+        state_dict=state_dict,
+        detach_buffers=detach_buffers,
+    )
+
+
+def save_policy_to_uri(
+    destination: str | Path,
+    *,
+    policy_architecture: PolicyArchitecture,
+    state_dict: Mapping[str, torch.Tensor],
+) -> str:
+    """Save weights to a .mpt at a local path or s3:// URI."""
+    dest = str(destination)
+    if Path(dest).suffix.lower() != ".mpt":
+        raise ValueError("save_policy_to_uri only supports .mpt destinations")
+
+    parsed = ParsedURI.parse(dest)
+    if parsed.scheme == "s3":
+        temp_dir = guess_data_dir() / ".tmp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        filename = Path(parsed.path or parsed.key or "checkpoint.mpt").name
+        local_path = temp_dir / filename
+    elif parsed.scheme in ("", "file") or parsed.local_path is not None:
+        local_path = parsed.local_path or Path(dest).expanduser()
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        raise ValueError(f"Unsupported destination URI: {dest}")
+
+    save_policy_artifact_safetensors(
+        local_path,
+        policy_architecture=policy_architecture,
+        state_dict=state_dict,
+    )
+
+    if parsed.scheme == "s3":
+        try:
+            write_file(parsed.canonical, str(local_path))
+        finally:
+            local_path.unlink(missing_ok=True)
+        return parsed.canonical
+
+    return f"file://{local_path.resolve()}"
