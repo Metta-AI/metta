@@ -44,6 +44,10 @@ type
     seenChest: bool
     exploreLocations: seq[Location]
 
+    dwellAssemblerTicks: int  # stay on assembler to let crafting finish
+    dwellChestTicks: int      # stay on chest to let heart deposit register
+    hasHeartMission: bool     # hard lock to deliver heart without other tasks
+
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
 
@@ -139,6 +143,9 @@ proc resetAgent(agent: RaceCarAgent) =
   agent.seenAssembler = false
   agent.seenChest = false
   agent.exploreLocations = @[]
+  agent.dwellAssemblerTicks = 0
+  agent.dwellChestTicks = 0
+  agent.hasHeartMission = false
 
 proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   ## Create a new thinky agent, the fastest and the smartest agent.
@@ -483,6 +490,72 @@ proc step*(
     let activeRecipe = agent.getActiveRecipe()
     echo "active recipe: " & $activeRecipe
 
+    # If we're waiting on assembler crafting to finish, stay put until heart appears or timer expires.
+    if agent.dwellAssemblerTicks > 0 and invHeart == 0:
+      dec agent.dwellAssemblerTicks
+      doAction(agent.cfg.actions.noop.int32)
+      echo "dwelling at assembler (" & $agent.dwellAssemblerTicks & " left)"
+      return
+
+    # If we're on chest with a heart, dwell a few ticks so deposit registers.
+    if agent.dwellChestTicks > 0:
+      if invHeart == 0:
+        agent.dwellChestTicks = 0
+        agent.hasHeartMission = false
+      else:
+        dec agent.dwellChestTicks
+        doAction(agent.cfg.actions.noop.int32)
+        echo "dwelling at chest (" & $agent.dwellChestTicks & " left)"
+        return
+
+    # Heart mission: absolute priority until deposited.
+    if invHeart > 0:
+      agent.hasHeartMission = true
+    if agent.hasHeartMission:
+      # Optional safety: top off if critically low while carrying.
+      if invEnergy < MaxEnergy div 3:
+        let charger = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
+        if charger.isSome():
+          let action = agent.cfg.aStar(agent.location, charger.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            echo "heart mission: detouring to charger"
+            return
+
+      # Ensure we're in deposit vibe.
+      let depositAction = agent.cfg.actions.vibeHeartB
+      let depositVibe = agent.cfg.vibes.heartB
+      if depositAction != 0 and vibe != depositVibe:
+        doAction(depositAction.int32)
+        echo "heart mission: switching to heart deposit vibe"
+        return
+
+      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if chestNearby.isSome():
+        if agent.location == chestNearby.get():
+          agent.dwellChestTicks = max(agent.dwellChestTicks, 5)
+          doAction(agent.cfg.actions.noop.int32)
+          echo "heart mission: depositing at chest"
+          return
+        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          echo "heart mission: heading to chest"
+          return
+      # Chest unknown: bias toward assembler as a hub, else cautious explore.
+      let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+      if assemblerNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          echo "heart mission: seeking chest via assembler"
+          return
+      # fallback small random step to continue revealing map
+      let action = agent.random.rand(1 .. 4).int32
+      echo "heart mission: random explore while holding heart"
+      doAction(action.int32)
+      return
+
     if activeRecipe.pattern.len > 0:
       # Split the cost evenly across the agents.
       proc divUp(a, b: int): int =
@@ -689,35 +762,6 @@ proc step*(
             echo "charge nearby might as well charge"
             return
 
-    # Deposit heart into the chest.
-    if invHeart > 0:
-
-      # Reset the targets when we deposit hearts.
-      echo "depositing hearts"
-      agent.carbonTarget = PutCarbonAmount
-      agent.oxygenTarget = PutOxygenAmount
-      agent.germaniumTarget = PutGermaniumAmount
-      agent.siliconTarget = PutSiliconAmount
-
-      let depositAction = agent.cfg.actions.vibeHeartB
-      let depositVibe = agent.cfg.vibes.heartB
-      if depositAction != 0 and vibe != depositVibe:
-        doAction(depositAction.int32)
-        return
-      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-      if chestNearby.isSome():
-        # If we're standing on the chest tile with the right vibe, stay to deposit.
-        if agent.location == chestNearby.get():
-          doAction(agent.cfg.actions.noop.int32)
-          echo "depositing at chest in place"
-          return
-        measurePush("chest nearby")
-        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
-        measurePop()
-        if action.isSome():
-          doAction(action.get().int32)
-          echo "going to chest"
-          return
 
     if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
       # We have all the resources we need, so we can build a heart.
@@ -730,8 +774,9 @@ proc step*(
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
       if assemblerNearby.isSome():
-        # If already on assembler with proper vibe and resources, wait to craft.
+        # If already on assembler with proper vibe and resources, dwell to let craft resolve.
         if agent.location == assemblerNearby.get():
+          agent.dwellAssemblerTicks = max(agent.dwellAssemblerTicks, 3)
           doAction(agent.cfg.actions.noop.int32)
           echo "crafting heart at assembler"
           return
