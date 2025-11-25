@@ -139,114 +139,110 @@ class SharedMapCache:
             with open(lock_file, "a+") as lock_fd:
                 fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
                 try:
-                    # Load registry from disk
                     registry = _load_registry()
+                    maps_list = registry.get(cache_key, [])
 
-                    # Get or create the cache entry for this key
-                    if cache_key not in registry:
-                        registry[cache_key] = []
-
-                    maps_list = registry[cache_key]
-
-                    # Decide whether to create new map or reuse cached one
-                    should_create_new = False
-                    if _maps_per_key is None:
-                        # Unlimited: create new only if cache is empty
-                        should_create_new = len(maps_list) == 0
-                    else:
-                        # Limited: create new only if under limit
-                        should_create_new = len(maps_list) < _maps_per_key
-
-                    if should_create_new:
-                        # Create a new map
-                        builder = map_builder.create()
-                        game_map = builder.build_for_num_agents(num_agents)
-
-                        # Reload registry before saving to check if another process created it
-                        registry = _load_registry()
-                        if cache_key not in registry:
-                            registry[cache_key] = []
-                        maps_list = registry[cache_key]
-
-                        # Check again if we still need to create (another process might have created it)
+                    while True:
                         if _maps_per_key is None:
-                            still_need_create = len(maps_list) == 0
+                            should_create_new = len(maps_list) == 0
                         else:
-                            still_need_create = len(maps_list) < _maps_per_key
+                            should_create_new = len(maps_list) < _maps_per_key
 
-                        if still_need_create:
-                            # Store it in cache
-                            cache_entry = self._store_map_in_shared_memory(cache_key, len(maps_list), game_map)
-                            maps_list = list(maps_list) + [cache_entry]
-                            registry[cache_key] = maps_list
-                            _save_registry(registry)
+                        if should_create_new:
+                            builder = map_builder.create()
+                            game_map = builder.build_for_num_agents(num_agents)
 
-                            logger.info(
-                                f"Created new map for key {cache_key} "
-                                f"(cached maps: {len(maps_list)}/{_maps_per_key if _maps_per_key else 'unlimited'})"
-                            )
-                            return game_map
-                        else:
-                            # Another process created it, use the cached one instead
-                            random_idx = random.randint(0, len(maps_list) - 1)
-                            cache_entry = maps_list[random_idx]
-                            return self._reconstruct_map(cache_entry, cache_key)
-                    else:
-                        # Array is full, return a random one
+                            # Reload registry before saving to check if another process created it
+                            registry = _load_registry()
+                            maps_list = registry.get(cache_key, [])
+
+                            if _maps_per_key is None:
+                                still_need_create = len(maps_list) == 0
+                            else:
+                                still_need_create = len(maps_list) < _maps_per_key
+
+                            if still_need_create:
+                                cache_entry = self._store_map_in_shared_memory(cache_key, len(maps_list), game_map)
+                                maps_list = list(maps_list) + [cache_entry]
+                                registry[cache_key] = maps_list
+                                _save_registry(registry)
+
+                                logger.info(
+                                    f"Created new map for key {cache_key} "
+                                    f"(cached maps: {len(maps_list)}/{_maps_per_key if _maps_per_key else 'unlimited'})"
+                                )
+                                return game_map
+
+                            # Another process filled the cache; fall through to reuse path
+                            continue
+
+                        # Cache is populated, try to reuse an entry
                         random_idx = random.randint(0, len(maps_list) - 1)
                         cache_entry = maps_list[random_idx]
 
-                        return self._reconstruct_map(cache_entry, cache_key)
+                        try:
+                            return self._reconstruct_map(cache_entry, cache_key)
+                        except (FileNotFoundError, PermissionError, OSError):
+                            # Entry is stale (e.g., shared memory was cleaned up). Remove and retry.
+                            maps_list.pop(random_idx)
+                            if maps_list:
+                                registry[cache_key] = maps_list
+                            else:
+                                registry.pop(cache_key, None)
+                            _save_registry(registry)
+                            continue
                 finally:
                     fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
         except OSError as e:
             # If file locking fails (e.g., on Windows), fall back to unlocked access
             logger.debug(f"File locking not available ({e}), proceeding without lock")
             registry = _load_registry()
-            if cache_key not in registry:
-                registry[cache_key] = []
-            maps_list = registry[cache_key]
+            maps_list = registry.get(cache_key, [])
 
-            if _maps_per_key is None:
-                should_create_new = len(maps_list) == 0
-            else:
-                should_create_new = len(maps_list) < _maps_per_key
-
-            if should_create_new:
-                builder = map_builder.create()
-                game_map = builder.build_for_num_agents(num_agents)
-
-                # Reload registry before saving to check if another process created it
-                registry = _load_registry()
-                if cache_key not in registry:
-                    registry[cache_key] = []
-                maps_list = registry[cache_key]
-
-                # Check again if we still need to create (another process might have created it)
+            while True:
                 if _maps_per_key is None:
-                    still_need_create = len(maps_list) == 0
+                    should_create_new = len(maps_list) == 0
                 else:
-                    still_need_create = len(maps_list) < _maps_per_key
+                    should_create_new = len(maps_list) < _maps_per_key
 
-                if still_need_create:
-                    cache_entry = self._store_map_in_shared_memory(cache_key, len(maps_list), game_map)
-                    maps_list = list(maps_list) + [cache_entry]
-                    registry[cache_key] = maps_list
-                    _save_registry(registry)
-                    logger.info(
-                        f"Created new map for key {cache_key} "
-                        f"(cached maps: {len(maps_list)}/{_maps_per_key if _maps_per_key else 'unlimited'})"
-                    )
-                    return game_map
-                else:
-                    # Another process created it, use the cached one instead
-                    random_idx = random.randint(0, len(maps_list) - 1)
-                    cache_entry = maps_list[random_idx]
-                    return self._reconstruct_map(cache_entry, cache_key)
-            else:
+                if should_create_new:
+                    builder = map_builder.create()
+                    game_map = builder.build_for_num_agents(num_agents)
+
+                    # Reload registry before saving to check if another process created it
+                    registry = _load_registry()
+                    maps_list = registry.get(cache_key, [])
+
+                    if _maps_per_key is None:
+                        still_need_create = len(maps_list) == 0
+                    else:
+                        still_need_create = len(maps_list) < _maps_per_key
+
+                    if still_need_create:
+                        cache_entry = self._store_map_in_shared_memory(cache_key, len(maps_list), game_map)
+                        maps_list = list(maps_list) + [cache_entry]
+                        registry[cache_key] = maps_list
+                        _save_registry(registry)
+                        logger.info(
+                            f"Created new map for key {cache_key} "
+                            f"(cached maps: {len(maps_list)}/{_maps_per_key if _maps_per_key else 'unlimited'})"
+                        )
+                        return game_map
+
+                    continue
+
                 random_idx = random.randint(0, len(maps_list) - 1)
                 cache_entry = maps_list[random_idx]
-                return self._reconstruct_map(cache_entry, cache_key)
+                try:
+                    return self._reconstruct_map(cache_entry, cache_key)
+                except (FileNotFoundError, PermissionError, OSError):
+                    maps_list.pop(random_idx)
+                    if maps_list:
+                        registry[cache_key] = maps_list
+                    else:
+                        registry.pop(cache_key, None)
+                    _save_registry(registry)
+                    continue
 
     def _store_map_in_shared_memory(self, cache_key: str, index: int, game_map: GameMap) -> dict:
         """Store a GameMap in shared memory and return cache entry."""
