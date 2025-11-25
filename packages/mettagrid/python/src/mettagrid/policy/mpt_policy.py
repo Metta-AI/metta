@@ -9,6 +9,9 @@ from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.file import ParsedURI
+from mettagrid.util.module import load_symbol
+
+DEFAULT_URI_RESOLVER = "metta.rl.policy_uri_resolver.resolve_uri"
 
 
 class MptPolicy(MultiAgentPolicy):
@@ -25,6 +28,7 @@ class MptPolicy(MultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         *,
         checkpoint_uri: str,
+        uri_resolver: str | None = DEFAULT_URI_RESOLVER,
         device: str | torch.device = "cpu",
         strict: bool = True,
         display_name: str | None = None,
@@ -32,32 +36,19 @@ class MptPolicy(MultiAgentPolicy):
         super().__init__(policy_env_info)
         torch_device = torch.device(device) if isinstance(device, str) else device
 
-        self._checkpoint_uri = checkpoint_uri
-        self._artifact = load_mpt(checkpoint_uri)
+        resolved_uri = checkpoint_uri
+        if uri_resolver and (resolver_func := load_symbol(uri_resolver, strict=False)):
+            resolved_uri = resolver_func(checkpoint_uri)  # type: ignore
+
+        self._artifact = load_mpt(resolved_uri)
         self._architecture = self._artifact.architecture
 
         policy = self._artifact.instantiate(policy_env_info, device=torch_device, strict=strict)
         policy.eval()
         self._policy = policy
-        self._display_name = display_name or checkpoint_uri
-
-    @property
-    def display_name(self) -> str:
-        return self._display_name
-
-    @property
-    def architecture(self) -> Any:
-        return self._architecture
-
-    @property
-    def state_dict_copy(self) -> dict[str, torch.Tensor]:
-        return {k: v.cpu().clone() for k, v in self._policy.state_dict().items()}
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return self._policy.agent_policy(agent_id)
-
-    def __call__(self, *args, **kwargs):
-        return self._policy(*args, **kwargs)
 
     def save_policy(
         self,
@@ -74,6 +65,3 @@ class MptPolicy(MultiAgentPolicy):
 
         parsed = ParsedURI.parse(str(destination))
         return parsed.canonical
-
-    def __getattr__(self, name: str):
-        return getattr(self._policy, name)

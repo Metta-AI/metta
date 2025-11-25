@@ -155,8 +155,8 @@ class SLCheckpointedKickstarter(Loss):
 
     def _construct_checkpoint_uri(self, epoch: int) -> str:
         """Construct a checkpoint URI from the base URI and epoch."""
-        from metta.rl.checkpoint_manager import key_and_version
-        from metta.utils.uri import ParsedURI
+        from metta.rl.policy_uri_resolver import key_and_version
+        from mettagrid.util.file import ParsedURI
 
         # Parse the base URI
         parsed = ParsedURI.parse(self._base_teacher_uri)

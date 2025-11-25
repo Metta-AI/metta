@@ -10,7 +10,8 @@ from pydantic import Field
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.checkpoint_manager import CheckpointManager, _resolve_metta_uri, key_and_version
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_uri_resolver import _resolve_metta_uri, key_and_version
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
@@ -139,6 +140,6 @@ class TestMettaURIs:
             _resolve_metta_uri("metta://policy/not-a-uuid")
 
     def test_resolve_metta_uri_requires_stats_server(self, monkeypatch):
-        monkeypatch.setattr("metta.rl.checkpoint_manager.auto_stats_server_uri", lambda: None)
+        monkeypatch.setattr("metta.rl.policy_uri_resolver.auto_stats_server_uri", lambda: None)
         with pytest.raises(ValueError, match="stats server not configured"):
             _resolve_metta_uri("metta://policy/acee831a-f409-4345-9c44-79b34af17c3e")
