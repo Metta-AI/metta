@@ -70,12 +70,12 @@ case "$ACTION" in
     echo ""
 
     echo "Test 1: DiscreteRandom (should be fast, constant SPS)"
-    run_test "baseline_discrete" 180 "use_lp=False"
-    show_sps "baseline_discrete"
+    run_test "msb_perfdiagnosis_baseline_discrete" 600 "use_lp=False"
+    show_sps "msb_perfdiagnosis_baseline_discrete"
 
     echo "Test 2: Learning Progress (should be slow, degrading SPS)"
-    run_test "baseline_lp" 180 "use_lp=True"
-    show_sps "baseline_lp"
+    run_test "msb_perfdiagnosis_baseline_lp" 600 "use_lp=True"
+    show_sps "msb_perfdiagnosis_baseline_lp"
 
     echo ""
     echo "=== BASELINE COMPLETE ==="
@@ -98,52 +98,79 @@ case "$ACTION" in
     echo "Applying batch invalidation fix..."
     echo ""
 
-    # Create a Python script to apply the fix
+    # Check if fix is already applied
+    if grep -q "_updates_since_invalidation" "$FILE"; then
+      echo "✓ Fix appears to be already applied!"
+      echo "  Found '_updates_since_invalidation' in the file"
+      echo ""
+      echo "=== FIX APPLIED ==="
+      echo "Backup saved: $BACKUP"
+      echo "Next: Run './tools/fix_lp_performance.sh test' to test the fix"
+      return 0
+    fi
+
+    # Apply the fix using a simple sed replacement
+    echo "Replacing 'self.scorer.invalidate_cache()' with batched version..."
+
+    # Create a Python script to apply the fix more safely
     cat > /tmp/apply_lp_fix.py << 'PYTHON_SCRIPT'
-import re
 import sys
 
 def apply_fix(filename):
     with open(filename, 'r') as f:
-        content = f.read()
+        lines = f.readlines()
 
-    # Find the update_task_performance method
-    pattern = r'(def update_task_performance\(self, task_id: int, score: float\) -> None:.*?)'
-    pattern += r'(self\.scorer\.invalidate_cache\(\))'
+    # Find the line with self.scorer.invalidate_cache() in update_task_performance
+    new_lines = []
+    i = 0
+    found = False
 
-    replacement = r'\1# PERFORMANCE FIX: Batch invalidations to reduce get_all_tracked_tasks() calls\n'
-    replacement += r'        if not hasattr(self, "_updates_since_invalidation"):\n'
-    replacement += r'            self._updates_since_invalidation = 0\n'
-    replacement += r'        self._updates_since_invalidation += 1\n'
-    replacement += r'        if self._updates_since_invalidation >= 100:\n'
-    replacement += r'            \2\n'
-    replacement += r'            self._updates_since_invalidation = 0\n'
-    replacement += r'        # OLD: \2  # Was called EVERY episode - now batched'
+    while i < len(lines):
+        line = lines[i]
 
-    # Apply the fix
-    new_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+        # Look for the scorer.invalidate_cache() call after the EMA update
+        if ('self.scorer.invalidate_cache()' in line and
+            i > 0 and 'update_task_performance_with_bidirectional_emas' in ''.join(lines[max(0, i-10):i])):
 
-    if new_content == content:
-        print("ERROR: Could not find pattern to replace!")
-        print("The code may have changed. Apply fix manually:")
-        print("Edit: metta/cogworks/curriculum/learning_progress_algorithm.py")
-        print("Find: self.scorer.invalidate_cache()")
-        print("Replace with batched version (see NEXT_STEPS_PERF_DEBUG.md)")
+            found = True
+            indent = len(line) - len(line.lstrip())
+            spaces = ' ' * indent
+
+            # Add the batched invalidation code
+            new_lines.append(f'{spaces}# PERFORMANCE FIX: Batch invalidations to reduce get_all_tracked_tasks() calls\n')
+            new_lines.append(f'{spaces}# Only invalidate cache every N updates instead of every single update\n')
+            new_lines.append(f"{spaces}if not hasattr(self, '_updates_since_invalidation'):\n")
+            new_lines.append(f'{spaces}    self._updates_since_invalidation = 0\n')
+            new_lines.append(f'{spaces}\n')
+            new_lines.append(f'{spaces}self._updates_since_invalidation += 1\n')
+            new_lines.append(f'{spaces}\n')
+            new_lines.append(f'{spaces}# Invalidate every 100 updates (reduces scans from ~5000/epoch to ~50/epoch)\n')
+            new_lines.append(f'{spaces}if self._updates_since_invalidation >= 100:\n')
+            new_lines.append(f'{spaces}    {line.strip()}\n')
+            new_lines.append(f'{spaces}    self._updates_since_invalidation = 0\n')
+            new_lines.append(f'{spaces}\n')
+            new_lines.append(f'{spaces}# OLD: {line.strip()}  # Was called EVERY episode\n')
+        else:
+            new_lines.append(line)
+
+        i += 1
+
+    if not found:
+        print("ERROR: Could not find 'self.scorer.invalidate_cache()' to replace!")
+        print("The code may have changed. Apply fix manually.")
         sys.exit(1)
 
     with open(filename, 'w') as f:
-        f.write(new_content)
+        f.writelines(new_lines)
 
     print("✓ Fix applied successfully!")
-    print(f"  Backup saved to: {filename}.backup_*")
-    print("")
     return True
 
 if __name__ == '__main__':
     apply_fix(sys.argv[1])
 PYTHON_SCRIPT
 
-    python /tmp/apply_lp_fix.py "$FILE" || {
+    python3 /tmp/apply_lp_fix.py "$FILE" || {
       echo ""
       echo "⚠️  Automatic fix failed. Apply manually:"
       echo ""
@@ -173,8 +200,8 @@ PYTHON_SCRIPT
     echo "Running with the fix applied"
     echo ""
 
-    run_test "fixed_lp" 180 "use_lp=True"
-    show_sps "fixed_lp"
+    run_test "msb_perfdiagnosis_fixed_lp" 600 "use_lp=True"
+    show_sps "msb_perfdiagnosis_fixed_lp"
 
     echo ""
     echo "=== TEST COMPLETE ==="
@@ -187,15 +214,15 @@ PYTHON_SCRIPT
     echo ""
 
     echo "DiscreteRandom (baseline):"
-    show_sps "baseline_discrete"
+    show_sps "msb_perfdiagnosis_baseline_discrete"
 
     echo ""
     echo "LP Before Fix:"
-    show_sps "baseline_lp"
+    show_sps "msb_perfdiagnosis_baseline_lp"
 
     echo ""
     echo "LP After Fix:"
-    show_sps "fixed_lp"
+    show_sps "msb_perfdiagnosis_fixed_lp"
 
     echo ""
     echo "=== COMPARISON TIPS ==="
@@ -228,7 +255,7 @@ PYTHON_SCRIPT
     echo ""
 
     echo "1. Quick baseline (no fix)"
-    run_test "quick_baseline" 90 "use_lp=True"
+    run_test "msb_perfdiagnosis_quick_baseline" 300 "use_lp=True"
 
     echo ""
     echo "Now apply the fix with: ./tools/fix_lp_performance.sh fix"

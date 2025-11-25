@@ -42,7 +42,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from .curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
@@ -116,6 +116,21 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Performance and logging configuration
     performance_mode: bool = False  # Disable all logging and expensive stats for maximum performance
     show_curriculum_troubleshooting_logging: bool = False  # Show high-cardinality per-task metrics for debugging
+
+    # Performance optimization settings
+    perf_invalidation_batch_size: int = Field(
+        default=100,
+        ge=1,
+        description="Invalidate LP cache every N updates (1=baseline, 100=recommended)",
+    )
+    perf_cache_task_list: bool = Field(
+        default=True,
+        description="Cache get_all_tracked_tasks() results",
+    )
+    perf_log_metrics: bool = Field(
+        default=False,
+        description="Log performance metrics (cache hits, timing)",
+    )
 
     @model_validator(mode="after")
     def _validate_and_initialize(self) -> "LearningProgressConfig":
@@ -277,6 +292,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             default_success_threshold=hypers.task_default_success_threshold,
             default_generator_type=hypers.task_default_generator_type,
             _session_id=hypers.session_id,  # Auto-generated, passed to backend
+            enable_task_list_cache=hypers.perf_cache_task_list,  # Performance optimization
         )
 
         # Initialize scorer strategy (pass tracker for shared memory EMA access)
@@ -492,8 +508,32 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             scorer=self.scorer if hasattr(self.scorer, "config") else None,
         )
 
-        # Mark distribution as stale - LP scores will be recalculated on next sampling
-        self.scorer.invalidate_cache()
+        # PERFORMANCE FIX: Batch invalidations to reduce get_all_tracked_tasks() calls
+        # Only invalidate cache every N updates instead of every single update
+        if not hasattr(self, "_updates_since_invalidation"):
+            self._updates_since_invalidation = 0
+            self._total_updates = 0
+            self._invalidation_count = 0
+
+        self._updates_since_invalidation += 1
+        self._total_updates += 1
+
+        # Invalidate every N updates (configurable via perf_invalidation_batch_size)
+        if self._updates_since_invalidation >= self.hypers.perf_invalidation_batch_size:
+            self.scorer.invalidate_cache()
+            self._updates_since_invalidation = 0
+            self._invalidation_count += 1
+
+            # Log performance metrics if enabled
+            if self.hypers.perf_log_metrics and self._invalidation_count % 10 == 0:
+                logger.warning(
+                    f"[LP_PERF] Invalidations: {self._invalidation_count}, "
+                    f"Total updates: {self._total_updates}, "
+                    f"Batch size: {self.hypers.perf_invalidation_batch_size}, "
+                    f"Reduction: {self._total_updates / max(1, self._invalidation_count):.1f}x"
+                )
+
+        # OLD (baseline): self.scorer.invalidate_cache()  # Was called EVERY episode
 
         # Invalidate stats cache when task performance changes
         self.invalidate_cache()

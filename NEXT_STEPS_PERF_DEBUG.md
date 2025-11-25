@@ -72,7 +72,7 @@ def update_task_performance(self, task_id: int, score: float) -> None:
 **Run test**:
 
 ```bash
-timeout 300s uv run ./tools/run.py experiment.cogs_v_clips use_lp=True run=batch_invalidate_fix
+timeout 600s uv run ./tools/run.py cogs_v_clips.train use_lp=True run=msb_perfdiagnosis_batch_invalidate_fix
 ```
 
 **Expected**:
@@ -97,12 +97,12 @@ cur_alg = LearningProgressConfig(
 
 ```bash
 # Small pool
-timeout 180s uv run ./tools/run.py experiment.cogs_v_clips \
-    use_lp=True num_active_tasks=100 run=debug_small_pool
+timeout 600s uv run ./tools/run.py cogs_v_clips.train \
+    use_lp=True num_active_tasks=100 run=msb_perfdiagnosis_debug_small_pool
 
 # Normal pool
-timeout 180s uv run ./tools/run.py experiment.cogs_v_clips \
-    use_lp=True run=debug_normal_pool
+timeout 600s uv run ./tools/run.py cogs_v_clips.train \
+    use_lp=True run=msb_perfdiagnosis_debug_normal_pool
 ```
 
 **Expected**: If small pool is significantly faster with less degradation, confirms O(n) issue.
@@ -145,8 +145,8 @@ def update_task_performance(self, task_id: int, score: float) -> None:
 **Run test**:
 
 ```bash
-timeout 180s uv run ./tools/run.py experiment.cogs_v_clips \
-    use_lp=True run=debug_batch_invalidate
+timeout 600s uv run ./tools/run.py cogs_v_clips.train \
+    use_lp=True run=msb_perfdiagnosis_debug_batch_invalidate
 ```
 
 **Expected**: Should see improvement if cache thrashing is the issue.
@@ -205,14 +205,14 @@ if elapsed > 0.001:  # >1ms
 
 ```bash
 # Run to epoch 50
-timeout 300s uv run ./tools/run.py experiment.cogs_v_clips \
-    use_lp=True run=checkpoint_test_1
+timeout 300s uv run ./tools/run.py cogs_v_clips.train \
+    use_lp=True run=msb_perfdiagnosis_checkpoint_test_1
 
 # Note the final SPS at epoch 50
 # Then resume
-uv run ./tools/run.py experiment.cogs_v_clips \
-    use_lp=True run=checkpoint_test_2 \
-    resume_from=outputs/checkpoint_test_1/checkpoints/latest.pt
+uv run ./tools/run.py cogs_v_clips.train \
+    use_lp=True run=msb_perfdiagnosis_checkpoint_test_2 \
+    resume_from=outputs/msb_perfdiagnosis_checkpoint_test_1/checkpoints/latest.pt
 
 # Check if epoch 51 SPS is similar to epoch 1 or epoch 50
 ```
@@ -223,14 +223,14 @@ uv run ./tools/run.py experiment.cogs_v_clips \
 
 ```bash
 # On current branch
-timeout 180s uv run ./tools/run.py experiment.cogs_v_clips \
-    use_lp=True run=current_branch
+timeout 600s uv run ./tools/run.py cogs_v_clips.train \
+    use_lp=True run=msb_perfdiagnosis_current_branch
 
 # Switch to main
 git stash
 git checkout main
-timeout 180s uv run ./tools/run.py experiment.cogs_v_clips \
-    use_lp=True run=main_branch
+timeout 600s uv run ./tools/run.py cogs_v_clips.train \
+    use_lp=True run=msb_perfdiagnosis_main_branch
 
 # Compare SPS degradation rates
 ```

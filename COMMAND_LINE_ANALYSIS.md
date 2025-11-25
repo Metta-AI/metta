@@ -8,11 +8,11 @@ Quick reference for investigating and fixing the LP performance degradation from
 # 1. Apply the fix (automatic)
 ./tools/fix_lp_performance.sh fix
 
-# 2. Test it
-timeout 180s uv run ./tools/run.py cogs_v_clips.train use_lp=True run=test_fix
+# 2. Test it (10 minutes to see degradation pattern)
+timeout 600s uv run ./tools/run.py cogs_v_clips.train use_lp=True run=msb_perfdiagnosis_test_fix
 
 # 3. Check SPS in logs
-grep -i sps outputs/*test_fix*/logs/train.log | tail -20
+grep -i sps outputs/*msb_perfdiagnosis_test_fix*/logs/train.log | tail -20
 ```
 
 ## Full Investigation Workflow
@@ -22,22 +22,22 @@ grep -i sps outputs/*test_fix*/logs/train.log | tail -20
 Run baseline tests to see the issue:
 
 ```bash
-# Test DiscreteRandom (should be fast)
-timeout 180s uv run ./tools/run.py cogs_v_clips.train \
+# Test DiscreteRandom (should be fast) - 10 min to see pattern
+timeout 600s uv run ./tools/run.py cogs_v_clips.train \
     use_lp=False \
-    run=baseline_discrete
+    run=msb_perfdiagnosis_baseline_discrete
 
-# Test Learning Progress (should be slow and degrade)
-timeout 180s uv run ./tools/run.py cogs_v_clips.train \
+# Test Learning Progress (should be slow and degrade) - 10 min to see degradation
+timeout 600s uv run ./tools/run.py cogs_v_clips.train \
     use_lp=True \
-    run=baseline_lp
+    run=msb_perfdiagnosis_baseline_lp
 
 # Compare SPS
 echo "DiscreteRandom SPS:"
-grep -iE "sps:|steps_per_second" outputs/*baseline_discrete*/logs/train.log | head -10
+grep -iE "sps:|steps_per_second" outputs/*msb_perfdiagnosis_baseline_discrete*/logs/train.log | head -10
 
 echo "Learning Progress SPS:"
-grep -iE "sps:|steps_per_second" outputs/*baseline_lp*/logs/train.log | head -10
+grep -iE "sps:|steps_per_second" outputs/*msb_perfdiagnosis_baseline_lp*/logs/train.log | head -10
 ```
 
 ### Step 2: Apply the Fix
@@ -79,12 +79,12 @@ def update_task_performance(self, task_id: int, score: float) -> None:
 ### Step 3: Test the Fix
 
 ```bash
-timeout 180s uv run ./tools/run.py cogs_v_clips.train \
+timeout 600s uv run ./tools/run.py cogs_v_clips.train \
     use_lp=True \
-    run=fixed_lp
+    run=msb_perfdiagnosis_fixed_lp
 
 # Check results
-grep -iE "sps:|steps_per_second" outputs/*fixed_lp*/logs/train.log | head -20
+grep -iE "sps:|steps_per_second" outputs/*msb_perfdiagnosis_fixed_lp*/logs/train.log | head -20
 ```
 
 ### Step 4: Compare Results
@@ -99,17 +99,17 @@ Or manually:
 echo "=== SPS Comparison ==="
 echo ""
 echo "DiscreteRandom (baseline):"
-grep -iE "sps:|steps_per_second" outputs/*baseline_discrete*/logs/train.log | \
+grep -iE "sps:|steps_per_second" outputs/*msb_perfdiagnosis_baseline_discrete*/logs/train.log | \
     awk '{print $NF}' | head -10
 
 echo ""
 echo "LP Before Fix:"
-grep -iE "sps:|steps_per_second" outputs/*baseline_lp*/logs/train.log | \
+grep -iE "sps:|steps_per_second" outputs/*msb_perfdiagnosis_baseline_lp*/logs/train.log | \
     awk '{print $NF}' | head -10
 
 echo ""
 echo "LP After Fix:"
-grep -iE "sps:|steps_per_second" outputs/*fixed_lp*/logs/train.log | \
+grep -iE "sps:|steps_per_second" outputs/*msb_perfdiagnosis_fixed_lp*/logs/train.log | \
     awk '{print $NF}' | head -10
 ```
 
@@ -139,10 +139,10 @@ The `fix_lp_performance.sh` script automates the workflow:
 ### Test with Smaller Task Pool
 
 ```bash
-timeout 180s uv run ./tools/run.py cogs_v_clips.train \
+timeout 600s uv run ./tools/run.py cogs_v_clips.train \
     use_lp=True \
     num_active_tasks=100 \
-    run=small_pool_test
+    run=msb_perfdiagnosis_small_pool_test
 ```
 
 ### Test with Different Batch Sizes
@@ -255,10 +255,10 @@ grep "per.*second" outputs/*/logs/train.log
 Reduce timeout or run for fewer epochs:
 
 ```bash
-timeout 90s uv run ./tools/run.py cogs_v_clips.train \
+timeout 300s uv run ./tools/run.py cogs_v_clips.train \
     use_lp=True \
-    trainer.total_timesteps=1000000 \
-    run=quick_test
+    trainer.total_timesteps=5000000 \
+    run=msb_perfdiagnosis_quick_test
 ```
 
 ## Reverting Changes
