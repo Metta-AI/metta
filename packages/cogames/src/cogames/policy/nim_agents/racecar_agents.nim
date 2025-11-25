@@ -653,45 +653,7 @@ proc step*(
           return true
       false
 
-    # Unclipping: if we see a clipped extractor, grab the required tool and go unclip it.
-    block unclipping:
-      let clipTarget = agent.findNearestClipped()
-      if clipTarget.isSome():
-        let (toolName, needed) = agent.getClipRequirement(clipTarget.get())
-        let resourceBlocked = agent.getExtractorResource(clipTarget.get())
-        # Fallback mapping if protocol inputs are missing.
-        var tool = toolName
-        if tool.len == 0:
-          case resourceBlocked
-          of "oxygen":
-            tool = "decoder"
-          of "carbon":
-            tool = "modulator"
-          of "germanium":
-            tool = "resonator"
-          of "silicon":
-            tool = "scrambler"
-        else:
-          discard
-        var invTool = agent.getToolInventory(tool)
-
-        let neededAmount = if needed > 0: needed else: 1
-        # Skip crafting tools; only unclip if we already have the needed one.
-
-        # If we have the tool now, move to the clipped extractor and use it (stay in gear vibe).
-        invTool = agent.getToolInventory(tool)
-        if tool.len > 0 and invTool >= neededAmount:
-          if not vibeUnavailable(agent.cfg.vibes.gear, agent.cfg.actions.vibeGear) and vibe != agent.cfg.vibes.gear:
-            doAction(agent.cfg.actions.vibeGear.int32)
-            return
-          if agent.location == clipTarget.get():
-            # Already on target; wait to let unclipping resolve.
-            doAction(agent.cfg.actions.noop.int32)
-            return
-          let action = agent.cfg.aStar(agent.location, clipTarget.get(), agent.map)
-          if action.isSome():
-            doAction(action.get().int32)
-            return
+    # Unclipping disabled for machina_1 simplification: focus purely on hearts.
 
     # Are we running low on energy?
     if invEnergy < MaxEnergy div 4:
