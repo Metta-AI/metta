@@ -431,6 +431,7 @@ proc step*(
       resetAgent(agent)
     if completionPct >= 0:
       agent.prevCompletion = completionPct
+    let episodeEndingSoon = completionPct >= 90
 
     proc doAction(action: int) {.measure.} =
 
@@ -867,7 +868,63 @@ proc step*(
           echo "going to chest to dump excess germanium"
           return
 
-    # Harvesting (role-agnostic after revert).
+    # Harvesting (role-agnostic after revert). If episode almost over and we already have all heart inputs, skip harvesting.
+    if episodeEndingSoon and invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and
+        invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
+      discard  # fall through to crafting/deposit priorities
+    else:
+      # normal harvest
+      if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
+        if agent.findAndTakeResource(
+          vibe,
+          agent.cfg.features.invCarbon,
+          agent.carbonTarget,
+          invCarbon,
+          agent.cfg.vibes.carbonA,
+          agent.cfg.actions.vibeCarbonA,
+          agent.cfg.tags.carbonExtractor,
+          "carbon"
+        ):
+          return
+
+      if agent.siliconTarget > 0 and invSilicon < agent.siliconTarget:
+        if agent.findAndTakeResource(
+          vibe,
+          agent.cfg.features.invSilicon,
+          agent.siliconTarget,
+          invSilicon,
+          agent.cfg.vibes.siliconA,
+          agent.cfg.actions.vibeSiliconA,
+          agent.cfg.tags.siliconExtractor,
+          "silicon"
+        ):
+          return
+
+      if agent.oxygenTarget > 0 and invOxygen < agent.oxygenTarget:
+        if agent.findAndTakeResource(
+          vibe,
+          agent.cfg.features.invOxygen,
+          agent.oxygenTarget,
+          invOxygen,
+          agent.cfg.vibes.oxygenA,
+          agent.cfg.actions.vibeOxygenA,
+          agent.cfg.tags.oxygenExtractor,
+          "oxygen"
+        ):
+          return
+
+      if agent.germaniumTarget > 0 and invGermanium < agent.germaniumTarget:
+        if agent.findAndTakeResource(
+          vibe,
+          agent.cfg.features.invGermanium,
+          agent.germaniumTarget,
+          invGermanium,
+          agent.cfg.vibes.germaniumA,
+          agent.cfg.actions.vibeGermaniumA,
+          agent.cfg.tags.germaniumExtractor,
+          "germanium"
+        ):
+          return
     if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
       if agent.findAndTakeResource(
         vibe,
