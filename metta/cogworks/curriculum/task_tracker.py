@@ -36,6 +36,7 @@ from metta.cogworks.curriculum.shared_memory_backend import (
     SharedMemoryBackend,
     TaskMemoryBackend,
     TaskState,
+    TaskStateIndices,
 )
 
 
@@ -243,11 +244,12 @@ class TaskTracker:
     ) -> None:
         """Atomic update: basic EMAs + bidirectional EMAs in ONE lock.
 
+        PERFORMANCE: This is a HOT PATH method called at ~200Hz (every episode completion).
+        Uses direct array access to avoid Pydantic overhead (~50x faster than TaskState).
+
         Stage 3: This consolidates what used to be 2-3 separate lock acquisitions:
         1. Basic EMAs (completion_count, reward_ema, success_rate_ema, ema_squared)
         2. Bidirectional EMAs (p_fast, p_slow, p_true, random_baseline)
-
-        Uses TaskState for type-safe read-modify-write (~1Hz frequency).
 
         Args:
             task_id: Task to update
@@ -267,37 +269,46 @@ class TaskTracker:
 
             index = self._task_id_to_index[task_id]
 
-            # Read current state (type-safe, no magic offsets!)
-            state = self._backend.get_task_state(index)
-            completion_count = int(state.completion_count)
+            # FAST PATH: Direct array access (no Pydantic overhead)
+            task_data = self._backend.get_task_data(index)
+            completion_count = int(task_data[TaskStateIndices.COMPLETION_COUNT])
 
             # === PART 1: Basic EMA updates ===
             # Update counts and totals
-            state.completion_count = float(completion_count + 1)
-            state.total_score += score
-            state.last_score = score
+            task_data[TaskStateIndices.COMPLETION_COUNT] = float(completion_count + 1)
+            task_data[TaskStateIndices.TOTAL_SCORE] += score
+            task_data[TaskStateIndices.LAST_SCORE] = score
 
             # Update reward EMA
             if completion_count == 0:
-                state.reward_ema = score
+                task_data[TaskStateIndices.REWARD_EMA] = score
             else:
-                state.reward_ema = (1 - self.ema_alpha) * state.reward_ema + self.ema_alpha * score
+                reward_ema = task_data[TaskStateIndices.REWARD_EMA]
+                task_data[TaskStateIndices.REWARD_EMA] = (1 - self.ema_alpha) * reward_ema + self.ema_alpha * score
 
             # Update EMA of squared scores
             score_squared = score * score
             if completion_count == 0:
-                state.ema_squared = score_squared
+                task_data[TaskStateIndices.EMA_SQUARED] = score_squared
             else:
-                state.ema_squared = (1 - self.ema_alpha) * state.ema_squared + self.ema_alpha * score_squared
+                ema_squared = task_data[TaskStateIndices.EMA_SQUARED]
+                task_data[TaskStateIndices.EMA_SQUARED] = (
+                    1 - self.ema_alpha
+                ) * ema_squared + self.ema_alpha * score_squared
 
             # Update success rate EMA
-            current_threshold = success_threshold if success_threshold is not None else state.success_threshold
-            state.success_threshold = current_threshold
+            current_threshold = (
+                success_threshold if success_threshold is not None else task_data[TaskStateIndices.SUCCESS_THRESHOLD]
+            )
+            task_data[TaskStateIndices.SUCCESS_THRESHOLD] = current_threshold
             is_success = float(score >= current_threshold)
             if completion_count == 0:
-                state.success_rate_ema = is_success
+                task_data[TaskStateIndices.SUCCESS_RATE_EMA] = is_success
             else:
-                state.success_rate_ema = (1 - self.ema_alpha) * state.success_rate_ema + self.ema_alpha * is_success
+                success_rate_ema = task_data[TaskStateIndices.SUCCESS_RATE_EMA]
+                task_data[TaskStateIndices.SUCCESS_RATE_EMA] = (
+                    1 - self.ema_alpha
+                ) * success_rate_ema + self.ema_alpha * is_success
 
             # === PART 2: Bidirectional EMA updates (if scorer provided) ===
             if scorer is not None and hasattr(scorer, "config"):
@@ -306,36 +317,42 @@ class TaskTracker:
                 # Handle baseline normalization if enabled
                 if scorer.config.use_baseline_normalization:
                     # Set baseline on first update (capped at 0.75)
-                    if state.random_baseline == 0.0:
-                        state.random_baseline = min(task_success_rate, 0.75)
+                    random_baseline = task_data[TaskStateIndices.RANDOM_BASELINE]
+                    if random_baseline == 0.0:
+                        random_baseline = min(task_success_rate, 0.75)
+                        task_data[TaskStateIndices.RANDOM_BASELINE] = random_baseline
 
                     # Calculate normalized "mastery" score
-                    improvement_over_baseline = max(task_success_rate - state.random_baseline, 0.0)
-                    total_possible_improvement = max(1.0 - state.random_baseline, 1e-10)
+                    improvement_over_baseline = max(task_success_rate - random_baseline, 0.0)
+                    total_possible_improvement = max(1.0 - random_baseline, 1e-10)
                     normalized_task_success_rate = improvement_over_baseline / total_possible_improvement
                 else:
                     # Use raw success rate
                     normalized_task_success_rate = task_success_rate
 
                 # Initialize or update bidirectional EMAs
-                if state.p_fast == 0.0 and state.p_slow == 0.0:
+                p_fast = task_data[TaskStateIndices.P_FAST]
+                p_slow = task_data[TaskStateIndices.P_SLOW]
+
+                if p_fast == 0.0 and p_slow == 0.0:
                     # First update - initialize to current value
-                    state.p_fast = normalized_task_success_rate
-                    state.p_slow = normalized_task_success_rate
-                    state.p_true = task_success_rate
+                    task_data[TaskStateIndices.P_FAST] = normalized_task_success_rate
+                    task_data[TaskStateIndices.P_SLOW] = normalized_task_success_rate
+                    task_data[TaskStateIndices.P_TRUE] = task_success_rate
                 else:
                     # Update EMAs
-                    state.p_fast = normalized_task_success_rate * scorer.config.ema_timescale + state.p_fast * (
-                        1.0 - scorer.config.ema_timescale
+                    ema_timescale = scorer.config.ema_timescale
+                    task_data[TaskStateIndices.P_FAST] = normalized_task_success_rate * ema_timescale + p_fast * (
+                        1.0 - ema_timescale
                     )
-                    slow_timescale = scorer.config.ema_timescale * scorer.config.slow_timescale_factor
-                    state.p_slow = normalized_task_success_rate * slow_timescale + state.p_slow * (1.0 - slow_timescale)
-                    state.p_true = task_success_rate * scorer.config.ema_timescale + state.p_true * (
-                        1.0 - scorer.config.ema_timescale
+                    slow_timescale = ema_timescale * scorer.config.slow_timescale_factor
+                    task_data[TaskStateIndices.P_SLOW] = normalized_task_success_rate * slow_timescale + p_slow * (
+                        1.0 - slow_timescale
                     )
-
-            # Write back updated state
-            self._backend.set_task_state(index, state)
+                    p_true = task_data[TaskStateIndices.P_TRUE]
+                    task_data[TaskStateIndices.P_TRUE] = task_success_rate * ema_timescale + p_true * (
+                        1.0 - ema_timescale
+                    )
 
             # Update running statistics
             self._total_completions += 1

@@ -128,6 +128,36 @@ class TaskState(BaseModel):
         )
 
 
+# Fast path constants - array indices for hot path operations
+# These map directly to the array layout in TaskState.to_array()
+# IMPORTANT: Keep in sync with TaskState field order
+class TaskStateIndices:
+    """Array indices for fast path operations (bypassing Pydantic overhead).
+
+    These must stay synchronized with TaskState.to_array() and from_array().
+    Used in hot paths (~200Hz) where Pydantic overhead is significant.
+    """
+
+    TASK_ID = 0
+    CREATION_TIME = 1
+    COMPLETION_COUNT = 2
+    REWARD_EMA = 3
+    LP_SCORE = 4
+    SUCCESS_RATE_EMA = 5
+    TOTAL_SCORE = 6
+    LAST_SCORE = 7
+    SUCCESS_THRESHOLD = 8
+    SEED = 9
+    GENERATOR_TYPE = 10
+    EMA_SQUARED = 11
+    IS_ACTIVE = 12
+    P_FAST = 13
+    P_SLOW = 14
+    P_TRUE = 15
+    RANDOM_BASELINE = 16
+    LABEL_HASH = 17
+
+
 class TaskMemoryBackend(ABC):
     """Abstract interface for task memory storage.
 
@@ -271,8 +301,8 @@ class SharedMemoryBackend(TaskMemoryBackend):
         self.task_struct_size = task_struct_size if task_struct_size is not None else TaskState.struct_size()
 
         # Initialize shared memory handle to None (set by _init_shared_memory)
-        self._task_array_shm = None
-        self._task_array = None
+        self._task_array_shm: Optional[shared_memory.SharedMemory] = None
+        self._task_array: Optional[np.ndarray] = None
 
         # Generate session ID if not provided (fallback for non-config usage)
         if session_id is None:
@@ -336,6 +366,7 @@ class SharedMemoryBackend(TaskMemoryBackend):
 
     def get_task_data(self, index: int) -> np.ndarray:
         """Get task data at given index (raw array view)."""
+        assert self._task_array is not None, "Shared memory not initialized"
         return self._task_array[index]
 
     def acquire_lock(self) -> ContextManager[Any]:
@@ -349,6 +380,7 @@ class SharedMemoryBackend(TaskMemoryBackend):
 
     def clear(self):
         """Clear all shared memory data."""
+        assert self._task_array is not None, "Shared memory not initialized"
         self._task_array.fill(0.0)
 
     def cleanup(self):
