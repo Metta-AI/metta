@@ -7,6 +7,7 @@ mettascope2/data/fidget/
 data/fidget/
 !data/resources/
 !data/resources/*.png
+uv.lock
 
 # Dynamic libraries (platform-specific compiled binaries)
 *.dylib
