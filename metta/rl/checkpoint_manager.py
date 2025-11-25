@@ -173,10 +173,7 @@ class CheckpointManager:
 
         raise ValueError(f"Invalid URI: {uri}")
 
-    @staticmethod
-    def normalize_uri(uri: str) -> str:
-        """Convert paths to file:// URIs, and resolve :latest (delegates to policy_artifact)."""
-        return _normalize_policy_uri(uri)
+    # normalize_uri kept for legacy callers; prefer metta.rl.policy_artifact._normalize_policy_uri
 
     @staticmethod
     def get_policy_metadata(uri: str) -> PolicyMetadata:
