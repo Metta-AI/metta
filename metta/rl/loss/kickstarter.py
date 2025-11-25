@@ -68,6 +68,7 @@ class Kickstarter(Loss):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         self.student_forward = self.cfg.student_forward
 
+        # Load teacher. Lazy import to avoid circular dependency
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")

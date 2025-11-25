@@ -193,10 +193,7 @@ class Evaluator(TrainerComponent):
             )
 
     def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
-        return policy_spec_from_uri(
-            policy_uri,
-            device=self._device,
-        )
+        return policy_spec_from_uri(policy_uri, device=self._device)
 
     @staticmethod
     def _spec_display_name(policy_spec: PolicySpec) -> str:

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from contextlib import ExitStack
-from typing import Optional, Sequence
+from typing import Sequence
 
-from metta.agent.policy import PolicyArchitecture
 from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
 from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.sim.runner import SimulationRunConfig
@@ -49,21 +48,12 @@ def run(policy_specs: Sequence[PolicySpec] | None = None) -> MultiPolicyEvalTool
 
 
 # ./tools/run.py recipes.experiment.multi_policy_eval.run_old_uris policy_uris="s3://softmax-public/policies/local.nishadsingh.20251114.124019/local.nishadsingh.20251114.124019:v74.mpt"
-def run_old_uris(
-    policy_uris: Sequence[str] | str | None = None,
-    policy_architecture: Optional[PolicyArchitecture] = None,
-) -> MultiPolicyEvalTool:
+def run_old_uris(policy_uris: Sequence[str] | str | None = None) -> MultiPolicyEvalTool:
     if isinstance(policy_uris, str):
         policy_uris = [policy_uris]
     policy_specs = []
     for policy_uri in policy_uris or []:
-        policy_specs.append(
-            policy_spec_from_uri(
-                policy_uri,
-                device="cpu",
-                policy_architecture=policy_architecture,
-            )
-        )
+        policy_specs.append(policy_spec_from_uri(policy_uri, device="cpu"))
     return run(policy_specs)
 
 

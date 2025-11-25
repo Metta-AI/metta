@@ -1,6 +1,7 @@
 import numpy as np
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
+from mettagrid.mapgen.scenes.dither import dither_edges
 
 
 class BiomeCavesConfig(SceneConfig):
@@ -50,34 +51,4 @@ class BiomeCaves(Scene[BiomeCavesConfig]):
 
         # Apply edge dithering for organic look
         if p.dither_edges:
-            self._dither_edges(grid, p.dither_prob)
-
-    def _dither_edges(self, grid, prob: float):
-        """Add organic noise to edges between wall and empty cells."""
-        H, W = grid.shape
-        depth = self.config.dither_depth
-
-        # Find edges: cells within 'depth' distance of opposite type
-        for y in range(depth, H - depth):
-            for x in range(depth, W - depth):
-                current = grid[y, x]
-
-                # Find distance to nearest opposite type cell
-                min_dist = depth + 1
-                for dy in range(-depth, depth + 1):
-                    for dx in range(-depth, depth + 1):
-                        if dy == 0 and dx == 0:
-                            continue
-                        ny, nx = y + dy, x + dx
-                        if 0 <= ny < H and 0 <= nx < W:
-                            if grid[ny, nx] != current:
-                                dist = max(abs(dy), abs(dx))  # Chebyshev distance
-                                min_dist = min(min_dist, dist)
-
-                # Only dither cells near edges (within depth)
-                if min_dist <= depth:
-                    # Probability increases as we get closer to edge
-                    # At distance 1: prob, at distance depth: prob/depth
-                    edge_prob = prob * (depth - min_dist + 1) / depth
-                    if self.rng.random() < edge_prob:
-                        grid[y, x] = "empty" if current == "wall" else "wall"
+            dither_edges(grid, p.dither_prob, p.dither_depth, self.rng)
