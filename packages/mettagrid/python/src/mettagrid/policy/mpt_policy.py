@@ -33,18 +33,16 @@ class MptPolicy(MultiAgentPolicy):
         strict: bool = True,
     ):
         super().__init__(policy_env_info)
-        torch_device = torch.device(device) if isinstance(device, str) else device
 
         resolved_uri = checkpoint_uri
         if uri_resolver and (resolver_func := load_symbol(uri_resolver, strict=False)):
             resolved_uri = resolver_func(checkpoint_uri)  # type: ignore
 
-        self._artifact = load_mpt(resolved_uri)
-        self._architecture = self._artifact.architecture
+        artifact = load_mpt(resolved_uri)
+        self._architecture = artifact.architecture
 
-        policy = self._artifact.instantiate(policy_env_info, device=torch_device, strict=strict)
-        policy.eval()
-        self._policy = policy
+        self._policy = artifact.instantiate(policy_env_info, device=device, strict=strict)
+        self._policy.eval()
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return self._policy.agent_policy(agent_id)
