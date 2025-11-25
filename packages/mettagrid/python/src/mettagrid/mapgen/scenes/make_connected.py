@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+from scipy import ndimage
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
 
@@ -35,80 +36,40 @@ class MakeConnected(Scene[MakeConnectedConfig]):
         height, width = self.grid.shape
         empty = self.grid == "empty"
 
-        def expand(mask: np.ndarray) -> np.ndarray:
-            up = np.zeros_like(mask, dtype=bool)
-            down = np.zeros_like(mask, dtype=bool)
-            left = np.zeros_like(mask, dtype=bool)
-            right = np.zeros_like(mask, dtype=bool)
-            up[:-1] = mask[1:]
-            down[1:] = mask[:-1]
-            left[:, :-1] = mask[:, 1:]
-            right[:, 1:] = mask[:, :-1]
-            return up | down | left | right
-
-        components: list[np.ndarray] = []
-        visited = np.zeros_like(empty, dtype=bool)
-
-        # Component labeling via frontier dilation.
-        while True:
-            remaining = (~visited) & empty
-            if not remaining.any():
-                break
-            y0, x0 = np.argwhere(remaining)[0]
-            frontier = np.zeros_like(empty, dtype=bool)
-            component_mask = np.zeros_like(empty, dtype=bool)
-            frontier[y0, x0] = True
-            component_mask[y0, x0] = True
-            visited[y0, x0] = True
-
-            while frontier.any():
-                frontier = expand(frontier) & empty & (~visited)
-                if not frontier.any():
-                    break
-                visited |= frontier
-                component_mask |= frontier
-
-            components.append(component_mask)
-
-        if len(components) <= 1:
+        # Label components using SciPy; 4-connectivity matches prior logic.
+        labels, num = ndimage.label(empty, structure=np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]]))
+        if num <= 1:
             logger.debug("Map is already connected")
             return
 
-        sizes = [int(comp.sum()) for comp in components]
-        largest_idx = int(np.argmax(sizes))
-        largest = components[largest_idx]
+        # Largest component id (1-based in scipy label output).
+        counts = np.bincount(labels.ravel())
+        counts[0] = 0  # background
+        largest_id = int(np.argmax(counts))
+        largest_mask = labels == largest_id
 
-        # Distance transform from largest component using BFS layers.
-        distances = np.full_like(empty, np.inf, dtype=np.float32)
-        frontier = largest.copy()
-        seen = largest.copy()
-        distances[frontier] = 0.0
-        dist_val = 0.0
+        # Distance transform from largest component.
+        distances = ndimage.distance_transform_cdt(~largest_mask, metric="taxicab").astype(np.int32)
 
-        while frontier.any():
-            dist_val += 1.0
-            frontier = expand(frontier) & (~seen)
-            if not frontier.any():
-                break
-            distances[frontier] = dist_val
-            seen |= frontier
-
-        for idx, component in enumerate(components):
-            if idx == largest_idx:
+        # For each other component, pick the closest cell and dig back along gradient.
+        for cid in range(1, num + 1):
+            if cid == largest_id:
                 continue
-
-            comp_dist = distances[component]
-            if not np.isfinite(comp_dist).any():
+            comp_mask = labels == cid
+            if not comp_mask.any():
                 continue
-            flat_idx = int(np.argmin(comp_dist))
-            comp_coords = np.argwhere(component)
-            start_y, start_x = comp_coords[flat_idx]
+            comp_dists = distances[comp_mask]
+            min_d = comp_dists.min()
+            # Early out: if already touching, no dig needed.
+            if min_d == 0:
+                continue
+            start_idx = int(np.argmin(comp_dists))
+            comp_coords = np.argwhere(comp_mask)
+            y, x = comp_coords[start_idx]
 
-            # Trace shortest path downhill in distance grid.
-            y, x = int(start_y), int(start_x)
+            # Dig path downhill until distance 0.
             while distances[y, x] > 0:
                 self.grid[y, x] = "empty"
-                # Candidate neighbors with minimal distance
                 best_d = distances[y, x] - 1
                 candidates: list[Cell] = []
                 if y > 0 and distances[y - 1, x] == best_d:
@@ -121,27 +82,53 @@ class MakeConnected(Scene[MakeConnectedConfig]):
                     candidates.append((y, x + 1))
 
                 if not candidates:
-                    # Shouldn't happen if distances are consistent.
                     break
-
                 y, x = candidates[int(self.rng.integers(0, len(candidates)))]
 
         # Final assertion: fully connected.
-        def _count_components(mask: np.ndarray) -> int:
-            seen = np.zeros_like(mask, dtype=bool)
-            count = 0
-            while True:
-                remaining = (~seen) & mask
-                if not remaining.any():
-                    break
-                count += 1
-                y_s, x_s = np.argwhere(remaining)[0]
-                front = np.zeros_like(mask, dtype=bool)
-                front[y_s, x_s] = True
-                seen[y_s, x_s] = True
-                while front.any():
-                    front = expand(front) & mask & (~seen)
-                    seen |= front
-            return count
+        labels_final, num_final = ndimage.label(
+            self.grid == "empty", structure=np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+        )
+        if num_final > 1:
+            # Fallback: recompute distances on updated grid and bridge remaining components.
+            empty = self.grid == "empty"
+            labels, num = ndimage.label(empty, structure=np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]]))
+            counts = np.bincount(labels.ravel())
+            counts[0] = 0
+            largest_id = int(np.argmax(counts))
+            largest_mask = labels == largest_id
+            distances = ndimage.distance_transform_cdt(~largest_mask, metric="taxicab").astype(np.int32)
 
-        assert _count_components(self.grid == "empty") == 1, "Map must end up with a single connected component"
+            for cid in range(1, num + 1):
+                if cid == largest_id:
+                    continue
+                comp_mask = labels == cid
+                if not comp_mask.any():
+                    continue
+                comp_dists = distances[comp_mask]
+                if comp_dists.size == 0:
+                    continue
+                start_idx = int(np.argmin(comp_dists))
+                comp_coords = np.argwhere(comp_mask)
+                y, x = comp_coords[start_idx]
+                while distances[y, x] > 0:
+                    self.grid[y, x] = "empty"
+                    best_d = distances[y, x] - 1
+                    candidates: list[Cell] = []
+                    if y > 0 and distances[y - 1, x] == best_d:
+                        candidates.append((y - 1, x))
+                    if y + 1 < height and distances[y + 1, x] == best_d:
+                        candidates.append((y + 1, x))
+                    if x > 0 and distances[y, x - 1] == best_d:
+                        candidates.append((y, x - 1))
+                    if x + 1 < width and distances[y, x + 1] == best_d:
+                        candidates.append((y, x + 1))
+                    if not candidates:
+                        break
+                    y, x = candidates[int(self.rng.integers(0, len(candidates)))]
+
+        # Final assertion after fallback.
+        labels_final, num_final = ndimage.label(
+            self.grid == "empty", structure=np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+        )
+        assert num_final == 1, "Map must end up with a single connected component"

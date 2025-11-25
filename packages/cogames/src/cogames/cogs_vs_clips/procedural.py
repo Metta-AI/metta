@@ -311,13 +311,6 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         # Connectivity + hub
         children.append(
             ChildrenAction(
-                scene=MakeConnected.Config(),
-                where="full",
-            )
-        )
-
-        children.append(
-            ChildrenAction(
                 scene=cfg.hub.model_copy(deep=True, update={"spawn_count": cfg.spawn_count}),
                 where="full",
             )
