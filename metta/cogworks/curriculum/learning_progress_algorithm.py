@@ -588,17 +588,19 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         for key, value in tracker_stats.items():
             stats[f"tracker/{key}"] = value
 
-        # Add pool composition and sampling statistics
-        composition_data = self.get_pool_composition_stats()
+        # Skip per-label stats in performance mode to reduce overhead
+        if not self.performance_mode:
+            # Add pool composition and sampling statistics
+            composition_data = self.get_pool_composition_stats()
 
-        for label, count in composition_data["pool_composition"].items():
-            stats[f"pool_composition/{label}"] = float(count)
+            for label, count in composition_data["pool_composition"].items():
+                stats[f"pool_composition/{label}"] = float(count)
 
-        for label, count in composition_data["sampling_counts"].items():
-            stats[f"sampling_counts/{label}"] = float(count)
+            for label, count in composition_data["sampling_counts"].items():
+                stats[f"sampling_counts/{label}"] = float(count)
 
-        for label, count in self._label_eviction_counts.items():
-            stats[f"eviction_counts/{label}"] = float(count)
+            for label, count in self._label_eviction_counts.items():
+                stats[f"eviction_counts/{label}"] = float(count)
 
         return stats
 
