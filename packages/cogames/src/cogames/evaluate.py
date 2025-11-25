@@ -50,12 +50,14 @@ def evaluate(
     output_format: Optional[Literal["yaml", "json"]] = None,
     save_replay: Optional[str] = None,
     doxascope_enabled = False,
-    doxascope_output_dir: Optional[str] = "./train_dir/doxascope/raw_data/"
+    doxascope_output_dir: Optional[str] = "./train_dir/doxascope/raw_data/",
 ) -> MissionResultsSummary:
     if not missions:
         raise ValueError("At least one mission must be provided for evaluation.")
     if not policy_specs:
         raise ValueError("At least one policy specification must be provided for evaluation.")
+    if doxascope_output_dir is None:
+        doxascope_output_dir = "./train_dir/doxascope/raw_data/"
 
     base_doxascope_logger = DoxascopeLogger(enabled=doxascope_enabled, simulation_id="", output_dir=doxascope_output_dir)
 
@@ -80,9 +82,11 @@ def evaluate(
 
         if base_doxascope_logger.enabled:
             doxascope_logger = base_doxascope_logger.clone(simulation_id=f"eval_{seed}_{mission_name}")
+            # Extract policy URI from either data_path or init_kwargs
+            policy_uri = policy_specs[0].init_kwargs.get("checkpoint_uri") or policy_specs[0].data_path or "unknown"
             doxascope_logger.configure(
-                policy_uri=str(policy_specs[0].uri),
-                object_type_names=env_cfg.game.object_types
+                policy_uri=str(policy_uri),
+                object_type_names=list(env_cfg.game.objects.keys())
             )
         else:
             doxascope_logger = None

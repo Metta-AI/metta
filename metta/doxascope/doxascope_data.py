@@ -147,6 +147,10 @@ class DoxascopeLogger:
 
         self.resource_names = resource_names
 
+        # Strip file:// prefix if present, since we need a path not a URI
+        if policy_uri.startswith("file://"):
+            policy_uri = policy_uri[7:]  # Remove "file://"
+
         stem = Path(policy_uri).stem
         if ":" in stem:
             base_name = stem.split(":", 1)[0]
