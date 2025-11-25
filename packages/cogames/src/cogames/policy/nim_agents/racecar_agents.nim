@@ -499,6 +499,46 @@ proc step*(
       agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost)
       agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost)
 
+    proc findAndTakeResource(
+      agent: RaceCarAgent,
+      vibe: int,
+      resource: int,
+      target: int,
+      inventory: int,
+      vibeGetResource: int,
+      vibeAction: int,
+      extractorTag: int,
+      name: string
+    ): bool {.measure.} =
+      # Check the chest first.
+      var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if closeChest.isSome():
+        let chestInventory = agent.cfg.getInventory(agent.map, resource, closeChest.get())
+        if chestInventory > 0:
+          if vibe != vibeGetResource:
+            doAction(vibeAction.int32)
+            echo "vibing " & name & " to take from chest"
+            return true
+          measurePush("chest nearby to take " & name)
+          let action = agent.cfg.aStar(agent.location, closeChest.get(), agent.map)
+          measurePop()
+          if action.isSome():
+            doAction(action.get().int32)
+            echo "going to chest to take " & name & " from chest"
+            return true
+
+      # Then try the extractor.
+      let extractorNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, extractorTag)
+      if extractorNearby.isSome():
+        measurePush("extractor nearby to take " & name)
+        let action = agent.cfg.aStar(agent.location, extractorNearby.get(), agent.map)
+        measurePop()
+        if action.isSome():
+          doAction(action.get().int32)
+          echo "going to " & name & ", need: " & $target & " have: " & $inventory
+          return true
+      false
+
     # Unclipping: if we see a clipped extractor, grab the required tool and go unclip it.
     block unclipping:
       let clipTarget = agent.findNearestClipped()
@@ -601,23 +641,28 @@ proc step*(
 
         # If we have the tool now, move to the clipped extractor and use it (stay in gear vibe).
         invTool = agent.getToolInventory(tool)
-    if tool.len > 0 and invTool >= neededAmount:
-      if agent.cfg.actions.vibeGear != 0 and vibe != agent.cfg.vibes.gear:
-        doAction(agent.cfg.actions.vibeGear.int32)
-        return
-      if agent.location == clipTarget.get():
-        # Already on target; wait to let unclipping resolve.
-        doAction(agent.cfg.actions.noop.int32)
-        return
-      let action = agent.cfg.aStar(agent.location, clipTarget.get(), agent.map)
-      if action.isSome():
-        doAction(action.get().int32)
-        return
+        if tool.len > 0 and invTool >= neededAmount:
+          if agent.cfg.actions.vibeGear != 0 and vibe != agent.cfg.vibes.gear:
+            doAction(agent.cfg.actions.vibeGear.int32)
+            return
+          if agent.location == clipTarget.get():
+            # Already on target; wait to let unclipping resolve.
+            doAction(agent.cfg.actions.noop.int32)
+            return
+          let action = agent.cfg.aStar(agent.location, clipTarget.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            return
 
     # Are we running low on energy?
     if invEnergy < MaxEnergy div 4:
       let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
+        # If we are already on the charger, stay put to actually recharge.
+        if agent.location == chargerNearby.get():
+          doAction(agent.cfg.actions.noop.int32)
+          echo "charging in place"
+          return
         measurePush("charger nearby")
         let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
         measurePop()
@@ -626,11 +671,16 @@ proc step*(
           echo "going to charger"
           return
 
-    # Charge opportunistically.
+    # Charge opportunistically when close to a charger.
     if invEnergy < MaxEnergy - 20:
       let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
         if manhattan(agent.location, chargerNearby.get()) < 2:
+          # If already on the charger tile, wait; otherwise walk over.
+          if agent.location == chargerNearby.get():
+            doAction(agent.cfg.actions.noop.int32)
+            echo "topping off energy in place"
+            return
           measurePush("charge nearby")
           let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
           measurePop()
@@ -656,6 +706,11 @@ proc step*(
         return
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
+        # If we're standing on the chest tile with the right vibe, stay to deposit.
+        if agent.location == chestNearby.get():
+          doAction(agent.cfg.actions.noop.int32)
+          echo "depositing at chest in place"
+          return
         measurePush("chest nearby")
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
         measurePop()
@@ -675,6 +730,11 @@ proc step*(
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
       if assemblerNearby.isSome():
+        # If already on assembler with proper vibe and resources, wait to craft.
+        if agent.location == assemblerNearby.get():
+          doAction(agent.cfg.actions.noop.int32)
+          echo "crafting heart at assembler"
+          return
         measurePush("assembler nearby")
         let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
         measurePop()
@@ -746,47 +806,6 @@ proc step*(
           doAction(action.get().int32)
           echo "going to chest to dump excess germanium"
           return
-
-    proc findAndTakeResource(
-      agent: RaceCarAgent,
-      vibe: int,
-      resource: int,
-      target: int,
-      inventory: int,
-      vibeGetResource: int,
-      vibeAction: int,
-      extractorTag: int,
-      name: string
-    ): bool {.measure.} =
-      # Check the chest.
-      var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-      if closeChest.isSome():
-        # Does it have the resources we need?
-        let chestInventory = agent.cfg.getInventory(agent.map, resource, closeChest.get())
-        if chestInventory > 0:
-          # Vibe the right resource to take from the chest.
-          if vibe != vibeGetResource:
-            doAction(vibeAction.int32)
-            echo "vibing " & name & " to take from chest"
-            return true
-          measurePush("chest nearby to take " & name)
-          let action = agent.cfg.aStar(agent.location, closeChest.get(), agent.map)
-          measurePop()
-          if action.isSome():
-            doAction(action.get().int32)
-            echo "going to chest to take " & name & " from chest"
-            return true
-
-      # Check the carbon extractor.
-      let extractorNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, extractorTag)
-      if extractorNearby.isSome():
-        measurePush("extractor nearby to take " & name)
-        let action = agent.cfg.aStar(agent.location, extractorNearby.get(), agent.map)
-        measurePop()
-        if action.isSome():
-          doAction(action.get().int32)
-          echo "going to " & name & ", need: " & $target & " have: " & $inventory
-          return true
 
     # Is there carbon nearby?
     if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
