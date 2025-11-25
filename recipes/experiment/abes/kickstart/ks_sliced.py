@@ -126,11 +126,11 @@ def train(
                 phase="rollout",
                 end_at_step=1_000_000_000,
             ),
-            # LossRunGate(
-            #     loss_instance_name="sliced_kickstarter",
-            #     phase="train",
-            #     end_at_step=1_000_000_000,
-            # ),
+            LossRunGate(
+                loss_instance_name="sliced_kickstarter",
+                phase="train",
+                end_at_step=1_000_000_000,
+            ),
         ],
         rules=[
             # HyperUpdateRule(
