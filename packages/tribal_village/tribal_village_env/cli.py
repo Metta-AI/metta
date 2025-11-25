@@ -106,7 +106,7 @@ def play(
 
 
 @app.callback(invoke_without_command=True)
-def main(
+def root(
     ctx: typer.Context,
     render: str = typer.Option(
         "gui",
