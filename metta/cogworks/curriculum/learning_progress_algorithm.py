@@ -152,21 +152,20 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
             num_active_tasks: Number of tasks to keep in active pool
             **overrides: Override any parameter
         """
-        defaults = {
-            "use_bidirectional": True,
-            "ema_timescale": 0.1,
-            "num_active_tasks": num_active_tasks,
-            "slow_timescale_factor": 0.2,
-            "rand_task_rate": 0.01,
-            "exploration_bonus": 0.1,
-            "min_samples_for_lp": 10,
-            "lp_score_temperature": 0.0,
-            "z_score_amplification": 10.0,
-            "show_curriculum_troubleshooting_logging": False,
-            "early_progress_amplification": 0.5,
-        }
-        defaults.update(overrides)
-        return cls(**defaults)
+        config = cls(
+            use_bidirectional=True,
+            ema_timescale=0.1,
+            num_active_tasks=num_active_tasks,
+            slow_timescale_factor=0.2,
+            rand_task_rate=0.01,
+            exploration_bonus=0.1,
+            min_samples_for_lp=10,
+            lp_score_temperature=0.0,
+            z_score_amplification=10.0,
+            show_curriculum_troubleshooting_logging=False,
+            early_progress_amplification=0.5,
+        )
+        return config.model_copy(update=overrides)
 
     @classmethod
     def stable(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
@@ -181,21 +180,20 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
             num_active_tasks: Number of tasks to keep in active pool
             **overrides: Override any parameter
         """
-        defaults = {
-            "use_bidirectional": True,
-            "ema_timescale": 0.01,  # 10x slower
-            "num_active_tasks": num_active_tasks,
-            "slow_timescale_factor": 0.2,
-            "rand_task_rate": 0.02,  # More exploration
-            "exploration_bonus": 0.15,  # Higher exploration
-            "min_samples_for_lp": 20,  # More samples before LP
-            "lp_score_temperature": 0.0,
-            "z_score_amplification": 5.0,  # Less aggressive
-            "show_curriculum_troubleshooting_logging": False,
-            "early_progress_amplification": 0.5,
-        }
-        defaults.update(overrides)
-        return cls(**defaults)
+        config = cls(
+            use_bidirectional=True,
+            ema_timescale=0.01,  # 10x slower
+            num_active_tasks=num_active_tasks,
+            slow_timescale_factor=0.2,
+            rand_task_rate=0.02,  # More exploration
+            exploration_bonus=0.15,  # Higher exploration
+            min_samples_for_lp=20,  # More samples before LP
+            lp_score_temperature=0.0,
+            z_score_amplification=5.0,  # Less aggressive
+            show_curriculum_troubleshooting_logging=False,
+            early_progress_amplification=0.5,
+        )
+        return config.model_copy(update=overrides)
 
     @classmethod
     def fast_learning(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
@@ -210,21 +208,20 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
             num_active_tasks: Number of tasks to keep in active pool
             **overrides: Override any parameter
         """
-        defaults = {
-            "use_bidirectional": True,
-            "ema_timescale": 0.2,  # 2x faster
-            "num_active_tasks": num_active_tasks,
-            "slow_timescale_factor": 0.2,
-            "rand_task_rate": 0.005,  # Less exploration
-            "exploration_bonus": 0.05,  # Lower exploration
-            "min_samples_for_lp": 5,  # Quick LP signal
-            "lp_score_temperature": 0.0,
-            "z_score_amplification": 15.0,  # More aggressive
-            "show_curriculum_troubleshooting_logging": False,
-            "early_progress_amplification": 0.5,
-        }
-        defaults.update(overrides)
-        return cls(**defaults)
+        config = cls(
+            use_bidirectional=True,
+            ema_timescale=0.2,  # 2x faster
+            num_active_tasks=num_active_tasks,
+            slow_timescale_factor=0.2,
+            rand_task_rate=0.005,  # Less exploration
+            exploration_bonus=0.05,  # Lower exploration
+            min_samples_for_lp=5,  # Quick LP signal
+            lp_score_temperature=0.0,
+            z_score_amplification=15.0,  # More aggressive
+            show_curriculum_troubleshooting_logging=False,
+            early_progress_amplification=0.5,
+        )
+        return config.model_copy(update=overrides)
 
     @classmethod
     def arena_legacy(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
@@ -238,21 +235,20 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
             num_active_tasks: Number of tasks to keep in active pool
             **overrides: Override any parameter
         """
-        defaults = {
-            "use_bidirectional": True,
-            "ema_timescale": 0.001,  # Very slow (legacy setting)
-            "num_active_tasks": num_active_tasks,
-            "slow_timescale_factor": 0.2,
-            "rand_task_rate": 0.01,
-            "exploration_bonus": 0.1,
-            "min_samples_for_lp": 10,
-            "lp_score_temperature": 0.0,
-            "z_score_amplification": 10.0,
-            "show_curriculum_troubleshooting_logging": True,
-            "early_progress_amplification": 0.5,
-        }
-        defaults.update(overrides)
-        return cls(**defaults)
+        config = cls(
+            use_bidirectional=True,
+            ema_timescale=0.001,  # Very slow (legacy setting)
+            num_active_tasks=num_active_tasks,
+            slow_timescale_factor=0.2,
+            rand_task_rate=0.01,
+            exploration_bonus=0.1,
+            min_samples_for_lp=10,
+            lp_score_temperature=0.0,
+            z_score_amplification=10.0,
+            show_curriculum_troubleshooting_logging=True,
+            early_progress_amplification=0.5,
+        )
+        return config.model_copy(update=overrides)
 
 
 class LearningProgressAlgorithm(CurriculumAlgorithm):
