@@ -261,7 +261,6 @@ class MettaGridPufferEnv(PufferEnv):
             symbol_map[obj.name] = obj.render_symbol
 
         return MapBuffer(
-            object_type_names=sim.object_type_names,
             symbol_map=symbol_map,
             initial_height=sim.map_height,
             initial_width=sim.map_width,
