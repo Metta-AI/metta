@@ -18,12 +18,50 @@ from mettagrid.simulator.interface import SimulatorEventHandler
 
 logger = logging.getLogger(__name__)
 
-class LLMCostTrackingHandler(SimulatorEventHandler):
-    """Event handler that prints cost summary at episode end."""
 
-    def on_episode_end(self) -> None:
-        """Print cost summary when episode ends."""
-        _print_cost_summary_on_exit()
+def calculate_llm_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    """Calculate the cost of an LLM API call based on model and token usage.
+
+    Prices are per 1M tokens as of January 2025.
+
+    Args:
+        model: Model name
+        input_tokens: Number of input tokens
+        output_tokens: Number of output tokens
+
+    Returns:
+        Cost in USD
+    """
+    # OpenAI pricing (per 1M tokens)
+    openai_prices = {
+        "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+        "gpt-4o": {"input": 2.50, "output": 10.00},
+        "gpt-5.1": {"input": 5.00, "output": 15.00},
+    }
+
+    # Anthropic pricing (per 1M tokens)
+    anthropic_prices = {
+        "claude-haiku-4-5": {"input": 0.80, "output": 4.00},
+        "claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
+        "claude-opus-4-5": {"input": 15.00, "output": 75.00},
+    }
+
+    # Combine all pricing
+    all_prices = {**openai_prices, **anthropic_prices}
+
+    # Get pricing for the model
+    if model not in all_prices:
+        logger.warning(f"Unknown model '{model}' for cost calculation. Using default pricing.")
+        # Default to GPT-4o-mini pricing if model is unknown
+        prices = openai_prices["gpt-4o-mini"]
+    else:
+        prices = all_prices[model]
+
+    # Calculate cost (prices are per 1M tokens, so divide by 1,000,000)
+    input_cost = (input_tokens / 1_000_000) * prices["input"]
+    output_cost = (output_tokens / 1_000_000) * prices["output"]
+
+    return input_cost + output_cost
 
 
 def _print_cost_summary_on_exit() -> None:
@@ -808,6 +846,17 @@ The best action is move_east (WRONG - contains extra words)
                 LLMAgentPolicy.total_input_tokens += usage.input_tokens
                 LLMAgentPolicy.total_output_tokens += usage.output_tokens
 
+                # Calculate cost based on model
+                call_cost = calculate_llm_cost(self.model, usage.input_tokens, usage.output_tokens)
+                LLMAgentPolicy.total_cost += call_cost
+
+                logger.debug(
+                    f"Anthropic response: '{action_name}' | "
+                    f"Tokens: {usage.input_tokens} in, {usage.output_tokens} out | "
+                    f"Cost: ${call_cost:.6f} | "
+                    f"Total so far: ${LLMAgentPolicy.total_cost:.4f}"
+                )
+
             # Parse and return action
             parsed_action = self._parse_action(action_name)
             logger.info(
@@ -881,6 +930,22 @@ The best action is move_east (WRONG - contains extra words)
         logger.error(f"Could not parse any action from '{action_name}'. Using random action.")
         return random.choice(self.policy_env_info.actions.actions())
 
+    @classmethod
+    def get_cost_summary(cls) -> dict:
+        """Get summary of LLM API usage and costs.
+
+        Returns:
+            Dictionary with total_calls, total_tokens, total_input_tokens,
+            total_output_tokens, and total_cost
+        """
+        return {
+            "total_calls": cls.total_calls,
+            "total_tokens": cls.total_input_tokens + cls.total_output_tokens,
+            "total_input_tokens": cls.total_input_tokens,
+            "total_output_tokens": cls.total_output_tokens,
+            "total_cost": cls.total_cost,
+        }
+
 
 class LLMMultiAgentPolicy(MultiAgentPolicy):
     """LLM-based multi-agent policy for MettaGrid."""
@@ -909,7 +974,11 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         self.model = model
         self.temperature = temperature
         self.debug_mode = debug_mode
-        self._cost_handler = LLMCostTrackingHandler()
+
+        # Register atexit handler to print costs when program ends (for paid APIs only)
+        if provider in ("openai", "anthropic") and not hasattr(LLMMultiAgentPolicy, '_atexit_registered'):
+            atexit.register(_print_cost_summary_on_exit)
+            LLMMultiAgentPolicy._atexit_registered = True
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create an LLM agent policy for a specific agent.
@@ -928,13 +997,6 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             debug_mode=self.debug_mode,
         )
 
-    def get_event_handlers(self) -> list[SimulatorEventHandler]:
-        """Return event handlers for this policy.
-
-        Returns:
-            List of event handlers, including cost tracking handler
-        """
-        return [self._cost_handler]
 
 
 class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
