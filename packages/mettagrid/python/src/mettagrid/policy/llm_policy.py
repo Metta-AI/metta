@@ -1,9 +1,11 @@
 """LLM-based policy for MettaGrid using GPT or Claude."""
 
+import atexit
 import json
 import logging
 import os
 import random
+import signal
 import subprocess
 import sys
 from typing import Literal
@@ -12,9 +14,40 @@ from mettagrid.policy.observation_debugger import ObservationDebugger
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
+from mettagrid.simulator.interface import SimulatorEventHandler
 
 logger = logging.getLogger(__name__)
 
+class LLMCostTrackingHandler(SimulatorEventHandler):
+    """Event handler that prints cost summary at episode end."""
+
+    def on_episode_end(self) -> None:
+        """Print cost summary when episode ends."""
+        _print_cost_summary_on_exit()
+
+
+def _print_cost_summary_on_exit() -> None:
+    """Print cost summary when program exits or is interrupted."""
+    # Access the class through globals to avoid circular import
+    try:
+        llm_policy_class = globals().get("LLMAgentPolicy")
+        if llm_policy_class is None:
+            return
+
+        summary = llm_policy_class.get_cost_summary()
+        if summary["total_calls"] > 0:
+            print("\n" + "=" * 60)
+            print("LLM API USAGE SUMMARY")
+            print("=" * 60)
+            print(f"Total API calls: {summary['total_calls']}")
+            print(f"Total tokens: {summary['total_tokens']:,}")
+            print(f"  - Input tokens: {summary['total_input_tokens']:,}")
+            print(f"  - Output tokens: {summary['total_output_tokens']:,}")
+            print(f"Total cost: ${summary['total_cost']:.4f}")
+            print("=" * 60 + "\n")
+    except Exception:
+        # Silently fail if there's any issue printing the summary
+        pass
 
 def check_ollama_available() -> bool:
     """Check if Ollama server is running.
@@ -24,6 +57,7 @@ def check_ollama_available() -> bool:
     """
     try:
         from openai import OpenAI
+
         client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
         # Try to list models as a health check
         client.models.list()
@@ -39,18 +73,26 @@ def list_ollama_models() -> list[str]:
         List of model names
     """
     try:
-        result = subprocess.run(
-            ["ollama", "list"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        result = subprocess.run(["ollama", "list"], capture_output=True, text=True, check=True)
         # Parse output: skip header line, extract model names
-        lines = result.stdout.strip().split('\n')[1:]  # Skip header
+        lines = result.stdout.strip().split("\n")[1:]  # Skip header
         models = [line.split()[0] for line in lines if line.strip()]
         return models
     except (subprocess.CalledProcessError, FileNotFoundError, IndexError):
         return []
+
+
+def get_openai_models() -> list[tuple[str, str]]:
+    """Get tested working OpenAI models.
+
+    Returns:
+        List of (model_name, description) tuples
+    """
+    return [
+        ("gpt-4o-mini", "Cheapest - Fast and cost-effective"),
+        ("gpt-4o", "Capable - Best GPT-4 model"),
+        ("gpt-5.1", "Best - Latest GPT-5 for complex reasoning"),
+    ]
 
 
 def select_openai_model() -> str:
@@ -59,19 +101,15 @@ def select_openai_model() -> str:
     Returns:
         Selected model name
     """
-    models = [
-        ("gpt-4o", "Standard - Most capable, best reasoning"),
-        ("gpt-4o-mini", "Small - Fast and cost-effective"),
-        ("o1-mini", "Thinking - Advanced reasoning model"),
-    ]
+    models = get_openai_models()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Select OpenAI Model:")
-    print("="*60)
+    print("=" * 60)
     for idx, (model_name, description) in enumerate(models, 1):
         print(f"  [{idx}] {model_name}")
         print(f"      {description}")
-    print("="*60)
+    print("=" * 60)
 
     while True:
         try:
@@ -90,25 +128,34 @@ def select_openai_model() -> str:
             sys.exit(0)
 
 
+def get_anthropic_models() -> list[tuple[str, str]]:
+    """Get tested working Anthropic Claude models.
+
+    Returns:
+        List of (model_name, description) tuples
+    """
+    return [
+        ("claude-haiku-4-5", "Cheapest - Fastest with near-frontier intelligence"),
+        ("claude-sonnet-4-5", "Best - Smartest for complex agents & coding"),
+        ("claude-opus-4-5", "Premium - Maximum intelligence & performance"),
+    ]
+
+
 def select_anthropic_model() -> str:
     """Prompt user to select an Anthropic Claude model.
 
     Returns:
         Selected model name
     """
-    models = [
-        ("claude-3-opus-20240229", "Standard - Most capable model"),
-        ("claude-3-haiku-20240307", "Small - Fast and cost-effective"),
-        ("claude-3-opus-20240229", "Thinking - Extended context reasoning (same as standard)"),
-    ]
+    models = get_anthropic_models()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Select Claude Model:")
-    print("="*60)
+    print("=" * 60)
     for idx, (model_name, description) in enumerate(models, 1):
         print(f"  [{idx}] {model_name}")
         print(f"      {description}")
-    print("="*60)
+    print("=" * 60)
 
     while True:
         try:
@@ -141,8 +188,7 @@ def ensure_ollama_model(model: str | None = None) -> str:
     """
     if not check_ollama_available():
         raise RuntimeError(
-            "Ollama server is not running. Please start it with 'ollama serve' "
-            "or install from https://ollama.ai"
+            "Ollama server is not running. Please start it with 'ollama serve' or install from https://ollama.ai"
         )
 
     available_models = list_ollama_models()
@@ -151,18 +197,18 @@ def ensure_ollama_model(model: str | None = None) -> str:
     if model is None:
         if not available_models:
             # No models available, prompt user
-            print("\n" + "="*60)
+            print("\n" + "=" * 60)
             print("⚠️  No Ollama models found!")
-            print("="*60)
+            print("=" * 60)
             print("\nOptions:")
             print("  1. Install default model (llama3.2) - ~2GB download")
             print("  2. Install a model manually with 'ollama pull <model>'")
             print("  3. Use llm-claude or llm-gpt instead")
-            print("="*60)
+            print("=" * 60)
 
             try:
                 response = input("\nInstall default model (llama3.2)? [y/N]: ").strip().lower()
-                if response in ('y', 'yes'):
+                if response in ("y", "yes"):
                     model = "llama3.2"
                     print(f"\n📥 Pulling {model}...")
                     print("(This may take a few minutes...)\n")
@@ -170,26 +216,26 @@ def ensure_ollama_model(model: str | None = None) -> str:
                     print(f"\n✓ Successfully installed {model}\n")
                     return model
                 else:
-                    print("\n" + "="*60)
+                    print("\n" + "=" * 60)
                     print("To use Ollama:")
                     print("  1. Pull a model: ollama pull llama3.2")
                     print("  2. Run again: cogames play -m <mission> -p llm-ollama")
                     print("\nAlternatively, use cloud LLMs:")
                     print("  • cogames play -m <mission> -p llm-gpt")
                     print("  • cogames play -m <mission> -p llm-claude")
-                    print("="*60 + "\n")
+                    print("=" * 60 + "\n")
                     sys.exit(0)
             except (KeyboardInterrupt, EOFError):
                 print("\n\n⚠️  Cancelled by user.\n")
                 sys.exit(0)
 
         # Show available models and prompt user to select
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("Available Ollama Models:")
-        print("="*60)
+        print("=" * 60)
         for idx, model_name in enumerate(available_models, 1):
             print(f"  [{idx}] {model_name}")
-        print("="*60)
+        print("=" * 60)
 
         while True:
             try:
@@ -217,12 +263,13 @@ def ensure_ollama_model(model: str | None = None) -> str:
         subprocess.run(
             ["ollama", "pull", model],
             check=True,
-            capture_output=False  # Show progress
+            capture_output=False,  # Show progress
         )
         print(f"\n✓ Successfully pulled model: {model}\n")
         return model
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Failed to pull Ollama model '{model}': {e}") from e
+
 
 def build_game_rules_prompt(policy_env_info: PolicyEnvInterface) -> str:
     """Build comprehensive game rules prompt with observation format guide.
@@ -266,14 +313,14 @@ COORDINATE SYSTEM:
 - Observation window is {obs_width}x{obs_height} grid
 - YOU (the agent) are always at the CENTER: x={agent_x}, y={agent_y}
 - Coordinates are EGOCENTRIC (relative to you)
-- x=0 is West edge, x={obs_width-1} is East edge
-- y=0 is North edge, y={obs_height-1} is South edge
+- x=0 is West edge, x={obs_width - 1} is East edge
+- y=0 is North edge, y={obs_height - 1} is South edge
 
 CARDINAL DIRECTIONS FROM YOUR POSITION:
-- North: x={agent_x}, y={agent_y-1}
-- South: x={agent_x}, y={agent_y+1}
-- East: x={agent_x+1}, y={agent_y}
-- West: x={agent_x-1}, y={agent_y}
+- North: x={agent_x}, y={agent_y - 1}
+- South: x={agent_x}, y={agent_y + 1}
+- East: x={agent_x + 1}, y={agent_y}
+- West: x={agent_x - 1}, y={agent_y}
 
 UNDERSTANDING TOKENS:
 1. Tokens at YOUR location (x={agent_x}, y={agent_y}) describe YOUR state (inventory, frozen status, etc.)
@@ -403,11 +450,11 @@ BEFORE MOVING, CHECK THE TARGET LOCATION:
 
 EXAMPLE WALKABILITY CHECK:
 Your position: x={agent_x}, y={agent_y}
-North tile: x={agent_x}, y={agent_y-1}
+North tile: x={agent_x}, y={agent_y - 1}
 
 To move North, check all tokens:
-- If you see ANY token with location x={agent_x}, y={agent_y-1} → DON'T move North
-- If you see NO tokens at x={agent_x}, y={agent_y-1} → SAFE to move North
+- If you see ANY token with location x={agent_x}, y={agent_y - 1} → DON'T move North
+- If you see NO tokens at x={agent_x}, y={agent_y - 1} → SAFE to move North
 
 GROUPING TOKENS BY LOCATION:
 Multiple tokens at the same location = same object with multiple properties:
@@ -454,11 +501,11 @@ Analysis:
 
 EXAMPLE 4 - Can I move East?
 Tokens in observation:
-- {{"feature": "tag", "location": {{"x": {agent_x+1}, "y": {agent_y}}}, "value": 8}}  # value 8 = "wall"
+- {{"feature": "tag", "location": {{"x": {agent_x + 1}, "y": {agent_y}}}, "value": 8}}  # value 8 = "wall"
 
 Analysis:
-→ East is location ({agent_x+1}, {agent_y})
-→ There IS a token at ({agent_x+1}, {agent_y}) - it's a wall
+→ East is location ({agent_x + 1}, {agent_y})
+→ There IS a token at ({agent_x + 1}, {agent_y}) - it's a wall
 → ANY token at a location = BLOCKED
 → DECISION: DON'T move East, try a different direction
 
@@ -496,11 +543,8 @@ def observation_to_json(obs: AgentObservation, policy_env_info: PolicyEnvInterfa
     for token in obs.tokens:
         token_dict = {
             "feature": token.feature.name,
-            "location": {
-                "x": token.col(),
-                "y": token.row()
-            },
-            "value": token.value
+            "location": {"x": token.col(), "y": token.row()},
+            "value": token.value,
         }
         tokens_list.append(token_dict)
 
@@ -508,7 +552,7 @@ def observation_to_json(obs: AgentObservation, policy_env_info: PolicyEnvInterfa
         "agent_id": obs.agent_id,
         "visible_objects": tokens_list,
         "available_actions": policy_env_info.action_names,
-        "num_visible_objects": len(tokens_list)
+        "num_visible_objects": len(tokens_list),
     }
 
 
@@ -527,22 +571,23 @@ class LLMAgentPolicy(AgentPolicy):
         provider: Literal["openai", "anthropic", "ollama"] = "openai",
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False
+        debug_mode: bool = False,
     ):
         """Initialize LLM agent policy.
 
-    Args:
-        policy_env_info: Policy environment interface
-        provider: LLM provider ("openai", "anthropic", or "ollama")
-        model: Model name (defaults: gpt-4o-mini, claude-3-5-sonnet-20240620, or llama3.2 for ollama)
-        temperature: Sampling temperature for LLM
-        debug_mode: If True, print human-readable observation debug info
-    """
+        Args:
+            policy_env_info: Policy environment interface
+            provider: LLM provider ("openai", "anthropic", or "ollama")
+            model: Model name (defaults: gpt-4o-mini, claude-3-5-sonnet-20240620, or llama3.2 for ollama)
+            temperature: Sampling temperature for LLM
+            debug_mode: If True, print human-readable observation debug info
+        """
         super().__init__(policy_env_info)
         self.provider = provider
         self.temperature = temperature
         self.debug_mode = debug_mode
         self.last_action: str | None = None
+
 
         # Build game rules prompt with feature/tag mappings
         self.game_rules_prompt = build_game_rules_prompt(policy_env_info)
@@ -556,6 +601,7 @@ class LLMAgentPolicy(AgentPolicy):
         # Initialize LLM client
         if self.provider == "openai":
             from openai import OpenAI
+
             self.client: OpenAI | None = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             self.anthropic_client = None
             self.ollama_client = None
@@ -563,6 +609,7 @@ class LLMAgentPolicy(AgentPolicy):
             self.model = model if model else select_openai_model()
         elif self.provider == "anthropic":
             from anthropic import Anthropic
+
             self.client = None
             self.anthropic_client: Anthropic | None = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
             self.ollama_client = None
@@ -570,6 +617,7 @@ class LLMAgentPolicy(AgentPolicy):
             self.model = model if model else select_anthropic_model()
         elif self.provider == "ollama":
             from openai import OpenAI
+
             self.client = None
             self.anthropic_client = None
 
@@ -582,7 +630,7 @@ class LLMAgentPolicy(AgentPolicy):
 
             self.ollama_client: OpenAI | None = OpenAI(
                 base_url="http://localhost:11434/v1",
-                api_key="ollama"  # Ollama doesn't need a real API key
+                api_key="ollama",  # Ollama doesn't need a real API key
             )
         else:
             raise ValueError(f"Unknown provider: {provider}")
@@ -632,15 +680,30 @@ The best action is move_east (WRONG - contains extra words)
 
             if self.provider == "openai":
                 assert self.client is not None
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": self.game_rules_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    temperature=self.temperature,
-                    max_tokens=50
-                )
+                # GPT-5 and o1 models use different parameters and don't support system messages
+                is_gpt5_or_o1 = self.model.startswith("gpt-5") or self.model.startswith("o1")
+
+                if is_gpt5_or_o1:
+                    # GPT-5/o1 models: combine system and user prompts, use max_completion_tokens, no temperature
+                    combined_prompt = f"{self.game_rules_prompt}\n\n{user_prompt}"
+                    completion_params = {
+                        "model": self.model,
+                        "messages": [{"role": "user", "content": combined_prompt}],
+                        "max_completion_tokens": 50,
+                    }
+                else:
+                    # Standard GPT-4 models: use system message, max_tokens, and temperature
+                    completion_params = {
+                        "model": self.model,
+                        "messages": [
+                            {"role": "system", "content": self.game_rules_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "max_tokens": 50,
+                        "temperature": self.temperature,
+                    }
+
+                response = self.client.chat.completions.create(**completion_params)
                 action_name = response.choices[0].message.content
                 if action_name is None:
                     action_name = "noop"
@@ -653,32 +716,34 @@ The best action is move_east (WRONG - contains extra words)
                     LLMAgentPolicy.total_input_tokens += usage.prompt_tokens
                     LLMAgentPolicy.total_output_tokens += usage.completion_tokens
 
-                    # Cost calculation for gpt-4o-mini: $0.150/1M input, $0.600/1M output
-                    input_cost = (usage.prompt_tokens / 1_000_000) * 0.150
-                    output_cost = (usage.completion_tokens / 1_000_000) * 0.600
-                    call_cost = input_cost + output_cost
+                    # Calculate cost based on model
+                    call_cost = calculate_llm_cost(self.model, usage.prompt_tokens, usage.completion_tokens)
                     LLMAgentPolicy.total_cost += call_cost
 
                     logger.debug(
                         f"OpenAI response: '{action_name}' | "
                         f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out | "
-                        f"Cost: ${call_cost:.6f}"
+                        f"Cost: ${call_cost:.6f} | "
+                        f"Total so far: ${LLMAgentPolicy.total_cost:.4f}"
                     )
 
             elif self.provider == "ollama":
                 assert self.ollama_client is not None
 
                 # Log prompt size for debugging
-                logger.debug(f"Sending prompt to Ollama (system: {len(self.game_rules_prompt)} chars, user: {len(user_prompt)} chars)")
+                logger.debug(
+                    f"Sending prompt to Ollama (system: {len(self.game_rules_prompt)} chars, "
+                    f"user: {len(user_prompt)} chars)"
+                )
 
                 response = self.ollama_client.chat.completions.create(
                     model=self.model,
                     messages=[
                         {"role": "system", "content": self.game_rules_prompt},
-                        {"role": "user", "content": user_prompt}
+                        {"role": "user", "content": user_prompt},
                     ],
                     temperature=self.temperature,
-                    max_tokens=50
+                    max_tokens=50,
                 )
 
                 # Debug: log the raw response
@@ -690,14 +755,17 @@ The best action is move_east (WRONG - contains extra words)
                 action_name = message.content or ""
 
                 # Check reasoning field if content is empty
-                if not action_name and hasattr(message, 'reasoning') and message.reasoning:
+                if not action_name and hasattr(message, "reasoning") and message.reasoning:
                     logger.warning(f"Model used reasoning field instead of content: {message.reasoning[:100]}...")
                     # Try to extract action from reasoning (take last line or last word)
-                    reasoning_lines = message.reasoning.strip().split('\n')
+                    reasoning_lines = message.reasoning.strip().split("\n")
                     action_name = reasoning_lines[-1].strip().split()[-1] if reasoning_lines else ""
 
                 if not action_name:
-                    logger.error(f"Ollama returned empty response! content='{message.content}', reasoning='{getattr(message, 'reasoning', None)}'")
+                    reasoning = getattr(message, "reasoning", None)
+                    logger.error(
+                        f"Ollama returned empty response! content='{message.content}', reasoning='{reasoning}'"
+                    )
                     action_name = "noop"
 
                 action_name = action_name.strip()
@@ -723,10 +791,11 @@ The best action is move_east (WRONG - contains extra words)
                     system=self.game_rules_prompt,
                     messages=[{"role": "user", "content": user_prompt}],
                     temperature=self.temperature,
-                    max_tokens=50
+                    max_tokens=50,
                 )
                 # Extract text from response content blocks
                 from anthropic.types import TextBlock
+
                 action_name = "noop"
                 for block in response.content:
                     if isinstance(block, TextBlock):
@@ -738,18 +807,6 @@ The best action is move_east (WRONG - contains extra words)
                 LLMAgentPolicy.total_calls += 1
                 LLMAgentPolicy.total_input_tokens += usage.input_tokens
                 LLMAgentPolicy.total_output_tokens += usage.output_tokens
-
-                # Cost calculation for claude-3-5-sonnet: $3.00/1M input, $15.00/1M output
-                input_cost = (usage.input_tokens / 1_000_000) * 3.00
-                output_cost = (usage.output_tokens / 1_000_000) * 15.00
-                call_cost = input_cost + output_cost
-                LLMAgentPolicy.total_cost += call_cost
-
-                logger.debug(
-                    f"Anthropic response: '{action_name}' | "
-                    f"Tokens: {usage.input_tokens} in, {usage.output_tokens} out | "
-                    f"Cost: ${call_cost:.6f}"
-                )
 
             # Parse and return action
             parsed_action = self._parse_action(action_name)
@@ -770,7 +827,6 @@ The best action is move_east (WRONG - contains extra words)
             self.last_action = fallback_action.name
             return fallback_action
 
-
     def _parse_action(self, action_name: str) -> Action:
         """Parse LLM response and return valid Action.
 
@@ -781,7 +837,7 @@ The best action is move_east (WRONG - contains extra words)
             Valid Action object
         """
         # Clean up response
-        action_name = action_name.strip().strip('"\'').lower()
+        action_name = action_name.strip().strip("\"'").lower()
 
         # Log the raw response for debugging
         logger.debug(f"Raw LLM response: '{action_name}'")
@@ -797,7 +853,7 @@ The best action is move_east (WRONG - contains extra words)
         words = action_name.split()
         if len(words) > 1:
             # Check last word first (most likely to be the actual action)
-            last_word = words[-1].strip('.,!?;:')
+            last_word = words[-1].strip(".,!?;:")
             for action in self.policy_env_info.actions.actions():
                 if action.name.lower() == last_word:
                     logger.warning(f"Found action in last word: {action.name} (full response was: '{action_name}')")
@@ -805,7 +861,7 @@ The best action is move_east (WRONG - contains extra words)
 
             # Check each word from end to start
             for word in reversed(words):
-                word = word.strip('.,!?;:')
+                word = word.strip(".,!?;:")
                 for action in self.policy_env_info.actions.actions():
                     if action.name.lower() == word:
                         logger.warning(f"Found action '{action.name}' in response: '{action_name}'")
@@ -825,29 +881,6 @@ The best action is move_east (WRONG - contains extra words)
         logger.error(f"Could not parse any action from '{action_name}'. Using random action.")
         return random.choice(self.policy_env_info.actions.actions())
 
-    @classmethod
-    def get_cost_summary(cls) -> dict:
-        """Get summary of API usage and costs.
-
-        Returns:
-            Dictionary with usage statistics
-        """
-        return {
-            "total_calls": cls.total_calls,
-            "total_input_tokens": cls.total_input_tokens,
-            "total_output_tokens": cls.total_output_tokens,
-            "total_tokens": cls.total_input_tokens + cls.total_output_tokens,
-            "total_cost": cls.total_cost,
-        }
-
-    @classmethod
-    def reset_cost_tracking(cls) -> None:
-        """Reset cost tracking counters."""
-        cls.total_calls = 0
-        cls.total_input_tokens = 0
-        cls.total_output_tokens = 0
-        cls.total_cost = 0.0
-
 
 class LLMMultiAgentPolicy(MultiAgentPolicy):
     """LLM-based multi-agent policy for MettaGrid."""
@@ -860,7 +893,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         provider: Literal["openai", "anthropic", "ollama"] = "openai",
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False
+        debug_mode: bool = False,
     ):
         """Initialize LLM multi-agent policy.
 
@@ -876,6 +909,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         self.model = model
         self.temperature = temperature
         self.debug_mode = debug_mode
+        self._cost_handler = LLMCostTrackingHandler()
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create an LLM agent policy for a specific agent.
@@ -891,8 +925,16 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             provider=self.provider,
             model=self.model,
             temperature=self.temperature,
-            debug_mode=self.debug_mode
+            debug_mode=self.debug_mode,
         )
+
+    def get_event_handlers(self) -> list[SimulatorEventHandler]:
+        """Return event handlers for this policy.
+
+        Returns:
+            List of event handlers, including cost tracking handler
+        """
+        return [self._cost_handler]
 
 
 class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
@@ -905,9 +947,11 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False
+        debug_mode: bool = False,
     ):
-        super().__init__(policy_env_info, provider="openai", model=model, temperature=temperature, debug_mode=debug_mode)
+        super().__init__(
+            policy_env_info, provider="openai", model=model, temperature=temperature, debug_mode=debug_mode
+        )
 
 
 class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
@@ -920,9 +964,11 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False
+        debug_mode: bool = False,
     ):
-        super().__init__(policy_env_info, provider="anthropic", model=model, temperature=temperature, debug_mode=debug_mode)
+        super().__init__(
+            policy_env_info, provider="anthropic", model=model, temperature=temperature, debug_mode=debug_mode
+        )
 
 
 class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
@@ -935,6 +981,8 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False
+        debug_mode: bool = False,
     ):
-        super().__init__(policy_env_info, provider="ollama", model=model, temperature=temperature, debug_mode=debug_mode)
+        super().__init__(
+            policy_env_info, provider="ollama", model=model, temperature=temperature, debug_mode=debug_mode
+        )
