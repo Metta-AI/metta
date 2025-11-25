@@ -219,7 +219,7 @@ def tutorial_cmd(
     play_module.play(
         console,
         env_cfg=env_cfg,
-        policy_spec=get_policy_spec(ctx, "noop"),  # Default to noop, assuming human control
+        policy_spec=get_policy_spec(ctx, "class=noop"),  # Default to noop, assuming human control
         game_name="tutorial",
         render_mode="gui",
     )
@@ -329,7 +329,7 @@ def play_cmd(
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    policy: str = typer.Option("class=noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: RenderMode = typer.Option("gui", "--render", "-r", help="Render mode"),  # noqa: B008
     seed: int = typer.Option(42, "--seed", help="Seed for the simulator and policy", min=0),
@@ -507,7 +507,7 @@ def train_cmd(
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    policy: str = typer.Option("lstm", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    policy: str = typer.Option("class=lstm", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",

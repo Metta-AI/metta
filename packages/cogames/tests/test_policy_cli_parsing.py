@@ -15,15 +15,6 @@ def test_parse_policy_spec_with_class_only():
     assert spec.init_kwargs == {}
 
 
-def test_parse_policy_spec_with_class_shorthand():
-    spec = _parse_policy_spec("random")
-
-    assert spec.class_path == resolve_policy_class_path("random")
-    assert spec.data_path is None
-    assert spec.proportion == 1.0
-    assert spec.init_kwargs == {}
-
-
 def test_parse_policy_spec_with_data_proportion_and_kwargs(tmp_path: Path):
     checkpoint = tmp_path / "weights.pt"
     checkpoint.write_text("dummy")
@@ -44,6 +35,7 @@ def test_parse_policy_spec_with_data_proportion_and_kwargs(tmp_path: Path):
         "",
         "data=only",
         "random:train_dir/model.pt",
+        "random",
         "class=random,proportion=-1",
     ],
 )

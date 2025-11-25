@@ -149,9 +149,6 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
 
     for entry in entries:
         if "=" not in entry:
-            if class_path is None and ":" not in entry:
-                class_path = entry
-                continue
             raise ValueError(
                 "Policy entries must be key=value pairs (e.g., class=stateless,data=train_dir/model.pt,proportion=0.5)."
             )

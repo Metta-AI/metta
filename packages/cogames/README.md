@@ -198,7 +198,7 @@ class MyPolicy(MultiAgentPolicy):
 ```
 
 To train with using your class, supply a path to it in your POLICY argument, e.g.
-`cogames train training_facility_1 path.to.MyPolicy`.
+`cogames train -m training_facility_1 -p class=path.to.MyPolicy`.
 
 #### Environment API
 
