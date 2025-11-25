@@ -51,7 +51,7 @@ from cogames.cli.policy import (
     policy_arg_example,
     policy_arg_w_proportion_example,
 )
-from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command, validate_policy_command
+from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command, validate_policy_spec
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid.mapgen.mapgen import MapGen
@@ -816,7 +816,10 @@ def validate_policy_cmd(
         help=f"Policy specification: {policy_arg_example}",
     ),
 ) -> None:
-    validate_policy_command(ctx, policy)
+    policy_spec = get_policy_spec(ctx, policy)
+    validate_policy_spec(policy_spec)
+    console.print("[green]Policy validated successfully[/green]")
+    raise typer.Exit(0)
 
 
 def _parse_init_kwarg(value: str) -> tuple[str, str]:

@@ -125,13 +125,6 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
     rollout.step()
 
 
-def validate_policy_command(ctx: typer.Context, policy: str) -> None:
-    policy_spec = get_policy_spec(ctx, policy)
-    validate_policy_spec(policy_spec)
-    console.print("[green]Policy validated successfully[/green]")
-    raise typer.Exit(0)
-
-
 def validate_policy_in_isolation(
     policy_spec: PolicySpec,
     include_files: list[Path],
