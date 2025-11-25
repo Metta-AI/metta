@@ -2,12 +2,16 @@
 
 This module provides efficient NumPy-based edge dithering that replaces
 the O(n² × d²) pure Python implementation with O(n² × d) vectorized ops.
+
+Can be used as a utility function or as a composable Scene.
 """
 
 from __future__ import annotations
 
 import numpy as np
 from numpy.random import Generator
+
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
 def dither_edges(
@@ -38,7 +42,6 @@ def dither_edges(
     is_wall = grid == "wall"
 
     # Compute distance to nearest opposite-type cell using iterative dilation
-    # This replaces scipy.ndimage.distance_transform with pure NumPy
     dist_to_edge = _compute_edge_distance(is_wall, depth)
 
     # Create probability mask based on distance
@@ -74,8 +77,7 @@ def dither_edges(
 def _compute_edge_distance(is_wall: np.ndarray, max_depth: int) -> np.ndarray:
     """Compute Chebyshev distance to nearest cell of opposite type.
 
-    Uses iterative erosion/dilation which is O(depth) per cell rather than
-    checking all neighbors in a (2*depth+1)² window.
+    Uses iterative erosion/dilation which is O(depth) per cell
 
     Returns array where value at (y,x) is the Chebyshev distance to the
     nearest cell of opposite type (capped at max_depth + 1).
@@ -131,3 +133,39 @@ def _compute_edge_distance(is_wall: np.ndarray, max_depth: int) -> np.ndarray:
             dist[new_at_d] = d
 
     return dist
+
+
+class DitherConfig(SceneConfig):
+    """Configuration for edge dithering scene.
+
+    Applies organic noise to edges between wall and empty cells to create
+    more natural-looking biome boundaries.
+    """
+
+    dither_prob: float = 0.15  # Probability to flip edge cells
+    dither_depth: int = 5  # How many cells deep to consider as edge zone
+
+
+class Dither(Scene[DitherConfig]):
+    """Scene that applies edge dithering to create organic biome boundaries.
+
+    This scene can be composed with any other scene to add organic edge noise.
+    It modifies the grid in-place, so it should typically be applied after
+    the base terrain generation.
+
+    Example:
+        # Apply dithering to a biome
+        ChildrenAction(
+            scene=DitherConfig(dither_prob=0.15, dither_depth=5),
+            where="full",
+        )
+    """
+
+    def render(self) -> None:
+        """Apply edge dithering to the grid."""
+        dither_edges(
+            grid=self.grid,
+            prob=self.config.dither_prob,
+            depth=self.config.dither_depth,
+            rng=self.rng,
+        )
