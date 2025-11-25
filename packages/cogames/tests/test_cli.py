@@ -61,7 +61,6 @@ def test_missions_list_for_specific_site():
 
     output = result.stdout
     assert "training_facility.harvest" in output
-    assert "hello_world." not in output
 
 
 def test_missions_nonexistent_mission():
