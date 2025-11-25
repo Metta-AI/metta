@@ -13,13 +13,13 @@ requires-python = ">=3.9"
 dependencies = [
   "numpy>=1.20.0",
   "gymnasium>=0.29.0",
-  "pufferlib>=3.0.0",
+  "pufferlib-core>=3.0.0",
   "typer>=0.19.2",
   "rich>=13.7.0",
 ]
 
 [project.scripts]
-tribal-village = "tribal_village_env.cli:main"
+tribal-village = "tribal_village_env.cli:app"
 
 [tool.setuptools]
 include-package-data = true

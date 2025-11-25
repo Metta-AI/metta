@@ -13,8 +13,10 @@ from tribal_village_env.environment import TribalVillageEnv
 app = typer.Typer(
     help="CLI for playing Tribal Village",
     no_args_is_help=True,
+    invoke_without_command=True,
     pretty_exceptions_show_locals=False,
     rich_markup_mode="rich",
+    add_completion=False,
 )
 console = Console()
 
@@ -110,4 +112,5 @@ if __name__ == "__main__":
 
 
 def main() -> None:
-    app()
+    # If invoked without subcommand, default to play
+    app(prog_name="tribal-village")
