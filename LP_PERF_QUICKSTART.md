@@ -53,7 +53,7 @@ uv run sky logs <cluster-name>  # View logs
 ### Test baseline (no optimizations)
 
 ```bash
-timeout 600s uv run ./tools/run.py cogs_v_clips.train \
+timeout 600s uv run ./tools/run.py cogs_v_clips_perf_test.train_with_perf_config \
     use_lp=True \
     perf_invalidation_batch_size=1 \
     perf_cache_task_list=False \
@@ -64,7 +64,7 @@ timeout 600s uv run ./tools/run.py cogs_v_clips.train \
 ### Test recommended settings (batch=100)
 
 ```bash
-timeout 600s uv run ./tools/run.py cogs_v_clips.train \
+timeout 600s uv run ./tools/run.py cogs_v_clips_perf_test.train_with_perf_config \
     use_lp=True \
     perf_invalidation_batch_size=100 \
     perf_cache_task_list=True \
@@ -75,7 +75,7 @@ timeout 600s uv run ./tools/run.py cogs_v_clips.train \
 ### Test your custom settings
 
 ```bash
-timeout 600s uv run ./tools/run.py cogs_v_clips.train \
+timeout 600s uv run ./tools/run.py cogs_v_clips_perf_test.train_with_perf_config \
     use_lp=True \
     perf_invalidation_batch_size=50 \
     perf_cache_task_list=True \

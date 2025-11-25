@@ -12,7 +12,7 @@ echo ""
 # Configuration
 GPUS=${GPUS:-1}
 SPOT=${SPOT:-"--spot"}
-MAX_RUNTIME=${MAX_RUNTIME:-2} # hours
+MAX_RUNTIME=${MAX_RUNTIME:-24} # hours
 GIT_REF=${GIT_REF:-$(git rev-parse --abbrev-ref HEAD)}
 
 echo "Launch Configuration:"
@@ -48,7 +48,7 @@ launch_test() {
 
   # Build the command arguments
   local args=(
-    "cogs_v_clips.train"
+    "cogs_v_clips_perf_test.train_with_perf_config"
     "--gpus" "$GPUS"
     "--max-runtime-hours" "$MAX_RUNTIME"
     "--git-ref" "$GIT_REF"
@@ -62,7 +62,7 @@ launch_test() {
   # Add separator before tool args
   args+=("--")
 
-  # Tool arguments
+  # Tool arguments (passed to train_with_perf_config function)
   args+=(
     "run=msb_perfdiagnosis_${name}"
     "use_lp=True"
@@ -83,7 +83,7 @@ launch_test() {
   if [ "${DRY_RUN}" == "true" ]; then
     echo "[DRY RUN] Would launch: ${args[*]}"
   else
-    python devops/skypilot/launch.py "${args[@]}" || {
+    uv run python devops/skypilot/launch.py "${args[@]}" || {
       echo "ERROR: Failed to launch msb_perfdiagnosis_${name}"
       echo "Continuing with remaining tests..."
     }
@@ -180,7 +180,7 @@ case "$MODE" in
     echo "Environment Variables:"
     echo "  GPUS         - Number of GPUs per job (default: 1)"
     echo "  SPOT         - Use spot instances: '--spot' or '--no-spot' (default: --spot)"
-    echo "  MAX_RUNTIME  - Max runtime in hours (default: 2)"
+    echo "  MAX_RUNTIME  - Max runtime in hours (default: 24)"
     echo "  GIT_REF      - Git branch/commit to use (default: current branch)"
     echo ""
     echo "Examples:"
