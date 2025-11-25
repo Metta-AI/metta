@@ -11,11 +11,10 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.request
 from pathlib import Path
-
-from metta.setup.utils import error, info, warning
 
 # Bootstrap dependency versions
 REQUIRED_NIM_VERSION = "2.2.6"
@@ -35,6 +34,24 @@ COMMON_INSTALL_DIRS = [
     str(Path.home() / ".cargo" / "bin"),
     "/opt/homebrew/bin",
 ]
+
+
+def _log(level: str, message: str) -> None:
+    """Minimal logger that works before project dependencies install."""
+    stream = sys.stderr if level == "ERROR" else sys.stdout
+    print(f"[bootstrap:{level}] {message}", file=stream, flush=True)
+
+
+def info(message: str) -> None:
+    _log("INFO", message)
+
+
+def warning(message: str) -> None:
+    _log("WARN", message)
+
+
+def error(message: str) -> None:
+    _log("ERROR", message)
 
 
 def get_install_dir() -> Path | None:
@@ -181,14 +198,9 @@ def _simple_run_command(
     env: dict[str, str] | None = None,
     non_interactive: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    """Simple run_command wrapper for standalone CLI usage.
-
-    This provides a minimal run_command implementation for use outside of SetupModule context.
-    """
-    from metta.common.util.fs import get_repo_root
-
+    """Simple run_command wrapper for standalone CLI usage."""
     if cwd is None:
-        cwd = get_repo_root()
+        cwd = Path.cwd()
 
     # Set up environment for non-interactive mode
     if env is None:
