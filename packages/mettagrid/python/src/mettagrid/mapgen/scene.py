@@ -337,8 +337,9 @@ class Scene(Generic[ConfigT]):
             "config": self.config.model_dump(),
             "area": self.area.as_dict(),
             "children": [child.get_scene_tree() for child in self.children],
-            "render_time": self._render_end_time - self._render_start_time,
-            "render_with_children_time": self._render_with_children_end_time - self._render_start_time,
+            "render_start_time": self._render_start_time,
+            "render_end_time": self._render_end_time,
+            "render_with_children_end_time": self._render_with_children_end_time,
         }
 
     def print_scene_tree(self, indent=0):

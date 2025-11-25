@@ -38,8 +38,9 @@ const sceneTreeSchema = z.object({
   get children() {
     return z.array(sceneTreeSchema);
   },
-  render_time: z.number(),
-  render_with_children_time: z.number(),
+  render_start_time: z.number(),
+  render_end_time: z.number(),
+  render_with_children_end_time: z.number(),
 });
 
 export type SceneTree = z.infer<typeof sceneTreeSchema>;
