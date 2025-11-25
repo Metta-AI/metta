@@ -89,6 +89,7 @@ def make_nav_ascii_env(
     # Replace nav map objects with Cogames stations to match mission rules.
     map_instance.char_to_map_name["n"] = "assembler"
     map_instance.char_to_map_name["m"] = "chest"
+    map_instance.char_to_map_name["_"] = "empty"  # Remove altars (not supported in C++ simulator)
 
     map_builder = MapGen.Config(
         instances=num_instances,
@@ -164,6 +165,7 @@ def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
                 "oxygen_extractor": 2,
             },
             dir="varied_terrain/dense_large",
+            remove_altars=True,
         ),
     )
     return make_cogames_nav_env(map_builder=map_builder, num_agents=num_agents * num_instances)
