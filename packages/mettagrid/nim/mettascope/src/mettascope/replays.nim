@@ -482,6 +482,20 @@ proc computeGainMap(replay: Replay) =
             gainMap.add(ItemAmount(itemId: j, count: items[n][j] - items[m][j]))
       agent.gainMap[i] = gainMap
 
+proc isInventoryCompressed(inventory: JsonNode): bool =
+  ## Check if inventory is already in V3 compressed format [[itemId, count], ...]
+  if inventory.kind != JArray or inventory.len == 0:
+    return false
+
+  for item in inventory.getElems():
+    if item.kind != JArray or item.len != 2:
+      return false
+    let itemId = item[0]
+    let count = item[1]
+    if itemId.kind != JInt or count.kind != JInt:
+      return false
+  return true
+
 proc compressInventoryArray(inventory: JsonNode): JsonNode =
   ## Compress a flat inventory array [itemId, itemId, ...] to [[itemId, count], ...]
   result = newJArray()
@@ -515,26 +529,30 @@ proc convertInventoryField(obj: JsonNode, fieldName: string) =
     # Check if this is a time series format [[step, inventory_array], ...]
     let firstItem = field[0]
     if firstItem.kind == JArray and firstItem.len == 2:
-      # Time series format: convert each inventory array
+      # Time series format: convert each inventory array if needed
       var newTimeSeries = newJArray()
+      var needsConversion = false
       for item in field.getElems():
         if item.kind == JArray and item.len == 2:
           let step = item[0]
           let inventoryArray = item[1]
-          if inventoryArray.kind == JArray:
+          if inventoryArray.kind == JArray and not isInventoryCompressed(inventoryArray):
             let compressed = compressInventoryArray(inventoryArray)
             var newItem = newJArray()
             newItem.add(step)
             newItem.add(compressed)
             newTimeSeries.add(newItem)
+            needsConversion = true
           else:
             newTimeSeries.add(item)
         else:
           newTimeSeries.add(item)
-      obj[fieldName] = newTimeSeries
+      if needsConversion:
+        obj[fieldName] = newTimeSeries
     else:
-      # Single inventory array: convert directly
-      obj[fieldName] = compressInventoryArray(field)
+      # Single inventory array: convert directly if needed
+      if not isInventoryCompressed(field):
+        obj[fieldName] = compressInventoryArray(field)
   elif field.kind == JArray and field.len == 0:
     # Empty array stays empty
     discard
