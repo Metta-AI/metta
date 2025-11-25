@@ -8,16 +8,21 @@ import zipfile
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import Any, Mapping, MutableMapping, Optional
 from zipfile import BadZipFile
 
+import boto3
 import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.common.util.file import write_file
+from metta.common.util.uri import ParsedURI
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
+from metta.rl.system_config import guess_data_dir
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 
@@ -404,3 +409,139 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
         raise ValueError(msg)
 
     return PolicyArtifact(policy_architecture=architecture, state_dict=state_dict, policy=policy)
+
+
+def extract_run_and_epoch(path: Path) -> Optional[tuple[str, int]]:
+    """Infer run name and epoch from a checkpoint filename."""
+    stem = path.stem
+    if ":v" in stem:
+        run_name, suffix = stem.rsplit(":v", 1)
+        if run_name and suffix.isdigit():
+            return (run_name, int(suffix))
+    return None
+
+
+def get_all_checkpoints(uri: str) -> list[dict[str, object]]:
+    """Enumerate checkpoint files beneath a file:// or s3:// prefix."""
+    parsed = ParsedURI.parse(uri)
+    if parsed.scheme == "file" and parsed.local_path:
+        checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.mpt") if ckpt.stem]
+    elif parsed.scheme == "s3" and parsed.bucket:
+        s3_client = boto3.client("s3")
+        prefix = parsed.key or ""
+        response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
+        if response["KeyCount"] == 0:
+            return []
+        checkpoint_files = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
+    else:
+        raise ValueError(f"Cannot get checkpoints from uri: {uri}")
+
+    metadata: list[dict[str, object]] = []
+    for path in checkpoint_files:
+        run_and_epoch = extract_run_and_epoch(path)
+        if run_and_epoch:
+            path_uri = uri.rstrip("/") + "/" + path.name
+            metadata.append(
+                {
+                    "run_name": run_and_epoch[0],
+                    "epoch": run_and_epoch[1],
+                    "uri": path_uri,
+                }
+            )
+    return metadata
+
+
+def latest_checkpoint(uri: str) -> Optional[dict[str, object]]:
+    checkpoints = get_all_checkpoints(uri)
+    if checkpoints:
+        return max(checkpoints, key=lambda p: p["epoch"])
+    return None
+
+
+def normalize_policy_uri(uri: str) -> str:
+    """Convert paths to file:// URIs and resolve :latest selectors."""
+    parsed = ParsedURI.parse(uri)
+    if uri.endswith(":latest"):
+        base_uri = uri[: -len(":latest")]
+        latest_ckpt = latest_checkpoint(base_uri)
+        if not latest_ckpt:
+            raise ValueError(f"No latest checkpoint found for {base_uri}")
+        return latest_ckpt["uri"]
+    return parsed.canonical
+
+
+def policy_spec_from_uri(
+    uri: str,
+    *,
+    device: Optional[str | torch.device] = None,
+    strict: bool = True,
+    display_name: Optional[str] = None,
+) -> PolicySpec:
+    """Build a PolicySpec that loads checkpoints via CheckpointPolicy."""
+    normalized_uri = normalize_policy_uri(uri)
+    init_kwargs: dict[str, str | bool] = {
+        "checkpoint_uri": normalized_uri,
+        "display_name": display_name or normalized_uri,
+        "strict": strict,
+    }
+    if device is not None:
+        init_kwargs["device"] = str(device)
+    return PolicySpec(
+        class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
+        init_kwargs=init_kwargs,
+    )
+
+
+def save_policy_artifact(
+    path: str | Path,
+    *,
+    policy_architecture: PolicyArchitecture,
+    state_dict: Mapping[str, torch.Tensor],
+    detach_buffers: bool = True,
+) -> PolicyArtifact:
+    """Compatibility wrapper: alias to save_policy_artifact_safetensors."""
+    return save_policy_artifact_safetensors(
+        path,
+        policy_architecture=policy_architecture,
+        state_dict=state_dict,
+        detach_buffers=detach_buffers,
+    )
+
+
+def save_policy_to_uri(
+    destination: str | Path,
+    *,
+    policy_architecture: PolicyArchitecture,
+    state_dict: Mapping[str, torch.Tensor],
+) -> str:
+    """Save weights to a .mpt at a local path or s3:// URI."""
+    dest = str(destination)
+    if Path(dest).suffix.lower() != ".mpt":
+        raise ValueError("save_policy_to_uri only supports .mpt destinations")
+
+    parsed = ParsedURI.parse(dest)
+    if parsed.scheme == "s3":
+        temp_dir = guess_data_dir() / ".tmp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        filename = Path(parsed.path or parsed.key or "checkpoint.mpt").name
+        local_path = temp_dir / filename
+    elif parsed.scheme in ("", "file") or parsed.local_path is not None:
+        local_path = parsed.local_path or Path(dest).expanduser()
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        raise ValueError(f"Unsupported destination URI: {dest}")
+
+    save_policy_artifact_safetensors(
+        local_path,
+        policy_architecture=policy_architecture,
+        state_dict=state_dict,
+    )
+
+    if parsed.scheme == "s3":
+        try:
+            write_file(parsed.canonical, str(local_path))
+        finally:
+            local_path.unlink(missing_ok=True)
+        return parsed.canonical
+
+    return f"file://{local_path.resolve()}"
