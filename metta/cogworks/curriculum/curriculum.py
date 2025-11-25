@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -136,12 +136,6 @@ class CurriculumConfig(Config):
         return cls(
             task_generator=SingleTaskGenerator.Config(env=mg_config),
         )
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid",
-        validate_assignment=True,
-        populate_by_name=True,
-    )
 
     def model_post_init(self, __context) -> None:
         """Validate configuration after initialization."""

@@ -23,7 +23,6 @@ from abc import ABC, abstractmethod
 from typing import Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar
 
 from pydantic import (
-    ConfigDict,
     Field,
     SerializeAsAny,
     WrapValidator,
@@ -49,13 +48,6 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
     """
 
     _generator_cls: ClassVar[Optional[Type[TTaskGenerator]]] = None  # type: ignore[misc]
-
-    # pydantic configuration
-    model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid",
-        validate_assignment=True,
-        populate_by_name=True,
-    )
 
     label: Optional[str] = Field(default=None, description="Label for the task generator")
 

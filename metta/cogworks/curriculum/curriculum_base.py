@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import abc
 from abc import ABC
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
 from metta.cogworks.curriculum.stats import StatsLogger
 from mettagrid.base_config import Config
@@ -86,12 +86,6 @@ class CurriculumAlgorithmConfig(Config, ABC):
             Configured curriculum algorithm instance
         """
         pass
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid",
-        validate_assignment=True,
-        populate_by_name=True,
-    )
 
 
 class CurriculumAlgorithm(ABC):
