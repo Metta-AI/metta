@@ -8,6 +8,7 @@ on:
     types: [completed]
     branches:
       - main
+  workflow_dispatch: {}
 
 # Explicit concurrency settings to prevent cancellation
 # Each cleanup run gets a unique group based on the triggering workflow run ID
@@ -23,10 +24,8 @@ permissions:
 jobs:
   cleanup-cancelled-runs:
     name: "Cleanup Cancelled Runs"
-    # The workflow_run trigger already filters by branch (main), so we always run
-    # The debug step below will help us understand the context if needed
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
     outputs:
       deleted-count: ${{ steps.cleanup.outputs.deleted-count }}
       status: ${{ steps.cleanup.outcome }}
@@ -47,9 +46,18 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/cleanup-cancelled-runs
         with:
-          workflow-file: "checks.yml"
-          max-deletions: "10"
+          workflow-file: "*"
+          max-deletions: "120"
+          max-deletions-per-workflow: "10"
+          workflow-caps: |
+            build-policy-evaluator-image.yml=12
+            build-app-backend-image.yml=12
+            build-observatory-image.yml=12
+            build-home-image.yml=12
+            build-image.yml=12
+            build-pages.yml=10
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          max-age-days: "30"
 
       - name: Report cleanup status
         if: always()

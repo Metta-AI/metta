@@ -1,16 +1,17 @@
+import json
 import logging
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from uuid import UUID
 
 from psycopg import Connection
 from psycopg.rows import class_row, dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from metta.app_backend.migrations import MIGRATIONS
 from metta.app_backend.schema_manager import run_migrations
@@ -94,6 +95,19 @@ class PolicyVersionRow(BaseModel):
     created_at: datetime
 
 
+class PolicyVersionWithName(BaseModel):
+    id: uuid.UUID
+    internal_id: int
+    policy_id: uuid.UUID
+    version: int
+    s3_path: str | None
+    git_hash: str | None
+    policy_spec: dict[str, Any]
+    attributes: dict[str, Any]
+    created_at: datetime
+    name: str
+
+
 class PublicPolicyVersionRow(BaseModel):
     id: uuid.UUID
     policy_id: uuid.UUID
@@ -105,17 +119,45 @@ class PublicPolicyVersionRow(BaseModel):
     tags: dict[str, str] = Field(default_factory=dict)
 
 
-class LeaderboardEntry(BaseModel):
-    policy_version: PublicPolicyVersionRow
-    user_id: str
-    scores: dict[str, float]
-    avg_score: float | None = None
+class EpisodeReplay(BaseModel):
+    episode_id: uuid.UUID
+    replay_url: str
+
+
+class EpisodeWithTags(BaseModel):
+    id: uuid.UUID
+    primary_pv_id: Optional[uuid.UUID]
+    replay_url: Optional[str]
+    thumbnail_url: Optional[str]
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    eval_task_id: Optional[uuid.UUID]
+    created_at: datetime
+    tags: dict[str, str] = Field(default_factory=dict)
+    avg_rewards: dict[uuid.UUID, float] = Field(default_factory=dict)
+
+    # We need this because we don't insert a json object into attributes, we insert a string reflecting the json object.
+    @field_validator("attributes", mode="before")
+    @classmethod
+    def _ensure_dict_attributes(cls, value: Any) -> dict[str, Any]:
+        """Coerce JSON strings into dictionaries so validation doesn't fail."""
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            parsed = json.loads(value)
+            if not isinstance(parsed, dict):
+                raise ValueError("attributes must be a JSON object")
+            return parsed
+        raise ValueError("attributes must be a dictionary")
 
 
 class LeaderboardPolicyEntry(BaseModel):
     policy_version: PublicPolicyVersionRow
     scores: dict[str, float]
     avg_score: float | None = None
+    replays: dict[str, list[EpisodeReplay]] = Field(default_factory=dict)
+    score_episode_ids: dict[str, uuid.UUID | None] = Field(default_factory=dict)
 
 
 logger = logging.getLogger(name="metta_repo")
@@ -497,6 +539,7 @@ class MettaRepo:
         status: str | None = None,
         assignee: str | None = None,
         user_id: str | None = None,
+        command: str | None = None,
         created_at: str | None = None,
         assigned_at: str | None = None,
     ) -> tuple[list[EvalTaskRow], int]:
@@ -517,6 +560,10 @@ class MettaRepo:
             if user_id:
                 where_conditions.append("user_id ILIKE %s")
                 params.append(f"%{user_id}%")
+
+            if command:
+                where_conditions.append("command ILIKE %s")
+                params.append(f"%{command}%")
 
             if created_at:
                 where_conditions.append("CAST(created_at AS TEXT) ILIKE %s")
@@ -643,10 +690,16 @@ class MettaRepo:
                 raise ValueError("Failed to create policy version")
             return row[0]
 
-    async def get_policy_version(self, policy_version_id: uuid.UUID) -> PolicyVersionRow | None:
+    async def get_policy_version_with_name(self, policy_version_id: uuid.UUID) -> PolicyVersionWithName | None:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(PolicyVersionRow)) as cur:
-                await cur.execute("SELECT * FROM policy_versions WHERE id = %s", (policy_version_id,))
+            async with con.cursor(row_factory=class_row(PolicyVersionWithName)) as cur:
+                await cur.execute(
+                    """
+                SELECT pv.*, p.name
+                FROM policy_versions pv JOIN policies p ON pv.policy_id = p.id
+                WHERE pv.id = %s""",
+                    (policy_version_id,),
+                )
                 return await cur.fetchone()
 
     async def get_user_policy_versions(self, user_id: str) -> list[PublicPolicyVersionRow]:
@@ -776,100 +829,6 @@ class MettaRepo:
 
             return id
 
-    async def get_avg_per_agent_score_by_tag(
-        self,
-        tag_key: str,
-        user_id: str | None = None,
-        policy_version_id: uuid.UUID | None = None,
-    ) -> list[LeaderboardEntry]:
-        """Fetch average per-agent scores per tag with optional filters."""
-        params: list[Any] = [tag_key]
-        user_filter_clause = ""
-        policy_filter_clause = ""
-
-        if user_id is not None:
-            user_filter_clause = "AND pol.user_id = %s"
-            params.append(user_id)
-
-        if policy_version_id is not None:
-            policy_filter_clause = "AND pv.id = %s"
-            params.append(policy_version_id)
-
-        query = f"""
-SELECT
-    pv.id AS policy_version_id,
-    pv.internal_id,
-    pv.policy_id,
-    pv.version,
-    pv.s3_path,
-    pv.git_hash,
-    pv.policy_spec,
-    pv.attributes,
-    pv.created_at,
-    pol.created_at AS policy_created_at,
-    pol.name AS policy_name,
-    pol.user_id,
-    et.value AS leaderboard_name,
-    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent
-FROM episode_policies ep
-JOIN episodes e ON e.id = ep.episode_id
-JOIN policy_versions pv ON pv.id = ep.policy_version_id
-JOIN policies pol ON pol.id = pv.policy_id
-JOIN episode_policy_metrics epm
-    ON epm.episode_internal_id = e.internal_id
-    AND epm.pv_internal_id = pv.internal_id
-JOIN episode_tags et ON et.episode_id = e.id
-WHERE epm.metric_name = 'reward'
-  AND et.key = %s
-  {user_filter_clause}
-  {policy_filter_clause}
-GROUP BY
-    pv.id,
-    pv.internal_id,
-    pv.policy_id,
-    pv.version,
-    pv.s3_path,
-    pv.git_hash,
-    pv.policy_spec,
-    pv.attributes,
-    pv.created_at,
-    pol.name,
-    pol.user_id,
-    pol.created_at,
-    et.value
-ORDER BY pv.created_at DESC, pol.user_id, pv.id, et.value
-"""
-
-        async with self.connect() as con:
-            async with con.cursor(row_factory=dict_row) as cur:
-                await cur.execute(query, params)
-                rows = await cur.fetchall()
-
-        entries_by_policy: dict[uuid.UUID, LeaderboardEntry] = {}
-        for row in rows:
-            policy_version_id_value = row["policy_version_id"]
-            entry = entries_by_policy.get(policy_version_id_value)
-            if entry is None:
-                policy_version = PublicPolicyVersionRow(
-                    id=row["policy_version_id"],
-                    policy_id=row["policy_id"],
-                    version=row["version"],
-                    created_at=row["created_at"],
-                    policy_created_at=row["policy_created_at"],
-                    name=row["policy_name"],
-                    user_id=row["user_id"],
-                )
-                entry = LeaderboardEntry(
-                    policy_version=policy_version,
-                    user_id=row["user_id"],
-                    scores={},
-                )
-                entries_by_policy[policy_version_id_value] = entry
-
-            entry.scores[row["leaderboard_name"]] = row["avg_reward_per_agent"]
-
-        return list(entries_by_policy.values())
-
     async def get_leaderboard_policies(
         self,
         policy_version_tags: dict[str, str],
@@ -928,6 +887,9 @@ ORDER BY pol.created_at DESC, pv.created_at DESC
 
             policy_version_ids = [row.id for row in policy_rows]
             scores_by_policy: dict[uuid.UUID, dict[str, float]] = {pv_id: {} for pv_id in policy_version_ids}
+            score_episode_ids: dict[uuid.UUID, dict[str, uuid.UUID | None]] = {
+                pv_id: {} for pv_id in policy_version_ids
+            }
 
             async with con.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
@@ -950,7 +912,8 @@ SELECT
     pv.id AS policy_version_id,
     et.key AS tag_key,
     et.value AS tag_value,
-    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent
+    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent,
+    (ARRAY_AGG(e.id ORDER BY e.created_at DESC, e.id DESC))[1] AS latest_episode_id
 FROM policy_versions pv
 JOIN episode_policies ep ON ep.policy_version_id = pv.id
 JOIN episodes e ON e.id = ep.episode_id
@@ -972,6 +935,7 @@ GROUP BY pv.id, et.key, et.value
                     pv_id = score_row["policy_version_id"]
                     tag_identifier = f"{score_row['tag_key']}:{score_row['tag_value']}"
                     scores_by_policy.setdefault(pv_id, {})[tag_identifier] = float(score_row["avg_reward_per_agent"])
+                    score_episode_ids.setdefault(pv_id, {})[tag_identifier] = score_row["latest_episode_id"]
 
         entries: list[LeaderboardPolicyEntry] = []
         for policy_row in policy_rows:
@@ -984,6 +948,7 @@ GROUP BY pv.id, et.key, et.value
                     policy_version=policy_version,
                     scores=dict(scores),
                     avg_score=avg_score,
+                    score_episode_ids=dict(score_episode_ids.get(pv_id, {})),
                 )
             )
 
@@ -995,3 +960,108 @@ GROUP BY pv.id, et.key, et.value
             )
         )
         return entries
+
+    async def get_episodes(
+        self,
+        *,
+        primary_policy_version_ids: Optional[list[uuid.UUID]] = None,
+        episode_ids: Optional[list[uuid.UUID]] = None,
+        tag_filters: Optional[dict[str, Optional[list[str]]]] = None,
+        limit: Optional[int] = 200,
+        offset: int = 0,
+    ) -> list[EpisodeWithTags]:
+        """Fetch episodes with optional filters and tag aggregation."""
+        where_conditions: list[str] = []
+        params: list[Any] = []
+
+        if primary_policy_version_ids:
+            where_conditions.append("e.primary_pv_id = ANY(%s)")
+            params.append(primary_policy_version_ids)
+
+        if episode_ids:
+            where_conditions.append("e.id = ANY(%s)")
+            params.append(episode_ids)
+
+        if tag_filters:
+            for idx, (tag_key, tag_values) in enumerate(tag_filters.items()):
+                if tag_values:
+                    where_conditions.append(
+                        f"""EXISTS (
+                            SELECT 1 FROM episode_tags et_{idx}
+                            WHERE et_{idx}.episode_id = e.id
+                              AND et_{idx}.key = %s
+                              AND et_{idx}.value = ANY(%s)
+                        )"""
+                    )
+                    params.extend([tag_key, tag_values])
+                else:
+                    where_conditions.append(
+                        f"""EXISTS (
+                            SELECT 1 FROM episode_tags et_{idx}
+                            WHERE et_{idx}.episode_id = e.id
+                              AND et_{idx}.key = %s
+                        )"""
+                    )
+                    params.append(tag_key)
+
+        where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+        limit_clause = ""
+        if limit is not None:
+            limit_clause = "LIMIT %s"
+            params.append(limit)
+        if offset > 0:
+            limit_clause += " OFFSET %s" if limit_clause else "OFFSET %s"
+            params.append(offset)
+
+        query = f"""
+WITH episode_tags_agg AS (
+    SELECT episode_id, jsonb_object_agg(key, value) AS tags
+    FROM episode_tags
+    GROUP BY episode_id
+),
+episode_avg_rewards AS (
+    SELECT
+        e_sub.id AS episode_id,
+        jsonb_object_agg(
+            pv.id::text,
+            epm.value / NULLIF(ep.num_agents, 0)
+        ) FILTER (
+            WHERE epm.metric_name = 'reward'
+              AND ep.num_agents IS NOT NULL
+              AND ep.num_agents > 0
+        ) AS avg_rewards
+    FROM episodes e_sub
+    JOIN episode_policies ep ON ep.episode_id = e_sub.id
+    JOIN policy_versions pv ON pv.id = ep.policy_version_id
+    JOIN episode_policy_metrics epm
+        ON epm.episode_internal_id = e_sub.internal_id
+       AND epm.pv_internal_id = pv.internal_id
+    GROUP BY e_sub.id
+)
+SELECT
+    e.id,
+    e.primary_pv_id,
+    e.replay_url,
+    e.thumbnail_url,
+    COALESCE(e.attributes, '{{}}'::jsonb) AS attributes,
+    e.eval_task_id,
+    e.created_at,
+    COALESCE(t.tags, '{{}}'::jsonb) AS tags,
+    COALESCE(r.avg_rewards, '{{}}'::jsonb) AS avg_rewards
+FROM episodes e
+LEFT JOIN episode_tags_agg t ON t.episode_id = e.id
+LEFT JOIN episode_avg_rewards r ON r.episode_id = e.id
+{where_clause}
+ORDER BY e.created_at DESC
+{limit_clause}
+"""
+
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(EpisodeWithTags)) as cur:
+                await cur.execute(query, params)  # type: ignore
+                rows = await cur.fetchall()
+
+        for row in rows:
+            # `class_row` returns a dict for this attr but doesn't coerce its inner types
+            row.avg_rewards = {uuid.UUID(str(key)): value for key, value in row.avg_rewards.items()}
+        return list(rows)

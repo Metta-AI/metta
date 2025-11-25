@@ -18,11 +18,11 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import AgentPolicy
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random_agent import RandomAgentPolicy
+from mettagrid.policy.random_agent import RandomMultiAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
-from mettagrid.simulator.rollout import Rollout
+from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,8 @@ class PlayTool(Tool):
 
     def _load_policy_from_uri(
         self, policy_uri: str, policy_env_info: PolicyEnvInterface, device: torch.device
-    ) -> list[AgentPolicy]:
-        """Load a policy from a URI using CheckpointManager and return AgentPolicy instances."""
+    ) -> MultiAgentPolicy:
+        """Load a policy from a URI using CheckpointManager."""
         logger.info(f"Loading policy from URI: {policy_uri}")
 
         policy_spec = CheckpointManager.policy_spec_from_uri(policy_uri, device=str(device))
@@ -59,9 +59,7 @@ class PlayTool(Tool):
         if hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(policy_env_info, device)
         policy.eval()
-
-        # Create AgentPolicy instances for each agent
-        return [policy.agent_policy(agent_id) for agent_id in range(policy_env_info.num_agents)]
+        return policy
 
     @model_validator(mode="after")
     def validate(self) -> "PlayTool":
@@ -96,28 +94,28 @@ class PlayTool(Tool):
                 raise ValueError(f"Policy version {self.policy_version_id} has no s3 path")
 
         with ExitStack() as stack:
-            agent_policies = []
+            agent_policies: list[MultiAgentPolicy] = []
             if s3_path:
-                assert s3_path is not None
                 policy_spec = stack.enter_context(policy_spec_from_s3_submission(s3_path))
-                multi_agent_policy = initialize_or_load_policy(policy_env_info, policy_spec)
-                agent_policies.extend([multi_agent_policy.agent_policy(i) for i in range(policy_env_info.num_agents)])
+                policy = initialize_or_load_policy(policy_env_info, policy_spec)
+                agent_policies.append(policy)
                 logger.info("Loaded policy from s3 path")
             elif self.policy_uri:
-                agent_policies.extend(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
+                agent_policies.append(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
                 logger.info("Loaded policy from deprecated-format policy uri")
             else:
                 # Fall back to random policies only when no policy was configured explicitly.
-                agent_policies.extend([RandomAgentPolicy(policy_env_info) for _ in range(policy_env_info.num_agents)])
+                agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
 
-            # Create rollout with renderer
-            rollout = Rollout(
-                env_cfg,
-                agent_policies,
-                max_action_time_ms=10000,
-                render_mode=self.render,
+            rollout_result = multi_episode_rollout(
+                env_cfg=env_cfg,
+                policies=agent_policies,
+                episodes=1,
                 seed=self.seed,
+                render_mode=self.render,
+                max_action_time_ms=10000,
             )
+            episode = rollout_result.episodes[0]
 
         # Run the rollout
         logger.info("Starting interactive play session")
@@ -125,12 +123,10 @@ class PlayTool(Tool):
         console.print(f"[cyan]Render mode: {self.render}[/cyan]")
         console.print(f"[cyan]Max steps: {env_cfg.game.max_steps}[/cyan]")
 
-        rollout.run_until_done()
-
         # Print summary
         console.print("\n[bold green]Episode Complete![/bold green]")
-        console.print(f"Steps: {rollout._sim.current_step}")
-        console.print(f"Total Rewards: {rollout._sim.episode_rewards}")
-        console.print(f"Final Reward Sum: {float(sum(rollout._sim.episode_rewards)):.2f}")
+        console.print(f"Steps: {episode.steps}")
+        console.print(f"Total Rewards: {episode.rewards}")
+        console.print(f"Final Reward Sum: {float(episode.rewards.sum()):.2f}")
 
         return None

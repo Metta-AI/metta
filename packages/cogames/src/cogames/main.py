@@ -1,16 +1,18 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
 # ruff: noqa: E402
 
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
-from cogames.cli.utils import init_suppress_warnings
+from cogames.cli.utils import suppress_noisy_logs
 
-init_suppress_warnings()
+suppress_noisy_logs()
 
 import importlib.metadata
 import importlib.util
 import json
 import logging
+import shutil
 import subprocess
 import sys
 import threading
@@ -27,6 +29,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
+import cogames.policy.scripted_agent.starter_agent as starter_agent
 from cogames import evaluate as evaluate_module
 from cogames import game, verbose
 from cogames import play as play_module
@@ -48,7 +51,7 @@ from cogames.cli.policy import (
     policy_arg_example,
     policy_arg_w_proportion_example,
 )
-from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
+from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command, validate_policy_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid.mapgen.mapgen import MapGen
@@ -108,7 +111,7 @@ def tutorial_cmd(
             "[bold cyan]MISSION BRIEFING: Tutorial Sector[/bold cyan]\n\n"
             "Welcome, Cognitive. This simulation mirrors frontline HEART ops.\n"
             "We will launch the Mettascope visual interface now.\n\n"
-            "When you are ready to deploy, press Enter below.",
+            "When you are ready to deploy, press Enter below and then return here to receive instructions.",
             title="Mission Briefing",
             border_style="green",
         )
@@ -136,15 +139,19 @@ def tutorial_cmd(
                     "Left Pane (Intel): Shows details for selected objects (Stations, Tiles, Cogs).",
                     "Right Pane (Vibe Deck): Select icons here to change your Cog's broadcast resonance.",
                     "Zoom/Pan: Scroll or pinch to zoom the arena; drag to pan.",
-                    "Click your Cog (or their portrait) to focus the camera on them.",
+                    "Click various buildings to view their details in the Left Pane.",
+                    "Look for the Chest, Assembler, Charger, and Extractor stations.",
+                    "Click your Cog to assume control.",
                 ),
             },
             {
                 "title": "Step 2 — Movement & Energy",
                 "lines": (
                     "Use WASD or Arrow Keys to move your Cog.",
-                    "Every move costs Energy. Watch your battery bar on the Cog or in the HUD.",
-                    "If low, rest (skip turn) or find a Charger [yellow]+[/yellow].",
+                    "Every move costs Energy, every time step recovers Energy.",
+                    "Watch your battery bar on the Cog or in the HUD.",
+                    "If low, rest (skip turn), lean against a wall (walk into it), vibe, or",
+                    "find a Charger [yellow]+[/yellow].",
                 ),
             },
             {
@@ -173,6 +180,14 @@ def tutorial_cmd(
                     "Switch your Vibe to [red]heart_b[/red] (Deposit Mode).",
                     "Walk into the Chest to deposit the HEART and complete the objective.",
                     "Note: To pull resources out of the Chest, you must vibe the matching resource *_a protocol.",
+                ),
+            },
+            {
+                "title": "Step 6 — Objective Complete",
+                "lines": (
+                    "[bold green]🎉 Congratulations![/bold green] You have completed the tutorial.",
+                    "You've mastered extraction, crafting, and resource management.",
+                    "[bold cyan]You're now ready to tackle the full mission![/bold cyan]",
                 ),
             },
         )
@@ -397,7 +412,7 @@ def replay_cmd(
 
     try:
         # Run nim with mettascope and replay argument
-        cmd = ["nim", "r", "-d:fidgetUseCached", str(mettascope_path), f"--replay:{replay_path}"]
+        cmd = ["nim", "r", str(mettascope_path), f"--replay:{replay_path}"]
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as exc:
         console.print(f"[red]Error running MettaScope: {exc}[/red]")
@@ -447,6 +462,34 @@ def make_mission(
             console.print(f"[green]Modified {resolved_mission} configuration saved to: {output}[/green]")
         else:
             console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
+
+    except Exception as exc:  # pragma: no cover - user input
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
+@app.command("make-policy", help="Create a new starter policy")
+def make_policy(
+    output: Path = typer.Option("my_policy.py", "--output", "-o", help="Output file path"),  # noqa: B008
+) -> None:
+    """Create a new starter policy in the current directory."""
+    try:
+        # Get the path to the starter_policy.py file
+        starter_policy_path = Path(starter_agent.__file__)
+        if not starter_policy_path.exists():
+            console.print("[red]Error: Starter policy file not found[/red]")
+            raise typer.Exit(1)
+
+        # Copy to current working directory
+        dest_path = Path.cwd() / output
+
+        # Check if destination already exists
+        if dest_path.exists():
+            console.print(f"[yellow]Warning: {dest_path} already exists. Overwriting...[/yellow]")
+
+        shutil.copy2(starter_policy_path, dest_path)
+        console.print(f"[green]Starter policy copied to: {dest_path}[/green]")
+        console.print(f"[dim]You can now modify {dest_path} to create your own policy.[/dim]")
 
     except Exception as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
@@ -763,6 +806,17 @@ app.command(
     name="leaderboard",
     help="Show leaderboard entries (public or your submissions) with per-sim scores",
 )(leaderboard_cmd)
+
+
+@app.command(name="validate-policy", help="Validate the policy loads and runs a single step")
+def validate_policy_cmd(
+    ctx: typer.Context,
+    policy: str = typer.Argument(
+        ...,
+        help=f"Policy specification: {policy_arg_example}",
+    ),
+) -> None:
+    validate_policy_command(ctx, policy)
 
 
 @app.command(name="submit", help="Submit a policy to CoGames competitions")

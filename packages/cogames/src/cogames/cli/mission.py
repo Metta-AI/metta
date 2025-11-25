@@ -395,7 +395,7 @@ def list_missions(site_filter: Optional[str] = None) -> None:
     console.print(table)
 
     console.print("\nTo set [bold blue]-m[/bold blue]:")
-    console.print("  • Use [blue]<site>.<mission>[/blue] (e.g., training_facility.open_world)")
+    console.print("  • Use [blue]<site>.<mission>[/blue] (e.g., training_facility.harvest)")
     console.print("  • Or pass a mission config file path")
     console.print("  • List a site's missions: [blue]cogames missions training_facility[/blue]")
     console.print("\nVariants:")
@@ -405,7 +405,7 @@ def list_missions(site_filter: Optional[str] = None) -> None:
     console.print("\n[bold green]Examples:[/bold green]")
     console.print("  cogames missions")
     console.print("  cogames missions training_facility")
-    console.print("  cogames play --mission [blue]training_facility.open_world[/blue]")
+    console.print("  cogames play --mission [blue]training_facility.harvest[/blue]")
     console.print(
         "  cogames play --mission [blue]machina_1.open_world[/blue] "
         "--variant [yellow]solar_flare[/yellow] --variant [yellow]rough_terrain[/yellow] --cogs [green]8[/green]"

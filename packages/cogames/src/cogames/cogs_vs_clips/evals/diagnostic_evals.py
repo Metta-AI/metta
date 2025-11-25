@@ -545,6 +545,155 @@ class DiagnosticRadial(_DiagnosticMissionBase):
         agent.inventory_regen_amounts = {"energy": 255}
 
 
+# ----------------------------------------------------------------------
+# Hard versions of diagnostics (same maps, more time)
+# ----------------------------------------------------------------------
+
+
+class DiagnosticChestNavigation1Hard(_DiagnosticMissionBase):
+    name: str = "diagnostic_chest_navigation1_hard"
+    description: str = "Navigate to the chest and deposit a heart (hard)."
+    map_name: str = "evals/diagnostic_chest_navigation1_hard.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    max_steps: int = Field(default=350)
+    required_agents: int | None = 1
+
+
+class DiagnosticChestNavigation2Hard(_DiagnosticMissionBase):
+    name: str = "diagnostic_chest_navigation2_hard"
+    description: str = "Navigate through obstacles to deposit a heart (hard)."
+    map_name: str = "evals/diagnostic_chest_navigation2_hard.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    max_steps: int = Field(default=350)
+    required_agents: int | None = 1
+
+
+class DiagnosticChestNavigation3Hard(_DiagnosticMissionBase):
+    name: str = "diagnostic_chest_navigation3_hard"
+    description: str = "Navigate obstacles to deposit a heart (hard)."
+    map_name: str = "evals/diagnostic_chest_navigation3_hard.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    max_steps: int = Field(default=350)
+    required_agents: int | None = 1
+
+
+class DiagnosticChestDepositSearchHard(_DiagnosticMissionBase):
+    name: str = "diagnostic_chest_deposit_search_hard"
+    description: str = "Find the chest outside the initial FOV and deposit a heart (hard)."
+    map_name: str = "evals/diagnostic_chest_search_hard.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=350)
+
+
+class DiagnosticChargeUpHard(_DiagnosticMissionBase):
+    name: str = "diagnostic_charge_up_hard"
+    description: str = "Agent starts low on energy and must charge to proceed (hard)."
+    map_name: str = "evals/diagnostic_charge_up_hard.map"
+    required_agents: int | None = 1
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    # Disable generous energy for this eval
+    generous_energy: bool = False
+    max_steps: int = Field(default=350)
+
+    def configure_env(self, cfg: MettaGridConfig) -> None:
+        # Set starting energy to 30 and no regen
+        agent = cfg.game.agent
+        agent.initial_inventory = dict(agent.initial_inventory)
+        agent.initial_inventory["energy"] = 60
+        agent.inventory_regen_amounts = {"energy": 0}
+
+
+class DiagnosticMemoryHard(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_hard"
+    description: str = "Harder memory challenge with longer distance to chest (hard)."
+    map_name: str = "evals/diagnostic_memory_hard.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=170)
+
+
+class DiagnosticAssembleSeededSearchHard(_DiagnosticMissionBase):
+    name: str = "diagnostic_assemble_seeded_search_hard"
+    description: str = "Agents are pre-seeded; locate the assembler and chorus glyph HEART (hard)."
+    map_name: str = "evals/diagnostic_assembler_search_hard.map"
+    dynamic_assembler_chorus: bool = True
+    inventory_seed: Dict[str, int] = Field(
+        default_factory=lambda: {"carbon": 2, "oxygen": 2, "germanium": 1, "silicon": 3}
+    )
+    max_steps: int = Field(default=250)
+
+
+class DiagnosticExtractMissingCarbonHard(_DiagnosticMissionBase):
+    name: str = "diagnostic_extract_missing_carbon_hard"
+    description: str = "All agents start around the assembler; carbon must be extracted (hard)."
+    map_name: str = "evals/diagnostic_extract_lab_hard.map"
+    dynamic_assembler_chorus: bool = True
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"oxygen": 2, "germanium": 1, "silicon": 3})
+    max_steps: int = Field(default=230)
+
+
+class DiagnosticExtractMissingOxygenHard(_DiagnosticMissionBase):
+    name: str = "diagnostic_extract_missing_oxygen_hard"
+    description: str = "Gather oxygen from the extractor to complete a heart (hard)."
+    map_name: str = "evals/diagnostic_extract_lab_hard.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"carbon": 2, "germanium": 1, "silicon": 3})
+    max_steps: int = Field(default=230)
+
+
+class DiagnosticExtractMissingGermaniumHard(_DiagnosticMissionBase):
+    name: str = "diagnostic_extract_missing_germanium_hard"
+    description: str = "Gather germanium from the extractor to complete a heart (hard)."
+    map_name: str = "evals/diagnostic_extract_lab_hard.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"carbon": 2, "oxygen": 2, "silicon": 3})
+    max_steps: int = Field(default=230)
+
+
+class DiagnosticExtractMissingSiliconHard(_DiagnosticMissionBase):
+    name: str = "diagnostic_extract_missing_silicon_hard"
+    description: str = "Gather silicon from the extractor to complete a heart (hard)."
+    map_name: str = "evals/diagnostic_extract_lab_hard.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"carbon": 2, "oxygen": 2, "germanium": 1})
+    max_steps: int = Field(default=230)
+
+
+class DiagnosticAgileHard(_DiagnosticMissionBase):
+    name: str = "diagnostic_agile_hard"
+    description: str = "Navigation agility challenge; 1-4 agents (hard)."
+    map_name: str = "evals/diagnostic_agile_hard.map"
+    max_steps: int = Field(default=350)
+
+    def configure_env(self, cfg: MettaGridConfig) -> None:
+        required = {"carbon": 2, "oxygen": 2, "germanium": 1, "silicon": 3}
+        for resource, needed in required.items():
+            station = cfg.game.objects.get(f"{resource}_extractor")
+            if isinstance(station, AssemblerConfig):
+                station.max_uses = 1
+                updated: list[ProtocolConfig] = []
+                for proto in station.protocols:
+                    outputs = dict(proto.output_resources)
+                    if resource in outputs:
+                        outputs = {resource: needed}
+                        proto = proto.model_copy(update={"output_resources": outputs})
+                    updated.append(proto)
+                station.protocols = updated
+
+
+class DiagnosticRadialHard(_DiagnosticMissionBase):
+    name: str = "diagnostic_radial_hard"
+    description: str = "Radial resource layout; gather all four ingredients and chorus assemble (hard)."
+    map_name: str = "evals/diagnostic_radial_hard.map"
+    dynamic_assembler_chorus: bool = True
+    max_steps: int = Field(default=350)
+
+    def configure_env(self, cfg: MettaGridConfig) -> None:
+        agent = cfg.game.agent
+        inventory = dict(agent.initial_inventory)
+        inventory["energy"] = 255
+        agent.initial_inventory = inventory
+        agent.inventory_regen_amounts = {"energy": 255}
+
+
 DIAGNOSTIC_EVALS: list[type[_DiagnosticMissionBase]] = [
     DiagnosticChestNavigation1,
     DiagnosticChestNavigation2,
@@ -563,4 +712,18 @@ DIAGNOSTIC_EVALS: list[type[_DiagnosticMissionBase]] = [
     DiagnosticUnclipPreseed,
     DiagnosticAgile,
     DiagnosticRadial,
+    # Hard versions
+    DiagnosticChestNavigation1Hard,
+    DiagnosticChestNavigation2Hard,
+    DiagnosticChestNavigation3Hard,
+    DiagnosticChestDepositSearchHard,
+    DiagnosticChargeUpHard,
+    DiagnosticMemoryHard,
+    DiagnosticAssembleSeededSearchHard,
+    DiagnosticExtractMissingCarbonHard,
+    DiagnosticExtractMissingOxygenHard,
+    DiagnosticExtractMissingGermaniumHard,
+    DiagnosticExtractMissingSiliconHard,
+    DiagnosticAgileHard,
+    DiagnosticRadialHard,
 ]

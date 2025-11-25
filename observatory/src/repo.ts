@@ -1,3 +1,5 @@
+import { config } from './config'
+
 export type TokenInfo = {
   id: string
   name: string
@@ -48,6 +50,13 @@ export type EvalTaskCreateRequest = {
   attributes: Record<string, any>
 }
 
+export type TaskStatus = 'unprocessed' | 'running' | 'canceled' | 'done' | 'error' | 'system_error'
+
+type TaskStatusMixin = {
+  status: TaskStatus
+  status_details: Record<string, any> | null
+}
+
 export type EvalTask = {
   // eval_tasks table columns
   id: number
@@ -62,14 +71,12 @@ export type EvalTask = {
 
   // Latest attempt columns (from JOIN)
   attempt_number: number | null
-  status: 'unprocessed' | 'running' | 'canceled' | 'done' | 'error' | 'system_error'
-  status_details: Record<string, any> | null
   assigned_at: string | null
   assignee: string | null
   started_at: string | null
   finished_at: string | null
   output_log_path: string | null
-}
+} & TaskStatusMixin
 
 export type TaskAttempt = {
   id: number
@@ -80,9 +87,7 @@ export type TaskAttempt = {
   started_at: string | null
   finished_at: string | null
   output_log_path: string | null
-  status: 'unprocessed' | 'running' | 'canceled' | 'done' | 'error' | 'system_error'
-  status_details: Record<string, any> | null
-}
+} & TaskStatusMixin
 
 export type EvalTasksResponse = {
   tasks: EvalTask[]
@@ -178,17 +183,54 @@ export type PublicPolicyVersionRow = {
   tags: Record<string, string>
 }
 
+export type EpisodeReplay = {
+  episode_id: string
+  replay_url: string
+}
+
+export type EpisodeWithTags = {
+  id: string
+  primary_pv_id: string | null
+  replay_url: string | null
+  thumbnail_url: string | null
+  attributes: Record<string, any>
+  eval_task_id: string | null
+  created_at: string
+  tags: Record<string, string>
+  avg_rewards: Record<string, number>
+}
+
 export type LeaderboardPolicyEntry = {
   policy_version: PublicPolicyVersionRow
   scores: Record<string, number>
   avg_score: number | null
+  replays: Record<string, EpisodeReplay[]>
+  score_episode_ids: Record<string, string | null>
 }
 
 export type LeaderboardPoliciesResponse = {
   entries: LeaderboardPolicyEntry[]
 }
 
-import { config } from './config'
+export type PolicyVersionWithName = {
+  id: string
+  policy_id: string
+  version: number
+  name: string
+  created_at: string
+}
+
+export type EpisodeQueryRequest = {
+  primary_policy_version_ids?: string[]
+  tag_filters?: Record<string, string[] | null>
+  limit?: number | null
+  offset?: number
+  episode_ids?: string[]
+}
+
+export type EpisodeQueryResponse = {
+  episodes: EpisodeWithTags[]
+}
 
 export type TableInfo = {
   table_name: string
@@ -225,51 +267,7 @@ export type AIQueryResponse = {
   query: string
 }
 
-/**
- * Interface for data fetching.
- *
- * Currently the data is loaded from a pre-computed JSON file.
- * In the future, we will fetch the data from an API.
- */
-export interface Repo {
-  // Token management methods
-  createToken(tokenData: TokenCreate): Promise<TokenResponse>
-  listTokens(): Promise<TokenListResponse>
-  deleteToken(tokenId: string): Promise<void>
-
-  // User methods
-  whoami(): Promise<{ user_email: string }>
-
-  // SQL query methods
-  listTables(): Promise<TableInfo[]>
-  getTableSchema(tableName: string): Promise<TableSchema>
-  executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse>
-  generateAIQuery(description: string): Promise<AIQueryResponse>
-
-  // Training run methods
-  getTrainingRuns(): Promise<TrainingRunListResponse>
-  getTrainingRun(runId: string): Promise<TrainingRun>
-  updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
-  updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
-  getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]>
-
-  // Eval task methods
-  createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
-  getEvalTasks(): Promise<EvalTask[]>
-  getEvalTasksPaginated(page: number, pageSize: number, filters: TaskFilters): Promise<PaginatedEvalTasksResponse>
-  getEvalTask(taskId: number): Promise<EvalTask>
-  getTaskAttempts(taskId: number): Promise<TaskAttemptsResponse>
-  getTaskLogUrl(taskId: number, logType: 'output'): string
-
-  // Policy methods
-  getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
-
-  // Leaderboard / policy version queries
-  getPublicLeaderboard(): Promise<LeaderboardPoliciesResponse>
-  getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse>
-}
-
-export class ServerRepo implements Repo {
+export class Repo {
   constructor(private baseUrl: string = 'http://localhost:8000') {}
 
   private getHeaders(contentType?: string): Record<string, string> {
@@ -432,6 +430,7 @@ export class ServerRepo implements Repo {
     return `${this.baseUrl}/tasks/${taskId}/logs/${logType}`
   }
 
+  // Policy methods
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
     const params = new URLSearchParams()
     policyNames.forEach((name) => params.append('policy_names', name))
@@ -439,11 +438,24 @@ export class ServerRepo implements Repo {
     return response.policy_ids
   }
 
+  // Leaderboard / policy version queries
   async getPublicLeaderboard(): Promise<LeaderboardPoliciesResponse> {
     return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2')
   }
 
   async getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse> {
     return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me')
+  }
+
+  async getLeaderboardPolicy(policyVersionId: string): Promise<LeaderboardPoliciesResponse> {
+    return this.apiCall<LeaderboardPoliciesResponse>(`/leaderboard/v2/policy/${policyVersionId}`)
+  }
+
+  async getPolicyVersion(policyVersionId: string): Promise<PolicyVersionWithName> {
+    return this.apiCall<PolicyVersionWithName>(`/stats/policies/versions/${policyVersionId}`)
+  }
+
+  async queryEpisodes(request: EpisodeQueryRequest): Promise<EpisodeQueryResponse> {
+    return this.apiCallWithBody<EpisodeQueryResponse>('/stats/episodes/query', request)
   }
 }

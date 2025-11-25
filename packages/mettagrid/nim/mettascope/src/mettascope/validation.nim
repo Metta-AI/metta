@@ -26,8 +26,16 @@ proc requireFields*(obj: JsonNode, fields: openArray[string], objName: string, i
       field: objName
     ))
 
-proc validateType*(value: JsonNode, expectedType: string, fieldName: string, issues: var seq[ValidationIssue]) =
-  ## Validate that value has the expected type.
+proc validateType*(obj: JsonNode, key: string, expectedType: string, fieldName: string, issues: var seq[ValidationIssue]) =
+  ## Validate that obj[key] has the expected type, adding an issue if the key is missing.
+  if key notin obj:
+    issues.add(ValidationIssue(
+      message: &"'{fieldName}' is missing (required)",
+      field: fieldName
+    ))
+    return
+
+  let value = obj[key]
   let actualType = case value.kind
     of JInt: "int"
     of JFloat: "float"
@@ -43,9 +51,34 @@ proc validateType*(value: JsonNode, expectedType: string, fieldName: string, iss
       field: fieldName
     ))
 
-proc validatePositiveInt*(value: JsonNode, fieldName: string, issues: var seq[ValidationIssue]) =
-  ## Validate that value is a positive integer.
-  validateType(value, "int", fieldName, issues)
+proc validateTypeValue*(value: JsonNode, expectedType: string, fieldName: string, issues: var seq[ValidationIssue]) =
+  ## Validate that value has the expected type (for direct JsonNode values, no key checking).
+  let actualType = case value.kind
+    of JInt: "int"
+    of JFloat: "float"
+    of JString: "string"
+    of JBool: "bool"
+    of JArray: "array"
+    of JObject: "object"
+    of JNull: "null"
+
+  if actualType != expectedType:
+    issues.add(ValidationIssue(
+      message: &"'{fieldName}' must be {expectedType}, got {actualType}",
+      field: fieldName
+    ))
+
+proc validatePositiveInt*(obj: JsonNode, key: string, fieldName: string, issues: var seq[ValidationIssue]) =
+  ## Validate that obj[key] is a positive integer, adding an issue if the key is missing.
+  if key notin obj:
+    issues.add(ValidationIssue(
+      message: &"'{fieldName}' is missing (required)",
+      field: fieldName
+    ))
+    return
+
+  let value = obj[key]
+  validateTypeValue(value, "int", fieldName, issues)
   if value.kind == JInt:
     let val = value.getInt()
     if val <= 0:
@@ -54,8 +87,27 @@ proc validatePositiveInt*(value: JsonNode, fieldName: string, issues: var seq[Va
         field: fieldName
       ))
 
-proc validateNonNegativeNumber*(value: JsonNode, fieldName: string, issues: var seq[ValidationIssue]) =
-  ## Validate that value is a non-negative number.
+proc validatePositiveIntValue*(value: JsonNode, fieldName: string, issues: var seq[ValidationIssue]) =
+  ## Validate that value is a positive integer (for direct JsonNode values).
+  validateTypeValue(value, "int", fieldName, issues)
+  if value.kind == JInt:
+    let val = value.getInt()
+    if val <= 0:
+      issues.add(ValidationIssue(
+        message: &"'{fieldName}' must be positive, got {val}",
+        field: fieldName
+      ))
+
+proc validateNonNegativeNumber*(obj: JsonNode, key: string, fieldName: string, issues: var seq[ValidationIssue]) =
+  ## Validate that obj[key] is a non-negative number, adding an issue if the key is missing.
+  if key notin obj:
+    issues.add(ValidationIssue(
+      message: &"'{fieldName}' is missing (required)",
+      field: fieldName
+    ))
+    return
+
+  let value = obj[key]
   case value.kind
   of JInt:
     let val = value.getInt()
@@ -77,9 +129,17 @@ proc validateNonNegativeNumber*(value: JsonNode, fieldName: string, issues: var 
       field: fieldName
     ))
 
-proc validateStringList*(lst: JsonNode, fieldName: string, issues: var seq[ValidationIssue], allowEmptyStrings: bool = false) =
-  ## Validate that value is a list of strings.
-  validateType(lst, "array", fieldName, issues)
+proc validateStringList*(obj: JsonNode, key: string, fieldName: string, issues: var seq[ValidationIssue], allowEmptyStrings: bool = false) =
+  ## Validate that obj[key] is a list of strings, adding an issue if the key is missing.
+  if key notin obj:
+    issues.add(ValidationIssue(
+      message: &"'{fieldName}' is missing (required)",
+      field: fieldName
+    ))
+    return
+
+  let lst = obj[key]
+  validateTypeValue(lst, "array", fieldName, issues)
   if lst.kind == JArray:
     if lst.len == 0:
       issues.add(ValidationIssue(
@@ -103,9 +163,23 @@ proc validateStringList*(lst: JsonNode, fieldName: string, issues: var seq[Valid
         field: fieldName
       ))
 
-proc validateStaticValue*(value: JsonNode, expectedType: string, fieldName: string, issues: var seq[ValidationIssue]) =
-  ## Validate that value is a static value of the expected type (never a time series).
-  validateType(value, expectedType, fieldName, issues)
+proc validateStaticValue*(obj: JsonNode, key: string, expectedType: string, fieldName: string, issues: var seq[ValidationIssue]) =
+  ## Validate that obj[key] has the expected static type, adding an issue if the key is missing.
+  if key notin obj:
+    issues.add(ValidationIssue(
+      message: &"'{fieldName}' is missing (required)",
+      field: fieldName
+    ))
+    return
+
+  let value = obj[key]
+  if value.kind == JArray:
+    issues.add(ValidationIssue(
+      message: &"'{fieldName}' must be a single value, not an array",
+      field: fieldName
+    ))
+    return
+  validateType(obj, key, expectedType, fieldName, issues)
 
 proc validateTimeSeries*(data: JsonNode, fieldName: string, expectedType: string, issues: var seq[ValidationIssue]) =
   ## Validate time series values: either single values (never changed) or arrays of [step, value] pairs.
@@ -182,39 +256,13 @@ proc validateTimeSeries*(data: JsonNode, fieldName: string, expectedType: string
     field: fieldName
   ))
 
-proc validateInventoryList*(inventoryList: JsonNode, fieldName: string, issues: var seq[ValidationIssue]) =
-  ## Validate a single inventory list: list of [item_id, amount] pairs.
-  validateType(inventoryList, "array", fieldName, issues)
-
-  if inventoryList.kind == JArray:
-    for pair in inventoryList.getElems():
-      if pair.kind != JArray or pair.len != 2:
-        issues.add(ValidationIssue(
-          message: &"'{fieldName}' must contain [item_id, amount] pairs",
-          field: fieldName
-        ))
-
-      let itemId = pair[0]
-      let amount = pair[1]
-
-      if itemId.kind != JInt or itemId.getInt() < 0:
-        issues.add(ValidationIssue(
-          message: &"'{fieldName}' item_id must be non-negative integer",
-          field: fieldName
-        ))
-
-      if amount.kind notin {JInt, JFloat} or amount.getFloat() < 0:
-        issues.add(ValidationIssue(
-          message: &"'{fieldName}' amount must be non-negative number",
-          field: fieldName
-        ))
 
 proc validateInventoryFormat*(inventory: JsonNode, fieldName: string, issues: var seq[ValidationIssue]) =
   ## Validate inventory: flat array of item IDs, or time series of [step, inventory_array] pairs.
   if inventory.kind == JNull:
     return
 
-  validateType(inventory, "array", fieldName, issues)
+  validateTypeValue(inventory, "array", fieldName, issues)
   if inventory.kind != JArray:
     return
 
@@ -286,7 +334,7 @@ proc validateLocation*(location: JsonNode, objName: string, issues: var seq[Vali
       return
 
   # Check if it's a time series array (location changed during replay)
-  validateType(location, "array", fieldName, issues)
+  validateTypeValue(location, "array", fieldName, issues)
   if location.kind == JArray and location.len == 0:
     issues.add(ValidationIssue(
       message: &"{fieldName} must have at least one entry",
@@ -301,6 +349,7 @@ proc validateLocation*(location: JsonNode, objName: string, issues: var seq[Vali
           message: &"{fieldName} items must be [step, [x, y]] pairs",
           field: fieldName
         ))
+        continue
 
       let step = stepData[0]
       let coords = stepData[1]
@@ -367,26 +416,26 @@ proc validateAgentFields*(obj: JsonNode, objName: string, replayData: JsonNode, 
 
   # Validate static agent fields.
   let agentId = obj["agent_id"].getInt()
-  validateStaticValue(obj["agent_id"], "int", objName & ".agent_id", issues)
-  validateNonNegativeNumber(obj["agent_id"], objName & ".agent_id", issues)
+  validateStaticValue(obj, "agent_id", "int", objName & ".agent_id", issues)
+  validateNonNegativeNumber(obj, "agent_id", objName & ".agent_id", issues)
   if agentId >= replayData["num_agents"].getInt():
     issues.add(ValidationIssue(
       message: &"{objName}.agent_id {agentId} out of range",
       field: objName & ".agent_id"
     ))
 
-  validateStaticValue(obj["is_agent"], "bool", objName & ".is_agent", issues)
+  validateStaticValue(obj, "is_agent", "bool", objName & ".is_agent", issues)
   if obj["is_agent"].kind == JBool and not obj["is_agent"].getBool():
     issues.add(ValidationIssue(
       message: &"{objName}.is_agent must be True",
       field: objName & ".is_agent"
     ))
 
-  validateStaticValue(obj["vision_size"], "int", objName & ".vision_size", issues)
-  validatePositiveInt(obj["vision_size"], objName & ".vision_size", issues)
+  validateStaticValue(obj, "vision_size", "int", objName & ".vision_size", issues)
+  validatePositiveInt(obj, "vision_size", objName & ".vision_size", issues)
 
-  validateStaticValue(obj["group_id"], "int", objName & ".group_id", issues)
-  validateNonNegativeNumber(obj["group_id"], objName & ".group_id", issues)
+  validateStaticValue(obj, "group_id", "int", objName & ".group_id", issues)
+  validateNonNegativeNumber(obj, "group_id", objName & ".group_id", issues)
 
   # Validate dynamic agent fields (always time series).
   validateTimeSeries(obj["action_id"], objName & ".action_id", "int", issues)
@@ -406,7 +455,7 @@ proc validateProtocol*(protocol: JsonNode, protocolIndex: int, objName: string, 
   let protocolName = &"{objName}.protocols[{protocolIndex}]"
 
   # Protocol must be an object
-  validateType(protocol, "object", protocolName, issues)
+  validateTypeValue(protocol, "object", protocolName, issues)
 
   if protocol.kind != JObject:
     return
@@ -416,11 +465,11 @@ proc validateProtocol*(protocol: JsonNode, protocolIndex: int, objName: string, 
   requireFields(protocol, requiredFields, protocolName, issues)
 
   # Validate field types
-  validateType(protocol["minAgents"], "int", protocolName & ".minAgents", issues)
-  validateType(protocol["vibes"], "array", protocolName & ".vibes", issues)
-  validateType(protocol["inputs"], "array", protocolName & ".inputs", issues)
-  validateType(protocol["outputs"], "array", protocolName & ".outputs", issues)
-  validateType(protocol["cooldown"], "int", protocolName & ".cooldown", issues)
+  validateType(protocol, "minAgents", "int", protocolName & ".minAgents", issues)
+  validateType(protocol, "vibes", "array", protocolName & ".vibes", issues)
+  validateType(protocol, "inputs", "array", protocolName & ".inputs", issues)
+  validateType(protocol, "outputs", "array", protocolName & ".outputs", issues)
+  validateType(protocol, "cooldown", "int", protocolName & ".cooldown", issues)
 
   # Validate non-negative values
   if protocol["minAgents"].kind == JInt and protocol["minAgents"].getInt() < 0:
@@ -438,15 +487,15 @@ proc validateProtocol*(protocol: JsonNode, protocolIndex: int, objName: string, 
   # Validate vibes array contains integers
   if protocol["vibes"].kind == JArray:
     for i, vibe in protocol["vibes"].getElems():
-      validateType(vibe, "int", &"{protocolName}.vibes[{i}]", issues)
+      validateTypeValue(vibe, "int", &"{protocolName}.vibes[{i}]", issues)
 
   # Validate inputs and outputs arrays
   for i, itemAmount in protocol["inputs"].getElems():
     if itemAmount.kind == JArray and itemAmount.len == 2:
       let itemId = itemAmount[0]
       let count = itemAmount[1]
-      validateType(itemId, "int", &"{protocolName}.inputs[{i}][0]", issues)
-      validateType(count, "int", &"{protocolName}.inputs[{i}][1]", issues)
+      validateTypeValue(itemId, "int", &"{protocolName}.inputs[{i}][0]", issues)
+      validateTypeValue(count, "int", &"{protocolName}.inputs[{i}][1]", issues)
       if count.kind == JInt and count.getInt() < 0:
         issues.add(ValidationIssue(
           message: &"{protocolName}.inputs[{i}][1] must be non-negative",
@@ -462,8 +511,8 @@ proc validateProtocol*(protocol: JsonNode, protocolIndex: int, objName: string, 
     if itemAmount.kind == JArray and itemAmount.len == 2:
       let itemId = itemAmount[0]
       let count = itemAmount[1]
-      validateType(itemId, "int", &"{protocolName}.outputs[{i}][0]", issues)
-      validateType(count, "int", &"{protocolName}.outputs[{i}][1]", issues)
+      validateTypeValue(itemId, "int", &"{protocolName}.outputs[{i}][0]", issues)
+      validateTypeValue(count, "int", &"{protocolName}.outputs[{i}][1]", issues)
       if count.kind == JInt and count.getInt() < 0:
         issues.add(ValidationIssue(
           message: &"{protocolName}.outputs[{i}][1] must be non-negative",
@@ -484,16 +533,16 @@ proc validateAssemblerFields*(obj: JsonNode, objName: string, issues: var seq[Va
   requireFields(obj, assemblerFields, objName, issues)
 
   # Validate static assembler fields.
-  validateStaticValue(obj["cooldown_duration"], "int", objName & ".cooldown_duration", issues)
-  validateNonNegativeNumber(obj["cooldown_duration"], objName & ".cooldown_duration", issues)
+  validateStaticValue(obj, "cooldown_duration", "int", objName & ".cooldown_duration", issues)
+  validateNonNegativeNumber(obj, "cooldown_duration", objName & ".cooldown_duration", issues)
 
-  validateStaticValue(obj["max_uses"], "int", objName & ".max_uses", issues)
-  validateNonNegativeNumber(obj["max_uses"], objName & ".max_uses", issues)
+  validateStaticValue(obj, "max_uses", "int", objName & ".max_uses", issues)
+  validateNonNegativeNumber(obj, "max_uses", objName & ".max_uses", issues)
 
-  validateStaticValue(obj["allow_partial_usage"], "bool", objName & ".allow_partial_usage", issues)
+  validateStaticValue(obj, "allow_partial_usage", "bool", objName & ".allow_partial_usage", issues)
 
   # Validate protocols array
-  validateType(obj["protocols"], "array", objName & ".protocols", issues)
+  validateType(obj, "protocols", "array", objName & ".protocols", issues)
   if obj["protocols"].kind == JArray:
     let protocols = obj["protocols"]
     for i in 0 ..< protocols.len:
@@ -517,14 +566,14 @@ proc validateBuildingFields*(obj: JsonNode, objName: string, issues: var seq[Val
   requireFields(obj, buildingFields, objName, issues)
 
   # Validate static building fields.
-  validateStaticValue(obj["output_limit"], "float", objName & ".output_limit", issues)
-  validateNonNegativeNumber(obj["output_limit"], objName & ".output_limit", issues)
+  validateStaticValue(obj, "output_limit", "float", objName & ".output_limit", issues)
+  validateNonNegativeNumber(obj, "output_limit", objName & ".output_limit", issues)
 
-  validateStaticValue(obj["conversion_duration"], "float", objName & ".conversion_duration", issues)
-  validateNonNegativeNumber(obj["conversion_duration"], objName & ".conversion_duration", issues)
+  validateStaticValue(obj, "conversion_duration", "float", objName & ".conversion_duration", issues)
+  validateNonNegativeNumber(obj, "conversion_duration", objName & ".conversion_duration", issues)
 
-  validateStaticValue(obj["cooldown_duration"], "float", objName & ".cooldown_duration", issues)
-  validateNonNegativeNumber(obj["cooldown_duration"], objName & ".cooldown_duration", issues)
+  validateStaticValue(obj, "cooldown_duration", "float", objName & ".cooldown_duration", issues)
+  validateNonNegativeNumber(obj, "cooldown_duration", objName & ".cooldown_duration", issues)
 
   # Validate dynamic building fields (always time series).
   validateInventoryFormat(obj["input_resources"], objName & ".input_resources", issues)
@@ -545,17 +594,18 @@ proc validateObject*(obj: JsonNode, objIndex: int, replayData: JsonNode, issues:
   requireFields(obj, requiredFields, objName, issues)
 
   # Validate static fields.
-  validateStaticValue(obj["id"], "int", objName & ".id", issues)
-  validatePositiveInt(obj["id"], objName & ".id", issues)
+  validateStaticValue(obj, "id", "int", objName & ".id", issues)
+  validatePositiveInt(obj, "id", objName & ".id", issues)
 
-  let typeName = obj["type_name"].getStr()
-  validateStaticValue(obj["type_name"], "string", objName & ".type_name", issues)
-  let typeNames = replayData["type_names"].to(seq[string])
-  if typeName notin typeNames:
-    issues.add(ValidationIssue(
-      message: &"{objName}.type_name '{typeName}' not in type_names list",
-      field: objName & ".type_name"
-    ))
+  validateStaticValue(obj, "type_name", "string", objName & ".type_name", issues)
+  if "type_name" in obj:
+    let typeName = obj["type_name"].getStr()
+    let typeNames = replayData["type_names"].to(seq[string])
+    if typeName notin typeNames:
+      issues.add(ValidationIssue(
+        message: &"{objName}.type_name '{typeName}' not in type_names list",
+        field: objName & ".type_name"
+      ))
 
   # Validate dynamic fields (always time series).
   validateLocation(obj["location"], objName, issues)
@@ -611,12 +661,12 @@ proc validateReplaySchema*(data: JsonNode, issues: var seq[ValidationIssue]) =
       field: "version"
     ))
 
-  validateNonNegativeNumber(data["num_agents"], "num_agents", issues)
-  validateNonNegativeNumber(data["max_steps"], "max_steps", issues)
+  validateNonNegativeNumber(data, "num_agents", "num_agents", issues)
+  validateNonNegativeNumber(data, "max_steps", "max_steps", issues)
 
   # Validate map_size.
   let mapSize = data["map_size"]
-  validateType(mapSize, "array", "map_size", issues)
+  validateTypeValue(mapSize, "array", "map_size", issues)
   if mapSize.kind == JArray and mapSize.len != 2:
     issues.add(ValidationIssue(
       message: "'map_size' must have exactly 2 dimensions",
@@ -624,17 +674,16 @@ proc validateReplaySchema*(data: JsonNode, issues: var seq[ValidationIssue]) =
     ))
   if mapSize.kind == JArray:
     for i in 0..<mapSize.len:
-      validatePositiveInt(mapSize[i], "map_size[" & $i & "]", issues)
+      validatePositiveIntValue(mapSize[i], "map_size[" & $i & "]", issues)
 
   # Required string lists.
   for field in ["action_names", "item_names", "type_names"]:
-    validateStringList(data[field], field, issues, allowEmptyStrings = true)
+    validateStringList(data, field, field, issues, allowEmptyStrings = true)
 
   # Optional file_name validation.
   if "file_name" in data:
-    let fileName = data["file_name"]
-    validateType(fileName, "string", "file_name", issues)
-    if fileName.kind == JString and fileName.getStr().len == 0:
+    validateType(data, "file_name", "string", "file_name", issues)
+    if data["file_name"].kind == JString and data["file_name"].getStr().len == 0:
       issues.add(ValidationIssue(
         message: "'file_name' must be non-empty",
         field: "file_name"
@@ -642,12 +691,12 @@ proc validateReplaySchema*(data: JsonNode, issues: var seq[ValidationIssue]) =
 
   # Optional string lists.
   if "group_names" in data:
-    validateStringList(data["group_names"], "group_names", issues, allowEmptyStrings = true)
+    validateStringList(data, "group_names", "group_names", issues, allowEmptyStrings = true)
 
   # Optional reward sharing matrix.
   if "reward_sharing_matrix" in data:
     let matrix = data["reward_sharing_matrix"]
-    validateType(matrix, "array", "reward_sharing_matrix", issues)
+    validateTypeValue(matrix, "array", "reward_sharing_matrix", issues)
     let numAgents = data["num_agents"].getInt()
     if matrix.kind == JArray and matrix.len != numAgents:
       issues.add(ValidationIssue(
@@ -656,7 +705,7 @@ proc validateReplaySchema*(data: JsonNode, issues: var seq[ValidationIssue]) =
       ))
     if matrix.kind == JArray:
       for i, row in matrix.getElems():
-        validateType(row, "array", "reward_sharing_matrix[" & $i & "]", issues)
+        validateTypeValue(row, "array", "reward_sharing_matrix[" & $i & "]", issues)
         if row.kind == JArray and row.len != numAgents:
           issues.add(ValidationIssue(
             message: &"'reward_sharing_matrix[{i}]' must have {numAgents} columns",
@@ -672,7 +721,7 @@ proc validateReplaySchema*(data: JsonNode, issues: var seq[ValidationIssue]) =
 
   # Objects validation.
   let objects = data["objects"]
-  validateType(objects, "array", "objects", issues)
+  validateTypeValue(objects, "array", "objects", issues)
   if objects.kind == JArray:
     for obj in objects.getElems():
       if obj.kind != JObject:
