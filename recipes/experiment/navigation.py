@@ -89,7 +89,6 @@ def make_nav_ascii_env(
     # Replace nav map objects with Cogames stations to match mission rules.
     map_instance.char_to_map_name["n"] = "assembler"
     map_instance.char_to_map_name["m"] = "chest"
-    map_instance.char_to_map_name["_"] = "empty"  # Remove altars (not supported in C++ simulator)
 
     map_builder = MapGen.Config(
         instances=num_instances,
@@ -165,7 +164,6 @@ def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
                 "oxygen_extractor": 2,
             },
             dir="varied_terrain/dense_large",
-            remove_altars=True,
         ),
     )
     return make_cogames_nav_env(map_builder=map_builder, num_agents=num_agents * num_instances)
@@ -309,7 +307,7 @@ def sweep(sweep_name: str) -> SweepTool:
     (otherwise sweep progress will halt when you close your computer).
 
     Running on the remote:
-        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
+        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py new --sweep-controller`, and ssh into it.
         2 - Clean git pollution: `git clean -df && git stash`
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
