@@ -117,6 +117,8 @@ class WFCRenderSession:
         start = time.time()
         self.wave = np.full((self.height, self.width, self.pattern_count), True, dtype=np.bool_)
 
+        self.queue_mask.fill(False)
+
         self.compatible = np.zeros((self.height, self.width, 4, self.pattern_count), dtype=np.int_)
 
         for y in range(self.height):
@@ -136,6 +138,7 @@ class WFCRenderSession:
         for y in range(self.height):
             for x in range(self.width):
                 heapq.heappush(self.queue, (self.cell_score(x, y), x, y))
+                self.queue_mask[y, x] = True
 
         self.stack = np.zeros((self.width * self.height * self.pattern_count, 3), dtype=np.int_)
         self.stacksize = 0
