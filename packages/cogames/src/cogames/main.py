@@ -530,9 +530,9 @@ def train_cmd(
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
     num_workers: Optional[int] = typer.Option(
-        None,
+        8,
         "--num-workers",
-        help="Number of worker processes (defaults to number of CPU cores)",
+        help="Number of worker processes (default 8; auto-adjusts to CPU cores if lower)",
         min=1,
     ),
     parallel_envs: Optional[int] = typer.Option(
@@ -630,8 +630,8 @@ def train_tribal_cmd(
         help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
     ),
     seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
-    batch_size: int = typer.Option(2048, "--batch-size", help="Batch size for training", min=1),
-    minibatch_size: int = typer.Option(2048, "--minibatch-size", help="Minibatch size for training", min=1),
+    batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
+    minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
     num_workers: Optional[int] = typer.Option(
         None,
         "--num-workers",
@@ -639,7 +639,7 @@ def train_tribal_cmd(
         min=1,
     ),
     parallel_envs: Optional[int] = typer.Option(
-        None,
+        64,
         "--parallel-envs",
         help="Number of parallel environments (defaults to 64 when omitted)",
         min=1,
