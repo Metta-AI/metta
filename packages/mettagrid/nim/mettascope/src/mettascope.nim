@@ -19,6 +19,7 @@ proc updateReplayHeader() =
 
 proc onReplayLoaded() =
   ## Called when a replay is loaded.
+  replay.loadImages()
   updateReplayHeader()
   worldMapPanel.pos = vec2(0, 0)
   onStepChanged()

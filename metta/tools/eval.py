@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import uuid
 from typing import Sequence
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field
 from metta.agent.policy import PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
-from metta.common.wandb.context import WandbConfig, WandbContext
+from metta.common.wandb.context import WandbConfig, WandbRunAppendContext
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.sim.handle_results import render_eval_summary
@@ -91,6 +92,8 @@ class EvaluateTool(Tool):
 
         observatory_writer: ObservatoryWriter | None = None
         wandb_writer: WandbWriter | None = None
+        wandb_context = contextlib.nullcontext(None)
+        policy_metadata = None
 
         if self.stats_server_uri is not None:
             stats_client = StatsClient.create(self.stats_server_uri)
@@ -109,22 +112,24 @@ class EvaluateTool(Tool):
 
                 if self.push_metrics_to_wandb:
                     wandb_config = _get_wandb_config(normalized_uri, self.group)
-                    with WandbContext(wandb_config, self) as wandb_run:
-                        if wandb_run:
-                            wandb_writer = WandbWriter(
-                                wandb_run=wandb_run,
-                                epoch=policy_metadata.epoch,
-                                agent_step=policy_metadata.agent_step,
-                            )
+                    wandb_context = WandbRunAppendContext(wandb_config)
 
-        rollout_results = simulate_and_record(
-            policy_specs=[policy_spec],
-            simulations=[sim.to_simulation_run_config() for sim in self.simulations],
-            replay_dir=self.replay_dir,
-            seed=self.system.seed,
-            observatory_writer=observatory_writer,
-            wandb_writer=wandb_writer,
-        )
+        with wandb_context as wandb_run:
+            if wandb_run and policy_metadata:
+                wandb_writer = WandbWriter(
+                    wandb_run=wandb_run,
+                    epoch=policy_metadata.epoch,
+                    agent_step=policy_metadata.agent_step,
+                )
+
+            rollout_results = simulate_and_record(
+                policy_specs=[policy_spec],
+                simulations=[sim.to_simulation_run_config() for sim in self.simulations],
+                replay_dir=self.replay_dir,
+                seed=self.system.seed,
+                observatory_writer=observatory_writer,
+                wandb_writer=wandb_writer,
+            )
         render_eval_summary(rollout_results, policy_names=[_spec_display_name(policy_spec)], verbose=self.verbose)
 
         return 0, "Done", rollout_results
@@ -167,26 +172,28 @@ class EvaluatePolicyVersionTool(Tool):
         )
 
         wandb_writer: WandbWriter | None = None
+        wandb_context = contextlib.nullcontext(None)
+        epoch = policy_version.attributes.get("epoch")
+        agent_step = policy_version.attributes.get("agent_step")
         if self.write_to_wandb:
-            epoch = policy_version.attributes.get("epoch")
-            agent_step = policy_version.attributes.get("agent_step")
-
             if epoch and agent_step:
                 wandb_config = _get_wandb_config(policy_version.name, self.group)
-                with WandbContext(wandb_config, self) as wandb_run:
-                    if wandb_run:
-                        wandb_writer = WandbWriter(
-                            wandb_run=wandb_run,
-                            epoch=epoch,
-                            agent_step=agent_step,
-                        )
+                wandb_context = WandbRunAppendContext(wandb_config)
 
-        rollout_results = simulate_and_record(
-            policy_specs=[policy_spec],
-            simulations=self.simulations,
-            replay_dir=self.replay_dir,
-            seed=self.system.seed,
-            observatory_writer=observatory_writer,
-            wandb_writer=wandb_writer,
-        )
+        with wandb_context as wandb_run:
+            if wandb_run and epoch and agent_step:
+                wandb_writer = WandbWriter(
+                    wandb_run=wandb_run,
+                    epoch=epoch,
+                    agent_step=agent_step,
+                )
+
+            rollout_results = simulate_and_record(
+                policy_specs=[policy_spec],
+                simulations=self.simulations,
+                replay_dir=self.replay_dir,
+                seed=self.system.seed,
+                observatory_writer=observatory_writer,
+                wandb_writer=wandb_writer,
+            )
         render_eval_summary(rollout_results, policy_names=[_spec_display_name(policy_spec)])

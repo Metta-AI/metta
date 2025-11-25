@@ -73,8 +73,7 @@ class ReplayLogWriter(SimulatorEventHandler):
         logger.info("Wrote replay for episode %s to %s", self._episode_id, url)
         logger.debug("Watch replay at %s", METTASCOPE_REPLAY_URL_PREFIX + url)
         logger.debug(
-            "Watch locally: "
-            + f"nim r -d:fidgetUseCached packages/mettagrid/nim/mettascope/src/mettascope.nim --replay={replay_path}"
+            "Watch locally: " + f"nim r packages/mettagrid/nim/mettascope/src/mettascope.nim --replay={replay_path}"
         )
 
     def get_written_replay_urls(self) -> Dict[str, str]:
