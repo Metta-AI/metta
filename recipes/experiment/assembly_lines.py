@@ -14,6 +14,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.common.tool.tool import Tool
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -449,21 +450,41 @@ def replay(
     )
 
 
-def experiment():
-    for curriculum_style in curriculum_args:
-        subprocess.run(
-            [
-                "./devops/skypilot/launch.py",
-                "recipes.experiment.assembly_lines.train",
-                f"run=assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
-                f"curriculum_style={curriculum_style}",
-                "--gpus=4",
-                "--heartbeat-timeout=3600",
-                "--skip-git-check",
-            ]
-        )
-        time.sleep(1)
+class ExperimentTool(Tool):
+    """Tool that launches multiple assembly lines training jobs."""
+
+    def invoke(self, args: dict[str, str]) -> int | None:
+        """Launch training jobs for each curriculum style."""
+        # Only the curriculum styles you want to train (1 run each)
+        target_curriculum_styles = [
+            "level_0",
+            "level_1",
+            "level_2",
+            "tiny",
+            "tiny_small",
+            "all_room_sizes",
+        ]
+
+        for curriculum_style in target_curriculum_styles:
+            subprocess.run(
+                [
+                    "./devops/skypilot/launch.py",
+                    "recipes.experiment.assembly_lines.train",
+                    f"run=assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                    f"curriculum_style={curriculum_style}",
+                    "--gpus=4",
+                    "--heartbeat-timeout-seconds=3600",
+                    "--skip-git-check",
+                ]
+            )
+            time.sleep(1)
+        return 0
+
+
+def experiment() -> ExperimentTool:
+    """Create an experiment tool that launches training jobs for multiple curriculum styles."""
+    return ExperimentTool()
 
 
 if __name__ == "__main__":
-    experiment()
+    experiment().invoke({})

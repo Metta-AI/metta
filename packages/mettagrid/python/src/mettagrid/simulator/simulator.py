@@ -306,6 +306,8 @@ class Simulator:
         """Called by Simulation.close() to notify that simulation has closed."""
         if self._current_simulation is simulation:
             self._current_simulation = None
+            # Reset invariants when simulation closes to allow curriculum with varying object types
+            self._config_invariants = None
 
     def close(self) -> None:
         """Shut down the simulator."""
