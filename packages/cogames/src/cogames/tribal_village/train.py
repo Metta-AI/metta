@@ -60,32 +60,24 @@ class _TribalEnvCreator:
 
 
 def _ensure_tribal_installed() -> None:
-    import sys
-
     try:
         import tribal_village_env  # type: ignore  # noqa: F401
 
         return
     except ModuleNotFoundError:
         project_root = Path(__file__).resolve().parents[4] / "packages" / "tribal_village"
-        # Prefer local checkout on sys.path
-        if project_root.exists():
-            for path in (project_root, project_root / "tribal_village_env"):
-                sys.path.insert(0, str(path))
-        try:
-            import tribal_village_env  # type: ignore  # noqa: F401
 
-            return
-        except ModuleNotFoundError:
-            if not project_root.exists():
-                raise
-            # Best-effort local editable install so the import works
-            import subprocess
+        if not project_root.exists():
+            raise
 
-            subprocess.run(
-                ["uv", "pip", "install", "-e", str(project_root)],
-                check=True,
-            )
+        # Best-effort local editable install so the import works
+        import subprocess
+
+        subprocess.run(
+            ["uv", "pip", "install", "-e", str(project_root)],
+            check=True,
+        )
+        import tribal_village_env  # type: ignore  # noqa: F401
 
 
 def _normalize_vecenv_shapes(vecenv: Any, num_workers: int) -> None:
