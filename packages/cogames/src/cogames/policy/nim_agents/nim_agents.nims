@@ -1,7 +1,5 @@
 switch("app", "lib")
 switch("tlsEmulation", "off")
-switch("threads", "on")
-switch("mm", "orc")
 when defined(windows):
   switch("out", "nim_agents.dll")
 elif defined(macosx):
