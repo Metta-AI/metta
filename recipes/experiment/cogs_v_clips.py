@@ -66,6 +66,8 @@ PROC_MAP_MISSIONS: tuple[str, ...] = tuple(
         "vibe_check",
         "easy_hearts",
     )
+)
+
 
 def _normalize_variant_names(
     *,
