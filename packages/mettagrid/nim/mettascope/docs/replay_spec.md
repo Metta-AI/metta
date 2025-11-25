@@ -15,7 +15,8 @@ json_data = json.loads(decompressed_data)
 
 In JavaScript it's a bit more complicated, but you can use the `decompressStream` with a streaming API.
 
-The first key in the format is `version`, which is a number that contains the version of the replay format. Valid values are `1`, `2`, `3`. This document describes version 3.
+The first key in the format is `version`, which is a number that contains the version of the replay format. Valid values
+are `1`, `2`, `3`. This document describes version 3.
 
 ```json
 {
@@ -134,12 +135,12 @@ Here are the keys supported for both agents and objects:
 - `location` - The [x, y] location of the object (sometimes called the column and row).
 - `orientation` - The rotation of the object.
 
-- `inventory` - The current list of item amounts that map to the `item_names` array. Array of `[itemId, count]` pairs. Example: `[[0, 2], [1, 1]]`. If
-  `item_names = ["hearts", "bread"]`, then inventory is 2 hearts and 1 bread.
+- `inventory` - The current list of item amounts that map to the `item_names` array. Array of `[itemId, count]` pairs.
+  Example: `[[0, 2], [1, 1]]`. If `item_names = ["hearts", "bread"]`, then inventory is 2 hearts and 1 bread.
 
-  Note: In the replay data, this is represented in the `inventory` field as a time series showing
-  how inventory changes over time (e.g., `[[0, []], [100, [[1, 1]]], [200, [[1, 2]]]]`), where each entry contains a timestamp
-  and the inventory state at that time and into the future.
+  Note: In the replay data, this is represented in the `inventory` field as a time series showing how inventory changes
+  over time (e.g., `[[0, []], [100, [[1, 1]]], [200, [[1, 2]]]]`), where each entry contains a timestamp and the
+  inventory state at that time and into the future.
 
 - `inventory_max` - Usually a constant. Maximum number of items that can be in the inventory.
 - `color` - The color of the object. Must be an integer between 0 and 255.
@@ -161,10 +162,11 @@ Agent specific keys:
 
 Object specific keys:
 
-- `recipe_input` - Usually a constant. A list of item amounts that map to the `item_names` array. Array of `[itemId, count]` pairs. Example: `[[0, 2], [1, 1]]`. If
-  `item_names = ["hearts", "bread"]`, then recipe input is 2 hearts and 1 bread.
-- `recipe_output` - Usually a constant. A list of item amounts that map to the `item_names` array. Array of `[itemId, count]` pairs. Example: `[[0, 4]]`. If
-  `item_names = ["hearts", ...]`, then recipe output is 4 hearts.
+- `recipe_input` - Usually a constant. A list of item amounts that map to the `item_names` array. Array of
+  `[itemId, count]` pairs. Example: `[[0, 2], [1, 1]]`. If `item_names = ["hearts", "bread"]`, then recipe input is 2
+  hearts and 1 bread.
+- `recipe_output` - Usually a constant. A list of item amounts that map to the `item_names` array. Array of
+  `[itemId, count]` pairs. Example: `[[0, 4]]`. If `item_names = ["hearts", ...]`, then recipe output is 4 hearts.
 - `recipe_max` - Usually a constant. Maximum number of `recipe_output` items that can be produced by the recipe before
   stopping.
 - `production_progress` - Current progress of the recipe. Starts at 0 and goes until `production_time` is reached.
