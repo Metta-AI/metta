@@ -5,10 +5,12 @@ from typing import Sequence
 
 from pydantic import BaseModel, Field
 
+from metta.agent.policy import PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig, WandbRunAppendContext
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult
 from metta.sim.simulate_and_record import (
@@ -57,9 +59,14 @@ class EvaluateTool(Tool):
     eval_task_id: str | None = None
     verbose: bool = False
     push_metrics_to_wandb: bool = False
+    policy_architecture: PolicyArchitecture | None = None
 
     def _build_policy_spec(self, normalized_uri: str) -> PolicySpec:
-        spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
+        spec = policy_spec_from_uri(
+            normalized_uri,
+            device="cpu",
+            policy_architecture=self.policy_architecture,
+        )
         return spec
 
     def _get_policy_metadata(self, policy_uri: str, stats_client: StatsClient) -> MyPolicyMetadata | None:

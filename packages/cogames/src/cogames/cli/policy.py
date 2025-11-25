@@ -9,6 +9,7 @@ from pydantic import Field
 from rich.table import Table
 
 from cogames.cli.base import console
+from mettagrid.policy.artifact import policy_spec_from_uri
 from mettagrid.policy.loader import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid.policy.policy import PolicySpec
 
@@ -158,10 +159,15 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
 
     # It isn't strictly necessary to resolve these here, but doing so enables nicer error messages
     resolved_class_path = resolve_policy_class_path(raw_class_path)
-    resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
 
-    return PolicySpecWithProportion(
-        class_path=resolved_class_path,
-        data_path=resolved_policy_data,
-        proportion=fraction,
-    )
+    if raw_policy_data and raw_policy_data.startswith("s3://"):
+        spec = policy_spec_from_uri(raw_policy_data, class_path=resolved_class_path)
+        return PolicySpecWithProportion(
+            class_path=spec.class_path,
+            data_path=spec.data_path,
+            init_kwargs=spec.init_kwargs,
+            proportion=fraction,
+        )
+
+    resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
+    return PolicySpecWithProportion(class_path=resolved_class_path, data_path=resolved_policy_data, proportion=fraction)
