@@ -357,8 +357,7 @@ def train_variants(
             use_bidirectional=True,
             ema_timescale=0.001,
             exploration_bonus=0.1,
-            max_memory_tasks=2000,
-            max_slice_axes=4,
+            num_active_tasks=2000,
         )
 
     curriculum = merged_tasks.to_curriculum(

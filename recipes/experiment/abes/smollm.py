@@ -73,7 +73,6 @@ def _smollm_config(
 def train(
     *,
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
     model_name: Optional[str] = None,
     mem_len: Optional[int] = None,
     policy_architecture: Optional[PolicyArchitecture] = None,
@@ -86,7 +85,6 @@ def train(
 
     tool = base_train(
         curriculum=curriculum,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
 

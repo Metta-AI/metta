@@ -56,7 +56,6 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
 
 def make_curriculum(
     arena_env: Optional[MettaGridConfig] = None,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
     arena_env = arena_env or mettagrid()
@@ -76,9 +75,7 @@ def make_curriculum(
             use_bidirectional=True,  # Enable bidirectional learning progress by default
             ema_timescale=0.001,
             exploration_bonus=0.1,
-            max_memory_tasks=1000,
-            max_slice_axes=5,  # More slices for arena complexity
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            num_active_tasks=1000,
         )
 
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
@@ -99,10 +96,9 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
-    curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    curriculum = curriculum or make_curriculum()
 
     eval_simulations = simulations()
 

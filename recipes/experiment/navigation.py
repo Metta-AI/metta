@@ -121,7 +121,6 @@ def simulations() -> list[SimulationConfig]:
 
 def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
     nav_env = nav_env or mettagrid()
@@ -161,7 +160,7 @@ def make_curriculum(
             min_samples_for_lp=10,
             lp_score_temperature=0.0,
             z_score_amplification=50.0,
-            show_curriculum_troubleshooting_logging=enable_detailed_slice_logging,
+            show_curriculum_troubleshooting_logging=False,
             early_progress_amplification=0.5,
         )
 
@@ -173,9 +172,8 @@ def make_curriculum(
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    resolved_curriculum = curriculum or make_curriculum()
 
     evaluator_cfg = EvaluatorConfig(
         simulations=make_navigation_eval_suite(),
