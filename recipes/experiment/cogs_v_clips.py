@@ -103,8 +103,14 @@ def _resolve_eval_variants(
     eval_variants: Optional[Sequence[str]],
 ) -> Optional[list[str]]:
     if eval_variants is not None:
+        # Handle string input (comma-separated)
+        if isinstance(eval_variants, str):
+            return [v.strip() for v in eval_variants.split(",") if v.strip()]
         return list(eval_variants)
     if train_variants is not None:
+        # Handle string input (comma-separated)
+        if isinstance(train_variants, str):
+            return [v.strip() for v in train_variants.split(",") if v.strip()]
         return list(train_variants)
     return None
 
@@ -116,7 +122,14 @@ def _prepare_mission(
     variant_names: Sequence[str] | None = None,
 ) -> Mission:
     mission = base_mission
-    variant_objects = parse_variants(list(variant_names)) if variant_names else []
+    # Handle string input (comma-separated)
+    if variant_names is not None:
+        if isinstance(variant_names, str):
+            variant_names = [v.strip() for v in variant_names.split(",") if v.strip()]
+        variant_objects = parse_variants(list(variant_names))
+    else:
+        variant_objects = []
+
     if variant_objects:
         mission = mission.with_variants(variant_objects)
     mission = mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])

@@ -477,11 +477,16 @@ def train(
     if all_variants_per_mission and exclude_variants is None:
         resolved_exclude_variants = []
 
+    # Split variants if it's a string (before using it in multiple places)
+    resolved_variants = variants
+    if isinstance(variants, str):
+        resolved_variants = [v.strip() for v in variants.split(",") if v.strip()]
+
     resolved_curriculum = curriculum or make_curriculum(
         base_missions=base_missions,
         num_cogs=num_cogs,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        variants=variants,
+        variants=resolved_variants,
         exclude_variants=resolved_exclude_variants,
         stats_max_cap=0.5 if all_variants_per_mission else 1.0,
     )
@@ -490,7 +495,7 @@ def train(
         losses=LossesConfig(),
     )
 
-    resolved_eval_variants = cogs_v_clips._resolve_eval_variants(variants, eval_variants)
+    resolved_eval_variants = cogs_v_clips._resolve_eval_variants(resolved_variants, eval_variants)
     eval_suite = cogs_v_clips.make_eval_suite(
         num_cogs=num_cogs,
         difficulty=eval_difficulty,
