@@ -71,26 +71,23 @@ def _run_ansi(steps: int, max_steps: Optional[int], random_actions: bool) -> Non
         env.close()
 
 
+def _options():
+    return {
+        "render": typer.Option("gui", "--render", "-r", help="Render mode: gui (default) or ansi (text-only)"),
+        "steps": typer.Option(128, "--steps", "-s", help="Steps to run when using ANSI render", min=1),
+        "max_steps": typer.Option(None, "--max-steps", help="Override max steps in ANSI mode", min=1),
+        "random_actions": typer.Option(
+            True, "--random-actions/--no-random-actions", help="Use random actions in ANSI mode (otherwise no-op)"
+        ),
+    }
+
+
 @app.command("play", help="Play Tribal Village using the Nim GUI or ANSI renderer")
 def play(
-    render: str = typer.Option(
-        "gui",
-        "--render",
-        "-r",
-        help="Render mode: gui (default) or ansi (text-only)",
-    ),
-    steps: int = typer.Option(128, "--steps", "-s", help="Steps to run when using ANSI render", min=1),
-    max_steps: Optional[int] = typer.Option(
-        None,
-        "--max-steps",
-        help="Override max steps in the environment (ANSI mode only)",
-        min=1,
-    ),
-    random_actions: bool = typer.Option(
-        True,
-        "--random-actions/--no-random-actions",
-        help="Use random actions in ANSI mode (otherwise no-op)",
-    ),
+    render: str = _options()["render"],
+    steps: int = _options()["steps"],
+    max_steps: Optional[int] = _options()["max_steps"],
+    random_actions: bool = _options()["random_actions"],
 ) -> None:
     ensure_nim_library_current()
 
@@ -108,24 +105,10 @@ def play(
 @app.callback(invoke_without_command=True)
 def root(
     ctx: typer.Context,
-    render: str = typer.Option(
-        "gui",
-        "--render",
-        "-r",
-        help="Render mode: gui (default) or ansi (text-only)",
-    ),
-    steps: int = typer.Option(128, "--steps", "-s", help="Steps to run when using ANSI render", min=1),
-    max_steps: Optional[int] = typer.Option(
-        None,
-        "--max-steps",
-        help="Override max steps in the environment (ANSI mode only)",
-        min=1,
-    ),
-    random_actions: bool = typer.Option(
-        True,
-        "--random-actions/--no-random-actions",
-        help="Use random actions in ANSI mode (otherwise no-op)",
-    ),
+    render: str = _options()["render"],
+    steps: int = _options()["steps"],
+    max_steps: Optional[int] = _options()["max_steps"],
+    random_actions: bool = _options()["random_actions"],
 ) -> None:
     """Default to play when no subcommand is provided."""
     if ctx.invoked_subcommand is None:

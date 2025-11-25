@@ -73,11 +73,7 @@ def _build_library(project_root: Path) -> Path:
 
 
 def ensure_nim_library_current(verbose: bool = True) -> Path:
-    """Ensure libtribal_village is present and newer than Nim sources.
-
-    Returns:
-        Path to the platform-specific shared library placed in tribal_village_env/.
-    """
+    """Rebuild libtribal_village if missing or stale."""
 
     package_dir = Path(__file__).resolve().parent
     project_root = package_dir.parent
@@ -107,7 +103,7 @@ def ensure_nim_library_current(verbose: bool = True) -> Path:
 
 
 def _ensure_nim_toolchain() -> None:
-    """Ensure nim and nimble are available, installing via nimby if needed."""
+    """Ensure nim/nimble exist, bootstrap via nimby if missing."""
 
     if shutil.which("nim") and shutil.which("nimble"):
         return
@@ -140,7 +136,7 @@ def _ensure_nim_toolchain() -> None:
 
 
 def _install_nim_deps(project_root: Path) -> None:
-    """Install Nim dependencies using nimble if available."""
+    """Install Nim deps via nimble."""
 
     nimble = shutil.which("nimble")
     if nimble is None:
