@@ -5,6 +5,7 @@ import io
 import pickle
 import tempfile
 import zipfile
+import urllib
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,8 +18,9 @@ from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.common.util.file import write_file
+from metta.common.util.file import local_copy, write_file
 from metta.common.util.uri import ParsedURI
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import guess_data_dir
@@ -354,61 +356,114 @@ def _save_policy_artifact(
     )
 
 
+def _load_pt_artifact(path: Path) -> PolicyArtifact:
+    try:
+        payload = torch.load(path, map_location="cpu", weights_only=False)
+    except Exception as exc:
+        raise ValueError(f"Failed to load .pt file: {path}") from exc
+
+    if _is_puffer_state_dict(payload):
+        policy = load_pufferlib_checkpoint(payload, device="cpu")
+        return PolicyArtifact(policy=policy)
+
+    if isinstance(payload, Policy):
+        return PolicyArtifact(policy=payload)
+
+    if not isinstance(payload, Mapping):
+        raise TypeError(f".pt payload must be a mapping or Policy, got {type(payload)}")
+
+    return PolicyArtifact(state_dict=_normalize_state_dict_keys(payload))
+
+
+def _load_mpt_artifact(path: Path) -> PolicyArtifact:
+    """Load modern .mpt format or legacy torch zip with embedded metadata."""
+    try:
+        with zipfile.ZipFile(path, mode="r") as archive:
+            names = set(archive.namelist())
+
+            if "weights.safetensors" not in names:
+                # Legacy torch zip payloads
+                if any("data.pkl" in name for name in names) or "policy.pt" in names:
+                    payload = torch.load(path, map_location="cpu", weights_only=False)
+                    return _artifact_from_payload(payload, source=".mpt")
+                raise ValueError(f".mpt file missing weights.safetensors: {path}")
+
+            if "modelarchitecture.txt" not in names:
+                raise ValueError(f".mpt file missing modelarchitecture.txt: {path}")
+
+            state_dict = load_safetensors(archive.read("weights.safetensors"))
+            architecture = policy_architecture_from_string(archive.read("modelarchitecture.txt").decode("utf-8"))
+            return PolicyArtifact(policy_architecture=architecture, state_dict=_normalize_state_dict_keys(state_dict))
+    except BadZipFile as exc:
+        raise ValueError(f"Invalid .mpt file (not a valid ZIP archive): {path}") from exc
+
+
+def _normalize_policy_uri(uri: str) -> str:
+    """Convert paths to file:// URIs and resolve :latest selectors."""
+    if uri.endswith(":latest"):
+        base_uri = uri[: -len(":latest")]
+        latest_ckpt = latest_checkpoint(base_uri)
+        if not latest_ckpt:
+            raise FileNotFoundError(f"No checkpoint files in {base_uri}")
+        return latest_ckpt["uri"]
+    return ParsedURI.parse(uri).canonical
+
+
 def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyArtifact:
-    input_path = Path(path)
-    if not input_path.exists():
-        msg = f"Policy artifact not found: {input_path}"
-        raise FileNotFoundError(msg)
+    """Load a policy artifact from .mpt/.pt or URI (file://, s3://, :latest, mock://)."""
+    if isinstance(path, str) and path.startswith("file://"):
+        parsed_url = urllib.parse.urlparse(path)
+        path = Path(urllib.parse.unquote(parsed_url.path))
 
-    if is_pt_file or input_path.suffix == ".pt":
-        try:
-            legacy_payload = torch.load(input_path, map_location="cpu", weights_only=False)
-        except FileNotFoundError:
-            raise
-        except (pickle.UnpicklingError, RuntimeError, OSError, TypeError, BadZipFile) as err:
-            raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {input_path}") from err
+    if isinstance(path, Path):
+        input_path = path
+    else:
+        if "://" not in path and not str(path).endswith(":latest"):
+            input_path = Path(path)
+        else:
+            input_path = None
 
-        if _is_puffer_state_dict(legacy_payload):
-            policy = load_pufferlib_checkpoint(legacy_payload, device="cpu")
-            return PolicyArtifact(policy=policy)
+    if input_path is not None:
+        if not input_path.exists():
+            raise FileNotFoundError(f"Policy artifact not found: {input_path}")
+        if is_pt_file:
+            return _load_pt_artifact(input_path)
+        if input_path.suffix in {".mpt", ".zip"}:
+            return _load_mpt_artifact(input_path)
+        if input_path.suffix == ".pt":
+            return _load_pt_artifact(input_path)
+        raise ValueError(f"Unsupported checkpoint extension: {input_path.suffix}. Expected .mpt or .pt")
 
-        return PolicyArtifact(policy=legacy_payload)
+    uri = str(path)
+    if uri.startswith(("http://", "https://", "ftp://", "gs://")):
+        raise ValueError(f"Invalid URI: {uri}")
 
-    architecture: PolicyArchitecture | None = None
-    state_dict: MutableMapping[str, torch.Tensor] | None = None
-    policy: Policy | None = None
+    normalized_uri = _normalize_policy_uri(uri)
 
-    with zipfile.ZipFile(input_path, mode="r") as archive:
-        names = set(archive.namelist())
+    if normalized_uri.startswith("file://"):
+        parsed_url = urllib.parse.urlparse(normalized_uri)
+        local_path = Path(urllib.parse.unquote(parsed_url.path))
+        if local_path.is_dir():
+            latest_uri = _normalize_policy_uri(normalized_uri.rstrip("/"))
+            parsed_latest = urllib.parse.urlparse(latest_uri)
+            latest_path = Path(urllib.parse.unquote(parsed_latest.path))
+            if not latest_path.exists():
+                raise FileNotFoundError(f"No checkpoint files in {normalized_uri}")
+            return load_policy_artifact(latest_path)
+        if not local_path.exists():
+            raise FileNotFoundError(f"Checkpoint file not found: {local_path}")
+        return load_policy_artifact(local_path)
 
-        if "modelarchitecture.txt" in names and "weights.safetensors" in names:
-            architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
-            architecture = policy_architecture_from_string(architecture_blob)
+    parsed = ParsedURI.parse(normalized_uri)
 
-            weights_blob = archive.read("weights.safetensors")
-            loaded_state = load_safetensors(weights_blob)
-            if not isinstance(loaded_state, MutableMapping):
-                msg = "Loaded safetensors state_dict is not a mutable mapping"
-                raise TypeError(msg)
-            state_dict = loaded_state
+    if parsed.scheme == "s3":
+        with local_copy(parsed.canonical) as local_path:
+            return load_policy_artifact(local_path)
 
-        elif "policy.pt" in names:
-            buffer = io.BytesIO(archive.read("policy.pt"))
-            loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
+    if parsed.scheme == "mock":
+        return PolicyArtifact(policy=MockAgent())
 
-            if _is_puffer_state_dict(loaded_policy):
-                policy = load_pufferlib_checkpoint(loaded_policy, device="cpu")
-            else:
-                if not isinstance(loaded_policy, Policy):
-                    msg = "Loaded policy payload is not a Policy instance"
-                    raise TypeError(msg)
-                policy = loaded_policy
-
-    if architecture is None and state_dict is None and policy is None:
-        msg = f"Policy artifact {input_path} contained no usable payload"
-        raise ValueError(msg)
-
-    return PolicyArtifact(policy_architecture=architecture, state_dict=state_dict, policy=policy)
+    raise ValueError(f"Invalid URI: {uri}")
 
 
 def extract_run_and_epoch(path: Path) -> Optional[tuple[str, int]]:
@@ -507,7 +562,11 @@ def policy_spec_from_uri(
 
     embedded_policy_class_path: Optional[str] = None
     if policy_architecture is None and class_path is None:
-        artifact = load_policy_artifact(normalized_uri)
+        if normalized_uri.startswith("file://"):
+            parsed_url = urllib.parse.urlparse(normalized_uri)
+            artifact = load_policy_artifact(Path(urllib.parse.unquote(parsed_url.path)))
+        else:
+            artifact = load_policy_artifact(normalized_uri)
         policy_architecture = artifact.policy_architecture
         embedded_policy = getattr(artifact, "policy", None)
         if embedded_policy is not None:
