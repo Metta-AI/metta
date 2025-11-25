@@ -6,7 +6,6 @@ from typing import Iterable, Literal, Sequence
 
 from cogames.cli.mission import get_all_eval_missions, get_all_missions, get_mission
 from metta.cogworks.curriculum import CurriculumConfig, env_curriculum, merge, single_task
-from metta.rl.trainer_config import TorchProfilerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
@@ -78,13 +77,6 @@ def train(
     tool.wandb.enabled = False
     tool.system.vectorization = vectorization
     tool.system.device = "cpu"
-
-    # Enable profiler: profiles every N epochs (set interval_epochs > 0)
-    # profile_dir can be a local path or URI (e.g., "s3://bucket/profiles")
-    tool.torch_profiler = TorchProfilerConfig(
-        interval_epochs=10,  # Profile every 10 epochs (set to 1 to profile every epoch)
-        profile_dir="train_dir/profiles",  # Change to your desired profile directory or URI
-    )
 
     # generate replays during training
     # tool.training_env.write_replays = True
