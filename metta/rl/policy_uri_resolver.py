@@ -7,7 +7,6 @@ from typing import TypedDict
 import boto3
 
 from metta.tools.utils.auto_config import auto_stats_server_uri
-from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.file import ParsedURI
 
@@ -152,3 +151,16 @@ def get_policy_metadata(uri: str) -> PolicyMetadata:
         raise ValueError(f"Could not extract metadata from uri {uri}")
     run_name, epoch = metadata
     return {"run_name": run_name, "epoch": epoch, "uri": normalized_uri}
+
+
+def policy_spec_from_uri(uri: str, *, device: str = "cpu", strict: bool = True) -> PolicySpec:
+    """Create a PolicySpec for loading an MptPolicy from a URI."""
+    normalized_uri = resolve_uri(uri)
+    return PolicySpec(
+        class_path="mettagrid.policy.mpt_policy.MptPolicy",
+        init_kwargs={
+            "checkpoint_uri": normalized_uri,
+            "device": device,
+            "strict": strict,
+        },
+    )

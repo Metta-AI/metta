@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig, WandbRunAppendContext
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_uri_resolver import get_policy_metadata, policy_spec_from_uri, resolve_uri
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult
 from metta.sim.simulate_and_record import (
@@ -59,11 +59,11 @@ class EvaluateTool(Tool):
     push_metrics_to_wandb: bool = False
 
     def _build_policy_spec(self, normalized_uri: str) -> PolicySpec:
-        spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
+        spec = policy_spec_from_uri(normalized_uri, device="cpu")
         return spec
 
     def _get_policy_metadata(self, policy_uri: str, stats_client: StatsClient) -> MyPolicyMetadata | None:
-        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        metadata = get_policy_metadata(policy_uri)
         result = stats_client.sql_query(
             f"""SELECT pv.id, pv.attributes->>'agent_step'
             FROM policy_versions pv
@@ -80,7 +80,7 @@ class EvaluateTool(Tool):
         )
 
     def handle_single_policy_uri(self, policy_uri: str) -> tuple[int, str, list[SimulationRunResult]]:
-        normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+        normalized_uri = resolve_uri(policy_uri)
         policy_spec = self._build_policy_spec(normalized_uri)
 
         observatory_writer: ObservatoryWriter | None = None

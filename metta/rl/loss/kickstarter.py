@@ -67,13 +67,12 @@ class Kickstarter(Loss):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         self.student_forward = self.cfg.student_forward
 
-        # Load teacher. Lazy import to avoid circular dependency
-        from metta.rl.checkpoint_manager import CheckpointManager
+        from metta.rl.policy_uri_resolver import policy_spec_from_uri
 
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-        teacher_spec = CheckpointManager.policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
+        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
     def get_experience_spec(self) -> Composite:

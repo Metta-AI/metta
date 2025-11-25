@@ -8,6 +8,7 @@ from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_uri_resolver import resolve_uri
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt, save_mpt
@@ -58,7 +59,7 @@ class Checkpointer(TrainerComponent):
         if self._distributed.is_distributed:
             normalized_uri = None
             if self._distributed.is_master() and candidate_uri:
-                normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
+                normalized_uri = resolve_uri(candidate_uri)
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
@@ -91,7 +92,7 @@ class Checkpointer(TrainerComponent):
                 return policy
 
         if candidate_uri:
-            normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
+            normalized_uri = resolve_uri(candidate_uri)
             artifact = load_mpt(normalized_uri)
             policy = artifact.instantiate(policy_env_info, load_device)
             self._latest_policy_uri = normalized_uri

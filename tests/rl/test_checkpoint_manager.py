@@ -12,6 +12,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_uri_resolver import get_policy_metadata, resolve_uri
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
@@ -65,11 +66,11 @@ class TestBasicSaveLoad:
             )
 
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}:latest"
-        normalized = CheckpointManager.normalize_uri(latest_uri)
+        normalized = resolve_uri(latest_uri)
         artifact = load_mpt(normalized)
 
         assert artifact.state_dict is not None
-        metadata = CheckpointManager.get_policy_metadata(latest_uri)
+        metadata = get_policy_metadata(latest_uri)
         assert metadata["run_name"] == "test_run"
         assert metadata["epoch"] == 7
 
@@ -86,7 +87,7 @@ class TestBasicSaveLoad:
 
         assert agent_file.exists()
 
-        metadata = CheckpointManager.get_policy_metadata(agent_file.as_uri())
+        metadata = get_policy_metadata(agent_file.as_uri())
         assert metadata["run_name"] == "test_run"
         assert metadata["epoch"] == 5
 

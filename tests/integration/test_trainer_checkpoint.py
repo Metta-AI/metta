@@ -14,6 +14,7 @@ from pathlib import Path
 
 from metta.agent.policies.fast import FastConfig
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_uri_resolver import get_policy_metadata
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import TrainingEnvironmentConfig
@@ -80,7 +81,7 @@ class TestTrainerCheckpointIntegration:
 
         latest_policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert latest_policy_uri, "No policy files found in checkpoint directory"
-        latest_policy_meta = CheckpointManager.get_policy_metadata(latest_policy_uri)
+        latest_policy_meta = get_policy_metadata(latest_policy_uri)
         assert latest_policy_meta["epoch"] == trainer_state["epoch"], (
             "Trainer state epoch is not aligned with latest policy checkpoint"
         )
@@ -109,7 +110,7 @@ class TestTrainerCheckpointIntegration:
 
         latest_policy_uri = checkpoint_manager_2.get_latest_checkpoint()
         assert latest_policy_uri, "No policy checkpoints found after resume"
-        latest_policy_meta = CheckpointManager.get_policy_metadata(latest_policy_uri)
+        latest_policy_meta = get_policy_metadata(latest_policy_uri)
         assert latest_policy_meta["epoch"] == trainer_state_2["epoch"], (
             "Trainer state epoch is not aligned with latest policy checkpoint after resume"
         )

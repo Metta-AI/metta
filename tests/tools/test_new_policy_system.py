@@ -3,7 +3,7 @@ import pytest
 import mettagrid.builder.envs as eb
 from metta.agent.mocks import MockAgent
 from metta.cogworks.curriculum import env_curriculum
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_uri_resolver import get_policy_metadata
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.runner import SimulationRunConfig, run_simulations
 from metta.sim.simulation_config import SimulationConfig
@@ -12,6 +12,7 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.mpt_artifact import load_mpt
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from recipes.experiment.arena import mettagrid
@@ -51,7 +52,7 @@ class TestNewPolicySystem:
 
     def test_policy_metadata_extraction(self):
         """Test policy metadata extraction from URIs."""
-        assert hasattr(CheckpointManager, "get_policy_metadata")
+        assert callable(get_policy_metadata)
 
     def test_simulation_runner_with_mock_policy(self):
         """Test that the simulation runner works with a mock policy initializer."""
@@ -91,7 +92,7 @@ class TestNewPolicySystem:
     def test_policy_loading_interface(self):
         """Test that policy loading functions raise appropriate errors for unsupported URIs."""
         with pytest.raises((FileNotFoundError, ValueError)):
-            CheckpointManager.load_artifact_from_uri("mock://test_policy")
+            load_mpt("mock://test_policy")
 
     def test_policy_uri_formats(self):
         """Test different policy URI formats are recognized."""

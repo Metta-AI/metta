@@ -6,19 +6,10 @@ from typing import Any, Dict, Optional
 
 import torch
 
-from metta.rl.policy_uri_resolver import (
-    PolicyMetadata,
-    get_policy_metadata,
-    resolve_uri,
-)
-from metta.rl.policy_uri_resolver import (
-    get_latest_checkpoint as _get_latest_checkpoint,
-)
+from metta.rl.policy_uri_resolver import get_latest_checkpoint as _get_latest_checkpoint
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
-from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.file import ParsedURI
 
 logger = logging.getLogger(__name__)
@@ -81,22 +72,6 @@ class CheckpointManager:
     @property
     def remote_checkpoints_enabled(self) -> bool:
         return self._remote_prefix is not None
-
-    @staticmethod
-    def normalize_uri(uri: str) -> str:
-        """Convert paths to file:// URIs, resolve :latest and metta:// URIs.
-
-        Delegates to metta.rl.policy_uri_resolver.resolve_uri.
-        """
-        return resolve_uri(uri)
-
-    @staticmethod
-    def get_policy_metadata(uri: str) -> PolicyMetadata:
-        """Get metadata (run_name, epoch, uri) from a policy URI.
-
-        Delegates to metta.rl.policy_uri_resolver.get_policy_metadata.
-        """
-        return get_policy_metadata(uri)
 
     def get_latest_checkpoint(self) -> str | None:
         local_max = _get_latest_checkpoint(f"file://{self.checkpoint_dir}")
@@ -173,25 +148,3 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
-
-    @staticmethod
-    def policy_spec_from_uri(
-        uri: str,
-        *,
-        device: str = "cpu",
-        strict: bool = True,
-    ) -> PolicySpec:
-        normalized_uri = CheckpointManager.normalize_uri(uri)
-        return PolicySpec(
-            class_path="mettagrid.policy.mpt_policy.MptPolicy",
-            init_kwargs={
-                "checkpoint_uri": normalized_uri,
-                "device": device,
-                "strict": strict,
-            },
-        )
-
-    @staticmethod
-    def load_artifact_from_uri(uri: str) -> MptArtifact:
-        normalized_uri = CheckpointManager.normalize_uri(uri)
-        return load_mpt(normalized_uri)

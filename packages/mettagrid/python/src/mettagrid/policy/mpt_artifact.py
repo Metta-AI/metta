@@ -202,13 +202,28 @@ class MptArtifact:
         return policy
 
 
-def load_mpt(uri: str) -> MptArtifact:
-    """Load an .mpt checkpoint from a URI (file://, s3://, or local path)."""
-    with local_copy(uri) as local_path:
-        return _load_mpt_file(local_path)
+DEFAULT_URI_RESOLVER = "metta.rl.policy_uri_resolver.resolve_uri"
 
 
-def _load_mpt_file(path: Path) -> MptArtifact:
+def load_mpt(uri: str, *, uri_resolver: str | None = DEFAULT_URI_RESOLVER) -> MptArtifact:
+    """Load an .mpt checkpoint from a URI (file://, s3://, or local path).
+
+    Args:
+        uri: The URI to load from. Supports file://, s3://, and local paths.
+             If a uri_resolver is configured, also supports metta:// and :latest URIs.
+        uri_resolver: Optional dotted path to a URI resolver function. The function
+            should accept a URI string and return a resolved URI string.
+            Defaults to metta.rl.policy_uri_resolver.resolve_uri.
+    """
+    resolved_uri = uri
+    if uri_resolver and (resolver_func := load_symbol(uri_resolver, strict=False)):
+        resolved_uri = resolver_func(uri)  # type: ignore
+
+    with local_copy(resolved_uri) as local_path:
+        return _load_local_mpt_file(local_path)
+
+
+def _load_local_mpt_file(path: Path) -> MptArtifact:
     if not path.exists():
         raise FileNotFoundError(f"MPT file not found: {path}")
 
@@ -245,16 +260,20 @@ def save_mpt(
         with tempfile.NamedTemporaryFile(suffix=".mpt", delete=False) as tmp:
             tmp_path = Path(tmp.name)
         try:
-            _save_mpt_file(tmp_path, architecture=architecture, state_dict=state_dict, detach_buffers=detach_buffers)
+            _save_mpt_file_locally(
+                tmp_path, architecture=architecture, state_dict=state_dict, detach_buffers=detach_buffers
+            )
             write_file(parsed.canonical, str(tmp_path))
         finally:
             tmp_path.unlink(missing_ok=True)
     else:
         output_path = parsed.local_path or Path(str(uri)).expanduser().resolve()
-        _save_mpt_file(output_path, architecture=architecture, state_dict=state_dict, detach_buffers=detach_buffers)
+        _save_mpt_file_locally(
+            output_path, architecture=architecture, state_dict=state_dict, detach_buffers=detach_buffers
+        )
 
 
-def _save_mpt_file(
+def _save_mpt_file_locally(
     path: Path,
     *,
     architecture: Any,

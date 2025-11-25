@@ -11,7 +11,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_uri_resolver import _resolve_metta_uri, key_and_version
+from metta.rl.policy_uri_resolver import _resolve_metta_uri, key_and_version, resolve_uri
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
@@ -77,7 +77,7 @@ class TestFileURIs:
         )
 
         uri = f"file://{ckpt_dir}:latest"
-        normalized = CheckpointManager.normalize_uri(uri)
+        normalized = resolve_uri(uri)
         assert ":v7.mpt" in normalized
         assert latest.exists()
 
@@ -112,10 +112,10 @@ class TestCheckpointManagerOperations:
         assert uri is not None
         assert uri.endswith(":v3.mpt")
 
-    def test_normalize_uri(self, tmp_path: Path, mock_policy_architecture, mock_policy):
+    def test_resolve_uri(self, tmp_path: Path, mock_policy_architecture, mock_policy):
         path = tmp_path / "model.mpt"
         create_checkpoint(tmp_path, path.name, mock_policy_architecture, mock_policy.state_dict())
-        normalized = CheckpointManager.normalize_uri(str(path))
+        normalized = resolve_uri(str(path))
         assert normalized == f"file://{path}"
 
 
