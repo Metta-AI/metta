@@ -67,7 +67,9 @@ class RadialMaze(Scene[RadialMazeConfig]):
                 x_dst_end = x_dst_start + (x_src_end - x_src_start)
 
                 if y_src_end > y_src_start and x_src_end > x_src_start:
-                    out[y_dst_start:y_dst_end, x_dst_start:x_dst_end] = mask[y_src_start:y_src_end, x_src_start:x_src_end]
+                    out[y_dst_start:y_dst_end, x_dst_start:x_dst_end] = mask[
+                        y_src_start:y_src_end, x_src_start:x_src_end
+                    ]
                 return out
 
             neighbor_any = np.zeros_like(carved, dtype=bool)
