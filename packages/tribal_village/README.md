@@ -10,10 +10,13 @@ resources while fighting off hostile tumors.
 **Setup**
 
 ```bash
-# Install Nim and Nimble
-curl https://nim-lang.org/choosenim/init.sh -sSf | sh
-# Install dependencies
-nimble install
+# Install Nim via nimby (installs nim + nimble)
+#   macOS ARM: nimby-macOS-ARM64
+#   macOS x64: nimby-macOS-X64
+#   Linux x64: nimby-Linux-X64
+curl -L https://github.com/treeform/nimby/releases/download/0.1.11/nimby-macOS-ARM64 -o /tmp/nimby && chmod +x /tmp/nimby
+/tmp/nimby use 2.2.6
+nimble install -y --depsOnly
 # Make the Python package importable from anywhere (editable install)
 uv pip install -e packages/tribal_village
 ```
@@ -22,6 +25,16 @@ uv pip install -e packages/tribal_village
 
 ```bash
 nim r -d:release tribal_village.nim
+```
+
+**Play via CLI (wraps build + launch)**
+
+```bash
+# GUI render (launches Nim viewer)
+uv run --project packages/tribal_village tribal-village play --render gui
+
+# Text-only render with random actions for a short run
+uv run --project packages/tribal_village tribal-village play --render ansi --steps 50
 ```
 
 **PufferLib Training**
