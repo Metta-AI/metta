@@ -114,7 +114,7 @@ def train(
     )
 
     if policy_architecture is None:
-        policy_architecture = ViTQuantileConfig(critic_quantiles=70)
+        policy_architecture = ViTQuantileConfig(critic_quantiles=25)
 
     return TrainTool(
         trainer=trainer_cfg,
