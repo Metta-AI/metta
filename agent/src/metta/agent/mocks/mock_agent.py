@@ -1,5 +1,6 @@
-import torch
 from pathlib import Path
+
+import torch
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
