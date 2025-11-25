@@ -331,6 +331,7 @@ class CheckpointManager:
         if remote_max_checkpoint:
             return remote_max_checkpoint["uri"]
 
+
 class CheckpointPolicy(MultiAgentPolicy):
     def __init__(
         self,
