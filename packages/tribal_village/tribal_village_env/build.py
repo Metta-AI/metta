@@ -5,12 +5,10 @@ import platform
 import shutil
 import stat
 import subprocess
-import sys
 import tempfile
 import urllib.request
 from pathlib import Path
 from typing import Iterable, Optional
-
 
 DEFAULT_NIM_VERSION = os.environ.get("TRIBAL_VILLAGE_NIM_VERSION", "2.2.6")
 DEFAULT_NIMBY_VERSION = os.environ.get("TRIBAL_VILLAGE_NIMBY_VERSION", "0.1.11")

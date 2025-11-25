@@ -6,13 +6,11 @@ from typing import Optional
 
 import typer
 from rich.console import Console
-
 from tribal_village_env.build import ensure_nim_library_current
 from tribal_village_env.environment import TribalVillageEnv
 
 app = typer.Typer(
     help="CLI for playing Tribal Village",
-    no_args_is_help=True,
     invoke_without_command=True,
     pretty_exceptions_show_locals=False,
     rich_markup_mode="rich",
@@ -32,12 +30,12 @@ def _run_gui() -> None:
     try:
         console.print("[cyan]Launching Tribal Village GUI via Nim...[/cyan]")
         subprocess.run(cmd, cwd=project_root, check=True)
-    except FileNotFoundError:
+    except FileNotFoundError as err:
         console.print("[red]Error: 'nim' command not found. Please install Nim and ensure it is on your PATH.[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from err
     except subprocess.CalledProcessError as exc:
         console.print(f"[red]Nim GUI run failed with exit code {exc.returncode}.[/red]")
-        raise typer.Exit(exc.returncode)
+        raise typer.Exit(exc.returncode) from exc
 
 
 def _run_ansi(steps: int, max_steps: Optional[int], random_actions: bool) -> None:
@@ -107,10 +105,32 @@ def play(
         _run_ansi(steps=steps, max_steps=max_steps, random_actions=random_actions)
 
 
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    render: str = typer.Option(
+        "gui",
+        "--render",
+        "-r",
+        help="Render mode: gui (default) or ansi (text-only)",
+    ),
+    steps: int = typer.Option(128, "--steps", "-s", help="Steps to run when using ANSI render", min=1),
+    max_steps: Optional[int] = typer.Option(
+        None,
+        "--max-steps",
+        help="Override max steps in the environment (ANSI mode only)",
+        min=1,
+    ),
+    random_actions: bool = typer.Option(
+        True,
+        "--random-actions/--no-random-actions",
+        help="Use random actions in ANSI mode (otherwise no-op)",
+    ),
+) -> None:
+    """Default to play when no subcommand is provided."""
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(play, render=render, steps=steps, max_steps=max_steps, random_actions=random_actions)
+
+
 if __name__ == "__main__":
     app()
-
-
-def main() -> None:
-    # If invoked without subcommand, default to play
-    app(prog_name="tribal-village")
