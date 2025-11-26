@@ -142,7 +142,7 @@ AVAILABLE ACTIONS:
         """
         return self._basic_info_cache
 
-    def observable_prompt(self, obs: AgentObservation) -> str:
+    def observable_prompt(self, obs: AgentObservation, include_actions: bool = False) -> str:
         """Build prompt with ONLY currently observable elements.
 
         This is the "dynamic" part sent at each step, describing:
@@ -152,6 +152,7 @@ AVAILABLE ACTIONS:
 
         Args:
             obs: Current agent observation
+            include_actions: Whether to include available_actions list (only on first/reset steps)
 
         Returns:
             Prompt describing only visible elements
@@ -170,7 +171,7 @@ AVAILABLE ACTIONS:
             sections.append(self._build_visible_features_section(visible.features))
 
         # 3. Current observation data
-        obs_json = self._observation_to_json(obs)
+        obs_json = self._observation_to_json(obs, include_actions=include_actions)
         sections.append(f"""=== CURRENT OBSERVATION ===
 
 {json.dumps(obs_json, indent=2)}
@@ -194,7 +195,7 @@ AVAILABLE ACTIONS:
         """
         return f"""{self.basic_info_prompt()}
 
-{self.observable_prompt(obs)}
+{self.observable_prompt(obs, include_actions=True)}
 
 Based on the visible objects and game rules, choose the BEST action to maximize your rewards.
 
@@ -406,11 +407,12 @@ Choose the BEST action. Reply with ONLY the action name, nothing else.
         }
         return descriptions.get(feature_name, f"{feature_name} feature")
 
-    def _observation_to_json(self, obs: AgentObservation) -> dict:
+    def _observation_to_json(self, obs: AgentObservation, include_actions: bool = False) -> dict:
         """Convert observation to JSON format for LLM.
 
         Args:
             obs: Agent observation
+            include_actions: Whether to include available_actions list (only on first/reset steps)
 
         Returns:
             Dictionary with structured observation data
@@ -424,12 +426,17 @@ Choose the BEST action. Reply with ONLY the action name, nothing else.
             }
             tokens_list.append(token_dict)
 
-        return {
+        result = {
             "agent_id": obs.agent_id,
             "visible_objects": tokens_list,
-            "available_actions": self._policy_env_info.action_names,
             "num_visible_objects": len(tokens_list),
         }
+
+        # Only include actions list on first step or context window reset
+        if include_actions:
+            result["available_actions"] = self._policy_env_info.action_names
+
+        return result
 
     @property
     def step_count(self) -> int:
