@@ -770,7 +770,7 @@ class MettaRepo:
                     FROM policy_versions pv
                     JOIN policies p ON pv.policy_id = p.id
                     {where_clause}
-                    ORDER BY p.created_at DESC
+                    ORDER BY pv.version DESC, p.created_at DESC
                     LIMIT %s OFFSET %s
                     """,
                     params,
