@@ -282,7 +282,7 @@ def train(
     losses_config.supervisor.teacher_lead_prob = 0.5
 
     trainer_cfg = TrainerConfig(
-        losses=LossesConfig(),
+        losses=losses_config,
     )
 
     scheduler = SchedulerConfig(

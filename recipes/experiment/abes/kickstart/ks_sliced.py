@@ -112,7 +112,7 @@ def train(
     )
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
-    # losses_config.ppo_critic.rollout_forward_enabled = False
+    losses_config.ppo_critic.deferred_training_start_step = 1_000_000_000
     trainer_cfg = TrainerConfig(losses=losses_config)
 
     if policy_architecture is None:

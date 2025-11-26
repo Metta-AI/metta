@@ -30,6 +30,8 @@ class PPOCriticConfig(LossConfig):
     train_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under training
     rollout_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under rollout
 
+    deferred_training_start_step: int | None = None  # if set, sample/train_forward enable after this step
+
     def create(
         self,
         policy: Policy,
@@ -96,8 +98,15 @@ class PPOCritic(Loss):
             truncateds=scalar_f32,
         )
 
+    def on_rollout_start(self, context: ComponentContext | None = None) -> None:
+        """Called before starting a rollout phase."""
+        super().on_rollout_start(context)
+        if self.cfg.deferred_training_start_step is not None:
+            if self._require_context(context).agent_step >= self.cfg.deferred_training_start_step:
+                self.sample_enabled = True
+                self.train_forward_enabled = True
+
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
-        """Rollout step: forward policy and store experience with optional burn-in."""
         if not self.rollout_forward_enabled:
             return
 
