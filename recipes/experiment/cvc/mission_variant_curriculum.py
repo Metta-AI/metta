@@ -323,6 +323,17 @@ def make_curriculum(
                 except Exception as e:
                     # Skip incompatible variant combinations (same logic as test)
                     error_str = str(e).lower()
+                    error_type = type(e).__name__
+
+                    # Skip AssertionError (often from variant compatibility checks with no message)
+                    if error_type == "AssertionError" and not error_str:
+                        import logging
+
+                        logging.debug(
+                            f"Skipping incompatible mission-variant combination {mission_name}+{variant_name} (AssertionError)"
+                        )
+                        continue
+
                     # Skip expected incompatibilities
                     if any(
                         skip_phrase in error_str
@@ -334,6 +345,7 @@ def make_curriculum(
                             "does not exist",
                             "incompatible",
                             "protocol with vibes",
+                            "object has no field",
                         ]
                     ):
                         # These are expected incompatibilities, skip them silently
@@ -429,6 +441,15 @@ def make_curriculum(
             except Exception as e:
                 # Skip incompatible combinations (same logic as variants case)
                 error_str = str(e).lower()
+                error_type = type(e).__name__
+
+                # Skip AssertionError (often from variant compatibility checks with no message)
+                if error_type == "AssertionError" and not error_str:
+                    import logging
+
+                    logging.debug(f"Skipping incompatible mission {mission_name} (AssertionError)")
+                    continue
+
                 # Skip expected incompatibilities
                 if any(
                     skip_phrase in error_str
@@ -440,6 +461,7 @@ def make_curriculum(
                         "does not exist",
                         "incompatible",
                         "protocol with vibes",
+                        "object has no field",
                     ]
                 ):
                     # These are expected incompatibilities, skip them silently
