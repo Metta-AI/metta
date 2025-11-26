@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class CheckpointManager:
     """Manages run directories and trainer state checkpointing."""
 
-    def __init__(self, run: str, system_cfg: SystemConfig):
+    def __init__(self, run: str, system_cfg: SystemConfig, require_remote_enabled: bool = False):
         if not run or not run.strip():
             raise ValueError("Run name cannot be empty")
         if any(char in run for char in [" ", "/", "*", "\\", ":", "<", ">", "|", "?", '"']):
@@ -38,6 +38,8 @@ class CheckpointManager:
         self._remote_prefix: str | None = None
         if not system_cfg.local_only:
             self._setup_remote_prefix()
+        if require_remote_enabled and self._remote_prefix is None:
+            raise ValueError("Remote checkpoints are required but remote prefix is not set")
 
     def _setup_remote_prefix(self) -> None:
         storage_decision = auto_policy_storage_decision(self.run_name)
@@ -53,10 +55,6 @@ class CheckpointManager:
             logger.info("AWS disabled; policies will remain local.")
         elif storage_decision.reason == "no_base_prefix":
             logger.info("Remote prefix unset; policies will remain local.")
-
-    @property
-    def remote_checkpoints_enabled(self) -> bool:
-        return self._remote_prefix is not None
 
     def get_latest_checkpoint(self) -> str | None:
         local_max = _get_latest_checkpoint(f"file://{self.checkpoint_dir}")

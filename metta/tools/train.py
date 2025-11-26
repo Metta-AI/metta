@@ -127,11 +127,11 @@ class TrainTool(Tool):
 
         self._configure_torch_backends()
 
-        checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
-
-        # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
-        if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
-            raise ValueError("without a remote prefix we cannot use remote evaluation")
+        checkpoint_manager = CheckpointManager(
+            run=self.run or "default",
+            system_cfg=self.system,
+            require_remote_enabled=self.evaluator.evaluate_remote,
+        )
 
         init_logging(run_dir=checkpoint_manager.run_dir)
         record_heartbeat()
