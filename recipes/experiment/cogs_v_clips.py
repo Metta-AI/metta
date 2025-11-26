@@ -12,7 +12,9 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
+
+# eval_missions.py was deleted - missions moved to integrated_evals.py
+from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
@@ -34,15 +36,11 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 logger = logging.getLogger(__name__)
 
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    "extractor_hub_30",
-    "extractor_hub_50",
-    "extractor_hub_70",
+    "easy_hearts",
     "collect_resources_classic",
     "collect_resources_spread",
-    "collect_far",
     "oxygen_bottleneck",
     "energy_starved",
-    "divide_and_conquer",
     "go_together",
     # "machina_1.open_world",
 ]
@@ -186,7 +184,7 @@ def make_eval_suite(
 
 def make_training_env(
     num_cogs: int = 4,
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
@@ -387,7 +385,7 @@ def train_variants(
 
 
 def train_single_mission(
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
@@ -432,7 +430,7 @@ def evaluate(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
@@ -458,7 +456,7 @@ def play_training_env(
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
-        mission="extractor_hub_30",
+        mission="easy_hearts",
         num_cogs=num_cogs,
         variants=variants,
     )
