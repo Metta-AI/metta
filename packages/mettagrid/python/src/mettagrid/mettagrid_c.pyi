@@ -98,10 +98,10 @@ class ActionConfig:
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
     ) -> None: ...
     required_resources: dict[int, int]
-    consumed_resources: dict[int, float]
+    consumed_resources: dict[int, int]
 
 class Protocol:
     def __init__(self) -> None: ...
@@ -122,7 +122,7 @@ class AttackActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
         defense_resources: dict[int, int] = {},
         enabled: bool = True,
     ) -> None: ...
@@ -133,7 +133,7 @@ class ChangeVibeActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
         number_of_vibes: int = ...,
     ) -> None: ...
     number_of_vibes: int
