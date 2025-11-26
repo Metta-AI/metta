@@ -188,17 +188,24 @@ def parse_uri(uri: str) -> ParsedScheme:
     return resolver.parse(uri)
 
 
+def _try_get_latest_checkpoint(uri: str) -> CheckpointMetadata | None:
+    try:
+        return get_latest_checkpoint(uri)
+    except NotImplementedError:
+        return None
+
+
 def resolve_uri(uri: str) -> str:
     # Handle explicit :latest suffix (both path/:latest and path:latest)
     if uri.endswith("/:latest"):
         base_uri = uri[:-8]
-        latest = get_latest_checkpoint(base_uri)
+        latest = _try_get_latest_checkpoint(base_uri)
         if not latest:
             raise ValueError(f"No latest checkpoint found for {base_uri}")
         return latest["uri"]
     if uri.endswith(":latest"):
         base_uri = uri[:-7]
-        latest = get_latest_checkpoint(base_uri)
+        latest = _try_get_latest_checkpoint(base_uri)
         if not latest:
             raise ValueError(f"No latest checkpoint found for {base_uri}")
         return latest["uri"]
@@ -206,7 +213,7 @@ def resolve_uri(uri: str) -> str:
     # If URI doesn't point to an .mpt file, default to latest checkpoint
     if not uri.endswith(".mpt"):
         base_uri = uri.rstrip("/")
-        latest = get_latest_checkpoint(base_uri)
+        latest = _try_get_latest_checkpoint(base_uri)
         if latest:
             return latest["uri"]
 
