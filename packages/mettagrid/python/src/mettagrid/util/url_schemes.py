@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -110,6 +111,27 @@ class S3SchemeResolver(SchemeResolver):
         return [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
 
 
+class HttpSchemeResolver(SchemeResolver):
+    @property
+    def scheme(self) -> str:
+        return "https"
+
+    def parse(self, uri: str) -> ParsedScheme:
+        if uri.startswith("https://") or uri.startswith("http://"):
+            # Match patterns:
+            # - https://{bucket}.s3.amazonaws.com/{key}
+            # - https://{bucket}.s3.{region}.amazonaws.com/{key}
+            s3_pattern = r"^https?://([^.]+)\.s3(?:\.([^.]+))?\.amazonaws\.com/(.+)$"
+            match = re.match(s3_pattern, uri)
+            if match:
+                bucket, region, key = match.groups()
+                # region is optional (None if not present), but we don't need it for s3:// URIs
+                # Convert to s3:// URI for proper handling
+                value = f"s3://{bucket}/{key}"
+                return S3SchemeResolver().parse(value)
+        raise ValueError(f"Expected https:// or http:// URI, got: {uri}")
+
+
 class MockSchemeResolver(SchemeResolver):
     @property
     def scheme(self) -> str:
@@ -128,6 +150,7 @@ class MockSchemeResolver(SchemeResolver):
 SCHEME_RESOLVERS: dict[str, str] = {
     "file": "mettagrid.util.url_schemes.FileSchemeResolver",
     "s3": "mettagrid.util.url_schemes.S3SchemeResolver",
+    "https": "mettagrid.util.url_schemes.HttpSchemeResolver",
     "mock": "mettagrid.util.url_schemes.MockSchemeResolver",
     "metta": "metta.rl.metta_scheme_resolver.MettaSchemeResolver",
 }
