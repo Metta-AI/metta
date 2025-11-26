@@ -93,13 +93,11 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         return f"{builder_cls.__module__}.{builder_cls.__qualname__}.Config"
 
     # Ensure YAML/JSON dumps always include a 'type' with a nice FQCN
-    def model_dump(self, **kwargs) -> dict[str, Any]:
-        # Include SerializeAsAny contents and inject builder type tag
-        data = super().model_dump(serialize_as_any=True, **kwargs)
+    @model_serializer(mode="wrap")
+    def _serialize_with_type(self, handler):
+        # Use handler to serialize fields (respects serialize_as_any for nested)
+        data = handler(self)
         return {"type": self._type_str(), **data}
-
-    def model_dump_json(self, **kwargs) -> str:
-        return super().model_dump_json(serialize_as_any=True, **kwargs)
 
     @model_validator(mode="wrap")
     @classmethod

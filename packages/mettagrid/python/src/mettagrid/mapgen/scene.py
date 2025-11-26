@@ -123,12 +123,10 @@ class SceneConfig(Config):
         # Emit as the enum value (str) to avoid UnexpectedValue warnings during dumps
         return value.value
 
-    def model_dump(self, **kwargs) -> dict[str, Any]:
-        data = super().model_dump(serialize_as_any=True, **kwargs)
+    @model_serializer(mode="wrap")
+    def _serialize_with_type(self, handler):
+        data = handler(self)
         return {"type": self._type_str(), **data}
-
-    def model_dump_json(self, **kwargs) -> str:
-        return super().model_dump_json(serialize_as_any=True, **kwargs)
 
     @property
     def scene_cls(self) -> type[Scene]:
