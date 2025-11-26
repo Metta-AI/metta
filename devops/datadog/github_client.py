@@ -22,9 +22,6 @@ class GitHubClient:
         }
         if token:
             headers["Authorization"] = f"Bearer {token}"
-            logger.debug("GitHub client initialized with authentication token")
-        else:
-            logger.warning("GitHub client initialized without authentication token - rate limits will be lower")
         self.session.headers.update(headers)
 
     def _get(self, path: str, *, params: Dict[str, Any] | None = None) -> Dict[str, Any]:

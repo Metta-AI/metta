@@ -33,7 +33,7 @@ def collect_command(
         "--dry-run",
         help="Print metrics instead of pushing to Datadog.",
     ),
-    output: Path | None = typer.Option(  # noqa: B008
+    output: Path | None = typer.Option(
         None,
         "--output",
         "-o",
@@ -71,16 +71,10 @@ def list_workflows_command(
 ) -> None:
     """List all workflows in the repository to help identify which ones to monitor."""
     import os
-
     from devops.datadog.github_client import GitHubClient
-    from softmax.aws.secrets_manager import get_secretsmanager_secret
 
     repo = repo or os.environ.get("METTA_GITHUB_REPO", "Metta-AI/metta")
-    token = (
-        os.environ.get("GITHUB_DASHBOARD_TOKEN")
-        or os.environ.get("GITHUB_TOKEN")
-        or get_secretsmanager_secret("github/dashboard-token", require_exists=False)
-    )
+    token = os.environ.get("GITHUB_DASHBOARD_TOKEN") or os.environ.get("GITHUB_TOKEN")
     github = GitHubClient(token=token)
 
     typer.echo(f"Fetching workflows for {repo}...")
