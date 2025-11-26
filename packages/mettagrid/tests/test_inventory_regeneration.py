@@ -13,7 +13,8 @@ class TestInventoryRegeneration:
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
                 ["#", "#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
         # Add energy to resources and configure regeneration
@@ -104,7 +105,8 @@ class TestInventoryRegeneration:
                 ["#", "#", "#"],
                 ["#", "@", "#"],
                 ["#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
         cfg.game.resource_names = ["energy"]
@@ -129,7 +131,8 @@ class TestInventoryRegeneration:
                 ["#", "#", "#"],
                 ["#", "@", "#"],
                 ["#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
         cfg.game.resource_names = ["energy"]
