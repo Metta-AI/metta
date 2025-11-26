@@ -609,7 +609,9 @@ class LLMAgentPolicy(AgentPolicy):
         provider: Literal["openai", "anthropic", "ollama"] = "openai",
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False,
+        debug_mode: bool = True,
+        use_dynamic_prompts: bool = True,
+        context_window_size: int = 20,
     ):
         """Initialize LLM agent policy.
 
@@ -618,25 +620,32 @@ class LLMAgentPolicy(AgentPolicy):
             provider: LLM provider ("openai", "anthropic", or "ollama")
             model: Model name (defaults: gpt-4o-mini, claude-3-5-sonnet-20240620, or llama3.2 for ollama)
             temperature: Sampling temperature for LLM
-            debug_mode: If True, print human-readable observation debug info
+            debug_mode: If True, print human-readable observation debug info (default: True)
+            use_dynamic_prompts: If True, use dynamic prompt builder (default: True)
+            context_window_size: Number of steps before resending basic info (default: 20)
         """
         super().__init__(policy_env_info)
         self.provider = provider
         self.temperature = temperature
         self.debug_mode = debug_mode
         self.last_action: str | None = None
+        self.use_dynamic_prompts = use_dynamic_prompts
 
+        # Initialize prompt builder (new dynamic approach)
+        if self.use_dynamic_prompts:
+            from mettagrid.policy.llm_prompt_builder import LLMPromptBuilder
 
-        # Build game rules prompt with feature/tag mappings
-        self.game_rules_prompt = build_game_rules_prompt(policy_env_info)
-
-        # TEMP: Save prompt to file for inspection (DELETE THIS LATER)
-        def _temp_save_prompt():
-            from pathlib import Path
-            prompt_path = Path("llm_system_prompt.txt")
-            prompt_path.write_text(self.game_rules_prompt)
-            logger.info(f"[TEMP] Saved system prompt to: {prompt_path.absolute()}")
-        _temp_save_prompt()
+            self.prompt_builder = LLMPromptBuilder(
+                policy_env_info=policy_env_info,
+                context_window_size=context_window_size,
+            )
+            self.game_rules_prompt = None  # Not used with dynamic prompts
+            logger.info(f"Using dynamic prompts with context window size: {context_window_size}")
+        else:
+            # Fallback to old static prompt
+            self.prompt_builder = None
+            self.game_rules_prompt = build_game_rules_prompt(policy_env_info)
+            logger.info("Using static prompts (legacy mode)")
 
         # Initialize observation debugger if debug mode is enabled
         if self.debug_mode:
@@ -695,11 +704,18 @@ class LLMAgentPolicy(AgentPolicy):
             debug_output = self.debugger.debug_observation(obs, self.last_action)
             print("\n" + debug_output + "\n")
 
-        # Convert observation to JSON
-        obs_json = observation_to_json(obs, self.policy_env_info)
-
-        # Create user prompt
-        user_prompt = f"""Current game state:
+        # Build prompt using dynamic or static approach
+        if self.use_dynamic_prompts:
+            # Use dynamic prompt builder with context window management
+            user_prompt, includes_basic_info = self.prompt_builder.context_prompt(obs)
+            if includes_basic_info:
+                logger.info(f"[DYNAMIC] Sent basic_info + observable (step {self.prompt_builder.step_count})")
+            else:
+                logger.info(f"[DYNAMIC] Sent observable only (step {self.prompt_builder.step_count})")
+        else:
+            # Use old static prompt approach
+            obs_json = observation_to_json(obs, self.policy_env_info)
+            user_prompt = f"""Current game state:
 {json.dumps(obs_json, indent=2)}
 
 Based on the visible objects and game rules, choose the BEST action to maximize your rewards.
@@ -729,16 +745,19 @@ The best action is move_east (WRONG - contains extra words)
                 # GPT-5 and o1 models use different parameters and don't support system messages
                 is_gpt5_or_o1 = self.model.startswith("gpt-5") or self.model.startswith("o1")
 
-                if is_gpt5_or_o1:
-                    # GPT-5/o1 models: combine system and user prompts, use max_completion_tokens, no temperature
-                    combined_prompt = f"{self.game_rules_prompt}\n\n{user_prompt}"
+                if self.use_dynamic_prompts or is_gpt5_or_o1:
+                    # Dynamic prompts or GPT-5/o1: everything in user message
                     completion_params = {
                         "model": self.model,
-                        "messages": [{"role": "user", "content": combined_prompt}],
-                        "max_completion_tokens": 50,
+                        "messages": [{"role": "user", "content": user_prompt}],
+                        "max_completion_tokens": 50 if is_gpt5_or_o1 else None,
+                        "max_tokens": None if is_gpt5_or_o1 else 50,
+                        "temperature": None if is_gpt5_or_o1 else self.temperature,
                     }
+                    # Remove None values
+                    completion_params = {k: v for k, v in completion_params.items() if v is not None}
                 else:
-                    # Standard GPT-4 models: use system message, max_tokens, and temperature
+                    # Standard GPT-4 models with static prompts: use system message
                     completion_params = {
                         "model": self.model,
                         "messages": [
@@ -776,18 +795,19 @@ The best action is move_east (WRONG - contains extra words)
             elif self.provider == "ollama":
                 assert self.ollama_client is not None
 
-                # Log prompt size for debugging
-                logger.debug(
-                    f"Sending prompt to Ollama (system: {len(self.game_rules_prompt)} chars, "
-                    f"user: {len(user_prompt)} chars)"
-                )
+                if self.use_dynamic_prompts:
+                    # Dynamic prompts: everything in user message
+                    messages = [{"role": "user", "content": user_prompt}]
+                else:
+                    # Static prompts: system + user
+                    messages = [
+                        {"role": "system", "content": self.game_rules_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ]
 
                 response = self.ollama_client.chat.completions.create(
                     model=self.model,
-                    messages=[
-                        {"role": "system", "content": self.game_rules_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
+                    messages=messages,
                     temperature=self.temperature,
                     max_tokens=50,
                 )
@@ -832,13 +852,24 @@ The best action is move_east (WRONG - contains extra words)
 
             elif self.provider == "anthropic":
                 assert self.anthropic_client is not None
-                response = self.anthropic_client.messages.create(
-                    model=self.model,
-                    system=self.game_rules_prompt,
-                    messages=[{"role": "user", "content": user_prompt}],
-                    temperature=self.temperature,
-                    max_tokens=50,
-                )
+
+                if self.use_dynamic_prompts:
+                    # Dynamic prompts: everything in user message, no system
+                    response = self.anthropic_client.messages.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": user_prompt}],
+                        temperature=self.temperature,
+                        max_tokens=50,
+                    )
+                else:
+                    # Static prompts: system + user
+                    response = self.anthropic_client.messages.create(
+                        model=self.model,
+                        system=self.game_rules_prompt,
+                        messages=[{"role": "user", "content": user_prompt}],
+                        temperature=self.temperature,
+                        max_tokens=50,
+                    )
                 # Extract text from response content blocks
                 from anthropic.types import TextBlock
 
@@ -867,7 +898,6 @@ The best action is move_east (WRONG - contains extra words)
 
             # Parse and return action
             parsed_action = self._parse_action(action_name)
-            logger.debug(f"Full action object: {parsed_action}")
 
             # Track last action for debug output
             self.last_action = parsed_action.name
@@ -962,7 +992,9 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         provider: Literal["openai", "anthropic", "ollama"] = "openai",
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False,
+        debug_mode: bool = True,
+        use_dynamic_prompts: bool = True,
+        context_window_size: int = 20,
     ):
         """Initialize LLM multi-agent policy.
 
@@ -971,13 +1003,17 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             provider: LLM provider ("openai", "anthropic", or "ollama")
             model: Model name (defaults based on provider)
             temperature: Sampling temperature for LLM
-            debug_mode: If True, print human-readable observation debug info
+            debug_mode: If True, print human-readable observation debug info (default: True)
+            use_dynamic_prompts: If True, use dynamic prompt builder (default: True)
+            context_window_size: Number of steps before resending basic info (default: 20)
         """
         super().__init__(policy_env_info)
         self.provider: Literal["openai", "anthropic", "ollama"] = provider
         self.model = model
         self.temperature = temperature
         self.debug_mode = debug_mode
+        self.use_dynamic_prompts = use_dynamic_prompts
+        self.context_window_size = context_window_size
 
         # Register atexit handler to print costs when program ends (for paid APIs only)
         if provider in ("openai", "anthropic") and not hasattr(LLMMultiAgentPolicy, '_atexit_registered'):
@@ -999,6 +1035,8 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             model=self.model,
             temperature=self.temperature,
             debug_mode=self.debug_mode,
+            use_dynamic_prompts=self.use_dynamic_prompts,
+            context_window_size=self.context_window_size,
         )
 
 
@@ -1013,10 +1051,18 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False,
+        debug_mode: bool = True,
+        use_dynamic_prompts: bool = True,
+        context_window_size: int = 20,
     ):
         super().__init__(
-            policy_env_info, provider="openai", model=model, temperature=temperature, debug_mode=debug_mode
+            policy_env_info,
+            provider="openai",
+            model=model,
+            temperature=temperature,
+            debug_mode=debug_mode,
+            use_dynamic_prompts=use_dynamic_prompts,
+            context_window_size=context_window_size,
         )
 
 
@@ -1030,10 +1076,18 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False,
+        debug_mode: bool = True,
+        use_dynamic_prompts: bool = True,
+        context_window_size: int = 20,
     ):
         super().__init__(
-            policy_env_info, provider="anthropic", model=model, temperature=temperature, debug_mode=debug_mode
+            policy_env_info,
+            provider="anthropic",
+            model=model,
+            temperature=temperature,
+            debug_mode=debug_mode,
+            use_dynamic_prompts=use_dynamic_prompts,
+            context_window_size=context_window_size,
         )
 
 
@@ -1047,8 +1101,16 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False,
+        debug_mode: bool = True,
+        use_dynamic_prompts: bool = True,
+        context_window_size: int = 20,
     ):
         super().__init__(
-            policy_env_info, provider="ollama", model=model, temperature=temperature, debug_mode=debug_mode
+            policy_env_info,
+            provider="ollama",
+            model=model,
+            temperature=temperature,
+            debug_mode=debug_mode,
+            use_dynamic_prompts=use_dynamic_prompts,
+            context_window_size=context_window_size,
         )

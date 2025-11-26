@@ -25,9 +25,9 @@ class ObservationDebugger:
         self.policy_env_info = policy_env_info
         self.obs_width = policy_env_info.obs_width
         self.obs_height = policy_env_info.obs_height
-        # Agent is at center of observation grid
-        self.agent_x = self.obs_width // 2
-        self.agent_y = self.obs_height // 2
+        # Agent SHOULD be at center of observation grid in egocentric view
+        self.expected_agent_x = self.obs_width // 2
+        self.expected_agent_y = self.obs_height // 2
 
     def debug_observation(self, obs: AgentObservation, last_action: str | None = None) -> str:
         """Convert observation to human-readable debug string.
@@ -44,11 +44,14 @@ class ObservationDebugger:
         lines.append(f"AGENT {obs.agent_id} OBSERVATION DEBUG")
         lines.append("=" * 70)
 
+        # Find actual agent position in observation
+        agent_x, agent_y = self._find_agent_position(obs)
+
         # Parse observation tokens
         spatial_grid = self._build_spatial_grid(obs)
-        agent_state = self._extract_agent_state(obs)
-        nearby_objects = self._find_nearby_objects(obs)
-        directional_info = self._analyze_directions(obs, spatial_grid)
+        agent_state = self._extract_agent_state(obs, agent_x, agent_y)
+        nearby_objects = self._find_nearby_objects(obs, agent_x, agent_y)
+        directional_info = self._analyze_directions(obs, spatial_grid, agent_x, agent_y)
 
         # Agent state section
         lines.append("\n📊 AGENT STATE:")
@@ -72,7 +75,7 @@ class ObservationDebugger:
 
         # Spatial grid visualization
         lines.append("\n🗺️  SPATIAL GRID (what agent sees):")
-        lines.append(self._visualize_grid(spatial_grid))
+        lines.append(self._visualize_grid(spatial_grid, agent_x, agent_y))
 
         # Inventory section
         inventory = self._extract_inventory(obs)
@@ -99,7 +102,8 @@ class ObservationDebugger:
         grid: dict[tuple[int, int], list[dict]] = {}
 
         for token in obs.tokens:
-            x, y = token.col(), token.row()
+            # IMPORTANT: row() returns X, col() returns Y (swapped from typical convention)
+            x, y = token.row(), token.col()
             if (x, y) not in grid:
                 grid[(x, y)] = []
 
@@ -116,11 +120,36 @@ class ObservationDebugger:
 
         return grid
 
-    def _extract_agent_state(self, obs: AgentObservation) -> dict[str, str]:
+    def _find_agent_position(self, obs: AgentObservation) -> tuple[int, int]:
+        """Find the agent's actual position in the observation.
+
+        The agent should be at the center in egocentric view. We verify
+        by looking for the "agent" tag token.
+
+        Args:
+            obs: Agent observation
+
+        Returns:
+            Tuple of (x, y) coordinates of agent position
+        """
+        # Look for "agent" tag in observation
+        for token in obs.tokens:
+            if token.feature.name == "tag":
+                tag_name = self.policy_env_info.tags[token.value] if token.value < len(self.policy_env_info.tags) else None
+                if tag_name == "agent":
+                    # IMPORTANT: row() returns X, col() returns Y
+                    return token.row(), token.col()
+
+        # If no agent tag found, assume center (egocentric view default)
+        return self.expected_agent_x, self.expected_agent_y
+
+    def _extract_agent_state(self, obs: AgentObservation, agent_x: int, agent_y: int) -> dict[str, str]:
         """Extract agent state information from observation.
 
         Args:
             obs: Agent observation
+            agent_x: Agent's X coordinate
+            agent_y: Agent's Y coordinate
 
         Returns:
             Dictionary of agent state information
@@ -129,7 +158,8 @@ class ObservationDebugger:
 
         for token in obs.tokens:
             # Look for agent-specific features at agent's location
-            if token.col() == self.agent_x and token.row() == self.agent_y:
+            # IMPORTANT: row() returns X, col() returns Y
+            if token.row() == agent_x and token.col() == agent_y:
                 if token.feature.name == "agent:frozen":
                     state["Frozen"] = "Yes" if token.value > 0 else "No"
                 elif token.feature.name == "agent:group":
@@ -152,11 +182,13 @@ class ObservationDebugger:
 
         return state
 
-    def _find_nearby_objects(self, obs: AgentObservation) -> list[str]:
+    def _find_nearby_objects(self, obs: AgentObservation, agent_x: int, agent_y: int) -> list[str]:
         """Find nearby objects and their properties.
 
         Args:
             obs: Agent observation
+            agent_x: Agent's X coordinate
+            agent_y: Agent's Y coordinate
 
         Returns:
             List of human-readable object descriptions
@@ -165,11 +197,12 @@ class ObservationDebugger:
         seen_locations = set()
 
         for token in obs.tokens:
-            x, y = token.col(), token.row()
+            # IMPORTANT: row() returns X, col() returns Y
+            x, y = token.row(), token.col()
             location_key = (x, y, token.feature.name)
 
             # Skip agent's own location for object detection
-            if x == self.agent_x and y == self.agent_y:
+            if x == agent_x and y == agent_y:
                 continue
 
             # Skip duplicate locations
@@ -180,8 +213,8 @@ class ObservationDebugger:
             if token.feature.name == "tag" and token.value < len(self.policy_env_info.tags):
                 seen_locations.add(location_key)
                 tag_name = self.policy_env_info.tags[token.value]
-                dx = x - self.agent_x
-                dy = y - self.agent_y
+                dx = x - agent_x
+                dy = y - agent_y
                 distance = abs(dx) + abs(dy)  # Manhattan distance
 
                 # Determine direction
@@ -192,7 +225,7 @@ class ObservationDebugger:
                 # Add additional properties if available
                 properties = []
                 for t in obs.tokens:
-                    if t.col() == x and t.row() == y:
+                    if t.row() == x and t.col() == y:
                         if t.feature.name == "cooldown_remaining" and t.value > 0:
                             properties.append(f"cooldown: {t.value}")
                         elif t.feature.name == "remaining_uses" and t.value > 0:
@@ -205,12 +238,14 @@ class ObservationDebugger:
 
         return sorted(objects, key=lambda x: int(x.split("distance: ")[1].split(")")[0])) if objects else []
 
-    def _analyze_directions(self, obs: AgentObservation, spatial_grid: dict[tuple[int, int], list[dict]]) -> dict[str, str]:
+    def _analyze_directions(self, obs: AgentObservation, spatial_grid: dict[tuple[int, int], list[dict]], agent_x: int, agent_y: int) -> dict[str, str]:
         """Analyze what's in each cardinal direction.
 
         Args:
             obs: Agent observation
             spatial_grid: Spatial grid of tokens
+            agent_x: Agent's X coordinate
+            agent_y: Agent's Y coordinate
 
         Returns:
             Dictionary mapping directions to descriptions
@@ -226,8 +261,8 @@ class ObservationDebugger:
         ]
 
         for dir_name, dx, dy in checks:
-            target_x = self.agent_x + dx
-            target_y = self.agent_y + dy
+            target_x = agent_x + dx
+            target_y = agent_y + dy
 
             if (target_x, target_y) in spatial_grid:
                 tokens_at_pos = spatial_grid[(target_x, target_y)]
@@ -273,11 +308,13 @@ class ObservationDebugger:
             return f"{vertical}-{horizontal}"
         return vertical or horizontal
 
-    def _visualize_grid(self, spatial_grid: dict[tuple[int, int], list[dict]]) -> str:
+    def _visualize_grid(self, spatial_grid: dict[tuple[int, int], list[dict]], agent_x: int, agent_y: int) -> str:
         """Create ASCII visualization of spatial grid.
 
         Args:
             spatial_grid: Spatial grid of tokens
+            agent_x: Agent's X coordinate
+            agent_y: Agent's Y coordinate
 
         Returns:
             ASCII grid visualization
@@ -288,7 +325,7 @@ class ObservationDebugger:
         for y in range(self.obs_height):
             row = f"{y:2} "
             for x in range(self.obs_width):
-                if x == self.agent_x and y == self.agent_y:
+                if x == agent_x and y == agent_y:
                     row += "@ "  # Agent position
                 elif (x, y) in spatial_grid:
                     # Find tag to display
