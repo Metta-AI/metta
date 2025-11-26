@@ -13,7 +13,6 @@ class TestChest:
         cfg.game.agent.initial_inventory = {"gold": 5}
 
         cfg.game.objects["chest"] = ChestConfig(
-            map_char="C",
             vibe_transfers={
                 "down": {"gold": 1},  # When showing deposit vibe, deposit 1 gold
                 "up": {"gold": -1},  # When showing withdraw vibe, withdraw 1 gold
@@ -30,7 +29,8 @@ class TestChest:
                 ["#", ".", "C", ".", "#"],
                 ["#", ".", "@", ".", "#"],
                 ["#", "#", "#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty", "C": "chest"},
         )
 
         # Enable actions
