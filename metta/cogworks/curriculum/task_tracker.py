@@ -784,6 +784,12 @@ class TaskTracker:
             "backend": self._backend,  # SharedMemoryBackend has its own pickle support
             "total_completions": self._total_completions,
             "sum_scores": self._sum_scores,
+            # Performance optimization attributes
+            "enable_task_list_cache": self.enable_task_list_cache,
+            "cached_task_list": self._cached_task_list,
+            "task_list_cache_valid": self._task_list_cache_valid,
+            "cache_hits": self._cache_hits,
+            "cache_misses": self._cache_misses,
         }
 
     def __setstate__(self, state):
@@ -795,6 +801,13 @@ class TaskTracker:
         self._backend = state["backend"]
         self._total_completions = state["total_completions"]
         self._sum_scores = state["sum_scores"]
+
+        # Restore performance optimization attributes (with defaults for backwards compatibility)
+        self.enable_task_list_cache = state.get("enable_task_list_cache", True)
+        self._cached_task_list = state.get("cached_task_list", None)
+        self._task_list_cache_valid = state.get("task_list_cache_valid", False)
+        self._cache_hits = state.get("cache_hits", 0)
+        self._cache_misses = state.get("cache_misses", 0)
 
         # Initialize label tracking (local per-process)
         self._label_hash_to_string = {}
