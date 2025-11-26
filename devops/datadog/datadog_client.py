@@ -28,10 +28,22 @@ class DatadogMetricsClient:
             logger.info("No metrics to submit.")
             return
 
+        # Log metric names for debugging
+        metric_names = [s.metric for s in series]
+        logger.info("Submitting metrics to Datadog (site=%s): %s", 
+                   self._configuration.server_variables.get("site", "unknown"),
+                   ", ".join(metric_names))
+
         payload = MetricPayload(series=series)
-        with ApiClient(self._configuration) as api_client:
-            MetricsApi(api_client).submit_metrics(body=payload)
-        logger.info("Submitted %s metrics to Datadog", len(series))
+        try:
+            with ApiClient(self._configuration) as api_client:
+                response = MetricsApi(api_client).submit_metrics(body=payload)
+                logger.info("Submitted %s metrics to Datadog successfully", len(series))
+                if hasattr(response, 'data') and response.data:
+                    logger.debug("Datadog response: %s", response.data)
+        except Exception as e:
+            logger.error("Failed to submit metrics to Datadog: %s", e, exc_info=True)
+            raise
 
     def _build_configuration(self) -> Configuration:
         configuration = Configuration()
