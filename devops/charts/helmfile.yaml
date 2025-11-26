@@ -223,6 +223,10 @@ releases:
           tag: latest-dashboard
       - datadog:
           service: training-health-collector
+      - command:
+          - python
+          - -m
+          - devops.datadog.cli
       - args:
           - collect
           - training
@@ -236,6 +240,10 @@ releases:
           tag: latest-dashboard
       - datadog:
           service: eval-health-collector
+      - command:
+          - python
+          - -m
+          - devops.datadog.cli
       - args:
           - collect
           - eval

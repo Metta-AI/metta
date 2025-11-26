@@ -320,10 +320,10 @@ class CICollector(BaseCollector):
         failing_count = 0
         for workflow in all_workflows:
             workflow_name = workflow.get("name") or workflow.get("path", "").split("/")[-1]
-            workflow_id = workflow.get("id")
+            workflow_id = str(workflow.get("id", ""))
 
-            # Skip if this is a test/benchmark workflow
-            if workflow_name in exclude_workflows:
+            # Skip if this workflow matches by name OR id
+            if workflow_name in exclude_workflows or workflow_id in exclude_workflows:
                 continue
 
             # Get latest run for this workflow
