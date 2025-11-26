@@ -26,7 +26,7 @@ echo "[INFO] Starting training..."
 DATADOG_LOG="/tmp/datadog-training.log"
 mkdir -p "$(dirname "$DATADOG_LOG")"
 touch "$DATADOG_LOG"
-chmod 666 "$DATADOG_LOG" 2>/dev/null || true
+chmod 666 "$DATADOG_LOG" 2> /dev/null || true
 set +e
 uv run torchrun \
   --nnodes=$NUM_NODES \

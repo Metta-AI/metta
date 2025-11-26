@@ -238,7 +238,7 @@ def main(
             METTA_GIT_REF=commit_hash,
             TEST_JOB_RESTART="true" if run_ci_tests else "false",
             TEST_NCCL="true" if run_ci_tests else "false",
-            DD_LOGS_ENABLED="true", 
+            DD_LOGS_ENABLED="true",
         )
     )
     if heartbeat_timeout_seconds:
