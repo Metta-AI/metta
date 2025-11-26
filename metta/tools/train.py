@@ -133,11 +133,17 @@ class TrainTool(Tool):
         init_logging(run_dir=checkpoint_manager.run_dir)
         record_heartbeat()
 
+        stats_client = self._maybe_create_stats_client(distributed_helper)
+        git_hash = self._get_git_hash()
+
         checkpointer = Checkpointer(
             config=self.checkpointer,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
             policy_architecture=self.policy_architecture,
+            stats_client=stats_client,
+            run_name=self.run or "default",
+            git_hash=git_hash,
         )
         policy = checkpointer.load_or_create_policy(
             env.policy_env_info,
@@ -146,8 +152,6 @@ class TrainTool(Tool):
         trainer = self._initialize_trainer(env, policy, distributed_helper)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
-
-        stats_client = self._maybe_create_stats_client(distributed_helper)
         wandb_manager = self._build_wandb_manager(distributed_helper)
 
         try:
@@ -158,7 +162,8 @@ class TrainTool(Tool):
                     checkpoint_manager=checkpoint_manager,
                     stats_client=stats_client,
                     policy_checkpointer=checkpointer,
-                    run_name=self.run,
+                    run_name=self.run or "default",
+                    git_hash=git_hash,
                     wandb_run=wandb_run,
                 )
 
@@ -215,6 +220,7 @@ class TrainTool(Tool):
         stats_client: Optional[StatsClient],
         policy_checkpointer: Checkpointer,
         run_name: str,
+        git_hash: str | None,
         wandb_run: WandbRun | None,
     ) -> None:
         components: list[TrainerComponent] = []
@@ -242,10 +248,10 @@ class TrainTool(Tool):
 
             components.append(policy_checkpointer)
 
-            self.evaluator = self.evaluator.model_copy(deep=True)
+            evaluator_config = self.evaluator.model_copy(deep=True, update={"git_hash": git_hash})
             components.append(
                 Evaluator(
-                    config=self.evaluator,
+                    config=evaluator_config,
                     device=torch.device(self.system.device),
                     seed=self.system.seed,
                     run_name=run_name,
@@ -352,6 +358,20 @@ class TrainTool(Tool):
 
         except Exception as exc:
             logger.warning("Failed to initialize stats client: %s", exc)
+            return None
+
+    def _get_git_hash(self) -> str | None:
+        if self.evaluator.git_hash:
+            return self.evaluator.git_hash
+        if self.evaluator.skip_git_check:
+            return None
+        try:
+            from metta.common.util.git_helpers import get_task_commit_hash
+            from metta.common.util.git_repo import REPO_SLUG
+
+            return get_task_commit_hash(target_repo=REPO_SLUG, skip_git_check=False)
+        except Exception as exc:
+            logger.warning("Failed to get git hash: %s", exc)
             return None
 
     def _build_wandb_manager(self, distributed_helper: DistributedHelper):

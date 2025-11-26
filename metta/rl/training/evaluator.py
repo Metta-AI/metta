@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import io
 import logging
 import uuid
-import zipfile
 from typing import Any, Optional
 
 import torch
@@ -26,7 +24,6 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.file import write_data
 from mettagrid.util.url_schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
@@ -105,59 +102,10 @@ class Evaluator(TrainerComponent):
             return False
         return epoch % interval == 0
 
-    def _create_submission_zip(self, policy_spec: PolicySpec) -> bytes:
-        """Create a submission zip containing policy-spec.json."""
-        buffer = io.BytesIO()
-        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr("policy_spec.json", policy_spec.model_dump_json())
-        return buffer.getvalue()
-
-    def _upload_submission_zip(self, policy_spec: PolicySpec) -> str | None:
-        """Upload a submission zip to S3 and return the s3_path."""
-        checkpoint_uri = policy_spec.init_kwargs.get("checkpoint_uri")
-        if not checkpoint_uri or not checkpoint_uri.startswith("s3://"):
-            return None
-
-        submission_path = checkpoint_uri.replace(".mpt", "-submission.zip")
-        zip_data = self._create_submission_zip(policy_spec)
-        write_data(submission_path, zip_data, content_type="application/zip")
-        logger.info("Uploaded submission zip to %s", submission_path)
-        return submission_path
-
-    def _create_policy_version(
-        self,
-        *,
-        stats_client: StatsClient,
-        policy_spec: PolicySpec,
-        epoch: int,
-        agent_step: int,
-    ) -> uuid.UUID:
-        """Create a policy version in Observatory with a submission zip."""
-
-        # Create or get policy
-        policy_id = stats_client.create_policy(
-            name=self._run_name,
-            attributes={},
-            is_system_policy=False,
-        )
-
-        # Upload submission zip to S3
-        s3_path = self._upload_submission_zip(policy_spec)
-
-        # Create policy version
-        policy_version_id = stats_client.create_policy_version(
-            policy_id=policy_id.id,
-            git_hash=self._git_hash,
-            policy_spec=policy_spec.model_dump(mode="json"),
-            attributes={"epoch": epoch, "agent_step": agent_step},
-            s3_path=s3_path,
-        )
-
-        return policy_version_id.id
-
     def evaluate(
         self,
         policy_uri: Optional[str],
+        policy_version_id: Optional[uuid.UUID],
         curriculum: Any,
         epoch: int,
         agent_step: int,
@@ -169,14 +117,6 @@ class Evaluator(TrainerComponent):
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
         policy_spec = self._build_policy_spec(policy_uri)
-        policy_version_id: uuid.UUID | None = None
-        if self._stats_client:
-            policy_version_id = self._create_policy_version(
-                stats_client=self._stats_client,
-                policy_spec=policy_spec,
-                epoch=epoch,
-                agent_step=agent_step,
-            )
 
         # Remote evaluation
         if self._evaluate_remote and self._stats_client and policy_version_id:
@@ -269,6 +209,11 @@ class Evaluator(TrainerComponent):
             logger.warning("Evaluator: skipping epoch %s because no policy checkpoint is available", epoch)
             return
 
+        policy_version_id = getattr(self.context, "latest_policy_version_id_value", None)
+        if not policy_version_id and self._stats_client:
+            logger.warning("Evaluator: skipping epoch %s because no policy version is available", epoch)
+            return
+
         curriculum: Curriculum | None = getattr(self.context.env, "_curriculum", None)
         if curriculum is None:
             logger.warning("Evaluator: curriculum unavailable; skipping evaluation")
@@ -281,6 +226,7 @@ class Evaluator(TrainerComponent):
 
         self.evaluate(
             policy_uri=policy_uri,
+            policy_version_id=policy_version_id,
             curriculum=curriculum,
             epoch=epoch,
             agent_step=self.context.agent_step,
