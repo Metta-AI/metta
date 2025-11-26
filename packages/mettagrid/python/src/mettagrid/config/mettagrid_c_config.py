@@ -238,8 +238,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                         f"already exists in {object_type}"
                     )
                 seen_vibes_and_min_agents.append((vibe_ids, protocol_config.min_agents))
-                input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
-                output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
+                # Ensure keys and values are explicitly Python ints for C++ binding
+                input_res = {int(resource_name_to_id[k]): int(v) for k, v in protocol_config.input_resources.items()}
+                output_res = {int(resource_name_to_id[k]): int(v) for k, v in protocol_config.output_resources.items()}
                 cpp_protocol = CppProtocol()
                 cpp_protocol.min_agents = protocol_config.min_agents
                 cpp_protocol.vibes = vibe_ids
@@ -439,11 +440,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_protocol = CppProtocol()
             cpp_protocol.min_agents = protocol_config.min_agents
             cpp_protocol.vibes = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
+            # Ensure keys and values are explicitly Python ints for C++ binding
             cpp_protocol.input_resources = {
-                resource_name_to_id[k]: v for k, v in protocol_config.input_resources.items()
+                int(resource_name_to_id[k]): int(v) for k, v in protocol_config.input_resources.items()
             }
             cpp_protocol.output_resources = {
-                resource_name_to_id[k]: v for k, v in protocol_config.output_resources.items()
+                int(resource_name_to_id[k]): int(v) for k, v in protocol_config.output_resources.items()
             }
             cpp_protocol.cooldown = protocol_config.cooldown
             clipper_protocols.append(cpp_protocol)
