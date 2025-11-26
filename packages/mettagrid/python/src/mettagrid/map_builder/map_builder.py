@@ -8,9 +8,7 @@ from typing import Any, ClassVar, Generic, Self, TypeVar, cast, get_args, get_or
 
 import numpy as np
 import yaml
-from enum import Enum
 from pydantic import Field, ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
-from pydantic_core import to_jsonable_python
 
 from mettagrid.base_config import Config
 from mettagrid.mapgen.types import MapGrid

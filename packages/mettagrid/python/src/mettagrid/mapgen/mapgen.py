@@ -161,6 +161,7 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
 # Rebuild to resolve forward refs (instance uses AnySceneConfig)
 MapGenConfig.model_rebuild()
 
+
 class MapGen(MapBuilder[MapGenConfig]):
     def __init__(self, config: MapGenConfig):
         super().__init__(config)

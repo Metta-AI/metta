@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 import time
-from enum import StrEnum, auto, Enum
+from enum import StrEnum, auto
 from typing import Any, ClassVar, Final, Generic, Self, TypeVar, get_args, get_origin
 
 import numpy as np
@@ -13,7 +13,6 @@ from pydantic import (
     model_serializer,
     model_validator,
 )
-from pydantic_core import to_jsonable_python
 
 from mettagrid.base_config import Config
 from mettagrid.map_builder import MapGrid
@@ -139,7 +138,6 @@ class SceneConfig(Config):
         if not cls._scene_cls:
             raise ValueError(f"{cls.__class__.__name__} is not bound to a scene class")
         return f"{cls._scene_cls.__module__}.{cls._scene_cls.__name__}.Config"
-
 
     @model_validator(mode="wrap")
     @classmethod
