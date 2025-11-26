@@ -139,6 +139,9 @@ class S3SchemeResolver(SchemeResolver):
         return ParsedScheme(raw=uri, scheme=self.scheme, canonical=canonical, bucket=bucket, key=key, path=key)
 
     def _get_latest_checkpoint_uri(self, bucket: str, prefix: str) -> str | None:
+        # Ensure prefix ends with / for directory-like semantics
+        if prefix and not prefix.endswith("/"):
+            prefix = prefix + "/"
         s3_client = boto3.client("s3")
         response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
         if response["KeyCount"] == 0:
