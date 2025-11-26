@@ -43,11 +43,16 @@ def play(
             Replay will be saved with a unique UUID-based filename.
     """
 
-    logger.debug("Starting play session", extra={"game_name": game_name})
+    logger.info(f"[FLOW-5] play() called with game_name={game_name}, policy_spec={policy_spec}")
 
+    logger.info("[FLOW-6] Creating PolicyEnvInterface from config")
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+    logger.info(f"[FLOW-7] Initializing policy: {policy_spec.class_path}")
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
+    logger.info(f"[FLOW-8] Policy initialized: {type(policy).__name__}")
+    logger.info(f"[FLOW-9] Creating agent policies for {env_cfg.game.num_agents} agents")
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
+    logger.info(f"[FLOW-10] Agent policies created: {[type(ap).__name__ for ap in agent_policies]}")
 
     # Set up replay writer if requested
     event_handlers = []
@@ -57,6 +62,7 @@ def play(
         event_handlers.append(replay_writer)
 
     # Create simulator and renderer
+    logger.info(f"[FLOW-11] Creating Rollout with render_mode={render_mode}, seed={seed}")
     rollout = Rollout(
         env_cfg,
         agent_policies,
@@ -64,7 +70,9 @@ def play(
         seed=seed,
         event_handlers=event_handlers,
     )
+    logger.info("[FLOW-12] Rollout created, starting run_until_done()")
     rollout.run_until_done()
+    logger.info("[FLOW-13] Rollout completed")
 
     # Print summary
     console.print("\n[bold green]Episode Complete![/bold green]")

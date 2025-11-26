@@ -630,6 +630,14 @@ class LLMAgentPolicy(AgentPolicy):
         # Build game rules prompt with feature/tag mappings
         self.game_rules_prompt = build_game_rules_prompt(policy_env_info)
 
+        # TEMP: Save prompt to file for inspection (DELETE THIS LATER)
+        def _temp_save_prompt():
+            from pathlib import Path
+            prompt_path = Path("llm_system_prompt.txt")
+            prompt_path.write_text(self.game_rules_prompt)
+            logger.info(f"[TEMP] Saved system prompt to: {prompt_path.absolute()}")
+        _temp_save_prompt()
+
         # Initialize observation debugger if debug mode is enabled
         if self.debug_mode:
             self.debugger = ObservationDebugger(policy_env_info)
@@ -682,13 +690,16 @@ class LLMAgentPolicy(AgentPolicy):
         Returns:
             Action to take
         """
+        logger.info(f"[FLOW-22] LLMAgentPolicy.step() called for agent {obs.agent_id} with {len(obs.tokens)} observation tokens")
         # Print human-readable debug info if debug mode is enabled
         if self.debug_mode and self.debugger:
             debug_output = self.debugger.debug_observation(obs, self.last_action)
             print("\n" + debug_output + "\n")
 
         # Convert observation to JSON
+        logger.info("[FLOW-23] Converting observation to JSON for LLM")
         obs_json = observation_to_json(obs, self.policy_env_info)
+        logger.info(f"[FLOW-24] Observation JSON created with {len(obs_json.get('visible_objects', []))} visible objects")
 
         # Create user prompt
         user_prompt = f"""Current game state:
@@ -768,6 +779,7 @@ The best action is move_east (WRONG - contains extra words)
             elif self.provider == "ollama":
                 assert self.ollama_client is not None
 
+                logger.info(f"[FLOW-25] Querying Ollama with model={self.model}")
                 # Log prompt size for debugging
                 logger.debug(
                     f"Sending prompt to Ollama (system: {len(self.game_rules_prompt)} chars, "
@@ -858,9 +870,10 @@ The best action is move_east (WRONG - contains extra words)
                 )
 
             # Parse and return action
+            logger.info(f"[FLOW-26] LLM returned: '{action_name}' - parsing action")
             parsed_action = self._parse_action(action_name)
             logger.info(
-                f"Agent {obs.agent_id}: LLM chose '{action_name}' -> Action: {parsed_action.name} | "
+                f"[FLOW-27] Agent {obs.agent_id}: LLM chose '{action_name}' -> Parsed Action: {parsed_action.name} | "
                 f"Obs tokens: {len(obs.tokens)}"
             )
             logger.debug(f"Full action object: {parsed_action}")

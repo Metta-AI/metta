@@ -140,10 +140,12 @@ class Simulation:
         Actions must be set beforehand using agent(i).set_action() or by setting
         actions directly via _c_sim.actions()[i] = action_idx.
         """
+        logger.info(f"[FLOW-28] Simulation.step() called - executing C++ simulation step")
         self._timer.stop("sim.thread_idle")
 
         with self._timer("sim.step.c_sim"):
             self.__c_sim.step()
+        logger.info(f"[FLOW-29] C++ simulation step complete. Current step: {self.__c_sim.current_step}")
 
         for handler in self._event_handlers:
             with self._timer(f"sim.step.{handler.__class__.__name__.lower()}"):

@@ -50,9 +50,12 @@ class Rollout:
 
     def step(self) -> None:
         """Execute one step of the rollout."""
+        logger.info(f"[FLOW-14] Rollout.step() called - querying {len(self._policies)} agent policies")
         for i in range(len(self._policies)):
             start_time = time.time()
+            logger.info(f"[FLOW-15] Querying policy for agent {i}")
             action = self._policies[i].step(self._agents[i].observation)
+            logger.info(f"[FLOW-16] Agent {i} returned action: {action.name}")
             end_time = time.time()
             if (end_time - start_time) > self._max_action_time_ms:
                 logger.warning(
@@ -65,12 +68,19 @@ class Rollout:
         if self._renderer is not None:
             self._renderer.render()
 
+        logger.info("[FLOW-17] Calling Simulation.step() to execute C++ simulation step")
         self._sim.step()
+        logger.info(f"[FLOW-18] Simulation step complete. Current step: {self._sim.current_step}")
 
     def run_until_done(self) -> None:
         """Run the rollout until completion or early exit."""
+        step_count = 0
+        logger.info("[FLOW-19] Starting run_until_done loop")
         while not self.is_done():
+            step_count += 1
+            logger.info(f"[FLOW-20] Starting step {step_count}")
             self.step()
+        logger.info(f"[FLOW-21] Run completed after {step_count} steps")
 
     def is_done(self) -> bool:
         return self._sim.is_done()
