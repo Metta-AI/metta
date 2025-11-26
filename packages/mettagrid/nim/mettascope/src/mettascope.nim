@@ -71,7 +71,7 @@ find "/UI/Main":
     worldMapPanel = rootArea.areas[1].areas[0].addPanel(WorldMap, "Map")
     minimapPanel = rootArea.areas[0].areas[1].addPanel(Minimap, "Minimap")
 
-    agentTracesPanel = rootArea.areas[1].areas[0].addPanel(AgentTraces, "Agent Traces")
+    #agentTracesPanel = rootArea.areas[1].areas[0].addPanel(AgentTraces, "Agent Traces")
     # agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
 
     vibePanel = rootArea.areas[1].areas[1].addPanel(VibePanel, "Vibe Selector")
@@ -109,17 +109,17 @@ find "/UI/Main":
       drawMinimap(minimapPanel)
       bxy.restoreTransform()
 
-    agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
-      bxy.saveTransform()
-      agentTracesPanel.rect = irect(
-        thisNode.absolutePosition.x,
-        thisNode.absolutePosition.y,
-        thisNode.size.x,
-        thisNode.size.y
-      )
-      bxy.translate(agentTracesPanel.rect.xy.vec2 * window.contentScale)
-      drawAgentTraces(agentTracesPanel)
-      bxy.restoreTransform()
+    # agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
+    #   bxy.saveTransform()
+    #   agentTracesPanel.rect = irect(
+    #     thisNode.absolutePosition.x,
+    #     thisNode.absolutePosition.y,
+    #     thisNode.size.x,
+    #     thisNode.size.y
+    #   )
+    #   bxy.translate(agentTracesPanel.rect.xy.vec2 * window.contentScale)
+    #   drawAgentTraces(agentTracesPanel)
+    #   bxy.restoreTransform()
 
     globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()

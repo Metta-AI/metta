@@ -5,7 +5,7 @@ import
 proc getMinimalReplay(fileName: string = "sample.json.z"): JsonNode =
   ## Create a minimal valid replay dict per the spec.
   result = %*{
-    "version": 2,
+    "version": 3,
     "num_agents": 2,
     "max_steps": 100,
     "map_size": [10, 10],
@@ -56,7 +56,7 @@ proc getMinimalReplay(fileName: string = "sample.json.z"): JsonNode =
         "is_frozen": false,
         "freeze_duration": 0,
         "orientation": 1,
-        "inventory": [[0, []], [100, [1]], [200, [1, 1]]],
+        "inventory": [[0, []], [100, [[1, 1]]], [200, [[1, 2]]]],
         "inventory_max": 10,
         "color": 1,
       },
@@ -104,7 +104,7 @@ block schema_validation:
     replay["version"] = %*1
     let issues = validateReplay(replay)
     doAssert issues.len > 0, "Should have validation issues"
-    doAssert issues[0].message.contains("'version' must equal 2"), &"Unexpected issue: {issues[0].message}"
+    doAssert issues[0].message.contains("'version' must equal 3"), &"Unexpected issue: {issues[0].message}"
     echo "✓ Invalid version properly rejected"
 
   block invalid_num_agents:

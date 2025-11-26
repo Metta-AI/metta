@@ -9,6 +9,7 @@ from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -68,12 +69,10 @@ class Kickstarter(Loss):
         self.student_forward = self.cfg.student_forward
 
         # Load teacher. Lazy import to avoid circular dependency
-        from metta.rl.checkpoint_manager import CheckpointManager
-
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-        teacher_spec = CheckpointManager.policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
+        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
     def get_experience_spec(self) -> Composite:

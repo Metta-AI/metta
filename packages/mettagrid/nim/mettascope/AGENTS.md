@@ -1,4 +1,6 @@
-# Nim coding guidelines for AI and maybe humans.
+# Nim Coding Guidelines
+
+See root `CLAUDE.md` and `STYLE_GUIDE.md` for general guidance. This file covers Nim-specific conventions.
 
 ## Abstractions
 

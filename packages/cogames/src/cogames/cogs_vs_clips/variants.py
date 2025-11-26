@@ -187,7 +187,7 @@ class HeartChorusVariant(MissionVariant):
             {
                 "heart.gained": 1.0,
                 "chest.heart.deposited": 1.0,
-                "chest.heart.withdrawn": -1.0,
+                "chest.heart.withdrawn": -2.0,
                 "inventory.diversity.ge.2": 0.17,
                 "inventory.diversity.ge.3": 0.18,
                 "inventory.diversity.ge.4": 0.60,
@@ -604,6 +604,21 @@ class EmptyBaseVariant(BaseHubVariant):
         corner_objects = [name if name not in missing_set else "" for name in HUB_EXTRACTORS]
         node.corner_objects = corner_objects
         node.corner_bundle = "custom"
+
+
+class BalancedCornersVariant(MachinaArenaVariant):
+    """Enable corner balancing to ensure fair spawn distances."""
+
+    name: str = "balanced_corners"
+    description: str = "Balance path distances from center to corners for fair spawns."
+    balance_tolerance: float = 1.5
+    max_balance_shortcuts: int = 10
+
+    @override
+    def modify_node(self, node):
+        node.balance_corners = True
+        node.balance_tolerance = self.balance_tolerance
+        node.max_balance_shortcuts = self.max_balance_shortcuts
 
 
 class TraderVariant(MissionVariant):
