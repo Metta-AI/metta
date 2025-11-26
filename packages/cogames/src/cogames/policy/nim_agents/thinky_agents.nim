@@ -709,8 +709,11 @@ proc stepBatch*(
   let obsStride = numTokens * sizeToken
 
   for i in 0 ..< numAgentIds:
+    if i == 0:
+      echo "stepping over agent ids: " & $numAgentIds
     let idx = int(ids[i])
     let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
     let actPtr = cast[ptr int32](actionArray[idx].addr)
-    spawn step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
-  sync()
+    # spawn step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
+    step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
+  # sync()

@@ -1,5 +1,6 @@
 """Training environment wrapper for vectorized environments."""
 
+import copy
 import logging
 import os
 import platform
@@ -21,6 +22,8 @@ from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 
@@ -172,10 +175,38 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         if self._replay_directory is not None:
             replay_writer = ReplayLogWriter(str(self._replay_directory))
 
+        # Optimization: For serial vectorization, we can use a single global supervisor
+        # that batches requests from all environments, reducing overhead significantly.
+        self._global_supervisor = None
+        env_supervisor_cfg = cfg.supervisor
+
+        if cfg.vectorization == "serial" and cfg.supervisor.policy is not None:
+            # Create a fake policy info with num_agents = batch_size
+            # This allows the policy to handle the entire batch as one "multi-agent" step
+            # Note: This assumes num_agents per env is constant and batch_size = num_envs * num_agents
+            env_cfg_for_policy = self._curriculum.get_task().get_env_cfg()
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg_for_policy)
+            
+            # Modify num_agents to match the full batch size
+            batched_policy_info = copy.copy(policy_env_info)
+            batched_policy_info.num_agents = self._batch_size
+            
+            self._global_supervisor = initialize_or_load_policy(
+                batched_policy_info,
+                PolicySpec(
+                    class_path=cfg.supervisor.policy,
+                    data_path=cfg.supervisor.policy_data_path,
+                ),
+            )
+            logger.info(f"Initialized global supervisor (batch_size={self._batch_size}) for serial vectorization optimization.")
+            
+            # Disable per-environment supervisor since we handle it globally
+            env_supervisor_cfg = None
+
         self._vecenv = make_vecenv(
             self._curriculum,
             cfg.vectorization,
-            env_supervisor_cfg=cfg.supervisor,
+            env_supervisor_cfg=env_supervisor_cfg,
             num_envs=self._num_envs,
             batch_size=self._batch_size,
             num_workers=num_workers,
@@ -248,6 +279,12 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
     def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
         o, r, d, t, ta, info, env_id, mask = self._vecenv.recv()
+
+        if self._global_supervisor is not None:
+            # Compute supervisor actions for the entire batch
+            # We assume o and ta are numpy arrays here (from PufferLib)
+            # and shapes match what the global supervisor expects (batch_size as num_agents)
+            self._global_supervisor.step_batch(o, ta)
 
         training_env_id = slice(env_id[0], env_id[-1] + 1)
 

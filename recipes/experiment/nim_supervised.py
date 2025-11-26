@@ -60,8 +60,8 @@ def train(
         evaluator=EvaluatorConfig(simulations=[SimulationConfig(suite=mission, name="nim_supervised", env=eval_env)]),
     )
 
-    tool.trainer.behavior_cloning.policy_uri = "nim_thinky"
-    tool.trainer.behavior_cloning.student_led = False
+    # tool.trainer.behavior_cloning.policy_uri = "nim_thinky"
+    # tool.trainer.behavior_cloning.student_led = False
 
     tool.trainer.total_timesteps = total_timesteps
     tool.trainer.minibatch_size = 16_384
