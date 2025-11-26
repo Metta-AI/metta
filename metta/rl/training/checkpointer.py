@@ -10,10 +10,9 @@ from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt, save_mpt
+from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.file import write_file
-from mettagrid.util.url_schemes import checkpoint_filename, resolve_uri
+from mettagrid.util.url_schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -124,18 +123,11 @@ class Checkpointer(TrainerComponent):
 
     def _save_policy(self, epoch: int) -> None:
         policy = self._policy_to_save()
-        filename = checkpoint_filename(self._checkpoint_manager.run_name, epoch)
-        checkpoint_dir = self._checkpoint_manager.checkpoint_dir
-        checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        local_path = checkpoint_dir / filename
-
-        save_mpt(str(local_path), architecture=self._policy_architecture, state_dict=policy.state_dict())
-        uri = f"file://{local_path.resolve()}"
-
-        if self._checkpoint_manager.remote_prefix:
-            remote_uri = f"{self._checkpoint_manager.remote_prefix}/{filename}"
-            write_file(remote_uri, str(local_path))
-            uri = remote_uri
+        uri = self._checkpoint_manager.save_policy_checkpoint(
+            state_dict=policy.state_dict(),
+            architecture=self._policy_architecture,
+            epoch=epoch,
+        )
 
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
@@ -143,4 +135,3 @@ class Checkpointer(TrainerComponent):
             self.context.latest_saved_policy_epoch = epoch
         except AttributeError:
             logger.debug("Component context missing latest_saved_policy_epoch attribute")
-        logger.debug("Policy checkpoint saved to %s", uri)

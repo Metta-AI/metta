@@ -9,7 +9,8 @@ import torch
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.util.file import ParsedURI
+from mettagrid.util.file import ParsedURI, write_file
+from mettagrid.util.url_schemes import checkpoint_filename
 from mettagrid.util.url_schemes import get_latest_checkpoint as _get_latest_checkpoint
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,24 @@ class CheckpointManager:
         if remote_max:
             return remote_max["uri"]
         return None
+
+    def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
+        filename = checkpoint_filename(self.run_name, epoch)
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        local_path = self.checkpoint_dir / filename
+
+        from mettagrid.policy.mpt_artifact import save_mpt
+
+        save_mpt(str(local_path), architecture=architecture, state_dict=state_dict)
+        uri = f"file://{local_path.resolve()}"
+
+        if self._remote_prefix:
+            remote_uri = f"{self._remote_prefix}/{filename}"
+            write_file(remote_uri, str(local_path))
+            uri = remote_uri
+
+        logger.debug("Policy checkpoint saved to %s", uri)
+        return uri
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"

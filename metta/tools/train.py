@@ -186,17 +186,17 @@ class TrainTool(Tool):
         distributed_helper: DistributedHelper,
         env: VectorizedTrainingEnvironment,
     ) -> tuple[Checkpointer, Policy]:
-        policy_checkpointer = Checkpointer(
+        checkpointer = Checkpointer(
             config=self.checkpointer,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
             policy_architecture=self.policy_architecture,
         )
-        policy = policy_checkpointer.load_or_create_policy(
+        policy = checkpointer.load_or_create_policy(
             env.policy_env_info,
             policy_uri=self.initial_policy_uri,
         )
-        return policy_checkpointer, policy
+        return checkpointer, policy
 
     def _initialize_trainer(
         self,
