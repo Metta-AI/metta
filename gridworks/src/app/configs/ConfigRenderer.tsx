@@ -2,9 +2,10 @@
 import { type FC, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { StyledLink } from "@/components/StyledLink";
+import { FilterInput } from "@/components/FilterInput";
+import { NoResultsMessage } from "@/components/NoResultsMessage";
 import { viewConfigRoute } from "@/lib/routes";
 import { GroupedConfigMakers } from "@/lib/api";
-import clsx from "clsx";
 
 export const ConfigsPageRenderer: FC<{
   initialCfgs: GroupedConfigMakers;
@@ -41,20 +42,14 @@ export const ConfigsPageRenderer: FC<{
   return (
     <>
       <div className="mb-4">
-        <input
-          type="text"
+        <FilterInput
           value={filter}
+          onChange={setFilter}
           placeholder="Filter configs..."
-          className="w-full rounded border border-gray-300 p-2 md:w-1/2 lg:w-1/3"
-          onChange={(e) => setFilter(e.target.value)}
         />
       </div>
 
-      <div
-        className={clsx(Object.keys(filtered).length !== 0 && "hidden", "mb-4")}
-      >
-        <p className="text-gray-500">No Results Found</p>
-      </div>
+      <NoResultsMessage show={Object.keys(filtered).length === 0} />
 
       {Object.keys(filtered).map((kind) => {
         return (
