@@ -251,7 +251,7 @@ GoTogether = Mission(
             max_uses_carbon=30,
             max_uses_oxygen=25,
         ),
-        NumCogsVariant(num_cogs=2),
+        NumCogsVariant(num_cogs=4),
     ],
 )
 
