@@ -99,18 +99,16 @@ def train_with_perf_config(
     )
 
     # Call original train function with pre-configured curriculum
+    # Note: variants is needed for evaluation suite configuration
     return train(
         num_cogs=num_cogs,
         curriculum=curriculum,
-        mission=mission,
-        base_missions=base_missions,
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
         max_evals=max_evals,
         bc_policy_uri=bc_policy_uri,
         bc_teacher_lead_prob=bc_teacher_lead_prob,
-        use_lp=use_lp,
     )
 
 

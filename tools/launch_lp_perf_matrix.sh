@@ -48,7 +48,7 @@ launch_test() {
 
   # Build the command arguments
   local args=(
-    "cogs_v_clips_perf_test.train_with_perf_config"
+    "recipes.experiment.cogs_v_clips_perf_test.train_with_perf_config"
     "--gpus" "$GPUS"
     "--max-runtime-hours" "$MAX_RUNTIME"
     "--git-ref" "$GIT_REF"
