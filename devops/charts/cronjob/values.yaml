@@ -28,7 +28,7 @@ serviceAccount:
 datadog:
   env: "production"
   service: ""  # Should be set by specific cronjob values
-  site: "datadoghq.com"
+  site: "us3.datadoghq.com"
 
 # Resource limits
 resources:
