@@ -93,8 +93,8 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
     # Ensure YAML/JSON dumps always include a 'type' with a nice FQCN
     @model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
-        # Use handler to serialize fields (respects serialize_as_any for nested)
-        data = handler(self)
+        data = handler(self)  # dict of the model's fields
+
         return {"type": self._type_str(), **data}
 
     @model_validator(mode="wrap")
