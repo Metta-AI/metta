@@ -24,24 +24,6 @@ SEED = 42
 
 # Add/modify your evals here over time
 EVALS: List[Tuple[str, str, int]] = [
-    # Regular evals
-    (
-        "energy_starved",
-        "buggy",
-        NUM_COGS,
-    ),  # E is very hard, max E is 256, but agents think its 100.
-    ("oxygen_bottleneck", "", NUM_COGS),
-    ("extractor_hub_30", "", NUM_COGS),
-    ("extractor_hub_50", "", NUM_COGS),
-    ("extractor_hub_70", "", NUM_COGS),
-    ("extractor_hub_80", "", NUM_COGS),
-    ("extractor_hub_100", "", NUM_COGS),
-    ("collect_resources_classic", "", NUM_COGS),
-    ("collect_resources_spread", "", NUM_COGS),
-    ("collect_far", "", NUM_COGS),
-    ("divide_and_conquer", "", NUM_COGS),
-    ("go_together", "", NUM_COGS),
-    ("single_use_swarm", "flakey", NUM_COGS),
     # Diagnostic evals
     ("diagnostic_chest_navigation1", "", 1),
     ("diagnostic_chest_navigation2", "", 1),
@@ -106,7 +88,6 @@ def _load_all_missions() -> Dict[str, Mission]:
 
     missions: List[Mission] = []
     for mod_name in (
-        "cogames.cogs_vs_clips.evals.eval_missions",
         "cogames.cogs_vs_clips.evals.integrated_evals",
         "cogames.cogs_vs_clips.evals.spanning_evals",
         "cogames.cogs_vs_clips.missions",

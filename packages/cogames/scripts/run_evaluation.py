@@ -779,7 +779,7 @@ def main():
     parser.add_argument("--no-plots", action="store_true", help="Skip generating plots")
     parser.add_argument(
         "--mission-set",
-        choices=["eval_missions", "integrated_evals", "spanning_evals", "diagnostic_evals", "all"],
+        choices=["integrated_evals", "spanning_evals", "diagnostic_evals", "all"],
         default="all",
     )
     parser.add_argument("--repeats", type=int, default=3, help="Runs per case")
@@ -789,7 +789,6 @@ def main():
 
     if args.mission_set == "all":
         missions_list = []
-        missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions"))
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals"))
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.spanning_evals"))
         missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
@@ -799,8 +798,6 @@ def main():
                 missions_list.append(mission)
     elif args.mission_set == "diagnostic_evals":
         missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
-    elif args.mission_set == "eval_missions":
-        missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions")
     elif args.mission_set == "integrated_evals":
         missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals")
     elif args.mission_set == "spanning_evals":

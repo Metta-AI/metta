@@ -8,7 +8,7 @@ This script submits:
 2. Full curriculum experiment (all_variants_per_mission=False):
    - All maps, standard variant (no variants)
 
-Note: You can also use mission set names like "eval_missions", "diagnostic_missions",
+Note: You can also use mission set names like "integrated_evals", "spanning_evals", "diagnostic_missions",
 "training_facility_missions", or "all" instead of individual mission names.
 """
 

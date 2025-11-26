@@ -18,14 +18,6 @@ from pathlib import Path
 from typing import Dict, List
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import get_difficulty
-from cogames.cogs_vs_clips.evals.eval_missions import (
-    CollectResourcesClassic,
-    CollectResourcesSpread,
-    EnergyStarved,
-    ExtractorHub30,
-    GoTogether,
-    OxygenBottleneck,
-)
 from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
 from cogames.policy.scripted_agent.unclipping_agent import (
     UnclippingHyperparameters,
@@ -54,14 +46,15 @@ class EvalResult:
 
 
 # Missions to test (6 representative missions)
-TEST_MISSIONS = {
-    "energy_starved": EnergyStarved,
-    "oxygen_bottleneck": OxygenBottleneck,
-    "extractor_hub_30": ExtractorHub30,
-    "collect_resources_classic": CollectResourcesClassic,
-    "go_together": GoTogether,
-    "collect_resources_spread": CollectResourcesSpread,
-}
+# These were deprecated. You'll need to add new ones here.
+# TEST_MISSIONS = {
+#     "energy_starved": EnergyStarved,
+#     "oxygen_bottleneck": OxygenBottleneck,
+#     "extractor_hub_30": ExtractorHub30,
+#     "collect_resources_classic": CollectResourcesClassic,
+#     "go_together": GoTogether,
+#     "collect_resources_spread": CollectResourcesSpread,
+# }
 
 # Difficulties to test (including clipping variants)
 TEST_DIFFICULTIES = [
@@ -336,6 +329,10 @@ def print_summary(results: List[EvalResult]):
 
 
 def main():
+    raise RuntimeError(
+        "This script relies on missions to evaluate the hyperparemeters. We deprecated all of the "
+        "evals we were using here. If you want to run this script, look for good things to put into TEST_MISSIONS."
+    )
     parser = argparse.ArgumentParser(description="Hyperparameter search for baseline scripted agent")
     parser.add_argument("--steps", type=int, default=1000, help="Max steps per episode (default: 1000)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
@@ -362,7 +359,7 @@ def main():
         presets_to_test = all_presets
 
     logger.info(f"Testing {len(presets_to_test)} hyperparameter presets")
-    logger.info(f"Missions: {list(TEST_MISSIONS.keys())}")
+    # logger.info(f"Missions: {list(TEST_MISSIONS.keys())}")
     logger.info(f"Difficulties: {TEST_DIFFICULTIES}")
     logger.info(f"Agent counts: {TEST_COGS}")
 
@@ -373,7 +370,7 @@ def main():
         results = run_evaluation(
             preset_name=preset_name,
             hyperparams=hyperparams,
-            experiments=TEST_MISSIONS,
+            experiments={},  # TEST_MISSIONS,
             difficulties=TEST_DIFFICULTIES,
             cogs_list=TEST_COGS,
             max_steps=args.steps,
