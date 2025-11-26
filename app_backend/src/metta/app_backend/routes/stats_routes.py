@@ -410,14 +410,16 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/policies")
     @timed_route("get_policies")
     async def get_policies(
-        name: Optional[str] = None,
+        name_exact: Optional[str] = None,
+        name_fuzzy: Optional[str] = None,
         version: Optional[int] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> PolicyVersionsResponse:
         try:
             entries, total_count = await stats_repo.get_policy_versions(
-                name=name,
+                name_exact=name_exact,
+                name_fuzzy=name_fuzzy,
                 version=version,
                 limit=limit,
                 offset=offset,

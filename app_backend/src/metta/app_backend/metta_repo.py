@@ -725,7 +725,8 @@ class MettaRepo:
 
     async def get_policy_versions(
         self,
-        name: str | None = None,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
         version: int | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -734,9 +735,13 @@ class MettaRepo:
             where_conditions: list[str] = []
             params: list[Any] = []
 
-            if name:
+            if name_exact:
+                where_conditions.append("p.name = %s")
+                params.append(name_exact)
+
+            if name_fuzzy:
                 where_conditions.append("p.name ILIKE %s")
-                params.append(f"%{name}%")
+                params.append(f"%{name_fuzzy}%")
 
             if version is not None:
                 where_conditions.append("pv.version = %s")
