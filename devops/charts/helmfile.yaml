@@ -191,11 +191,51 @@ releases:
   - name: dashboard-cronjob
     <<: *cronjob_template
     values:
-      - schedule: "0 */6 * * *"  # Every 6 hours
+      - schedule: "*/10 * * * *"  # Every 10 minutes
       - image:
           tag: latest-dashboard  # Workflow overrides with sha-abc123-dashboard
       - datadog:
           service: dashboard-collector
+      - args:
+          - collect
+          - ci
+          - --push
+      - extraEnv:
+          # Workflow IDs for CI checks (per Nishad's plan)
+          # 163901189 = "Test and Benchmark"
+          # 159707309 = "Python"
+          # 159704559 = "C++"
+          # 159541672 = Benchmark workflow
+          - name: CI_TESTS_BLOCKING_MERGE_WORKFLOWS
+            value: "163901189,159707309,159704559"
+          - name: CI_BENCHMARKS_WORKFLOWS
+            value: "159541672"
+
+  - name: training-health-cronjob
+    <<: *cronjob_template
+    values:
+      - schedule: "0 * * * *"  # Hourly
+      - image:
+          tag: latest-dashboard
+      - datadog:
+          service: training-health-collector
+      - args:
+          - collect
+          - training
+          - --push
+
+  - name: eval-health-cronjob
+    <<: *cronjob_template
+    values:
+      - schedule: "0 * * * *"  # Hourly for evals
+      - image:
+          tag: latest-dashboard
+      - datadog:
+          service: eval-health-collector
+      - args:
+          - collect
+          - eval
+          - --push
 
   # Dev cronjob deployments (see devops/charts/CRONJOB_DEV_WORKFLOW.md for instructions)
   # Uncomment the release you want to deploy for dev testing:
