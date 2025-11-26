@@ -5,8 +5,9 @@ from pathlib import Path
 import torch
 from torch import nn
 
+from metta.agent.components.actor import ActionProbsConfig
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policy import Policy
+from metta.agent.policy import Policy, PolicyArchitecture
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
@@ -20,13 +21,9 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.url_schemes import checkpoint_filename
 
 
-class DummyPolicyArchitecture:
-    def model_dump(self, *, mode: str) -> dict:
-        return {}
-
-    @classmethod
-    def model_validate(cls, data: dict):
-        return cls()
+class DummyPolicyArchitecture(PolicyArchitecture):
+    class_path: str = "tests.helpers.fast_train_tool.DummyPolicy"
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
     def make_policy(self, policy_env_info):
         return DummyPolicy(0)
