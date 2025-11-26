@@ -68,8 +68,6 @@ def load_mpt(uri: str) -> MptArtifact:
 
 
 def _load_local_mpt_file(path: Path) -> MptArtifact:
-    from metta.agent.policy import PolicyArchitecture
-
     if not path.exists():
         raise FileNotFoundError(f"MPT file not found: {path}")
 
@@ -83,7 +81,7 @@ def _load_local_mpt_file(path: Path) -> MptArtifact:
             architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
         else:
             raise ValueError(f"Invalid .mpt file: {path} (missing architecture)")
-        architecture = PolicyArchitecture.from_spec(architecture_blob)
+        architecture = _architecture_from_spec(architecture_blob)
 
         weights_blob = archive.read("weights.safetensors")
         state_dict = load_safetensors(weights_blob)
@@ -91,6 +89,27 @@ def _load_local_mpt_file(path: Path) -> MptArtifact:
             raise TypeError("Loaded safetensors state_dict is not a mutable mapping")
 
     return MptArtifact(architecture=architecture, state_dict=state_dict)
+
+
+def _architecture_from_spec(spec: str) -> PolicyArchitectureProtocol:
+    """Deserialize an architecture from a string specification."""
+    from mettagrid.util.module import load_symbol
+
+    spec = spec.strip()
+    if not spec:
+        raise ValueError("Policy architecture specification cannot be empty")
+
+    # Extract class path (everything before '(' if present)
+    class_path = spec.split("(")[0].strip()
+
+    config_class = load_symbol(class_path)
+    if not isinstance(config_class, type):
+        raise TypeError(f"Loaded symbol {class_path} is not a class")
+
+    if not hasattr(config_class, "from_spec"):
+        raise TypeError(f"Class {class_path} does not have a from_spec method")
+
+    return config_class.from_spec(spec)
 
 
 def save_mpt(
