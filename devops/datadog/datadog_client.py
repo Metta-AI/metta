@@ -30,7 +30,7 @@ class DatadogMetricsClient:
 
         # Log metric names for debugging
         metric_names = [s.metric for s in series]
-        logger.info("Submitting metrics to Datadog (site=%s): %s", 
+        logger.info("Submitting metrics to Datadog (site=%s): %s",
                    self._configuration.server_variables.get("site", "unknown"),
                    ", ".join(metric_names))
 
@@ -53,7 +53,17 @@ class DatadogMetricsClient:
         app_key = self._get_app_key()
 
         if not api_key:
-            raise RuntimeError("Missing Datadog API key. Set DD_API_KEY or DATADOG_API_KEY.")
+            error_msg = (
+                "Missing Datadog API key. "
+                "Set DD_API_KEY environment variable or ensure 'datadog/api-key' exists in AWS Secrets Manager. "
+                "The service account needs permissions to read from Secrets Manager."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        
+        # Log API key status (masked for security)
+        api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+        logger.info("Using Datadog API key: %s", api_key_preview)
 
         configuration.api_key["apiKeyAuth"] = api_key
         if app_key:
@@ -69,11 +79,41 @@ class DatadogMetricsClient:
         return None
 
     def _get_api_key(self) -> str | None:
-        return self._get_env_key(["DD_API_KEY", "DATADOG_API_KEY"]) or get_secretsmanager_secret(
-            "datadog/api-key", require_exists=False
-        )
+        # Try environment variables first
+        env_key = self._get_env_key(["DD_API_KEY", "DATADOG_API_KEY"])
+        if env_key:
+            logger.debug("Using API key from environment variable")
+            return env_key
+        
+        # Fall back to AWS Secrets Manager
+        logger.debug("Fetching API key from AWS Secrets Manager: datadog/api-key")
+        try:
+            secret_key = get_secretsmanager_secret("datadog/api-key", require_exists=False)
+            if secret_key:
+                logger.debug("Successfully loaded API key from AWS Secrets Manager")
+            else:
+                logger.warning("API key not found in AWS Secrets Manager (datadog/api-key)")
+            return secret_key
+        except Exception as e:
+            logger.error("Failed to fetch API key from AWS Secrets Manager: %s", e, exc_info=True)
+            return None
 
     def _get_app_key(self) -> str | None:
-        return self._get_env_key(["DD_APP_KEY", "DATADOG_APP_KEY"]) or get_secretsmanager_secret(
-            "datadog/app-key", require_exists=False
-        )
+        # Try environment variables first
+        env_key = self._get_env_key(["DD_APP_KEY", "DATADOG_APP_KEY"])
+        if env_key:
+            logger.debug("Using app key from environment variable")
+            return env_key
+        
+        # Fall back to AWS Secrets Manager
+        logger.debug("Fetching app key from AWS Secrets Manager: datadog/app-key")
+        try:
+            secret_key = get_secretsmanager_secret("datadog/app-key", require_exists=False)
+            if secret_key:
+                logger.debug("Successfully loaded app key from AWS Secrets Manager")
+            else:
+                logger.debug("App key not found in AWS Secrets Manager (optional)")
+            return secret_key
+        except Exception as e:
+            logger.warning("Failed to fetch app key from AWS Secrets Manager: %s", e)
+            return None
