@@ -58,10 +58,6 @@ TEST_MISSIONS = {
     "energy_starved": EnergyStarved,
     "oxygen_bottleneck": OxygenBottleneck,
     "go_together": GoTogether,
-    # Try to find these by name if they exist
-    "extractor_hub_30": lambda: find_mission("evals.extractor_hub_30"),
-    "collect_resources_classic": lambda: find_mission("evals.collect_resources_classic"),
-    "collect_resources_spread": lambda: find_mission("evals.collect_resources_spread"),
 }
 
 # Difficulties to test (including clipping variants)

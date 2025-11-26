@@ -33,7 +33,6 @@ def load_mission_set(mission_set: str) -> list[Mission]:
 
     Args:
         mission_set: Name of mission set to load. Options:
-            - "eval_missions": Core evaluation missions
             - "integrated_evals": Integrated evaluation missions
             - "spanning_evals": Spanning evaluation missions
             - "diagnostic_evals": Diagnostic evaluation missions
