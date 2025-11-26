@@ -709,8 +709,8 @@ proc stepBatch*(
   let obsStride = numTokens * sizeToken
 
   for i in 0 ..< numAgentIds:
-    if i == 0:
-      echo "stepping over agent ids: " & $numAgentIds
+    # if i == 0:
+    #   echo "stepping over agent ids: " & $numAgentIds
     let idx = int(ids[i])
     let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
     let actPtr = cast[ptr int32](actionArray[idx].addr)
