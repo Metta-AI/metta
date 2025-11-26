@@ -66,11 +66,13 @@ proc updateObjectInfo*() =
   if selection.isAgent:
     addParam("Agent ID", $selection.agentId)
     addParam("Reward", $selection.totalReward.at)
-    let vibeId = selection.vibeId.at
-    let vibeName = getVibeName(vibeId)
 
-    vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
-    vibeArea.show()
+    if replay.config.game.vibeNames.len > 0:
+      let vibeId = selection.vibeId.at
+      let vibeName = getVibeName(vibeId)
+
+      vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
+      vibeArea.show()
 
   if selection.cooldownRemaining.at > 0:
     addParam("Cooldown Remaining", $selection.cooldownRemaining.at)
