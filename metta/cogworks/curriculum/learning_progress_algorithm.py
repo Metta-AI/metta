@@ -502,8 +502,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             scorer=self.scorer if hasattr(self.scorer, "config") else None,
         )
 
-        # PERFORMANCE FIX: Batch invalidations to reduce get_all_tracked_tasks() calls
-        # Only invalidate cache every N updates instead of every single update
+        # CRITICAL: Mark scorer distribution as stale so LP scores will be recalculated
+        # This is lightweight (just sets a flag) and must happen on EVERY update
+        self.scorer.update_with_score(task_id, score)
+
+        # PERFORMANCE FIX: Batch expensive operations (get_all_tracked_tasks() calls)
+        # Track invalidations for performance monitoring only
         if not hasattr(self, "_updates_since_invalidation"):
             self._updates_since_invalidation = 0
             self._total_updates = 0
@@ -512,22 +516,17 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._updates_since_invalidation += 1
         self._total_updates += 1
 
-        # Invalidate every N updates (configurable via perf_invalidation_batch_size)
+        # Log performance metrics periodically (invalidation_batch_size is now for monitoring only)
         if self._updates_since_invalidation >= self.hypers.perf_invalidation_batch_size:
-            self.scorer.invalidate_cache()
             self._updates_since_invalidation = 0
             self._invalidation_count += 1
 
-            # Log performance metrics if enabled
             if self.hypers.perf_log_metrics and self._invalidation_count % 10 == 0:
                 logger.warning(
-                    f"[LP_PERF] Invalidations: {self._invalidation_count}, "
-                    f"Total updates: {self._total_updates}, "
-                    f"Batch size: {self.hypers.perf_invalidation_batch_size}, "
-                    f"Reduction: {self._total_updates / max(1, self._invalidation_count):.1f}x"
+                    f"[LP_PERF] Updates: {self._total_updates}, "
+                    f"Monitoring batches: {self._invalidation_count}, "
+                    f"Batch size: {self.hypers.perf_invalidation_batch_size}"
                 )
-
-        # OLD (baseline): self.scorer.invalidate_cache()  # Was called EVERY episode
 
         # Invalidate stats cache when task performance changes
         self.invalidate_cache()
