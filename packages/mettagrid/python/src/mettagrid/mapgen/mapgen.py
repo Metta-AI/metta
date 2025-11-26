@@ -9,7 +9,7 @@ from mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig, MapGrid
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.area import Area, AreaWhere
-from mettagrid.mapgen.scene import ChildrenAction, SceneConfig, load_symbol
+from mettagrid.mapgen.scene import AnySceneConfig, ChildrenAction, SceneConfig, load_symbol
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
 from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
@@ -38,7 +38,9 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
     # Can be either a scene config or another MapBuilder config.
     # If it's a scene config, you need to set `width` and `height` explicitly.
     # If `instances` or `num_agents` are set, this configuration will be used multiple times.
-    instance: SceneConfig | AnyMapBuilderConfig | None = Field(default=None)
+    # NOTE: Use SerializeAsAny wrapper so subclass-specific fields (e.g., spawn_count on MachinaArenaConfig)
+    # are preserved when dumping the config for simulation creation.
+    instance: AnySceneConfig | AnyMapBuilderConfig | None = Field(default=None)
 
     # Legacy fields, to be removed soon.
     instance_map: AnyMapBuilderConfig | None = Field(default=None, deprecated="Use `instance` instead")
@@ -155,6 +157,9 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
 
         return self
 
+
+# Rebuild to resolve forward refs (instance uses AnySceneConfig)
+MapGenConfig.model_rebuild()
 
 class MapGen(MapBuilder[MapGenConfig]):
     def __init__(self, config: MapGenConfig):
