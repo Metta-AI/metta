@@ -8,10 +8,9 @@ from __future__ import annotations
 
 from typing import Any, Union
 
+from cogames.policy.scripted_agent.types import ObjectState, ParsedObservation, SimpleAgentState
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
-
-from .types import ObjectState, ParsedObservation, SimpleAgentState
 
 
 def manhattan_distance(pos1: tuple[int, int], pos2: tuple[int, int]) -> int:

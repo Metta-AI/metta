@@ -5,16 +5,15 @@ import time
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
-from metta.common.util.retry import retry_function
-
-from .adaptive_config import AdaptiveConfig
-from .models import JobDefinition, JobStatus, JobTypes, RunInfo
-from .protocols import (
+from metta.adaptive.adaptive_config import AdaptiveConfig
+from metta.adaptive.models import JobDefinition, JobStatus, JobTypes, RunInfo
+from metta.adaptive.protocols import (
     Dispatcher,
     ExperimentScheduler,
     Store,
 )
-from .utils import make_monitor_table
+from metta.adaptive.utils import make_monitor_table
+from metta.common.util.retry import retry_function
 
 logger = logging.getLogger(__name__)
 
