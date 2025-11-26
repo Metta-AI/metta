@@ -1,5 +1,3 @@
-import math
-
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AssemblerConfig,
@@ -373,13 +371,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 f"Either add these resources to resource_names or disable the action."
             )
 
-        consumed_resources = {resource_name_to_id[k]: float(v) for k, v in action_config.consumed_resources.items()}
+        consumed_resources = {resource_name_to_id[k]: int(v) for k, v in action_config.consumed_resources.items()}
 
         required_source = action_config.required_resources
         if not required_source:
-            required_source = {k: math.ceil(v) for k, v in action_config.consumed_resources.items()}
+            required_source = action_config.consumed_resources
 
-        required_resources = {resource_name_to_id[k]: int(math.ceil(v)) for k, v in required_source.items()}
+        required_resources = {resource_name_to_id[k]: int(v) for k, v in required_source.items()}
 
         return {
             "consumed_resources": consumed_resources,
