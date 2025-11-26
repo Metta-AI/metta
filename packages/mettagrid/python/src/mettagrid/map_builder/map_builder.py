@@ -8,7 +8,9 @@ from typing import Any, ClassVar, Generic, Self, TypeVar, cast, get_args, get_or
 
 import numpy as np
 import yaml
+from enum import Enum
 from pydantic import Field, ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
+from pydantic_core import to_jsonable_python
 
 from mettagrid.base_config import Config
 from mettagrid.mapgen.types import MapGrid
@@ -91,11 +93,13 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         return f"{builder_cls.__module__}.{builder_cls.__qualname__}.Config"
 
     # Ensure YAML/JSON dumps always include a 'type' with a nice FQCN
-    @model_serializer(mode="wrap")
-    def _serialize_with_type(self, handler):
-        data = handler(self)  # dict of the model's fields
-
+    def model_dump(self, **kwargs) -> dict[str, Any]:
+        # Include SerializeAsAny contents and inject builder type tag
+        data = super().model_dump(serialize_as_any=True, **kwargs)
         return {"type": self._type_str(), **data}
+
+    def model_dump_json(self, **kwargs) -> str:
+        return super().model_dump_json(serialize_as_any=True, **kwargs)
 
     @model_validator(mode="wrap")
     @classmethod

@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import inspect
 import time
-from enum import StrEnum, auto
+from enum import StrEnum, auto, Enum
 from typing import Any, ClassVar, Final, Generic, Self, TypeVar, get_args, get_origin
 
 import numpy as np
-from pydantic import ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
+from pydantic import (
+    ModelWrapValidatorHandler,
+    SerializeAsAny,
+    field_serializer,
+    model_serializer,
+    model_validator,
+)
+from pydantic_core import to_jsonable_python
 
 from mettagrid.base_config import Config
 from mettagrid.map_builder import MapGrid
@@ -111,8 +118,14 @@ class SceneConfig(Config):
     # Transform relative to the area that this scene config receives in `create`.
     transform: GridTransform = GridTransform.IDENTITY
 
+    @field_serializer("transform")
+    def _ser_transform(self, value: GridTransform):
+        # Emit as the enum value (str) to avoid UnexpectedValue warnings during dumps
+        return value.value
+
     def model_dump(self, **kwargs) -> dict[str, Any]:
-        return super().model_dump(serialize_as_any=True, **kwargs)
+        data = super().model_dump(serialize_as_any=True, **kwargs)
+        return {"type": self._type_str(), **data}
 
     def model_dump_json(self, **kwargs) -> str:
         return super().model_dump_json(serialize_as_any=True, **kwargs)
@@ -129,10 +142,6 @@ class SceneConfig(Config):
             raise ValueError(f"{cls.__class__.__name__} is not bound to a scene class")
         return f"{cls._scene_cls.__module__}.{cls._scene_cls.__name__}.Config"
 
-    @model_serializer(mode="wrap")
-    def _serialize_with_type(self, handler):
-        data = handler(self)
-        return {"type": self._type_str(), **data}
 
     @model_validator(mode="wrap")
     @classmethod
