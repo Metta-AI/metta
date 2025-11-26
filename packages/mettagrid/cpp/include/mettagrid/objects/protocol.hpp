@@ -14,13 +14,15 @@ public:
   unsigned short min_agents;
   std::vector<ObservationType> vibes;
   std::unordered_map<InventoryItem, InventoryQuantity> input_resources;
-  std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
+  // Use InventoryDelta (int16_t) instead of InventoryQuantity (uint8_t) to support negative values
+  // Negative values represent consumption (e.g., extractors that consume resources)
+  std::unordered_map<InventoryItem, InventoryDelta> output_resources;
   unsigned short cooldown;
 
   Protocol(unsigned short min_agents = 0,
            const std::vector<ObservationType>& vibes = {},
            const std::unordered_map<InventoryItem, InventoryQuantity>& inputs = {},
-           const std::unordered_map<InventoryItem, InventoryQuantity>& outputs = {},
+           const std::unordered_map<InventoryItem, InventoryDelta>& outputs = {},
            unsigned short cooldown = 0)
       : min_agents(min_agents), vibes(vibes), input_resources(inputs), output_resources(outputs), cooldown(cooldown) {}
 };

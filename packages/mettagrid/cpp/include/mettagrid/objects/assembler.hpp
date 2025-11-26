@@ -381,8 +381,9 @@ public:
     }
 
     // Scale output resources (multiply by progress and round down)
+    // Note: output_resources uses InventoryDelta (int16_t) to support negative values
     for (const auto& [resource, amount] : original_protocol.output_resources) {
-      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::floor(amount * progress));
+      InventoryDelta scaled_amount = static_cast<InventoryDelta>(std::floor(amount * progress));
       scaled_protocol.output_resources[resource] = scaled_amount;
     }
 
