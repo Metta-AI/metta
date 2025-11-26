@@ -43,7 +43,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
             "trainer.total_timesteps": "100",
             "checkpointer.epoch_interval": "1",
         },
-        timeout_s=180,  # CI runners are slower; initialization alone can take 30+ seconds
+        timeout_s=300,  # CI runners are slower; initialization + training can take 3+ minutes
         group=group,
     )
 
