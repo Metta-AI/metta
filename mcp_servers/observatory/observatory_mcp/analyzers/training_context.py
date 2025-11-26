@@ -119,7 +119,6 @@ def _calculate_behavioral_adaptation_rate(metrics_data: list[dict[str, Any]]) ->
     if len(metrics_data) < 2:
         return 0.0
 
-    # Collect all unique metric keys from the data
     metric_keys = set()
     for point in metrics_data:
         metric_keys.update(key for key in point.keys() if isinstance(point.get(key), (int, float)))
@@ -133,10 +132,8 @@ def _calculate_behavioral_adaptation_rate(metrics_data: list[dict[str, Any]]) ->
         if len(values) < 2:
             continue
 
-        # Calculate absolute changes between consecutive points
         changes = [abs(values[i] - values[i - 1]) for i in range(1, len(values))]
         if changes:
-            # Average absolute change per step
             avg_change = sum(changes) / len(changes)
             adaptation_rates.append(avg_change)
 

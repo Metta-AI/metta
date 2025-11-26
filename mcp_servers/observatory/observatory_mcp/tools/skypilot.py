@@ -260,7 +260,6 @@ async def link_skypilot_job_to_wandb_runs(
 
     matching_runs = []
     if job_name:
-        # Use wandb_store to search for runs matching the job name
         runs = wandb_store.list_runs(
             entity=entity,
             project=project,
@@ -314,7 +313,6 @@ async def link_skypilot_job_to_s3_checkpoints(
     checkpoints = []
     if run_name:
         s3_prefix = f"checkpoints/{run_name}/"
-        # Use s3_store to list checkpoints
         checkpoints = s3_store.list_checkpoints(prefix=s3_prefix, max_keys=1000)
 
     data = {

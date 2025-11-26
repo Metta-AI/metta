@@ -20,13 +20,10 @@ def _safe_dict_convert(obj: Any) -> dict:
     """Safely convert WandB config/summary objects to dicts."""
     if obj is None:
         return {}
-    # If it's a string, return empty dict (config/summary shouldn't be strings)
     if isinstance(obj, (str, bytes)):
         return {}
-    # If already a dict, return as-is
     if isinstance(obj, dict):
         return obj
-    # Try using .items() method if available (common for dict-like objects)
     try:
         if hasattr(obj, "items"):
             result = dict(obj.items())
@@ -34,16 +31,13 @@ def _safe_dict_convert(obj: Any) -> dict:
                 return result
     except (TypeError, ValueError, AttributeError):
         pass
-    # Try JSON serialization (WandB objects typically support this)
     try:
         serialized = json.dumps(obj, default=str)
         result = json.loads(serialized)
-        # Only return if it's actually a dict
         if isinstance(result, dict):
             return result
     except (TypeError, ValueError, json.JSONDecodeError):
         pass
-    # Last resort: return empty dict
     return {}
 
 
@@ -64,7 +58,6 @@ async def list_wandb_runs(
     if tags:
         filters["tags"] = {"$in": tags}
 
-    # Use store's list_runs method
     run_list = wandb_store.list_runs(
         entity=entity,
         project=project,
@@ -90,7 +83,7 @@ async def get_wandb_run(
     run_id: Optional[str] = None,
     run_name: Optional[str] = None,
 ) -> str:
-    """Get detailed information about a specific WandB run."""
+    """Get detailed information about a WandB run."""
     if not run_id and not run_name:
             return format_error_response(
                 ValueError("Either run_id or run_name must be provided"),
@@ -98,7 +91,6 @@ async def get_wandb_run(
                 "Missing required parameter: run_id or run_name",
             )
 
-    # Use run_id if provided, otherwise use run_name
     target_id = run_id or run_name
     logger.info(f"Getting WandB run: {entity}/{project}/{target_id}")
 
@@ -133,7 +125,6 @@ async def get_wandb_run_metrics(
         samples=samples,
     )
 
-    # If no data found, try to discover available metrics
     available_metrics = None
     if len(metrics_data.get("data", [])) == 0:
         discover_result = wandb_store.discover_run_metrics(
@@ -185,7 +176,6 @@ async def get_wandb_run_artifacts(
 
     artifact_list = []
     for artifact in artifacts:
-        # Handle created_at - can be datetime or string
         created_at = None
         if artifact.created_at:
             if isinstance(artifact.created_at, str):
@@ -244,9 +234,8 @@ async def analyze_wandb_training_progression(
     center_step: Optional[int] = None,
 ) -> str:
     """Analyze training progression for a WandB run."""
-    logger.info(f"Analyzing WandB training progression: {entity}/{project}/{run_id}")
+    logger.info(f"Analyzing WandB training progression: {entity}/{project}/{run_id}"    )
 
-    # Get metrics data using WandbStore
     metrics_result = wandb_store.get_run_metrics(
         entity=entity,
         project=project,
@@ -255,7 +244,6 @@ async def analyze_wandb_training_progression(
     )
     metrics_data = metrics_result.get("data", [])
 
-    # Get run name
     run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
     run_name = run_data.get("name", run_id) if run_data else run_id
 
@@ -311,9 +299,8 @@ async def analyze_wandb_learning_curves(
     smoothing_window: int = 10,
 ) -> str:
     """Analyze learning curves for a WandB run."""
-    logger.info(f"Analyzing WandB learning curves: {entity}/{project}/{run_id}")
+    logger.info(f"Analyzing WandB learning curves: {entity}/{project}/{run_id}"    )
 
-    # Get metrics data using WandbStore
     metrics_result = wandb_store.get_run_metrics(
         entity=entity,
         project=project,
@@ -322,7 +309,6 @@ async def analyze_wandb_learning_curves(
     )
     metrics_data = metrics_result.get("data", [])
 
-    # Get run name
     run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
     run_name = run_data.get("name", run_id) if run_data else run_id
 
@@ -347,9 +333,8 @@ async def identify_wandb_critical_moments(
     threshold: float = 0.1,
 ) -> str:
     """Identify critical moments in a WandB run."""
-    logger.info(f"Identifying WandB critical moments: {entity}/{project}/{run_id}")
+    logger.info(f"Identifying WandB critical moments: {entity}/{project}/{run_id}"    )
 
-    # Get metrics data using WandbStore
     metrics_result = wandb_store.get_run_metrics(
         entity=entity,
         project=project,
@@ -358,7 +343,6 @@ async def identify_wandb_critical_moments(
     )
     metrics_data = metrics_result.get("data", [])
 
-    # Get run name
     run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
     run_name = run_data.get("name", run_id) if run_data else run_id
 
@@ -390,9 +374,8 @@ async def correlate_wandb_metrics(
 
     all_metrics = set()
     for pair in metric_pairs:
-        all_metrics.update(pair)
+        all_metrics.update(pair    )
 
-    # Get metrics data using WandbStore
     metrics_result = wandb_store.get_run_metrics(
         entity=entity,
         project=project,
@@ -401,7 +384,6 @@ async def correlate_wandb_metrics(
     )
     metrics_data = metrics_result.get("data", [])
 
-    # Get run name
     run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
     run_name = run_data.get("name", run_id) if run_data else run_id
 
@@ -433,7 +415,6 @@ async def analyze_wandb_behavioral_patterns(
     else:
         metric_keys = default_metrics
 
-    # Get metrics data using WandbStore
     metrics_result = wandb_store.get_run_metrics(
         entity=entity,
         project=project,
@@ -442,7 +423,6 @@ async def analyze_wandb_behavioral_patterns(
     )
     metrics_data = metrics_result.get("data", [])
 
-    # Get run name
     run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
     run_name = run_data.get("name", run_id) if run_data else run_id
 
@@ -484,7 +464,6 @@ async def generate_wandb_training_insights(
     """Generate AI-powered training insights for a WandB run."""
     logger.info(f"Generating WandB training insights: {entity}/{project}/{run_id}")
 
-    # Get run data using WandbStore
     run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
     if not run_data:
         return format_error_response(
@@ -538,9 +517,8 @@ async def predict_wandb_training_outcome(
     projection_steps: int = 1000,
 ) -> str:
     """Predict training outcome for a WandB run."""
-    logger.info(f"Predicting WandB training outcome: {entity}/{project}/{run_id}")
+    logger.info(f"Predicting WandB training outcome: {entity}/{project}/{run_id}"    )
 
-    # Get metrics data using WandbStore
     metrics_result = wandb_store.get_run_metrics(
         entity=entity,
         project=project,
@@ -556,7 +534,6 @@ async def predict_wandb_training_outcome(
     if len(values) < 2:
         raise ValueError("Insufficient data for prediction")
 
-    # Get run name
     run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
     run_name = run_data.get("name", run_id) if run_data else run_id
 

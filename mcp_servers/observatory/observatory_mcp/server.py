@@ -97,29 +97,16 @@ logger = logging.getLogger(__name__)
 class ObservatoryMCPConfig:
     """Configuration for the Observatory MCP Server."""
 
-    # Server configuration
     server_name: str = "observatory-mcp"
     version: str = "0.1.0"
-
-    # Backend API configuration
     backend_url: str = field(default_factory=lambda: os.getenv("METTA_MCP_BACKEND_URL", "http://localhost:8000"))
-
-    # Authentication configuration
     machine_token: Optional[str] = field(default_factory=lambda: os.getenv("METTA_MCP_MACHINE_TOKEN"))
-
-    # AWS configuration
     aws_profile: Optional[str] = field(default_factory=lambda: os.getenv("AWS_PROFILE"))
     s3_bucket: str = field(default_factory=lambda: os.getenv("METTA_S3_BUCKET", "softmax-public"))
-
-    # W&B configuration
     wandb_api_key: Optional[str] = field(default_factory=lambda: os.getenv("WANDB_API_KEY"))
     wandb_entity: Optional[str] = field(default_factory=lambda: os.getenv("WANDB_ENTITY"))
     wandb_project: Optional[str] = field(default_factory=lambda: os.getenv("WANDB_PROJECT"))
-
-    # Skypilot configuration
     skypilot_url: Optional[str] = field(default_factory=lambda: os.getenv("METTA_SKYPILOT_URL"))
-
-    # Logging configuration
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
     log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
@@ -139,7 +126,7 @@ class ObservatoryMCPConfig:
         )
 
     def validate(self) -> List[str]:
-        """Validate the configuration and return any errors."""
+        """Validate configuration and return any errors."""
         errors = []
         if not self.backend_url:
             errors.append("METTA_MCP_BACKEND_URL is required but not set.")
@@ -171,8 +158,8 @@ class ObservatoryMCPConfig:
         return bool(self.backend_url) and len(self.validate()) == 0
 
     def is_aws_configured(self) -> bool:
-        """Check if AWS is configured (always returns True to allow boto3 to attempt initialization)."""
-        return True  # Always try - boto3 can use default credentials or profile
+        """Check if AWS is configured."""
+        return True
 
     def is_wandb_configured(self) -> bool:
         """Check if W&B is configured."""
@@ -187,7 +174,7 @@ class ObservatoryMCPServer:
     """MCP Server that exposes Observatory backend functionality."""
 
     def __init__(self, server_name: str = "observatory-mcp", version: str = "0.1.0"):
-        """Initialize the Observatory MCP Server."""
+        """Initialize the MCP Server."""
         self.app = Server(server_name)
         self.version = version
         self.config = ObservatoryMCPConfig.from_env()
@@ -203,14 +190,12 @@ class ObservatoryMCPServer:
             machine_token=self.config.machine_token,
         )
 
-        # Initialize WandB store
         self.wandb_store: WandbStore | None = None
         if self.config.is_wandb_configured():
             try:
                 if Api is None:
                     raise ImportError("wandb package not installed")
 
-                # Try to use existing wandb authentication first
                 try:
                     test_api = Api()
                     _ = test_api.viewer
@@ -223,7 +208,6 @@ class ObservatoryMCPServer:
                     else:
                         logger.info("WandB API initialized (authentication may be limited)")
 
-                # Create WandB store instance
                 self.wandb_store = WandbStore(
                     entity=self.config.wandb_entity,
                     project=self.config.wandb_project,
@@ -233,7 +217,6 @@ class ObservatoryMCPServer:
                     f"WandB store initialized (entity={self.config.wandb_entity}, project={self.config.wandb_project})"
                 )
 
-                # Initialize WandB API client for artifact/log tools
                 try:
                     self.wandb_api = Api()
                     logger.info("WandB API client initialized")
@@ -248,11 +231,9 @@ class ObservatoryMCPServer:
             logger.debug("WandB not configured. WandB tools will be unavailable.")
             self.wandb_api = None
 
-        # Initialize S3 client and store
         self.s3_client = None
         self.s3_bucket = self.config.s3_bucket
         self.s3_store: S3Store | None = None
-        # Always try to initialize S3 client - it can use profile or default credentials
         try:
             if self.config.aws_profile:
                 try:
@@ -267,15 +248,12 @@ class ObservatoryMCPServer:
                 self.s3_client = boto3.client("s3")
                 logger.info(f"S3 client initialized (bucket={self.s3_bucket})")
 
-            # Create S3 store instance
             self.s3_store = S3Store(self.s3_client, self.s3_bucket)
         except (NoCredentialsError, ClientError, ProfileNotFound) as e:
             logger.warning(f"Failed to initialize S3 client: {e}. S3 tools will be unavailable.")
             self.s3_client = None
             self.s3_store = None
 
-        # Skypilot doesn't need a client - we'll use subprocess directly
-        # Store the URL for reference if needed
         if self.config.skypilot_url:
             logger.info(f"Skypilot URL configured: {self.config.skypilot_url}")
 
@@ -293,7 +271,7 @@ class ObservatoryMCPServer:
         )
 
     def _pydantic_to_mcp_schema(self, model: type[BaseModel]) -> Dict[str, Any]:
-        """Convert Pydantic model to MCP inputSchema format."""
+        """Convert Pydantic model to MCP inputSchema."""
         schema = model.model_json_schema()
         properties = schema.get("properties", {})
         required = schema.get("required", [])
@@ -327,11 +305,11 @@ class ObservatoryMCPServer:
         return mcp_schema
 
     def _create_error_response(self, message: str, tool_name: str | None = None) -> str:
-        """Create error response JSON string."""
+        """Create error response JSON."""
         return ErrorResponse(tool=tool_name, message=message).model_dump_json(indent=2, exclude_none=True)
 
     def _get_tool_input_models(self) -> Dict[str, type[BaseModel] | None]:
-        """Get mapping of tool names to their input models."""
+        """Get mapping of tool names to input models."""
         return {
             "get_training_runs": None,
             "get_policies": None,
@@ -382,7 +360,7 @@ class ObservatoryMCPServer:
         }
 
     def _setup_tool_handlers(self) -> Dict[str, Any]:
-        """Create dispatch dictionary mapping tool names to handler methods."""
+        """Create dispatch dictionary mapping tool names to handlers."""
         return {
             "get_training_runs": self._handle_get_training_runs,
             "get_policies": self._handle_get_policies,
@@ -434,7 +412,6 @@ class ObservatoryMCPServer:
 
     def _setup_tools(self) -> None:
         """Register all MCP tools with the server."""
-
         @self.app.list_tools()
         async def list_tools() -> List[types.Tool]:
             tool_models = self._get_tool_input_models()
@@ -456,7 +433,7 @@ class ObservatoryMCPServer:
 
         @self.app.call_tool()
         async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
-            """Handle tool invocation requests."""
+            """Handle tool invocation."""
             logger.info(f"Tool called: {name} with arguments: {arguments}")
 
             try:

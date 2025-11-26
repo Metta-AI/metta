@@ -11,19 +11,19 @@ logger = logging.getLogger(__name__)
 
 
 def format_success_response(data: Any) -> str:
-    """Format success response as JSON string."""
+    """Format success response as JSON."""
     return SuccessResponse(data=data).model_dump_json(indent=2, exclude_none=True)
 
 
 def format_error_response(error: Exception, tool_name: str, context: str | None = None) -> str:
-    """Format error as JSON string for MCP response."""
+    """Format error as JSON for MCP response."""
     return ErrorResponse(
         tool=tool_name, message=str(error), error_type=type(error).__name__, context=context
     ).model_dump_json(indent=2, exclude_none=True)
 
 
 def handle_backend_error(error: Exception, tool_name: str) -> str:
-    """Handle errors from backend API calls."""
+    """Handle errors from backend API."""
     logger.error(f"Backend error in {tool_name}: {error}", exc_info=True)
 
     error_type = type(error).__name__
@@ -54,7 +54,7 @@ def handle_backend_error(error: Exception, tool_name: str) -> str:
 
 
 def handle_validation_error(error: Exception, tool_name: str, field: str | None = None) -> str:
-    """Handle validation errors (missing required fields, invalid types, etc.)."""
+    """Handle validation errors."""
     error_msg = str(error)
     if field:
         error_msg = f"Validation error for field '{field}': {error_msg}"
@@ -65,7 +65,7 @@ def handle_validation_error(error: Exception, tool_name: str, field: str | None 
 
 
 def serialize_response_data(data: Any) -> Any:
-    """Serialize response data to make it JSON-compatible."""
+    """Serialize response data to JSON-compatible format."""
     if hasattr(data, "model_dump"):
         return data.model_dump(mode="json")
     if isinstance(data, dict):
@@ -75,7 +75,6 @@ def serialize_response_data(data: Any) -> Any:
     return data
 
 
-# Scorecard tool functions (moved from deleted tools/scorecard.py)
 async def get_training_runs(client: StatsClient) -> str:
     """Get all training runs and policies."""
     logger.info("Getting all training runs and policies")
@@ -136,7 +135,7 @@ async def get_eval_names(
     training_run_ids: list[str],
     run_free_policy_ids: list[str],
 ) -> str:
-    """Get evaluation names for given training runs and policies."""
+    """Get evaluation names for training runs and policies."""
     logger.info(
         f"Getting eval names for {len(training_run_ids)} training runs "
         f"and {len(run_free_policy_ids)} run-free policies"
@@ -160,7 +159,7 @@ async def get_available_metrics(
     run_free_policy_ids: list[str],
     eval_names: list[str],
 ) -> str:
-    """Get available metrics for given evals, training runs, and policies."""
+    """Get available metrics for evals, training runs, and policies."""
     logger.info(
         f"Getting available metrics for {len(eval_names)} evals, "
         f"{len(training_run_ids)} training runs, {len(run_free_policy_ids)} policies"
@@ -187,7 +186,7 @@ async def generate_scorecard(
     metric: str,
     policy_selector: str = "best",
 ) -> str:
-    """Generate a scorecard (heatmap) for given policies and evaluations."""
+    """Generate scorecard heatmap for policies and evaluations."""
     if policy_selector not in ["best", "latest"]:
         return format_error_response(
             ValueError(f"policy_selector must be 'best' or 'latest', got '{policy_selector}'"),
@@ -215,7 +214,7 @@ async def generate_scorecard(
 
 
 async def run_sql_query(client: StatsClient, sql: str) -> str:
-    """Execute a SQL query against the backend database."""
+    """Execute SQL query against backend database."""
     if not sql or not sql.strip():
         return format_error_response(
             ValueError("SQL query cannot be empty"), "run_sql_query"
@@ -232,7 +231,7 @@ async def run_sql_query(client: StatsClient, sql: str) -> str:
 
 
 async def generate_ai_query(client: StatsClient, description: str) -> str:
-    """Generate a SQL query from a natural language description."""
+    """Generate SQL query from natural language description."""
     if not description or not description.strip():
         return format_error_response(
             ValueError("Description cannot be empty"), "generate_ai_query"

@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-# Import backend models to reuse instead of duplicating
 from metta.app_backend.routes.stats_routes import (
     EvalsRequest,
     MetricsRequest,
@@ -31,13 +30,8 @@ class ErrorResponse(BaseModel):
     context: str | None = None
 
 
-# Backend models are reused directly - see imports above
-# No aliases needed - use PoliciesSearchRequest, EvalsRequest, MetricsRequest, AIQueryRequest directly
-
-
-# Adapter models for field name differences
 class GenerateScorecardInput(BaseModel):
-    """Input model for generate_scorecard tool (adapter for ScorecardRequest)."""
+    """Input model for generate_scorecard tool."""
 
     training_run_ids: list[str] = Field(description="List of training run IDs")
     run_free_policy_ids: list[str] = Field(description="List of run-free policy IDs")
@@ -48,7 +42,7 @@ class GenerateScorecardInput(BaseModel):
     )
 
     def to_backend_request(self) -> ScorecardRequest:
-        """Convert to backend ScorecardRequest model."""
+        """Convert to backend ScorecardRequest."""
         return ScorecardRequest(
             training_run_ids=self.training_run_ids,
             run_free_policy_ids=self.run_free_policy_ids,
@@ -59,12 +53,12 @@ class GenerateScorecardInput(BaseModel):
 
 
 class RunSqlQueryInput(BaseModel):
-    """Input model for run_sql_query tool (adapter for SQLQueryRequest)."""
+    """Input model for run_sql_query tool."""
 
     sql: str = Field(description="SQL query string to execute")
 
     def to_backend_request(self) -> SQLQueryRequest:
-        """Convert to backend SQLQueryRequest model."""
+        """Convert to backend SQLQueryRequest."""
         return SQLQueryRequest(query=self.sql)
 
 
