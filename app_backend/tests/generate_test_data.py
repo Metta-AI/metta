@@ -19,6 +19,7 @@ Requirements:
     - Database initialized and accessible
 """
 
+import random
 import uuid
 from typing import Dict, List, Optional, TypedDict
 
@@ -350,8 +351,6 @@ def generate_test_data():
                                 base_reward = 100.0
                                 final_reward = base_reward * base_performance * difficulty_factor
                                 # Add some noise
-                                import random
-
                                 policy_id = policy.id
                                 random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
                                 noise = random.uniform(0.8, 1.2)
@@ -359,8 +358,6 @@ def generate_test_data():
 
                             elif "success" in metric or "efficiency" in metric:
                                 base_rate = base_performance * difficulty_factor
-                                import random
-
                                 policy_id = policy.id
                                 random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
                                 noise = random.uniform(0.9, 1.1)
@@ -371,8 +368,6 @@ def generate_test_data():
                                 base_value = 50.0
                                 # Better performance = lower time/count
                                 performance_factor = 2.0 - base_performance
-                                import random
-
                                 policy_id = policy.id
                                 random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
                                 noise = random.uniform(0.8, 1.2)
@@ -381,8 +376,6 @@ def generate_test_data():
                             else:
                                 # Generic positive metric
                                 base_value = 0.8
-                                import random
-
                                 policy_id = policy.id
                                 random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
                                 noise = random.uniform(0.9, 1.1)

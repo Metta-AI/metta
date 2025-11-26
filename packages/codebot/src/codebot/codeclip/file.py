@@ -8,6 +8,7 @@ with special handling for READMEs and XML output format.
 import fnmatch
 import logging
 import os
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -564,8 +565,6 @@ def get_context(
     Returns:
         Tuple of (formatted context string, token info dict)
     """
-    from collections import defaultdict
-
     # Early out only if truly nothing to do and include_git_diff is False
     if not paths and not include_git_diff:
         return "<documents></documents>", {"total_tokens": 0, "total_files": 0}

@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import tiktoken
 
-from .file import get_context
+from packages.codebot.src.codebot.codeclip.file import get_context, resolve_codebase_path
 
 
 @dataclass
@@ -271,8 +271,6 @@ def profile_code_context(
     file_token_counts = token_info.get("file_token_counts", {})
 
     # Resolve requested paths
-    from .file import resolve_codebase_path
-
     requested_paths = [resolve_codebase_path(p) for p in paths]
 
     # Process files using pre-calculated token counts
@@ -299,8 +297,6 @@ def profile_code_context(
     ]
 
     # Resolve requested paths for filtering
-    from .file import resolve_codebase_path
-
     requested_paths = [resolve_codebase_path(p) for p in paths]
 
     report = (

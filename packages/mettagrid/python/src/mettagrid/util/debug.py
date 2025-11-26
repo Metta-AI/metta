@@ -1,3 +1,4 @@
+import datetime
 import json
 import pickle
 from pathlib import Path
@@ -106,8 +107,6 @@ def save_args_for_c(
     Returns:
         dict: Paths to the saved files
     """
-    import datetime
-
     if output_dir is None:
         output_dir = "."
 

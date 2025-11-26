@@ -13,6 +13,7 @@ from pathlib import Path
 from sky.server.common import get_server_url
 from sqlmodel import Session
 
+from metta.common.util.text_styles import cyan, green, magenta, red
 from metta.jobs.job_manager import JobManager
 from metta.jobs.job_state import JobState, JobStatus
 
@@ -566,8 +567,6 @@ def _format_artifact_with_color(uri: str) -> str:
 
     Helper for format_job_with_acceptance to add colors to artifact links.
     """
-    from metta.common.util.text_styles import cyan, magenta
-
     result = format_artifact_link(uri)
     if uri.startswith("wandb://") or uri.startswith("s3://") or uri.startswith("file://"):
         return magenta(result)
@@ -647,8 +646,6 @@ def format_job_with_acceptance(job_state: JobState, dump_failed_logs: bool = Fal
     Returns:
         Multi-line formatted string with job status + acceptance + artifacts
     """
-    from metta.common.util.text_styles import green, red
-
     lines = []
 
     # Job status line using primitive

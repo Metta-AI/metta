@@ -21,7 +21,7 @@ from typing import override
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, ProtocolConfig
 
 logger = logging.getLogger(__name__)
 
@@ -264,8 +264,6 @@ class DifficultyLevel(MissionVariant):
 
             C++ only allows ONE protocol per unique vibe list, so we add just the one needed.
             """
-            from mettagrid.config.mettagrid_config import AssemblerConfig, ProtocolConfig
-
             asm = cfg.game.objects.get("assembler")
             if asm is None or not isinstance(asm, AssemblerConfig):
                 return
