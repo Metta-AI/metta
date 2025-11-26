@@ -16,11 +16,11 @@ class MinedOutVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        # Clamp efficiency to minimum of 1 to prevent negative values
-        mission.carbon_extractor.efficiency = max(1, mission.carbon_extractor.efficiency - 50)
-        mission.oxygen_extractor.efficiency = max(1, mission.oxygen_extractor.efficiency - 50)
-        mission.germanium_extractor.efficiency = max(1, mission.germanium_extractor.efficiency - 50)
-        mission.silicon_extractor.efficiency = max(1, mission.silicon_extractor.efficiency - 50)
+        # Clamp efficiency to minimum of 50 to prevent negative values
+        mission.carbon_extractor.efficiency = max(50, mission.carbon_extractor.efficiency - 50)
+        mission.oxygen_extractor.efficiency = max(50, mission.oxygen_extractor.efficiency - 50)
+        mission.germanium_extractor.efficiency = max(50, mission.germanium_extractor.efficiency - 50)
+        mission.silicon_extractor.efficiency = max(50, mission.silicon_extractor.efficiency - 50)
 
 
 class DarkSideVariant(MissionVariant):
