@@ -76,7 +76,7 @@ def train(
 
     tool.wandb.enabled = False
     tool.system.vectorization = vectorization
-    tool.system.device = "cuda"
+    tool.system.device = "cpu"
 
     # generate replays during training
     # tool.training_env.write_replays = True
