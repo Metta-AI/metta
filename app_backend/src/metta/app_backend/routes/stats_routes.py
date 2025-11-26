@@ -1,6 +1,7 @@
 import tempfile
 import uuid
-from typing import Annotated, Any, Optional
+from datetime import datetime
+from typing import Annotated, Any, Literal, Optional
 
 import aioboto3
 import duckdb
@@ -94,6 +95,71 @@ class EpisodeQueryRequest(BaseModel):
 
 class EpisodeQueryResponse(BaseModel):
     episodes: list[EpisodeWithTags]
+
+
+class PolicyListItem(BaseModel):
+    id: str
+    name: str
+    type: Literal["training_run", "policy"]
+    created_at: datetime
+    user_id: str
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    tags: dict[str, str] = Field(default_factory=dict)
+
+
+class PoliciesResponse(BaseModel):
+    policies: list[PolicyListItem]
+
+
+class PoliciesSearchRequest(BaseModel):
+    search: Optional[str] = None
+    policy_type: Optional[str] = None
+    tags: Optional[list[str]] = None
+    user_id: Optional[str] = None
+    limit: int = 100
+    offset: int = 0
+
+
+class EvalsRequest(BaseModel):
+    training_run_ids: list[str] = Field(default_factory=list)
+    run_free_policy_ids: list[str] = Field(default_factory=list)
+
+
+class EvalsResponse(BaseModel):
+    eval_names: list[str]
+
+
+class MetricsRequest(BaseModel):
+    training_run_ids: list[str] = Field(default_factory=list)
+    run_free_policy_ids: list[str] = Field(default_factory=list)
+    eval_names: list[str] = Field(default_factory=list)
+
+
+class MetricsResponse(BaseModel):
+    metrics: list[str]
+
+
+class ScorecardRequest(BaseModel):
+    training_run_ids: list[str] = Field(default_factory=list)
+    run_free_policy_ids: list[str] = Field(default_factory=list)
+    eval_names: list[str]
+    metric: str
+    training_run_policy_selector: Literal["best", "latest"] = "best"
+
+
+class ScorecardCell(BaseModel):
+    value: Optional[float] = None
+    episode_id: Optional[str] = None
+
+
+class ScorecardData(BaseModel):
+    policy_names: list[str]
+    eval_names: list[str]
+    cells: list[list[ScorecardCell]]
+
+
+class ScorecardResponse(BaseModel):
+    data: ScorecardData
 
 
 def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
@@ -431,5 +497,78 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             return EpisodeQueryResponse(episodes=episodes)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to query episodes: {str(e)}") from e
+
+    @router.get("/policies", response_model=PoliciesResponse)
+    @timed_route("get_policies")
+    async def get_policies(user: UserOrToken) -> PoliciesResponse:
+        try:
+            policies_data = await stats_repo.get_all_policies()
+            policies = [PolicyListItem(**p) for p in policies_data]
+            return PoliciesResponse(policies=policies)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
+
+    @router.post("/policies/search", response_model=PoliciesResponse)
+    @timed_route("search_policies")
+    async def search_policies(request: PoliciesSearchRequest, user: UserOrToken) -> PoliciesResponse:
+        try:
+            policies_data = await stats_repo.search_policies(
+                search=request.search,
+                policy_type=request.policy_type,
+                tags=request.tags,
+                user_id=request.user_id,
+                limit=request.limit,
+                offset=request.offset,
+            )
+            policies = [PolicyListItem(**p) for p in policies_data]
+            return PoliciesResponse(policies=policies)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to search policies: {str(e)}") from e
+
+    @router.post("/evals", response_model=EvalsResponse)
+    @timed_route("get_eval_names")
+    async def get_eval_names(request: EvalsRequest, user: UserOrToken) -> EvalsResponse:
+        try:
+            eval_names = await stats_repo.get_eval_names(
+                training_run_ids=request.training_run_ids,
+                run_free_policy_ids=request.run_free_policy_ids,
+            )
+            return EvalsResponse(eval_names=eval_names)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get eval names: {str(e)}") from e
+
+    @router.post("/metrics", response_model=MetricsResponse)
+    @timed_route("get_available_metrics")
+    async def get_available_metrics(request: MetricsRequest, user: UserOrToken) -> MetricsResponse:
+        try:
+            metrics = await stats_repo.get_available_metrics(
+                training_run_ids=request.training_run_ids,
+                run_free_policy_ids=request.run_free_policy_ids,
+                eval_names=request.eval_names,
+            )
+            return MetricsResponse(metrics=metrics)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get available metrics: {str(e)}") from e
+
+    @router.post("/scorecard", response_model=ScorecardResponse)
+    @timed_route("generate_scorecard")
+    async def generate_scorecard(request: ScorecardRequest, user: UserOrToken) -> ScorecardResponse:
+        try:
+            data_dict = await stats_repo.generate_scorecard(
+                training_run_ids=request.training_run_ids,
+                run_free_policy_ids=request.run_free_policy_ids,
+                eval_names=request.eval_names,
+                metric=request.metric,
+                policy_selector=request.training_run_policy_selector,
+            )
+            cells = [[ScorecardCell(**cell) for cell in row] for row in data_dict["cells"]]
+            data = ScorecardData(
+                policy_names=data_dict["policy_names"],
+                eval_names=data_dict["eval_names"],
+                cells=cells,
+            )
+            return ScorecardResponse(data=data)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate scorecard: {str(e)}") from e
 
     return router

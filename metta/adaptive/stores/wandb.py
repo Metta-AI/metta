@@ -157,6 +157,303 @@ class WandbStore:
             logger.error(f"[WandbStore] Error updating run summary for run {run_id}: {e}", exc_info=True)
             return False
 
+    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    def list_runs(
+        self,
+        entity: str,
+        project: str,
+        filters: Optional[dict[str, Any]] = None,
+        limit: int = 50,
+        per_page: Optional[int] = None,
+    ) -> list[dict[str, Any]]:
+        """List WandB runs with pagination and filtering.
+
+        General-purpose method for listing runs. Returns simple dictionaries
+        suitable for API responses. For adaptive system use, see fetch_runs().
+
+        Args:
+            entity: WandB entity (user/team)
+            project: WandB project name
+            filters: Optional WandB filters dictionary (e.g., {"state": "finished"})
+            limit: Maximum number of runs to return
+            per_page: Page size for API requests (defaults to min(limit, 100))
+
+        Returns:
+            List of run metadata dictionaries
+        """
+        # Create fresh API instance to avoid caching (consistent with fetch_runs)
+        api = wandb.Api()
+
+        if per_page is None:
+            per_page = min(limit, 100)
+
+        runs = api.runs(
+            f"{entity}/{project}",
+            filters=filters if filters else None,
+            order="-created_at",
+            per_page=per_page,
+        )
+
+        run_list = []
+        count = 0
+        for run in runs:
+            if count >= limit:
+                break
+
+            try:
+                run_data = self._extract_run_metadata(run, include_config=False, include_summary=False)
+                run_list.append(run_data)
+                count += 1
+            except Exception as e:
+                logger.warning(f"[WandbStore] Error processing run {getattr(run, 'id', 'unknown')}: {e}")
+                continue
+
+        return run_list
+
+    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    def get_run(
+        self,
+        entity: str,
+        project: str,
+        run_id: str,
+    ) -> Optional[dict[str, Any]]:
+        """Get detailed information about a specific run.
+
+        Args:
+            entity: WandB entity (user/team)
+            project: WandB project name
+            run_id: WandB run ID or name
+
+        Returns:
+            Run metadata dictionary with config and summary, or None if not found
+        """
+        try:
+            # Create fresh API instance to avoid caching
+            api = wandb.Api()
+            run = api.run(f"{entity}/{project}/{run_id}")
+            return self._extract_run_metadata(run, include_config=True, include_summary=True)
+        except Exception as e:
+            logger.warning(f"[WandbStore] Failed to get run {run_id}: {e}")
+            return None
+
+    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    def get_run_metrics(
+        self,
+        entity: str,
+        project: str,
+        run_id: str,
+        metric_keys: list[str],
+        samples: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """Get metric time series data for a run.
+
+        Args:
+            entity: WandB entity (user/team)
+            project: WandB project name
+            run_id: WandB run ID or name
+            metric_keys: List of metric keys to fetch (e.g., ["overview/reward", "metric/agent_step"])
+            samples: Optional limit on number of samples (for large runs)
+
+        Returns:
+            Dictionary with metric data including run_id, run_name, metric_keys, samples, and data
+        """
+        try:
+            # Create fresh API instance to avoid caching
+            api = wandb.Api()
+            run = api.run(f"{entity}/{project}/{run_id}")
+
+            # Use same format as original: pandas=False, keys=metric_keys
+            if samples:
+                history = run.history(keys=metric_keys, pandas=False, samples=samples)
+            else:
+                history = run.history(keys=metric_keys, pandas=False)
+
+            metrics_data = list(history)
+
+            return {
+                "run_id": run_id,
+                "run_name": run.name,
+                "metric_keys": metric_keys,
+                "samples": len(metrics_data),
+                "data": metrics_data,
+            }
+        except Exception as e:
+            logger.warning(f"[WandbStore] Failed to get metrics for run {run_id}: {e}")
+            return {
+                "run_id": run_id,
+                "run_name": run_id,
+                "metric_keys": metric_keys,
+                "samples": 0,
+                "data": [],
+            }
+
+    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    def discover_run_metrics(
+        self,
+        entity: str,
+        project: str,
+        run_id: str,
+    ) -> dict[str, Any]:
+        """Discover available metrics for a run by sampling its history and summary.
+
+        Args:
+            entity: WandB entity (user/team)
+            project: WandB project name
+            run_id: WandB run ID or name
+
+        Returns:
+            Dictionary with summary_metrics, history_metrics, all_metrics, and count
+        """
+        try:
+            # Create fresh API instance to avoid caching
+            api = wandb.Api()
+            run = api.run(f"{entity}/{project}/{run_id}")
+
+            # Get metrics from summary
+            summary_metrics = []
+            try:
+                if hasattr(run, "summary") and run.summary:
+                    summary_metrics = [
+                        key
+                        for key in run.summary.keys()
+                        if not key.startswith("_") and key not in ["_timestamp", "_runtime", "_step", "_wandb"]
+                    ]
+            except Exception as e:
+                logger.debug(f"[WandbStore] Could not extract summary metrics: {e}")
+
+            # Get metrics from history sample
+            history_metrics = []
+            try:
+                sample_history = run.history(samples=1, pandas=True)
+                if sample_history is not None and not sample_history.empty:
+                    history_metrics = [
+                        col
+                        for col in sample_history.columns
+                        if not col.startswith("_") and col not in ["_step", "_runtime", "_timestamp"]
+                    ]
+            except Exception as e:
+                logger.debug(f"[WandbStore] Could not extract history metrics: {e}")
+
+            # Combine and deduplicate
+            all_metrics = list(set(summary_metrics + history_metrics))
+
+            return {
+                "run_id": run_id,
+                "run_name": run.name,
+                "summary_metrics": summary_metrics,
+                "history_metrics": history_metrics,
+                "all_metrics": sorted(all_metrics),
+                "count": len(all_metrics),
+            }
+        except Exception as e:
+            logger.warning(f"[WandbStore] Failed to discover metrics for run {run_id}: {e}")
+            return {
+                "run_id": run_id,
+                "run_name": run_id,
+                "summary_metrics": [],
+                "history_metrics": [],
+                "all_metrics": [],
+                "count": 0,
+            }
+
+    def _extract_run_metadata(
+        self,
+        run: Any,
+        include_config: bool = False,
+        include_summary: bool = False,
+    ) -> dict[str, Any]:
+        """Extract metadata from a WandB run object.
+
+        Args:
+            run: WandB run object
+            include_config: Whether to include run config (may be slow)
+            include_summary: Whether to include run summary (may be slow)
+
+        Returns:
+            Run metadata dictionary
+        """
+        # Handle created_at - can be datetime or string
+        created_at = None
+        if hasattr(run, "created_at") and run.created_at:
+            if isinstance(run.created_at, str):
+                created_at = run.created_at
+            else:
+                created_at = run.created_at.isoformat()
+
+        # Handle updated_at - can be datetime or string (may not exist)
+        updated_at = None
+        if hasattr(run, "updated_at") and run.updated_at:
+            if isinstance(run.updated_at, str):
+                updated_at = run.updated_at
+            else:
+                updated_at = run.updated_at.isoformat()
+
+        # Handle tags - ensure it's always a list
+        tags = run.tags if hasattr(run, "tags") else []
+        if not isinstance(tags, list):
+            tags = list(tags) if tags else []
+
+        # Lazy load config and summary to avoid slow API calls
+        config = {}
+        if include_config:
+            try:
+                config = self._safe_dict_convert(run.config) if hasattr(run, "config") else {}
+            except Exception:
+                config = {}
+
+        summary = {}
+        if include_summary:
+            try:
+                summary = self._safe_dict_convert(run.summary) if hasattr(run, "summary") else {}
+            except Exception:
+                summary = {}
+
+        return {
+            "id": run.id,
+            "name": run.name,
+            "display_name": getattr(run, "display_name", run.name),
+            "state": run.state,
+            "tags": tags,
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "url": run.url,
+            "config": config,
+            "summary": summary,
+        }
+
+    def _safe_dict_convert(self, obj: Any) -> dict[str, Any]:
+        """Safely convert WandB objects to dictionaries.
+
+        Args:
+            obj: Object to convert (config, summary, etc.)
+
+        Returns:
+            Dictionary representation
+        """
+        if obj is None:
+            return {}
+
+        if isinstance(obj, dict):
+            return {k: self._safe_dict_convert(v) for k, v in obj.items()}
+
+        # Handle WandB specific types
+        if hasattr(obj, "__dict__"):
+            try:
+                if hasattr(obj, "item"):  # numpy scalars
+                    return obj.item()
+                return str(obj)
+            except Exception:
+                return str(obj)
+
+        # Handle standard JSON-serializable types
+        if isinstance(obj, (str, int, float, bool, list)):
+            if isinstance(obj, list):
+                return [self._safe_dict_convert(item) for item in obj]
+            return obj
+
+        # Default: convert to string
+        return str(obj)
+
     def _convert_run_to_info(self, run: Any) -> RunInfo:
         """Convert WandB run to RunInfo."""
         summary = normalize_summary(run.summary)

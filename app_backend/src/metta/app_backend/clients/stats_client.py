@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Type, TypeVar
+from typing import Any, Optional, Type, TypeVar
 
 import httpx
 from pydantic import BaseModel
@@ -13,16 +13,24 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFil
 from metta.app_backend.routes.leaderboard_routes import (
     LeaderboardPoliciesResponse,
 )
-from metta.app_backend.routes.sql_routes import SQLQueryResponse
+from metta.app_backend.routes.sql_routes import AIQueryRequest, AIQueryResponse, SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
     BulkEpisodeUploadResponse,
     CompleteBulkUploadRequest,
     EpisodeQueryRequest,
     EpisodeQueryResponse,
+    EvalsRequest,
+    EvalsResponse,
+    MetricsRequest,
+    MetricsResponse,
     MyPolicyVersionsResponse,
+    PoliciesResponse,
+    PoliciesSearchRequest,
     PolicyCreate,
     PolicyVersionCreate,
     PresignedUploadUrlResponse,
+    ScorecardRequest,
+    ScorecardResponse,
     UUIDResponse,
 )
 from metta.common.util.collections import remove_none_values
@@ -100,6 +108,12 @@ class StatsClient:
     def sql_query(self, query: str) -> SQLQueryResponse:
         return self._make_sync_request(SQLQueryResponse, "POST", "/sql/query", json={"query": query})
 
+    def generate_ai_query(self, description: str) -> AIQueryResponse:
+        request = AIQueryRequest(description=description)
+        return self._make_sync_request(
+            AIQueryResponse, "POST", "/sql/generate-query", json=request.model_dump(mode="json")
+        )
+
     def bulk_upload_episodes(self, duckdb_path: str) -> BulkEpisodeUploadResponse:
         """Upload a DuckDB file containing episode stats using presigned URL approach.
 
@@ -171,6 +185,77 @@ class StatsClient:
     def query_episodes(self, request: EpisodeQueryRequest) -> EpisodeQueryResponse:
         return self._make_sync_request(
             EpisodeQueryResponse, "POST", "/stats/episodes/query", json=request.model_dump(mode="json")
+        )
+
+    def get_policies(self) -> PoliciesResponse:
+        return self._make_sync_request(PoliciesResponse, "GET", "/stats/policies")
+
+    def search_policies(
+        self,
+        search: Optional[str] = None,
+        policy_type: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        user_id: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> PoliciesResponse:
+        request = PoliciesSearchRequest(
+            search=search,
+            policy_type=policy_type,
+            tags=tags,
+            user_id=user_id,
+            limit=limit,
+            offset=offset,
+        )
+        return self._make_sync_request(
+            PoliciesResponse, "POST", "/stats/policies/search", json=request.model_dump(mode="json")
+        )
+
+    def get_eval_names(
+        self,
+        training_run_ids: list[str],
+        run_free_policy_ids: list[str],
+    ) -> EvalsResponse:
+        request = EvalsRequest(
+            training_run_ids=training_run_ids,
+            run_free_policy_ids=run_free_policy_ids,
+        )
+        return self._make_sync_request(
+            EvalsResponse, "POST", "/stats/evals", json=request.model_dump(mode="json")
+        )
+
+    def get_available_metrics(
+        self,
+        training_run_ids: list[str],
+        run_free_policy_ids: list[str],
+        eval_names: list[str],
+    ) -> MetricsResponse:
+        request = MetricsRequest(
+            training_run_ids=training_run_ids,
+            run_free_policy_ids=run_free_policy_ids,
+            eval_names=eval_names,
+        )
+        return self._make_sync_request(
+            MetricsResponse, "POST", "/stats/metrics", json=request.model_dump(mode="json")
+        )
+
+    def generate_scorecard(
+        self,
+        training_run_ids: list[str],
+        run_free_policy_ids: list[str],
+        eval_names: list[str],
+        metric: str,
+        policy_selector: str = "best",
+    ) -> ScorecardResponse:
+        request = ScorecardRequest(
+            training_run_ids=training_run_ids,
+            run_free_policy_ids=run_free_policy_ids,
+            eval_names=eval_names,
+            metric=metric,
+            training_run_policy_selector=policy_selector,
+        )
+        return self._make_sync_request(
+            ScorecardResponse, "POST", "/stats/scorecard", json=request.model_dump(mode="json")
         )
 
     @staticmethod
