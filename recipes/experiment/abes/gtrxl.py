@@ -22,7 +22,6 @@ DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
 def train(
     *,
     curriculum=None,
-    enable_detailed_slice_logging: bool = False,
     policy_architecture: PolicyArchitecture | None = None,
 ):
     if policy_architecture is None:
@@ -30,7 +29,6 @@ def train(
 
     tool = base_train(
         curriculum=curriculum,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
 

@@ -45,7 +45,6 @@ def _override_cortex_stack(policy_cfg: CortexBaseConfig, stack: Any) -> CortexBa
 def train(
     *,
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
     stack: Any | None = None,
     stack_builder: Optional[str] = None,
@@ -63,7 +62,6 @@ def train(
 
     return base_train(
         curriculum=curriculum,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
 
