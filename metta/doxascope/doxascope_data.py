@@ -228,11 +228,19 @@ class DoxascopeLogger:
         """Log memory vectors and positions for policy agents at current timestep.
 
         This method is designed for cogames evaluations where each agent has its own
-        AgentPolicy instance, rather than a single batched multi-agent policy.
+        AgentPolicy instance. It now supports multi-policy scenarios where different
+        agents may use different policies (e.g., Candidate vs Thinky vs Ladybug).
 
         Each agent's policy is called independently with batch_size=1, so each policy
-        maintains its own Cortex state. We iterate through all policies to extract
-        memory from each one.
+        maintains its own Cortex state. We iterate through all agents and extract
+        memory from each agent's specific policy.
+
+        WARNING: This only works when there's one ML agent and multiple scripted
+        "policies". A refactor is required to make this work in the case of multiple
+        ML policies. Right now, if there are multiple different ML policies they will
+        both get logged in the same file and the training won't run correctly.
+        (Scripted agents log no actual data, which is why this is fine.)
+        (This will be fixed soon.)
 
         Args:
             policies: List of AgentPolicy instances, one per agent
@@ -277,45 +285,56 @@ class DoxascopeLogger:
         agent_map = self._build_agent_id_map(env_grid_objects)
         timestep_data: Dict[str, Any] = {"timestep": self.timestep, "agents": []}
 
-        # Get the underlying Policy from the first adapter (all adapters share the same policy)
-        first_adapter = policies[0]
+        # Track unique policies we've seen and warn about them once
+        seen_policy_types = set()
 
-        # Handle different policy wrapper types
-        underlying_policy = None
-        if hasattr(first_adapter, "_policy"):
-            # Old _SingleAgentAdapter style
-            underlying_policy = first_adapter._policy
-        elif hasattr(first_adapter, "_base_policy"):
-            # New StatefulAgentPolicy style - get the base policy implementation
-            base = first_adapter._base_policy
-            # The base_policy might wrap a Policy (has _policy attr), or be the policy itself
-            if hasattr(base, "_policy"):
-                underlying_policy = base._policy
-            else:
-                # For scripted/LSTM policies, _base_policy IS the implementation
-                underlying_policy = base
-        elif hasattr(first_adapter, "_parent"):
-            # NimAgentPolicy style - get the parent NimMultiAgentPolicy
-            underlying_policy = first_adapter._parent
+        # On first timestep, log which policies are being used by which agents
+        if self.timestep == 1:
+            policy_info = []
+            cortex_policies = set()  # Track unique CortexTD policies
 
-        if underlying_policy is None:
-            if self.timestep == 1:
+            for agent_idx, agent_policy in enumerate(policies):
+                # Extract the underlying policy for this agent
+                underlying_policy = None
+                if hasattr(agent_policy, "_policy"):
+                    underlying_policy = agent_policy._policy
+                elif hasattr(agent_policy, "_base_policy"):
+                    base = agent_policy._base_policy
+                    if hasattr(base, "_policy"):
+                        underlying_policy = base._policy
+                    else:
+                        underlying_policy = base
+                elif hasattr(agent_policy, "_parent"):
+                    underlying_policy = agent_policy._parent
+
+                if underlying_policy:
+                    policy_name = type(underlying_policy).__name__
+                    has_cortex = self._find_cortex_component(underlying_policy) is not None
+                    policy_info.append(f"Agent {agent_idx}: {policy_name} (CortexTD: {has_cortex})")
+
+                    # Track unique policies with CortexTD
+                    if has_cortex:
+                        cortex_policies.add(id(underlying_policy))
+                else:
+                    policy_info.append(f"Agent {agent_idx}: Unknown policy")
+
+            logger.info("Doxascope found agent policies:\n  " + "\n  ".join(policy_info))
+
+            # Warn if multiple different CortexTD policies detected
+            if len(cortex_policies) > 1:
                 logger.warning(
-                    "Could not extract underlying policy from %s (expected _policy, _base_policy, or _parent attribute)",
-                    type(first_adapter)
+                    "\n" + "="*80 + "\n"
+                    "WARNING: Multiple different CortexTD policies detected!\n"
+                    f"Found {len(cortex_policies)} unique policies with CortexTD components.\n"
+                    "Doxascope will log data from all agents into a SINGLE file.\n"
+                    "This will mix data from different policies, making training incorrect.\n"
+                    "TODO: Implement per-policy logging (separate files per policy).\n"
+                    "="*80
                 )
-            return
 
-        # Find the CortexTD component (shared across all adapters)
-        cortex_component = self._find_cortex_component(underlying_policy)
-        if cortex_component is None:
-            if self.timestep == 1:
-                logger.warning("No CortexTD component found in policy")
-            return
-
-        # Extract memory for each agent.
-        # Each agent uses its agent_id as env_id, so we can look up their state.
-        for agent_idx, _ in enumerate(policies):
+        # Extract memory for each agent individually
+        # Each agent may use a different policy, so we need to extract from their specific policy
+        for agent_idx, agent_policy in enumerate(policies):
             # Use agent_idx as agent_id (should match the agent's actual ID in the simulation)
             agent_id = agent_idx
 
@@ -326,6 +345,49 @@ class DoxascopeLogger:
                         agent_id,
                         list(agent_map.keys()),
                     )
+                continue
+
+            # Extract the underlying policy for this specific agent
+            underlying_policy = None
+            if hasattr(agent_policy, "_policy"):
+                # Old _SingleAgentAdapter style
+                underlying_policy = agent_policy._policy
+            elif hasattr(agent_policy, "_base_policy"):
+                # New StatefulAgentPolicy style - get the base policy implementation
+                base = agent_policy._base_policy
+                # The base_policy might wrap a Policy (has _policy attr), or be the policy itself
+                if hasattr(base, "_policy"):
+                    underlying_policy = base._policy
+                else:
+                    # For scripted/LSTM policies, _base_policy IS the implementation
+                    underlying_policy = base
+            elif hasattr(agent_policy, "_parent"):
+                # NimAgentPolicy style - get the parent NimMultiAgentPolicy
+                underlying_policy = agent_policy._parent
+
+            if underlying_policy is None:
+                policy_type = type(agent_policy)
+                if self.timestep == 1 and policy_type not in seen_policy_types:
+                    logger.warning(
+                        "Could not extract underlying policy from agent %d with type %s "
+                        "(expected _policy, _base_policy, or _parent attribute)",
+                        agent_id,
+                        policy_type
+                    )
+                    seen_policy_types.add(policy_type)
+                continue
+
+            # Find the CortexTD component for this agent's policy
+            cortex_component = self._find_cortex_component(underlying_policy)
+            if cortex_component is None:
+                policy_type = type(underlying_policy)
+                if self.timestep == 1 and policy_type not in seen_policy_types:
+                    logger.info(
+                        "No CortexTD component found in policy for agent %d (type: %s) - skipping",
+                        agent_id,
+                        policy_type.__name__
+                    )
+                    seen_policy_types.add(policy_type)
                 continue
 
             # Get the agent's state from Cortex.
@@ -375,6 +437,7 @@ class DoxascopeLogger:
                 "memory_vector": memory_vector.detach().cpu().numpy().astype(np.float32).tolist(),
                 "position": position,
                 "inventory": inventory,
+                "policy_type": type(underlying_policy).__name__,
             }
             timestep_data["agents"].append(record)
 
