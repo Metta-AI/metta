@@ -206,6 +206,8 @@ class WandbRunAppendContext:
         import wandb
 
         os.environ.setdefault("WANDB_DISABLE_CODE", "true")
+        os.environ.setdefault("WANDB_DISABLE_GIT", "true")
+        os.environ.setdefault("WANDB_SILENT", "true")
 
         settings = wandb.Settings(
             quiet=True,
@@ -215,8 +217,11 @@ class WandbRunAppendContext:
             x_update_finish_state=False,  # worker can't finish the run
             x_disable_meta=True,  # don't collect system metadata
             x_disable_stats=True,  # don't collect system stats
+            x_disable_machine_info=True,  # don't collect machine info
+            x_disable_viewer=True,  # don't query viewer info
             disable_code=True,  # don't capture code
             disable_git=True,  # don't capture git state
+            disable_job_creation=True,  # don't create job artifacts
         )
 
         self.run = wandb.init(
@@ -224,6 +229,7 @@ class WandbRunAppendContext:
             id=self.wandb_config.run_id,
             project=self.wandb_config.project,
             entity=self.wandb_config.entity,
+            resume="must",
             reinit="return_previous",
             settings=settings,
         )
