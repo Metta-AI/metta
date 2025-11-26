@@ -10,6 +10,7 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.mpt_artifact import save_mpt
+from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.util.url_schemes import checkpoint_filename
 from mettagrid.util.url_schemes import get_latest_checkpoint as _get_latest_checkpoint
 
@@ -138,3 +139,7 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
+
+
+# Here temporarily for backwards-compatibility but we will move it
+CheckpointPolicy = MptPolicy
