@@ -23,7 +23,7 @@ const missionsSchema = z.array(extendedConfigSchema);
 
 type Mission = z.infer<typeof missionSchema>;
 
-type MissionWithFullConfig = {
+export type MissionWithFullConfig = {
   mission: Mission;
   fullConfig: ExtendedConfig;
 };
