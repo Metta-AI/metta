@@ -66,9 +66,12 @@ class ConvChain(Scene[ConvChainConfig]):
 
     def render(self):
         config = self.config
+        # Intentionally use a plain Python list: this loop is scalar and numpy adds overhead.
         field = self.rng.choice([False, True], size=self.grid.shape).tolist()
+        # Keep a local list to reduce attribute lookups inside the hot loop.
         weights = list(self._weights)
         n = config.pattern_size
+        # Precompute 2^(dy*n+dx) powers to avoid recomputing inside the inner loop.
         power_lookup = [1 << i for i in range(n * n)]
         width = self.width
         height = self.height
@@ -77,6 +80,9 @@ class ConvChain(Scene[ConvChainConfig]):
             x0 = self.rng.integers(0, width, dtype=int)
             y0 = self.rng.integers(0, height, dtype=int)
 
+            # This algorithm applies the same bitwise energy calc as ConvChainFast.cs.
+            # For a clearer walkthrough, see ConvChainSlow, or the original C#:
+            # https://github.com/mxgmn/ConvChain/blob/master/ConvChainFast.cs
             q = 1
             for sy in range(y0 - n + 1, y0 + n):
                 y_vals = [(sy + dy) % height for dy in range(n)]
@@ -98,6 +104,9 @@ class ConvChain(Scene[ConvChainConfig]):
 
                     q *= weights[ind - difference] / weights[ind]
 
+            # For the sake of parity with ConvChainSlow class, we pre-generate a random number.
+            # (This allows us to compare whether the output is identical to the ConvChainSlow version;
+            # can be optimized later.)
             rnd = self.rng.random()
             if q >= 1:
                 field[y0][x0] = not field[y0][x0]
@@ -109,6 +118,7 @@ class ConvChain(Scene[ConvChainConfig]):
             if q > rnd:
                 field[y0][x0] = not field[y0][x0]
 
+        # Apply the generated field to the scene grid
         for y in range(self.height):
             for x in range(self.width):
                 self.grid[y, x] = "wall" if field[y][x] else "empty"
