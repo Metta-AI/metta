@@ -1,19 +1,17 @@
 "use client";
-import { type FC, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { StyledLink } from "@/components/StyledLink";
+import { useQueryState } from "nuqs";
+import { type FC, useMemo } from "react";
+
 import { FilterInput } from "@/components/FilterInput";
 import { NoResultsMessage } from "@/components/NoResultsMessage";
+import { StyledLink } from "@/components/StyledLink";
 import { viewConfigRoute } from "@/lib/routes";
 import { GroupedConfigMakers } from "@/lib/api";
 
-export const ConfigsPageRenderer: FC<{
+export const ConfigRenderer: FC<{
   initialCfgs: GroupedConfigMakers;
 }> = ({ initialCfgs }) => {
-  const searchParams = useSearchParams();
-  // QoL, share links with pre-filled filter.
-  const initialFilter = searchParams.get("q") || "";
-  const [filter, setFilter] = useState(initialFilter);
+  const [filter, setFilter] = useQueryState("q", { defaultValue: "" });
 
   const filtered = useMemo(() => {
     if (!filter) return initialCfgs;

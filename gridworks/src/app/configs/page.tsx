@@ -1,5 +1,5 @@
 import { listConfigMakers } from "@/lib/api";
-import { ConfigsPageRenderer } from "./ConfigRenderer";
+import { ConfigRenderer } from "./ConfigRenderer";
 
 export default async function EnvsPage() {
   const cfgs = await listConfigMakers();
@@ -7,7 +7,7 @@ export default async function EnvsPage() {
   return (
     <div className="p-4">
       <h1 className="mb-4 text-2xl font-bold">Config Makers</h1>
-      <ConfigsPageRenderer initialCfgs={cfgs} />
+      <ConfigRenderer initialCfgs={cfgs} />
     </div>
   );
 }

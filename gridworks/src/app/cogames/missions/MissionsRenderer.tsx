@@ -1,19 +1,17 @@
 "use client";
-import { type FC, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { StyledLink } from "@/components/StyledLink";
+import { useQueryState } from "nuqs";
+import { type FC, useMemo } from "react";
+
 import { FilterInput } from "@/components/FilterInput";
 import { NoResultsMessage } from "@/components/NoResultsMessage";
+import { StyledLink } from "@/components/StyledLink";
 import { viewMissionRoute } from "@/lib/routes";
 import { MissionWithFullConfig } from "@/lib/api/cogames";
 
 export const MissionsRenderer: FC<{
   initialMissions: MissionWithFullConfig[];
 }> = ({ initialMissions }) => {
-  const searchParams = useSearchParams();
-  // QoL, share links with pre-filled filter.
-  const initialFilter = searchParams.get("q") || "";
-  const [filter, setFilter] = useState(initialFilter);
+  const [filter, setFilter] = useQueryState("q", { defaultValue: "" });
 
   const filtered = useMemo(() => {
     if (!filter) return initialMissions;
