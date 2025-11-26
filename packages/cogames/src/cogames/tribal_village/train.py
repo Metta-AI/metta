@@ -80,16 +80,6 @@ def _ensure_tribal_installed() -> None:
         import tribal_village_env  # type: ignore  # noqa: F401
 
 
-def _normalize_vecenv_shapes(vecenv: Any, num_workers: int) -> None:
-    """Force vecenv to expose contiguous agent ids matching its batch."""
-
-    agents_per_batch = getattr(vecenv, "agents_per_batch", None)
-    if agents_per_batch is None:
-        return
-
-    vecenv.num_agents = agents_per_batch
-
-
 class _FlattenVecEnv:
     """Adapter to present contiguous agents_per_batch to the trainer."""
 
@@ -235,8 +225,9 @@ def train(
         backend=backend,
         env_kwargs={"cfg": base_cfg},
     )
-
-    _normalize_vecenv_shapes(vecenv, num_workers)
+    agents_per_batch = getattr(vecenv, "agents_per_batch", None)
+    if agents_per_batch is not None:
+        vecenv.num_agents = agents_per_batch
     vecenv = _FlattenVecEnv(vecenv)
 
     driver_env = getattr(vecenv, "driver_env", None)
