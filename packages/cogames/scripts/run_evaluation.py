@@ -47,12 +47,12 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
 try:
-    from metta.rl.checkpoint_manager import CheckpointManager
+    from mettagrid.util.url_schemes import policy_spec_from_uri
 
-    CHECKPOINT_MANAGER_AVAILABLE = True
+    POLICY_SPEC_FROM_URI_AVAILABLE = True
 except ImportError:
-    CHECKPOINT_MANAGER_AVAILABLE = False
-    CheckpointManager = None
+    POLICY_SPEC_FROM_URI_AVAILABLE = False
+    policy_spec_from_uri = None
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -112,17 +112,17 @@ def load_policy(
     device = device or torch.device("cpu")
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
-        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
+        if not POLICY_SPEC_FROM_URI_AVAILABLE or policy_spec_from_uri is None:
+            raise ImportError("policy_spec_from_uri not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(checkpoint_path, device=device)
+        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     if is_s3_uri(policy_path):
-        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
+        if not POLICY_SPEC_FROM_URI_AVAILABLE or policy_spec_from_uri is None:
+            raise ImportError("policy_spec_from_uri not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(policy_path, device=device)
+        policy_spec = policy_spec_from_uri(policy_path, device=str(device))
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)

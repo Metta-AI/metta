@@ -133,6 +133,21 @@ class SharedMapCache:
         cache_key = self._make_key(map_builder, num_agents)
         lock_file = _get_lock_file()
 
+        def _reconstruct_or_refresh(cache_entry: dict) -> GameMap:
+            """Rebuild map when cached shared memory is missing."""
+            try:
+                return self._reconstruct_map(cache_entry, cache_key)
+            except (FileNotFoundError, PermissionError, OSError):
+                registry = _load_registry()
+                maps_list = registry.get(cache_key, [])
+                builder = map_builder.create()
+                game_map = builder.build_for_num_agents(num_agents)
+                cache_entry = self._store_map_in_shared_memory(cache_key, len(maps_list), game_map)
+                registry[cache_key] = list(maps_list) + [cache_entry]
+                _save_registry(registry)
+                logger.info(f"Rebuilt stale map for key {cache_key}")
+                return game_map
+
         # Use file-based locking to coordinate access across processes
         # This ensures that spawned processes can coordinate cache access
         try:
@@ -190,13 +205,13 @@ class SharedMapCache:
                             # Another process created it, use the cached one instead
                             random_idx = random.randint(0, len(maps_list) - 1)
                             cache_entry = maps_list[random_idx]
-                            return self._reconstruct_map(cache_entry, cache_key)
+                            return _reconstruct_or_refresh(cache_entry)
                     else:
                         # Array is full, return a random one
                         random_idx = random.randint(0, len(maps_list) - 1)
                         cache_entry = maps_list[random_idx]
 
-                        return self._reconstruct_map(cache_entry, cache_key)
+                        return _reconstruct_or_refresh(cache_entry)
                 finally:
                     fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
         except OSError as e:
@@ -242,11 +257,11 @@ class SharedMapCache:
                     # Another process created it, use the cached one instead
                     random_idx = random.randint(0, len(maps_list) - 1)
                     cache_entry = maps_list[random_idx]
-                    return self._reconstruct_map(cache_entry, cache_key)
+                    return _reconstruct_or_refresh(cache_entry)
             else:
                 random_idx = random.randint(0, len(maps_list) - 1)
                 cache_entry = maps_list[random_idx]
-                return self._reconstruct_map(cache_entry, cache_key)
+                return _reconstruct_or_refresh(cache_entry)
 
     def _store_map_in_shared_memory(self, cache_key: str, index: int, game_map: GameMap) -> dict:
         """Store a GameMap in shared memory and return cache entry."""

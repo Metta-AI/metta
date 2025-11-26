@@ -28,7 +28,7 @@ class CvCStationConfig(Config):
 
 class CvCWallConfig(CvCStationConfig):
     def station_cfg(self) -> WallConfig:
-        return WallConfig(name="wall", map_char="#", render_symbol=vibes.VIBE_BY_NAME["wall"].symbol)
+        return WallConfig(name="wall", render_symbol=vibes.VIBE_BY_NAME["wall"].symbol)
 
 
 class ExtractorConfig(CvCStationConfig):
@@ -41,7 +41,6 @@ class ChargerConfig(ExtractorConfig):
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="charger",
-            map_char="+",
             render_symbol=vibes.VIBE_BY_NAME["charger"].symbol,
             # Protocols
             allow_partial_usage=True,  # can use it while its on cooldown
@@ -65,7 +64,6 @@ class CarbonExtractorConfig(ExtractorConfig):
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="carbon_extractor",
-            map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["carbon_a"].symbol,
             max_uses=self.max_uses,
             protocols=[
@@ -87,7 +85,6 @@ class OxygenExtractorConfig(ExtractorConfig):
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="oxygen_extractor",
-            map_char="O",
             render_symbol=vibes.VIBE_BY_NAME["oxygen_a"].symbol,
             max_uses=self.max_uses,
             allow_partial_usage=True,  # can use it while its on cooldown
@@ -113,7 +110,6 @@ class GermaniumExtractorConfig(ExtractorConfig):
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="germanium_extractor",
-            map_char="G",
             render_symbol=vibes.VIBE_BY_NAME["germanium_a"].symbol,
             # Germanium is inherently a single use resource.
             max_uses=1,
@@ -139,7 +135,6 @@ class SiliconExtractorConfig(ExtractorConfig):
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="silicon_extractor",
-            map_char="S",
             render_symbol=vibes.VIBE_BY_NAME["silicon_a"].symbol,
             max_uses=self.max_uses,
             protocols=[
@@ -161,7 +156,6 @@ class CvCChestConfig(CvCStationConfig):
         # Use map_name/name "chest" so maps and procedural builders that place
         # "chest" resolve to this config. The specific CvC type remains a label.
         return ChestConfig(
-            map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             vibe_transfers={
                 "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
@@ -189,7 +183,6 @@ class CvCAssemblerConfig(CvCStationConfig):
         gear = [("carbon", "decoder"), ("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator")]
         return AssemblerConfig(
             name="assembler",
-            map_char="&",
             render_symbol=vibes.VIBE_BY_NAME["assembler"].symbol,
             clip_immune=True,
             protocols=[
