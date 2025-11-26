@@ -64,7 +64,7 @@ class Checkpointer(TrainerComponent):
             if normalized_uri:
                 artifact: MptArtifact | None = None
                 if self._distributed.is_master():
-                    artifact = load_mpt(normalized_uri, uri_resolver=None)
+                    artifact = load_mpt(normalized_uri)
 
                 state_dict = self._distributed.broadcast_from_master(
                     {k: v.cpu() for k, v in artifact.state_dict.items()} if artifact else None

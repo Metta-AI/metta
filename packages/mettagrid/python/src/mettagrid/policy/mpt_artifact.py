@@ -202,23 +202,14 @@ class MptArtifact:
         return policy
 
 
-DEFAULT_URI_RESOLVER = "mettagrid.util.url_schemes.resolve_uri"
+def load_mpt(uri: str) -> MptArtifact:
+    """Load an .mpt checkpoint from a URI.
 
-
-def load_mpt(uri: str, *, uri_resolver: str | None = DEFAULT_URI_RESOLVER) -> MptArtifact:
-    """Load an .mpt checkpoint from a URI (file://, s3://, or local path).
-
-    Args:
-        uri: The URI to load from. Supports file://, s3://, and local paths.
-             If a uri_resolver is configured, also supports metta:// and :latest URIs.
-        uri_resolver: Optional dotted path to a URI resolver function. The function
-            should accept a URI string and return a resolved URI string.
-            Defaults to mettagrid.util.url_schemes.resolve_uri.
+    Supports file://, s3://, metta://, local paths, and :latest suffix.
     """
-    resolved_uri = uri
-    if uri_resolver and (resolver_func := load_symbol(uri_resolver, strict=False)):
-        resolved_uri = resolver_func(uri)  # type: ignore
+    from mettagrid.util.url_schemes import resolve_uri
 
+    resolved_uri = resolve_uri(uri)
     with local_copy(resolved_uri) as local_path:
         return _load_local_mpt_file(local_path)
 

@@ -5,7 +5,7 @@ from typing import Any
 
 import torch
 
-from mettagrid.policy.mpt_artifact import DEFAULT_URI_RESOLVER, load_mpt, save_mpt
+from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.file import ParsedURI
@@ -25,13 +25,12 @@ class MptPolicy(MultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         *,
         checkpoint_uri: str,
-        uri_resolver: str | None = DEFAULT_URI_RESOLVER,
         device: str | torch.device = "cpu",
         strict: bool = True,
     ):
         super().__init__(policy_env_info)
 
-        artifact = load_mpt(checkpoint_uri, uri_resolver=uri_resolver)
+        artifact = load_mpt(checkpoint_uri)
         self._architecture = artifact.architecture
 
         self._policy = artifact.instantiate(policy_env_info, device=device, strict=strict)
