@@ -183,14 +183,53 @@ export type PublicPolicyVersionRow = {
   tags: Record<string, string>
 }
 
+export type EpisodeReplay = {
+  episode_id: string
+  replay_url: string
+}
+
+export type EpisodeWithTags = {
+  id: string
+  primary_pv_id: string | null
+  replay_url: string | null
+  thumbnail_url: string | null
+  attributes: Record<string, any>
+  eval_task_id: string | null
+  created_at: string
+  tags: Record<string, string>
+  avg_rewards: Record<string, number>
+}
+
 export type LeaderboardPolicyEntry = {
   policy_version: PublicPolicyVersionRow
   scores: Record<string, number>
   avg_score: number | null
+  replays: Record<string, EpisodeReplay[]>
+  score_episode_ids: Record<string, string | null>
 }
 
 export type LeaderboardPoliciesResponse = {
   entries: LeaderboardPolicyEntry[]
+}
+
+export type PolicyVersionWithName = {
+  id: string
+  policy_id: string
+  version: number
+  name: string
+  created_at: string
+}
+
+export type EpisodeQueryRequest = {
+  primary_policy_version_ids?: string[]
+  tag_filters?: Record<string, string[] | null>
+  limit?: number | null
+  offset?: number
+  episode_ids?: string[]
+}
+
+export type EpisodeQueryResponse = {
+  episodes: EpisodeWithTags[]
 }
 
 export type TableInfo = {
@@ -406,5 +445,17 @@ export class Repo {
 
   async getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse> {
     return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me')
+  }
+
+  async getLeaderboardPolicy(policyVersionId: string): Promise<LeaderboardPoliciesResponse> {
+    return this.apiCall<LeaderboardPoliciesResponse>(`/leaderboard/v2/policy/${policyVersionId}`)
+  }
+
+  async getPolicyVersion(policyVersionId: string): Promise<PolicyVersionWithName> {
+    return this.apiCall<PolicyVersionWithName>(`/stats/policies/versions/${policyVersionId}`)
+  }
+
+  async queryEpisodes(request: EpisodeQueryRequest): Promise<EpisodeQueryResponse> {
+    return this.apiCallWithBody<EpisodeQueryResponse>('/stats/episodes/query', request)
   }
 }

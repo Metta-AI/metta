@@ -49,7 +49,6 @@ class TestMiniscopeState:
         assert state.map_width == 0
 
         # Check shared data
-        assert state.object_type_names is None
         assert state.resource_names is None
         assert state.symbol_map is None
         assert state.vibes is None

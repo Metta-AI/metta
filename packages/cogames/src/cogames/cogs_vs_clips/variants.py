@@ -606,6 +606,21 @@ class EmptyBaseVariant(BaseHubVariant):
         node.corner_bundle = "custom"
 
 
+class BalancedCornersVariant(MachinaArenaVariant):
+    """Enable corner balancing to ensure fair spawn distances."""
+
+    name: str = "balanced_corners"
+    description: str = "Balance path distances from center to corners for fair spawns."
+    balance_tolerance: float = 1.5
+    max_balance_shortcuts: int = 10
+
+    @override
+    def modify_node(self, node):
+        node.balance_corners = True
+        node.balance_tolerance = self.balance_tolerance
+        node.max_balance_shortcuts = self.max_balance_shortcuts
+
+
 class TraderVariant(MissionVariant):
     name: str = "trader"
     description: str = "Agents can trade resources with each other."
