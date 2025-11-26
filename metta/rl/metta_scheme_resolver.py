@@ -47,7 +47,8 @@ class MettaSchemeResolver(SchemeResolver):
         stats_client = StatsClient.create(stats_server_uri)
         policy_version = stats_client.get_policy_version(policy_version_id)
 
-        if not policy_version.s3_path:
-            raise ValueError(f"Policy version {policy_version_id} has no s3_path")
+        checkpoint_uri = policy_version.policy_spec.get("init_kwargs", {}).get("checkpoint_uri")
+        if not checkpoint_uri:
+            raise ValueError(f"Policy version {policy_version_id} has no checkpoint_uri in policy_spec")
 
-        return resolve_uri(policy_version.s3_path)
+        return resolve_uri(checkpoint_uri)

@@ -135,10 +135,9 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         """Create a new policy version."""
         try:
             policy_id = uuid.UUID(policy_id_str)
-            s3_path = policy_version.policy_spec.get("init_kwargs", {}).get("checkpoint_uri")
             policy_version_id = await stats_repo.create_policy_version(
                 policy_id=policy_id,
-                s3_path=s3_path,
+                s3_path=None,
                 git_hash=policy_version.git_hash,
                 policy_spec=policy_version.policy_spec,
                 attributes=policy_version.attributes,
