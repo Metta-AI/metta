@@ -19,4 +19,4 @@ echo "1. Copy the token in browser"
 echo "2. Press Ctrl+C once"
 echo "3. Paste it into the terminal"
 
-uv run python devops/skypilot/login.py api login -e "$SERVER"
+uv run sky api login -e "$SERVER"
