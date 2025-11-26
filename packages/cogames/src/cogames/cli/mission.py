@@ -8,7 +8,6 @@ from rich.table import Table
 
 from cogames.cli.base import console
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS as CORE_EVAL_MISSIONS
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant, Site
@@ -20,6 +19,10 @@ from cogames.game import load_mission_config, load_mission_config_from_python
 from mettagrid import MettaGridConfig
 from mettagrid.config.mettagrid_config import AssemblerConfig
 from mettagrid.mapgen.mapgen import MapGen
+
+# eval_missions.py was deleted - missions moved to integrated_evals.py
+# CORE_EVAL_MISSIONS is empty since eval_missions.py content was moved
+CORE_EVAL_MISSIONS: list[Mission] = []  # Empty - eval_missions.py content moved to integrated_evals.py
 
 # Combined registry of all evaluation missions (not shown in default 'missions' list)
 EVAL_MISSIONS_ALL: list[Mission] = [

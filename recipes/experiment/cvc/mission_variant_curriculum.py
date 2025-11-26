@@ -576,7 +576,7 @@ def experiment(
         f"run={run_name}",
         f"num_cogs={num_cogs}",
         "--gpus=4",
-        f"--heartbeat-timeout={heartbeat_timeout}",
+        f"--heartbeat-timeout-seconds={heartbeat_timeout}",
     ]
 
     if base_missions:

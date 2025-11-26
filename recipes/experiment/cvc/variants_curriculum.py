@@ -15,9 +15,9 @@ import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.evals.diagnostic_evals import (
     DIAGNOSTIC_EVALS,
 )
-from cogames.cogs_vs_clips.evals.eval_missions import (
-    EVAL_MISSIONS,
-)
+
+# eval_missions.py was deleted - missions moved to integrated_evals.py
+from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.missions import (
     AssembleMission,
