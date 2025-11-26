@@ -16,10 +16,11 @@ class MinedOutVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.carbon_extractor.efficiency -= 50
-        mission.oxygen_extractor.efficiency -= 50
-        mission.germanium_extractor.efficiency -= 50
-        mission.silicon_extractor.efficiency -= 50
+        # Clamp efficiency to minimum of 1 to prevent negative values
+        mission.carbon_extractor.efficiency = max(1, mission.carbon_extractor.efficiency - 50)
+        mission.oxygen_extractor.efficiency = max(1, mission.oxygen_extractor.efficiency - 50)
+        mission.germanium_extractor.efficiency = max(1, mission.germanium_extractor.efficiency - 50)
+        mission.silicon_extractor.efficiency = max(1, mission.silicon_extractor.efficiency - 50)
 
 
 class DarkSideVariant(MissionVariant):
@@ -96,7 +97,8 @@ class SolarFlareVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.charger.efficiency -= 50
+        # Clamp efficiency to minimum of 1 to prevent negative values
+        mission.charger.efficiency = max(1, mission.charger.efficiency - 50)
 
 
 class PackRatVariant(MissionVariant):
@@ -146,6 +148,7 @@ class ResourceBottleneckVariant(MissionVariant):
             if extractor is None:
                 raise AttributeError(f"Mission has no extractor attribute '{extractor_attr}'")
 
+            # Clamp efficiency to minimum of 1 to prevent negative values
             extractor.efficiency = max(1, int(extractor.efficiency) - 50)
 
 
