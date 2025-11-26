@@ -630,6 +630,14 @@ class LLMAgentPolicy(AgentPolicy):
         # Build game rules prompt with feature/tag mappings
         self.game_rules_prompt = build_game_rules_prompt(policy_env_info)
 
+        # TEMP: Save prompt to file for inspection (DELETE THIS LATER)
+        def _temp_save_prompt():
+            from pathlib import Path
+            prompt_path = Path("llm_system_prompt.txt")
+            prompt_path.write_text(self.game_rules_prompt)
+            logger.info(f"[TEMP] Saved system prompt to: {prompt_path.absolute()}")
+        _temp_save_prompt()
+
         # Initialize observation debugger if debug mode is enabled
         if self.debug_mode:
             self.debugger = ObservationDebugger(policy_env_info)
@@ -859,10 +867,6 @@ The best action is move_east (WRONG - contains extra words)
 
             # Parse and return action
             parsed_action = self._parse_action(action_name)
-            logger.info(
-                f"Agent {obs.agent_id}: LLM chose '{action_name}' -> Action: {parsed_action.name} | "
-                f"Obs tokens: {len(obs.tokens)}"
-            )
             logger.debug(f"Full action object: {parsed_action}")
 
             # Track last action for debug output
