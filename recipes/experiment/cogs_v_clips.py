@@ -19,7 +19,7 @@ from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
-    DiscreteRandomConfig,
+    DiscreteRandomCurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
@@ -218,7 +218,6 @@ def make_training_env(
 def make_curriculum(
     num_cogs: int = 4,
     missions: Optional[list[str]] = None,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
 ) -> CurriculumConfig:
@@ -243,12 +242,17 @@ def make_curriculum(
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,
+            use_bidirectional=True,  # Default: bidirectional learning progress
             ema_timescale=0.001,
+            num_active_tasks=256,
+            slow_timescale_factor=0.2,
+            rand_task_rate=0.01,
             exploration_bonus=0.1,
-            max_memory_tasks=2000,
-            max_slice_axes=4,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
+            lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
+            z_score_amplification=50.0,  # Amplification after z-score (only when temp=0)
+            show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
+            early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
         )
 
     return merged_tasks.to_curriculum(
@@ -274,7 +278,6 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     mission: Optional[str] = None,
     base_missions: Optional[list[str]] = None,
-    enable_detailed_slice_logging: bool = False,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
@@ -288,11 +291,10 @@ def train(
     if mission is not None:
         training_missions = [mission]
 
-    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
+    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomCurriculumConfig()
     curriculum = curriculum or make_curriculum(
         num_cogs=num_cogs,
         missions=training_missions,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
         algorithm_config=cur_alg,
     )
@@ -336,7 +338,6 @@ def train(
 def train_variants(
     num_cogs: int = 4,
     base_missions: Optional[list[str]] = None,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
@@ -368,9 +369,7 @@ def train_variants(
             use_bidirectional=True,
             ema_timescale=0.001,
             exploration_bonus=0.1,
-            max_memory_tasks=2000,
-            max_slice_axes=4,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            num_active_tasks=2000,
         )
 
     curriculum = merged_tasks.to_curriculum(

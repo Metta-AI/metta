@@ -319,10 +319,17 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         self._make_resource_chain(chain_length, width + height / 2, cfg, rng)
         self._make_sinks(num_sinks, cfg, rng)
 
+        # Ensure ALL possible assembler types are defined in game_objects
+        # to maintain consistent object_type_names across all curriculum tasks.
+        # Only the ones in cfg.game_objects will be placed on the map, but
+        # all must be defined for simulator invariant checking.
+        all_game_objects = ASSEMBLER_TYPES.copy()
+        all_game_objects.update(cfg.game_objects)
+
         return make_assembly_lines(
             num_agents=1,
             max_steps=max_steps,
-            game_objects=cfg.game_objects,
+            game_objects=all_game_objects,
             map_builder_objects=cfg.map_builder_objects,
             width=width,
             height=height,
@@ -386,7 +393,10 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
             rng=rng,
         )
 
-        env_cfg.label = f"{room_size}_{chain_length}chain_{num_sinks}sinks_{terrain}"
+        # Create hierarchical label for curriculum tracking
+        # Format: chain_<length>_sink_<count>_<room_size>_<terrain>
+        # This groups tasks by their key difficulty dimensions
+        env_cfg.label = f"chain_{chain_length}_sink_{num_sinks}_{room_size}_{terrain}"
         return env_cfg
 
 
@@ -405,10 +415,16 @@ def make_task_generator_cfg(
 
 
 def train(
-    curriculum_style: str = "level_0",
+    curriculum_style: str = "all_room_sizes",
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
-    curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
+
+    # Use learning progress curriculum with balanced configuration
+    algorithm_config = LearningProgressConfig.default(
+        num_active_tasks=250,
+    )
+
+    curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=algorithm_config)
 
     policy_config = ViTDefaultConfig()
 

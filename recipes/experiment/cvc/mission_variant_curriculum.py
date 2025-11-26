@@ -197,7 +197,6 @@ def _deduplicate_assembler_protocols(env: MettaGridConfig) -> None:
 def make_curriculum(
     base_missions: Optional[list[str] | str] = None,
     num_cogs: int = 4,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str] | str] = None,
     exclude_variants: Optional[Sequence[str] | str] = None,
@@ -212,7 +211,6 @@ def make_curriculum(
             - A comma-separated string of mission names or set names (e.g., "eval_missions,diagnostic_missions")
             - A list of mission names or set names (e.g., ["eval_missions", "extractor_hub_30"])
         num_cogs: Number of agents per mission
-        enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
         variants: Optional mission variants to apply. If None, no variants are applied.
             If provided, creates separate tasks for each mission-variant combination.
@@ -425,9 +423,7 @@ def make_curriculum(
             use_bidirectional=True,
             ema_timescale=0.001,
             exploration_bonus=0.1,
-            max_memory_tasks=2000,
-            max_slice_axes=4,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            num_active_tasks=2000,
         )
 
     return merged_tasks.to_curriculum(
@@ -440,7 +436,6 @@ def train(
     base_missions: Optional[list[str] | str] = None,
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
     variants: Optional[Sequence[str]] = None,
     exclude_variants: Optional[Sequence[str] | str] = None,
     all_variants_per_mission: bool = False,
@@ -459,7 +454,6 @@ def train(
             Required if all_variants_per_mission=True.
         num_cogs: Number of agents per mission
         curriculum: Optional curriculum configuration (defaults to mission-variant curriculum)
-        enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         variants: Optional mission variants to apply (only used when all_variants_per_mission=False)
         exclude_variants: Optional list of variant names to exclude, or comma-separated string
             (only used when all_variants_per_mission=True)
@@ -480,7 +474,6 @@ def train(
     resolved_curriculum = curriculum or make_curriculum(
         base_missions=base_missions,
         num_cogs=num_cogs,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
         exclude_variants=resolved_exclude_variants,
         stats_max_cap=0.5 if all_variants_per_mission else 1.0,

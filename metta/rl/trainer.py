@@ -205,6 +205,9 @@ class Trainer:
         # registered on other ranks.
         self._invoke_callback(TrainerCallback.EPOCH_END)
 
+        # Handle epoch end AFTER stats have been collected
+        self._context.on_epoch_end()
+
         # Progress logging handled by ProgressLogger component
 
     @staticmethod

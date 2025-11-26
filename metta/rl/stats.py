@@ -103,11 +103,27 @@ def process_training_stats(
         - environment_stats: Environment-specific stats
         - overview: High-level metrics like average reward
     """
-    # Convert lists to means
+    # Stats that should be summed instead of averaged
+    # These are typically counts or totals that accumulate across rollout steps
+    SUM_STATS_PATTERNS = [
+        "env_curriculum_stats/per_label_samples",
+        "env_curriculum_stats/per_label_evictions",
+        "env_curriculum_stats/tracked_task_completions",
+    ]
+
+    # Convert lists to means or sums based on stat type
     mean_stats = {}
     for k, v in raw_stats.items():
         try:
-            mean_stats[k] = np.mean(v)
+            # Check if this stat should be summed
+            should_sum = any(pattern in k for pattern in SUM_STATS_PATTERNS)
+
+            if should_sum:
+                # Sum for count-based stats (dictionaries come through as lists of values per label)
+                mean_stats[k] = np.sum(v) if isinstance(v, (list, np.ndarray)) else v
+            else:
+                # Average for rate/mean-based stats
+                mean_stats[k] = np.mean(v)
         except (TypeError, ValueError):
             mean_stats[k] = v
 

@@ -30,7 +30,7 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from recipes.experiment.cvc.dense_training_env import DENSE_TRAINING_MISSIONS
+from recipes.experiment.cvc.dense_training_curriculum import DENSE_TRAINING_MISSIONS
 
 
 class ResourceReductionVariant(MissionVariant):
@@ -88,7 +88,6 @@ MAP_NAMES = [
 def make_dense_curriculum(
     num_cogs: int = 4,
     resource_levels: list[int] | None = None,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
     use_all_maps: bool = True,
@@ -98,7 +97,6 @@ def make_dense_curriculum(
     Args:
         num_cogs: Number of agents per environment (4 or 24)
         resource_levels: List of resource levels to include (default: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
         variants: Optional additional mission variants to apply
         use_all_maps: If True, use all maps. If False, only use big/small maps (for 24-agent training)
@@ -183,9 +181,7 @@ def make_dense_curriculum(
             use_bidirectional=True,
             ema_timescale=0.001,
             exploration_bonus=0.1,
-            max_memory_tasks=3000,  # Higher because we have more tasks
-            max_slice_axes=4,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            num_active_tasks=3000,  # Higher because we have more tasks
         )
 
     return merged_tasks.to_curriculum(
@@ -198,7 +194,6 @@ def train(
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
     resource_levels: list[int] | None = None,
-    enable_detailed_slice_logging: bool = False,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     use_all_maps: bool = True,
@@ -209,7 +204,6 @@ def train(
         num_cogs: Number of agents per environment (4 or 24)
         curriculum: Optional curriculum configuration
         resource_levels: List of resource levels to include
-        enable_detailed_slice_logging: Enable detailed logging
         variants: Optional mission variants for training
         eval_variants: Optional mission variants for evaluation
         use_all_maps: If True, use all 4 maps. If False, only big/small (for 24-agent training)
@@ -227,7 +221,6 @@ def train(
     resolved_curriculum = curriculum or make_dense_curriculum(
         num_cogs=num_cogs,
         resource_levels=resource_levels,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
         use_all_maps=use_all_maps,
     )

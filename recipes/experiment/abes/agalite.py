@@ -39,7 +39,6 @@ def _policy_from_name(name: str) -> PolicyArchitecture:
 def train(
     *,
     curriculum: CurriculumConfig | None = None,
-    enable_detailed_slice_logging: bool = False,
     policy_architecture: PolicyArchitecture | None = None,
     agent: str | None = None,
 ) -> TrainTool:
@@ -51,7 +50,6 @@ def train(
 
     tool = base_train(
         curriculum=curriculum,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
 

@@ -37,7 +37,7 @@ class TestCurriculumCapacityAndEviction:
         config.num_active_tasks = 8  # Small for testing
         config.min_presentations_for_eviction = 10  # More presentations for realistic EMA timescales
         config.algorithm_config = cc.LearningProgressConfig(
-            ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100
+            ema_timescale=0.1, exploration_bonus=0.1, num_active_tasks=100
         )
 
         curriculum = config.make()
@@ -102,15 +102,17 @@ class TestCurriculumCapacityAndEviction:
         # Verify new tasks were created to replace evicted ones
         assert final_stats["num_created"] > config.num_active_tasks
 
-    def test_curriculum_without_algorithm(self):
-        """Test that curriculum behavior without algorithm doesn't evict tasks."""
+    def test_curriculum_with_discrete_random_algorithm(self):
+        """Test that curriculum with DiscreteRandomCurriculum doesn't evict tasks."""
         arena = make_arena(num_agents=4)
         bucketed_config = cc.bucketed(arena)
         bucketed_config.add_bucket("game.agent.rewards.inventory.ore_red", [0.0, 1.0])
 
+        from metta.cogworks.curriculum.curriculum import DiscreteRandomCurriculumConfig
+
         config = bucketed_config.to_curriculum()
         config.num_active_tasks = 5
-        config.algorithm_config = None  # No algorithm
+        config.algorithm_config = DiscreteRandomCurriculumConfig(num_active_tasks=5)
 
         curriculum = config.make()
 
@@ -138,7 +140,7 @@ class TestCurriculumCapacityAndEviction:
         config.num_active_tasks = 3  # Very small for testing
         config.min_presentations_for_eviction = 15  # Require 15 presentations for realistic EMA development
         config.algorithm_config = cc.LearningProgressConfig(
-            ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100
+            ema_timescale=0.1, exploration_bonus=0.1, num_active_tasks=100
         )
 
         curriculum = config.make()
@@ -221,7 +223,7 @@ class TestCurriculumCapacityAndEviction:
         config.algorithm_config = cc.LearningProgressConfig(
             ema_timescale=0.1,  # Faster convergence for testing
             exploration_bonus=0.01,  # Minimal exploration bonus to see learning progress differences
-            max_memory_tasks=100,
+            num_active_tasks=100,
             use_bidirectional=True,  # Ensure we're using bidirectional scoring
         )
 
@@ -373,7 +375,7 @@ class TestCurriculumCapacityAndEviction:
         )
 
         # Just verify the algorithm can identify a task for eviction (non-crashing)
-        recommended_eviction = algorithm.recommend_eviction(initial_task_ids)
+        recommended_eviction = algorithm.recommend_eviction(initial_task_ids, min_presentations=5)
         if recommended_eviction is not None:
             print(f"✓ Algorithm recommends evicting: {task_names[recommended_eviction]}")
         else:
