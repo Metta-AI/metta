@@ -24,7 +24,14 @@ spec:
           - name: {{ .Chart.Name }}
             image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
             imagePullPolicy: {{ .Values.image.pullPolicy }}
-            # Command comes from Dockerfile CMD
+            {{- if .Values.command }}
+            command:
+              {{- toYaml .Values.command | nindent 12 }}
+            {{- end }}
+            {{- if .Values.args }}
+            args:
+              {{- toYaml .Values.args | nindent 12 }}
+            {{- end }}
             env:
             # Datadog configuration
             - name: DD_ENV
@@ -35,6 +42,10 @@ spec:
               value: {{ .Values.image.tag | quote }}
             - name: DD_SITE
               value: {{ .Values.datadog.site | quote }}
+            {{- range .Values.extraEnv }}
+            - name: {{ required "extraEnv entries require name" .name }}
+              value: {{ required (printf "extraEnv entry for %s requires value" .name) .value | quote }}
+            {{- end }}
             # Secrets are fetched from AWS Secrets Manager at runtime via the serviceAccount IAM role
             resources:
               {{- toYaml .Values.resources | nindent 14 }}
