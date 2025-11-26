@@ -9,7 +9,7 @@ import torch
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.util.file import ParsedURI, write_file
+from mettagrid.policy.mpt_artifact import save_mpt
 from mettagrid.util.url_schemes import checkpoint_filename
 from mettagrid.util.url_schemes import get_latest_checkpoint as _get_latest_checkpoint
 
@@ -27,9 +27,8 @@ class CheckpointManager:
         if "__" in run:
             raise ValueError(f"Run name cannot contain '__': {run}")
 
-        self.run = run
         self.run_name = run
-        self.run_dir = system_cfg.data_dir / self.run
+        self.run_dir = system_cfg.data_dir / self.run_name
         self.checkpoint_dir = self.run_dir / "checkpoints"
 
         os.makedirs(system_cfg.data_dir, exist_ok=True)
@@ -38,21 +37,10 @@ class CheckpointManager:
 
         self._remote_prefix: str | None = None
         if not system_cfg.local_only:
-            if system_cfg.remote_prefix:
-                parsed = ParsedURI.parse(system_cfg.remote_prefix)
-                if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
-                    raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
-                key_prefix = parsed.key.rstrip("/")
-                self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
-
-            if self._remote_prefix is None:
-                self._setup_remote_prefix()
+            self._setup_remote_prefix()
 
     def _setup_remote_prefix(self) -> None:
-        if self._remote_prefix is not None:
-            return
-
-        storage_decision = auto_policy_storage_decision(self.run)
+        storage_decision = auto_policy_storage_decision(self.run_name)
         if storage_decision.remote_prefix:
             self._remote_prefix = storage_decision.remote_prefix
             if storage_decision.reason == "env_override":
@@ -67,45 +55,30 @@ class CheckpointManager:
             logger.info("Remote prefix unset; policies will remain local.")
 
     @property
-    def remote_prefix(self) -> str | None:
-        return self._remote_prefix
-
-    @property
     def remote_checkpoints_enabled(self) -> bool:
         return self._remote_prefix is not None
 
     def get_latest_checkpoint(self) -> str | None:
         local_max = _get_latest_checkpoint(f"file://{self.checkpoint_dir}")
         remote_max = _get_latest_checkpoint(self._remote_prefix) if self._remote_prefix else None
-
-        if local_max and remote_max:
-            if remote_max["epoch"] > local_max["epoch"]:
-                return remote_max["uri"]
-            return local_max["uri"]
-
-        if local_max:
-            return local_max["uri"]
-        if remote_max:
-            return remote_max["uri"]
-        return None
+        candidates = [c for c in [local_max, remote_max] if c]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda x: x["epoch"])["uri"]
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
         filename = checkpoint_filename(self.run_name, epoch)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        local_path = self.checkpoint_dir / filename
 
-        from mettagrid.policy.mpt_artifact import save_mpt
-
-        save_mpt(str(local_path), architecture=architecture, state_dict=state_dict)
-        uri = f"file://{local_path.resolve()}"
+        local_uri = save_mpt(self.checkpoint_dir / filename, architecture=architecture, state_dict=state_dict)
 
         if self._remote_prefix:
-            remote_uri = f"{self._remote_prefix}/{filename}"
-            write_file(remote_uri, str(local_path))
-            uri = remote_uri
+            remote_uri = save_mpt(f"{self._remote_prefix}/{filename}", architecture=architecture, state_dict=state_dict)
+            logger.debug("Policy checkpoint saved remotely to %s", remote_uri)
+            return remote_uri
 
-        logger.debug("Policy checkpoint saved to %s", uri)
-        return uri
+        logger.debug("Policy checkpoint saved locally to %s", local_uri)
+        return local_uri
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"

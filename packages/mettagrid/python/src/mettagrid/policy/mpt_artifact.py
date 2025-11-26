@@ -95,8 +95,8 @@ def save_mpt(
     *,
     architecture: Any,
     state_dict: Mapping[str, torch.Tensor],
-) -> None:
-    """Save an .mpt checkpoint to a URI or local path."""
+) -> str:
+    """Save an .mpt checkpoint to a URI or local path. Returns the saved URI."""
     from mettagrid.util.file import ParsedURI, write_file
 
     parsed = ParsedURI.parse(str(uri))
@@ -109,9 +109,11 @@ def save_mpt(
             write_file(parsed.canonical, str(tmp_path))
         finally:
             tmp_path.unlink(missing_ok=True)
+        return parsed.canonical
     else:
         output_path = parsed.local_path or Path(str(uri)).expanduser().resolve()
         _save_mpt_file_locally(output_path, architecture=architecture, state_dict=state_dict)
+        return f"file://{output_path.resolve()}"
 
 
 def _save_mpt_file_locally(
