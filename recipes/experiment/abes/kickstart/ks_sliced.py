@@ -9,7 +9,7 @@ import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 
 # from metta.agent.policies.vit_large_lstm import ViTLargeLSTMConfig
-from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_large2_lstm import ViTLarge2LSTMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -119,7 +119,8 @@ def train(
 
     if policy_architecture is None:
         # policy_architecture = ViTLargeLSTMConfig()
-        policy_architecture = ViTDefaultConfig()
+        # policy_architecture = ViTDefaultConfig()
+        policy_architecture = ViTLarge2LSTMConfig()
 
     scheduler = SchedulerConfig(
         run_gates=[
@@ -161,7 +162,7 @@ def train(
                 attr_path="teacher_led_proportion",
                 mode="progress",
                 style="cosine",
-                start_value=0.3,
+                start_value=0.2,
                 end_value=0.0,
                 start_agent_step=0,
                 end_agent_step=1_000_000_000,
