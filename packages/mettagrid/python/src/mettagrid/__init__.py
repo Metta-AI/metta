@@ -8,8 +8,6 @@ This module provides various environment adapters for different RL frameworks:
 For PufferLib integration, use PufferLib's MettaPuff wrapper directly.
 """
 
-from __future__ import annotations
-
 import logging
 import os
 from typing import TYPE_CHECKING, Dict, Tuple
