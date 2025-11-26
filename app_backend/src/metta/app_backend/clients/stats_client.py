@@ -82,8 +82,11 @@ class StatsClient:
         policy_spec: dict[str, Any],
         git_hash: str | None = None,
         attributes: dict[str, Any] | None = None,
+        s3_path: str | None = None,
     ) -> UUIDResponse:
-        data = PolicyVersionCreate(git_hash=git_hash, policy_spec=policy_spec, attributes=attributes or {})
+        data = PolicyVersionCreate(
+            git_hash=git_hash, policy_spec=policy_spec, attributes=attributes or {}, s3_path=s3_path
+        )
         return self._make_sync_request(
             UUIDResponse, "POST", f"/stats/policies/{policy_id}/versions", json=data.model_dump(mode="json")
         )

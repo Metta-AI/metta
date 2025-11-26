@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import uuid
 
-from mettagrid.util.url_schemes import ParsedScheme, SchemeResolver
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
+from metta.tools.utils.auto_config import auto_stats_server_uri
+from mettagrid.util.url_schemes import ParsedScheme, SchemeResolver, resolve_uri
 
 
 class MettaSchemeResolver(SchemeResolver):
@@ -21,10 +24,6 @@ class MettaSchemeResolver(SchemeResolver):
         return ParsedScheme(raw=uri, scheme="metta", canonical=uri, path=path)
 
     def resolve(self, uri: str) -> str:
-        from metta.app_backend.clients.stats_client import StatsClient
-        from metta.tools.utils.auto_config import auto_stats_server_uri
-        from mettagrid.util.url_schemes import resolve_uri
-
         parsed = self.parse(uri)
         path = parsed.path
         if not path:
@@ -47,8 +46,17 @@ class MettaSchemeResolver(SchemeResolver):
         stats_client = StatsClient.create(stats_server_uri)
         policy_version = stats_client.get_policy_version(policy_version_id)
 
-        checkpoint_uri = policy_version.policy_spec.get("init_kwargs", {}).get("checkpoint_uri")
+        checkpoint_uri: str | None = None
+        if policy_version.s3_path:
+            with policy_spec_from_s3_submission(policy_version.s3_path) as policy_spec:
+                checkpoint_uri = policy_spec.init_kwargs.get("checkpoint_uri")
+
+        # This is for backwards compatibility; we should remove it when
+        # we remove the policy_spec column from the policy_version table.
+        if not checkpoint_uri and policy_version.policy_spec:
+            checkpoint_uri = policy_version.policy_spec.get("init_kwargs", {}).get("checkpoint_uri")
+
         if not checkpoint_uri:
-            raise ValueError(f"Policy version {policy_version_id} has no checkpoint_uri in policy_spec")
+            raise ValueError(f"Policy version {policy_version_id} has no checkpoint_uri in policy_spec or s3_path")
 
         return resolve_uri(checkpoint_uri)
