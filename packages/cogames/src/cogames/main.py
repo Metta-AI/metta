@@ -352,9 +352,7 @@ def play_cmd(
         ),
     ),
 ) -> None:
-    logger.info(f"[FLOW-1] CLI Entry: play_cmd called with mission={mission}, policy={policy}, steps={steps}")
     resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
-    logger.info(f"[FLOW-2] Mission resolved: {resolved_mission}")
 
     if print_cvc_config or print_mg_config:
         try:
@@ -374,7 +372,6 @@ def play_cmd(
             map_builder.seed = effective_map_seed
 
     policy_spec = get_policy_spec(ctx, policy)
-    logger.info(f"[FLOW-3] Policy spec resolved: class_path={policy_spec.class_path}, data_path={policy_spec.data_path}")
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
     console.print(f"Max Steps: {steps}, Render: {render}")
 
@@ -385,7 +382,6 @@ def play_cmd(
     ):
         env_cfg.game.max_steps = steps
 
-    logger.info(f"[FLOW-4] Calling play_module.play with policy_spec={policy_spec}")
     play_module.play(
         console,
         env_cfg=env_cfg,
