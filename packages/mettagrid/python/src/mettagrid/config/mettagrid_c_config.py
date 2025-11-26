@@ -239,8 +239,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                     )
                 seen_vibes_and_min_agents.append((vibe_ids, protocol_config.min_agents))
                 # Ensure keys and values are explicitly Python ints for C++ binding
-                input_res = {int(resource_name_to_id[k]): int(v) for k, v in protocol_config.input_resources.items()}
-                output_res = {int(resource_name_to_id[k]): int(v) for k, v in protocol_config.output_resources.items()}
+                # Build dict explicitly to ensure pybind11 recognizes it as dict[int, int]
+                input_res: dict[int, int] = {}
+                for k, v in protocol_config.input_resources.items():
+                    input_res[int(resource_name_to_id[k])] = int(v)
+                output_res: dict[int, int] = {}
+                for k, v in protocol_config.output_resources.items():
+                    output_res[int(resource_name_to_id[k])] = int(v)
                 cpp_protocol = CppProtocol()
                 cpp_protocol.min_agents = protocol_config.min_agents
                 cpp_protocol.vibes = vibe_ids
@@ -441,12 +446,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_protocol.min_agents = protocol_config.min_agents
             cpp_protocol.vibes = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
             # Ensure keys and values are explicitly Python ints for C++ binding
-            cpp_protocol.input_resources = {
-                int(resource_name_to_id[k]): int(v) for k, v in protocol_config.input_resources.items()
-            }
-            cpp_protocol.output_resources = {
-                int(resource_name_to_id[k]): int(v) for k, v in protocol_config.output_resources.items()
-            }
+            # Build dict explicitly to ensure pybind11 recognizes it as dict[int, int]
+            input_res: dict[int, int] = {}
+            for k, v in protocol_config.input_resources.items():
+                input_res[int(resource_name_to_id[k])] = int(v)
+            cpp_protocol.input_resources = input_res
+            output_res: dict[int, int] = {}
+            for k, v in protocol_config.output_resources.items():
+                output_res[int(resource_name_to_id[k])] = int(v)
+            cpp_protocol.output_resources = output_res
             cpp_protocol.cooldown = protocol_config.cooldown
             clipper_protocols.append(cpp_protocol)
         clipper_config = CppClipperConfig()
