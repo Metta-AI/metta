@@ -36,7 +36,6 @@ if TYPE_CHECKING:
         TrainingEnvironmentConfig,
         VectorizedTrainingEnvironment,
     )
-    from metta.rl.training.uploader import Uploader, UploaderConfig
     from metta.rl.training.wandb_aborter import WandbAborter, WandbAborterConfig
     from metta.rl.training.wandb_logger import WandbLogger
 
@@ -69,8 +68,6 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "TrainingEnvironment": ("metta.rl.training.training_environment", "TrainingEnvironment"),
     "TrainingEnvironmentConfig": ("metta.rl.training.training_environment", "TrainingEnvironmentConfig"),
     "TrainingEnvWindow": ("metta.rl.training.component_context", "TrainingEnvWindow"),
-    "Uploader": ("metta.rl.training.uploader", "Uploader"),
-    "UploaderConfig": ("metta.rl.training.uploader", "UploaderConfig"),
     "VectorizedTrainingEnvironment": ("metta.rl.training.training_environment", "VectorizedTrainingEnvironment"),
     "WandbAborter": ("metta.rl.training.wandb_aborter", "WandbAborter"),
     "WandbAborterConfig": ("metta.rl.training.wandb_aborter", "WandbAborterConfig"),
@@ -107,8 +104,6 @@ __all__ = [
     "TrainingEnvironment",
     "TrainingEnvironmentConfig",
     "TrainingEnvWindow",
-    "Uploader",
-    "UploaderConfig",
     "VectorizedTrainingEnvironment",
     "WandbAborter",
     "WandbAborterConfig",

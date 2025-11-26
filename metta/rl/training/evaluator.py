@@ -13,8 +13,8 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
+from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.context import WandbRun
-from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.handle_results import render_eval_summary
@@ -24,6 +24,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.util.url_schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +180,10 @@ class Evaluator(TrainerComponent):
                     agent_step=agent_step,
                 )
 
+            def on_progress(msg: str) -> None:
+                logger.info(msg)
+                record_heartbeat()
+
             rollout_results = simulate_and_record(
                 policy_specs=[policy_spec],
                 simulations=[sim.to_simulation_run_config() for sim in sims],
@@ -186,14 +191,14 @@ class Evaluator(TrainerComponent):
                 seed=self._seed,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
-                on_progress=logger.info,
+                on_progress=on_progress,
             )
             render_eval_summary(
                 rollout_results, policy_names=[self._spec_display_name(policy_spec)], verbose=self._config.verbose
             )
 
     def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
-        return policy_spec_from_uri(policy_uri, device=self._device)
+        return policy_spec_from_uri(policy_uri, device=str(self._device))
 
     @staticmethod
     def _spec_display_name(policy_spec: PolicySpec) -> str:

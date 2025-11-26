@@ -9,7 +9,6 @@ from torchrl.data import Composite
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -82,11 +81,13 @@ class SLCheckpointedKickstarter(Loss):
         self._terminating_epoch = self.cfg.terminating_epoch
         self._final_checkpoint = self.cfg.final_checkpoint
 
+        from mettagrid.util.url_schemes import policy_spec_from_uri
+
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
+        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
@@ -153,42 +154,39 @@ class SLCheckpointedKickstarter(Loss):
 
     def _construct_checkpoint_uri(self, epoch: int) -> str:
         """Construct a checkpoint URI from the base URI and epoch."""
-        from metta.rl.checkpoint_manager import key_and_version
-        from metta.utils.uri import ParsedURI
+        from mettagrid.util.file import ParsedURI
+        from mettagrid.util.url_schemes import checkpoint_filename, key_and_version
 
-        # Parse the base URI
         parsed = ParsedURI.parse(self._base_teacher_uri)
         metadata = key_and_version(self._base_teacher_uri)
         if metadata is None:
             raise ValueError(f"Could not extract metadata from base URI: {self._base_teacher_uri}")
         run_name, _ = metadata
+        filename = checkpoint_filename(run_name, epoch)
 
-        # Construct new URI with the specified epoch
         if parsed.scheme == "file" and parsed.local_path:
-            # For file URIs, replace the filename
-            path = parsed.local_path.parent / f"{run_name}:v{epoch}.mpt"
+            path = parsed.local_path.parent / filename
             return f"file://{path}"
         elif parsed.scheme == "s3" and parsed.bucket and parsed.key:
-            # For S3 URIs, replace the filename in the key
-            # The key is the full path including the filename
             if "/" in parsed.key:
                 key_dir = parsed.key.rsplit("/", 1)[0]
-                new_key = f"{key_dir}/{run_name}:v{epoch}.mpt"
+                new_key = f"{key_dir}/{filename}"
             else:
-                # If key has no directory, just use the filename
-                new_key = f"{run_name}:v{epoch}.mpt"
+                new_key = filename
             return f"s3://{parsed.bucket}/{new_key}"
         else:
             raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
 
     def load_teacher_policy(self, checkpointed_epoch: Optional[int] = None) -> Policy:
         """Load the teacher policy from a specific checkpoint."""
+        from mettagrid.util.url_schemes import policy_spec_from_uri
+
         new_uri = self._construct_checkpoint_uri(checkpointed_epoch)
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to reload teacher policy")
 
-        teacher_spec = policy_spec_from_uri(new_uri, device=self.device)
+        teacher_spec = policy_spec_from_uri(new_uri, device=str(self.device))
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
         # Detach gradient

@@ -22,6 +22,7 @@ from metta.app_backend.routes.stats_routes import (
     MyPolicyVersionsResponse,
     PolicyCreate,
     PolicyVersionCreate,
+    PolicyVersionsResponse,
     PresignedUploadUrlResponse,
     UUIDResponse,
 )
@@ -153,6 +154,25 @@ class StatsClient:
             "GET",
             "/stats/policies/my-versions",
         )
+
+    def get_policies(
+        self,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
+        version: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> PolicyVersionsResponse:
+        params = remove_none_values(
+            {
+                "name_exact": name_exact,
+                "name_fuzzy": name_fuzzy,
+                "version": version,
+                "limit": limit,
+                "offset": offset,
+            }
+        )
+        return self._make_sync_request(PolicyVersionsResponse, "GET", "/stats/policies", params=params)
 
     def get_leaderboard_policies_v2_users_me(self) -> LeaderboardPoliciesResponse:
         return self._make_sync_request(
