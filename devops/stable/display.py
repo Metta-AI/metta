@@ -1,6 +1,6 @@
 """Display and formatting utilities for release validation.
 
-Extracted from TaskRunner and stable.py to separate display concerns
+Extracted from TaskRunner and release_stable.py to separate display concerns
 from orchestration logic.
 """
 

@@ -546,7 +546,11 @@ def train_cmd(
         help="Override vectorized environment batch size",
         min=1,
     ),
-    log_outputs: bool = typer.Option(False, "--log-outputs", help="Log training outputs"),
+    log_outputs: bool = typer.Option(
+        False,
+        "--log-outputs",
+        help="Log statistics to stdout, do not use Rich dashboard",
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     if len(selected_missions) == 1:
@@ -663,7 +667,7 @@ def evaluate_cmd(
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
         None,
         "--format",
-        help="Output results in YAML or JSON format",
+        help="Serialize evaluation summary to YAML or JSON",
     ),
     save_replay_dir: Optional[Path] = typer.Option(  # noqa: B008
         None,
@@ -721,6 +725,7 @@ def evaluate_cmd(
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
         seed=seed,
+        max_steps=steps,
         output_format=format_,
         save_replay=save_replay_dir,
     )

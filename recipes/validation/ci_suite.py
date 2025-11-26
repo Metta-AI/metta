@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
-from metta.jobs.job_config import JobConfig
+from metta.jobs.job_config import JobConfig, MetricsSource
 
 
 def get_user_timestamp() -> str:
@@ -21,7 +21,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     These are lightweight smoke tests that run quickly on every commit.
 
     Args:
-        version: Version prefix for job names (e.g., "v0.1.0" for stable, or None for timestamped)
+        prefix: Prefix for job names (e.g., "v0.1.0" for stable, or None for timestamped)
 
     Returns:
         Tuple of (job configs, group name for this CI run)
@@ -31,30 +31,27 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     arena_train_name = f"{group}.arena_train"
     arena_eval_name = f"{group}.arena_eval"
     arena_play_name = f"{group}.arena_play"
-    # cvc_small_train_name = f"{group}.cvc_fixed_maps_train"
-    cvc_small_play_name = f"{group}.cvc_fixed_maps_play"
+    cvc_play_name = f"{group}.cvc_fixed_maps_play"
+    cogames_train_name = f"{group}.cogames_train"
+    cogames_eval_name = f"{group}.cogames_eval"
 
     arena_train = JobConfig(
         name=arena_train_name,
-        module="recipes.prod.arena_basic_easy_shaped.train",
-        args=[
-            f"run={arena_train_name}",
-            "trainer.total_timesteps=100",
-            "checkpointer.epoch_interval=1",
-        ],
-        timeout_s=180,  # CI runners are slower; initialization alone can take 30+ seconds
-        is_training_job=True,
+        recipe="recipes.prod.arena_basic_easy_shaped.train",
+        args={
+            "run": arena_train_name,
+            "trainer.total_timesteps": "100",
+            "checkpointer.epoch_interval": "1",
+        },
+        timeout_s=300,  # CI runners are slower; initialization + training can take 3+ minutes
         group=group,
     )
 
     # Evaluate the trained policy from the training run
-    # TODO: make this use s3 and not local file when github ci perms are set to be able to fetch from s3
-
-    # policy_uri = "s3://softmax-public/policies/{arena_train_name}:latest"
     arena_eval = JobConfig(
         name=arena_eval_name,
-        module="recipes.prod.arena_basic_easy_shaped.evaluate_latest_in_dir",
-        args=[f"dir_path=./train_dir/{arena_train_name}/checkpoints/"],
+        recipe="recipes.prod.arena_basic_easy_shaped.evaluate_latest_in_dir",
+        args={"dir_path": f"./train_dir/{arena_train_name}/checkpoints/"},
         dependency_names=[arena_train_name],
         timeout_s=300,
         group=group,
@@ -63,41 +60,52 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     # Play test with random policy (run with minimal steps)
     arena_play = JobConfig(
         name=arena_play_name,
-        module="recipes.prod.arena_basic_easy_shaped.play",
-        args=["max_steps=10", "render=log", "open_browser_on_start=False"],  # Headless mode for CI
+        recipe="recipes.prod.arena_basic_easy_shaped.play",
+        args={"max_steps": "10", "render": "log", "open_browser_on_start": "False"},
         timeout_s=120,  # CI runners need more time for initialization
-        group=group,  # Tag with group for monitoring
+        group=group,
     )
 
-    # CvC Unified - Train just enough to get a single checkpoint
-    # cvc_small_train = JobConfig(
-    #     name=cvc_small_train_name,
-    #     module="recipes.prod.cvc.fixed_maps.train",
-    #     args=[
-    #         f"run={cvc_small_train_name}",
-    #         "trainer.total_timesteps=100",
-    #         "checkpointer.epoch_interval=1",
-    #         "num_cogs=2",
-    #         'variants=["lonely_heart","heart_chorus","pack_rat"]',
-    #     ],
-    #     timeout_s=60,
-    #     is_training_job=True,
-    #     group=group,
-    # )
-
-    # CvC Unified - Play test with random policy
-    cvc_small_play = JobConfig(
-        name=cvc_small_play_name,
-        module="recipes.prod.cvc.fixed_maps.play",
-        args=["max_steps=10", "render=log", "open_browser_on_start=False"],  # Headless mode for CI
+    # CvC Fixed Maps - Play test with random policy
+    cvc_play = JobConfig(
+        name=cvc_play_name,
+        recipe="recipes.prod.cvc.fixed_maps.play",
+        args={"max_steps": "10", "render": "log", "open_browser_on_start": "False"},
         timeout_s=120,  # CI runners need more time for initialization
-        group=group,  # Tag with group for monitoring
+        group=group,
+    )
+
+    # CoGames - Train with small_50 variant for fast CI testing
+    cogames_train = JobConfig(
+        name=cogames_train_name,
+        recipe="recipes.prod.cogames.train",
+        args={
+            "mission": "training_facility.harvest",
+            "variant": "small_50",
+            "steps": "1000",
+            "checkpoints": f"./train_dir/{cogames_train_name}",
+        },
+        timeout_s=300,
+        metrics_source=MetricsSource.COGAMES_LOG,
+        metrics_to_track=["reward", "SPS"],
+        group=group,
+    )
+
+    # CoGames - Evaluate trained policy from local checkpoint
+    cogames_eval = JobConfig(
+        name=cogames_eval_name,
+        recipe="recipes.prod.cogames.evaluate_latest_in_dir",
+        args={"dir_path": f"./train_dir/{cogames_train_name}"},
+        dependency_names=[cogames_train_name],
+        timeout_s=300,
+        group=group,
     )
 
     return [
         arena_train,
         arena_eval,
         arena_play,
-        # cvc_small_train,
-        cvc_small_play,
+        cvc_play,
+        cogames_train,
+        cogames_eval,
     ], group

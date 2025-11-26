@@ -12,7 +12,8 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from devops.skypilot.utils.job_helpers import check_job_statuses
 from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
-from metta.jobs.job_config import JobConfig
+from metta.jobs.job_config import JobConfig, MetricsSource
+from metta.jobs.job_metrics import fetch_cogames_metrics_from_logs
 from metta.jobs.job_runner import LocalJob, RemoteJob
 from metta.jobs.job_state import JobState, JobStatus
 
@@ -137,18 +138,62 @@ class JobManager:
         self._engine = create_engine(f"sqlite:///{self.db_path}")
         SQLModel.metadata.create_all(self._engine)
 
+    def _fetch_metrics_for_job(self, job_state: JobState) -> None:
+        """Fetch metrics for a job based on its metrics_source.
+
+        Routes to appropriate handler:
+        - MetricsSource.WANDB: Fetch from WandB API
+        - MetricsSource.COGAMES_LOG: Parse from cogames log output
+        - MetricsSource.NONE: No-op
+
+        Args:
+            job_state: Job state to fetch metrics for
+        """
+        if not job_state.config.metrics_to_track:
+            return
+
+        metrics_source = job_state.config.metrics_source
+
+        if metrics_source == MetricsSource.WANDB:
+            if job_state.wandb_run_id:
+                job_state.fetch_and_update_metrics()
+            else:
+                logger.debug(f"Skipping WandB metrics for {job_state.name}: no wandb_run_id")
+        elif metrics_source == MetricsSource.COGAMES_LOG:
+            if job_state.logs_path:
+                log_path = Path(job_state.logs_path)
+                if log_path.exists():
+                    log_text = log_path.read_text(errors="ignore")
+                    metrics = fetch_cogames_metrics_from_logs(log_text, job_state.config.metrics_to_track)
+                    if metrics:
+                        job_state.metrics = metrics
+                        logger.info(f"Parsed cogames metrics for {job_state.name}: {metrics}")
+                else:
+                    logger.debug(f"Skipping cogames metrics for {job_state.name}: log file not found")
+            else:
+                logger.debug(f"Skipping cogames metrics for {job_state.name}: no logs_path")
+
     def _refresh_job_metrics(self, job_state: JobState) -> None:
         """Fetch latest metrics and re-evaluate acceptance for a completed job.
 
         Args:
             job_state: Job state to refresh (must be completed)
         """
-        if not (job_state.config.metrics_to_track and job_state.wandb_run_id):
+        if not job_state.config.metrics_to_track:
+            return
+
+        # Skip if no way to fetch metrics
+        metrics_source = job_state.config.metrics_source
+        if metrics_source == MetricsSource.WANDB and not job_state.wandb_run_id:
+            return
+        if metrics_source == MetricsSource.COGAMES_LOG and not job_state.logs_path:
+            return
+        if metrics_source == MetricsSource.NONE:
             return
 
         try:
             old_metrics = dict(job_state.metrics) if job_state.metrics else {}
-            job_state.fetch_and_update_metrics()
+            self._fetch_metrics_for_job(job_state)
 
             # Re-evaluate acceptance criteria with fresh metrics
             if job_state.config.acceptance_criteria:
@@ -388,16 +433,16 @@ class JobManager:
 
         This method should be called after a job reaches terminal state and has been
         marked as COMPLETED with an exit code set. It handles the final steps:
-        - Fetching final metrics from wandb
+        - Fetching final metrics (from wandb or cogames logs based on metrics_source)
         - Evaluating acceptance criteria
 
         Args:
             job_state: JobState object (must be attached to an active session)
         """
-        # Fetch final metrics
-        if job_state.config.metrics_to_track and job_state.wandb_run_id:
+        # Fetch final metrics using appropriate source
+        if job_state.config.metrics_to_track:
             logger.debug(f"Fetching final metrics for {job_state.name}")
-            job_state.fetch_and_update_metrics()
+            self._fetch_metrics_for_job(job_state)
 
         # Evaluate acceptance criteria
         if job_state.config.acceptance_criteria:
@@ -844,13 +889,11 @@ class JobManager:
                 )
             job_state = JobState(name=config.name, config=config, status=JobStatus.PENDING)
 
-            # Set checkpoint URI using run name (from args) for training jobs
+            # Set checkpoint URI using run name (from args) for jobs that track metrics
             # WandB URL will be extracted from logs once job starts running
             # Uses the same S3 prefix that CheckpointManager uses for policy storage
-            if config.is_training_job:
-                from metta.jobs.job_metrics import parse_run_name
-
-                run_name = parse_run_name(config.args)
+            if config.metrics_source != MetricsSource.NONE:
+                run_name = config.args.get("run")
                 if run_name:
                     job_state.checkpoint_uri = f"{SOFTMAX_S3_POLICY_PREFIX}/{run_name}"
 
@@ -859,8 +902,8 @@ class JobManager:
 
         job_type = "remote" if config.remote else "local"
         logger.info(
-            f"Job submitted: {config.name} | type={job_type} | module={config.module} | "
-            f"is_training={config.is_training_job} | metrics={config.metrics_to_track}"
+            f"Job submitted: {config.name} | type={job_type} | recipe={config.recipe} | "
+            f"metrics_source={config.metrics_source} | metrics={config.metrics_to_track}"
         )
 
         self._try_start_job(config.name)

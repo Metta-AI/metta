@@ -264,8 +264,8 @@ def _run_recipe_tests(
         for job in recipe_jobs:
             console.print(f"  • {job.name}")
 
-        # Use persistent directory for job state (already in .gitignore)
-        jobs_dir = Path("train_dir/jobs")
+        # Use per-run directory for job state to avoid schema migration issues
+        jobs_dir = Path(f"train_dir/jobs/{group}")
         jobs_dir.mkdir(parents=True, exist_ok=True)
 
         # Set up logging to file BEFORE creating JobManager

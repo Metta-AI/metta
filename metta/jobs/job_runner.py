@@ -31,7 +31,7 @@ from devops.skypilot.utils.job_helpers import (
 )
 from metta.common.util.fs import get_repo_root
 from metta.common.util.retry import retry_function
-from metta.jobs.job_config import JobConfig
+from metta.jobs.job_config import JobConfig, MetricsSource
 
 logger = logging.getLogger(__name__)
 
@@ -171,16 +171,13 @@ class Job(ABC):
     def run_name(self) -> str | None:
         """Extract WandB run name from job config args if present.
 
-        Only applicable for training jobs. Returns None for non-training jobs
+        Only applicable for WandB-tracked jobs. Returns None for other jobs
         or if run= is not specified in args.
         """
-        if not self.config.is_training_job:
+        if self.config.metrics_source != MetricsSource.WANDB:
             return None
-        # Look for run=<name> in args
-        for arg in self.config.args:
-            if arg.startswith("run="):
-                return arg.split("=", 1)[1]
-        return None
+        # Look for run key in args dict
+        return self.config.args.get("run")
 
     @property
     def exit_code(self) -> int | None:
@@ -205,8 +202,10 @@ class LocalJob(Job):
                 cmd = shlex.split(cmd)
             self.cmd = cmd
         else:
-            self.cmd = ["uv", "run", "./tools/run.py", config.module]
-            self.cmd.extend(config.args)
+            self.cmd = ["uv", "run", "./tools/run.py", config.recipe]
+            # Convert args dict to key=value format
+            for key, value in config.args.items():
+                self.cmd.append(f"{key}={value}")
 
         self._proc: Optional[subprocess.Popen] = None
         self._exit_code: Optional[int] = None
@@ -374,7 +373,8 @@ class RemoteJob(Job):
         if not config.remote and not job_id:
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
-        arg_list = config.args
+        # Convert args dict to key=value list format
+        arg_list = [f"{k}={v}" for k, v in config.args.items()]
         if config.remote:
             base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
             if not config.remote.spot:
@@ -382,7 +382,7 @@ class RemoteJob(Job):
         else:
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
-        self.module = config.module
+        self.recipe = config.recipe
         self.args = arg_list
         self.base_args = base_args
         self.skip_git_check = skip_git_check
@@ -415,7 +415,7 @@ class RemoteJob(Job):
         cmd = [
             "devops/skypilot/launch.py",
             *self.base_args,
-            self.module,
+            self.recipe,
         ]
 
         # Only pass run= for training jobs (they use WandB for experiment tracking)
@@ -482,8 +482,8 @@ class RemoteJob(Job):
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Only generate run_name for training jobs (they use WandB)
-            run_name = self._generate_run_name() if self.config.is_training_job else None
+            # Only generate run_name for WandB-tracked jobs
+            run_name = self._generate_run_name() if self.config.metrics_source == MetricsSource.WANDB else None
             request_id, job_id, _ = retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,
