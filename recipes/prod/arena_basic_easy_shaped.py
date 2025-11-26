@@ -9,12 +9,12 @@ import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.common.wandb.context import WandbConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import (
     InitialPolicyConfig,
