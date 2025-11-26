@@ -30,4 +30,7 @@ RUN pip install --no-cache-dir -e ./softmax -e ./common || \
 
 ENV PYTHONPATH="/app:/app/softmax/src:/app/common/src"
 
+# Verify devops package is accessible at build time
+RUN python -c "import sys; sys.path.insert(0, '/app'); from devops.datadog import cli; print('✓ devops.datadog import successful')" || (echo "✗ devops.datadog import failed" && ls -la /app/devops/ && exit 1)
+
 CMD ["python", "-m", "devops.datadog.cli"]
