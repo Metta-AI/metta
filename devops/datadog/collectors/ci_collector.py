@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Dict, List, Set
 
 from devops.datadog.collectors.base import BaseCollector
 from devops.datadog.github_client import GitHubClient
 from devops.datadog.models import MetricKind, MetricSample
 from devops.datadog.utils import parse_github_timestamp, percentile, utcnow
+from softmax.aws.secrets_manager import get_secretsmanager_secret
 
 
 @dataclass
@@ -66,7 +67,18 @@ class CICollector(BaseCollector):
     def __init__(self) -> None:
         super().__init__()
         self.config = CICollectorConfig.from_env()
-        token = os.environ.get("GITHUB_DASHBOARD_TOKEN") or os.environ.get("GITHUB_TOKEN")
+        token = (
+            os.environ.get("GITHUB_DASHBOARD_TOKEN")
+            or os.environ.get("GITHUB_TOKEN")
+            or get_secretsmanager_secret("github/dashboard-token", require_exists=False)
+        )
+        if not token:
+            self.logger.warning(
+                "No GitHub token found in environment or AWS Secrets Manager. "
+                "API calls will be rate-limited (60 req/hour)."
+            )
+        else:
+            self.logger.debug("GitHub token loaded successfully")
         self.github = GitHubClient(token=token)
 
     def collect(self) -> list[MetricSample]:
@@ -197,7 +209,7 @@ class CICollector(BaseCollector):
             "reverts": "github.reverts.count",
         }
 
-        for metric_name, (labels, threshold, task) in label_groups.items():
+        for _metric_name, (labels, threshold, task) in label_groups.items():
             count = self._count_prs_by_labels(labels, since)
             metric_suffix = metric_suffix_map.get(task, f"github.{task}.count")
             samples.append(
@@ -303,9 +315,7 @@ class CICollector(BaseCollector):
     def _count_other_workflows_failing(self) -> int:
         """Count workflows (excluding tests/benchmarks) whose latest run is failing."""
         all_workflows = self.github.list_workflows(self.config.repo)
-        exclude_workflows = set(self.config.tests_blocking_merge_workflows) | set(
-            self.config.benchmarks_workflows
-        )
+        exclude_workflows = set(self.config.tests_blocking_merge_workflows) | set(self.config.benchmarks_workflows)
 
         failing_count = 0
         for workflow in all_workflows:

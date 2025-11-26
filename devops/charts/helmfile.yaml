@@ -196,6 +196,10 @@ releases:
           tag: latest-dashboard  # Workflow overrides with sha-abc123-dashboard
       - datadog:
           service: dashboard-collector
+      - command:
+          - python
+          - -m
+          - devops.datadog.cli
       - args:
           - collect
           - ci
