@@ -20,7 +20,6 @@ from typing import Dict, List
 from cogames.cli.mission import find_mission
 from cogames.cogs_vs_clips.evals.difficulty_variants import get_difficulty
 
-# eval_missions.py was deleted - missions moved to integrated_evals.py
 from cogames.cogs_vs_clips.evals.integrated_evals import (
     EnergyStarved,
     GoTogether,

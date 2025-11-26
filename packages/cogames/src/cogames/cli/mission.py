@@ -20,13 +20,8 @@ from mettagrid import MettaGridConfig
 from mettagrid.config.mettagrid_config import AssemblerConfig
 from mettagrid.mapgen.mapgen import MapGen
 
-# eval_missions.py was deleted - missions moved to integrated_evals.py
-# CORE_EVAL_MISSIONS is empty since eval_missions.py content was moved
-CORE_EVAL_MISSIONS: list[Mission] = []  # Empty - eval_missions.py content moved to integrated_evals.py
-
 # Combined registry of all evaluation missions (not shown in default 'missions' list)
 EVAL_MISSIONS_ALL: list[Mission] = [
-    *CORE_EVAL_MISSIONS,
     *INTEGRATED_EVAL_MISSIONS,
     *SPANNING_EVAL_MISSIONS,
     *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
@@ -53,7 +48,6 @@ def load_mission_set(mission_set: str) -> list[Mission]:
     if mission_set == "all":
         # All missions: eval missions + integrated + spanning + diagnostic + core missions
         missions_list = []
-        missions_list.extend(CORE_EVAL_MISSIONS)
         missions_list.extend(INTEGRATED_EVAL_MISSIONS)
         missions_list.extend(SPANNING_EVAL_MISSIONS)
         missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
@@ -66,8 +60,6 @@ def load_mission_set(mission_set: str) -> list[Mission]:
 
     elif mission_set == "diagnostic_evals":
         missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
-    elif mission_set == "eval_missions":
-        missions_list = list(CORE_EVAL_MISSIONS)
     elif mission_set == "integrated_evals":
         missions_list = list(INTEGRATED_EVAL_MISSIONS)
     elif mission_set == "spanning_evals":
