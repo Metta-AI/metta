@@ -2,8 +2,7 @@
 
 from typing import Optional, Sequence
 
-from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.trainer_config import OptimizerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -11,13 +10,8 @@ from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
-from recipes.experiment.arena import (
-    make_curriculum,
-    mettagrid,
-    simulations,
-)
-
-DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
+from recipes.experiment.arena import mettagrid, simulations
+from recipes.prod.arena_basic_easy_shaped import BASELINE as ARENA_BASELINE
 
 
 def train(
@@ -28,29 +22,7 @@ def train(
     This uses the same configuration as the base arena recipe but with
     ScheduleFree AdamW optimizer instead of regular Adam.
     """
-    curriculum = make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
-
-    # Configure ScheduleFree AdamW optimizer
-    optimizer_config = OptimizerConfig(
-        type="adamw_schedulefree",
-        learning_rate=DEFAULT_LR,
-        beta1=0.9,
-        beta2=0.999,
-        eps=3.186531e-07,
-        weight_decay=0.01,  # Small weight decay for AdamW
-        warmup_steps=1000,  # Warmup steps for ScheduleFree
-    )
-
-    trainer_config = TrainerConfig(
-        optimizer=optimizer_config,
-        total_timesteps=50_000_000_000,
-    )
-
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        trainer=trainer_config,
-        evaluator=EvaluatorConfig(simulations=simulations()),
-    )
+    return ARENA_BASELINE.model_copy(deep=True)
 
 
 def train_shaped(rewards: bool = True) -> TrainTool:
@@ -58,34 +30,23 @@ def train_shaped(rewards: bool = True) -> TrainTool:
 
     This provides easier training with reward shaping.
     """
-    # Import and configure the shaped environment from base recipe
     from recipes.experiment.arena import train_shaped as base_train_shaped
 
-    # Get the base shaped training tool
+    baseline = ARENA_BASELINE.model_copy(deep=True)
     base_tool = base_train_shaped(rewards=rewards)
+    baseline.training_env.curriculum = base_tool.training_env.curriculum
 
-    # Configure ScheduleFree AdamW optimizer (using native implementation)
-    optimizer_config = OptimizerConfig(
+    baseline.trainer.optimizer = OptimizerConfig(
         type="adamw_schedulefree",
         learning_rate=0.01,
         beta1=0.9,
         beta2=0.999,
         eps=3.186531e-07,
-        weight_decay=0.01,  # Small weight decay for AdamW
-        warmup_steps=2000,  # Warmup steps for ScheduleFree
+        weight_decay=0.01,
+        warmup_steps=2000,
     )
 
-    trainer_config = TrainerConfig(
-        optimizer=optimizer_config,
-        total_timesteps=50_000_000_000,
-    )
-
-    # Return a new TrainTool with the shaped environment but ScheduleFree optimizer
-    return TrainTool(
-        training_env=base_tool.training_env,
-        trainer=trainer_config,
-        evaluator=base_tool.evaluator,
-    )
+    return baseline
 
 
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:

@@ -1,7 +1,5 @@
 from typing import Optional, Sequence
 
-import metta.cogworks.curriculum as cc
-import mettagrid.builder.envs as eb
 from metta.agent.policies.agalite import AGaLiTeConfig
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_dynamics import FastDynamicsConfig
@@ -9,24 +7,16 @@ from metta.agent.policies.memory_free import MemoryFreeConfig
 from metta.agent.policies.puffer import PufferPolicyConfig
 from metta.agent.policies.trxl import TRXLConfig
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithmConfig,
-    CurriculumConfig,
-)
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.trainer_config import TorchProfilerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import (
-    SweepParameters as SP,
-)
-from metta.sweep.core import (
-    grid_search,
-)
+from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import grid_search
 from metta.tools.eval import EvaluateTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
-from mettagrid import MettaGridConfig
+from recipes.experiment.arena import BASELINE as ARENA_BASELINE
+from recipes.experiment.arena import make_curriculum, mettagrid, simulations
 
 # Architecture configurations for benchmark testing
 ARCHITECTURES = {
@@ -42,88 +32,28 @@ ARCHITECTURES = {
 }
 
 
-def mettagrid(num_agents: int = 24) -> MettaGridConfig:
-    arena_env = eb.make_arena(num_agents=num_agents)
-
-    arena_env.game.agent.rewards.inventory = {
-        "heart": 1,
-        "ore_red": 0.1,
-        "battery_red": 0.8,
-        "laser": 0.5,
-        "armor": 0.5,
-        "blueprint": 0.5,
-    }
-    arena_env.game.agent.rewards.inventory_max = {
-        "heart": 100,
-        "ore_red": 1,
-        "battery_red": 1,
-        "laser": 1,
-        "armor": 1,
-        "blueprint": 1,
-    }
-
-    return arena_env
-
-
-def make_curriculum(
-    arena_env: Optional[MettaGridConfig] = None,
-    enable_detailed_slice_logging: bool = False,
-    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-) -> CurriculumConfig:
-    arena_env = arena_env or mettagrid()
-
-    arena_tasks = cc.bucketed(arena_env)
-
-    for item in ["ore_red", "battery_red", "laser", "armor"]:
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0])
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
-
-    # enable or disable attacks. we use cost instead of 'enabled'
-    # to maintain action space consistency.
-    arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
-
-    if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,  # Enable bidirectional learning progress by default
-            ema_timescale=0.001,
-            exploration_bonus=0.1,
-            max_memory_tasks=1000,
-            max_slice_axes=5,  # More slices for arena complexity
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-        )
-
-    return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
-
-
-def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
-    basic_env = env or mettagrid()
-    basic_env.game.actions.attack.consumed_resources["laser"] = 100
-
-    combat_env = basic_env.model_copy()
-    combat_env.game.actions.attack.consumed_resources["laser"] = 1
-
-    return [
-        SimulationConfig(suite="arena", name="basic", env=basic_env),
-        SimulationConfig(suite="arena", name="combat", env=combat_env),
-    ]
-
-
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     arch_type: str = "fast",
+    baseline: Optional[TrainTool] = None,
 ) -> TrainTool:
+    if baseline is None:
+        baseline = ARENA_BASELINE.model_copy(deep=True)
+    else:
+        baseline = baseline.model_copy(deep=True)
+
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    baseline.training_env.curriculum = curriculum
 
     eval_simulations = simulations()
-    policy_architecture = ARCHITECTURES[arch_type]
+    baseline.evaluator.simulations = eval_simulations
 
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
-        policy_architecture=policy_architecture,
-        torch_profiler=TorchProfilerConfig(),
-    )
+    policy_architecture = ARCHITECTURES[arch_type]
+    baseline.policy_architecture = policy_architecture
+    baseline.torch_profiler = TorchProfilerConfig()
+
+    return baseline
 
 
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:

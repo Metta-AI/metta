@@ -1,12 +1,8 @@
 """Arena recipe with regular Adam optimizer for comparison testing."""
 
-from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.trainer_config import OptimizerConfig
 from metta.tools.train import TrainTool
-from recipes.experiment.arena import (
-    make_curriculum,
-    simulations,
-)
+from recipes.prod.arena_basic_easy_shaped import BASELINE as ARENA_BASELINE
 
 DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
 
@@ -19,10 +15,10 @@ def train(
     This uses the same configuration as ScheduleFree recipe but with
     regular Adam optimizer for comparison.
     """
-    curriculum = make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    tool = ARENA_BASELINE.model_copy(deep=True)
 
-    # Configure regular Adam optimizer (matching default)
-    optimizer_config = OptimizerConfig(
+    # Configure regular Adam optimizer
+    tool.trainer.optimizer = OptimizerConfig(
         type="adam",
         learning_rate=DEFAULT_LR,
         beta1=0.9,
@@ -31,16 +27,7 @@ def train(
         weight_decay=0,  # No weight decay for Adam
     )
 
-    trainer_config = TrainerConfig(
-        optimizer=optimizer_config,
-        total_timesteps=50_000_000_000,
-    )
-
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        trainer=trainer_config,
-        evaluator=EvaluatorConfig(simulations=simulations()),
-    )
+    return tool
 
 
 def train_shaped(rewards: bool = True) -> TrainTool:
@@ -48,14 +35,13 @@ def train_shaped(rewards: bool = True) -> TrainTool:
 
     This provides easier training with reward shaping and converters enabled.
     """
-    # Import and configure the shaped environment from base recipe
     from recipes.experiment.arena import train_shaped as base_train_shaped
 
-    # Get the base shaped training tool
+    baseline = ARENA_BASELINE.model_copy(deep=True)
     base_tool = base_train_shaped(rewards=rewards)
+    baseline.training_env.curriculum = base_tool.training_env.curriculum
 
-    # Configure regular Adam optimizer
-    optimizer_config = OptimizerConfig(
+    baseline.trainer.optimizer = OptimizerConfig(
         type="adam",
         learning_rate=DEFAULT_LR,
         beta1=0.9,
@@ -64,14 +50,4 @@ def train_shaped(rewards: bool = True) -> TrainTool:
         weight_decay=0,
     )
 
-    trainer_config = TrainerConfig(
-        optimizer=optimizer_config,
-        total_timesteps=50_000_000_000,
-    )
-
-    # Return a new TrainTool with the shaped environment but regular Adam optimizer
-    return TrainTool(
-        training_env=base_tool.training_env,
-        trainer=trainer_config,
-        evaluator=base_tool.evaluator,
-    )
+    return baseline

@@ -14,8 +14,6 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.loss.ppo import PPOConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -23,6 +21,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from recipes.experiment import arena
+from recipes.experiment.arena import BASELINE as ARENA_BASELINE
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -95,27 +94,28 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    baseline: Optional[TrainTool] = None,
 ) -> TrainTool:
+    if baseline is None:
+        baseline = ARENA_BASELINE.model_copy(deep=True)
+    else:
+        baseline = baseline.model_copy(deep=True)
+
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    baseline.training_env.curriculum = curriculum
 
     eval_simulations = make_evals()
-    trainer_cfg = TrainerConfig(
-        losses=LossesConfig(ppo=PPOConfig()),
-    )
+    baseline.trainer.losses = LossesConfig(ppo=PPOConfig())
+    baseline.evaluator.simulations = eval_simulations
+
     # policy_config = FastDynamicsConfig()
     # policy_config = FastLSTMResetConfig()
     # policy_config = FastConfig()
     # policy_config = ViTSmallConfig()
-    policy_config = ViTSlidingTransConfig()
-    training_env = TrainingEnvironmentConfig(curriculum=curriculum)
-    evaluator = EvaluatorConfig(simulations=eval_simulations)
+    policy_config = policy_architecture or ViTSlidingTransConfig()
+    baseline.policy_architecture = policy_config
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=training_env,
-        evaluator=evaluator,
-        policy_architecture=policy_config,
-    )
+    return baseline
 
 
 def play() -> PlayTool:
