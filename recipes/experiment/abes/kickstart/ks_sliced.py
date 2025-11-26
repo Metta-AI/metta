@@ -18,7 +18,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -109,9 +109,13 @@ def train(
     eval_simulations = simulations()
     losses_config = LossesConfig()
     losses_config.sliced_kickstarter.enabled = True
+    # losses_config.sliced_kickstarter.teacher_uri = (
+    #     "s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt"
+    # )
     losses_config.sliced_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt"
+        "s3://softmax-public/policies/av.student.11.26.07/av.student.11.26.07:v300.mpt"
     )
+
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = 1_000_000_000
@@ -207,6 +211,7 @@ def train(
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
         scheduler=scheduler,
+        checkpointer=CheckpointerConfig(epoch_interval=100),
     )
 
 
