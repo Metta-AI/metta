@@ -36,18 +36,17 @@ static std::unique_ptr<py::scoped_interpreter> g_python_guard;
 GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::vector<std::string> resource_names = {"ore", "heart"};
 
-  std::shared_ptr<ActionConfig> action_cfg =
-      std::make_shared<ActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                     std::unordered_map<InventoryItem, InventoryProbability>());
+  std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
+      std::unordered_map<InventoryItem, InventoryQuantity>(), std::unordered_map<InventoryItem, InventoryQuantity>());
 
   std::shared_ptr<AttackActionConfig> attack_cfg =
       std::make_shared<AttackActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                           std::unordered_map<InventoryItem, InventoryProbability>(),
+                                           std::unordered_map<InventoryItem, InventoryQuantity>(),
                                            std::unordered_map<InventoryItem, InventoryQuantity>());
 
   std::shared_ptr<ChangeVibeActionConfig> change_vibe_cfg =
       std::make_shared<ChangeVibeActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                               std::unordered_map<InventoryItem, InventoryProbability>(),
+                                               std::unordered_map<InventoryItem, InventoryQuantity>(),
                                                4);
 
   // GameConfig expects an unordered_map for actions
