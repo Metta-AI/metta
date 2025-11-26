@@ -44,11 +44,21 @@ class MetricSample:
         from datadog_api_client.v2.model.metric_point import MetricPoint
         from datadog_api_client.v2.model.metric_series import MetricSeries
 
-        intake_type = {
+        # Map our MetricKind to Datadog's MetricIntakeType
+        # Note: DISTRIBUTION may not be available in all datadog-api-client versions
+        intake_type_map = {
             MetricKind.GAUGE: MetricIntakeType.GAUGE,
             MetricKind.COUNT: MetricIntakeType.COUNT,
-            MetricKind.DISTRIBUTION: MetricIntakeType.DISTRIBUTION,
-        }[self.kind]
+        }
+        # Fallback to GAUGE if DISTRIBUTION is not available
+        if self.kind == MetricKind.DISTRIBUTION:
+            if hasattr(MetricIntakeType, "DISTRIBUTION"):
+                intake_type = MetricIntakeType.DISTRIBUTION
+            else:
+                # DISTRIBUTION not supported, use GAUGE as fallback
+                intake_type = MetricIntakeType.GAUGE
+        else:
+            intake_type = intake_type_map[self.kind]
 
         return MetricSeries(
             metric=self.name,
