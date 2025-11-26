@@ -1,6 +1,8 @@
+import asyncio
 import functools
 import logging
 
+from ddtrace import patch
 from ddtrace.trace import tracer
 
 from metta.common.datadog.config import datadog_config
@@ -13,7 +15,6 @@ def init_tracing():
     if datadog_config.DD_TRACE_ENABLED:
         if datadog_config.DD_LOGS_INJECTION:
             # Inject trace identifiers into stdlib logging records for log/trace correlation
-            from ddtrace import patch
 
             patch(logging=True)
         logger.info(
@@ -28,7 +29,6 @@ def init_tracing():
 
 def trace(name: str):
     def decorator(func):
-        import asyncio
 
         if asyncio.iscoroutinefunction(func):
 

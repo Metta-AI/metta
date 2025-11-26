@@ -5,6 +5,7 @@ Eliminates ALL conversion overhead by using direct numpy buffer communication.
 """
 
 import ctypes
+import platform
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -32,8 +33,6 @@ class TribalVillageEnv(pufferlib.PufferEnv):
         self._render_mode = self.config.get("render_mode", "rgb_array")
 
         # Load the optimized Nim library - cross-platform
-        import platform
-
         if platform.system() == "Darwin":
             lib_name = "libtribal_village.dylib"
         elif platform.system() == "Windows":

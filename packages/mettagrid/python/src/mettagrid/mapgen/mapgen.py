@@ -11,6 +11,7 @@ from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.area import Area, AreaWhere
 from mettagrid.mapgen.scene import AnySceneConfig, ChildrenAction, SceneConfig, load_symbol
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
+from mettagrid.mapgen.scenes.nop import Nop
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
 from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
 
@@ -419,8 +420,6 @@ class MapGen(MapBuilder[MapGenConfig]):
         """Helper to wrap a scene config with instance_id for single-instance case."""
         # For single instance, we create a wrapper that sets instance_id
         # The simplest is to use a ChildrenAction approach via a passthrough scene
-        from mettagrid.mapgen.scenes.nop import Nop
-
         return Nop.Config(
             children=[
                 ChildrenAction(

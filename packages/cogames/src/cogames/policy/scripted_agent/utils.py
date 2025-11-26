@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, Union
 
 from cogames.policy.scripted_agent.types import ObjectState, ParsedObservation, SimpleAgentState
+from mettagrid.config.vibes import VIBE_BY_NAME
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
 
@@ -283,8 +284,6 @@ def change_vibe_action(
     Return a safe vibe-change action.
     Guard against disabled or single-vibe configurations before issuing the action.
     """
-    from mettagrid.config.vibes import VIBE_BY_NAME
-
     change_vibe_cfg = getattr(actions, "change_vibe", None)
     if change_vibe_cfg is None:
         return actions.noop.Noop()

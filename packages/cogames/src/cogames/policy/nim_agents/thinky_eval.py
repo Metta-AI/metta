@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from importlib import import_module
 from typing import Dict, List, Tuple
 
 import cogames.policy.nim_agents.agents as na
@@ -102,8 +103,6 @@ EVALS: List[Tuple[str, str, int]] = [
 
 def _load_all_missions() -> Dict[str, Mission]:
     # Minimal loader: merge all known mission sets
-    from importlib import import_module
-
     missions: List[Mission] = []
     for mod_name in (
         "cogames.cogs_vs_clips.evals.eval_missions",

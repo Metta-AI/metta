@@ -19,6 +19,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Literal, Optional, TypeVar
+from urllib.parse import urlparse
 
 import typer
 import yaml  # type: ignore[import]
@@ -34,6 +35,7 @@ from cogames import evaluate as evaluate_module
 from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
+from cogames.auth import BaseCLIAuthenticator
 from cogames.cli.base import console
 from cogames.cli.leaderboard import leaderboard_cmd, submissions_cmd
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
@@ -44,6 +46,7 @@ from cogames.cli.mission import (
     list_evals,
     list_missions,
     list_variants,
+    load_mission_set,
 )
 from cogames.cli.policy import (
     get_policy_spec,
@@ -371,8 +374,6 @@ def play_cmd(
 
     # Optionally override MapGen seed so maps are reproducible across runs.
     # This uses --map-seed if provided, otherwise reuses the main --seed.
-    from mettagrid.mapgen.mapgen import MapGen
-
     effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
     if effective_map_seed is not None:
         map_builder = getattr(env_cfg.game, "map_builder", None)
@@ -688,8 +689,6 @@ def evaluate_cmd(
         raise typer.Exit(1)
 
     if mission_set:
-        from cogames.cli.mission import load_mission_set
-
         try:
             mission_objs = load_mission_set(mission_set)
             missions = [m.full_name() for m in mission_objs]
@@ -706,8 +705,6 @@ def evaluate_cmd(
 
     # Optionally override MapGen seed so maps are reproducible across runs.
     # This uses --map-seed if provided, otherwise reuses the main --seed.
-    from mettagrid.mapgen.mapgen import MapGen
-
     effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
     if effective_map_seed is not None:
         for _, env_cfg in selected_missions:
@@ -785,11 +782,7 @@ def login_cmd(
         min=1,
     ),
 ) -> None:
-    from urllib.parse import urlparse
-
     # Check if we already have a token
-    from cogames.auth import BaseCLIAuthenticator
-
     temp_auth = BaseCLIAuthenticator(
         token_file_name="cogames.yaml",
         token_storage_key="login_tokens",
@@ -950,8 +943,6 @@ def docs_cmd(
 
     # If no argument provided, show available documents
     if doc_name is None:
-        from rich.table import Table
-
         console.print("\n[bold cyan]Available Documents:[/bold cyan]\n")
         table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, padding=(0, 1))
         table.add_column("Document", style="blue", no_wrap=True)
