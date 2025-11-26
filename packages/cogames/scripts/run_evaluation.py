@@ -47,13 +47,21 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
 try:
+<<<<<<< HEAD
     from metta.rl.checkpoint_manager import CheckpointManager
     from metta.rl.policy_artifact import policy_spec_from_uri
+=======
+    from mettagrid.util.url_schemes import policy_spec_from_uri
+>>>>>>> 51564fb1a5295cf8ad78749e9a0913bb05a1bddb
 
-    CHECKPOINT_MANAGER_AVAILABLE = True
+    POLICY_SPEC_FROM_URI_AVAILABLE = True
 except ImportError:
+<<<<<<< HEAD
     CHECKPOINT_MANAGER_AVAILABLE = False
     CheckpointManager = None
+=======
+    POLICY_SPEC_FROM_URI_AVAILABLE = False
+>>>>>>> 51564fb1a5295cf8ad78749e9a0913bb05a1bddb
     policy_spec_from_uri = None
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

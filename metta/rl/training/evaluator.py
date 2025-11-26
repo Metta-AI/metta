@@ -15,7 +15,6 @@ from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.context import WandbRun
-from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.handle_results import render_eval_summary
@@ -25,6 +24,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.util.url_schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +198,7 @@ class Evaluator(TrainerComponent):
             )
 
     def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
-        return policy_spec_from_uri(policy_uri, device=self._device)
+        return policy_spec_from_uri(policy_uri, device=str(self._device))
 
     @staticmethod
     def _spec_display_name(policy_spec: PolicySpec) -> str:
