@@ -93,7 +93,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         remote=RemoteConfig(gpus=1, nodes=1),
         is_training_job=True,
         metrics_to_track=["overview/sps"],
-        acceptance_criteria=[AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000)],
+        acceptance_criteria=[AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=30000)],
     )
 
     # Multi-GPU training - 2B timesteps

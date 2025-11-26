@@ -183,10 +183,22 @@ proc updateVisibilityMap*(visibilityMap: TileMap) {.measure.} =
 
 proc buildAtlas*() {.measure.} =
   ## Build the atlas.
-  for path in walkDirRec(dataDir):
-    if path.endsWith(".png") and "fidget" notin path:
-      let name = path.replace(dataDir & "/", "").replace(".png", "")
-      bxy.addImage(name, readImage(path))
+  bxy.addImage("minimapPip", readImage(dataDir & "/minimapPip.png"))
+  bxy.addImage("selection", readImage(dataDir & "/selection.png"))
+  bxy.addImage("agents/path", readImage(dataDir & "/agents/path.png"))
+  bxy.addImage("agents/footprints", readImage(dataDir & "/agents/footprints.png"))
+  bxy.addImage("actions/thoughts_lightning", readImage(dataDir & "/actions/thoughts_lightning.png"))
+  bxy.addImage("actions/icons/unknown", readImage(dataDir & "/actions/icons/unknown.png"))
+  bxy.addImage("actions/arrow", readImage(dataDir & "/actions/arrow.png"))
+  bxy.addImage("actions/thoughts", readImage(dataDir & "/actions/thoughts.png"))
+
+  proc addDir(rootDir: string, dir: string) =
+    for path in walkDirRec(rootDir / dir):
+      if path.endsWith(".png") and "fidget" notin path:
+        let name = path.replace(rootDir & "/", "").replace(".png", "")
+        bxy.addImage(name, readImage(path))
+
+  addDir(dataDir, "resources")
 
 proc getProjectionView*(): Mat4 {.measure.} =
   ## Get the projection and view matrix.
@@ -319,7 +331,11 @@ proc drawObjects*() {.measure.} =
         pos * TILE_SIZE
       )
     else:
-      let spriteName = replay.typeImages.getOrDefault(thing.typeName, "objects/unknown")
+      let spriteName =
+        if "objects/" & thing.typeName in px:
+          "objects/" & thing.typeName
+        else:
+          "objects/unknown"
       if thing.isClipped.at:
         px.drawSprite(
           spriteName & ".clipped",
