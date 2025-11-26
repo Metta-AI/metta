@@ -161,7 +161,7 @@ def train(
                 attr_path="teacher_led_proportion",
                 mode="progress",
                 style="cosine",
-                start_value=0.03,
+                start_value=0.02,
                 end_value=0.0,
                 start_agent_step=0,
                 end_agent_step=1_000_000_000,
