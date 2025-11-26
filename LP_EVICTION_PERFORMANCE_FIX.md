@@ -72,7 +72,7 @@ def recommend_eviction(self, all_task_ids: List[int], min_presentations: int) ->
 
     # PERFORMANCE FIX: Calculate scores ONCE for all tasks
     all_scores = self.score_tasks(all_task_ids)  # O(n)
-    
+
     # Calculate threshold once
     sorted_scores = sorted(all_scores.values())  # O(n log n)
     threshold_index = max(0, int(len(sorted_scores) * self.hypers.eviction_threshold_percentile))
@@ -84,7 +84,7 @@ def recommend_eviction(self, all_task_ids: List[int], min_presentations: int) ->
         task_stats = self.task_tracker.get_task_stats(tid)
         if task_stats is None or task_stats["completion_count"] < min_presentations:
             continue
-        
+
         task_score = all_scores.get(tid, 0.0)
         if task_score <= threshold_score:
             evictable_tasks.append(tid)
@@ -103,7 +103,7 @@ def recommend_eviction(self, all_task_ids: List[int], min_presentations: int) ->
 ```python
 def on_task_evicted(self, task_id: int):
     # ... eviction logic ...
-    
+
     # Scan ALL tasks on every eviction
     all_active_labels = set()
     for tid in self.task_tracker.get_all_tracked_tasks():  # O(n)
@@ -115,7 +115,7 @@ def on_task_evicted(self, task_id: int):
 ```python
 def on_task_evicted(self, task_id: int):
     # ... eviction logic ...
-    
+
     # PERFORMANCE FIX: Don't scan on every eviction
     # Label tracking done lazily during stats collection
     self._active_labels.discard(evicted_label)
@@ -153,7 +153,7 @@ Re-run the performance tests with this fix:
 PREFIX=msb_perfdiagnosis_v2_ ./tools/launch_lp_perf_matrix.sh quick
 ```
 
-Expected result: 
+Expected result:
 - Performance should remain stable at ~45k SPS throughout training
 - No degradation as pool size increases
 - All configurations should perform similarly (since the bottleneck is fixed)

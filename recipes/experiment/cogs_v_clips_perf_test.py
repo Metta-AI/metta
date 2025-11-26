@@ -76,7 +76,7 @@ def train_with_perf_config(
             perf_log_metrics=perf_log_metrics,
         )
     else:
-        cur_alg = DiscreteRandomCurriculumConfig()
+        cur_alg = DiscreteRandomCurriculumConfig()  # noqa: F821
 
     # Build curriculum tasks
     all_mission_tasks = []
