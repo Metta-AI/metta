@@ -168,7 +168,14 @@ class SimTaskExecutor(AbstractTaskExecutor):
                     text=True,
                 )
                 if result.returncode != 0:
-                    raise RuntimeError(f"Failed to checkout git ref {git_ref}: {result.stderr}")
+                    result = subprocess.run(
+                        ["git", "checkout", "--track", f"origin/{git_ref}"],
+                        cwd=self._versioned_path,
+                        capture_output=True,
+                        text=True,
+                    )
+                    if result.returncode != 0:
+                        raise RuntimeError(f"Failed to checkout git ref {git_ref}: {result.stderr}")
 
                 result = subprocess.run(
                     ["git", "reset", "--hard", f"origin/{git_ref}"],
@@ -188,6 +195,11 @@ class SimTaskExecutor(AbstractTaskExecutor):
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to clean repository: {result.stderr}")
 
+            self._run_cmd_from_versioned_checkout(
+                ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
+                capture_output=True,
+            )
+
             logger.info("Syncing dependencies in versioned checkout...")
             sync_result = self._run_cmd_from_versioned_checkout(
                 ["uv", "sync"],
@@ -195,11 +207,6 @@ class SimTaskExecutor(AbstractTaskExecutor):
             )
             if sync_result.returncode != 0:
                 raise RuntimeError(f"Failed to sync dependencies: {sync_result.stdout}")
-
-            self._run_cmd_from_versioned_checkout(
-                ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
-                capture_output=True,
-            )
 
             logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
