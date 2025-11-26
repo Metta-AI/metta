@@ -234,19 +234,6 @@ def train(
     if driver_env is None:
         raise RuntimeError("Vectorized environment did not expose driver_env for shape inference.")
 
-    agents_per_batch = getattr(vecenv, "agents_per_batch", None)
-    logger.info(
-        "Vec preflight %s",
-        {
-            "vec_num_envs": num_envs,
-            "vec_num_workers": num_workers,
-            "vec_batch_size": vector_batch_size,
-            "envs_per_worker": envs_per_worker,
-            "agents_per_batch": agents_per_batch,
-            "driver_agents_per_env": getattr(driver_env, "num_agents", None),
-        },
-    )
-
     policy_env_info = TribalPolicyEnvInfo(
         observation_space=driver_env.single_observation_space,
         action_space=driver_env.single_action_space,
@@ -345,9 +332,7 @@ def train(
     try:
         trainer = pufferl.PuffeRL(train_args, vecenv, network)
         if log_outputs:
-            console.clear()
-            console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
-            trainer.print_dashboard = lambda *_, **__: None  # type: ignore[assignment]
+            console.print("[dim]Evaluation stats will stream below.[/dim]")
 
         with DeferSigintContextManager():
             while trainer.global_step < num_steps:
