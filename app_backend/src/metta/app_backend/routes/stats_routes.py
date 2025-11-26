@@ -78,6 +78,7 @@ class CompletePolicySubmitRequest(BaseModel):
 
     upload_id: uuid.UUID
     name: str
+    policy_spec: dict[str, Any] = Field(default_factory=dict)
 
 
 class MyPolicyVersionsResponse(BaseModel):
@@ -105,14 +106,16 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     """Create a stats router with the given StatsRepo instance."""
     router = APIRouter(prefix="/stats", tags=["stats"])
 
-    async def _create_policy_version_from_s3_key(name: str, user_id: str, s3_key: str) -> UUIDResponse:
+    async def _create_policy_version_from_s3_key(
+        name: str, user_id: str, s3_key: str, policy_spec: dict[str, Any] | None = None
+    ) -> UUIDResponse:
         s3_path = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
         policy_id = await stats_repo.upsert_policy(name=name, user_id=user_id, attributes={})
         policy_version_id = await stats_repo.create_policy_version(
             policy_id=policy_id,
             s3_path=s3_path,
             git_hash=None,
-            policy_spec={},
+            policy_spec=policy_spec or {},
             attributes={},
         )
         return UUIDResponse(id=policy_version_id)
@@ -261,7 +264,9 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=400, detail=f"Uploaded submission not found in S3: {str(e)}") from e
 
         try:
-            return await _create_policy_version_from_s3_key(name=request.name, user_id=user, s3_key=s3_key)
+            return await _create_policy_version_from_s3_key(
+                name=request.name, user_id=user, s3_key=s3_key, policy_spec=request.policy_spec
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to submit policy: {str(e)}") from e
 

@@ -248,6 +248,7 @@ def create_submission_zip(include_files: list[Path], policy_spec: PolicySpec, co
 def upload_submission(
     zip_path: Path,
     submission_name: str,
+    policy_spec: PolicySpec,
     token: str,
     submit_server_url: str,
     console: Console,
@@ -310,7 +311,11 @@ def upload_submission(
     try:
         complete_response = httpx.post(
             f"{submit_server_url}/stats/policies/submit/complete",
-            json={"upload_id": upload_id, "name": submission_name},
+            json={
+                "upload_id": upload_id,
+                "name": submission_name,
+                "policy_spec": policy_spec.model_dump(),
+            },
             headers=headers,
             timeout=120.0,
         )
@@ -495,7 +500,7 @@ def submit_command(
 
     # Upload submission
     try:
-        policy_version_id = upload_submission(zip_path, name, token, server, console)
+        policy_version_id = upload_submission(zip_path, name, policy_spec, token, server, console)
         if not policy_version_id:
             console.print("\n[red]Submission failed.[/red]")
             return
