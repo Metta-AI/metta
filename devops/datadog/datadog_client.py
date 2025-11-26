@@ -60,7 +60,7 @@ class DatadogMetricsClient:
             )
             logger.error(error_msg)
             raise RuntimeError(error_msg)
-        
+
         # Log API key status (masked for security)
         api_key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
         logger.info("Using Datadog API key: %s", api_key_preview)
@@ -84,7 +84,7 @@ class DatadogMetricsClient:
         if env_key:
             logger.debug("Using API key from environment variable")
             return env_key
-        
+
         # Fall back to AWS Secrets Manager
         logger.debug("Fetching API key from AWS Secrets Manager: datadog/api-key")
         try:
@@ -104,7 +104,7 @@ class DatadogMetricsClient:
         if env_key:
             logger.debug("Using app key from environment variable")
             return env_key
-        
+
         # Fall back to AWS Secrets Manager
         logger.debug("Fetching app key from AWS Secrets Manager: datadog/app-key")
         try:
