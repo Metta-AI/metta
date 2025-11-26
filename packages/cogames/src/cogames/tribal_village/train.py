@@ -211,8 +211,17 @@ def train(
 
     envs_per_worker = max(1, num_envs // num_workers)
 
-    # To keep pufferlib Multiprocessing happy (agents_per_batch == num_agents) keep batch_size == num_envs.
-    vector_batch_size = num_envs
+    # To keep pufferlib Multiprocessing happy (agents_per_batch == num_agents) prefer batch_size == num_envs.
+    if vector_batch_size is None:
+        vector_batch_size = num_envs
+    elif num_envs % vector_batch_size != 0:
+        logger.warning(
+            "vector_batch_size=%s does not evenly divide num_envs=%s; resetting to %s",
+            vector_batch_size,
+            num_envs,
+            num_envs,
+        )
+        vector_batch_size = num_envs
 
     logger.debug(
         "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
