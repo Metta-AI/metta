@@ -228,7 +228,7 @@ public:
   // Allow partial usage during cooldown
   bool allow_partial_usage;
 
-  Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg, StatsTracker* stats)
+  Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg, StatsTracker* stats = nullptr)
       : protocols(build_protocol_map(cfg.protocols)),
         unclip_protocols(),
         is_clipped(cfg.start_clipped),
