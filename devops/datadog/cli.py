@@ -7,9 +7,9 @@ from typing import List
 
 import typer
 
-from .collectors import available_collectors, get_collector
-from .datadog_client import DatadogMetricsClient
-from .models import MetricSample
+from devops.datadog.collectors import available_collectors, get_collector
+from devops.datadog.datadog_client import DatadogMetricsClient
+from devops.datadog.models import MetricSample
 
 logging.basicConfig(level=logging.INFO)
 
@@ -71,7 +71,7 @@ def list_workflows_command(
 ) -> None:
     """List all workflows in the repository to help identify which ones to monitor."""
     import os
-    from .github_client import GitHubClient
+    from devops.datadog.github_client import GitHubClient
 
     repo = repo or os.environ.get("METTA_GITHUB_REPO", "Metta-AI/metta")
     token = os.environ.get("GITHUB_DASHBOARD_TOKEN") or os.environ.get("GITHUB_TOKEN")

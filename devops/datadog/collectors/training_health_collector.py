@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ..models import MetricKind, MetricSample
-from ..utils import parse_iso8601
-from .base import BaseCollector
+from devops.datadog.collectors.base import BaseCollector
+from devops.datadog.models import MetricKind, MetricSample
+from devops.datadog.utils import parse_iso8601
 
 
 @dataclass

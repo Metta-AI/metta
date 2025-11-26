@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Dict
 
-from ..models import MetricKind, MetricSample
+from devops.datadog.models import MetricKind, MetricSample
 
 
 class BaseCollector(ABC):

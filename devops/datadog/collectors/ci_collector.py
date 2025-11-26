@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Set
 
-from ..github_client import GitHubClient
-from ..models import MetricKind, MetricSample
-from ..utils import parse_github_timestamp, percentile, utcnow
-from .base import BaseCollector
+from devops.datadog.collectors.base import BaseCollector
+from devops.datadog.github_client import GitHubClient
+from devops.datadog.models import MetricKind, MetricSample
+from devops.datadog.utils import parse_github_timestamp, percentile, utcnow
 
 
 @dataclass

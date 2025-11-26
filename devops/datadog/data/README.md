@@ -1,4 +1,5 @@
-Sample local data sources for the training/eval collectors. Point the collectors at these (or any other) files by setting:
+Sample local data sources for the training/eval collectors. Point the collectors at these (or any other) files by
+setting:
 
 - `TRAINING_HEALTH_FILE=/app/devops/datadog/data/training_health.json`
 - `EVAL_HEALTH_FILE=/app/devops/datadog/data/eval_health.json`

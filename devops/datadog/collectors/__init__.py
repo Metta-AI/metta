@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Type
 
-from .base import BaseCollector
+from devops.datadog.collectors.base import BaseCollector
 
 COLLECTOR_REGISTRY: Dict[str, Type[BaseCollector]] = {}
 
@@ -26,9 +26,9 @@ def available_collectors() -> List[str]:
 
 
 # Import collectors so they self-register
-from .ci_collector import CICollector  # noqa: E402
-from .training_health_collector import TrainingHealthCollector  # noqa: E402
-from .eval_health_collector import EvalHealthCollector  # noqa: E402
+from devops.datadog.collectors.ci_collector import CICollector  # noqa: E402
+from devops.datadog.collectors.eval_health_collector import EvalHealthCollector  # noqa: E402
+from devops.datadog.collectors.training_health_collector import TrainingHealthCollector  # noqa: E402
 
 register_collector(CICollector)
 register_collector(TrainingHealthCollector)
