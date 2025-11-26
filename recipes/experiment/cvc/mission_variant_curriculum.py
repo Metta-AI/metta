@@ -485,7 +485,11 @@ def train(
     # For evaluation, convert "all" to None (evaluation doesn't use "all variants")
     # Only use specific variants if provided, otherwise use eval_variants or None
     eval_train_variants = None
-    if variants and variants != "all" and not (isinstance(variants, list) and len(variants) == 1 and variants[0].lower() == "all"):
+    is_all_variants = (
+        variants == "all"
+        or (isinstance(variants, list) and len(variants) == 1 and variants[0].lower() == "all")
+    )
+    if variants and not is_all_variants:
         eval_train_variants = variants
     resolved_eval_variants = cogs_v_clips._resolve_eval_variants(eval_train_variants, eval_variants)
     eval_suite = cogs_v_clips.make_eval_suite(
