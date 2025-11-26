@@ -12,7 +12,8 @@ from metta.common.util.file import local_copy
 from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import normalize_policy_uri
-from metta.rl.training import DistributedHelper, TrainerComponent
+from metta.rl.training.component import TrainerComponent
+from metta.rl.training.distributed_helper import DistributedHelper
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
