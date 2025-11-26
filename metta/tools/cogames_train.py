@@ -54,7 +54,7 @@ class CogamesTrainTool(Tool):
     steps: int = Field(default=10000, description="Number of training steps")
     checkpoints: str = Field(default="./train_dir", description="Local checkpoints directory")
     variant: list[str] = Field(default_factory=list, description="Mission variants")
-    policy: str = Field(default="lstm", description="Policy type")
+    policy: str = Field(default="class=lstm", description="Policy specification (class=CLS[,data=PATH])")
     seed: int = Field(default=42, description="Random seed")
     cogs: int | None = Field(default=None, description="Number of cogs (agents)")
     device: str = Field(default="cuda", description="Device to train on (cuda, cpu, or auto)")

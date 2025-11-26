@@ -105,9 +105,8 @@ def test_vibe_picker_captures_input_exclusively() -> None:
 def test_highlighted_agent_renders_star() -> None:
     """Highlighted agents should be rendered with a star symbol."""
 
-    object_type_names = ["agent"]
     symbol_map = {"agent": "A", "empty": "."}
-    buffer = MapBuffer(object_type_names, symbol_map)
+    buffer = MapBuffer(symbol_map)
 
     grid_objects = {1: {"r": 0, "c": 0, "type_name": "agent", "agent_id": 7}}
     buffer.set_highlighted_agent(7)

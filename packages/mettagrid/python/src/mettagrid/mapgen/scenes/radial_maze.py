@@ -28,47 +28,62 @@ class RadialMaze(Scene[RadialMazeConfig]):
 
         carved = np.zeros((self.height, self.width), dtype=bool)
 
+        offsets = np.arange(-arm_width // 2, arm_width // 2 + (arm_width % 2))
+
+        endpoints: list[tuple[int, int]] = []
         for arm in range(self.config.arms):
             angle = 2 * math.pi * arm / self.config.arms
             ex = cx + int(round(arm_length * math.cos(angle)))
             ey = cy + int(round(arm_length * math.sin(angle)))
-            points = bresenham_line(cx, cy, ex, ey)
-            offsets = range(-arm_width // 2, arm_width // 2 + (arm_width % 2))
-            for x, y in points:
-                for dx in offsets:
-                    for dy in offsets:
-                        nx, ny = x + dx, y + dy
-                        if 0 <= nx < self.width and 0 <= ny < self.height:
-                            self.grid[ny, nx] = "empty"
-                            carved[ny, nx] = True
+            pts = np.array(bresenham_line(cx, cy, ex, ey), dtype=int)
+            for dx in offsets:
+                for dy in offsets:
+                    xs = pts[:, 0] + dx
+                    ys = pts[:, 1] + dy
+                    mask = (xs >= 0) & (xs < self.width) & (ys >= 0) & (ys < self.height)
+                    xs_in = xs[mask]
+                    ys_in = ys[mask]
+                    carved[ys_in, xs_in] = True
+                    self.grid[ys_in, xs_in] = "empty"
 
-            # Choose the last in-bound point from the arm's path.
-            special_point = None
-            for p in reversed(points):
-                px, py = p
+            # Last in-bounds point on the ray
+            for px, py in pts[::-1]:
                 if 0 <= px < self.width and 0 <= py < self.height:
-                    special_point = p
+                    endpoints.append((px, py))
                     break
-            if special_point is not None:
-                self.make_area(special_point[0], special_point[1], 1, 1, tags=["endpoint"])
 
         if self.config.outline_walls:
-            outline = np.zeros_like(carved)
-            H, W = carved.shape
-            for y in range(H):
-                for x in range(W):
-                    if not carved[y, x]:
+            # Cells adjacent (8-neighbor) to carved but not carved themselves.
+            def _shift(mask: np.ndarray, dx: int, dy: int) -> np.ndarray:
+                out = np.zeros_like(mask, dtype=bool)
+                y_src_start = max(0, -dy)
+                y_src_end = mask.shape[0] - max(0, dy)
+                x_src_start = max(0, -dx)
+                x_src_end = mask.shape[1] - max(0, dx)
+
+                y_dst_start = max(0, dy)
+                y_dst_end = y_dst_start + (y_src_end - y_src_start)
+                x_dst_start = max(0, dx)
+                x_dst_end = x_dst_start + (x_src_end - x_src_start)
+
+                if y_src_end > y_src_start and x_src_end > x_src_start:
+                    out[y_dst_start:y_dst_end, x_dst_start:x_dst_end] = mask[
+                        y_src_start:y_src_end, x_src_start:x_src_end
+                    ]
+                return out
+
+            neighbor_any = np.zeros_like(carved, dtype=bool)
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if dx == 0 and dy == 0:
                         continue
-                    for dy in (-1, 0, 1):
-                        for dx in (-1, 0, 1):
-                            if dx == 0 and dy == 0:
-                                continue
-                            ny, nx = y + dy, x + dx
-                            if 0 <= ny < H and 0 <= nx < W and not carved[ny, nx]:
-                                outline[ny, nx] = True
-            # Draw walls on outline cells that are not part of the carved corridors
-            mask = outline & (~carved)
-            self.grid[mask] = "wall"
+                    neighbor_any |= _shift(carved, dx, dy)
+
+            outline = neighbor_any & (~carved)
+            self.grid[outline] = "wall"
+
+        for x_end, y_end in endpoints:
+            self.make_area(x_end, y_end, 1, 1, tags=["endpoint"])
 
         # this could be found with Layout, but having a designated area is more convenient
         self.make_area(cx, cy, 1, 1, tags=["center"])

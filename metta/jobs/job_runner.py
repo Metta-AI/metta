@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 import os
+import select
+import shlex
 import signal
 import subprocess
 import time
@@ -29,7 +31,7 @@ from devops.skypilot.utils.job_helpers import (
 )
 from metta.common.util.fs import get_repo_root
 from metta.common.util.retry import retry_function
-from metta.jobs.job_config import JobConfig
+from metta.jobs.job_config import JobConfig, MetricsSource
 
 logger = logging.getLogger(__name__)
 
@@ -169,9 +171,12 @@ class Job(ABC):
     def run_name(self) -> str | None:
         """Extract WandB run name from job config args if present.
 
-        Returns None if run is not specified in args.
+        Only applicable for WandB-tracked jobs. Returns None for other jobs
+        or if run= is not specified in args.
         """
-        # Check if 'run' key exists in args dict
+        if self.config.metrics_source != MetricsSource.WANDB:
+            return None
+        # Look for run key in args dict
         return self.config.args.get("run")
 
     @property
@@ -191,7 +196,16 @@ class LocalJob(Job):
     ):
         super().__init__(config.name, log_dir, config.timeout_s, config)
         self.cwd = cwd or get_repo_root()
-        self.cmd = config.build_command()
+        if "cmd" in config.metadata:
+            cmd = config.metadata["cmd"]
+            if isinstance(cmd, str):
+                cmd = shlex.split(cmd)
+            self.cmd = cmd
+        else:
+            self.cmd = ["uv", "run", "./tools/run.py", config.recipe]
+            # Convert args dict to key=value format
+            for key, value in config.args.items():
+                self.cmd.append(f"{key}={value}")
 
         self._proc: Optional[subprocess.Popen] = None
         self._exit_code: Optional[int] = None
@@ -255,13 +269,28 @@ class LocalJob(Job):
 
     def _read_output(self) -> None:
         """Non-blocking read of available output (called while job runs)."""
+
         if not (self._proc and self._proc.stdout):
             return
-        chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
-        if chunk:
-            log_path = self._get_log_path()
-            with open(log_path, "ab") as f:
-                f.write(chunk)
+
+        # Use select to check if data is available (with 0 timeout for non-blocking)
+        try:
+            readable, _, _ = select.select([self._proc.stdout], [], [], 0)
+            if not readable:
+                return
+        except (ValueError, TypeError):
+            # Handle mock objects or invalid file descriptors gracefully
+            return
+
+        try:
+            chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
+            if chunk:
+                log_path = self._get_log_path()
+                with open(log_path, "ab") as f:
+                    f.write(chunk)
+        except (OSError, AttributeError):
+            # Handle read errors gracefully
+            pass
 
     def _drain_output(self) -> None:
         """Blocking read of all remaining output (called when job completes)."""
@@ -344,9 +373,8 @@ class RemoteJob(Job):
         if not config.remote and not job_id:
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
-        # Convert args dict to list of "key=value" strings for launch.py
+        # Convert args dict to key=value list format
         arg_list = [f"{k}={v}" for k, v in config.args.items()]
-
         if config.remote:
             base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
             if not config.remote.spot:
@@ -454,8 +482,8 @@ class RemoteJob(Job):
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Only generate run_name if 'run' is specified in args (training jobs)
-            run_name = self._generate_run_name() if self.config.args.get("run") else None
+            # Only generate run_name for WandB-tracked jobs
+            run_name = self._generate_run_name() if self.config.metrics_source == MetricsSource.WANDB else None
             request_id, job_id, _ = retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,

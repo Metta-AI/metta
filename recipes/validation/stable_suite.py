@@ -43,16 +43,6 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         ],
     )
 
-    # Evaluation for single-GPU 100M training run
-    arena_eval_100m_name = f"{prefix}.arena_evaluate_100m"
-    arena_eval_100m = JobConfig(
-        name=arena_eval_100m_name,
-        recipe="recipes.prod.arena_basic_easy_shaped.evaluate",
-        args={"policy_uris": f'["s3://softmax-public/policies/{arena_train_name}:latest"]'},
-        dependency_names=[arena_train_name],
-        timeout_s=1800,
-    )
-
     # Multi-GPU training - 2B timesteps
     arena_train_2b_name = f"{prefix}.arena_multi_gpu_2b"
     arena_train_2b = JobConfig(
@@ -71,45 +61,53 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         ],
     )
 
-    # Evaluation for multi-GPU 2B training run
-    arena_eval_2b_name = f"{prefix}.arena_evaluate_2b"
-    arena_eval_2b = JobConfig(
-        name=arena_eval_2b_name,
+    # Evaluation - depends on single-GPU 100M training run
+    arena_eval_name = f"{prefix}.arena_evaluate"
+    arena_eval = JobConfig(
+        name=arena_eval_name,
         recipe="recipes.prod.arena_basic_easy_shaped.evaluate",
-        args={"policy_uris": f'["s3://softmax-public/policies/{arena_train_2b_name}:latest"]'},
-        dependency_names=[arena_train_2b_name],
+        args={"policy_uris": f'["s3://softmax-public/policies/{arena_train_name}:latest"]'},
+        dependency_names=[arena_train_name],
         timeout_s=1800,
     )
 
     # ========================================
-    # CvC Small Maps - Stable Tests
+    # CvC Fixed Maps - Stable Tests
     # ========================================
 
-    # Multi-GPU training - 2B timesteps
-    cvc_small_train_name = f"{prefix}.cvc_small_multi_gpu_2b"
-    cvc_small_train_2b = JobConfig(
-        name=cvc_small_train_name,
-        recipe="recipes.prod.cvc.small_maps.train",
+    # 200-epoch mettabox sanity check (~105M timesteps)
+    cvc_fixed_maps_200ep_name = f"{prefix}.cvc_fixed_maps_mettabox_200ep"
+    cvc_fixed_maps_200ep_timesteps = 200 * 524_288  # 200 epochs * default batch size
+    cvc_fixed_maps_train_200ep = JobConfig(
+        name=cvc_fixed_maps_200ep_name,
+        recipe="recipes.prod.cvc.fixed_maps.train",
         args={
-            "run": cvc_small_train_name,
+            "run": cvc_fixed_maps_200ep_name,
+            "trainer.total_timesteps": str(cvc_fixed_maps_200ep_timesteps),
+            "num_cogs": "4",
+            "variants": '["lonely_heart","heart_chorus","pack_rat"]',
+        },
+        timeout_s=43200,
+        remote=RemoteConfig(gpus=1, nodes=1),
+        metrics_to_track=["overview/sps"],
+        acceptance_criteria=[AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=30000)],
+    )
+
+    # Multi-GPU training - 2B timesteps
+    cvc_fixed_maps_train_name = f"{prefix}.cvc_fixed_maps_multi_gpu_2b"
+    cvc_fixed_maps_train_2b = JobConfig(
+        name=cvc_fixed_maps_train_name,
+        recipe="recipes.prod.cvc.fixed_maps.train",
+        args={
+            "run": cvc_fixed_maps_train_name,
             "trainer.total_timesteps": "2000000000",
             "num_cogs": "4",
-            "variants": "lonely_heart,heart_chorus,pack_rat,neutral_faced",
+            "variants": '["lonely_heart","heart_chorus","pack_rat"]',
         },
         timeout_s=172800,
         remote=RemoteConfig(gpus=4, nodes=4),
-        metrics_to_track=["overview/sps", "env_agent/heart.gained"],
+        metrics_to_track=["overview/sps"],
         acceptance_criteria=[AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=80000)],
-    )
-
-    # Evaluation for CvC multi-GPU 2B training run
-    cvc_eval_2b_name = f"{prefix}.cvc_evaluate_2b"
-    cvc_eval_2b = JobConfig(
-        name=cvc_eval_2b_name,
-        recipe="recipes.prod.cvc.small_maps.evaluate",
-        args={"policy_uris": f'["s3://softmax-public/policies/{cvc_small_train_name}:latest"]'},
-        dependency_names=[cvc_small_train_name],
-        timeout_s=1800,
     )
 
     # ========================================
@@ -117,7 +115,6 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     # ========================================
 
     # CoGames training - 100k steps with S3 upload
-    # Config derived from get_stable_train_config() in recipes/prod/cogames.py
     cogames_train_name = f"{prefix}.cogames_train_100k"
     cogames_s3_uri = f"s3://softmax-public/cogames/{cogames_train_name}/checkpoint.pt"
     cogames_train_100k = JobConfig(
@@ -138,7 +135,6 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     )
 
     # CoGames evaluation - downloads from S3 and evaluates
-    # Config derived from get_stable_eval_config() in recipes/prod/cogames.py
     cogames_eval_name = f"{prefix}.cogames_eval_100k"
     cogames_eval_100k = JobConfig(
         name=cogames_eval_name,
@@ -155,11 +151,10 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
 
     return [
         arena_train_100m,
-        arena_eval_100m,
         arena_train_2b,
-        arena_eval_2b,
-        cvc_small_train_2b,
-        cvc_eval_2b,
+        arena_eval,
+        cvc_fixed_maps_train_200ep,
+        cvc_fixed_maps_train_2b,
         cogames_train_100k,
         cogames_eval_100k,
     ]

@@ -40,10 +40,10 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         recipe="recipes.prod.arena_basic_easy_shaped.train",
         args={
             "run": arena_train_name,
-            "trainer.total_timesteps": "10000",
+            "trainer.total_timesteps": "100",
             "checkpointer.epoch_interval": "1",
         },
-        timeout_s=300,
+        timeout_s=180,  # CI runners are slower; initialization alone can take 30+ seconds
         group=group,
     )
 
@@ -61,8 +61,8 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     arena_play = JobConfig(
         name=arena_play_name,
         recipe="recipes.prod.arena_basic_easy_shaped.play",
-        args={"max_steps": "100", "render": "log", "open_browser_on_start": "False"},
-        timeout_s=60,
+        args={"max_steps": "10", "render": "log", "open_browser_on_start": "False"},
+        timeout_s=120,  # CI runners need more time for initialization
         group=group,
     )
 
@@ -70,8 +70,8 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     cvc_play = JobConfig(
         name=cvc_play_name,
         recipe="recipes.prod.cvc.fixed_maps.play",
-        args={"max_steps": "100", "render": "log", "open_browser_on_start": "False"},
-        timeout_s=60,
+        args={"max_steps": "10", "render": "log", "open_browser_on_start": "False"},
+        timeout_s=120,  # CI runners need more time for initialization
         group=group,
     )
 

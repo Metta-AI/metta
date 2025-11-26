@@ -22,7 +22,7 @@ DEFAULT_SYMBOL_MAP = {
 }
 
 
-def get_symbol_for_object(obj: dict, object_type_names: list[str], symbol_map: dict[str, str]) -> str:
+def get_symbol_for_object(obj: dict, symbol_map: dict[str, str]) -> str:
     """Resolve the display symbol for an object dictionary.
 
     Breaking change: requires `type_name` to be present on objects.
