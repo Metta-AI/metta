@@ -30,7 +30,7 @@ class SlicedKickstarterConfig(LossConfig):
 
     # remainder of the sum below is left for the PPO loss to use
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
-    teacher_led_proportion: float = Field(default=0.2, ge=0, le=1.0)
+    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
 
     def create(
         self,
