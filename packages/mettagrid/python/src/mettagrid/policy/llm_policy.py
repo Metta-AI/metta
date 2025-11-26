@@ -631,6 +631,9 @@ class LLMAgentPolicy(AgentPolicy):
         self.last_action: str | None = None
         self.use_dynamic_prompts = use_dynamic_prompts
 
+        # Track conversation history for debugging
+        self.conversation_history: list[dict] = []
+
         # Initialize prompt builder (new dynamic approach)
         if self.use_dynamic_prompts:
             from mettagrid.policy.llm_prompt_builder import LLMPromptBuilder
@@ -756,6 +759,13 @@ The best action is move_east (WRONG - contains extra words)
                     }
                     # Remove None values
                     completion_params = {k: v for k, v in completion_params.items() if v is not None}
+
+                    # Track prompt
+                    self.conversation_history.append({
+                        "step": len(self.conversation_history) + 1,
+                        "prompt": user_prompt,
+                        "response": None,  # Will be filled in below
+                    })
                 else:
                     # Standard GPT-4 models with static prompts: use system message
                     completion_params = {
@@ -768,11 +778,22 @@ The best action is move_east (WRONG - contains extra words)
                         "temperature": self.temperature,
                     }
 
+                    # Track prompt (include system message for static prompts)
+                    self.conversation_history.append({
+                        "step": len(self.conversation_history) + 1,
+                        "system": self.game_rules_prompt,
+                        "prompt": user_prompt,
+                        "response": None,
+                    })
+
                 response = self.client.chat.completions.create(**completion_params)
                 action_name = response.choices[0].message.content
                 if action_name is None:
                     action_name = "noop"
                 action_name = action_name.strip()
+
+                # Track response
+                self.conversation_history[-1]["response"] = action_name
 
                 # Track usage and cost
                 usage = response.usage
@@ -798,12 +819,27 @@ The best action is move_east (WRONG - contains extra words)
                 if self.use_dynamic_prompts:
                     # Dynamic prompts: everything in user message
                     messages = [{"role": "user", "content": user_prompt}]
+
+                    # Track prompt
+                    self.conversation_history.append({
+                        "step": len(self.conversation_history) + 1,
+                        "prompt": user_prompt,
+                        "response": None,
+                    })
                 else:
                     # Static prompts: system + user
                     messages = [
                         {"role": "system", "content": self.game_rules_prompt},
                         {"role": "user", "content": user_prompt},
                     ]
+
+                    # Track prompt (include system message for static prompts)
+                    self.conversation_history.append({
+                        "step": len(self.conversation_history) + 1,
+                        "system": self.game_rules_prompt,
+                        "prompt": user_prompt,
+                        "response": None,
+                    })
 
                 response = self.ollama_client.chat.completions.create(
                     model=self.model,
@@ -836,6 +872,9 @@ The best action is move_east (WRONG - contains extra words)
 
                 action_name = action_name.strip()
 
+                # Track response
+                self.conversation_history[-1]["response"] = action_name
+
                 # Track usage (Ollama is free/local)
                 usage = response.usage
                 if usage:
@@ -855,6 +894,13 @@ The best action is move_east (WRONG - contains extra words)
 
                 if self.use_dynamic_prompts:
                     # Dynamic prompts: everything in user message, no system
+                    # Track prompt
+                    self.conversation_history.append({
+                        "step": len(self.conversation_history) + 1,
+                        "prompt": user_prompt,
+                        "response": None,
+                    })
+
                     response = self.anthropic_client.messages.create(
                         model=self.model,
                         messages=[{"role": "user", "content": user_prompt}],
@@ -863,6 +909,14 @@ The best action is move_east (WRONG - contains extra words)
                     )
                 else:
                     # Static prompts: system + user
+                    # Track prompt (include system message for static prompts)
+                    self.conversation_history.append({
+                        "step": len(self.conversation_history) + 1,
+                        "system": self.game_rules_prompt,
+                        "prompt": user_prompt,
+                        "response": None,
+                    })
+
                     response = self.anthropic_client.messages.create(
                         model=self.model,
                         system=self.game_rules_prompt,
@@ -878,6 +932,9 @@ The best action is move_east (WRONG - contains extra words)
                     if isinstance(block, TextBlock):
                         action_name = block.text.strip()
                         break
+
+                # Track response
+                self.conversation_history[-1]["response"] = action_name
 
                 # Track usage and cost
                 usage = response.usage
@@ -979,6 +1036,42 @@ The best action is move_east (WRONG - contains extra words)
             "total_output_tokens": cls.total_output_tokens,
             "total_cost": cls.total_cost,
         }
+
+    def print_conversation_history(self) -> None:
+        """Print all LLM prompts and responses from this episode."""
+        if not self.conversation_history:
+            print("\n" + "=" * 70)
+            print("No conversation history recorded.")
+            print("=" * 70 + "\n")
+            return
+
+        print("\n" + "=" * 70)
+        print(f"LLM CONVERSATION HISTORY ({len(self.conversation_history)} steps)")
+        print("=" * 70 + "\n")
+
+        for entry in self.conversation_history:
+            step = entry["step"]
+            print(f"{'=' * 70}")
+            print(f"STEP {step}")
+            print(f"{'=' * 70}")
+
+            # Print system message if present (static prompts only)
+            if "system" in entry:
+                print(f"\n[SYSTEM MESSAGE]")
+                print(entry["system"])
+                print()
+
+            # Print user prompt
+            print(f"[USER PROMPT]")
+            print(entry["prompt"])
+            print()
+
+            # Print LLM response
+            print(f"[LLM RESPONSE]")
+            print(entry.get("response", "(no response)"))
+            print()
+
+        print("=" * 70 + "\n")
 
 
 class LLMMultiAgentPolicy(MultiAgentPolicy):
