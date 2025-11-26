@@ -321,7 +321,47 @@ def make_curriculum(
 
                     all_mission_tasks.append(mission_tasks)
                 except Exception as e:
-                    # Log the error but continue - some variant combinations may be incompatible
+                    # Skip incompatible variant combinations (same logic as test)
+                    error_str = str(e).lower()
+                    # Skip expected incompatibilities
+                    if any(
+                        skip_phrase in error_str
+                        for skip_phrase in [
+                            "not callable",
+                            "already exists",
+                            "can only be applied",
+                            "not found",
+                            "does not exist",
+                            "incompatible",
+                            "protocol with vibes",
+                        ]
+                    ):
+                        # These are expected incompatibilities, skip them silently
+                        import logging
+
+                        logging.debug(
+                            f"Skipping incompatible mission-variant combination {mission_name}+{variant_name}: {e}"
+                        )
+                        continue
+                    # For actual map building errors, log as warning but still skip
+                    # (we don't want to fail the entire curriculum creation)
+                    if any(
+                        key_phrase in error_str
+                        for key_phrase in [
+                            "surface",
+                            "spawn",
+                            "exceeds available",
+                            "no surface found",
+                            "number of agents",
+                        ]
+                    ):
+                        import logging
+
+                        logging.warning(
+                            f"Skipping mission-variant combination {mission_name}+{variant_name} due to map building error: {e}"
+                        )
+                        continue
+                    # For other unexpected errors, log as warning and skip
                     import logging
 
                     logging.warning(f"Failed to create mission-variant combination {mission_name}+{variant_name}: {e}")
@@ -333,53 +373,100 @@ def make_curriculum(
     else:
         # No variants: just create tasks for base missions
         for mission_name in base_missions:
-            mission_template = None
-
-            # Check if this is an eval mission
-            mission_template = _MISSION_BY_NAME.get(mission_name)
-
-            # Check if this is a diagnostic mission (class-based)
-            if mission_template is None and mission_name in DIAGNOSTIC_MISSIONS:
-                for mission_cls in DIAGNOSTIC_EVALS:
-                    temp_mission = mission_cls()  # type: ignore[call-arg]
-                    if temp_mission.name == mission_name:
-                        mission_template = temp_mission
-                        break
-
-            if mission_template is None:
-                # Fall back to make_training_env for standard missions
-                try:
-                    mission_env = cogs_v_clips.make_training_env(
-                        num_cogs=num_cogs,
-                        mission=mission_name,
-                        variants=None,  # No variants
-                    )
-                except ValueError:
-                    # Skip missions that don't exist
-                    continue
-            else:
-                # Use the mission template directly (works for both eval and diagnostic missions)
-                mission = cogs_v_clips._prepare_mission(
-                    mission_template,
-                    num_cogs=num_cogs,
-                    variant_names=[],  # No variants
-                )
-                mission_env = mission.make_env()
-
-            # Give each environment a label so per-label rewards can be tracked in stats/W&B.
-            # Use the mission name as the label, which is stable across curriculum tasks.
             try:
-                mission_env.label = mission_name  # type: ignore[attr-defined]
-            except Exception:
-                # Best-effort; if the config does not support labels, leave it as default.
-                pass
+                mission_template = None
 
-            # Initialize stats rewards dict if needed (for bucket overrides to work)
-            if not mission_env.game.agent.rewards.stats:
-                mission_env.game.agent.rewards.stats = {}
-            # Initialize stats_max dict if needed
-            if not mission_env.game.agent.rewards.stats_max:
-                mission_env.game.agent.rewards.stats_max = {}
+                # Check if this is an eval mission
+                mission_template = _MISSION_BY_NAME.get(mission_name)
+
+                # Check if this is a diagnostic mission (class-based)
+                if mission_template is None and mission_name in DIAGNOSTIC_MISSIONS:
+                    for mission_cls in DIAGNOSTIC_EVALS:
+                        temp_mission = mission_cls()  # type: ignore[call-arg]
+                        if temp_mission.name == mission_name:
+                            mission_template = temp_mission
+                            break
+
+                if mission_template is None:
+                    # Fall back to make_training_env for standard missions
+                    try:
+                        mission_env = cogs_v_clips.make_training_env(
+                            num_cogs=num_cogs,
+                            mission=mission_name,
+                            variants=None,  # No variants
+                        )
+                    except ValueError:
+                        # Skip missions that don't exist
+                        continue
+                    # Deduplicate assembler protocols to avoid C++ config errors
+                    _deduplicate_assembler_protocols(mission_env)
+                else:
+                    # Use the mission template directly (works for both eval and diagnostic missions)
+                    mission = cogs_v_clips._prepare_mission(
+                        mission_template,
+                        num_cogs=num_cogs,
+                        variant_names=[],  # No variants
+                    )
+                    mission_env = mission.make_env()
+
+                    # Deduplicate assembler protocols to avoid C++ config errors
+                    _deduplicate_assembler_protocols(mission_env)
+
+                # Give each environment a label so per-label rewards can be tracked in stats/W&B.
+                # Use the mission name as the label, which is stable across curriculum tasks.
+                try:
+                    mission_env.label = mission_name  # type: ignore[attr-defined]
+                except Exception:
+                    # Best-effort; if the config does not support labels, leave it as default.
+                    pass
+
+                # Initialize stats rewards dict if needed (for bucket overrides to work)
+                if not mission_env.game.agent.rewards.stats:
+                    mission_env.game.agent.rewards.stats = {}
+                # Initialize stats_max dict if needed
+                if not mission_env.game.agent.rewards.stats_max:
+                    mission_env.game.agent.rewards.stats_max = {}
+            except Exception as e:
+                # Skip incompatible combinations (same logic as variants case)
+                error_str = str(e).lower()
+                # Skip expected incompatibilities
+                if any(
+                    skip_phrase in error_str
+                    for skip_phrase in [
+                        "not callable",
+                        "already exists",
+                        "can only be applied",
+                        "not found",
+                        "does not exist",
+                        "incompatible",
+                        "protocol with vibes",
+                    ]
+                ):
+                    # These are expected incompatibilities, skip them silently
+                    import logging
+
+                    logging.debug(f"Skipping incompatible mission {mission_name}: {e}")
+                    continue
+                # For actual map building errors, log as warning but still skip
+                if any(
+                    key_phrase in error_str
+                    for key_phrase in [
+                        "surface",
+                        "spawn",
+                        "exceeds available",
+                        "no surface found",
+                        "number of agents",
+                    ]
+                ):
+                    import logging
+
+                    logging.warning(f"Skipping mission {mission_name} due to map building error: {e}")
+                    continue
+                # For other unexpected errors, log as warning and skip
+                import logging
+
+                logging.warning(f"Failed to create mission {mission_name}: {e}")
+                continue
 
             mission_tasks = cc.bucketed(mission_env)
 
