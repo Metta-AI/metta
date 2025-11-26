@@ -45,9 +45,6 @@ MISSIONS: tuple[str, ...] = (
     "oxygen_bottleneck",  # 51.2% success, 3.02 avg reward
     "collect_resources_classic",  # 50.0% success, 4.90 avg reward
     "collect_resources_spread",  # 50.0% success, 4.45 avg reward
-    "extractor_hub_70",  # 43.8% success, 1.79 avg reward
-    "extractor_hub_30",
-    "extractor_hub_50",
     "single_use_swarm",  # 42.5% success, 0.46 avg reward
 )
 
@@ -529,7 +526,7 @@ def evaluate(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
