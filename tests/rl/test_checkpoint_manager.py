@@ -12,12 +12,12 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_uri_resolver import get_policy_metadata, resolve_uri
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
 from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.util.url_schemes import checkpoint_filename, get_checkpoint_metadata, resolve_uri
 
 
 class MockActionComponentConfig(ComponentConfig):
@@ -60,7 +60,7 @@ class TestBasicSaveLoad:
     def test_load_from_uri_with_latest(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         for epoch in [1, 7, 3]:
             save_mpt(
-                checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}.mpt",
+                checkpoint_manager.checkpoint_dir / checkpoint_filename(checkpoint_manager.run_name, epoch),
                 architecture=mock_policy_architecture,
                 state_dict=mock_agent.state_dict(),
             )
@@ -70,13 +70,13 @@ class TestBasicSaveLoad:
         artifact = load_mpt(normalized)
 
         assert artifact.state_dict is not None
-        metadata = get_policy_metadata(latest_uri)
+        metadata = get_checkpoint_metadata(latest_uri)
         assert metadata["run_name"] == "test_run"
         assert metadata["epoch"] == 7
 
     def test_save_and_load_agent(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         save_mpt(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            checkpoint_manager.checkpoint_dir / checkpoint_filename(checkpoint_manager.run_name, 5),
             architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
         )
@@ -87,7 +87,7 @@ class TestBasicSaveLoad:
 
         assert agent_file.exists()
 
-        metadata = get_policy_metadata(agent_file.as_uri())
+        metadata = get_checkpoint_metadata(agent_file.as_uri())
         assert metadata["run_name"] == "test_run"
         assert metadata["epoch"] == 5
 
@@ -99,7 +99,7 @@ class TestBasicSaveLoad:
 
         for epoch in epochs:
             save_mpt(
-                checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}.mpt",
+                checkpoint_manager.checkpoint_dir / checkpoint_filename(checkpoint_manager.run_name, epoch),
                 architecture=mock_policy_architecture,
                 state_dict=mock_agent.state_dict(),
             )
@@ -112,7 +112,7 @@ class TestBasicSaveLoad:
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         save_mpt(
-            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            checkpoint_manager.checkpoint_dir / checkpoint_filename(checkpoint_manager.run_name, 5),
             architecture=mock_policy_architecture,
             state_dict=mock_agent.state_dict(),
         )

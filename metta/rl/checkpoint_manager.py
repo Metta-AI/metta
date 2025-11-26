@@ -6,11 +6,11 @@ from typing import Any, Dict, Optional
 
 import torch
 
-from metta.rl.policy_uri_resolver import get_latest_checkpoint as _get_latest_checkpoint
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.util.file import ParsedURI
+from mettagrid.util.url_schemes import get_latest_checkpoint as _get_latest_checkpoint
 
 logger = logging.getLogger(__name__)
 

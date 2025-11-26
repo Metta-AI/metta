@@ -8,10 +8,14 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Union
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlparse
 
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
+
+from mettagrid.util.url_schemes import ParsedScheme, parse_uri
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,21 +24,11 @@ class ParsedURI:
 
     raw: str
     scheme: str
+    canonical: str
     local_path: Optional[Path] = None
     bucket: Optional[str] = None
     key: Optional[str] = None
     path: Optional[str] = None
-
-    @property
-    def canonical(self) -> str:
-        """Return a normalized string representation."""
-        if self.scheme == "file" and self.local_path is not None:
-            return self.local_path.as_uri()
-        if self.scheme == "s3" and self.bucket and self.key:
-            return f"s3://{self.bucket}/{self.key}"
-        if self.scheme == "mock":
-            return f"mock://{self.path or ''}"
-        return self.raw
 
     def require_local_path(self) -> Path:
         if self.scheme != "file" or self.local_path is None:
@@ -48,49 +42,20 @@ class ParsedURI:
 
     @classmethod
     def parse(cls, value: str) -> "ParsedURI":
-        if not value:
-            raise ValueError("URI cannot be empty")
-
-        if value.startswith("s3://"):
-            remainder = value[5:]
-            if "/" not in remainder:
-                raise ValueError("Malformed S3 URI. Expected s3://bucket/key")
-            bucket, key = remainder.split("/", 1)
-            if not bucket or not key:
-                raise ValueError("Malformed S3 URI. Bucket and key must be non-empty")
-            return cls(raw=value, scheme="s3", bucket=bucket, key=key, path=key)
-
-        if value.startswith("mock://"):
-            path = value[len("mock://") :]
-            if not path:
-                raise ValueError("mock:// URIs must include a path")
-            return cls(raw=value, scheme="mock", path=path)
-
-        if value.startswith("file://"):
-            parsed = urlparse(value)
-            # Combine netloc + path to support file://localhost/tmp
-            combined_path = unquote(parsed.path)
-            if parsed.netloc:
-                combined_path = f"{parsed.netloc}{combined_path}"
-            if not combined_path:
-                raise ValueError(f"Malformed file URI: {value}")
-            local_path = Path(combined_path).expanduser().resolve()
-            return cls(raw=value, scheme="file", local_path=local_path, path=str(local_path))
-
-        # Check for unrecognized URI schemes
-        if "://" in value:
-            scheme = value.split("://", 1)[0]
-            raise ValueError(f"Unsupported URI scheme: {scheme}://")
-
-        # Treat as a local filesystem path
-        local_path = Path(value).expanduser().resolve()
-        return cls(raw=value, scheme="file", local_path=local_path, path=str(local_path))
+        parsed: ParsedScheme = parse_uri(value)
+        return cls(
+            raw=parsed.raw,
+            scheme=parsed.scheme,
+            canonical=parsed.canonical,
+            local_path=parsed.local_path,
+            bucket=parsed.bucket,
+            key=parsed.key,
+            path=parsed.path,
+        )
 
 
 def write_data(path: str, data: Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
     """Write in-memory bytes/str to *local*, *s3://* destinations."""
-    logger = logging.getLogger(__name__)
-
     if isinstance(data, str):
         data = data.encode()
 
@@ -141,7 +106,6 @@ def exists(path: str) -> bool:
 
 def read(path: str) -> bytes:
     """Read bytes from a local path or S3 object."""
-    logger = logging.getLogger(__name__)
     parsed = ParsedURI.parse(path)
 
     if parsed.scheme == "s3":
@@ -164,7 +128,6 @@ def read(path: str) -> bytes:
 
 def write_file(path: str, local_file: str, *, content_type: str = "application/octet-stream") -> None:
     """Upload a file from disk to s3://, or copy locally."""
-    logger = logging.getLogger(__name__)
     parsed = ParsedURI.parse(path)
 
     if parsed.scheme == "s3":

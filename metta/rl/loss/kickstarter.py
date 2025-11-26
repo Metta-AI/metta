@@ -67,7 +67,7 @@ class Kickstarter(Loss):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         self.student_forward = self.cfg.student_forward
 
-        from metta.rl.policy_uri_resolver import policy_spec_from_uri
+        from mettagrid.util.url_schemes import policy_spec_from_uri
 
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:

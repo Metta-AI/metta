@@ -3,7 +3,6 @@ import pytest
 import mettagrid.builder.envs as eb
 from metta.agent.mocks import MockAgent
 from metta.cogworks.curriculum import env_curriculum
-from metta.rl.policy_uri_resolver import get_policy_metadata
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.runner import SimulationRunConfig, run_simulations
 from metta.sim.simulation_config import SimulationConfig
@@ -15,6 +14,7 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.mpt_artifact import load_mpt
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.util.url_schemes import get_checkpoint_metadata
 from recipes.experiment.arena import mettagrid
 from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
 
@@ -52,7 +52,7 @@ class TestNewPolicySystem:
 
     def test_policy_metadata_extraction(self):
         """Test policy metadata extraction from URIs."""
-        assert callable(get_policy_metadata)
+        assert callable(get_checkpoint_metadata)
 
     def test_simulation_runner_with_mock_policy(self):
         """Test that the simulation runner works with a mock policy initializer."""

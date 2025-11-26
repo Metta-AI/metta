@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+import uuid
+
+from mettagrid.util.url_schemes import ParsedScheme, SchemeResolver
+
+
+class MettaSchemeResolver(SchemeResolver):
+    @property
+    def scheme(self) -> str:
+        return "metta"
+
+    def parse(self, uri: str) -> ParsedScheme:
+        if not uri.startswith("metta://"):
+            raise ValueError(f"Expected metta:// URI, got: {uri}")
+
+        path = uri[len("metta://") :]
+        if not path:
+            raise ValueError(f"Invalid metta:// URI: {uri}")
+
+        return ParsedScheme(raw=uri, scheme="metta", canonical=uri, path=path)
+
+    def resolve(self, uri: str) -> str:
+        from metta.app_backend.clients.stats_client import StatsClient
+        from metta.tools.utils.auto_config import auto_stats_server_uri
+        from mettagrid.util.url_schemes import resolve_uri
+
+        parsed = self.parse(uri)
+        path = parsed.path
+        if not path:
+            raise ValueError(f"Invalid metta:// URI: {uri}")
+
+        path_parts = path.split("/")
+        if len(path_parts) < 2 or path_parts[0] != "policy":
+            raise ValueError(f"Unsupported metta:// URI format: {uri}. Expected metta://policy/<policy_version_id>")
+
+        policy_version_id_str = path_parts[1]
+        try:
+            policy_version_id = uuid.UUID(policy_version_id_str)
+        except ValueError as e:
+            raise ValueError(f"Invalid policy version ID in URI: {policy_version_id_str}") from e
+
+        stats_server_uri = auto_stats_server_uri()
+        if not stats_server_uri:
+            raise ValueError("Cannot resolve metta:// URI: stats server not configured")
+
+        stats_client = StatsClient.create(stats_server_uri)
+        policy_version = stats_client.get_policy_version(policy_version_id)
+
+        if not policy_version.s3_path:
+            raise ValueError(f"Policy version {policy_version_id} has no s3_path")
+
+        return resolve_uri(policy_version.s3_path)

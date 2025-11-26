@@ -11,15 +11,12 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_uri_resolver import _resolve_metta_uri, key_and_version, resolve_uri
+from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
 from mettagrid.util.file import ParsedURI
-
-
-def checkpoint_filename(run: str, epoch: int) -> str:
-    return f"{run}:v{epoch}.mpt"
+from mettagrid.util.url_schemes import checkpoint_filename, key_and_version, resolve_uri
 
 
 def create_checkpoint(tmp_path: Path, filename: str, architecture, state_dict) -> Path:
@@ -120,19 +117,23 @@ class TestCheckpointManagerOperations:
 
 
 class TestMettaURIs:
-    def test_parsed_uri_rejects_metta_scheme(self):
-        with pytest.raises(ValueError, match="Unsupported URI scheme: metta://"):
-            ParsedURI.parse("metta://policy/acee831a-f409-4345-9c44-79b34af17c3e")
+    def test_parsed_uri_parses_metta_scheme(self):
+        parsed = ParsedURI.parse("metta://policy/acee831a-f409-4345-9c44-79b34af17c3e")
+        assert parsed.scheme == "metta"
+        assert parsed.path == "policy/acee831a-f409-4345-9c44-79b34af17c3e"
 
     def test_resolve_metta_uri_invalid_format(self):
+        resolver = MettaSchemeResolver()
         with pytest.raises(ValueError, match="Unsupported metta:// URI format"):
-            _resolve_metta_uri("metta://invalid")
+            resolver.resolve("metta://invalid")
 
     def test_resolve_metta_uri_invalid_uuid(self):
+        resolver = MettaSchemeResolver()
         with pytest.raises(ValueError, match="Invalid policy version ID"):
-            _resolve_metta_uri("metta://policy/not-a-uuid")
+            resolver.resolve("metta://policy/not-a-uuid")
 
     def test_resolve_metta_uri_requires_stats_server(self, monkeypatch):
-        monkeypatch.setattr("metta.rl.policy_uri_resolver.auto_stats_server_uri", lambda: None)
+        monkeypatch.setattr("metta.tools.utils.auto_config.auto_stats_server_uri", lambda: None)
+        resolver = MettaSchemeResolver()
         with pytest.raises(ValueError, match="stats server not configured"):
-            _resolve_metta_uri("metta://policy/acee831a-f409-4345-9c44-79b34af17c3e")
+            resolver.resolve("metta://policy/acee831a-f409-4345-9c44-79b34af17c3e")

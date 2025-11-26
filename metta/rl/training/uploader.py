@@ -10,10 +10,10 @@ import wandb
 
 from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_uri_resolver import resolve_uri
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.util.file import local_copy
+from mettagrid.util.url_schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 

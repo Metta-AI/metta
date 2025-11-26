@@ -8,12 +8,12 @@ from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_uri_resolver import resolve_uri
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt, save_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.file import write_file
+from mettagrid.util.url_schemes import checkpoint_filename, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class Checkpointer(TrainerComponent):
             if normalized_uri:
                 artifact: MptArtifact | None = None
                 if self._distributed.is_master():
-                    artifact = load_mpt(normalized_uri)
+                    artifact = load_mpt(normalized_uri, uri_resolver=None)
 
                 state_dict = self._distributed.broadcast_from_master(
                     {k: v.cpu() for k, v in artifact.state_dict.items()} if artifact else None
@@ -92,11 +92,10 @@ class Checkpointer(TrainerComponent):
                 return policy
 
         if candidate_uri:
-            normalized_uri = resolve_uri(candidate_uri)
-            artifact = load_mpt(normalized_uri)
+            artifact = load_mpt(candidate_uri)
             policy = artifact.instantiate(policy_env_info, load_device)
-            self._latest_policy_uri = normalized_uri
-            logger.info("Loaded policy from %s", normalized_uri)
+            self._latest_policy_uri = resolve_uri(candidate_uri)
+            logger.info("Loaded policy from %s", candidate_uri)
             return policy
 
         logger.info("Creating new policy for training run")
@@ -125,7 +124,7 @@ class Checkpointer(TrainerComponent):
 
     def _save_policy(self, epoch: int) -> None:
         policy = self._policy_to_save()
-        filename = f"{self._checkpoint_manager.run_name}:v{epoch}.mpt"
+        filename = checkpoint_filename(self._checkpoint_manager.run_name, epoch)
         checkpoint_dir = self._checkpoint_manager.checkpoint_dir
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         local_path = checkpoint_dir / filename

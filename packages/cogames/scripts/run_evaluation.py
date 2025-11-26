@@ -47,7 +47,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
 try:
-    from metta.rl.policy_uri_resolver import policy_spec_from_uri
+    from mettagrid.util.url_schemes import policy_spec_from_uri
 
     POLICY_SPEC_FROM_URI_AVAILABLE = True
 except ImportError:
