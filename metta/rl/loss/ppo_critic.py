@@ -127,6 +127,12 @@ class PPOCritic(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         # compute advantages on the first mb
         if mb_idx == 0:
+            # a hack because loss run gates can get updated between rollout and train
+            if self.cfg.deferred_training_start_step is not None:
+                if self._require_context(context).agent_step >= self.cfg.deferred_training_start_step:
+                    self.sample_enabled = True
+                    self.train_forward_enabled = True
+
             advantages = torch.zeros_like(self.replay.buffer["values"], device=self.device)
             self.advantages = compute_advantage(
                 self.replay.buffer["values"],
