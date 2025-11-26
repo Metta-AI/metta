@@ -1,18 +1,18 @@
 """Simplified adaptive experiment orchestration for Metta."""
 
 # Core components
-from .adaptive_config import AdaptiveConfig
-from .adaptive_controller import AdaptiveController
+from metta.adaptive.adaptive_config import AdaptiveConfig
+from metta.adaptive.adaptive_controller import AdaptiveController
 
 # Implementations
-from .dispatcher import LocalDispatcher, SkypilotDispatcher
+from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
 
 # Models (with proper status logic copied from sweep models)
-from .models import JobDefinition, JobStatus, RunInfo
+from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 
 # Protocols
-from .protocols import Dispatcher, ExperimentScheduler, Store
-from .stores import WandbStore
+from metta.adaptive.protocols import Dispatcher, ExperimentScheduler, Store
+from metta.adaptive.stores import WandbStore
 
 __all__ = [
     # Core
