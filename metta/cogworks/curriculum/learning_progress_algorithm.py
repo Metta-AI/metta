@@ -338,43 +338,40 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if not all_task_ids:
             return None
 
-        # Filter to evictable tasks
-        evictable_tasks = [tid for tid in all_task_ids if self.should_evict_task(tid, min_presentations)]
+        # PERFORMANCE FIX: Calculate scores ONCE for all tasks instead of repeatedly in loop
+        # Old code: should_evict_task() called score_tasks(all_ids) FOR EACH task = O(n²)
+        # New code: Calculate once, pass in = O(n)
+        all_scores = self.score_tasks(all_task_ids)
+
+        # Calculate threshold once
+        sorted_scores = sorted(all_scores.values())
+        threshold_index = max(0, int(len(sorted_scores) * self.hypers.eviction_threshold_percentile))
+        threshold_score = sorted_scores[threshold_index] if sorted_scores else 0.0
+
+        # Filter to evictable tasks using pre-computed scores
+        evictable_tasks = []
+        for tid in all_task_ids:
+            task_stats = self.task_tracker.get_task_stats(tid)
+            if task_stats is None:
+                continue
+            if task_stats["completion_count"] < min_presentations:
+                continue
+            if len(all_task_ids) <= 1:
+                continue
+
+            task_score = all_scores.get(tid, 0.0)
+            if task_score <= threshold_score:
+                evictable_tasks.append(tid)
 
         if not evictable_tasks:
             return None
 
-        scores = self.score_tasks(evictable_tasks)
-
         # Find task with minimum learning progress
-        min_task_id = min(evictable_tasks, key=lambda tid: scores.get(tid, 0.0))
+        min_task_id = min(evictable_tasks, key=lambda tid: all_scores.get(tid, 0.0))
         return min_task_id
 
-    def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
-        """Check if a task should be evicted based on criteria."""
-        # First check if task has enough presentations
-        task_stats = self.task_tracker.get_task_stats(task_id)
-        if task_stats is None:
-            return False
-
-        if task_stats["completion_count"] < min_presentations:
-            return False
-
-        # Check if this task has low learning progress compared to others
-        all_task_ids = self.task_tracker.get_all_tracked_tasks()
-        if len(all_task_ids) <= 1:
-            return False
-
-        scores = self.score_tasks(all_task_ids)
-        task_score = scores.get(task_id, 0.0)
-
-        # Evict if this task is in the bottom N% of learning progress scores
-        # This ensures eviction happens more readily with small task pools
-        sorted_scores = sorted(scores.values())
-        threshold_index = max(0, int(len(sorted_scores) * self.hypers.eviction_threshold_percentile))
-        threshold_score = sorted_scores[threshold_index] if sorted_scores else 0.0
-
-        return task_score <= threshold_score
+    # DEPRECATED: Old should_evict_task() method removed - logic moved into recommend_eviction()
+    # to avoid O(n²) complexity from calling score_tasks() repeatedly in a loop
 
     def on_task_evicted(self, task_id: int) -> None:
         """Clean up when a task is evicted."""
@@ -394,20 +391,17 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Track per-epoch eviction count (for gini calculation)
         self._label_evictions[evicted_label] = self._label_evictions.get(evicted_label, 0) + 1
 
-        # Check if this label still has any active tasks
-        # get_all_tracked_tasks() only returns ACTIVE tasks, so this is safe
-        all_active_labels = set()
-        for tid in self.task_tracker.get_all_tracked_tasks():
-            label = self.task_tracker.get_task_label(tid)
-            all_active_labels.add(label)
+        # PERFORMANCE FIX: Don't scan all tasks on EVERY eviction (expensive hot path)
+        # Label activity tracking is now done lazily during stats collection
+        # Old code: called get_all_tracked_tasks() + scanned all tasks on every eviction
+        # New code: Track labels during stats collection which already scans tasks
 
-        if evicted_label not in all_active_labels:
-            # No more tasks with this label - remove from active set and track as inactive
-            self._active_labels.discard(evicted_label)
+        # Optimistically update active labels (will be corrected during stats if wrong)
+        # This avoids O(n) scan on every eviction
+        self._active_labels.discard(evicted_label)
+        if evicted_label not in self._inactive_labels_fifo:
             self._inactive_labels_fifo.append(evicted_label)
-
-            # Clean up old inactive labels to prevent memory leak
-            self._cleanup_old_inactive_labels()
+        self._cleanup_old_inactive_labels()
 
         # Invalidate stats cache when task state changes
         self.invalidate_cache()
@@ -601,10 +595,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             each containing label->count mappings.
         """
         # Count labels currently in pool from TaskTracker shared memory
+        # Also update active_labels set while we're scanning anyway
         pool_composition = {}
+        current_active_labels = set()
         for task_id in self.task_tracker.get_all_tracked_tasks():
             label = self.task_tracker.get_task_label(task_id)
             pool_composition[label] = pool_composition.get(label, 0) + 1
+            current_active_labels.add(label)
+
+        # Update active labels set (this replaces the expensive scan in on_task_evicted)
+        self._active_labels = current_active_labels
 
         # Return sampling counts (reset each epoch)
         return {
