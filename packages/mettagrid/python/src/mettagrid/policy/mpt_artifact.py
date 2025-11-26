@@ -76,10 +76,13 @@ def _load_local_mpt_file(path: Path) -> MptArtifact:
     with zipfile.ZipFile(path, mode="r") as archive:
         names = set(archive.namelist())
 
-        if "architecture.txt" not in names or "weights.safetensors" not in names:
-            raise ValueError(f"Invalid .mpt file: {path} (missing architecture or weights)")
+        if "weights.safetensors" not in names:
+            raise ValueError(f"Invalid .mpt file: {path} (missing weights)")
 
-        architecture_blob = archive.read("architecture.txt").decode("utf-8")
+        if "modelarchitecture.txt" in names:
+            architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
+        else:
+            raise ValueError(f"Invalid .mpt file: {path} (missing architecture)")
         architecture = PolicyArchitecture.from_spec(architecture_blob)
 
         weights_blob = archive.read("weights.safetensors")
@@ -137,7 +140,7 @@ def _save_mpt_file_locally(
             with zipfile.ZipFile(temp_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
                 weights_blob = save_safetensors(dict(prepared_state))
                 archive.writestr("weights.safetensors", weights_blob)
-                archive.writestr("architecture.txt", architecture.to_spec())
+                archive.writestr("modelarchitecture.txt", architecture.to_spec())
 
             temp_path.replace(path)
         except Exception:
