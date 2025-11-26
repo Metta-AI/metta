@@ -408,8 +408,6 @@ class GameConfig(Config):
     # and other parts of the template can read from there.
     params: Optional[Any] = None
 
-    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
-
     # Inventory regeneration interval (global check timing)
     inventory_regen_interval: int = Field(
         default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
