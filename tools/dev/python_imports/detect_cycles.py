@@ -289,7 +289,12 @@ def find_cycles(graph: dict[str, dict]) -> list[list[str]]:
 
 
 def classify_cycles(cycles: list[list[str]], graph: dict[str, dict]) -> dict:
-    """Classify cycles by type and severity."""
+    """Classify cycles by type and severity.
+
+    Adds metadata to help human reviewers identify false positives:
+    - Import edges showing direction of dependencies
+    - Whether imports are symbol imports (inheritance) vs module imports
+    """
 
     def get_package(module: str) -> str:
         """Get top-level package name."""
@@ -301,10 +306,37 @@ def classify_cycles(cycles: list[list[str]], graph: dict[str, dict]) -> dict:
     for cycle in cycles:
         packages = {get_package(m) for m in cycle}
 
+        # Extract import edges within this cycle to show dependency direction
+        edges = []
+        for module in cycle:
+            if module not in graph:
+                continue
+            for imp in graph[module]["imports"]:
+                # Only include runtime imports (TYPE_CHECKING already excluded)
+                if imp.is_type_checking or imp.is_local_import:
+                    continue
+                # Check if this import is to another module in the cycle
+                if imp.imported_module in cycle or any(m.startswith(imp.imported_module + ".") for m in cycle):
+                    edges.append(
+                        {
+                            "from": module,
+                            "to": imp.imported_module,
+                            "type": imp.import_type,  # 'symbol' or 'module'
+                            "line": imp.line_number,
+                        }
+                    )
+
         cycle_info = {
             "modules": cycle,
             "packages": sorted(packages),
             "files": [graph[m]["file"] for m in cycle if m in graph],
+            "import_edges": edges,
+            "potential_false_positive": len(edges) == 2
+            and edges[0]["type"] == "symbol"
+            and edges[1]["type"] == "symbol",
+            "review_hint": "Review consideration: Check if one direction is from base to derived (inheritance only)"
+            if len(edges) == 2
+            else None,
         }
 
         if len(packages) > 1:
