@@ -44,4 +44,4 @@ class BiomeDesert(Scene[BiomeDesertConfig]):
 
         # Apply edge dithering for organic look
         if p.dither_edges:
-            dither_edges(grid, p.dither_prob, p.dither_depth, self.rng)
+            dither_edges(grid, prob=p.dither_prob, depth=p.dither_depth, rng=self.rng)

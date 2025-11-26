@@ -262,8 +262,7 @@ def make_curriculum(
 # How to submit a policy trained here to the CoGames leaderboard:
 #
 # uv run cogames submit \
-#   -p metta.rl.checkpoint_manager.CheckpointPolicy \
-#   -k checkpoint_uri=s3://softmax-public/policies/...:v1.mpt \
+#   -p class=metta.rl.checkpoint_manager.CheckpointPolicy,kw.checkpoint_uri=s3://softmax-public/policies/...:v1.mpt \
 #   -n your-policy-name-for-leaderboard \
 #   --skip-validation
 #
@@ -491,9 +490,10 @@ def train_fixed_maps(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
+    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Train on fixed-map CoGs vs Clips missions in one curriculum."""
-    return train(
+    tt = train(
         num_cogs=num_cogs,
         base_missions=list(DEFAULT_CURRICULUM_MISSIONS),
         variants=variants,
@@ -501,6 +501,8 @@ def train_fixed_maps(
         eval_difficulty=eval_difficulty,
         mission=mission,
     )
+    tt.training_env.maps_cache_size = maps_cache_size
+    return tt
 
 
 def train_proc_maps(
@@ -509,9 +511,10 @@ def train_proc_maps(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
+    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Train on procedural MachinaArena map missions."""
-    return train(
+    tt = train(
         num_cogs=num_cogs,
         base_missions=list(PROC_MAP_MISSIONS),
         variants=variants,
@@ -519,6 +522,8 @@ def train_proc_maps(
         eval_difficulty=eval_difficulty,
         mission=mission,
     )
+    tt.training_env.maps_cache_size = maps_cache_size
+    return tt
 
 
 __all__ = [

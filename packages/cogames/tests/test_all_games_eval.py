@@ -20,9 +20,9 @@ def test_mission_eval(mission_name):
             "-m",
             mission_name,
             "-p",
-            "random::2",
+            "class=random,proportion=2",
             "-p",
-            "random::5",
+            "class=random,proportion=5",
             "--episodes",
             "1",
         ],
@@ -40,7 +40,7 @@ def test_mission_eval(mission_name):
 @pytest.mark.parametrize("mission_name", [get_all_missions()[0]])
 @pytest.mark.timeout(60)
 def test_alternate_eval_format(mission_name):
-    """Test that 'cogames eval' works for small games with random policy with alternate cli format."""
+    """Test that 'cogames eval' works for small games with random policy using class= format."""
     result = subprocess.run(
         [
             "uv",
@@ -50,7 +50,7 @@ def test_alternate_eval_format(mission_name):
             "-m",
             mission_name,
             "-p",
-            "random",
+            "class=random",
             "--episodes",
             "1",
         ],
