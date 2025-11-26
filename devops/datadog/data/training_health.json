@@ -1,0 +1,30 @@
+[
+  {
+    "metric": "hearts",
+    "workflow_name": "multigpu_arena_basic_easy_shaped",
+    "task": "runs_successfully",
+    "check": "reward_threshold",
+    "condition": "> 0.5",
+    "value": 0.92,
+    "status": "pass",
+    "timestamp": "2025-01-14T15:00:00Z",
+    "tags": {
+      "workflow": "training",
+      "commit": "sample"
+    }
+  },
+  {
+    "metric": "sps",
+    "workflow_name": "multigpu_arena_basic_easy_shaped",
+    "task": "sps",
+    "check": "sps_threshold",
+    "condition": "> 40000",
+    "value": 41000,
+    "status": "pass",
+    "timestamp": "2025-01-14T15:00:00Z",
+    "tags": {
+      "workflow": "training",
+      "commit": "sample"
+    }
+  }
+]
