@@ -14,12 +14,14 @@ GPUS=${GPUS:-1}
 SPOT=${SPOT:-"--spot"}
 MAX_RUNTIME=${MAX_RUNTIME:-24} # hours
 GIT_REF=${GIT_REF:-$(git rev-parse --abbrev-ref HEAD)}
+PREFIX=${PREFIX:-msb_perfdiagnosis_}
 
 echo "Launch Configuration:"
 echo "  GPUs: $GPUS"
 echo "  Spot instances: ${SPOT:---no-spot}"
 echo "  Max runtime: ${MAX_RUNTIME}h"
 echo "  Git ref: $GIT_REF"
+echo "  Run name prefix: $PREFIX"
 echo ""
 
 # Test configurations
@@ -39,7 +41,7 @@ launch_test() {
 
   echo ""
   echo "===================================="
-  echo "Launching: msb_perfdiagnosis_${name}"
+  echo "Launching: ${PREFIX}${name}"
   echo "===================================="
   echo "  Batch size: $batch_size"
   echo "  Task list cache: $cache"
@@ -64,7 +66,7 @@ launch_test() {
 
   # Tool arguments (passed to train_with_perf_config function)
   args+=(
-    "run=msb_perfdiagnosis_${name}"
+    "run=${PREFIX}${name}"
     "use_lp=True"
     "perf_invalidation_batch_size=${batch_size}"
     "perf_cache_task_list=${cache}"
@@ -84,7 +86,7 @@ launch_test() {
     echo "[DRY RUN] Would launch: ${args[*]}"
   else
     uv run python devops/skypilot/launch.py "${args[@]}" || {
-      echo "ERROR: Failed to launch msb_perfdiagnosis_${name}"
+      echo "ERROR: Failed to launch ${PREFIX}${name}"
       echo "Continuing with remaining tests..."
     }
   fi
@@ -182,6 +184,7 @@ case "$MODE" in
     echo "  SPOT         - Use spot instances: '--spot' or '--no-spot' (default: --spot)"
     echo "  MAX_RUNTIME  - Max runtime in hours (default: 24)"
     echo "  GIT_REF      - Git branch/commit to use (default: current branch)"
+    echo "  PREFIX       - Run name prefix (default: msb_perfdiagnosis_)"
     echo ""
     echo "Examples:"
     echo "  # Launch quick comparison with 2 GPUs, no spot"
@@ -189,6 +192,9 @@ case "$MODE" in
     echo ""
     echo "  # Launch all tests with 4-hour runtime"
     echo "  MAX_RUNTIME=4 $0 all"
+    echo ""
+    echo "  # Launch with custom run name prefix"
+    echo "  PREFIX=my_experiment_ $0 quick"
     echo ""
     echo "  # Dry run to see what would be launched"
     echo "  $0 dry-run"
@@ -223,5 +229,5 @@ echo ""
 echo "To download results:"
 echo "  uv run sky down <cluster-name>  # After job completes"
 echo ""
-echo "Results will be in outputs/msb_perfdiagnosis_*/ directories"
+echo "Results will be in outputs/${PREFIX}*/ directories"
 echo ""
