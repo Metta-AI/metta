@@ -57,7 +57,9 @@ def filter_policies(
 
     # Filter by tags
     if tags:
-        filtered = [p for p in filtered if any(tag in p.get("tags", []) for tag in tags)]
+        filtered = [
+            p for p in filtered if any(tag in p.get("tags", []) for tag in tags)
+        ]
 
     return filtered
 
@@ -83,7 +85,9 @@ def group_policies_by_type(
     return groups
 
 
-def sort_policies(policies: List[Dict[str, Any]], sort_by: str = "name", reverse: bool = False) -> List[Dict[str, Any]]:
+def sort_policies(
+    policies: List[Dict[str, Any]], sort_by: str = "name", reverse: bool = False
+) -> List[Dict[str, Any]]:
     """Sort policies by a given field.
 
     Args:

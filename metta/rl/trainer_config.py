@@ -3,25 +3,25 @@ from typing import Any, ClassVar, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
+from metta.rl.training import HeartbeatConfig
 from mettagrid.base_config import Config
 
 
 class OptimizerConfig(Config):
-    type: Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adam"
-    # Learning rate: Type 2 default chosen by sweep
-    learning_rate: float = Field(default=0.001153637, gt=0, le=1.0)
+    type: Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adamw_schedulefree"
+    # Learning rate: tuned for ScheduleFree AdamW (scaled down ~20% from the legacy Adam default)
+    learning_rate: float = Field(default=0.00092, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
     beta1: float = Field(default=0.9, ge=0, le=1.0)
     # Beta2: Standard Adam default from Kingma & Ba (2014)
     beta2: float = Field(default=0.999, ge=0, le=1.0)
     # Epsilon: Type 2 default chosen arbitrarily
     eps: float = Field(default=3.186531e-07, gt=0)
-    # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
-    weight_decay: float = Field(default=0, ge=0)
+    # Weight decay: modest L2 regularization for AdamW-style optimizers
+    weight_decay: float = Field(default=0.01, ge=0)
     # ScheduleFree-specific parameters
     momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
-    warmup_steps: int = Field(default=0, ge=0)  # Number of warmup steps for ScheduleFree
+    warmup_steps: int = Field(default=1000, ge=0)  # Number of warmup steps for ScheduleFree
 
 
 class InitialPolicyConfig(Config):
@@ -65,7 +65,6 @@ class TrainerConfig(Config):
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
     detect_anomaly: bool = Field(default=False)
 
-    hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
 
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)

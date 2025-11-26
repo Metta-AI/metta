@@ -1,129 +1,54 @@
-import logging
 import uuid
-from typing import Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
-from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import LeaderboardRow, MettaRepo
-from metta.app_backend.route_logger import timed_route
-
-# Set up logging for leaderboard routes
-logger = logging.getLogger("leaderboard_routes")
-logger.setLevel(logging.INFO)
+from metta.app_backend.auth import UserOrToken
+from metta.app_backend.leaderboard_constants import COGAMES_SUBMITTED_PV_KEY, LEADERBOARD_SIM_NAME_EPISODE_KEY
+from metta.app_backend.metta_repo import LeaderboardPolicyEntry, MettaRepo
 
 
-class LeaderboardCreateOrUpdate(BaseModel):
-    name: str
-    evals: List[str]
-    metric: str
-    start_date: str
-
-
-class LeaderboardResponse(BaseModel):
-    id: str
-    name: str
-    user_id: str
-    evals: List[str]
-    metric: str
-    start_date: str
-    latest_episode: int
-    created_at: str
-    updated_at: str
-
-    @classmethod
-    def from_db(cls, leaderboard: LeaderboardRow) -> "LeaderboardResponse":
-        return cls(
-            id=str(leaderboard.id),
-            name=leaderboard.name,
-            user_id=leaderboard.user_id,
-            evals=leaderboard.evals,
-            metric=leaderboard.metric,
-            start_date=leaderboard.start_date.isoformat(),
-            latest_episode=leaderboard.latest_episode,
-            created_at=leaderboard.created_at.isoformat(),
-            updated_at=leaderboard.updated_at.isoformat(),
-        )
-
-
-class LeaderboardListResponse(BaseModel):
-    leaderboards: List[LeaderboardResponse]
+class LeaderboardPoliciesResponse(BaseModel):
+    entries: list[LeaderboardPolicyEntry]
 
 
 def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
-    """Create a leaderboard router with the given MettaRepo instance."""
-    router = APIRouter(prefix="/leaderboards", tags=["leaderboards"])
+    router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
-    # Create the user-or-token authentication dependency
-    user_or_token = Depends(dependency=create_user_or_token_dependency(metta_repo))
-
-    @router.get("")
-    @timed_route("list_leaderboards")
-    async def list_leaderboards(user_id: str = user_or_token) -> LeaderboardListResponse:  # type: ignore[reportUnusedFunction]
-        """List all leaderboards for the current user."""
-        leaderboards = await metta_repo.list_leaderboards()
-        return LeaderboardListResponse(
-            leaderboards=[LeaderboardResponse.from_db(leaderboard) for leaderboard in leaderboards]
+    @router.get("/v2")
+    async def get_leaderboard_policies_v2(user: UserOrToken) -> LeaderboardPoliciesResponse:
+        return LeaderboardPoliciesResponse(
+            entries=await metta_repo.get_leaderboard_policies(
+                # TODO: consider a designated-as-public tag, not just if it was submitted
+                policy_version_tags={COGAMES_SUBMITTED_PV_KEY: "true"},
+                score_group_episode_tag=LEADERBOARD_SIM_NAME_EPISODE_KEY,
+                user_id=None,
+                policy_version_id=None,
+            )
         )
 
-    @router.get("/{leaderboard_id}")
-    @timed_route("get_leaderboard")
-    async def get_leaderboard(leaderboard_id: str, user_id: str = user_or_token) -> LeaderboardResponse:  # type: ignore[reportUnusedFunction]
-        """Get a specific leaderboard by ID."""
-        leaderboard = await metta_repo.get_leaderboard(uuid.UUID(leaderboard_id))
-        if not leaderboard:
-            raise HTTPException(status_code=404, detail="Leaderboard not found")
-
-        return LeaderboardResponse.from_db(leaderboard)
-
-    @router.post("")
-    @timed_route("create_leaderboard")
-    async def create_leaderboard(  # type: ignore[reportUnusedFunction]
-        leaderboard_data: LeaderboardCreateOrUpdate,
-        user_id: str = user_or_token,
-    ) -> LeaderboardResponse:
-        """Create a new leaderboard."""
-        leaderboard_id = await metta_repo.create_leaderboard(
-            name=leaderboard_data.name,
-            user_id=user_id,
-            evals=leaderboard_data.evals,
-            metric=leaderboard_data.metric,
-            start_date=leaderboard_data.start_date,
+    @router.get("/v2/users/me")
+    async def get_leaderboard_policies_v2_for_user(user: UserOrToken) -> LeaderboardPoliciesResponse:
+        return LeaderboardPoliciesResponse(
+            entries=await metta_repo.get_leaderboard_policies(
+                policy_version_tags={COGAMES_SUBMITTED_PV_KEY: "true"},
+                score_group_episode_tag=LEADERBOARD_SIM_NAME_EPISODE_KEY,
+                user_id=user,
+                policy_version_id=None,
+            )
         )
 
-        # Fetch the created leaderboard to return
-        leaderboard = await metta_repo.get_leaderboard(leaderboard_id)
-        if not leaderboard:
-            raise HTTPException(status_code=500, detail="Failed to create leaderboard")
-
-        return LeaderboardResponse.from_db(leaderboard)
-
-    @router.put("/{leaderboard_id}")
-    @timed_route("update_leaderboard")
-    async def update_leaderboard(  # type: ignore[reportUnusedFunction]
-        leaderboard_id: str, leaderboard_data: LeaderboardCreateOrUpdate, user_id: str = user_or_token
-    ) -> LeaderboardResponse:
-        """Update a leaderboard."""
-        leaderboard = await metta_repo.update_leaderboard(
-            leaderboard_id=uuid.UUID(leaderboard_id),
-            user_id=user_id,
-            name=leaderboard_data.name,
-            evals=leaderboard_data.evals,
-            metric=leaderboard_data.metric,
-            start_date=leaderboard_data.start_date,
+    @router.get("/v2/policy/{policy_version_id}")
+    async def get_leaderboard_policies_v2_for_policy(
+        policy_version_id: str, user: UserOrToken
+    ) -> LeaderboardPoliciesResponse:
+        return LeaderboardPoliciesResponse(
+            entries=await metta_repo.get_leaderboard_policies(
+                policy_version_tags={COGAMES_SUBMITTED_PV_KEY: "true"},
+                score_group_episode_tag=LEADERBOARD_SIM_NAME_EPISODE_KEY,
+                user_id=None,
+                policy_version_id=uuid.UUID(policy_version_id),
+            )
         )
-        return LeaderboardResponse.from_db(leaderboard)
-
-    @router.delete("/{leaderboard_id}")
-    @timed_route("delete_leaderboard")
-    async def delete_leaderboard(  # type: ignore[reportUnusedFunction]
-        leaderboard_id: str, user_id: str = user_or_token
-    ) -> Dict[str, str]:
-        """Delete a leaderboard."""
-        success = await metta_repo.delete_leaderboard(leaderboard_id, user_id)
-        if not success:
-            raise HTTPException(status_code=404, detail="Leaderboard not found")
-        return {"message": "Leaderboard deleted successfully"}
 
     return router

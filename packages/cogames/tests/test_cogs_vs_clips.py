@@ -1,13 +1,13 @@
 from cogames.cogs_vs_clips.missions import (
     HarvestMission,
+    HelloWorldUnclipMission,
     Mission,
     RepairMission,
-    UnclipDrillsMission,
     make_game,
 )
 from cogames.cogs_vs_clips.stations import CvCStationConfig
-from cogames.cogs_vs_clips.variants import InventoryHeartTuneVariant, NeutralFacedVariant
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
+from cogames.cogs_vs_clips.variants import InventoryHeartTuneVariant
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 def test_make_cogs_vs_clips_scenario():
@@ -49,43 +49,14 @@ def test_make_cogs_vs_clips_scenario():
     # assert config.game.agent.rewards.inventory == {}
 
 
-def test_neutral_faced_variant_neutralizes_recipes():
-    mission = HarvestMission
-    assert mission.site is not None
-    mission = mission.with_variants([NeutralFacedVariant()])
-    env = mission.make_env()
-
-    change_vibe = env.game.actions.change_vibe
-    assert change_vibe.enabled is False
-    assert change_vibe.number_of_vibes == 1
-
-    for obj in env.game.objects.values():
-        if not isinstance(obj, AssemblerConfig):
-            continue
-        assert len(obj.protocols) == 1
-        protocol = obj.protocols[0]
-        assert protocol.vibes == ["default"]
-
-
 def test_inventory_heart_tune_caps_initial_inventory_to_limits():
     mission = HarvestMission.with_variants([InventoryHeartTuneVariant(hearts=20)])
     env = mission.make_env()
     agent = env.game.agent
 
-    energy_limit = int(agent.resource_limits["energy"])
+    # Find energy limit from resource_limits list
+    energy_limit = agent.get_limit_for_resource("energy")
     assert agent.initial_inventory["energy"] == energy_limit
-
-
-def test_training_facility_stations_not_clipped_by_default():
-    env = HarvestMission.make_env()
-
-    carbon = env.game.objects["carbon_extractor"]
-    clipped = env.game.objects["clipped_carbon_extractor"]
-
-    assert carbon.start_clipped is False
-    assert clipped.start_clipped is True
-    assert carbon.map_name == "carbon_extractor"
-    assert clipped.map_name == "clipped_carbon_extractor"
 
 
 def _station_configs(mission: Mission) -> list[CvCStationConfig]:
@@ -104,5 +75,5 @@ def test_repair_mission_starts_with_clipped_stations():
 
 
 def test_unclip_drills_mission_starts_with_clipped_stations():
-    mission = UnclipDrillsMission.model_copy(deep=True)
+    mission = HelloWorldUnclipMission.model_copy(deep=True)
     assert all(station.start_clipped for station in _station_configs(mission))

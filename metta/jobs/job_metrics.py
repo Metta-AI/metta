@@ -4,8 +4,6 @@ import logging
 import re
 from typing import Optional
 
-import wandb
-
 logger = logging.getLogger(__name__)
 
 
@@ -22,6 +20,20 @@ def extract_skypilot_job_id(log_text: str) -> Optional[str]:
         if match:
             return match.group(1)
 
+    return None
+
+
+def parse_run_name(args: list[str]) -> str | None:
+    """Extract run name from job config args.
+
+    Parses args list looking for 'run=X' format.
+    """
+    for arg in args:
+        if arg.startswith("run="):
+            try:
+                return arg.split("=", 1)[1]
+            except IndexError:
+                continue
     return None
 
 
@@ -67,6 +79,9 @@ def fetch_wandb_metrics(
     current_step: int | None = None
 
     try:
+        # import here to delay heavy import until needed
+        import wandb
+
         api = wandb.Api()
         # Find run by name
         runs = api.runs(f"{entity}/{project}", filters={"display_name": run_name})

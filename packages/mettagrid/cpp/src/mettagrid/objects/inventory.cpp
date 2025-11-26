@@ -11,7 +11,7 @@
 Inventory::Inventory(const InventoryConfig& cfg,
                      const std::vector<std::string>* resource_names,
                      const std::unordered_map<std::string, ObservationType>* feature_ids)
-    : _inventory(), _limits(), _item_feature_ids() {
+    : _inventory(), _limits() {
   for (const auto& limit_pair : cfg.limits) {
     const auto& resources = limit_pair.first;
     const auto& limit_value = limit_pair.second;
@@ -20,22 +20,6 @@ Inventory::Inventory(const InventoryConfig& cfg,
     limit->limit = limit_value;
     for (const auto& resource : resources) {
       this->_limits[resource] = limit;
-    }
-  }
-
-  // Build feature ID lookup for inventory items
-  if (resource_names && feature_ids) {
-    _item_feature_ids.resize(resource_names->size());
-    for (size_t i = 0; i < resource_names->size(); ++i) {
-      const std::string& resource_name = (*resource_names)[i];
-      const std::string feature_key = "inv:" + resource_name;
-      auto it = feature_ids->find(feature_key);
-      if (it != feature_ids->end()) {
-        _item_feature_ids[i] = it->second;
-      } else {
-        // Fallback: if "inv:resource" not found, inventory observations won't work correctly
-        _item_feature_ids[i] = 0;
-      }
     }
   }
 }
@@ -107,12 +91,4 @@ InventoryQuantity Inventory::free_space(InventoryItem item) const {
 // Get method implementation
 std::unordered_map<InventoryItem, InventoryQuantity> Inventory::get() const {
   return this->_inventory;
-}
-
-// Get feature ID for inventory item
-ObservationType Inventory::get_feature_id(InventoryItem item) const {
-  if (item < _item_feature_ids.size()) {
-    return _item_feature_ids[item];
-  }
-  return 0;  // Fallback for out-of-bounds
 }

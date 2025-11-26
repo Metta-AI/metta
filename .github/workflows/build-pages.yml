@@ -38,19 +38,6 @@ jobs:
           nimby list
           cat nim.cfg
 
-      - name: Run Mettascope Tests
-        run: |
-          cd packages/mettagrid/nim/mettascope
-          for test_file in tests/test_*.nim; do
-            echo "Running $test_file..."
-            nim r "$test_file"
-            if [ $? -ne 0 ]; then
-              echo "Test $test_file failed!"
-              exit 1
-            fi
-          done
-          echo "All tests passed!"
-
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:

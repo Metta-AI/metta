@@ -41,19 +41,25 @@ class EvalFinderWidget(anywidget.AnyWidget):
     name = traitlets.Unicode("EvalFinderWidget").tag(sync=True)
 
     # Widget traits (data that syncs between Python and JavaScript)
-    eval_data = traitlets.Dict({}).tag(sync=True)  # Contains evaluations, tree structure, etc.
+    eval_data = traitlets.Dict({}).tag(
+        sync=True
+    )  # Contains evaluations, tree structure, etc.
     selected_evals = traitlets.List([]).tag(sync=True)  # List of selected eval names
 
     # Filter settings
     category_filter = traitlets.List([]).tag(sync=True)  # Empty means all categories
 
     # UI state
-    view_mode = traitlets.Unicode("category").tag(sync=True)  # "tree", "list", "category"
+    view_mode = traitlets.Unicode("category").tag(
+        sync=True
+    )  # "tree", "list", "category"
     search_term = traitlets.Unicode("").tag(sync=True)
     show_prerequisites = traitlets.Bool(True).tag(sync=True)
 
     # Event communication
-    selection_changed = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
+    selection_changed = traitlets.Dict(allow_none=True, default_value=None).tag(
+        sync=True
+    )
     filter_changed = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
 
     def __init__(self, **kwargs):
@@ -126,7 +132,9 @@ class EvalFinderWidget(anywidget.AnyWidget):
         #             f"📂   - {category.get('name', 'unknown')}: {children_count} evaluations"
         #         )
 
-    def _build_categories_from_evaluations(self, evaluations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _build_categories_from_evaluations(
+        self, evaluations: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """Build category structure from evaluations automatically."""
         # Group evaluations by category
         categories_dict = {}
@@ -144,7 +152,9 @@ class EvalFinderWidget(anywidget.AnyWidget):
 
             # Create eval node
             eval_node = {
-                "name": eval_data["name"].split("/")[-1] if "/" in eval_data["name"] else eval_data["name"],
+                "name": eval_data["name"].split("/")[-1]
+                if "/" in eval_data["name"]
+                else eval_data["name"],
                 "category": category,
                 "eval_metadata": eval_data,
             }

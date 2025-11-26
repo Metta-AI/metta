@@ -38,6 +38,6 @@ def test_walls_visible_without_tags():
     obs = sim._c_sim.observations()
 
     helper = ObservationHelper()
-    tag_feature_id = sim.config.id_map().feature_id("tag")
+    tag_feature_id = sim.config.game.id_map().feature_id("tag")
     wall_tag_tokens = helper.find_tokens(obs[0], feature_id=tag_feature_id)
     assert len(wall_tag_tokens) > 0, "Walls should be visible even without tags"

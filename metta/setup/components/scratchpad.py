@@ -16,7 +16,7 @@ class ScratchpadSetup(SetupModule):
 
     @property
     def user_experiments_dir(self) -> Path:
-        return self.repo_root / "experiments" / "recipes" / "scratchpad"
+        return self.repo_root / "recipes" / "experiment" / "scratchpad"
 
     @property
     def _personal_experiments_path(self) -> Path:

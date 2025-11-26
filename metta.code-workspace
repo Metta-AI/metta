@@ -13,8 +13,8 @@
       "commands": [
         {
           "match": ".*",
-          "isAsync": true,
-          "cmd": "uv run metta lint --fix ${file}",
+          "isAsync": false,
+          "cmd": "uv run --no-sync python -m metta.setup.tools.code_formatters --verbose --fix ${file}",
         },
       ],
     },

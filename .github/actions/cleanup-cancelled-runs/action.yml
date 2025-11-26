@@ -1,0 +1,61 @@
+name: "Cleanup Cancelled Runs"
+description: "Deletes cancelled workflow runs that were superseded by newer runs (concurrency cancellations)"
+author: "Metta Team"
+
+inputs:
+  workflow-file:
+    description: "Workflow filename(s). Accepts basenames or paths, comma/newline separated. Use '*' to scan all workflows."
+    required: true
+  max-deletions:
+    description: "The maximum number of cancelled runs to delete per execution"
+    required: false
+    default: "10"
+  max-deletions-per-workflow:
+    description: "Maximum deletions per workflow within a single execution"
+    required: false
+    default: "5"
+  workflow-caps:
+    description: "Optional per-workflow caps (one per line, e.g., checks.yml=5)"
+    required: false
+    default: ""
+  max-age-days:
+    description: "Skip cancelled runs older than this many days (0 to disable)"
+    required: false
+    default: "30"
+  github-token:
+    description: "GitHub access token with actions:write permission"
+    required: false
+    default: "${{ github.token }}"
+  dry-run:
+    description: "If true, only logs what would be deleted without actually deleting"
+    required: false
+    default: "false"
+
+outputs:
+  deleted-count:
+    description: "Number of cancelled runs deleted"
+    value: ${{ steps.cleanup.outputs.deleted-count }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Environment
+      uses: ./.github/actions/setup-environment
+      with:
+        install-mode: minimal
+        extra-dependencies: |
+          PyGithub>=2.1.1
+
+    - name: Cleanup cancelled runs
+      id: cleanup
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_WORKFLOW-FILE: ${{ inputs.workflow-file }}
+        INPUT_MAX-DELETIONS: ${{ inputs.max-deletions }}
+        INPUT_MAX-DELETIONS-PER-WORKFLOW: ${{ inputs.max-deletions-per-workflow }}
+        INPUT_WORKFLOW-CAPS: ${{ inputs.workflow-caps }}
+        INPUT_MAX-AGE-DAYS: ${{ inputs.max-age-days }}
+        INPUT_DRY-RUN: ${{ inputs.dry-run }}
+      run: |
+        uv run ${{ github.action_path }}/cleanup_cancelled_runs.py

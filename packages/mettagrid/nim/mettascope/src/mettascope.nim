@@ -19,6 +19,7 @@ proc updateReplayHeader() =
 
 proc onReplayLoaded() =
   ## Called when a replay is loaded.
+  replay.loadImages()
   updateReplayHeader()
   worldMapPanel.pos = vec2(0, 0)
   onStepChanged()
@@ -56,13 +57,13 @@ find "/UI/Main":
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
     rootArea.split(Vertical)
-    rootArea.split = 0.20
+    rootArea.split = 0.30
 
     rootArea.areas[0].split(Horizontal)
     rootArea.areas[0].split = 0.8
 
     rootArea.areas[1].split(Vertical)
-    rootArea.areas[1].split = 0.75
+    rootArea.areas[1].split = 0.50
 
     objectInfoPanel = rootArea.areas[0].areas[0].addPanel(ObjectInfo, "Object")
     environmentInfoPanel = rootArea.areas[0].areas[0].addPanel(EnvironmentInfo, "Environment")
@@ -70,7 +71,7 @@ find "/UI/Main":
     worldMapPanel = rootArea.areas[1].areas[0].addPanel(WorldMap, "Map")
     minimapPanel = rootArea.areas[0].areas[1].addPanel(Minimap, "Minimap")
 
-    agentTracesPanel = rootArea.areas[1].areas[0].addPanel(AgentTraces, "Agent Traces")
+    #agentTracesPanel = rootArea.areas[1].areas[0].addPanel(AgentTraces, "Agent Traces")
     # agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
 
     vibePanel = rootArea.areas[1].areas[1].addPanel(VibePanel, "Vibe Selector")
@@ -91,6 +92,7 @@ find "/UI/Main":
       )
       if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
         fitFullMap(worldMapPanel)
+      adjustPanelForResize(worldMapPanel)
       bxy.translate(worldMapPanel.rect.xy.vec2 * window.contentScale)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
@@ -107,17 +109,17 @@ find "/UI/Main":
       drawMinimap(minimapPanel)
       bxy.restoreTransform()
 
-    agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
-      bxy.saveTransform()
-      agentTracesPanel.rect = irect(
-        thisNode.absolutePosition.x,
-        thisNode.absolutePosition.y,
-        thisNode.size.x,
-        thisNode.size.y
-      )
-      bxy.translate(agentTracesPanel.rect.xy.vec2 * window.contentScale)
-      drawAgentTraces(agentTracesPanel)
-      bxy.restoreTransform()
+    # agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
+    #   bxy.saveTransform()
+    #   agentTracesPanel.rect = irect(
+    #     thisNode.absolutePosition.x,
+    #     thisNode.absolutePosition.y,
+    #     thisNode.size.x,
+    #     thisNode.size.y
+    #   )
+    #   bxy.translate(agentTracesPanel.rect.xy.vec2 * window.contentScale)
+    #   drawAgentTraces(agentTracesPanel)
+    #   bxy.restoreTransform()
 
     globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
@@ -135,12 +137,18 @@ find "/UI/Main":
       if commandLineReplay != "":
         if commandLineReplay.startsWith("http"):
           common.replay = EmptyReplay
-          echo "Loading replay from URL: ", commandLineReplay
+          echo "fetching replay from URL: ", commandLineReplay
           let req = startHttpRequest(commandLineReplay)
           req.onError = proc(msg: string) =
             # TODO: Show error to user.
             echo "onError: " & msg
+            echo getCurrentException().getStackTrace()
           req.onResponse = proc(response: HttpResponse) =
+            if response.code != 200:
+              # TODO: Show error to user.
+              echo "Error loading replay: HTTP ", response.code, " ", response.body
+              return
+            echo "replay fetched, loading..."
             common.replay = loadReplay(response.body, commandLineReplay)
             onReplayLoaded()
         else:
@@ -170,6 +178,9 @@ find "/UI/Main":
       mouseCaptured = false
       mouseCapturedPanel = nil
 
+    if window.buttonPressed[KeyF8]:
+      fitFullMap(worldMapPanel)
+
 when isMainModule:
 
   # Check if the data directory exists.
@@ -194,4 +205,6 @@ when isMainModule:
 
   while isRunning():
     tickFidget()
+    when not defined(emscripten):
+      pollHttp()
   closeFidget()

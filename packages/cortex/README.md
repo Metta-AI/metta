@@ -10,9 +10,6 @@ Use the cortexcore distribution; import path remains `cortex`:
 
 ```
 pip install cortexcore
-
-# then in Python
-from cortex import build_cortex, CortexStackConfig
 ```
 
 ## Table of Contents
@@ -25,8 +22,7 @@ from cortex import build_cortex, CortexStackConfig
 - [Supported Components](#supported-components)
   - [Memory Cells](#memory-cells)
   - [Blocks](#blocks)
-  - [Column](#column)
-- [MoE using Column](#how-column-works-high-level)
+- [MoE using Column](#moe-using-column)
 - [Advanced Setup](#advanced-setup)
 - [Metta Framework Integration](#metta-framework-integration)
 - [AxonLayer: A Generalized Linear Operator with Stateful Dynamics](#axonlayer-a-generalized-linear-operator-with-stateful-dynamics)
@@ -89,29 +85,22 @@ composition at any level:
 **Shared Signatures:**
 
 ```python
-# All three abstractions implement these methods:
+# All four abstractions implement a unified interface for forward pass
 def forward(x: Tensor, state: TensorDict, *, resets: Optional[ResetMask] = None) -> Tuple[Tensor, TensorDict]:
     """Process input with state, optionally applying resets, return output and new state."""
-
-def init_state(batch: int, *, device: torch.device, dtype: torch.dtype) -> TensorDict:
-    """Initialize state for a batch."""
-
-def reset_state(state: TensorDict, mask: ResetMask) -> TensorDict:
-    """Apply episode boundary resets to state (rarely needed, see below)."""
+    ...
+    return out, new_state
 ```
 
-**Key Properties:**
-
-- **Consistent shapes**: All accept `[B, T, H]` for sequences or `[B, H]` for single-step
-- **TensorDict state**: State is always a TensorDict with arbitrary nesting depth
+- **Input (x)**: All accept `[B, T, H]` for sequences or `[B, H]` for single-step
+- **Recurrent state**: State is always a TensorDict with arbitrary nesting depth
   - Cells: Flat state (e.g., `{"h": ..., "c": ...}`)
   - Blocks: Nest cell state under cell class name (e.g., `{"LSTMCell": {"h": ..., "c": ...}}`)
   - Columns: One entry per expert (e.g., `{"expert_PreUpBlock_0": {...}, ...}`)
   - Stacks: Nest block states under indexed keys (e.g., `{"PreUpBlock_0": {"LSTMCell": {...}}}`)
+- **Output (out)**: `[B, T, H]` for sequences or `[B, H]` for single-step
 - **Automatic reset handling**: Resets are handled automatically when passed through `forward(resets=mask)`
   - The reset mask propagates through Stack → Block → Cell automatically
-  - `reset_state()` exists for completeness but is typically not needed in practice
-  - Just pass `resets` to `forward()` and the hierarchy handles it internally
 
 This uniformity means you can treat a complex multi-layer stack exactly like a single cell, enabling arbitrary
 composition without changing your code interface.
@@ -124,7 +113,7 @@ compact patterns of expert tokens. Each layer is a Column whose experts are chos
 Built‑in expert tokens:
 
 - `A` = Axon (PostUp)
-- `X` = Transformer‑XL (PostUp)
+- `X` = Transformer‑XL (PostUp, GRU‑gated)
 - `M` = mLSTM (PreUp)
 - `S` = sLSTM (PostUp)
 - Suffix `^` enables Axon projections for that expert where supported (e.g., `M^`, `X^`, `S^`).
@@ -132,26 +121,20 @@ Built‑in expert tokens:
 ```python
 import torch
 from cortex.stacks import build_cortex_auto_stack  # packages/cortex/src/cortex/stacks/auto.py
-from cortex.config import RouterConfig
 
 # Build a 4-layer Column stack; each layer mixes A, X, M, S experts
 stack = build_cortex_auto_stack(
     d_hidden=256,
     num_layers=4,
     pattern="AXMS",                 # per-layer expert set (can be a list for per-layer patterns)
-    router=RouterConfig(             # global prior + optional per-token refinement
-        top_k=2,
-        whisper_lambda=0.1,          # 0 disables per-token refinement
-    ),
-    post_norm=True,
-    compile_blocks=True,             # torch.compile blocks (and Column experts) when grad-enabled
 )
+
+stack = stack.cuda()
 
 # Initialize and run
 B, T = 4, 16
-state = stack.init_state(batch=B, device="cuda", dtype=torch.float32)
 x = torch.randn(B, T, 256, device="cuda")
-out, state = stack(x, state)
+out, state = stack(x)
 
 # Single-step inference
 x_step = torch.randn(B, 256, device="cuda")
@@ -165,6 +148,51 @@ Advanced control:
 - Custom symbols: supply `custom_map={"Q": PreUpBlockConfig(cell=mLSTMCellConfig(...))}` and use "Q" in patterns.
 - Column implementation: `packages/cortex/src/cortex/blocks/column/column.py`; pattern builder:
   `packages/cortex/src/cortex/blocks/column/auto.py`.
+
+### Global overrides
+
+You can override default configs produced by the token builder by passing `override_global_configs` to the auto stack
+builders. Overrides are applied by type across the entire generated config graph (Column → experts → blocks → cells),
+merging only the explicitly set fields on your override instance.
+
+Examples:
+
+```python
+from cortex.stacks import build_cortex_auto_stack
+from cortex.config import XLCellConfig, RouterConfig, PostUpGatedBlockConfig
+
+# 1) Override Transformer‑XL memory length globally (affects X/X^)
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=2,
+    pattern="X^X",
+    override_global_configs=[XLCellConfig(mem_len=64)],
+)
+
+# 2) Change Column router defaults (e.g., key dim and temperature)
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=2,
+    pattern="AXMS",
+    override_global_configs=[RouterConfig(d_key=128, temperature=0.7)],
+)
+
+# 3) Tweak block‑level projection width for gated post‑up (used by token X)
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=2,
+    pattern="XX",
+    override_global_configs=[PostUpGatedBlockConfig(proj_factor=2.0)],
+)
+```
+
+Notes:
+
+- Type‑based: every instance matching the override type is updated.
+- Explicit‑fields only: only fields you set on the override are merged; others keep their original values (e.g., `X^`
+  still enables `use_axon_qkv=True`).
+- `cell.hidden_size` is always inferred from the enclosing block/stack and cannot be overridden.
+- Per‑layer targeting is not supported by this API; provide a custom pattern/map if you need per‑layer differences.
 
 ## Supported Components
 
@@ -181,6 +209,7 @@ sequences, `[B, H]` for single-step.
 | `CausalConv1d` | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode.                    | Yes (channel-mixing only) | No                       |
 | `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection).          | Yes                       | Yes (seq‑allin, short‑T) |
 | `XLCell`       | Transformer‑XL style multi‑head attention with rolling memory; optional AxonLayer‑backed Q/K/V projections. | No                        | No                       |
+| `AGaLiTeCell`  | AGaLiTe attention                                                                                           | No                        | Yes (fused discount sum) |
 
 **Notes:**
 
@@ -197,6 +226,7 @@ Wrappers around cells that handle projections, normalization, and information fl
 | `PassThroughBlock` | Applies the nested cell directly at `d_hidden` with residual; no projections.                                                                    |
 | `PreUpBlock`       | Pre-upsamples to `d_inner = int(proj_factor * d_hidden)`, runs the cell at `d_inner`, gates and projects back to `d_hidden`, then adds residual. |
 | `PostUpBlock`      | Runs the cell at `d_hidden`, then applies a gated feed-forward projection up and back down before residual. Useful for deep stacks.              |
+| `PostUpGatedBlock` | Like `PostUpBlock` but with GRU‑style gating (GTrXL‑inspired) for both sublayers (cell and FFN) to stabilize deep training.                      |
 | `AdapterBlock`     | Wraps another block with a trainable residual adapter (identity at init). Lets you insert capacity without changing behavior at t=0.             |
 
 #### Hidden Size Inference in Blocks
@@ -227,6 +257,45 @@ PreUpBlockConfig(
 
 This override happens only when building via `CortexStackConfig`/`build_cortex`. If you instantiate blocks and cells
 directly (without the stack builder), you must provide concrete sizes that satisfy these relationships manually.
+
+## MoE using Column
+
+Column is a mixture-of-experts block that runs multiple expert blocks in parallel and routes their deltas through a
+router. A global prior gate (with optional per-token refinement) selects the top‑k experts per token, an E‑axis mixer
+stabilizes cross-expert interactions, and an outer ReZero aligns residuals.
+
+Build a Column from a compact token pattern:
+
+```python
+from cortex.blocks.column.auto import build_column_auto_config
+from cortex.config import RouterConfig
+import cortex.tokens  # ensure built‑in tokens are registered via decorators
+
+col_cfg = build_column_auto_config(
+    d_hidden=256,
+    pattern="AXMS^",                 # A|X|M|S experts; ^ enables axonified variant when supported
+    router=RouterConfig(top_k=2, temperature=0.7),
+)
+```
+
+Customize experts per symbol (caret requests axonify known cells X/M/S when only base is provided):
+
+```python
+from cortex.config import PostUpGatedBlockConfig, XLCellConfig
+
+custom = {"X": PostUpGatedBlockConfig(cell=XLCellConfig(mem_len=128))}
+col_cfg2 = build_column_auto_config(d_hidden=256, pattern="X^", custom_map=custom)
+```
+
+Built‑in expert tokens:
+
+- `A` = Axon (PostUp)
+- `Ag` = AGaLiTe (PostUpGated)
+- `X` = Transformer‑XL (PostUpGated), `X^` axonified QKV
+- `M` = mLSTM (PreUp), `M^` axonified gates+QKV
+- `S` = sLSTM (PostUp), `S^` axonified gates
+- `L` = LSTM (PassThrough)
+- `C` = CausalConv1d (PassThrough)
 
 ### Compact Forward Pass (per token t)
 
@@ -270,6 +339,55 @@ B, T = 4, 16
 state = stack.init_state(batch=B, device="cuda", dtype=torch.float32)
 x = torch.randn(B, T, 256, device="cuda")
 out, state = stack(x, state)
+```
+
+### Register tokens and build via `build_cortex`
+
+You can register custom expert tokens and still build stacks manually with `build_cortex` by first creating Column
+configs from token patterns.
+
+```python
+# 1) Define and register custom tokens
+from cortex.registry import register_token
+from cortex.config import PostUpGatedBlockConfig, PreUpBlockConfig, XLCellConfig, mLSTMCellConfig
+
+@register_token("Y")
+def build_Y():
+    return PostUpGatedBlockConfig(cell=XLCellConfig(mem_len=64))
+
+@register_token("Y^")
+def build_Y_axon():
+    d = XLCellConfig().model_dump()
+    d["use_axon_qkv"] = True
+    return PostUpGatedBlockConfig(cell=XLCellConfig(**d))
+
+@register_token("Q")
+def build_Q():
+    return PreUpBlockConfig(cell=mLSTMCellConfig())
+
+# 2) Build Columns from a pattern and compose a stack config
+import cortex.tokens  # ensure built-ins are registered
+from cortex.blocks.column.auto import build_column_auto_config
+from cortex import CortexStackConfig, build_cortex
+
+col1 = build_column_auto_config(d_hidden=256, pattern="AY^Q")
+col2 = build_column_auto_config(d_hidden=256, pattern="AXMS^")
+cfg = CortexStackConfig(d_hidden=256, blocks=[col1, col2], post_norm=True)
+stack = build_cortex(cfg)
+
+# Alternatively, use custom_map at runtime (no decorators)
+custom_map = {
+    # New custom symbols
+    "Y": PostUpGatedBlockConfig(cell=XLCellConfig(mem_len=64)),
+    "Q": PreUpBlockConfig(cell=mLSTMCellConfig()),
+    # Override built‑in X; requesting "X^" will axonify this config automatically
+    "X": PostUpGatedBlockConfig(cell=XLCellConfig(mem_len=32)),
+}
+
+# Use separators for custom symbols; caret works for built‑ins (X/M/S)
+col3 = build_column_auto_config(d_hidden=256, pattern="Y X^ Q", custom_map=custom_map)
+cfg2 = CortexStackConfig(d_hidden=256, blocks=[col3], post_norm=True)
+stack2 = build_cortex(cfg2)
 ```
 
 ---
@@ -447,6 +565,8 @@ uv run python packages/cortex/evaluations/run.py --task majority --stack all
 - `--epochs`, `--batch-size`, `--lr`, `--seed`
 - `--log-level {DEBUG, INFO, WARNING, ERROR}`
 
+For more details, see [`docs/evaluations.md`](docs/evaluations.md).
+
 ## Backend Configuration
 
 Cortex automatically selects between Triton (GPU-accelerated) and PyTorch backends based on device, dtype, and cell
@@ -512,64 +632,44 @@ Both custom cells and blocks are automatically available through the configurati
 
 ### Create a New Architecture (Stack Recipe)
 
-Follow this process to add a new architecture:
+You can define stacks from compact token patterns using the auto builders. Each pattern expands to a Column of
+predefined or custom “expert” blocks. See Quick Start for the list of built‑in tokens and caret `^` semantics.
 
-1. Pick a block pattern and sizes
+1. Register custom tokens (optional)
 
-- Decide how many blocks you want and whether each should be `PreUp`, `PostUp`, or `PassThrough`.
-- Choose `proj_factor` for `PreUp`/`PostUp` blocks; `d_hidden` is the fixed external width.
-
-2. Write a builder in `cortex/stacks/`
-
-- Create `packages/cortex/src/cortex/stacks/my_arch.py` with a small helper that returns a `CortexStack`.
+Register new symbols with a decorator. You can also register caret variants explicitly by using the token with a `^`.
 
 ```python
-from cortex.config import CortexStackConfig, PreUpBlockConfig, PostUpBlockConfig, mLSTMCellConfig, sLSTMCellConfig
-from cortex.stacks.base import CortexStack
+# packages/your_pkg/my_tokens.py
+from cortex.registry import register_token
+from cortex.config import PostUpGatedBlockConfig, XLCellConfig
 
-def build_my_arch(d_hidden: int, *, num_blocks: int = 4) -> CortexStack:
-    blocks = [
-        PreUpBlockConfig(cell=mLSTMCellConfig(hidden_size=None, num_heads=4), proj_factor=2.0),
-        PostUpBlockConfig(cell=sLSTMCellConfig(hidden_size=None, num_heads=4), proj_factor=1.5),
-        # ...repeat or vary as needed...
-    ]
-    cfg = CortexStackConfig(d_hidden=d_hidden, blocks=blocks, post_norm=True)
-    return CortexStack(cfg)
+@register_token("Y")
+def build_Y():
+    return PostUpGatedBlockConfig(cell=XLCellConfig())
+
+@register_token("Y^")
+def build_Y_axon():
+    d = XLCellConfig().model_dump()
+    d["use_axon_qkv"] = True
+    return PostUpGatedBlockConfig(cell=XLCellConfig(**d))
 ```
 
-3. Export it
+Make sure your module is imported before building (e.g., `import your_pkg.my_tokens`). Built‑ins are loaded by
+`cortex.tokens` automatically.
 
-- Add the builder to `packages/cortex/src/cortex/stacks/__init__.py` so users can import it.
+2. Build from a pattern
+
+Use the auto builders to construct a `CortexStackConfig` or an instantiated stack from token patterns.
 
 ```python
-from cortex.stacks.my_arch import build_my_arch  # and add to __all__
+from cortex.stacks import build_cortex_auto_config, build_cortex_auto_stack
+import cortex.tokens  # ensure built‑ins are registered via decorators
+
+cfg = build_cortex_auto_config(d_hidden=256, num_layers=3, pattern="Y^Y")
+stack = build_cortex_auto_stack(d_hidden=256, num_layers=3, pattern=["YY", "Y^", "YYY"])
 ```
 
-4. Register a template for quick evals (optional, but recommended)
+4. Quick check
 
-- Edit `packages/cortex/evaluations/stacks.py` and register your builder under `STACKS`:
-
-```python
-from cortex.stacks.my_arch import build_my_arch
-STACKS["my_arch"] = StackSpec(name="my_arch", builder=lambda: build_my_arch(d_hidden=128), d_hidden=128)
-```
-
-5. Evaluate quickly (CLI)
-
-- Run the synthetic tasks to sanity‑check wiring and step/sequence parity:
-
-```bash
-python packages/cortex/evaluations/run.py --task delayed_recall --stack my_arch
-python packages/cortex/evaluations/run.py --task majority --stack all   # runs all registered templates
-```
-
-6. (Optional) Add tests
-
-- See `packages/cortex/tests/test_cortex_stack.py` for examples that check shapes, state handling, and resets.
-
-### Tips
-
-- Prefer batch‑first shapes `[B, T, H]` and pass state explicitly.
-- Use `PreUpBlock` when a cell benefits from a larger inner width; use `PostUpBlock` to stabilize depth with a cell at
-  `d_hidden`.
-- Let the stack infer `cell.hidden_size=None` inside `PreUpBlock`/`PostUpBlock` unless you're composing blocks manually.
+Instantiate a stack and run a short forward pass as shown in Quick Start.

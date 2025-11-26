@@ -33,6 +33,15 @@ def get_system_deps_config() -> SystemDepsConfig:
 @register_module
 class SystemSetup(SetupModule):
     install_once = True
+    always_required = True
+
+    def dependencies(self) -> list[str]:
+        return ["core"]
+
+    @property
+    @override
+    def name(self) -> str:
+        return "system"
 
     @property
     @override

@@ -1,22 +1,28 @@
 """Interactive play tool for Metta simulations."""
 
 import logging
+import uuid
+from contextlib import ExitStack
 from typing import Optional
 
 import torch
+from pydantic import model_validator
 from rich.console import Console
 
 from metta.agent.policy import Policy as MettaPolicy
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.policy.policy import AgentPolicy
+from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random import RandomAgentPolicy
+from mettagrid.policy.random_agent import RandomMultiAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
-from mettagrid.simulator.rollout import Rollout
+from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
+from mettagrid.util.url_schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
@@ -31,41 +37,35 @@ class PlayTool(Tool):
 
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
-    policy_uri: str | None = None
-    replay_dir: str | None = None
-    stats_dir: str | None = None
+
+    policy_uri: str | None = None  # Deprecated, use policy_version_id or s3_path instead
+    s3_path: str | None = None
+    policy_version_id: str | None = None
+
     open_browser_on_start: bool = True
     max_steps: Optional[int] = None
     seed: int = 42
     render: RenderMode = "gui"
-
-    @property
-    def effective_replay_dir(self) -> str:
-        """Return configured replay directory or default under system data_dir."""
-        if self.replay_dir is not None:
-            return self.replay_dir
-        return str(self.system.data_dir / "replays")
-
-    @property
-    def effective_stats_dir(self) -> str:
-        """Return configured stats directory or default under system data_dir."""
-        if self.stats_dir is not None:
-            return self.stats_dir
-        return str(self.system.data_dir / "stats")
+    stats_server_uri: str | None = auto_stats_server_uri()
 
     def _load_policy_from_uri(
         self, policy_uri: str, policy_env_info: PolicyEnvInterface, device: torch.device
-    ) -> list[AgentPolicy]:
-        """Load a policy from a URI using CheckpointManager and return AgentPolicy instances."""
+    ) -> MultiAgentPolicy:
+        """Load a policy from a URI."""
         logger.info(f"Loading policy from URI: {policy_uri}")
 
-        # Load policy from URI
-        policy: MettaPolicy = CheckpointManager.load_from_uri(policy_uri, policy_env_info, device)
+        policy_spec = policy_spec_from_uri(policy_uri, device=str(device))
+        policy: MettaPolicy = initialize_or_load_policy(policy_env_info, policy_spec)
+        if hasattr(policy, "initialize_to_environment"):
+            policy.initialize_to_environment(policy_env_info, device)
         policy.eval()
-        policy.initialize_to_environment(policy_env_info, device)
+        return policy
 
-        # Create AgentPolicy instances for each agent
-        return [policy.agent_policy(agent_id) for agent_id in range(policy_env_info.num_agents)]
+    @model_validator(mode="after")
+    def validate(self) -> "PlayTool":
+        if len([x for x in [self.policy_uri, self.policy_version_id, self.s3_path] if x is not None]) > 1:
+            raise ValueError("Only one of policy_uri, policy_version_id, or s3_path can be specified")
+        return self
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Run an interactive play session with the configured simulation."""
@@ -81,22 +81,41 @@ class PlayTool(Tool):
         if self.max_steps is not None:
             env_cfg.game.max_steps = self.max_steps
 
-        # Load or create policies
-        if self.policy_uri:
-            agent_policies = self._load_policy_from_uri(self.policy_uri, policy_env_info, device)
-        else:
-            # Use random policies if no policy specified
-            logger.info("No policy specified, using random actions")
-            agent_policies = [RandomAgentPolicy(policy_env_info) for _ in range(policy_env_info.num_agents)]
+        s3_path: str | None = self.s3_path
+        if self.policy_version_id:
+            if not self.stats_server_uri:
+                raise ValueError("stats_server_uri is required")
+            if s3_path:
+                raise ValueError("s3_path and policy_version_id cannot be specified together")
+            stats_client = StatsClient.create(self.stats_server_uri)
+            policy_version = stats_client.get_policy_version(uuid.UUID(self.policy_version_id))
+            s3_path = policy_version.s3_path
+            if not s3_path:
+                raise ValueError(f"Policy version {self.policy_version_id} has no s3 path")
 
-        # Create rollout with renderer
-        rollout = Rollout(
-            env_cfg,
-            agent_policies,
-            max_action_time_ms=10000,
-            render_mode=self.render,
-            seed=self.seed,
-        )
+        with ExitStack() as stack:
+            agent_policies: list[MultiAgentPolicy] = []
+            if s3_path:
+                policy_spec = stack.enter_context(policy_spec_from_s3_submission(s3_path))
+                policy = initialize_or_load_policy(policy_env_info, policy_spec)
+                agent_policies.append(policy)
+                logger.info("Loaded policy from s3 path")
+            elif self.policy_uri:
+                agent_policies.append(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
+                logger.info("Loaded policy from deprecated-format policy uri")
+            else:
+                # Fall back to random policies only when no policy was configured explicitly.
+                agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
+
+            rollout_result = multi_episode_rollout(
+                env_cfg=env_cfg,
+                policies=agent_policies,
+                episodes=1,
+                seed=self.seed,
+                render_mode=self.render,
+                max_action_time_ms=10000,
+            )
+            episode = rollout_result.episodes[0]
 
         # Run the rollout
         logger.info("Starting interactive play session")
@@ -104,12 +123,10 @@ class PlayTool(Tool):
         console.print(f"[cyan]Render mode: {self.render}[/cyan]")
         console.print(f"[cyan]Max steps: {env_cfg.game.max_steps}[/cyan]")
 
-        rollout.run_until_done()
-
         # Print summary
         console.print("\n[bold green]Episode Complete![/bold green]")
-        console.print(f"Steps: {rollout._sim.current_step}")
-        console.print(f"Total Rewards: {rollout._sim.episode_rewards}")
-        console.print(f"Final Reward Sum: {float(sum(rollout._sim.episode_rewards)):.2f}")
+        console.print(f"Steps: {episode.steps}")
+        console.print(f"Total Rewards: {episode.rewards}")
+        console.print(f"Final Reward Sum: {float(episode.rewards.sum()):.2f}")
 
         return None

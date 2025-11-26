@@ -19,6 +19,8 @@ class BaseHubConfig(SceneConfig):
     hub_width: int = 21
     hub_height: int = 21
     include_inner_wall: bool = True
+    # Make an empty buffer around the hub on the full grid (in tiles)
+    outer_clearance: int = 3
     # Order: top-left, top-right, bottom-left, bottom-right.
     # Notes:
     # - If corner_objects is provided (len==4), BaseHub will use that set directly.
@@ -55,6 +57,15 @@ class BaseHub(Scene[BaseHubConfig]):
         y0 = (full_h - hub_h) // 2
         x1 = x0 + hub_w
         y1 = y0 + hub_h
+
+        # Ensure an empty buffer around the hub region on the full grid
+        clearance = max(0, int(cfg.outer_clearance))
+        if clearance > 0:
+            bx0 = max(0, x0 - clearance)
+            by0 = max(0, y0 - clearance)
+            bx1 = min(full_w, x1 + clearance)
+            by1 = min(full_h, y1 + clearance)
+            full_grid[by0:by1, bx0:bx1] = "empty"
 
         grid = full_grid[y0:y1, x0:x1]
         h, w = hub_h, hub_w
@@ -145,8 +156,12 @@ class BaseHub(Scene[BaseHubConfig]):
     def _place_named_objects(self, positions: Sequence[tuple[int, int]], names: Sequence[str]) -> None:
         grid = self.grid
         h, w = self.height, self.width
-
-        for (x, y), name in zip(positions, names, strict=False):
+        pos_list = list(positions)
+        name_list = list(names)
+        # Enforce exact length when names are explicitly provided; allow empty to mean "place nothing"
+        if name_list and len(name_list) != len(pos_list):
+            raise ValueError(f"Expected {len(pos_list)} names, got {len(name_list)}")
+        for (x, y), name in zip(pos_list, name_list, strict=True):
             if not name:
                 continue
             if 0 <= x < w and 0 <= y < h:
@@ -222,9 +237,16 @@ class BaseHub(Scene[BaseHubConfig]):
             (w - 3, h - 3),
         ]
 
-        for (x, y), name in zip(corner_positions, self._resolve_corner_names(), strict=False):
-            if 1 <= x < w - 1 and 1 <= y < h - 1:
-                grid[y, x] = name
+        corner_names = self._resolve_corner_names()
+        # Only place if corners are inside inner wall; enforce name count when provided
+        if corner_names:
+            if len(corner_names) != len(corner_positions):
+                raise ValueError(f"Expected {len(corner_positions)} corner names, got {len(corner_names)}")
+            for (x, y), name in zip(corner_positions, corner_names, strict=True):
+                if not name:
+                    continue
+                if 1 <= x < w - 1 and 1 <= y < h - 1:
+                    grid[y, x] = name
 
         cross_names = self._resolve_cross_names()
         if cross_names:
@@ -277,8 +299,14 @@ class BaseHub(Scene[BaseHubConfig]):
             (cx + 2, cy + 2),
         ]
 
-        for (x, y), name in zip(corner_positions, self._resolve_corner_names(), strict=False):
-            place_building(x, y, name)
+        corner_names = self._resolve_corner_names()
+        if corner_names:
+            if len(corner_names) != len(corner_positions):
+                raise ValueError(f"Expected {len(corner_positions)} corner names, got {len(corner_names)}")
+            for (x, y), name in zip(corner_positions, corner_names, strict=True):
+                if not name:
+                    continue
+                place_building(x, y, name)
 
         cross_names = self._resolve_cross_names()
         if cross_names:

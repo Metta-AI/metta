@@ -5,13 +5,11 @@ from typing import override
 
 from pydantic import Field
 
-from cogames.cogs_vs_clips import vibes
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
     CvCAssemblerConfig,
     CvCChestConfig,
-    CvCStationConfig,
     CvCWallConfig,
     GermaniumExtractorConfig,
     OxygenExtractorConfig,
@@ -19,6 +17,7 @@ from cogames.cogs_vs_clips.stations import (
     resources,
 )
 from mettagrid.base_config import Config
+from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
@@ -31,6 +30,7 @@ from mettagrid.config.mettagrid_config import (
     MoveActionConfig,
     NoopActionConfig,
     ProtocolConfig,
+    ResourceLimitsConfig,
 )
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
@@ -50,6 +50,14 @@ class MissionVariant(Config, ABC):
         # Override this method to modify the produced environment.
         # Variants are allowed to modify the environment in-place.
         pass
+
+    def compat(self, mission: Mission) -> bool:
+        """Check if this variant is compatible with the given mission.
+
+        Returns True if the variant can be safely applied to the mission.
+        Override this method to add compatibility checks.
+        """
+        return True
 
     def apply(self, mission: Mission) -> Mission:
         mission = mission.model_copy(deep=True)
@@ -103,6 +111,9 @@ class Mission(Config):
     site: Site
     num_cogs: int | None = None
 
+    # Variants are applied to the mission immediately, and to its env when make_env is called
+    variants: list[MissionVariant] = Field(default_factory=list)
+
     carbon_extractor: CarbonExtractorConfig = Field(default_factory=CarbonExtractorConfig)
     oxygen_extractor: OxygenExtractorConfig = Field(default_factory=OxygenExtractorConfig)
     germanium_extractor: GermaniumExtractorConfig = Field(default_factory=GermaniumExtractorConfig)
@@ -112,8 +123,8 @@ class Mission(Config):
     wall: CvCWallConfig = Field(default_factory=CvCWallConfig)
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
-    clip_rate: float = Field(default=0.0)
-    cargo_capacity: int = Field(default=255)
+    clip_period: int = Field(default=0)
+    cargo_capacity: int = Field(default=100)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
     inventory_regen_interval: int = Field(default=1)
@@ -124,9 +135,6 @@ class Mission(Config):
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
     compass_enabled: bool = Field(default=False)
-
-    # Variants are applied to the mission immediately, and to its env when make_env is called
-    variants: list[MissionVariant] = Field(default_factory=list)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -154,14 +162,6 @@ class Mission(Config):
         map_builder = self.site.map_builder
         num_cogs = self.num_cogs if self.num_cogs is not None else self.site.min_cogs
 
-        def _clipped_station_cfg(config: CvCStationConfig, clipped_name: str):
-            """Clone a station config with unique names for clipped variants."""
-            clipped_cfg = config.model_copy(update={"start_clipped": True})
-            station = clipped_cfg.station_cfg()
-            station.name = clipped_name
-            station.map_name = clipped_name
-            return station
-
         game = GameConfig(
             map_builder=map_builder,
             num_agents=num_cogs,
@@ -181,10 +181,14 @@ class Mission(Config):
             ),
             agent=AgentConfig(
                 resource_limits={
-                    "heart": self.heart_capacity,
-                    "energy": self.energy_capacity,
-                    ("carbon", "oxygen", "germanium", "silicon"): self.cargo_capacity,
-                    ("scrambler", "modulator", "decoder", "resonator"): self.gear_capacity,
+                    "heart": ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"]),
+                    "energy": ResourceLimitsConfig(limit=self.energy_capacity, resources=["energy"]),
+                    "cargo": ResourceLimitsConfig(
+                        limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
+                    ),
+                    "gear": ResourceLimitsConfig(
+                        limit=self.gear_capacity, resources=["scrambler", "modulator", "decoder", "resonator"]
+                    ),
                 },
                 rewards=AgentRewards(
                     stats={"chest.heart.amount": 1 / num_cogs},
@@ -192,7 +196,7 @@ class Mission(Config):
                 initial_inventory={
                     "energy": self.energy_capacity,
                 },
-                shareable_resources=["energy"],
+                vibe_transfers={"charger": {"energy": 20}},
                 inventory_regen_amounts={"energy": self.energy_regen_amount},
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
@@ -216,7 +220,7 @@ class Mission(Config):
                         cooldown=1,
                     ),
                 ],
-                clip_rate=self.clip_rate,
+                clip_period=self.clip_period,
             ),
             objects={
                 "wall": self.wall.station_cfg(),
@@ -227,13 +231,46 @@ class Mission(Config):
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
-                # Clipped variants
-                "clipped_carbon_extractor": _clipped_station_cfg(self.carbon_extractor, "clipped_carbon_extractor"),
-                "clipped_oxygen_extractor": _clipped_station_cfg(self.oxygen_extractor, "clipped_oxygen_extractor"),
-                "clipped_germanium_extractor": _clipped_station_cfg(
-                    self.germanium_extractor, "clipped_germanium_extractor"
+                # Resource-specific chests used by diagnostic missions
+                # These use simplified vibe_transfers (only "default") to avoid issues when vibes are restricted
+                "chest_carbon": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_carbon",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
                 ),
-                "clipped_silicon_extractor": _clipped_station_cfg(self.silicon_extractor, "clipped_silicon_extractor"),
+                "chest_oxygen": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_oxygen",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
+                "chest_germanium": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_germanium",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
+                "chest_silicon": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_silicon",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
+                # Clipped variants with unique map_names so they don't conflict with regular extractors
+                # These are used by maps that explicitly place clipped extractors
+                "clipped_carbon_extractor": self.carbon_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_carbon_extractor"}),
+                "clipped_oxygen_extractor": self.oxygen_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_oxygen_extractor"}),
+                "clipped_germanium_extractor": self.germanium_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_germanium_extractor"}),
+                "clipped_silicon_extractor": self.silicon_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_silicon_extractor"}),
             },
         )
 
@@ -241,8 +278,10 @@ class Mission(Config):
         # Precaution - copy the env, in case the code above uses some global variable that we don't want to modify.
         # This allows variants to modify the env without copying it again.
         env = env.model_copy(deep=True)
+        env.label = self.full_name()
 
         for variant in self.variants:
             variant.modify_env(self, env)
+            env.label += f".{variant.name}"
 
         return env

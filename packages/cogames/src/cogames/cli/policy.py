@@ -5,32 +5,31 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 import typer
+from pydantic import Field
 from rich.table import Table
 
 from cogames.cli.base import console
+from mettagrid.policy.loader import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.utils import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 
 RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
 
 default_checkpoint_dir = Path("train_dir")
 
-POLICY_ARG_DELIMITER = ":"
+policy_arg_example = "class=CLS[,data=PATH][,kw.x=val]"
+policy_arg_w_proportion_example = "class=CLS[,data=PATH][,proportion=1.0][,kw.x=val]"
 
-policy_arg_w_proportion_example = POLICY_ARG_DELIMITER.join(
-    (
-        "[blue]CLASS[/blue]",
-        "[cyan]DATA[/cyan]",
-        "[light_slate_grey]:PROPORTION[/light_slate_grey]",
-    )
-)
-policy_arg_example = POLICY_ARG_DELIMITER.join(
-    (
-        "[blue]CLASS[/blue]",
-        "[cyan]DATA[/cyan]",
-    )
-)
+
+class PolicySpecWithProportion(PolicySpec):
+    proportion: float = Field(default=1.0, description="Proportion of total agents to assign to this policy")
+
+    def to_policy_spec(self) -> PolicySpec:
+        return PolicySpec(
+            class_path=self.class_path,
+            data_path=self.data_path,
+            init_kwargs=self.init_kwargs,
+        )
 
 
 def list_checkpoints():
@@ -50,17 +49,18 @@ def list_checkpoints():
 
 def describe_policy_arg(with_proportion: bool):
     console.print(
-        "To specify a [bold cyan]-p [POLICY][/bold cyan], follow this format: "
+        "To specify a [bold cyan]-p [POLICY][/bold cyan], use comma-separated key=value pairs: "
         + (policy_arg_example if not with_proportion else policy_arg_w_proportion_example)
     )
     subcommand_parts = [
-        "[blue]CLASS[/blue]: shorthand (e.g. 'stateless', 'random') or fully qualified class path.",
-        "[cyan]DATA[/cyan]: optional checkpoint path.",
+        "[blue]class[/blue]: shorthand (e.g. 'stateless', 'random') or fully qualified class path.",
+        "[cyan]data[/cyan]: optional checkpoint path.",
     ]
     if with_proportion:
         subcommand_parts.append(
-            "[light_slate_grey]PROPORTION[/light_slate_grey]: optional float specifying the population share."
+            "[light_slate_grey]proportion[/light_slate_grey]: optional float specifying the population share."
         )
+    subcommand_parts.append("[magenta]kw.<arg>[/magenta]: optional policy __init__ kwarg (string values).")
     console.print("\n" + "\n".join([f"  - {part}" for part in subcommand_parts]) + "\n")
 
 
@@ -77,7 +77,7 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
         console.print("[yellow]Missing: --policy / -p[/yellow]\n")
     else:
         try:
-            return _parse_policy_spec(spec=policy_arg)  # type: ignore
+            return _parse_policy_spec(spec=policy_arg).to_policy_spec()
         except (ValueError, ModuleNotFoundError) as e:
             translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]\n")
@@ -92,7 +92,9 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
     raise typer.Exit(0)
 
 
-def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> list[PolicySpec]:
+def get_policy_specs_with_proportions(
+    ctx: typer.Context, policy_args: Optional[list[str]]
+) -> list[PolicySpecWithProportion]:
     if not policy_args:
         console.print(ctx.get_help())
         console.print("[yellow]Supply at least one: --policy / -p[/yellow]\n")
@@ -113,40 +115,65 @@ def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> li
     raise typer.Exit(0)
 
 
-def _parse_policy_spec(spec: str) -> PolicySpec:
+def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     """Parse a policy CLI option into its components."""
 
     raw = spec.strip()
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
 
-    parts = [part.strip() for part in raw.split(POLICY_ARG_DELIMITER)]
-    if len(parts) > 3:
-        raise ValueError(f"Policy specification must include at most two '{POLICY_ARG_DELIMITER}' separated values.")
+    entries = [part.strip() for part in raw.split(",") if part.strip()]
+    if not entries:
+        raise ValueError(
+            "Policy specification must use comma-separated key=value pairs "
+            "(e.g., class=stateless,data=train_dir/model.pt,proportion=0.5)."
+        )
 
-    raw_class_path = parts[0]
-    raw_policy_data = parts[1] if len(parts) > 1 else None
-    raw_fraction = parts[2] if len(parts) > 2 else None
+    class_path: Optional[str] = None
+    data_path: Optional[str] = None
+    fraction = 1.0
+    init_kwargs: dict[str, str] = {}
 
-    if not raw_class_path:
-        raise ValueError("Policy class path cannot be empty.")
+    for entry in entries:
+        if "=" not in entry:
+            raise ValueError(
+                "Policy entries must be key=value pairs (e.g., class=stateless,data=train_dir/model.pt,proportion=0.5)."
+            )
+        key, value = (part.strip() for part in entry.split("=", 1))
 
-    if not raw_fraction:
-        fraction = 1.0
-    else:
-        try:
-            fraction = float(raw_fraction)
-        except ValueError as exc:
-            raise ValueError(f"Invalid proportion value '{raw_fraction}'.") from exc
+        if not key:
+            raise ValueError("Policy field name cannot be empty.")
 
-        if fraction <= 0:
-            raise ValueError("Policy proportion must be a positive number.")
+        if key == "class":
+            if not value:
+                raise ValueError("Policy class path cannot be empty.")
+            class_path = value
+        elif key == "data":
+            data_path = value or None
+        elif key == "proportion":
+            try:
+                fraction = float(value)
+            except ValueError as exc:
+                raise ValueError(f"Invalid proportion value '{value}'.") from exc
+            if fraction <= 0:
+                raise ValueError("Policy proportion must be a positive number.")
+        elif key.startswith("kw."):
+            kw_key = key[3:]
+            if not kw_key:
+                raise ValueError("Policy kw.* entries must specify a name, e.g., kw.temperature=0.1.")
+            init_kwargs[kw_key.replace("-", "_")] = value
+        else:
+            raise ValueError(f"Unknown policy field '{key}'. Expected class, data, proportion, or kw.<name> entries.")
 
-    resolved_class_path = resolve_policy_class_path(raw_class_path)
-    resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
+    if class_path is None:
+        raise ValueError("Policy specification must include a class entry (e.g., class=stateless).")
 
-    return PolicySpec(
-        policy_class_path=resolved_class_path,
+    resolved_class_path = resolve_policy_class_path(class_path)
+    resolved_policy_data = resolve_policy_data_path(data_path) if data_path is not None else None
+
+    return PolicySpecWithProportion(
+        class_path=resolved_class_path,
+        data_path=resolved_policy_data,
         proportion=fraction,
-        policy_data_path=resolved_policy_data,
+        init_kwargs=init_kwargs,
     )

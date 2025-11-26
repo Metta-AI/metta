@@ -147,6 +147,16 @@ const OrientationDeltas*: array[8, OrientationDelta] = [
   (x: 1, y: 1)     # SE (Southeast)
 ]
 
+const
+  ActionVerbCount* = 7
+  ActionArgumentCount* = 8
+
+proc encodeAction*(verb: uint8, argument: uint8): uint8 =
+  (verb.int * ActionArgumentCount + argument.int).uint8
+
+proc decodeAction*(value: uint8): tuple[verb: uint8, argument: uint8] =
+  (verb: (value.int div ActionArgumentCount).uint8, argument: (value.int mod ActionArgumentCount).uint8)
+
 {.push inline.}
 proc getOrientationDelta*(orient: Orientation): OrientationDelta =
   OrientationDeltas[ord(orient)]

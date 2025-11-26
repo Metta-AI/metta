@@ -18,16 +18,10 @@ public:
     // Cache commonly used feature IDs (all are always present now)
     _group = get("agent:group");
     _frozen = get("agent:frozen");
-    _orientation = get("agent:orientation");
-    _reserved_for_future_use = get("agent:reserved_for_future_use");
-    _converting = get("converting");
-    _swappable = get("swappable");
     _episode_completion_pct = get("episode_completion_pct");
     _last_action = get("last_action");
-    _last_action_arg = get("last_action_arg");
     _last_reward = get("last_reward");
     _vibe = get("vibe");
-    _visitation_counts = get("agent:visitation_counts");
     _compass = get("agent:compass");
     _tag = get("tag");
     _cooldown_remaining = get("cooldown_remaining");
@@ -37,16 +31,10 @@ public:
     // Initialize public members (must be done AFTER private members are set above)
     Group = _group;
     Frozen = _frozen;
-    Orientation = _orientation;
-    ReservedForFutureUse = _reserved_for_future_use;
-    ConvertingOrCoolingDown = _converting;
-    Swappable = _swappable;
     EpisodeCompletionPct = _episode_completion_pct;
     LastAction = _last_action;
-    LastActionArg = _last_action_arg;
     LastReward = _last_reward;
     Vibe = _vibe;
-    VisitationCounts = _visitation_counts;
     Compass = _compass;
     Tag = _tag;
     CooldownRemaining = _cooldown_remaining;
@@ -71,16 +59,10 @@ public:
   // Commonly used feature IDs (cached for performance)
   ObservationType Group;
   ObservationType Frozen;
-  ObservationType Orientation;
-  ObservationType ReservedForFutureUse;
-  ObservationType ConvertingOrCoolingDown;
-  ObservationType Swappable;
   ObservationType EpisodeCompletionPct;
   ObservationType LastAction;
-  ObservationType LastActionArg;
   ObservationType LastReward;
   ObservationType Vibe;
-  ObservationType VisitationCounts;
   ObservationType Compass;
   ObservationType Tag;
   ObservationType CooldownRemaining;
@@ -93,16 +75,10 @@ private:
   // Cached feature IDs
   ObservationType _group;
   ObservationType _frozen;
-  ObservationType _orientation;
-  ObservationType _reserved_for_future_use;
-  ObservationType _converting;
-  ObservationType _swappable;
   ObservationType _episode_completion_pct;
   ObservationType _last_action;
-  ObservationType _last_action_arg;
   ObservationType _last_reward;
   ObservationType _vibe;
-  ObservationType _visitation_counts;
   ObservationType _compass;
   ObservationType _tag;
   ObservationType _cooldown_remaining;
@@ -122,16 +98,10 @@ void Initialize(const std::unordered_map<std::string, ObservationType>& feature_
 // These are extern variables defined in observation_features.cpp
 extern ObservationType Group;
 extern ObservationType Frozen;
-extern ObservationType Orientation;
-extern ObservationType ReservedForFutureUse;
-extern ObservationType ConvertingOrCoolingDown;
-extern ObservationType Swappable;
 extern ObservationType EpisodeCompletionPct;
 extern ObservationType LastAction;
-extern ObservationType LastActionArg;
 extern ObservationType LastReward;
 extern ObservationType Vibe;
-extern ObservationType VisitationCounts;
 extern ObservationType Compass;
 extern ObservationType Tag;
 extern ObservationType CooldownRemaining;

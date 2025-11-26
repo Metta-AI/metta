@@ -12,7 +12,7 @@ from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random import RandomMultiAgentPolicy
+from mettagrid.policy.random_agent import RandomMultiAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.rollout import Rollout
 

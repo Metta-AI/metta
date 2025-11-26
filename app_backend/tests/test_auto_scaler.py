@@ -1,6 +1,6 @@
 import logging
 import math
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
@@ -20,8 +20,8 @@ class TestAutoScaler:
     def mock_task_client(self):
         """Create a mock EvalTaskClient."""
         mock_client = Mock()
-        mock_client.count_tasks = AsyncMock()
-        mock_client.get_avg_runtime = AsyncMock()
+        mock_client.count_tasks = Mock()
+        mock_client.get_avg_runtime = Mock()
         # Ensure the mock returns actual values, not more mocks
         mock_client.count_tasks.return_value = TaskCountResponse(count=0)
         mock_client.get_avg_runtime.return_value = TaskAvgRuntimeResponse(avg_runtime=None)
@@ -46,7 +46,7 @@ class TestAutoScaler:
         # Setup the mock to return specific responses for different calls
         call_count = 0
 
-        async def mock_count_tasks(where_clause):
+        def mock_count_tasks(where_clause):
             nonlocal call_count
             call_count += 1
             if call_count == 1:  # First call: unprocessed tasks
@@ -80,7 +80,7 @@ class TestAutoScaler:
         auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime_seconds=120.0)
 
         # Setup the mock to return specific responses based on the exact queries used
-        async def mock_count_tasks(where_clause):
+        def mock_count_tasks(where_clause):
             if where_clause == UNPROCESSED_QUERY:
                 return TaskCountResponse(count=5)
             elif where_clause == TASKS_CREATED_LAST_DAY_QUERY:
@@ -111,7 +111,7 @@ class TestAutoScaler:
         auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime_seconds=120.0)
 
         # Setup the mock to return specific responses based on the exact queries used
-        async def mock_count_tasks(where_clause):
+        def mock_count_tasks(where_clause):
             if where_clause == UNPROCESSED_QUERY:
                 return TaskCountResponse(count=100)  # > 5 * 2 workers, triggers backlog
             elif where_clause == TASKS_CREATED_LAST_DAY_QUERY:
@@ -220,7 +220,7 @@ class TestAutoScaler:
         unclaimed_tasks = current_workers * 5  # Exactly at threshold
 
         # Setup the mock to return specific responses based on the exact queries used
-        async def mock_count_tasks(where_clause):
+        def mock_count_tasks(where_clause):
             if where_clause == UNPROCESSED_QUERY:
                 return TaskCountResponse(count=unclaimed_tasks)  # exactly at threshold (= not >)
             elif where_clause == TASKS_CREATED_LAST_DAY_QUERY:

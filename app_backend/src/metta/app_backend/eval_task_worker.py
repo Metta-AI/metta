@@ -1,4 +1,6 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
 """
 Runs eval tasks inside a Docker container.
 
@@ -8,35 +10,35 @@ Runs eval tasks inside a Docker container.
 - Reports success/failure back
 """
 
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
+
 import asyncio
-import base64
 import json
 import logging
 import os
 import shutil
 import subprocess
 import sys
-import uuid
+import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 
 import boto3
+from ddtrace.trace import tracer
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.routes.eval_task_routes import (
-    EvalTaskResponse,
-    TaskStatus,
-    TaskStatusUpdate,
-    TaskUpdateRequest,
-)
+from metta.app_backend.metta_repo import EvalTaskRow, FinishedTaskStatus
+from metta.app_backend.routes.eval_task_routes import TaskFinishRequest
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.datadog.tracing import init_tracing, trace
+from metta.common.tool.tool import ToolResult
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.tools.remote_job import JobResult
+from mettagrid.util.file import local_copy
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +53,16 @@ class TaskResult:
 
 class AbstractTaskExecutor(ABC):
     @abstractmethod
-    async def execute_task(self, task: EvalTaskResponse) -> TaskResult:
+    async def execute_task(self, task: EvalTaskRow) -> TaskResult:
         pass
 
 
 class SimTaskExecutor(AbstractTaskExecutor):
     def __init__(self, backend_url: str) -> None:
         self._backend_url = backend_url
+        self._temp_dir = tempfile.mkdtemp()
+        self._versioned_path = f"{self._temp_dir}/workdir"
+        self.checkout_success_file = f"{self._temp_dir}/checkout_success"
 
     def _run_cmd_from_versioned_checkout(
         self,
@@ -68,6 +73,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         env = os.environ.copy()
         for key in ["PYTHONPATH", "UV_PROJECT", "UV_PROJECT_ENVIRONMENT"]:
             env.pop(key, None)
+        env["DISABLE_RICH_LOGGING"] = "1"
 
         if capture_output:
             # Redirect stderr to stdout to get chronologically interspersed output (like 2>&1)
@@ -110,32 +116,55 @@ class SimTaskExecutor(AbstractTaskExecutor):
     @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self, git_hash: str) -> None:
         try:
-            self._versioned_path = f"/tmp/metta-versioned/{git_hash}"
-            if os.path.exists(self._versioned_path):
-                logger.info(f"Versioned checkout already exists at {self._versioned_path}")
-                return
-
             logger.info(f"Setting up versioned checkout at {self._versioned_path}")
 
-            os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
+            if not os.path.exists(self.checkout_success_file):
+                logger.info("Cloning repository for the first time")
+                if os.path.exists(self._versioned_path):
+                    shutil.rmtree(self._versioned_path)
 
+                os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
+
+                result = subprocess.run(
+                    ["git", "clone", REPO_URL, self._versioned_path],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(f"Failed to clone repository: {result.stderr}")
+
+                with open(self.checkout_success_file, "w") as f:
+                    f.write("Success")
+
+            # Pull the latest changes
             result = subprocess.run(
-                ["git", "clone", REPO_URL, self._versioned_path],
+                ["git", "fetch", "origin"],
+                cwd=self._versioned_path,
                 capture_output=True,
                 text=True,
             )
             if result.returncode != 0:
-                raise RuntimeError(f"Failed to clone repository: {result.stderr}")
+                raise RuntimeError(f"Failed to fetch repository: {result.stderr}")
 
             # Checkout the specific commit
             result = subprocess.run(
-                ["git", "checkout", git_hash],
+                ["git", "reset", "--hard", git_hash],
                 cwd=self._versioned_path,
                 capture_output=True,
                 text=True,
             )
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
+
+            # Clean the repository
+            result = subprocess.run(
+                ["git", "clean", "-df"],
+                cwd=self._versioned_path,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to clean repository: {result.stderr}")
 
             # Install dependencies in the versioned checkout
             logger.info("Installing dependencies in versioned checkout...")
@@ -150,55 +179,53 @@ class SimTaskExecutor(AbstractTaskExecutor):
             logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
         except Exception as e:
             logger.error(f"Failed to set up versioned checkout: {e}", exc_info=True)
-            if os.path.exists(self._versioned_path):
-                shutil.rmtree(self._versioned_path)
             raise
 
     @trace("worker.execute_task")
     async def execute_task(
         self,
-        task: EvalTaskResponse,
+        task: EvalTaskRow,
     ) -> TaskResult:
         if not task.git_hash:
             raise RuntimeError(f"Git hash not found for task {task.id}")
 
         self._setup_versioned_checkout(task.git_hash)
 
-        # Convert simulations list to a base64-encoded JSON string to avoid parsing issues
-        simulations = task.attributes.get("simulations", [])
-        simulations_json = json.dumps(simulations)
-        simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
-
-        # write simulations_json_base64 to a file
-        file_path = f"simulations_json_base64_{task.id}.json"
-        with open(file_path, "w") as f:
-            f.write(simulations_base64)
-
-        normalized = CheckpointManager.normalize_uri(task.policy_uri)
+        cmd = task.command.split(" ")
 
         job_result_file_path = f"job_result_file_path_{task.id}.json"
+        cmd.append(f"result_file_path={os.path.abspath(job_result_file_path)}")
 
-        cmd = [
-            "uv",
-            "run",
-            "tools/run.py",
-            "experiments.evals.run.eval",
-            f"policy_uri={normalized}",
-            f"simulations_json_base64_path={os.path.abspath(file_path)}",
-            f"eval_task_id={str(task.id)}",
-            f"stats_server_uri={self._backend_url}",
-            f"job_result_file_path={os.path.abspath(job_result_file_path)}",
-            "push_metrics_to_wandb=true",
-        ]
-        # exclude simulation_json_base64 from logging, since it's too large and undescriptive
-        logged_cmd = [arg for arg in cmd if not arg.startswith("simulations_json_base64")]
-        logger.info(f"Running command: {' '.join(logged_cmd)}")
+        # Download data file if data_uri is provided, using local_copy context manager
+        if task.data_uri:
+            try:
+                with local_copy(task.data_uri) as local_path:
+                    # Add task_data_path flag with the local file path
+                    cmd.append(f"task_data_path={os.path.abspath(local_path)}")
+                    logger.info(f"Added task_data_path {os.path.abspath(local_path)} to command")
+                    logger.info(f"Running command: {' '.join(cmd)}")
 
-        result = self._run_cmd_from_versioned_checkout(cmd)
+                    result = self._run_cmd_from_versioned_checkout(cmd)
 
-        self._upload_logs_to_s3(str(task.id), result)
+                    self._upload_logs_to_s3(str(task.id), result)
 
-        logger.info(f"Simulation completed with return code {result.returncode}")
+                    logger.info(f"Simulation completed with return code {result.returncode}")
+                    # local_copy context manager will automatically clean up the file
+            except Exception as e:
+                logger.error(f"Failed to download or process data file: {e}", exc_info=True)
+                return TaskResult(
+                    success=False,
+                    error=f"Failed to download data file from {task.data_uri}: {str(e)}",
+                )
+        else:
+            # No data file to download, run command directly
+            logger.info(f"Running command: {' '.join(cmd)}")
+
+            result = self._run_cmd_from_versioned_checkout(cmd)
+
+            self._upload_logs_to_s3(str(task.id), result)
+
+            logger.info(f"Simulation completed with return code {result.returncode}")
 
         log_path = f"{SOFTMAX_S3_BASE}/{self._log_path(str(task.id))}"
 
@@ -206,7 +233,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
             if os.path.exists(job_result_file_path):
                 with open(job_result_file_path, "r") as f:
                     output = json.load(f)
-                result = JobResult.model_validate(output)
+                result = ToolResult.model_validate(output)
+                os.remove(job_result_file_path)
                 return TaskResult(
                     success=result.result == "success",
                     warnings=result.warnings,
@@ -223,7 +251,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
             return TaskResult(
                 success=False,
                 log_path=log_path,
-                error="Job failed with return code " + str(result.returncode),
+                error="Job failed with return code " + str(result.returncode) + " and output: " + result.stdout,
+                warnings=[result.stderr],
             )
 
 
@@ -236,37 +265,34 @@ class EvalTaskWorker:
         self._assignee = assignee
         self._poll_interval = poll_interval
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._client.close()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._client.close()
 
     @trace("worker.update_status")
     async def _update_task_status(
         self,
-        task_id: uuid.UUID,
-        status: TaskStatus,
+        task_id: int,
+        status: FinishedTaskStatus,
         error_reason: str | None = None,
         log_path: str | None = None,
         warnings: list[str] | None = None,
     ) -> None:
-        await self._client.update_task_status(
-            TaskUpdateRequest(
-                require_assignee=self._assignee,
-                updates={
-                    task_id: TaskStatusUpdate(
-                        status=status,
-                        attributes=remove_none_values(
-                            {
-                                f"error_reason_{self._assignee}": error_reason,
-                                "output_log_path": log_path,
-                                "warnings": warnings,
-                            }
-                        ),
-                    )
-                },
-            )
+        self._client.finish_task(
+            task_id,
+            TaskFinishRequest(
+                task_id=task_id,
+                status=status,
+                log_path=log_path,
+                status_details=remove_none_values(
+                    {
+                        "error_reason": error_reason,
+                        "warnings": warnings,
+                    }
+                ),
+            ),
         )
         logger.info(
             f"Updated task {task_id} status to: {status}" + "\n" + f"Error reason: {error_reason}"
@@ -274,41 +300,56 @@ class EvalTaskWorker:
             else ""
         )
 
+    @trace("worker.attempt_task")
+    async def attempt_task(self, task: EvalTaskRow) -> None:
+        logger.info(f"Processing task {task.id}")
+        span = tracer.current_span()
+        if span:
+            span.set_tags(
+                {
+                    f"task.{key}": value
+                    for key, value in task.model_dump(mode="json").items()
+                    if key in ["id", "policy_id", "policy_uri", "policy_name", "git_hash", "user_id", "assignee"]
+                }
+            )
+            span.resource = str(task.id)
+
+        try:
+            task_result = await self._task_executor.execute_task(task)
+            status: FinishedTaskStatus = "done" if task_result.success else "error"
+
+            logger.info(f"Task {task.id} completed with status {status}")
+            warnings = None
+            if task_result.warnings is not None and len(task_result.warnings) > 0:
+                warnings = task_result.warnings
+
+            await self._update_task_status(
+                task.id,
+                status,
+                error_reason=task_result.error,
+                log_path=task_result.log_path,
+                warnings=warnings,
+            )
+            logger.info(f"Task {task.id} updated to {status}")
+        except Exception as e:
+            logger.error(f"Task failed: {e}", exc_info=True)
+            await self._update_task_status(
+                task.id,
+                "error",
+                error_reason=str(e),
+            )
+
     async def run(self) -> None:
         logger.info("Starting eval worker")
         logger.info(f"Worker id: {self._assignee}")
         while True:
             loop_start_time = datetime.now()
             try:
-                claimed_tasks = await self._client.get_claimed_tasks(assignee=self._assignee)
+                claimed_tasks = self._client.get_claimed_tasks(assignee=self._assignee)
 
                 if claimed_tasks.tasks:
-                    task: EvalTaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
-                    logger.info(f"Processing task {task.id}")
-                    try:
-                        task_result = await self._task_executor.execute_task(task)
-                        status = "done" if task_result.success else "error"
-
-                        logger.info(f"Task {task.id} completed with status {status}")
-                        warnings = None
-                        if task_result.warnings is not None and len(task_result.warnings) > 0:
-                            warnings = task_result.warnings
-
-                        await self._update_task_status(
-                            task.id,
-                            status,
-                            error_reason=task_result.error,
-                            log_path=task_result.log_path,
-                            warnings=warnings,
-                        )
-                        logger.info(f"Task {task.id} updated to {status}")
-                    except Exception as e:
-                        logger.error(f"Task failed: {e}", exc_info=True)
-                        await self._update_task_status(
-                            task.id,
-                            "error",
-                            str(e),
-                        )
+                    task: EvalTaskRow = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
+                    await self.attempt_task(task)
                 else:
                     logger.debug("No tasks claimed")
 
@@ -331,8 +372,6 @@ def init_logging():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-
 
 async def main() -> None:
     init_logging()
@@ -354,7 +393,7 @@ async def main() -> None:
             }.items()
         )
     )
-    async with EvalTaskWorker(client, task_executor, assignee) as worker:
+    with EvalTaskWorker(client, task_executor, assignee) as worker:
         await worker.run()
 
 

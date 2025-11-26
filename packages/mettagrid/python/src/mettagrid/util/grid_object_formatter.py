@@ -11,11 +11,11 @@ def format_grid_object_base(grid_object: dict) -> dict:
     update_object["id"] = grid_object["id"]
     update_object["type_name"] = grid_object["type_name"]
     update_object["location"] = grid_object["location"]
+    # Note, orientation no longer exists. It might in (old) replays, but we should be able to deprecate this.
     update_object["orientation"] = grid_object.get("orientation", 0)
     update_object["inventory"] = list(grid_object.get("inventory", {}).items())
     update_object["inventory_max"] = grid_object.get("inventory_max", 0)
     update_object["color"] = grid_object.get("color", 0)
-    update_object["is_swappable"] = grid_object.get("is_swappable", False)
     return update_object
 
 
@@ -86,9 +86,11 @@ def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
     update_object["protocols"] = []
     for protocol in grid_object.get("protocols", []):
         update_protocol = {}
+        update_protocol["minAgents"] = protocol.get("min_agents", 0)
+        update_protocol["vibes"] = protocol.get("vibes", [])
         update_protocol["inputs"] = list(protocol.get("inputs", {}).items())
         update_protocol["outputs"] = list(protocol.get("outputs", {}).items())
-        update_protocol["cooldown"] = protocol["cooldown"]
+        update_protocol["cooldown"] = protocol.get("cooldown", 0)
         update_object["protocols"].append(update_protocol)
 
 

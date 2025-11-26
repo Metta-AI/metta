@@ -19,7 +19,6 @@ class Inventory {
 private:
   std::unordered_map<InventoryItem, InventoryQuantity> _inventory;
   std::unordered_map<InventoryItem, SharedInventoryLimit*> _limits;
-  std::vector<ObservationType> _item_feature_ids;  // Maps item index to observation feature ID
 
 public:
   // Constructor and Destructor
@@ -39,9 +38,6 @@ public:
 
   // Get all inventory items
   std::unordered_map<InventoryItem, InventoryQuantity> get() const;
-
-  // Get the observation feature ID for an inventory item
-  ObservationType get_feature_id(InventoryItem item) const;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_INVENTORY_HPP_

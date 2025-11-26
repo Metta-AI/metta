@@ -134,7 +134,9 @@ class ScorecardWidget(anywidget.AnyWidget):
             "policyAverageScores": policy_average_scores,
         }
         self.selected_metric = selected_metric
-        print(f"📊 Data set with {len(policy_names)} policies and {len(eval_names)} evaluations")
+        print(
+            f"📊 Data set with {len(policy_names)} policies and {len(eval_names)} evaluations"
+        )
         print(f"📈 Selected metric: {selected_metric}")
 
     def set_multi_metric_data(
@@ -157,7 +159,9 @@ class ScorecardWidget(anywidget.AnyWidget):
         if not selected_metric and metrics:
             selected_metric = metrics[0]
         elif selected_metric and selected_metric not in metrics:
-            raise ValueError(f"Selected metric '{selected_metric}' not found in available metrics: {metrics}")
+            raise ValueError(
+                f"Selected metric '{selected_metric}' not found in available metrics: {metrics}"
+            )
 
         # Calculate policy averages for the selected metric
         policy_average_scores = {}
@@ -252,7 +256,9 @@ class ScorecardWidget(anywidget.AnyWidget):
             else:
                 primary_metric = "reward"
         if restrict_to_metrics and primary_metric not in restrict_to_metrics:
-            raise ValueError(f"Primary metric {primary_metric} not found in restrict_to_metrics {restrict_to_metrics}")
+            raise ValueError(
+                f"Primary metric {primary_metric} not found in restrict_to_metrics {restrict_to_metrics}"
+            )
 
         if not self.client:
             raise ValueError("client is required to fetch scorecard data")
@@ -268,16 +274,25 @@ class ScorecardWidget(anywidget.AnyWidget):
         for policy in policies_data.policies:
             if policy.type == "training_run" and (
                 not restrict_to_policy_names
-                or any(filter_policy_name in policy.name for filter_policy_name in restrict_to_policy_names)
+                or any(
+                    filter_policy_name in policy.name
+                    for filter_policy_name in restrict_to_policy_names
+                )
             ):
                 training_run_ids.append(policy.id)
             elif policy.type == "policy" and include_run_free_policies:
                 run_free_policy_ids.append(policy.id)
 
         if restrict_to_policy_ids:
-            training_run_ids = [policy_id for policy_id in restrict_to_policy_ids if policy_id in training_run_ids]
+            training_run_ids = [
+                policy_id
+                for policy_id in restrict_to_policy_ids
+                if policy_id in training_run_ids
+            ]
             run_free_policy_ids = [
-                policy_id for policy_id in restrict_to_policy_ids if policy_id in run_free_policy_ids
+                policy_id
+                for policy_id in restrict_to_policy_ids
+                if policy_id in run_free_policy_ids
             ]
 
         if not training_run_ids:
@@ -288,12 +303,16 @@ class ScorecardWidget(anywidget.AnyWidget):
             eval_names = restrict_to_eval_names
         else:
             # Get all available evaluations for these policies
-            eval_names = await self.client.get_eval_names(training_run_ids, run_free_policy_ids)
+            eval_names = await self.client.get_eval_names(
+                training_run_ids, run_free_policy_ids
+            )
             if not eval_names:
                 raise Exception("No evaluations found for selected training runs")
             print(f"Found {len(eval_names)} available evaluations")
 
-        available_metrics = await self.client.get_available_metrics(training_run_ids, run_free_policy_ids, eval_names)
+        available_metrics = await self.client.get_available_metrics(
+            training_run_ids, run_free_policy_ids, eval_names
+        )
         if not available_metrics:
             raise Exception("No metrics found for selected policies and evaluations")
 
@@ -307,7 +326,9 @@ class ScorecardWidget(anywidget.AnyWidget):
         if not valid_metrics:
             print(f"Available metrics: {sorted(available_metrics)}")
             if restrict_to_metrics:
-                warning(f"None of the requested metrics {restrict_to_metrics} are available")
+                warning(
+                    f"None of the requested metrics {restrict_to_metrics} are available"
+                )
             warning(f"Available metrics are: {sorted(available_metrics)}")
             raise Exception("No valid metrics found")
 
@@ -328,7 +349,9 @@ class ScorecardWidget(anywidget.AnyWidget):
                     f"({len(training_run_ids) + len(run_free_policy_ids)})"
                 )
             )
-            raise Exception("Number of policies in scorecard data does not match number of policies in your query")
+            raise Exception(
+                "Number of policies in scorecard data does not match number of policies in your query"
+            )
 
         if not scorecard_data.policyNames:
             warning("No scorecard data found in the database for your query:")
@@ -362,12 +385,20 @@ class ScorecardWidget(anywidget.AnyWidget):
         if len(policy_names) > max_policies:
             # Sort by average score and take top N
             avg_scores = scorecard_data.policyAverageScores
-            top_policies = sorted(avg_scores.keys(), key=lambda p: avg_scores[p], reverse=True)[:max_policies]
+            top_policies = sorted(
+                avg_scores.keys(), key=lambda p: avg_scores[p], reverse=True
+            )[:max_policies]
 
-            filtered_cells = {p: scorecard_data.cells[p] for p in top_policies if p in scorecard_data.cells}
+            filtered_cells = {
+                p: scorecard_data.cells[p]
+                for p in top_policies
+                if p in scorecard_data.cells
+            }
             scorecard_data.policyNames = top_policies
             scorecard_data.cells = filtered_cells
-            scorecard_data.policyAverageScores = {p: avg_scores[p] for p in top_policies if p in avg_scores}
+            scorecard_data.policyAverageScores = {
+                p: avg_scores[p] for p in top_policies if p in avg_scores
+            }
 
         cells = {}
         for policy_name in scorecard_data.policyNames:

@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-python.url = "github:cachix/nixpkgs-python";
   };
 
@@ -15,10 +16,14 @@
     ];
   };
 
-  outputs = { self, nixpkgs, nixpkgs-python, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixpkgs-python, ... }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
+      };
+      unstable = import nixpkgs-unstable {
         inherit system;
         config.allowUnfree = true;
       };
@@ -30,7 +35,7 @@
 
         buildInputs = with pkgs; [
           mettaPython
-          uv
+          unstable.uv
           bazel_7
           stdenv.cc.cc.lib
           pnpm
@@ -85,7 +90,7 @@
               echo "# ROCm PyTorch already installed, skipping reinstall"
             else
               echo "# Installing ROCm PyTorch..."
-              pip install --force-reinstall --index-url https://download.pytorch.org/whl/rocm6.4 torch torchvision torchaudio
+              pip install --force-reinstall --extra-index-url https://download.pytorch.org/whl/rocm6.4 torch==2.9.0+rocm6.4
             fi
           else
             echo "# No AMD GPU detected, using default PyTorch installation"

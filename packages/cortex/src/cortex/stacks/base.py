@@ -14,6 +14,7 @@ from cortex.blocks.base import BaseBlock
 from cortex.cells import build_cell
 from cortex.config import CortexStackConfig
 from cortex.types import MaybeState, ResetMask, Tensor
+from cortex.utils import configure_tf32_precision
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class CortexStack(nn.Module):
         self.blocks = nn.ModuleList(self._build_blocks(cfg))
         self.norm = nn.LayerNorm(cfg.d_hidden) if cfg.post_norm else nn.Identity()
         self._compiled_blocks: list | None = None
+        self._tf32_configured: bool = False
 
         compile_requested = bool(getattr(cfg, "compile_blocks", False))
         if compile_requested and not torch.cuda.is_available():
@@ -48,30 +50,23 @@ class CortexStack(nn.Module):
         d_hidden = cfg.d_hidden
 
         for _idx, block_cfg in enumerate(cfg.blocks):
-            # For adapter blocks, cell comes from base_block, so skip cell building
             if block_cfg.cell is None:
-                # Build block without cell (adapters handle this internally)
                 block = build_block(config=block_cfg, d_hidden=d_hidden, cell=None)
             else:
-                # Get the appropriate hidden size for the cell
                 cell_hidden_size = block_cfg.get_cell_hidden_size(d_hidden)
 
-                # Build cell with the appropriate hidden size using generic builder.
-                # We intentionally overwrite any provided hidden_size (including None)
-                # so that blocks can infer and enforce their dimensionality.
                 dumped = block_cfg.cell.model_dump()
                 dumped["hidden_size"] = cell_hidden_size
                 cell_config = type(block_cfg.cell)(**dumped)
                 cell = build_cell(cell_config)
 
-                # Use generic block builder
                 block = build_block(config=block_cfg, d_hidden=d_hidden, cell=cell)
 
             blocks.append(block)
 
         return blocks
 
-    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device | str = "cpu", dtype: torch.dtype) -> TensorDict:
         state = TensorDict({}, batch_size=[batch], device=torch.device(device))
         for i, block in enumerate(self.blocks):
             block_key = f"{block.__class__.__name__}_{i}"
@@ -81,12 +76,15 @@ class CortexStack(nn.Module):
     def forward(
         self,
         x: Tensor,
-        state: MaybeState,
+        state: MaybeState = None,
         *,
         resets: Optional[ResetMask] = None,
     ) -> tuple[Tensor, MaybeState]:
-        # Always expect batch-first input: [B, T, H] or [B, H]
         y = x
+        if y.is_cuda and not self._tf32_configured:
+            configure_tf32_precision()
+            self._tf32_configured = True
+
         batch_size = x.shape[0]
         next_state = TensorDict({}, batch_size=[batch_size])
         for i, block in enumerate(self.blocks):

@@ -63,7 +63,9 @@ def _(live_widget):
     selected_policies = live_widget.selected_policies
 
     mds = [mo.md(f"## You selected {len(selected_policies)} policies:")]
-    mds.append(mo.md("\n".join([f"  - {policy_id}" for policy_id in selected_policies])))
+    mds.append(
+        mo.md("\n".join([f"  - {policy_id}" for policy_id in selected_policies]))
+    )
 
     mo.vstack(mds)
     return
