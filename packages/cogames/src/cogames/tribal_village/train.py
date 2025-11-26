@@ -12,7 +12,6 @@ import numpy as np
 import psutil
 import torch
 from rich.console import Console
-from tribal_village_env.build import ensure_nim_library_current
 
 from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.policy.tribal_village_policy import TribalPolicyEnvInfo
@@ -66,10 +65,8 @@ def _ensure_tribal_installed() -> None:
         return
     except ModuleNotFoundError:
         project_root = Path(__file__).resolve().parents[4] / "packages" / "tribal_village"
-
         if not project_root.exists():
             raise
-
         # Best-effort local editable install so the import works
         import subprocess
 
@@ -77,7 +74,21 @@ def _ensure_tribal_installed() -> None:
             ["uv", "pip", "install", "-e", str(project_root)],
             check=True,
         )
-        import tribal_village_env  # type: ignore  # noqa: F401
+        try:
+            import tribal_village_env  # type: ignore  # noqa: F401
+        except ModuleNotFoundError as exc:  # pragma: no cover - defensive
+            # Last resort: add workspace path then retry import
+            import sys
+
+            sys.path.insert(0, str(project_root))
+            sys.path.insert(0, str(project_root / "tribal_village_env"))
+            try:
+                import tribal_village_env  # type: ignore  # noqa: F401
+            except ModuleNotFoundError:
+                raise RuntimeError(
+                    "tribal_village_env is still not importable after installation. "
+                    "Please check the install output and that the Nim build succeeded."
+                ) from exc
 
 
 class _FlattenVecEnv:
@@ -147,6 +158,7 @@ def train(
     """Run PPO training for Tribal Village."""
 
     _ensure_tribal_installed()
+    from tribal_village_env.build import ensure_nim_library_current
 
     ensure_nim_library_current()
 
@@ -331,17 +343,11 @@ def train(
 
     try:
         trainer = pufferl.PuffeRL(train_args, vecenv, network)
-        if log_outputs:
-            console.print("[dim]Evaluation stats will stream below.[/dim]")
 
         with DeferSigintContextManager():
             while trainer.global_step < num_steps:
-                eval_stats = trainer.evaluate()
-                if log_outputs and eval_stats:
-                    console.log("Evaluation", eval_stats)
-                trainer_stats = trainer.train()
-                if log_outputs and trainer_stats:
-                    console.log("Training", trainer_stats)
+                trainer.evaluate()
+                trainer.train()
 
     except KeyboardInterrupt:  # pragma: no cover - user interrupt
         logger.warning("Training interrupted by user. Saving latest model if available.")
