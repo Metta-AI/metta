@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import override
 
 from cogames.cogs_vs_clips.mission import Mission, Site
 from cogames.cogs_vs_clips.procedural import MachinaArena
@@ -18,10 +17,8 @@ from cogames.cogs_vs_clips.variants import (
     ResourceBottleneckVariant,
     SingleResourceUniformVariant,
     SingleUseSwarmVariant,
-    TinyHeartProtocolsVariant,
     VibeCheckMin2Variant,
 )
-from mettagrid.config.mettagrid_config import AssemblerConfig
 from mettagrid.mapgen.mapgen import MapGen
 
 logger = logging.getLogger(__name__)
