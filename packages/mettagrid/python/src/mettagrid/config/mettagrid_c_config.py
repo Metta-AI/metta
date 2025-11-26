@@ -190,7 +190,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             group_id=team_id,
             group_name=group_name,
             freeze_duration=agent_props["freeze_duration"],
-            action_failure_penalty=agent_props["action_failure_penalty"],
             inventory_config=inventory_config,
             stat_rewards=stat_rewards,
             stat_reward_max=stat_reward_max,
