@@ -45,24 +45,7 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
-
-try:
-<<<<<<< HEAD
-    from metta.rl.checkpoint_manager import CheckpointManager
-    from metta.rl.policy_artifact import policy_spec_from_uri
-=======
-    from mettagrid.util.url_schemes import policy_spec_from_uri
->>>>>>> 51564fb1a5295cf8ad78749e9a0913bb05a1bddb
-
-    POLICY_SPEC_FROM_URI_AVAILABLE = True
-except ImportError:
-<<<<<<< HEAD
-    CHECKPOINT_MANAGER_AVAILABLE = False
-    CheckpointManager = None
-=======
-    POLICY_SPEC_FROM_URI_AVAILABLE = False
->>>>>>> 51564fb1a5295cf8ad78749e9a0913bb05a1bddb
-    policy_spec_from_uri = None
+from mettagrid.util.url_schemes import policy_spec_from_uri
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -126,17 +109,13 @@ def load_policy(
     device = device or torch.device("cpu")
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
-        if not CHECKPOINT_MANAGER_AVAILABLE or policy_spec_from_uri is None:
-            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = policy_spec_from_uri(checkpoint_path, device=device)
+        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     if is_s3_uri(policy_path):
-        if not CHECKPOINT_MANAGER_AVAILABLE or policy_spec_from_uri is None:
-            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = policy_spec_from_uri(policy_path, device=device)
+        policy_spec = policy_spec_from_uri(policy_path, device=str(device))
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)
@@ -319,7 +298,7 @@ def run_evaluation(
     total_tests = total_cases * runs_per_case
     completed = 0
 
-    # Force sequential execution for S3/neural network policies to avoid TensorDict threading issues
+    # Force sequential execution for S3 policies to avoid TensorDict threading issues
     # TensorDict has internal state that conflicts with Python threading
     use_threading = jobs != 1 and not is_s3_uri(agent_config.policy_path)
     max_workers = jobs if jobs > 0 else max(1, os.cpu_count() or 1)
