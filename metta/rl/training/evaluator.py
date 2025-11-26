@@ -109,7 +109,7 @@ class Evaluator(TrainerComponent):
         """Create a submission zip containing policy-spec.json."""
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr("policy-spec.json", policy_spec.model_dump_json())
+            zipf.writestr("policy_spec.json", policy_spec.model_dump_json())
         return buffer.getvalue()
 
     def _upload_submission_zip(self, policy_spec: PolicySpec) -> str | None:
