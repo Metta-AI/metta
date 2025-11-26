@@ -4,16 +4,14 @@ import json
 import logging
 from datetime import datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from sqlalchemy import Text
 from sqlmodel import Column, Field, SQLModel
 
 from metta.jobs.job_config import JobConfig
 from metta.jobs.job_metrics import fetch_job_metrics, parse_total_timesteps
-
-if TYPE_CHECKING:
-    from metta.jobs.job_runner import Job
+from metta.jobs.job_runner import Job
 
 logger = logging.getLogger(__name__)
 
