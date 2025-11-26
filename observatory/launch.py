@@ -4,6 +4,7 @@ import argparse
 import atexit
 import base64
 import os
+import re
 import subprocess
 import sys
 import time
@@ -37,7 +38,8 @@ def _get_prod_db_uri() -> str:
         check=True,
     )
     uri = base64.b64decode(result.stdout).decode()
-    return uri.replace(f"{PROD_DB_RDS_HOST}:5432", f"localhost:{PROD_DB_PROXY_LOCAL_PORT}")
+    pattern = re.escape(PROD_DB_RDS_HOST) + r"(:\d+)?"
+    return re.sub(pattern, f"localhost:{PROD_DB_PROXY_LOCAL_PORT}", uri)
 
 
 def _ensure_proxy_pod() -> None:
@@ -46,6 +48,12 @@ def _ensure_proxy_pod() -> None:
         capture_output=True,
     )
     if check.returncode != 0:
+        info(f"Proxy pod '{PROD_DB_PROXY_POD}' not found in namespace '{PROD_DB_NAMESPACE}'")
+        info("To create manually:")
+        info(
+            f"  kubectl run {PROD_DB_PROXY_POD} -n {PROD_DB_NAMESPACE} --image=alpine/socat "
+            f"--restart=Never -- TCP-LISTEN:5432,fork,reuseaddr TCP:{PROD_DB_RDS_HOST}:5432"
+        )
         info(f"Creating proxy pod {PROD_DB_PROXY_POD}...")
         subprocess.run(
             [
@@ -75,6 +83,8 @@ def _ensure_proxy_pod() -> None:
             ],
             check=True,
         )
+    else:
+        info(f"Using existing proxy pod '{PROD_DB_PROXY_POD}'")
 
 
 def _start_port_forward() -> subprocess.Popen:
