@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+import logging
+import os
+from abc import ABC, abstractmethod
+from datetime import datetime, timezone
+from typing import Dict
+
+from ..models import MetricKind, MetricSample
+
+
+class BaseCollector(ABC):
+    """Base class for all metric collectors."""
+
+    slug: str = "base"
+    metric_namespace: str = "metta"
+    workflow_category: str = "general"
+    source: str = "cron"
+
+    def __init__(self) -> None:
+        self.logger = logging.getLogger(f"devops.datadog.collectors.{self.slug}")
+
+    @abstractmethod
+    def collect(self) -> list[MetricSample]:
+        """Collect metrics for Datadog ingestion."""
+
+    def _metric_name(self, suffix: str) -> str:
+        if suffix.startswith("metta."):
+            return suffix
+        return f"{self.metric_namespace}.{suffix}"
+
+    def _base_tags(self) -> Dict[str, str]:
+        """Return base tags required by the Datadog ingestion plan."""
+        return {
+            "source": self.source,
+            "workflow_category": self.workflow_category,
+            "service": "infra-health-dashboard",
+            "env": os.environ.get("DD_ENV", "production"),
+        }
+
+    def build_sample(
+        self,
+        *,
+        metric: str,
+        value: float,
+        workflow_name: str,
+        task: str,
+        check: str,
+        condition: str,
+        status: str,
+        metric_kind: MetricKind = MetricKind.GAUGE,
+        tags: Dict[str, str] | None = None,
+        timestamp: datetime | None = None,
+    ) -> MetricSample:
+        """Helper to build MetricSample with standardized tags."""
+        merged_tags = {
+            **self._base_tags(),
+            "workflow_name": workflow_name,
+            "task": task,
+            "check": check,
+            "condition": condition,
+            "status": status,
+        }
+        if tags:
+            merged_tags.update(tags)
+
+        return MetricSample(
+            name=self._metric_name(metric),
+            value=value,
+            tags=merged_tags,
+            kind=metric_kind,
+            timestamp=timestamp or datetime.now(timezone.utc),
+        )
