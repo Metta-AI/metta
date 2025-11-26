@@ -31,6 +31,8 @@ def train_with_perf_config(
     perf_cache_task_list: bool = True,
     perf_log_metrics: bool = False,
     num_active_tasks: int = 1000,
+    # Required variants for all runs
+    force_variants: Sequence[str] = ("inventory_heart_tune", "heart_chorus"),
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips with performance configuration.
 
@@ -41,7 +43,7 @@ def train_with_perf_config(
         num_cogs: Number of CoGs agents to train
         mission: Optional single mission to train on
         base_missions: List of missions for curriculum
-        variants: Training variants to use
+        variants: Training variants to use (merged with force_variants)
         eval_variants: Evaluation variants to use
         eval_difficulty: Difficulty level for evaluation
         max_evals: Maximum number of evaluations
@@ -52,10 +54,20 @@ def train_with_perf_config(
         perf_cache_task_list: Enable task list caching
         perf_log_metrics: Log performance metrics
         num_active_tasks: Size of active task pool
+        force_variants: Variants that are always applied (default: inventory_heart_tune, heart_chorus)
     """
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
     if mission is not None:
         training_missions = [mission]
+
+    # Merge force_variants with user-provided variants
+    merged_variants = list(force_variants)
+    if variants:
+        # Add user variants, avoiding duplicates
+        for v in variants:
+            if v not in merged_variants:
+                merged_variants.append(v)
+    final_variants = merged_variants if merged_variants else None
 
     # Create algorithm config with performance parameters
     if use_lp:
@@ -68,7 +80,7 @@ def train_with_perf_config(
             min_samples_for_lp=10,
             lp_score_temperature=0.0,
             z_score_amplification=50.0,
-            show_curriculum_troubleshooting_logging=True,
+            show_curriculum_troubleshooting_logging=False,  # Disable per-task metrics (3000+ metrics with 1000 tasks)
             early_progress_amplification=0.5,
             # Performance parameters (configurable)
             perf_invalidation_batch_size=perf_invalidation_batch_size,
@@ -84,7 +96,7 @@ def train_with_perf_config(
         mission_env = make_training_env(
             num_cogs=num_cogs,
             mission=mission_name,
-            variants=variants,
+            variants=final_variants,
         )
         mission_tasks = cc.bucketed(mission_env)
         mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
@@ -99,11 +111,11 @@ def train_with_perf_config(
     )
 
     # Call original train function with pre-configured curriculum
-    # Note: variants is needed for evaluation suite configuration
+    # Note: final_variants is passed to evaluation suite configuration
     return train(
         num_cogs=num_cogs,
         curriculum=curriculum,
-        variants=variants,
+        variants=final_variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
         max_evals=max_evals,
