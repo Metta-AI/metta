@@ -75,7 +75,9 @@ class Rollout:
 
     def run_until_done(self) -> None:
         """Run the rollout until completion or early exit."""
+        step_count = 0
         while not self.is_done():
+            step_count += 1
             self.step()
 
     def is_done(self) -> bool:
