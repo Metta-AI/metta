@@ -165,7 +165,7 @@ def train(
                 loss_instance_name="sliced_kickstarter",
                 attr_path="teacher_led_proportion",
                 mode="progress",
-                style="cosine",
+                style="linear",
                 start_value=0.2,
                 end_value=0.0,
                 start_agent_step=0,
