@@ -46,7 +46,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
-      _resource_loss_prob(game_config.resource_loss_prob),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
   _rng = std::mt19937(seed);
@@ -337,9 +336,9 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (_global_obs_config.episode_completion_pct) {
     ObservationType episode_completion_pct = 0;
     if (max_steps > 0) {
-      float fraction = (static_cast<float>(current_step) / static_cast<float>(max_steps));
-      episode_completion_pct =
-          static_cast<ObservationType>(std::round(fraction * std::numeric_limits<ObservationType>::max()));
+      episode_completion_pct = static_cast<ObservationType>(
+        (static_cast<uint32_t>(std::numeric_limits<ObservationType>::max()) + 1) * current_step / max_steps
+      );
     }
     global_tokens.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
   }
@@ -510,29 +509,6 @@ void MettaGrid::_step() {
       _action_success[agent_idx] = success;
       if (success) {
         executed_actions[agent_idx] = action_idx;
-      }
-    }
-  }
-
-  // Handle resource loss
-  for (auto* agent : _agents) {
-    if (_resource_loss_prob > 0.0f) {
-      // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
-      // Make a real copy of the agent's inventory map to avoid iterator invalidation
-      const auto inventory_copy = agent->inventory.get();
-      for (const auto& [item, qty] : inventory_copy) {
-        if (qty > 0) {
-          float loss = _resource_loss_prob * qty;
-          InventoryDelta lost = static_cast<InventoryDelta>(std::floor(loss));
-          // With probability equal to the fractional part, lose one more
-          if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
-            lost += 1;
-          }
-
-          if (lost > 0) {
-            agent->update_inventory(item, -lost);
-          }
-        }
       }
     }
   }
