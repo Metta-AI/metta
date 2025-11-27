@@ -31,18 +31,4 @@ Press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal to shut everything down.
 ```bash
 pnpm dev                    # Next.js dev server only (if you want it without the backend)
 uv run -m metta.gridworks.server  # Start the backend server only
-pnpm run gen       # Regenerate encoding.json for mettagrid ascii encoding and JSON schema for Pydantic models
 ```
-
-## Generating encodings and schemas
-
-```bash
-pnpm run gen
-```
-
-`gen` script:
-
-- calls a small Python snippet in the `mettagrid` package and writes the resulting JSON file to `src/lib/encoding.json`
-- converts the JSON schema for Pydantic models to JSON files
-
-Run it again whenever you change the encoder definitions or Pydantic models.
