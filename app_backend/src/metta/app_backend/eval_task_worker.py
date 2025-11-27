@@ -37,8 +37,8 @@ from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.tool.tool import ToolResult
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
-from metta.common.util.file import local_copy
 from metta.common.util.git_repo import REPO_URL
+from mettagrid.util.file import local_copy
 
 logger = logging.getLogger(__name__)
 

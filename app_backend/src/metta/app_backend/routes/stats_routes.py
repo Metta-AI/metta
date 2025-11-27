@@ -34,6 +34,7 @@ class PolicyVersionCreate(BaseModel):
     policy_spec: dict[str, Any] = Field(default_factory=dict)
     git_hash: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
+    s3_path: str | None = None
 
 
 class EpisodeCreate(BaseModel):
@@ -96,6 +97,11 @@ class EpisodeQueryResponse(BaseModel):
     episodes: list[EpisodeWithTags]
 
 
+class PolicyVersionsResponse(BaseModel):
+    entries: list[PublicPolicyVersionRow]
+    total_count: int
+
+
 def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     """Create a stats router with the given StatsRepo instance."""
     router = APIRouter(prefix="/stats", tags=["stats"])
@@ -137,7 +143,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             policy_id = uuid.UUID(policy_id_str)
             policy_version_id = await stats_repo.create_policy_version(
                 policy_id=policy_id,
-                s3_path=None,
+                s3_path=policy_version.s3_path,
                 git_hash=policy_version.git_hash,
                 policy_spec=policy_version.policy_spec,
                 attributes=policy_version.attributes,
@@ -401,6 +407,27 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to complete bulk upload: {str(e)}") from e
+
+    @router.get("/policies")
+    @timed_route("get_policies")
+    async def get_policies(
+        name_exact: Optional[str] = None,
+        name_fuzzy: Optional[str] = None,
+        version: Optional[int] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> PolicyVersionsResponse:
+        try:
+            entries, total_count = await stats_repo.get_policy_versions(
+                name_exact=name_exact,
+                name_fuzzy=name_fuzzy,
+                version=version,
+                limit=limit,
+                offset=offset,
+            )
+            return PolicyVersionsResponse(entries=entries, total_count=total_count)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
 
     @router.get("/policies/my-versions")
     @timed_route("get_my_policy_versions")

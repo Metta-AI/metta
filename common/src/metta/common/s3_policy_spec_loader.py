@@ -10,8 +10,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
-from metta.common.util.file import local_copy
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.util.file import local_copy
 
 
 def _resolve_data_path(data_path: Optional[str], extraction_root: Path) -> Optional[str]:

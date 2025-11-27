@@ -223,7 +223,6 @@ class GridObjectConfig(Config):
     name: str = Field(description="Canonical type_name (human-readable)")
     map_name: str = Field(default="", description="Stable key used by maps to select this config")
     render_name: str = Field(default="", description="Stable display-class identifier for theming")
-    map_char: str = Field(default="?", description="Character used in ASCII maps")
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
@@ -463,10 +462,10 @@ class MettaGridConfig(Config):
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
 
-    def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
+    def with_ascii_map(self, map_data: list[list[str]], char_to_map_name: dict[str, str]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
-            char_to_map_name={o.map_char: o.map_name for o in self.game.objects.values()},
+            char_to_map_name=char_to_map_name,
         )
         return self
 
@@ -481,7 +480,7 @@ class MettaGridConfig(Config):
         )
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(map_char="#", render_symbol="⬛")
+            objects["wall"] = WallConfig(render_symbol="⬛")
         return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

@@ -723,6 +723,67 @@ class MettaRepo:
                 )
                 return await cur.fetchall()
 
+    async def get_policy_versions(
+        self,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
+        version: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[PublicPolicyVersionRow], int]:
+        async with self.connect() as con:
+            where_conditions: list[str] = []
+            params: list[Any] = []
+
+            if name_exact:
+                where_conditions.append("p.name = %s")
+                params.append(name_exact)
+
+            if name_fuzzy:
+                where_conditions.append("p.name ILIKE %s")
+                params.append(f"%{name_fuzzy}%")
+
+            if version is not None:
+                where_conditions.append("pv.version = %s")
+                params.append(version)
+
+            where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+
+            count_query = f"""
+                SELECT COUNT(*)
+                FROM policy_versions pv
+                JOIN policies p ON pv.policy_id = p.id
+                {where_clause}
+            """
+            count_result = await con.execute(count_query, params)
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            params.extend([limit, offset])
+
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    {where_clause}
+                    ORDER BY pv.version DESC, p.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    params,
+                )
+                rows = await cur.fetchall()
+
+            return rows, total_count
+
     async def upsert_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> None:
         if not tags:
             return

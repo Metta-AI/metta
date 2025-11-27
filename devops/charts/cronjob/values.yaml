@@ -12,11 +12,12 @@ image:
 # Note: Commands are defined in Dockerfile CMD, not in Helm values
 
 serviceAccount:
-  name: ""  # Will use release name if not specified
+  create: false  # Shared service account is provisioned centrally (Terraform)
+  name: standard-service-account  # Default shared ServiceAccount in monitoring namespace
   annotations: {}
 
-# Note: ServiceAccount is always created with hardcoded IAM role (see templates/serviceaccount.yaml)
-# All cronjobs share: arn:aws:iam::751442549699:role/monitoring-cronjobs
+# Note: All cronjobs share a single ServiceAccount: standard-service-account (IAM role arn:aws:iam::751442549699:role/standard-service-account)
+# Set serviceAccount.create=true only for ad-hoc use cases where you need the chart to create a per-release ServiceAccount.
 
 # Note: RBAC is always enabled for all cronjobs (see templates/rbac.yaml)
 # All cronjobs get broad read-only cluster permissions for simplicity.
