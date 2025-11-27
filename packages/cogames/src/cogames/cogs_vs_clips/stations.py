@@ -106,13 +106,14 @@ class GermaniumExtractorConfig(ExtractorConfig):
     efficiency: int = 2
     # How much each additional agent gets.
     synergy: int = 1
+    # Germanium is inherently a single use resource by default.
+    max_uses: int = Field(default=1)
 
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="germanium_extractor",
             render_symbol=vibes.VIBE_BY_NAME["germanium_a"].symbol,
-            # Germanium is inherently a single use resource.
-            max_uses=1,
+            max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
                     # For the 1 agent protocol, we set min_agents to zero so it's visible when no
