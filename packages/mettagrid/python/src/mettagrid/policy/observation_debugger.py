@@ -39,10 +39,7 @@ class ObservationDebugger:
         Returns:
             Human-readable debug string
         """
-        lines = []
-        lines.append("=" * 70)
-        lines.append(f"AGENT {obs.agent_id} OBSERVATION DEBUG")
-        lines.append("=" * 70)
+        lines = ["=" * 70, f"AGENT {obs.agent_id} OBSERVATION DEBUG", "=" * 70]
 
         # Find actual agent position in observation
         agent_x, agent_y = self._find_agent_position(obs)
