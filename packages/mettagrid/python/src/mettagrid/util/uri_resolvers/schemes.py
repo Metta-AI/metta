@@ -226,7 +226,12 @@ def checkpoint_filename(run_name: str, epoch: int) -> str:
 
 
 def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
-    return _get_resolver(uri).get_checkpoint_metadata(uri)
+    resolved = resolve_uri(uri)
+    parsed = parse_uri(resolved)
+    info = parsed.checkpoint_info
+    if not info:
+        raise ValueError(f"Could not extract checkpoint metadata from {uri}")
+    return CheckpointMetadata(run_name=info[0], epoch=info[1], uri=resolved)
 
 
 def policy_spec_from_uri(uri: str, *, device: str = "cpu", strict: bool = True):

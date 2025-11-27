@@ -162,6 +162,7 @@ class StatsClient:
         self,
         name_exact: str | None = None,
         name_fuzzy: str | None = None,
+        version: int | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> PolicyVersionsResponse:
@@ -169,6 +170,7 @@ class StatsClient:
             {
                 "name_exact": name_exact,
                 "name_fuzzy": name_fuzzy,
+                "version": version,
                 "limit": limit,
                 "offset": offset,
             }

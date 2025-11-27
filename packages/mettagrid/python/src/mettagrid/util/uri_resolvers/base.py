@@ -66,11 +66,3 @@ class SchemeResolver(ABC):
 
     def resolve(self, uri: str) -> str:
         return self.parse(uri).canonical
-
-    def get_checkpoint_metadata(self, uri: str) -> CheckpointMetadata:
-        resolved = self.resolve(uri)
-        parsed = self.parse(resolved)
-        info = parsed.checkpoint_info
-        if not info:
-            raise ValueError(f"Could not extract checkpoint metadata from {uri}")
-        return CheckpointMetadata(run_name=info[0], epoch=info[1], uri=resolved)

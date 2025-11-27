@@ -83,11 +83,6 @@ class MettaSchemeResolver(SchemeResolver):
             raise ValueError("Cannot resolve metta:// URI: stats server not configured")
         return StatsClient.create(stats_server_uri)
 
-    def _resolve_policy_version_by_uuid(
-        self, stats_client: StatsClient, policy_version_id: uuid.UUID
-    ) -> PolicyVersionWithName:
-        return stats_client.get_policy_version(policy_version_id)
-
     def _resolve_policy_version_by_name(
         self, stats_client: StatsClient, name: str, version: int | None
     ) -> PolicyVersionWithName:
@@ -115,7 +110,7 @@ class MettaSchemeResolver(SchemeResolver):
         stats_client = self._get_stats_client()
 
         if _is_uuid(policy_identifier):
-            policy_version = self._resolve_policy_version_by_uuid(stats_client, uuid.UUID(policy_identifier))
+            policy_version = stats_client.get_policy_version(uuid.UUID(policy_identifier))
         else:
             name, version = _parse_policy_identifier(policy_identifier)
             policy_version = self._resolve_policy_version_by_name(stats_client, name, version)
