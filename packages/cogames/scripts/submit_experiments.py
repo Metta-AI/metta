@@ -102,7 +102,7 @@ def submit_s3_successful_missions_experiment():
 
     mission_variant_curriculum.experiment(
         base_missions=S3_SUCCESSFUL_MISSIONS,
-        run_name="variants_curriculum_s3_successful_missions_all_variants",
+        run_name="variants_curriculum_11-26.3",
         skip_git_check=True,
         variants="all",  # Curriculum over all variants
     )
