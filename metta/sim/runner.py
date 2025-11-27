@@ -48,7 +48,7 @@ def run_simulations(
 
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
         multi_agent_policies: list[MultiAgentPolicy] = [
-            initialize_or_load_policy(env_interface, spec) for spec in policy_specs
+            initialize_or_load_policy(env_interface, spec, mg_cfg=simulation.env) for spec in policy_specs
         ]
 
         on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")

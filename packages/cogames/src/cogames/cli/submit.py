@@ -120,7 +120,7 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
     """
     env = MettaGridConfig.EmptyRoom(num_agents=1)
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env)
-    policy = initialize_or_load_policy(policy_env_info, policy_spec)
+    policy = initialize_or_load_policy(policy_env_info, policy_spec, mg_cfg=env)
     rollout = Rollout(env, [policy.agent_policy(0)])
     rollout.step()
 
