@@ -29,7 +29,7 @@ metta install nodejs
    or
 
    ```bash
-   metta local observatory [--backend {prod, local}]
+   metta local observatory [--backend {prod, local}] [--db prod]
    ```
 
 3. Open your browser to the URL shown in the terminal (typically http://localhost:5173)
