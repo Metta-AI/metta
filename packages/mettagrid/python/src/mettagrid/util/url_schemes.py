@@ -49,8 +49,23 @@ class SchemeResolver(ABC):
     def resolve(self, uri: str) -> str:
         return self.parse(uri).canonical
 
-    def list_checkpoints(self, uri: str) -> list[Path]:
-        raise NotImplementedError(f"{self.__class__.__name__} does not support listing checkpoints")
+
+def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
+    stem = path.stem
+    if ":v" in stem:
+        run_name, suffix = stem.rsplit(":v", 1)
+        if run_name and suffix.isdigit():
+            return (run_name, int(suffix))
+    return None
+
+
+def _find_latest_checkpoint(checkpoints: list[Path]) -> Path | None:
+    best: tuple[int, Path] | None = None
+    for ckpt in checkpoints:
+        meta = _extract_run_and_epoch(ckpt)
+        if meta and (best is None or meta[1] > best[0]):
+            best = (meta[1], ckpt)
+    return best[1] if best else None
 
 
 class FileSchemeResolver(SchemeResolver):
@@ -75,11 +90,35 @@ class FileSchemeResolver(SchemeResolver):
             raw=uri, scheme=self.scheme, canonical=canonical, local_path=local_path, path=str(local_path)
         )
 
-    def list_checkpoints(self, uri: str) -> list[Path]:
+    def _get_latest_checkpoint_uri(self, local_path: Path) -> str | None:
+        if not local_path.is_dir():
+            return None
+        checkpoints = [ckpt for ckpt in local_path.glob("*.mpt") if ckpt.stem]
+        latest = _find_latest_checkpoint(checkpoints)
+        return f"file://{latest}" if latest else None
+
+    def resolve(self, uri: str) -> str:
+        # Handle /:latest suffix
+        if uri.endswith(":latest"):
+            base_uri = uri[:-7]
+            if base_uri.endswith("/"):
+                base_uri = base_uri[:-1]
+            parsed = self.parse(base_uri)
+            if parsed.local_path:
+                latest = self._get_latest_checkpoint_uri(parsed.local_path)
+                if latest:
+                    return latest
+            raise ValueError(f"No latest checkpoint found for {base_uri}")
+
         parsed = self.parse(uri)
-        if parsed.local_path is None:
-            return []
-        return [ckpt for ckpt in parsed.local_path.glob("*.mpt") if ckpt.stem]
+
+        # If not pointing to .mpt file, try to find latest
+        if parsed.local_path and not uri.endswith(".mpt"):
+            latest = self._get_latest_checkpoint_uri(parsed.local_path)
+            if latest:
+                return latest
+
+        return parsed.canonical
 
 
 class S3SchemeResolver(SchemeResolver):
@@ -99,16 +138,39 @@ class S3SchemeResolver(SchemeResolver):
         canonical = f"s3://{bucket}/{key}"
         return ParsedScheme(raw=uri, scheme=self.scheme, canonical=canonical, bucket=bucket, key=key, path=key)
 
-    def list_checkpoints(self, uri: str) -> list[Path]:
-        parsed = self.parse(uri)
-        if not parsed.bucket:
-            return []
+    def _get_latest_checkpoint_uri(self, bucket: str, prefix: str) -> str | None:
+        # Ensure prefix ends with / for directory-like semantics
+        if prefix and not prefix.endswith("/"):
+            prefix = prefix + "/"
         s3_client = boto3.client("s3")
-        prefix = parsed.key or ""
-        response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
+        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
         if response["KeyCount"] == 0:
-            return []
-        return [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
+            return None
+        checkpoints = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
+        latest = _find_latest_checkpoint(checkpoints)
+        return f"s3://{bucket}/{latest}" if latest else None
+
+    def resolve(self, uri: str) -> str:
+        if uri.endswith(":latest"):
+            base_uri = uri[:-7]
+            if base_uri.endswith("/"):
+                base_uri = base_uri[:-1]
+            parsed = self.parse(base_uri)
+            if parsed.bucket and parsed.key:
+                latest = self._get_latest_checkpoint_uri(parsed.bucket, parsed.key)
+                if latest:
+                    return latest
+            raise ValueError(f"No latest checkpoint found for {base_uri}")
+
+        parsed = self.parse(uri)
+
+        # If not pointing to .mpt file, try to find latest
+        if parsed.bucket and parsed.key and not uri.endswith(".mpt"):
+            latest = self._get_latest_checkpoint_uri(parsed.bucket, parsed.key)
+            if latest:
+                return latest
+
+        return parsed.canonical
 
 
 class HttpSchemeResolver(SchemeResolver):
@@ -189,28 +251,12 @@ def parse_uri(uri: str) -> ParsedScheme:
 
 
 def resolve_uri(uri: str) -> str:
-    if uri.endswith(":latest"):
-        base_uri = uri[:-7]
-        latest = get_latest_checkpoint(base_uri)
-        if not latest:
-            raise ValueError(f"No latest checkpoint found for {base_uri}")
-        return latest["uri"]
-
     _, resolver = _get_scheme_and_resolver(uri)
     return resolver.resolve(uri)
 
 
 def checkpoint_filename(run_name: str, epoch: int) -> str:
     return f"{run_name}:v{epoch}.mpt"
-
-
-def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
-    stem = path.stem
-    if ":v" in stem:
-        run_name, suffix = stem.rsplit(":v", 1)
-        if run_name and suffix.isdigit():
-            return (run_name, int(suffix))
-    return None
 
 
 class CheckpointMetadata(dict):
@@ -230,28 +276,6 @@ def key_and_version(uri: str) -> tuple[str, int] | None:
     else:
         raise ValueError(f"Could not extract key and version from {uri}")
     return _extract_run_and_epoch(file_path)
-
-
-def get_all_checkpoints(uri: str) -> list[CheckpointMetadata]:
-    _, resolver = _get_scheme_and_resolver(uri)
-    checkpoint_files = resolver.list_checkpoints(uri)
-
-    checkpoint_metadata: list[CheckpointMetadata] = []
-    for path in checkpoint_files:
-        run_and_epoch = _extract_run_and_epoch(path)
-        if run_and_epoch:
-            path_uri = uri.rstrip("/") + "/" + path.name
-            metadata = CheckpointMetadata(run_name=run_and_epoch[0], epoch=run_and_epoch[1], uri=path_uri)
-            checkpoint_metadata.append(metadata)
-
-    return checkpoint_metadata
-
-
-def get_latest_checkpoint(uri: str) -> CheckpointMetadata | None:
-    checkpoints = get_all_checkpoints(uri)
-    if checkpoints:
-        return max(checkpoints, key=lambda p: p["epoch"])
-    return None
 
 
 def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
