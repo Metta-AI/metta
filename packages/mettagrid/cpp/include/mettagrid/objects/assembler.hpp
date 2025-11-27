@@ -139,7 +139,7 @@ private:
     return false;
   }
 
-  // Give output resources to agents and log creation stats for heart resources
+  // Give output resources to agents and log creation stats
   void give_output_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
     std::vector<HasInventory*> agents_as_inventory_havers;
     for (Agent* agent : surrounding_agents) {
