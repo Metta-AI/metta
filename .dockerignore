@@ -44,3 +44,5 @@ wandb
 
 # Ignore .metta directory at root (used temporarily during docker build)
 /.metta
+
+**/.bazel_output

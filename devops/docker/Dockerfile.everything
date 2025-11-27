@@ -1,0 +1,123 @@
+#
+# Build with: docker buildx build -f devops/docker/Dockerfile.everything -t metta:everything .
+#
+
+#
+# Dockerfile.everything - Complete development environment for Metta
+#
+# Includes ALL tools needed to run any command in this repo:
+# - CUDA 12.8 + cuDNN (ML training)
+# - Python via uv (main runtime)
+# - Bazel (mettagrid C++ build)
+# - Nim via nimby (mettascope)
+# - Node.js + pnpm (frontend, prettier, lint)
+# - clang-format (C++ formatting)
+#
+# Build: docker build --network host -f devops/docker/Dockerfile.everything -t metta:everything .
+# Run:   bin/metta-docker <command>
+#
+# This container is ONLY used via bin/metta-docker which:
+# - Runs as --user 1000:1000
+# - Mounts host directory to /user and sets HOME=/user
+# - Mounts repo to /workspace
+#
+
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
+ENV READTHEDOCS=True
+
+# ============================================================================
+# System packages
+# ============================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    ca-certificates \
+    libgomp1 \
+    clang-format \
+    # OpenGL and X11 libraries for Nim graphics tests (pixie, boxy, windy)
+    libgl1 \
+    libgl1-mesa-dev \
+    libglu1-mesa \
+    libx11-6 \
+    libx11-dev \
+    libxcursor1 \
+    libxi6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ============================================================================
+# Create user with UID 1000 (metta-docker runs as 1000:1000)
+# ============================================================================
+RUN getent group 1000 || groupadd -g 1000 metta && \
+    getent passwd 1000 || useradd -u 1000 -g 1000 -s /bin/bash metta && \
+    mkdir -p /user && \
+    chown 1000:1000 /user
+
+# ============================================================================
+# Bazel via Bazelisk
+# ============================================================================
+RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    && chmod +x /usr/local/bin/bazel
+
+# ============================================================================
+# Node.js 24 + pnpm (toolchain only; JS deps are installed at runtime in /workspace)
+# ============================================================================
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable pnpm
+
+# ============================================================================
+# Workspace setup
+# ============================================================================
+RUN mkdir -p /workspace
+WORKDIR /workspace
+
+# uv (Python package manager; binary only, environments created at runtime)
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
+
+# ============================================================================
+# Nim via install-system.sh (same as original Dockerfile)
+# ============================================================================
+COPY devops/tools/install-system.sh /usr/local/bin/install-system.sh
+RUN chmod +x /usr/local/bin/install-system.sh
+RUN /usr/local/bin/install-system.sh
+
+# Make nim installation accessible to user 1000 (copy to /opt/nim)
+RUN cp -r /root/.nimby/nim /opt/nim && \
+    ln -sf /opt/nim/bin/nim /usr/local/bin/nim && \
+    ln -sf /opt/nim/bin/nimble /usr/local/bin/nimble && \
+    ln -sf /opt/nim/bin/nimby /usr/local/bin/nimby
+
+# Copy package pyproject.toml files for dependency resolution (kept for tooling
+# that may want them in the image, but no uv sync is run at build time)
+COPY packages/mettagrid/pyproject.toml packages/mettagrid/
+COPY packages/gitta/pyproject.toml packages/gitta/
+COPY packages/pufferlib-core/pyproject.toml packages/pufferlib-core/
+COPY packages/cogames/pyproject.toml packages/cogames/
+COPY packages/cortex/pyproject.toml packages/cortex/
+COPY packages/codebot/pyproject.toml packages/codebot/
+COPY app_backend/pyproject.toml app_backend/
+COPY common/pyproject.toml common/
+COPY agent/pyproject.toml agent/
+COPY softmax/pyproject.toml softmax/
+
+# Copy full source (note: /workspace will be bind-mounted over this at runtime)
+COPY . .
+
+# ============================================================================
+# Environment
+# ============================================================================
+ENV PATH="/workspace/.venv/bin:/usr/local/bin:$PATH"
+ENV VIRTUAL_ENV="/workspace/.venv"
+
+# Git config for development
+RUN git config --global checkout.defaultRemote origin \
+    && git config --global branch.autoSetupMerge simple
+
+# Set remote to HTTPS for anonymous access (public repo)
+RUN git remote set-url origin https://github.com/Metta-AI/metta.git
+RUN git fetch
