@@ -607,7 +607,7 @@ class LLMAgentPolicy(AgentPolicy):
         provider: Literal["openai", "anthropic", "ollama"] = "openai",
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = True,
+        debug_mode: bool = False,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         mg_cfg = None,
@@ -652,12 +652,14 @@ class LLMAgentPolicy(AgentPolicy):
                 mg_cfg=mg_cfg,
             )
             self.game_rules_prompt = None  # Not used with dynamic prompts
-            logger.info(f"Using dynamic prompts with context window size: {context_window_size}")
+            if self.debug_mode:
+                logger.info(f"Using dynamic prompts with context window size: {context_window_size}")
         else:
             # Fallback to old static prompt
             self.prompt_builder = None
             self.game_rules_prompt = build_game_rules_prompt(policy_env_info)
-            logger.info("Using static prompts (legacy mode)")
+            if self.debug_mode:
+                logger.info("Using static prompts (legacy mode)")
 
         # Initialize observation debugger if debug mode is enabled
         if self.debug_mode:
@@ -666,13 +668,13 @@ class LLMAgentPolicy(AgentPolicy):
             self.debugger = None
 
         # Initialize LLM client
+        # Note: Model selection is handled by LLMMultiAgentPolicy, so model should always be provided
         if self.provider == "openai":
             from openai import OpenAI
 
             self.client: OpenAI | None = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             self.anthropic_client = None
             self.ollama_client = None
-            # Prompt user to select model if not specified
             self.model = model if model else select_openai_model()
         elif self.provider == "anthropic":
             from anthropic import Anthropic
@@ -680,7 +682,6 @@ class LLMAgentPolicy(AgentPolicy):
             self.client = None
             self.anthropic_client: Anthropic | None = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
             self.ollama_client = None
-            # Prompt user to select model if not specified
             self.model = model if model else select_anthropic_model()
         elif self.provider == "ollama":
             from openai import OpenAI
@@ -688,12 +689,8 @@ class LLMAgentPolicy(AgentPolicy):
             self.client = None
             self.anthropic_client = None
 
-            # Ensure Ollama is available and model is pulled
-            try:
-                self.model = ensure_ollama_model(model)
-            except RuntimeError as e:
-                logger.error(f"Ollama setup failed: {e}")
-                raise
+            # Ensure Ollama is available and model is pulled (or select if not provided)
+            self.model = ensure_ollama_model(model)
 
             self.ollama_client: OpenAI | None = OpenAI(
                 base_url="http://localhost:11434/v1",
@@ -752,12 +749,13 @@ class LLMAgentPolicy(AgentPolicy):
         if self.use_dynamic_prompts:
             # Use dynamic prompt builder with context window management
             user_prompt, includes_basic_info = self.prompt_builder.context_prompt(obs)
-            num_msgs = len(self._messages) + 1  # +1 for the new user message we're about to add
-            step = self.prompt_builder.step_count
-            if includes_basic_info:
-                logger.info(f"[DYNAMIC] Sent basic_info + observable (step {step}, {num_msgs} msgs)")
-            else:
-                logger.info(f"[DYNAMIC] Sent observable only (step {step}, {num_msgs} msgs)")
+            if self.debug_mode:
+                num_msgs = len(self._messages) + 1  # +1 for the new user message we're about to add
+                step = self.prompt_builder.step_count
+                if includes_basic_info:
+                    logger.info(f"[DYNAMIC] Sent basic_info + observable (step {step}, {num_msgs} msgs)")
+                else:
+                    logger.info(f"[DYNAMIC] Sent observable only (step {step}, {num_msgs} msgs)")
         else:
             # Use old static prompt approach
             obs_json = observation_to_json(obs, self.policy_env_info)
@@ -856,12 +854,13 @@ The best action is move_east (WRONG - contains extra words)
                     call_cost = calculate_llm_cost(self.model, usage.prompt_tokens, usage.completion_tokens)
                     LLMAgentPolicy.total_cost += call_cost
 
-                    logger.debug(
-                        f"OpenAI response: '{action_name}' | "
-                        f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out | "
-                        f"Cost: ${call_cost:.6f} | "
-                        f"Total so far: ${LLMAgentPolicy.total_cost:.4f}"
-                    )
+                    if self.debug_mode:
+                        logger.debug(
+                            f"OpenAI response: '{action_name}' | "
+                            f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out | "
+                            f"Cost: ${call_cost:.6f} | "
+                            f"Total so far: ${LLMAgentPolicy.total_cost:.4f}"
+                        )
 
             elif self.provider == "ollama":
                 assert self.ollama_client is not None
@@ -899,9 +898,10 @@ The best action is move_east (WRONG - contains extra words)
                     max_tokens=50,
                 )
 
-                # Debug: log the raw response
-                logger.debug(f"Ollama response object: {response}")
-                logger.debug(f"Ollama response choices: {response.choices}")
+                if self.debug_mode:
+                    # Debug: log the raw response
+                    logger.debug(f"Ollama response object: {response}")
+                    logger.debug(f"Ollama response choices: {response.choices}")
 
                 # Some models (like gpt-oss) put output in 'reasoning' field instead of 'content'
                 message = response.choices[0].message
@@ -909,16 +909,18 @@ The best action is move_east (WRONG - contains extra words)
 
                 # Check reasoning field if content is empty
                 if not action_name and hasattr(message, "reasoning") and message.reasoning:
-                    logger.warning(f"Model used reasoning field instead of content: {message.reasoning[:100]}...")
+                    if self.debug_mode:
+                        logger.warning(f"Model used reasoning field instead of content: {message.reasoning[:100]}...")
                     # Try to extract action from reasoning (take last line or last word)
                     reasoning_lines = message.reasoning.strip().split("\n")
                     action_name = reasoning_lines[-1].strip().split()[-1] if reasoning_lines else ""
 
                 if not action_name:
-                    reasoning = getattr(message, "reasoning", None)
-                    logger.error(
-                        f"Ollama returned empty response! content='{message.content}', reasoning='{reasoning}'"
-                    )
+                    if self.debug_mode:
+                        reasoning = getattr(message, "reasoning", None)
+                        logger.error(
+                            f"Ollama returned empty response! content='{message.content}', reasoning='{reasoning}'"
+                        )
                     action_name = "noop"
 
                 action_name = action_name.strip()
@@ -938,11 +940,12 @@ The best action is move_east (WRONG - contains extra words)
                     LLMAgentPolicy.total_output_tokens += usage.completion_tokens
                     # No cost for local Ollama
 
-                    logger.debug(
-                        f"Ollama response: '{action_name}' | "
-                        f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out | "
-                        f"Cost: $0.00 (local)"
-                    )
+                    if self.debug_mode:
+                        logger.debug(
+                            f"Ollama response: '{action_name}' | "
+                            f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out | "
+                            f"Cost: $0.00 (local)"
+                        )
 
             elif self.provider == "anthropic":
                 assert self.anthropic_client is not None
@@ -1008,12 +1011,13 @@ The best action is move_east (WRONG - contains extra words)
                 call_cost = calculate_llm_cost(self.model, usage.input_tokens, usage.output_tokens)
                 LLMAgentPolicy.total_cost += call_cost
 
-                logger.debug(
-                    f"Anthropic response: '{action_name}' | "
-                    f"Tokens: {usage.input_tokens} in, {usage.output_tokens} out | "
-                    f"Cost: ${call_cost:.6f} | "
-                    f"Total so far: ${LLMAgentPolicy.total_cost:.4f}"
-                )
+                if self.debug_mode:
+                    logger.debug(
+                        f"Anthropic response: '{action_name}' | "
+                        f"Tokens: {usage.input_tokens} in, {usage.output_tokens} out | "
+                        f"Cost: ${call_cost:.6f} | "
+                        f"Total so far: ${LLMAgentPolicy.total_cost:.4f}"
+                    )
 
             # Parse and return action
             parsed_action = self._parse_action(action_name)
@@ -1041,13 +1045,9 @@ The best action is move_east (WRONG - contains extra words)
         # Clean up response
         action_name = action_name.strip().strip("\"'").lower()
 
-        # Log the raw response for debugging
-        logger.debug(f"Raw LLM response: '{action_name}'")
-
         # Try exact match first (best case - LLM followed instructions)
         for action in self.policy_env_info.actions.actions():
             if action.name.lower() == action_name:
-                logger.debug(f"Exact match found: {action.name}")
                 return action
 
         # If response contains multiple words, try to extract action from end
@@ -1058,7 +1058,6 @@ The best action is move_east (WRONG - contains extra words)
             last_word = words[-1].strip(".,!?;:")
             for action in self.policy_env_info.actions.actions():
                 if action.name.lower() == last_word:
-                    logger.warning(f"Found action in last word: {action.name} (full response was: '{action_name}')")
                     return action
 
             # Check each word from end to start
@@ -1066,21 +1065,15 @@ The best action is move_east (WRONG - contains extra words)
                 word = word.strip(".,!?;:")
                 for action in self.policy_env_info.actions.actions():
                     if action.name.lower() == word:
-                        logger.warning(f"Found action '{action.name}' in response: '{action_name}'")
                         return action
 
-        # Last resort: partial match, but log a warning
+        # Last resort: partial match
         # This is dangerous because it might pick up "don't move_north" as move_north
         for action in self.policy_env_info.actions.actions():
             if action.name.lower() in action_name:
-                logger.warning(
-                    f"Using partial match '{action.name}' from response: '{action_name}'. "
-                    f"This might be incorrect if LLM mentioned actions it DOESN'T want to take!"
-                )
                 return action
 
         # Fallback to random action if parsing completely fails
-        logger.error(f"Could not parse any action from '{action_name}'. Using random action.")
         return random.choice(self.policy_env_info.actions.actions())
 
     @classmethod
@@ -1147,7 +1140,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         provider: Literal["openai", "anthropic", "ollama"] = "openai",
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = True,
+        debug_mode: bool = False,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         mg_cfg = None,
@@ -1166,12 +1159,24 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         """
         super().__init__(policy_env_info)
         self.provider: Literal["openai", "anthropic", "ollama"] = provider
-        self.model = model
         self.temperature = temperature
         self.debug_mode = debug_mode
         self.use_dynamic_prompts = use_dynamic_prompts
         self.context_window_size = context_window_size
         self.mg_cfg = mg_cfg
+
+        # Select model once for all agents if not specified
+        if model is None:
+            if provider == "openai":
+                self.model = select_openai_model()
+            elif provider == "anthropic":
+                self.model = select_anthropic_model()
+            elif provider == "ollama":
+                self.model = ensure_ollama_model(None)
+            else:
+                self.model = None
+        else:
+            self.model = model
 
         # Register atexit handler to print costs when program ends (for paid APIs only)
         if provider in ("openai", "anthropic") and not hasattr(LLMMultiAgentPolicy, '_atexit_registered'):
@@ -1210,7 +1215,7 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = True,
+        debug_mode: bool = False,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         mg_cfg = None,
@@ -1237,7 +1242,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = True,
+        debug_mode: bool = False,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         mg_cfg = None,
@@ -1264,7 +1269,7 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = True,
+        debug_mode: bool = False,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         mg_cfg = None,
