@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import importlib
+import inspect
 import os
 import pkgutil
 import re
@@ -19,10 +20,16 @@ from mettagrid.util.module import load_symbol
 def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_spec: PolicySpec,
+    mg_cfg=None,
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
     Expects PolicySpec to have local paths, shorthand or fully-specified. But should not have remote paths (e.g. s3://).
+
+    Args:
+        policy_env_info: Policy environment interface
+        policy_spec: Policy specification with class path and optional data path
+        mg_cfg: Optional MettaGridConfig to pass to policies that accept it (e.g., LLM policies)
 
     Returns:
         Initialized policy instance
@@ -30,11 +37,20 @@ def initialize_or_load_policy(
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
+    # Build init kwargs from policy spec
+    init_kwargs = dict(policy_spec.init_kwargs or {})
+
+    # Only pass mg_cfg if the policy's __init__ accepts it
+    if mg_cfg is not None:
+        sig = inspect.signature(policy_class.__init__)
+        if "mg_cfg" in sig.parameters:
+            init_kwargs["mg_cfg"] = mg_cfg
+
     try:
-        policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
+        policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
     except TypeError as e:
         raise TypeError(
-            f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"
+            f"Failed initializing policy {policy_spec.class_path} with kwargs {init_kwargs}: {e}"
         ) from e
 
     if policy_spec.data_path:

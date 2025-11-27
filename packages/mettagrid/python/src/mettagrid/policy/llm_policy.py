@@ -612,6 +612,7 @@ class LLMAgentPolicy(AgentPolicy):
         debug_mode: bool = True,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
+        mg_cfg = None,
     ):
         """Initialize LLM agent policy.
 
@@ -623,6 +624,7 @@ class LLMAgentPolicy(AgentPolicy):
             debug_mode: If True, print human-readable observation debug info (default: True)
             use_dynamic_prompts: If True, use dynamic prompt builder (default: True)
             context_window_size: Number of steps before resending basic info (default: 20)
+            mg_cfg: Optional MettaGridConfig for extracting game-specific info (chest vibes, etc.)
         """
         super().__init__(policy_env_info)
         self.provider = provider
@@ -641,6 +643,7 @@ class LLMAgentPolicy(AgentPolicy):
             self.prompt_builder = LLMPromptBuilder(
                 policy_env_info=policy_env_info,
                 context_window_size=context_window_size,
+                mg_cfg=mg_cfg,
             )
             self.game_rules_prompt = None  # Not used with dynamic prompts
             logger.info(f"Using dynamic prompts with context window size: {context_window_size}")
@@ -1088,6 +1091,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         debug_mode: bool = True,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
+        mg_cfg = None,
     ):
         """Initialize LLM multi-agent policy.
 
@@ -1099,6 +1103,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             debug_mode: If True, print human-readable observation debug info (default: True)
             use_dynamic_prompts: If True, use dynamic prompt builder (default: True)
             context_window_size: Number of steps before resending basic info (default: 20)
+            mg_cfg: Optional MettaGridConfig for extracting game-specific info (chest vibes, etc.)
         """
         super().__init__(policy_env_info)
         self.provider: Literal["openai", "anthropic", "ollama"] = provider
@@ -1107,6 +1112,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         self.debug_mode = debug_mode
         self.use_dynamic_prompts = use_dynamic_prompts
         self.context_window_size = context_window_size
+        self.mg_cfg = mg_cfg
 
         # Register atexit handler to print costs when program ends (for paid APIs only)
         if provider in ("openai", "anthropic") and not hasattr(LLMMultiAgentPolicy, '_atexit_registered'):
@@ -1130,6 +1136,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             debug_mode=self.debug_mode,
             use_dynamic_prompts=self.use_dynamic_prompts,
             context_window_size=self.context_window_size,
+            mg_cfg=self.mg_cfg,
         )
 
 
@@ -1147,6 +1154,7 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
         debug_mode: bool = True,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
+        mg_cfg = None,
     ):
         super().__init__(
             policy_env_info,
@@ -1156,6 +1164,7 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
             debug_mode=debug_mode,
             use_dynamic_prompts=use_dynamic_prompts,
             context_window_size=context_window_size,
+            mg_cfg=mg_cfg,
         )
 
 
@@ -1172,6 +1181,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
         debug_mode: bool = True,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
+        mg_cfg = None,
     ):
         super().__init__(
             policy_env_info,
@@ -1181,6 +1191,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
             debug_mode=debug_mode,
             use_dynamic_prompts=use_dynamic_prompts,
             context_window_size=context_window_size,
+            mg_cfg=mg_cfg,
         )
 
 
@@ -1197,6 +1208,7 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
         debug_mode: bool = True,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
+        mg_cfg = None,
     ):
         super().__init__(
             policy_env_info,
@@ -1206,4 +1218,5 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
             debug_mode=debug_mode,
             use_dynamic_prompts=use_dynamic_prompts,
             context_window_size=context_window_size,
+            mg_cfg=mg_cfg,
         )

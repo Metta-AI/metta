@@ -44,7 +44,7 @@ def play(
     """
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-    policy = initialize_or_load_policy(policy_env_info, policy_spec)
+    policy = initialize_or_load_policy(policy_env_info, policy_spec, mg_cfg=env_cfg)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
     # Set up replay writer if requested

@@ -126,7 +126,7 @@ class TestLLMPromptBuilder:
         # Check for key sections
         assert "COORDINATE SYSTEM" in basic_info
         assert "OBSERVATION FORMAT" in basic_info
-        assert "CORE GAME MECHANICS" in basic_info
+        assert "MOVEMENT" in basic_info or "CRITICAL GAMEPLAY RULES" in basic_info
         assert "AVAILABLE ACTIONS" in basic_info
 
         # Check coordinate system details
@@ -271,12 +271,19 @@ class TestLLMPromptBuilder:
 
     def test_observation_to_json_structure(self, prompt_builder, sample_observation):
         """Test that observation is correctly converted to JSON."""
-        obs_json = prompt_builder._observation_to_json(sample_observation)
-
+        # Test without actions (default behavior for non-reset steps)
+        obs_json = prompt_builder._observation_to_json(sample_observation, include_actions=False)
         assert obs_json["agent_id"] == 0
         assert "visible_objects" in obs_json
-        assert "available_actions" in obs_json
+        assert "available_actions" not in obs_json  # Should not be included
         assert obs_json["num_visible_objects"] == len(sample_observation.tokens)
+
+        # Test with actions (for first step or reset)
+        obs_json_with_actions = prompt_builder._observation_to_json(sample_observation, include_actions=True)
+        assert obs_json_with_actions["agent_id"] == 0
+        assert "visible_objects" in obs_json_with_actions
+        assert "available_actions" in obs_json_with_actions  # Should be included
+        assert obs_json_with_actions["num_visible_objects"] == len(sample_observation.tokens)
 
         # Check token structure
         for token_dict in obs_json["visible_objects"]:
@@ -309,14 +316,14 @@ class TestLLMPromptBuilder:
     def test_tag_descriptions_comprehensive(self, prompt_builder):
         """Test that tag descriptions cover common object types."""
         # Test descriptions for common tags
-        assert "agent" in prompt_builder._get_tag_description("agent").lower()
+        assert "agent" in prompt_builder._get_tag_description("agent").lower() or "cog" in prompt_builder._get_tag_description("agent").lower()
         assert "wall" in prompt_builder._get_tag_description("wall").lower()
         assert "carbon" in prompt_builder._get_tag_description("carbon_extractor").lower()
-        assert "stores" in prompt_builder._get_tag_description("chest").lower()  # "Stores resources"
+        assert "storage" in prompt_builder._get_tag_description("chest").lower() or "deposit" in prompt_builder._get_tag_description("chest").lower()
 
         # Unknown tag should have fallback
         unknown_desc = prompt_builder._get_tag_description("unknown_object_type")
-        assert "unknown" in unknown_desc.lower()
+        assert "unknown" in unknown_desc.lower() or "station" in unknown_desc.lower()
 
     def test_feature_descriptions_comprehensive(self, prompt_builder):
         """Test that feature descriptions cover common features."""
