@@ -82,7 +82,7 @@ def simulator() -> Simulator:
 
 @pytest.fixture
 def env_config():
-    _, env_cfg, _ = get_mission("evals.extractor_hub_30", variants_arg=None, cogs=2)
+    _, env_cfg, _ = get_mission("evals.diagnostic_chest_navigation1", variants_arg=None, cogs=2)
     env_cfg.game.max_steps = 8
     return env_cfg
 
@@ -122,7 +122,7 @@ def test_scripted_policies_can_play_short_episode(policy: PolicyUnderTest, env_c
         console=console,
         env_cfg=env_config,
         policy_spec=policy_spec,
-        game_name="extractor_hub_30",
+        game_name="diagnostic_chest_navigation1",
         seed=42,
         render_mode="none",
     )

@@ -17,6 +17,8 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import TrainingEnvironmentConfig
+from mettagrid.policy.mpt_artifact import load_mpt
+from mettagrid.util.url_schemes import get_checkpoint_metadata
 from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
 
 
@@ -80,7 +82,7 @@ class TestTrainerCheckpointIntegration:
 
         latest_policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert latest_policy_uri, "No policy files found in checkpoint directory"
-        latest_policy_meta = CheckpointManager.get_policy_metadata(latest_policy_uri)
+        latest_policy_meta = get_checkpoint_metadata(latest_policy_uri)
         assert latest_policy_meta["epoch"] == trainer_state["epoch"], (
             "Trainer state epoch is not aligned with latest policy checkpoint"
         )
@@ -109,7 +111,7 @@ class TestTrainerCheckpointIntegration:
 
         latest_policy_uri = checkpoint_manager_2.get_latest_checkpoint()
         assert latest_policy_uri, "No policy checkpoints found after resume"
-        latest_policy_meta = CheckpointManager.get_policy_metadata(latest_policy_uri)
+        latest_policy_meta = get_checkpoint_metadata(latest_policy_uri)
         assert latest_policy_meta["epoch"] == trainer_state_2["epoch"], (
             "Trainer state epoch is not aligned with latest policy checkpoint after resume"
         )
@@ -157,5 +159,5 @@ class TestTrainerCheckpointIntegration:
         policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert policy_uri, "Expected at least one policy checkpoint"
 
-        artifact = checkpoint_manager.load_artifact_from_uri(policy_uri)
-        assert artifact.policy is not None
+        artifact = load_mpt(policy_uri)
+        assert artifact.state_dict is not None

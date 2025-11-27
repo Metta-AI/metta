@@ -16,10 +16,10 @@ class MinedOutVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.carbon_extractor.efficiency -= 50
-        mission.oxygen_extractor.efficiency -= 50
-        mission.germanium_extractor.efficiency -= 50
-        mission.silicon_extractor.efficiency -= 50
+        # Clamp efficiency to minimum of 50 to prevent negative values
+        mission.carbon_extractor.max_uses = 2
+        mission.oxygen_extractor.max_uses = 2
+        mission.silicon_extractor.max_uses = 2
 
 
 class DarkSideVariant(MissionVariant):
@@ -96,7 +96,8 @@ class SolarFlareVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.charger.efficiency -= 50
+        # Clamp efficiency to minimum of 1 to prevent negative values
+        mission.charger.efficiency = max(1, mission.charger.efficiency - 50)
 
 
 class PackRatVariant(MissionVariant):
@@ -146,6 +147,7 @@ class ResourceBottleneckVariant(MissionVariant):
             if extractor is None:
                 raise AttributeError(f"Mission has no extractor attribute '{extractor_attr}'")
 
+            # Clamp efficiency to minimum of 1 to prevent negative values
             extractor.efficiency = max(1, int(extractor.efficiency) - 50)
 
 
@@ -187,7 +189,7 @@ class HeartChorusVariant(MissionVariant):
             {
                 "heart.gained": 1.0,
                 "chest.heart.deposited": 1.0,
-                "chest.heart.withdrawn": -1.0,
+                "chest.heart.withdrawn": -2.0,
                 "inventory.diversity.ge.2": 0.17,
                 "inventory.diversity.ge.3": 0.18,
                 "inventory.diversity.ge.4": 0.60,

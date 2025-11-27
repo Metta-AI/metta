@@ -17,9 +17,6 @@ import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.evals.diagnostic_evals import (
     DIAGNOSTIC_EVALS,
 )
-from cogames.cogs_vs_clips.evals.eval_missions import (
-    EVAL_MISSIONS,
-)
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.missions import (
     HarvestMission,
@@ -48,9 +45,6 @@ MISSIONS: tuple[str, ...] = (
     "oxygen_bottleneck",  # 51.2% success, 3.02 avg reward
     "collect_resources_classic",  # 50.0% success, 4.90 avg reward
     "collect_resources_spread",  # 50.0% success, 4.45 avg reward
-    "extractor_hub_70",  # 43.8% success, 1.79 avg reward
-    "extractor_hub_30",
-    "extractor_hub_50",
     "single_use_swarm",  # 42.5% success, 0.46 avg reward
 )
 
@@ -88,9 +82,6 @@ FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
 
 # Create mission name mapping for eval missions and training facility missions
 _MISSION_BY_NAME: dict[str, Mission] = {}
-for mission in EVAL_MISSIONS:
-    _MISSION_BY_NAME[mission.name] = mission
-
 # Add training facility missions to the mapping
 TRAINING_FACILITY_MISSION_OBJECTS = [
     HarvestMission,
@@ -200,7 +191,6 @@ def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str] | str] = None,
-    exclude_variants: Optional[Sequence[str] | str] = None,
     stats_max_cap: float = 0.5,
 ) -> CurriculumConfig:
     """Create a mission-variant curriculum for CoGs vs Clips training with learning progress.
@@ -214,11 +204,11 @@ def make_curriculum(
         num_cogs: Number of agents per mission
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
-        variants: Optional mission variants to apply. If None, no variants are applied.
+        variants: Mission variants to apply. Can be:
+            - None: No variants applied (base missions only)
+            - "all": All variants applied (creates separate tasks for each mission-variant combination)
+            - A list or comma-separated string of specific variant names
             If provided, creates separate tasks for each mission-variant combination.
-            Can be a list or comma-separated string.
-        exclude_variants: Optional list of variant names to exclude, or comma-separated string.
-            Only used when variants=None (to get all variants except excluded ones).
         stats_max_cap: Maximum reward cap for resource stats (default: 0.5)
 
     Returns:
@@ -227,28 +217,23 @@ def make_curriculum(
     # Resolve mission sets to actual mission names
     base_missions = resolve_missions(base_missions)
 
-    # Handle comma-separated string for variants
-    if isinstance(variants, str):
-        variants = [v.strip() for v in variants.split(",") if v.strip()]
-
-    # Handle comma-separated string for exclude_variants
-    if isinstance(exclude_variants, str):
-        exclude_variants = [v.strip() for v in exclude_variants.split(",") if v.strip()]
-
     # Determine which variants to use
     if variants is None:
-        # If no variants specified, check if we should use all variants (minus excluded)
-        if exclude_variants is not None:
-            # Get all variants except excluded ones
-            all_variant_names = get_all_variant_names()
-            exclude_set = set(exclude_variants)
-            variant_names = [v for v in all_variant_names if v not in exclude_set]
-        else:
-            # No variants at all - just base missions
-            variant_names = []
+        # No variants at all - just base missions
+        variant_names = []
+    elif isinstance(variants, str) and variants.strip().lower() == "all":
+        # Special case: "all" as a string means use all variants
+        variant_names = get_all_variant_names()
+    elif isinstance(variants, list) and len(variants) == 1 and variants[0].strip().lower() == "all":
+        # Special case: ["all"] means use all variants
+        variant_names = get_all_variant_names()
     else:
-        # Use the specified variants
-        variant_names = list(variants)
+        # Handle comma-separated string for variants or use the specified list
+        if isinstance(variants, str):
+            variant_names = [v.strip() for v in variants.split(",") if v.strip()]
+        else:
+            # Use the specified variants
+            variant_names = list(variants)
 
     all_mission_tasks = []
 
@@ -441,9 +426,7 @@ def train(
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    variants: Optional[Sequence[str]] = None,
-    exclude_variants: Optional[Sequence[str] | str] = None,
-    all_variants_per_mission: bool = False,
+    variants: Optional[Sequence[str] | str] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
 ) -> TrainTool:
@@ -455,42 +438,56 @@ def train(
             - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
             - A comma-separated string of mission names or set names
             - A list of mission names or set names
-            If None and all_variants_per_mission=False, defaults to FULL_CURRICULUM_MISSIONS.
-            Required if all_variants_per_mission=True.
         num_cogs: Number of agents per mission
         curriculum: Optional curriculum configuration (defaults to mission-variant curriculum)
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
-        variants: Optional mission variants to apply (only used when all_variants_per_mission=False)
-        exclude_variants: Optional list of variant names to exclude, or comma-separated string
-            (only used when all_variants_per_mission=True)
-        all_variants_per_mission: If True, create separate tasks for each mission-variant combination.
-            If False, apply the same variants to all missions (or no variants if variants=None).
+        variants: Mission variants to apply. Can be:
+            - None: No variants applied (base missions only)
+            - "all": All variants applied (creates separate tasks for each mission-variant combination)
+            - A list or comma-separated string of specific variant names
         eval_variants: Optional mission variants to apply during evaluation
         eval_difficulty: Difficulty variant for evaluation
 
     Returns:
         A TrainTool configured with the mission-variant curriculum
     """
-    # When all_variants_per_mission=True, we want all variants (unless exclude_variants is specified)
-    # Pass exclude_variants=[] to indicate "get all variants" if not already specified
-    resolved_exclude_variants = exclude_variants
-    if all_variants_per_mission and exclude_variants is None:
-        resolved_exclude_variants = []
+    # Determine stats_max_cap based on whether variants are used
+    # If variants="all" or variants is a list, use 0.5 (curriculum mode)
+    # If variants=None, use 1.0 (full curriculum mode)
+    if variants is None:
+        stats_max_cap = 1.0
+    else:
+        # Check if variants is "all"
+        if isinstance(variants, str) and variants.lower() == "all":
+            stats_max_cap = 0.5
+        elif isinstance(variants, list) and len(variants) == 1 and variants[0].lower() == "all":
+            stats_max_cap = 0.5
+        elif variants:  # Non-empty list of specific variants
+            stats_max_cap = 0.5
+        else:
+            stats_max_cap = 1.0
 
     resolved_curriculum = curriculum or make_curriculum(
         base_missions=base_missions,
         num_cogs=num_cogs,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
-        exclude_variants=resolved_exclude_variants,
-        stats_max_cap=0.5 if all_variants_per_mission else 1.0,
+        stats_max_cap=stats_max_cap,
     )
 
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
     )
 
-    resolved_eval_variants = cogs_v_clips._resolve_eval_variants(variants, eval_variants)
+    # For evaluation, convert "all" to None (evaluation doesn't use "all variants")
+    # Only use specific variants if provided, otherwise use eval_variants or None
+    eval_train_variants = None
+    is_all_variants = variants == "all" or (
+        isinstance(variants, list) and len(variants) == 1 and variants[0].lower() == "all"
+    )
+    if variants and not is_all_variants:
+        eval_train_variants = variants
+    resolved_eval_variants = cogs_v_clips._resolve_eval_variants(eval_train_variants, eval_variants)
     eval_suite = cogs_v_clips.make_eval_suite(
         num_cogs=num_cogs,
         difficulty=eval_difficulty,
@@ -529,7 +526,7 @@ def evaluate(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
@@ -549,31 +546,33 @@ def experiment(
     num_cogs: int = 4,
     heartbeat_timeout: int = 3600,
     skip_git_check: bool = True,
-    variants: Optional[list[str]] = None,
-    exclude_variants: Optional[list[str]] = None,
-    all_variants_per_mission: bool = False,
+    variants: Optional[list[str] | str] = None,
     additional_args: Optional[list[str]] = None,
 ) -> None:
     """Submit a training job on AWS with 4 GPUs.
 
     Args:
         base_missions: Optional mission names to include. Can be:
-            - None: Uses FULL_CURRICULUM_MISSIONS (if all_variants_per_mission=False)
+            - None: Uses FULL_CURRICULUM_MISSIONS
             - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
             - A list of mission names or set names
-            Required if all_variants_per_mission=True.
         run_name: Optional run name. If not provided, generates one with timestamp.
         num_cogs: Number of agents per mission (default: 4).
         heartbeat_timeout: Heartbeat timeout in seconds (default: 3600).
         skip_git_check: Whether to skip git check (default: True).
-        variants: Optional mission variants to apply (only used when all_variants_per_mission=False)
-        exclude_variants: Optional list of variant names to exclude (only used when all_variants_per_mission=True)
-        all_variants_per_mission: If True, create separate tasks for each mission-variant combination.
-            If False, apply the same variants to all missions (or no variants if variants=None).
+        variants: Mission variants to apply. Can be:
+            - None: No variants applied (base missions only)
+            - "all": All variants applied (creates separate tasks for each mission-variant combination)
+            - A list of specific variant names
         additional_args: Additional arguments to pass to the training command.
     """
     if run_name is None:
-        mode_str = "variants" if all_variants_per_mission else "full"
+        if variants == "all" or (isinstance(variants, list) and len(variants) == 1 and variants[0].lower() == "all"):
+            mode_str = "variants"
+        elif variants:
+            mode_str = "variants"
+        else:
+            mode_str = "full"
         run_name = f"mission_variant_curriculum_{mode_str}_{time.strftime('%Y-%m-%d_%H%M%S')}"
 
     cmd = [
@@ -582,7 +581,7 @@ def experiment(
         f"run={run_name}",
         f"num_cogs={num_cogs}",
         "--gpus=4",
-        f"--heartbeat-timeout={heartbeat_timeout}",
+        f"--heartbeat-timeout-seconds={heartbeat_timeout}",
     ]
 
     if base_missions:
@@ -593,16 +592,12 @@ def experiment(
     if skip_git_check:
         cmd.append("--skip-git-check")
 
-    if all_variants_per_mission:
-        cmd.append("all_variants_per_mission=True")
-        if exclude_variants:
-            exclude_str = ",".join(exclude_variants)
-            cmd.append(f"exclude_variants={exclude_str}")
-    else:
-        cmd.append("all_variants_per_mission=False")
-        if variants:
+    if variants:
+        if isinstance(variants, list):
             variants_str = ",".join(variants)
-            cmd.append(f"variants={variants_str}")
+        else:
+            variants_str = str(variants)
+        cmd.append(f"variants={variants_str}")
 
     if additional_args:
         cmd.extend(additional_args)
