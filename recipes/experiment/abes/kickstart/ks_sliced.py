@@ -141,6 +141,16 @@ def train(
             ),
         ],
         rules=[
+            HyperUpdateRule(
+                loss_instance_name="ppo_actor",
+                attr_path="ent_coef",
+                mode="progress",
+                style="linear",
+                start_value=0.01,
+                end_value=0.002,
+                start_agent_step=1_000_000_000,
+                end_agent_step=1_500_000_000,
+            ),
             # HyperUpdateRule(
             #     loss_instance_name="sliced_kickstarter",
             #     attr_path="action_loss_coef",
