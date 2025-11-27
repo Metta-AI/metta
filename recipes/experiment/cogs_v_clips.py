@@ -37,18 +37,14 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "easy_hearts",
-    "collect_resources_classic",
-    "collect_resources_spread",
     "oxygen_bottleneck",
     "energy_starved",
-    "go_together",
-    # "machina_1.open_world",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
-    "go_together",
-    "divide_and_conquer",
-    "collect_resources_spread",
+    "distant_resources",
+    "quadrant_buildings",
+    "single_use_swarm",
 ]
 
 PROC_MAP_MISSIONS: tuple[str, ...] = (
