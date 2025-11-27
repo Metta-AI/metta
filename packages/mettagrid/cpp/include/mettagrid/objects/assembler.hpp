@@ -146,18 +146,12 @@ private:
       agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
     }
     for (const auto& [item, amount] : protocol.output_resources) {
-      if (amount == 0) {
-        continue;
-      }
-
       InventoryDelta distributed = HasInventory::shared_update(agents_as_inventory_havers, item, amount);
 
-      // Count only new heart outputs, not movements
+      // Count newly created outputs
       if (stats_tracker && distributed > 0) {
         const std::string& resource_name = stats_tracker->resource_name(item);
-        if (resource_name.find("heart") != std::string::npos) {
-          stats_tracker->add("assembler." + resource_name + ".created", static_cast<float>(distributed));
-        }
+        stats_tracker->add("assembler." + resource_name + ".created", static_cast<float>(distributed));
       }
     }
   }
