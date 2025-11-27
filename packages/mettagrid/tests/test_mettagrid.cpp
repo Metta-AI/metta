@@ -20,6 +20,7 @@
 #include "objects/inventory_config.hpp"
 #include "objects/protocol.hpp"
 #include "objects/wall.hpp"
+#include "systems/stats_tracker.hpp"
 
 // Test-specific inventory item type constants
 namespace TestItems {
@@ -65,6 +66,8 @@ protected:
         {"remaining_uses", 18},
     };
     ObservationFeature::Initialize(feature_ids);
+    resource_names = create_test_resource_names();
+    stats_tracker = std::make_unique<StatsTracker>(&resource_names);
   }
 
   void TearDown() override {}
@@ -115,6 +118,9 @@ protected:
                        create_test_stats_reward_max(),  // stats_reward_max
                        {});                             // initial_inventory
   }
+
+  std::vector<std::string> resource_names;
+  std::unique_ptr<StatsTracker> stats_tracker;
 };
 
 // ==================== Agent Tests ====================
@@ -869,7 +875,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionDeterministicWithSameSeed) {
 TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
   AssemblerConfig config(1, "test_assembler");
   config.tag_ids = {1, 2};
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
 
   unsigned int current_timestep = 0;
   assembler.set_current_timestep_ptr(&current_timestep);
@@ -899,7 +905,7 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
 TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
   AssemblerConfig config(1, "test_assembler");
   config.tag_ids = {1, 2};
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
 
   unsigned int current_timestep = 0;
   assembler.set_current_timestep_ptr(&current_timestep);
@@ -920,7 +926,7 @@ TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
 
 TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
   AssemblerConfig config(1, "test_assembler");
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
 
   unsigned int current_timestep = 0;
   assembler.set_current_timestep_ptr(&current_timestep);
@@ -952,7 +958,7 @@ TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
 
 TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
   AssemblerConfig config(1, "test_assembler");
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
 
   unsigned int current_timestep = 0;
   assembler.set_current_timestep_ptr(&current_timestep);
@@ -977,7 +983,7 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
 
 TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
   AssemblerConfig config(1, "test_assembler");
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
 
   unsigned int current_timestep = 0;
   assembler.set_current_timestep_ptr(&current_timestep);
@@ -1015,7 +1021,7 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentProtocol) {
 
   config.protocols.push_back(protocol0);
   config.protocols.push_back(protocol1);
-  Assembler* assembler = new Assembler(5, 5, config);
+  Assembler* assembler = new Assembler(5, 5, config, stats_tracker.get());
 
   // Set up the assembler with grid and timestep
   unsigned int current_timestep = 0;
@@ -1063,7 +1069,7 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   config.protocols.push_back(protocol0);
   config.protocols.push_back(protocol1);
 
-  Assembler* assembler = new Assembler(5, 5, config);
+  Assembler* assembler = new Assembler(5, 5, config, stats_tracker.get());
 
   // Set up the assembler with grid and timestep
   unsigned int current_timestep = 0;
@@ -1113,7 +1119,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
   // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
   config.protocols.push_back(protocol);
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
 
   // Create agents with ample resources
   AgentConfig agent_config(0, "agent", 0, "agent");
@@ -1166,7 +1172,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
   // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
   config.protocols.push_back(protocol);
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
 
   // Create agents with varied resources
   AgentConfig agent_config(0, "agent", 0, "agent");
@@ -1224,7 +1230,7 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
 
   config.protocols.push_back(normal_protocol);
 
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
   assembler.set_grid(&grid);
   assembler.set_current_timestep_ptr(&current_timestep);
 
@@ -1316,7 +1322,7 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
 
   config.protocols.push_back(protocol);
 
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
   assembler.set_grid(&grid);
   assembler.set_current_timestep_ptr(&current_timestep);
 
@@ -1422,7 +1428,7 @@ TEST_F(MettaGridCppTest, AssemblerMinAgentsProtocolSelection) {
   config.protocols.push_back(protocol_2);
   config.protocols.push_back(protocol_4);
 
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
   assembler.set_grid(&grid);
   assembler.set_current_timestep_ptr(&current_timestep);
 
@@ -1524,7 +1530,7 @@ TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {
 
   config.protocols.push_back(protocol);
 
-  Assembler assembler(5, 5, config);
+  Assembler assembler(5, 5, config, stats_tracker.get());
   assembler.set_grid(&grid);
   assembler.set_current_timestep_ptr(&current_timestep);
 
@@ -1577,7 +1583,7 @@ TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {
 
   config_no_output.protocols.push_back(protocol_no_output);
 
-  Assembler assembler_no_output(5, 5, config_no_output);
+  Assembler assembler_no_output(5, 5, config_no_output, stats_tracker.get());
   assembler_no_output.set_grid(&grid);
   assembler_no_output.set_current_timestep_ptr(&current_timestep);
 
@@ -1593,7 +1599,7 @@ TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 50) << "Output should remain unchanged";
 
   // Test 4: Multiple agents, all with full inventory - should fail
-  Assembler assembler_multi(5, 5, config);
+  Assembler assembler_multi(5, 5, config, stats_tracker.get());
   assembler_multi.set_grid(&grid);
   assembler_multi.set_current_timestep_ptr(&current_timestep);
 
