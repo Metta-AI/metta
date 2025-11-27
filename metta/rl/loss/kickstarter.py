@@ -3,12 +3,13 @@ from typing import TYPE_CHECKING, Any
 import torch
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
-from torchrl.data import Composite, UnboundedContinuous
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -77,7 +78,10 @@ class Kickstarter(Loss):
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
         logits_f32 = UnboundedContinuous(shape=torch.Size([num_actions]), dtype=torch.float32)
 
+        # Include rewards/actions so Experience.stats() and downstream logging don't KeyError when PPO is disabled.
         return Composite(
+            rewards=scalar_f32,
+            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32),
             teacher_logits=logits_f32,
             teacher_values=scalar_f32,
         )
@@ -107,25 +111,33 @@ class Kickstarter(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-        minibatch = shared_loss_data["sampled_mb"]
+        # If no other loss populated the minibatch (e.g. PPO disabled), sample sequentially.
+        minibatch = shared_loss_data.get("sampled_mb", None)
+        if minibatch is None:
+            minibatch, indices = sequential_sample(self.replay, mb_idx)
+            shared_loss_data["sampled_mb"] = minibatch
+            shared_loss_data["indices"] = NonTensorData(indices)
+
         B, TT = minibatch.batch_size
 
         # Student forward pass
-        if self.student_forward:  # leave to false if also running PPO since it forwards student during train
+        policy_td = shared_loss_data.get("policy_td", None)
+        if self.student_forward or policy_td is None:  # safe fallback when PPO is disabled
             student_td, _, _ = prepare_policy_forward_td(minibatch, self.policy.get_agent_experience_spec(), clone=True)
+            self.policy.reset_memory()
             student_td = self.policy(student_td, action=None)
         else:
-            student_td = shared_loss_data["policy_td"].reshape(B * TT)  # shared_loss_data is populated by PPO
+            student_td = policy_td.reshape(B * TT)  # shared_loss_data is populated by PPO
 
         # action loss
         temperature = self.cfg.temperature
         teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).reshape(B * TT, -1).detach()
         student_logits = student_td["logits"].to(dtype=torch.float32)
         teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
+        teacher_probs = torch.exp(teacher_log_probs)
         student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
-        student_probs = torch.exp(student_log_probs)
         ks_action_loss = (temperature**2) * (
-            (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
+            (teacher_probs * (teacher_log_probs - student_log_probs)).sum(dim=-1).mean()
         )
 
         # value loss
