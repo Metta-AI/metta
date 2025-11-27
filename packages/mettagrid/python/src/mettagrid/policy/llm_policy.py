@@ -650,6 +650,7 @@ class LLMAgentPolicy(AgentPolicy):
                 policy_env_info=policy_env_info,
                 context_window_size=context_window_size,
                 mg_cfg=mg_cfg,
+                debug_mode=debug_mode,
             )
             self.game_rules_prompt = None  # Not used with dynamic prompts
             if self.debug_mode:
@@ -1160,7 +1161,11 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         super().__init__(policy_env_info)
         self.provider: Literal["openai", "anthropic", "ollama"] = provider
         self.temperature = temperature
-        self.debug_mode = debug_mode
+        # Handle string "true"/"false" from CLI kwargs
+        if isinstance(debug_mode, str):
+            self.debug_mode = debug_mode.lower() not in ("false", "0", "no", "")
+        else:
+            self.debug_mode = bool(debug_mode)
         self.use_dynamic_prompts = use_dynamic_prompts
         self.context_window_size = context_window_size
         self.mg_cfg = mg_cfg
