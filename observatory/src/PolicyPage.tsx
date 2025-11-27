@@ -180,7 +180,7 @@ export const PolicyPage: FC = () => {
   const policyEntry = policyState.data
   const policyVersion = policyEntry?.policy_version
   const policyCreatedAt = policyVersion?.policy_created_at || policyVersion?.created_at || null
-  const policyDisplay = policyVersion ? `${policyVersion.name}.${policyVersion.version}` : policyVersionId
+  const policyDisplay = policyVersion ? `${policyVersion.name}:v${policyVersion.version}` : policyVersionId
   const getPolicyAvgReward = (episode: EpisodeWithTags): number | undefined => {
     if (policyVersionId && episode.avg_rewards[policyVersionId] !== undefined) {
       return episode.avg_rewards[policyVersionId]
