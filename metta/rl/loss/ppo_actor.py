@@ -25,7 +25,7 @@ class PPOActorConfig(LossConfig):
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
     clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
     # Entropy term weight from sweep
-    ent_coef: float = Field(default=0.010000, ge=0)
+    ent_coef: float = Field(default=0.0020000, ge=0)  # was 0.010000
 
     # Normalization and clipping
     # Advantage normalization toggle
