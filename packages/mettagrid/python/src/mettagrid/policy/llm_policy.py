@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import random
-import signal
 import subprocess
 import sys
 from typing import Literal
@@ -14,7 +13,6 @@ from mettagrid.policy.observation_debugger import ObservationDebugger
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
-from mettagrid.simulator.interface import SimulatorEventHandler
 
 logger = logging.getLogger(__name__)
 
@@ -631,10 +629,18 @@ class LLMAgentPolicy(AgentPolicy):
         self.temperature = temperature
         self.debug_mode = debug_mode
         self.last_action: str | None = None
-        self.use_dynamic_prompts = use_dynamic_prompts
+        # Handle string "false"/"true" from config system
+        if isinstance(use_dynamic_prompts, str):
+            self.use_dynamic_prompts = use_dynamic_prompts.lower() not in ("false", "0", "no")
+        else:
+            self.use_dynamic_prompts = bool(use_dynamic_prompts)
 
         # Track conversation history for debugging
         self.conversation_history: list[dict] = []
+
+        # Stateful conversation messages (for multi-turn conversations with LLM)
+        # Format: [{"role": "user"/"assistant", "content": "..."}, ...]
+        self._messages: list[dict[str, str]] = []
 
         # Initialize prompt builder (new dynamic approach)
         if self.use_dynamic_prompts:
@@ -696,6 +702,38 @@ class LLMAgentPolicy(AgentPolicy):
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
+    def _add_to_messages(self, role: str, content: str) -> None:
+        """Add a message to conversation history and prune if needed.
+
+        Args:
+            role: "user" or "assistant"
+            content: Message content
+        """
+        self._messages.append({"role": role, "content": content})
+
+        # Prune to keep only last context_window_size turns (2 messages per turn)
+        max_messages = self.prompt_builder.context_window_size * 2 if self.prompt_builder else 40
+        if len(self._messages) > max_messages:
+            # Keep system message (if first) + last N messages
+            if self._messages and self._messages[0].get("role") == "system":
+                self._messages = [self._messages[0]] + self._messages[-(max_messages - 1):]
+            else:
+                self._messages = self._messages[-max_messages:]
+
+    def _get_messages_for_api(self, user_prompt: str) -> list[dict[str, str]]:
+        """Get messages list for API call, including history + new user prompt.
+
+        Args:
+            user_prompt: Current user prompt to add
+
+        Returns:
+            List of messages for API call
+        """
+        # Add current user prompt to history
+        self._add_to_messages("user", user_prompt)
+        # Return a copy of messages for the API call
+        return list(self._messages)
+
     def step(self, obs: AgentObservation) -> Action:
         """Get action from LLM given observation.
 
@@ -714,10 +752,12 @@ class LLMAgentPolicy(AgentPolicy):
         if self.use_dynamic_prompts:
             # Use dynamic prompt builder with context window management
             user_prompt, includes_basic_info = self.prompt_builder.context_prompt(obs)
+            num_msgs = len(self._messages) + 1  # +1 for the new user message we're about to add
+            step = self.prompt_builder.step_count
             if includes_basic_info:
-                logger.info(f"[DYNAMIC] Sent basic_info + observable (step {self.prompt_builder.step_count})")
+                logger.info(f"[DYNAMIC] Sent basic_info + observable (step {step}, {num_msgs} msgs)")
             else:
-                logger.info(f"[DYNAMIC] Sent observable only (step {self.prompt_builder.step_count})")
+                logger.info(f"[DYNAMIC] Sent observable only (step {step}, {num_msgs} msgs)")
         else:
             # Use old static prompt approach
             obs_json = observation_to_json(obs, self.policy_env_info)
@@ -752,10 +792,12 @@ The best action is move_east (WRONG - contains extra words)
                 is_gpt5_or_o1 = self.model.startswith("gpt-5") or self.model.startswith("o1")
 
                 if self.use_dynamic_prompts or is_gpt5_or_o1:
-                    # Dynamic prompts or GPT-5/o1: everything in user message
+                    # Dynamic prompts or GPT-5/o1: use stateful conversation history
+                    messages = self._get_messages_for_api(user_prompt)
+
                     completion_params = {
                         "model": self.model,
-                        "messages": [{"role": "user", "content": user_prompt}],
+                        "messages": messages,
                         "max_completion_tokens": 50 if is_gpt5_or_o1 else None,
                         "max_tokens": None if is_gpt5_or_o1 else 50,
                         "temperature": None if is_gpt5_or_o1 else self.temperature,
@@ -767,6 +809,7 @@ The best action is move_east (WRONG - contains extra words)
                     self.conversation_history.append({
                         "step": len(self.conversation_history) + 1,
                         "prompt": user_prompt,
+                        "num_messages": len(messages),
                         "response": None,  # Will be filled in below
                     })
                 else:
@@ -795,7 +838,11 @@ The best action is move_east (WRONG - contains extra words)
                     action_name = "noop"
                 action_name = action_name.strip()
 
-                # Track response
+                # Add assistant response to stateful conversation history
+                if self.use_dynamic_prompts:
+                    self._add_to_messages("assistant", action_name)
+
+                # Track response for debugging
                 self.conversation_history[-1]["response"] = action_name
 
                 # Track usage and cost
@@ -820,13 +867,14 @@ The best action is move_east (WRONG - contains extra words)
                 assert self.ollama_client is not None
 
                 if self.use_dynamic_prompts:
-                    # Dynamic prompts: everything in user message
-                    messages = [{"role": "user", "content": user_prompt}]
+                    # Dynamic prompts: use stateful conversation history
+                    messages = self._get_messages_for_api(user_prompt)
 
                     # Track prompt
                     self.conversation_history.append({
                         "step": len(self.conversation_history) + 1,
                         "prompt": user_prompt,
+                        "num_messages": len(messages),
                         "response": None,
                     })
                 else:
@@ -875,7 +923,11 @@ The best action is move_east (WRONG - contains extra words)
 
                 action_name = action_name.strip()
 
-                # Track response
+                # Add assistant response to stateful conversation history
+                if self.use_dynamic_prompts:
+                    self._add_to_messages("assistant", action_name)
+
+                # Track response for debugging
                 self.conversation_history[-1]["response"] = action_name
 
                 # Track usage (Ollama is free/local)
@@ -896,17 +948,20 @@ The best action is move_east (WRONG - contains extra words)
                 assert self.anthropic_client is not None
 
                 if self.use_dynamic_prompts:
-                    # Dynamic prompts: everything in user message, no system
+                    # Dynamic prompts: use stateful conversation history
+                    messages = self._get_messages_for_api(user_prompt)
+
                     # Track prompt
                     self.conversation_history.append({
                         "step": len(self.conversation_history) + 1,
                         "prompt": user_prompt,
+                        "num_messages": len(messages),
                         "response": None,
                     })
 
                     response = self.anthropic_client.messages.create(
                         model=self.model,
-                        messages=[{"role": "user", "content": user_prompt}],
+                        messages=messages,
                         temperature=self.temperature,
                         max_tokens=50,
                     )
@@ -936,7 +991,11 @@ The best action is move_east (WRONG - contains extra words)
                         action_name = block.text.strip()
                         break
 
-                # Track response
+                # Add assistant response to stateful conversation history
+                if self.use_dynamic_prompts:
+                    self._add_to_messages("assistant", action_name)
+
+                # Track response for debugging
                 self.conversation_history[-1]["response"] = action_name
 
                 # Track usage and cost

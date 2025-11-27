@@ -58,7 +58,8 @@ class LLMPromptBuilder:
             mg_cfg: Optional MettaGridConfig to extract chest vibe transfers and other game-specific info
         """
         self._policy_env_info = policy_env_info
-        self._context_window_size = context_window_size
+        # Ensure context_window_size is an int (may come as string from config)
+        self._context_window_size = int(context_window_size)
         self._step_counter = 0
         self._last_visible: VisibleElements | None = None
 
