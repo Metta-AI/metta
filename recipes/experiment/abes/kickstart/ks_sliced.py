@@ -147,7 +147,7 @@ def train(
                 mode="progress",
                 style="linear",
                 start_value=0.01,
-                end_value=0.002,
+                end_value=0.0005,
                 start_agent_step=1_000_000_000,
                 end_agent_step=1_500_000_000,
             ),
