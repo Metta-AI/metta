@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import logging
-import re
 import uuid
+from pathlib import Path
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
 from metta.tools.utils.auto_config import auto_stats_server_uri
-from mettagrid.util.url_schemes import ParsedScheme, SchemeResolver, resolve_uri
+from mettagrid.util.uri_resolvers.base import ParsedScheme, SchemeResolver, _extract_run_and_epoch
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -44,17 +45,24 @@ def _parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
     - policy-name:latest -> (policy-name, None) meaning latest
     - policy-name:vX -> (policy-name, X) meaning specific version
     """
-    match = re.match(r"^(.+):(v(\d+)|latest)$", identifier)
-    if match:
-        name = match.group(1)
-        if match.group(2) == "latest":
-            return name, None
-        else:
-            return name, int(match.group(3))
+    if identifier.endswith(":latest"):
+        return identifier[:-7], None
+    info = _extract_run_and_epoch(Path(identifier))
+    if info:
+        return info
     return identifier, None
 
 
 class MettaSchemeResolver(SchemeResolver):
+    """Resolves metta:// URIs to checkpoint URIs via the stats server.
+
+    Supported formats:
+      - metta://policy/<uuid>              (policy version by UUID)
+      - metta://policy/<name>              (latest version of named policy)
+      - metta://policy/<name>:latest       (latest version of named policy)
+      - metta://policy/<name>:v<N>         (specific version N of named policy)
+    """
+
     @property
     def scheme(self) -> str:
         return "metta"
