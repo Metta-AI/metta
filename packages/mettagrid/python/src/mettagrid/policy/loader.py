@@ -21,10 +21,16 @@ def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_spec: PolicySpec,
     device_override: str | None = None,
+    mg_cfg=None,
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
     Expects PolicySpec to have local paths, shorthand or fully-specified. But should not have remote paths (e.g. s3://).
+
+    Args:
+        policy_env_info: Policy environment interface
+        policy_spec: Policy specification with class path and optional data path
+        mg_cfg: Optional MettaGridConfig to pass to policies that accept it (e.g., LLM policies)
 
     Returns:
         Initialized policy instance
@@ -48,6 +54,12 @@ def initialize_or_load_policy(
         for name in kwarg_overrides:
             if allows_all or (name in class_params):
                 kwargs[name] = kwarg_overrides[name]
+
+    # Only pass mg_cfg if the policy's __init__ accepts it
+    if mg_cfg is not None:
+        sig = inspect.signature(policy_class.__init__)
+        if "mg_cfg" in sig.parameters:
+            kwargs["mg_cfg"] = mg_cfg
 
     try:
         policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
