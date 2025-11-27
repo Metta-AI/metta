@@ -106,7 +106,7 @@ public:
 
     // Clip all starting clipped assemblers
     for (auto* assembler : starting_clipped_assemblers) {
-      clip_assembler(*assembler);
+      clip_assembler(*assembler, true);
     }
   }
 
@@ -171,8 +171,8 @@ public:
     }
   }
 
-  void clip_assembler(Assembler& to_infect) {
-    assert(!to_infect.is_clipped);
+  void clip_assembler(Assembler& to_infect, bool is_initialization = false) {
+    assert(!to_infect.is_clipped || is_initialization);
     // Update infection weights only for adjacent assemblers
     for (auto* adjacent : adjacent_assemblers[&to_infect]) {
       // Track this even for clipped assemblers, so we'll have an accurate number if they become unclipped.

@@ -8,6 +8,9 @@ WORKDIR /workspace/metta
 
 RUN bash ./devops/tools/install-system.sh
 
+# Force pufferlib-core to build CPU-only in this image (no CUDA here)
+ENV PUFFERLIB_CPU_ONLY=1
+
 # Pre-build app_backend package to avoid issues during container startup
 RUN uv sync --frozen --package metta-app-backend
 

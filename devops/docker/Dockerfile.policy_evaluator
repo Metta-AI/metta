@@ -10,6 +10,9 @@ COPY . /workspace/metta
 
 WORKDIR /workspace/metta
 
+# Force pufferlib-core to build CPU-only in this image (no CUDA here)
+ENV PUFFERLIB_CPU_ONLY=1
+
 RUN bash ./devops/tools/install-system.sh
 
 RUN apt-get install -y apt-transport-https ca-certificates curl gnupg

@@ -5,10 +5,15 @@ from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
 import concurrent.futures
+import os
 import re
+import shutil
 import subprocess
 import sys
+import threading
+import time
 import webbrowser
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
@@ -146,6 +151,21 @@ class MettaCLI:
         if len(text) <= max_len:
             return text
         return text[: max_len - 3] + "..."
+
+
+@dataclass
+class DockerBuildPlan:
+    dockerfile: Path
+    tag: str
+    context: Path
+
+
+@dataclass
+class DockerBuildResult:
+    plan: DockerBuildPlan
+    returncode: int
+    output: str
+    duration_seconds: float = 0.0
 
 
 cli = MettaCLI()
@@ -762,6 +782,191 @@ def cmd_pr_feed(
     except Exception as e:
         error(f"Error: {e}")
         raise typer.Exit(1) from e
+
+
+def _list_repo_dockerfiles(repo_root: Path) -> list[Path]:
+    result = subprocess.run(
+        ["git", "ls-files", "*Dockerfile*"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        error(f"Failed to enumerate Dockerfiles: {result.stderr.strip()}")
+        raise typer.Exit(result.returncode)
+
+    dockerfiles: list[Path] = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        candidate = (repo_root / line.strip()).resolve()
+        if candidate.is_file():
+            dockerfiles.append(candidate)
+    return dockerfiles
+
+
+def _tag_for_dockerfile(dockerfile: Path, repo_root: Path, tag_prefix: str) -> str:
+    rel = dockerfile.relative_to(repo_root)
+    parent_part = "" if rel.parent == Path(".") else rel.parent.as_posix().replace("/", "-")
+    suffix = rel.name
+    if suffix.startswith("Dockerfile"):
+        suffix = suffix[len("Dockerfile") :]
+        suffix = suffix.lstrip("._-")
+
+    parts = [part for part in [parent_part, suffix] if part]
+    base = "-".join(parts) if parts else "image"
+    base = re.sub(r"[^a-z0-9._-]", "-", base.lower())
+    base = re.sub(r"-{2,}", "-", base).strip("-") or "image"
+
+    prefix_clean = re.sub(r"[^a-z0-9._-]", "-", tag_prefix.lower()).strip("-") or "metta"
+    return f"{prefix_clean}-{base}:latest"
+
+
+def _terminate_processes(processes: list[subprocess.Popen], lock: threading.Lock) -> None:
+    with lock:
+        running = [proc for proc in processes if proc.poll() is None]
+
+    for proc in running:
+        proc.terminate()
+
+    for proc in running:
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+def _run_docker_build(
+    plan: DockerBuildPlan,
+    stop_event: threading.Event,
+    registry: list[subprocess.Popen],
+    registry_lock: threading.Lock,
+) -> DockerBuildResult:
+    if stop_event.is_set():
+        return DockerBuildResult(
+            plan=plan,
+            returncode=0,
+            output="skipped: cancelled",
+            duration_seconds=0.0,
+        )
+
+    cmd = ["docker", "build", "-f", str(plan.dockerfile), "-t", plan.tag, str(plan.context)]
+    start = time.perf_counter()
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=plan.context,
+        )
+    except FileNotFoundError as exc:
+        duration = time.perf_counter() - start
+        return DockerBuildResult(
+            plan=plan,
+            returncode=127,
+            output=str(exc),
+            duration_seconds=duration,
+        )
+
+    with registry_lock:
+        registry.append(proc)
+
+    stdout, _ = proc.communicate()
+    duration = time.perf_counter() - start
+    return DockerBuildResult(
+        plan=plan,
+        returncode=proc.returncode or 0,
+        output=stdout,
+        duration_seconds=duration,
+    )
+
+
+def _build_dockerfiles_in_parallel(
+    plans: list[DockerBuildPlan], max_workers: int
+) -> tuple[DockerBuildResult | None, list[DockerBuildResult]]:
+    stop_event = threading.Event()
+    registry: list[subprocess.Popen] = []
+    registry_lock = threading.Lock()
+    results: list[DockerBuildResult] = []
+    failure: DockerBuildResult | None = None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {
+            executor.submit(_run_docker_build, plan, stop_event, registry, registry_lock): plan for plan in plans
+        }
+        for future in concurrent.futures.as_completed(future_map):
+            result = future.result()
+            results.append(result)
+            if result.returncode != 0 and failure is None:
+                failure = result
+                stop_event.set()
+                _terminate_processes(registry, registry_lock)
+
+    return failure, results
+
+
+@app.command(
+    name="build-dockerfiles",
+    help="Build all repository Dockerfiles in parallel; cancel others on first failure.",
+)
+def cmd_build_dockerfiles(
+    max_workers: Annotated[
+        int,
+        typer.Option("--max-workers", help="Limit concurrent docker builds (default: CPU count)"),
+    ] = 0,
+    tag_prefix: Annotated[str, typer.Option("--tag-prefix", help="Prefix for generated image tags")] = "metta",
+):
+    repo_root = get_repo_root()
+    dockerfiles = _list_repo_dockerfiles(repo_root)
+    if not dockerfiles:
+        warning("No Dockerfiles found in repository.")
+        return
+
+    if shutil.which("docker") is None:
+        error("Docker is not installed or not on PATH.")
+        raise typer.Exit(1)
+
+    plans = [
+        DockerBuildPlan(
+            dockerfile=df,
+            tag=_tag_for_dockerfile(df, repo_root, tag_prefix),
+            context=repo_root,
+        )
+        for df in sorted(dockerfiles)
+    ]
+
+    workers = min(len(plans), max_workers) if max_workers else min(len(plans), max(1, os.cpu_count() or 4))
+
+    info(f"Building {len(plans)} Dockerfiles using {workers} worker(s)...")
+
+    failure, results = _build_dockerfiles_in_parallel(plans, workers)
+
+    if failure:
+        error(
+            "Build failed for "
+            f"{failure.plan.dockerfile.relative_to(repo_root)} ({failure.plan.tag}) "
+            f"with exit code {failure.returncode}"
+        )
+        console = Console()
+        console.print("[red]---- Failing build log ----[/red]")
+        console.print(failure.output.rstrip() or "<no output>")
+        console.print("[red]---- End failing log ----[/red]")
+        raise typer.Exit(failure.returncode or 1)
+
+    success("All Dockerfiles built successfully.")
+    for result in sorted(results, key=lambda r: r.plan.dockerfile.as_posix()):
+        info(f"Built {result.plan.tag} from {result.plan.dockerfile.relative_to(repo_root)}")
+
+    # Print build durations summary, slowest builds first.
+    if results:
+        info("Docker build durations (slowest first):")
+        for result in sorted(results, key=lambda r: r.duration_seconds, reverse=True):
+            info(
+                f"{result.duration_seconds:.1f}s - "
+                f"{result.plan.tag} from "
+                f"{result.plan.dockerfile.relative_to(repo_root)}"
+            )
 
 
 # Report env details command
