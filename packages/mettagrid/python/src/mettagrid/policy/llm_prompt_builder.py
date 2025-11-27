@@ -282,22 +282,51 @@ MISSION SUCCESS SEQUENCE:
 
 {self.observable_prompt(obs, include_actions=True)}
 
-Based on the visible objects and game rules, choose the BEST action to maximize your rewards.
+=== DECISION PRIORITY (follow in order) ===
 
-CRITICAL: Your response must be EXACTLY ONE action name, nothing else.
-Format: action_name
-Do NOT explain your reasoning.
-Do NOT say what actions you won't take.
-Do NOT use sentences.
+1. IF BLOCKED (wall/object adjacent in your current direction):
+   → Try a DIFFERENT direction immediately. Never repeat a blocked move.
+   → Check all 4 directions: North (y-1), South (y+1), East (x+1), West (x-1)
+   → A tile is BLOCKED if it has ANY tokens. Empty tiles have NO tokens.
 
-Example valid responses:
+2. IF you see an EXTRACTOR (carbon/oxygen/germanium/silicon) nearby:
+   → Move TOWARD it to gather resources. Resources are needed to craft HEARTs.
+   → To use: get adjacent, then move INTO the extractor.
+
+3. IF you have resources AND see an ASSEMBLER:
+   → Move toward assembler to craft items.
+   → Set vibe to 'heart_a' before using assembler to craft HEARTs.
+
+4. IF you have a HEART AND see a CHEST:
+   → Move toward chest to deposit.
+   → Set vibe to 'heart_b' before moving into chest.
+
+5. IF nothing useful visible:
+   → EXPLORE! Move in any unblocked direction to discover the map.
+   → Prefer directions you haven't tried recently.
+
+NEVER USE 'noop' UNLESS:
+- You are frozen (agent:frozen = 1)
+- All 4 directions are blocked (completely surrounded)
+
+Your goal: Find extractors → Gather resources → Find assembler → Craft HEARTs → Deposit in chest
+
+⚠️ OUTPUT FORMAT - READ THIS FIRST ⚠️
+Your response must be EXACTLY ONE action name. Nothing else.
+NO analysis. NO explanation. NO markdown. NO "I think" or "Looking at".
+Just the action name. One word (or underscore-separated words).
+
+WRONG responses (will cause errors):
+- "I need to analyze..."
+- "Looking at the situation..."
+- "move_east because..."
+- "**move_east**"
+
+CORRECT responses (exactly like this):
 move_east
-use
+move_north
+change_vibe_heart_a
 noop
-
-Example INVALID responses:
-I should not move_north, so I'll move_east (WRONG - contains multiple actions)
-The best action is move_east (WRONG - contains extra words)
 """
 
     def context_prompt(
@@ -341,17 +370,20 @@ The best action is move_east (WRONG - contains extra words)
 
             prompt = f"""{self.observable_prompt(obs)}
 
-VALID ACTIONS: {", ".join(action_list)}, ...
-(Full list: {len(self._policy_env_info.action_names)} actions available)
+⚠️ RESPOND WITH EXACTLY ONE ACTION NAME. NO ANALYSIS. NO EXPLANATION. ⚠️
 
-CRITICAL: Your response must be EXACTLY ONE action name from the list above.
-Format: action_name
+DECISION PRIORITY:
+1. IF BLOCKED → Try different direction (check North/South/East/West for empty tiles)
+2. IF see EXTRACTOR → Move toward it to gather resources
+3. IF have resources + see ASSEMBLER → Move toward it, use heart_a vibe to craft
+4. IF have HEART + see CHEST → Move toward it, use heart_b vibe to deposit
+5. IF nothing visible → EXPLORE in any unblocked direction
 
-Example: move_east
-Example: change_vibe_heart_b
-Example: noop
+NEVER 'noop' unless frozen or completely surrounded!
 
-DO NOT use: move_down, move_up, move_towards, actuate (these are INVALID)
+VALID: {", ".join(action_list[:8])}, ...
+
+Output only the action name (e.g. move_east):
 """
             includes_basic = False
 
