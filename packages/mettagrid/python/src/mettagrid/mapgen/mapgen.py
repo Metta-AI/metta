@@ -38,8 +38,6 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
     # Can be either a scene config or another MapBuilder config.
     # If it's a scene config, you need to set `width` and `height` explicitly.
     # If `instances` or `num_agents` are set, this configuration will be used multiple times.
-    # NOTE: Use SerializeAsAny wrapper so subclass-specific fields are preserved when dumping the config for
-    # simulation creation.
     instance: AnySceneConfig | AnyMapBuilderConfig | None = Field(default=None)
 
     # Legacy fields, to be removed soon.
