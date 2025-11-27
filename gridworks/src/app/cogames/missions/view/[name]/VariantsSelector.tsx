@@ -27,7 +27,7 @@ const VariantsMenu: FC<{
     return allVariants.filter((variant) =>
       variant.name.toLowerCase().includes(filter.toLowerCase())
     );
-  }, [allVariants, filter])
+  }, [allVariants, filter]);
 
   return (
     <DropdownMenu>
@@ -38,10 +38,7 @@ const VariantsMenu: FC<{
       />
 
       <div className="max-h-120 overflow-y-auto">
-        <NoResultsMessage
-          className="px-4 py-2"
-          show={filtered.length === 0}
-        />
+        <NoResultsMessage className="px-4 py-2" show={filtered.length === 0} />
 
         {filtered.map((variant) => (
           <Tooltip
