@@ -130,11 +130,6 @@ class SceneConfig(Config):
         kwargs.setdefault("serialize_as_any", True)
         return super().model_dump_json(**kwargs)
 
-    @model_serializer(mode="wrap")
-    def _serialize_with_type(self, handler):
-        data = handler(self)
-        return {"type": self._type_str(), **data}
-
     @property
     def scene_cls(self) -> type[Scene]:
         if not self._scene_cls:
@@ -146,6 +141,11 @@ class SceneConfig(Config):
         if not cls._scene_cls:
             raise ValueError(f"{cls.__class__.__name__} is not bound to a scene class")
         return f"{cls._scene_cls.__module__}.{cls._scene_cls.__name__}.Config"
+
+    @model_serializer(mode="wrap")
+    def _serialize_with_type(self, handler):
+        data = handler(self)
+        return {"type": self._type_str(), **data}
 
     @model_validator(mode="wrap")
     @classmethod
