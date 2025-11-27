@@ -38,13 +38,13 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
     # Can be either a scene config or another MapBuilder config.
     # If it's a scene config, you need to set `width` and `height` explicitly.
     # If `instances` or `num_agents` are set, this configuration will be used multiple times.
-    # NOTE: Use SerializeAsAny wrapper so subclass-specific fields (e.g., spawn_count on MachinaArenaConfig)
-    # are preserved when dumping the config for simulation creation.
+    # NOTE: Use SerializeAsAny wrapper so subclass-specific fields are preserved when dumping the config for
+    # simulation creation.
     instance: AnySceneConfig | AnyMapBuilderConfig | None = Field(default=None)
 
     # Legacy fields, to be removed soon.
     instance_map: AnyMapBuilderConfig | None = Field(default=None, deprecated="Use `instance` instead")
-    root: SceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
+    root: AnySceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
 
     @model_validator(mode="before")
     @classmethod
@@ -156,10 +156,6 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
         # could be valid, if the scene has an intrinsic size.
 
         return self
-
-
-# Rebuild to resolve forward refs (instance uses AnySceneConfig)
-MapGenConfig.model_rebuild()
 
 
 class MapGen(MapBuilder[MapGenConfig]):
