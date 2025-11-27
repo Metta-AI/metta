@@ -98,6 +98,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Get base stats (required)
         stats = self.get_base_stats()
 
+        # Always include learning progress stats (not just when detailed logging is enabled)
+        if self.hypers.use_bidirectional:
+            lp_stats = self._get_bidirectional_detailed_stats()
+        else:
+            lp_stats = self._get_basic_detailed_stats()
+
+        # Add lp/ prefix to learning progress stats
+        for key, value in lp_stats.items():
+            stats[f"lp/{key}"] = value
+
         if self.enable_detailed_logging:
             detailed = self.get_detailed_stats()
             stats.update(detailed)
@@ -378,20 +388,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.invalidate_cache()
 
     def get_detailed_stats(self) -> Dict[str, float]:
-        """Get detailed stats including learning progress and slice distribution analysis."""
-        stats = super().get_detailed_stats()  # Gets slice analyzer stats
+        """Get detailed stats including slice distribution analysis.
 
-        # Always include learning progress stats (not just when detailed logging is enabled)
-        if self.hypers.use_bidirectional:
-            lp_stats = self._get_bidirectional_detailed_stats()
-        else:
-            lp_stats = self._get_basic_detailed_stats()
-
-        # Add lp/ prefix to learning progress stats
-        for key, value in lp_stats.items():
-            stats[f"lp/{key}"] = value
-
-        return stats
+        Note: Learning progress stats are always included in stats() regardless of
+        enable_detailed_logging, so they are not included here to avoid duplication.
+        """
+        # Only return slice analyzer stats (LP stats are always included in stats())
+        return super().get_detailed_stats()  # Gets slice analyzer stats
 
     def _get_bidirectional_detailed_stats(self) -> Dict[str, float]:
         """Get detailed bidirectional learning progress statistics."""

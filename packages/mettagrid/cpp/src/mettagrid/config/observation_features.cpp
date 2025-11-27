@@ -16,6 +16,7 @@ ObservationType Tag;
 ObservationType CooldownRemaining;
 ObservationType Clipped;
 ObservationType RemainingUses;
+ObservationType Goal;
 
 void Initialize(const std::unordered_map<std::string, ObservationType>& feature_ids) {
   _instance = std::make_shared<ObservationFeaturesImpl>(feature_ids);
@@ -32,5 +33,6 @@ void Initialize(const std::unordered_map<std::string, ObservationType>& feature_
   CooldownRemaining = _instance->CooldownRemaining;
   Clipped = _instance->Clipped;
   RemainingUses = _instance->RemainingUses;
+  Goal = _instance->Goal;
 }
 }  // namespace ObservationFeature
