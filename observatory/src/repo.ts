@@ -181,6 +181,7 @@ export type PublicPolicyVersionRow = {
   name: string
   version: number
   tags: Record<string, string>
+  version_count?: number
 }
 
 export type EpisodeReplay = {

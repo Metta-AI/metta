@@ -23,28 +23,14 @@ type LoadState<T> = {
 }
 
 const groupPolicyVersions = (versions: PublicPolicyVersionRow[]): Policy[] => {
-  const policyMap = new Map<string, Policy>()
-
-  for (const pv of versions) {
-    const existing = policyMap.get(pv.policy_id)
-    if (!existing) {
-      policyMap.set(pv.policy_id, {
-        id: pv.policy_id,
-        name: pv.name,
-        user_id: pv.user_id,
-        created_at: pv.policy_created_at,
-        latest_version: pv.version,
-        version_count: 1,
-      })
-    } else {
-      existing.version_count += 1
-      if (pv.version > existing.latest_version) {
-        existing.latest_version = pv.version
-      }
-    }
-  }
-
-  const policies = Array.from(policyMap.values())
+  const policies = versions.map((pv) => ({
+    id: pv.policy_id,
+    name: pv.name,
+    user_id: pv.user_id,
+    created_at: pv.policy_created_at,
+    latest_version: pv.version,
+    version_count: pv.version_count ?? 1,
+  }))
   policies.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   return policies
 }

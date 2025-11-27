@@ -117,6 +117,7 @@ class PublicPolicyVersionRow(BaseModel):
     name: str
     version: int
     tags: dict[str, str] = Field(default_factory=dict)
+    version_count: int | None = None
 
 
 class EpisodeReplay(BaseModel):
@@ -766,7 +767,8 @@ class MettaRepo:
                         p.created_at AS policy_created_at,
                         p.user_id,
                         p.name,
-                        pv.version
+                        pv.version,
+                        pv.version AS version_count
                     FROM policy_versions pv
                     JOIN policies p ON pv.policy_id = p.id
                     {where_clause}
