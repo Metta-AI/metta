@@ -30,7 +30,6 @@ from metta.rl.training import (
     HeartbeatConfig,
     StatsReporterConfig,
     TrainingEnvironmentConfig,
-    UploaderConfig,
     WandbAborterConfig,
 )
 from metta.sim.simulation_config import SimulationConfig
@@ -185,7 +184,6 @@ def _make_baseline(
         training_env=training_env_config,
         policy_architecture=ViTDefaultConfig(),
         initial_policy_uri=None,
-        uploader=UploaderConfig(epoch_interval=1000),
         checkpointer=CheckpointerConfig(epoch_interval=30),
         gradient_reporter=GradientReporterConfig(epoch_interval=0),
         stats_server_uri=None,
