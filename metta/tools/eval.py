@@ -9,8 +9,6 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig, WandbRunAppendContext
 from metta.doxascope.doxascope_data import DoxascopeLogger
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import normalize_policy_uri, policy_spec_from_uri
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult
 from metta.sim.simulate_and_record import (
@@ -21,6 +19,7 @@ from metta.sim.simulate_and_record import (
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.util.url_schemes import get_checkpoint_metadata, policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +66,8 @@ class EvaluateTool(Tool):
         spec = policy_spec_from_uri(normalized_uri, device="cpu")
         return spec
 
-    def _get_policy_metadata(self, policy_uri: str, stats_client: StatsClient) -> MyPolicyMetadata | None:
-        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+    def _get_checkpoint_metadata(self, policy_uri: str, stats_client: StatsClient) -> MyPolicyMetadata | None:
+        metadata = get_checkpoint_metadata(policy_uri)
         result = stats_client.sql_query(
             f"""SELECT pv.id, pv.attributes->>'agent_step'
             FROM policy_versions pv
@@ -85,7 +84,7 @@ class EvaluateTool(Tool):
         )
 
     def handle_single_policy_uri(self, policy_uri: str) -> tuple[int, str, list[SimulationRunResult]]:
-        normalized_uri = normalize_policy_uri(policy_uri)
+        normalized_uri = resolve_uri(policy_uri)
         policy_spec = self._build_policy_spec(normalized_uri)
 
         observatory_writer: ObservatoryWriter | None = None
@@ -95,7 +94,7 @@ class EvaluateTool(Tool):
 
         if self.stats_server_uri is not None:
             stats_client = StatsClient.create(self.stats_server_uri)
-            policy_metadata = self._get_policy_metadata(normalized_uri, stats_client)
+            policy_metadata = self._get_checkpoint_metadata(normalized_uri, stats_client)
 
             if policy_metadata is None:
                 logger.info(
@@ -131,11 +130,6 @@ class EvaluateTool(Tool):
         )
         render_eval_summary(rollout_results, policy_names=[_spec_display_name(policy_spec)], verbose=self.verbose)
 
-        # TODO: this should also submit to stats-server
-        eval_results = to_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
-
-        # self._log_to_wandb(normalized_uri, eval_results, stats_client)
-
         return 0, "Done", rollout_results
 
     def invoke(self, args: dict[str, str]) -> int | None:
@@ -146,10 +140,10 @@ class EvaluateTool(Tool):
             self.policy_uris = [self.policy_uris]
 
         for policy_uri in self.policy_uris:
-            normalized_uri = CheckpointManager.normalize_uri(policy_uri)
             if self.doxascope_logger:
+                normalized_uri = resolve_uri(policy_uri)
                 self.doxascope_logger.configure(policy_uri=normalized_uri)
-            self.handle_single_policy_uri(normalized_uri)
+            self.handle_single_policy_uri(policy_uri)
 
 
 class EvaluatePolicyVersionTool(Tool):

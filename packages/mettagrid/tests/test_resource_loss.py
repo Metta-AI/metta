@@ -13,7 +13,8 @@ class TestResourceLoss:
                 ["#", "#", "#"],
                 ["#", "@", "#"],
                 ["#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
         cfg.game.resource_loss_prob = 1.0
         cfg.game.agent.initial_inventory = {"heart": 5, "battery_blue": 3}
@@ -65,7 +66,8 @@ class TestResourceLoss:
                 ["#", "#", "#"],
                 ["#", "@", "#"],
                 ["#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
         cfg.game.resource_loss_prob = 0.0
         cfg.game.agent.initial_inventory = {"heart": 5, "battery_blue": 3}
@@ -117,7 +119,8 @@ class TestResourceLoss:
                 ["#", "#", "#"],
                 ["#", "@", "#"],
                 ["#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
         cfg.game.actions.noop.enabled = True
         cfg.game.resource_loss_prob = 0.5

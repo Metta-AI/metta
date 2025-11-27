@@ -170,7 +170,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       const AssemblerConfig* assembler_config = dynamic_cast<const AssemblerConfig*>(object_cfg);
       if (assembler_config) {
-        Assembler* assembler = new Assembler(r, c, *assembler_config);
+        Assembler* assembler = new Assembler(r, c, *assembler_config, _stats.get());
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
