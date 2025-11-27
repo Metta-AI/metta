@@ -67,6 +67,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Note: slice_analyzer is already initialized in parent class via StatsLogger
 
+        # Initialize shared caches (used by both scoring methods)
+        self._score_cache: Dict[int, float] = {}
+        self._cache_valid_tasks: set[int] = set()
+
         # Initialize scoring method (bidirectional by default)
         if hypers.use_bidirectional:
             self._init_bidirectional_scoring()
@@ -126,30 +130,29 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Initialize bidirectional EMA tracking (integrated from BidirectionalLearningProgressScorer)."""
         # Bidirectional learning progress tracking
         self._outcomes: Dict[int, List[float]] = {}
+        self._counter: Dict[int, int] = {}
+
+        # Per-task EMA dictionaries (replaces parallel arrays)
+        self._per_task_fast: Dict[int, float] = {}
+        self._per_task_slow: Dict[int, float] = {}
+
+        # Legacy arrays kept for compatibility with distribution calculation
         self._p_fast: Optional[np.ndarray] = None
         self._p_slow: Optional[np.ndarray] = None
         self._p_true: Optional[np.ndarray] = None
         self._random_baseline: Optional[np.ndarray] = None
         self._task_success_rate: np.ndarray = np.array([])
-        self._counter: Dict[int, int] = {}
         self._update_mask: np.ndarray = np.array([])
         self._sample_levels: np.ndarray = np.array([])
 
         # Cache for task distribution and scores
         self._task_dist: Optional[np.ndarray] = None
         self._stale_dist = True
-        self._score_cache: Dict[int, float] = {}
-        self._cache_valid_tasks: set[int] = set()
 
     def _init_basic_scoring(self):
         """Initialize basic EMA tracking (fallback method)."""
         # EMA tracking for each task: task_id -> (ema_score, ema_squared, num_samples)
         self._task_emas: Dict[int, tuple[float, float, int]] = {}
-        # Ensure cache is initialized for basic scoring mode
-        if not hasattr(self, "_score_cache"):
-            self._score_cache: Dict[int, float] = {}
-        if not hasattr(self, "_cache_valid_tasks"):
-            self._cache_valid_tasks: set[int] = set()
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using the configured method (bidirectional by default)."""
@@ -178,32 +181,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if task_id in self._cache_valid_tasks and task_id in self._score_cache:
             return self._score_cache[task_id]
 
-        task_stats = self.task_tracker.get_task_stats(task_id)
-        if not task_stats or task_stats["completion_count"] < 2:
-            # New tasks get exploration bonus
-            score = self.hypers.exploration_bonus
-        elif task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
-            # Tasks without sufficient data get exploration bonus
+        # Check if we have enough data points (use outcomes length, not counter, since outcomes can be trimmed)
+        if task_id not in self._per_task_fast or task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
             score = self.hypers.exploration_bonus
         else:
-            # Calculate bidirectional learning progress
-            self._update_bidirectional_progress()
-
-            # Get task distribution if needed
-            if self._task_dist is None or self._stale_dist:
-                self._calculate_task_distribution()
-
-            # Find task index in our tracking
-            task_indices = list(self._outcomes.keys())
-            if task_id in task_indices and self._task_dist is not None:
-                task_idx = task_indices.index(task_id)
-                if task_idx < len(self._task_dist):
-                    # Use the bidirectional learning progress as score
-                    score = float(self._task_dist[task_idx])
-                else:
-                    score = self.hypers.exploration_bonus
-            else:
-                score = self.hypers.exploration_bonus
+            # Learning progress = |fast - slow|
+            lp = abs(self._per_task_fast[task_id] - self._per_task_slow[task_id])
+            # Small bonus for above-baseline performance
+            perf_bonus = max(self._per_task_fast[task_id], 0) * 0.1
+            score = lp + perf_bonus
 
         # Cache the computed score
         self._score_cache[task_id] = score
@@ -295,6 +281,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if self.hypers.use_bidirectional:
             self._outcomes.pop(task_id, None)
             self._counter.pop(task_id, None)
+            self._per_task_fast.pop(task_id, None)
+            self._per_task_slow.pop(task_id, None)
             self._score_cache.pop(task_id, None)
             self._cache_valid_tasks.discard(task_id)
             self._stale_dist = True
@@ -333,27 +321,41 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.slice_analyzer.update_task_completion(task_id, slice_values, score)
 
     def _update_bidirectional_ema(self, task_id: int, score: float) -> None:
-        """Update bidirectional EMA tracking for a task with new score."""
-        # Convert score to success rate (assuming score is between 0 and 1)
+        """Update bidirectional EMA tracking for a single task."""
+        # Normalize score to [0, 1] range for learning progress calculation
+        # Note: This assumes rewards are normalized. If rewards are outside [0,1],
+        # consider using a different normalization strategy (e.g., sigmoid or min-max scaling)
         success_rate = max(0.0, min(1.0, score))
 
         # Initialize outcomes for new tasks
         if task_id not in self._outcomes:
             self._outcomes[task_id] = []
 
-        # Add outcome and maintain memory limit
         self._outcomes[task_id].append(success_rate)
         self._outcomes[task_id] = self._outcomes[task_id][-self.hypers.memory :]
 
-        # Update counter
         if task_id not in self._counter:
             self._counter[task_id] = 0
         self._counter[task_id] += 1
 
-        # Update bidirectional progress to ensure EMAs are updated
-        self._update_bidirectional_progress()
+        # === FIX: Update only THIS task's EMAs ===
+        baseline = 0.5  # Fixed baseline, not task-dependent
+        denominator = max(1.0 - baseline, 0.01)
+        normalized = (success_rate - baseline) / denominator
 
-        # Mark distribution as stale
+        # Initialize per-task EMAs if needed
+        if task_id not in self._per_task_fast:
+            self._per_task_fast[task_id] = normalized
+            self._per_task_slow[task_id] = normalized
+        else:
+            # Fast EMA
+            self._per_task_fast[task_id] = normalized * self.hypers.ema_timescale + self._per_task_fast[task_id] * (
+                1.0 - self.hypers.ema_timescale
+            )
+            # Slow EMA (5x slower)
+            slow_ts = self.hypers.ema_timescale * 0.2
+            self._per_task_slow[task_id] = normalized * slow_ts + self._per_task_slow[task_id] * (1.0 - slow_ts)
+
         self._stale_dist = True
         self._cache_valid_tasks.discard(task_id)
 
@@ -408,11 +410,21 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         self._update_bidirectional_progress()
 
+        # Always calculate mean_learning_progress from _learning_progress(),
+        # independent of _task_dist which may not be initialized
+        learning_progress_array = self._learning_progress()
+        mean_learning_progress = float(np.mean(learning_progress_array)) if len(learning_progress_array) > 0 else 0.0
+
+        # Ensure task distribution is calculated for distribution stats
+        if self._task_dist is None or self._stale_dist:
+            self._calculate_task_distribution()
+
         stats = {
             "num_tracked_tasks": float(len(self._outcomes)),
             "mean_task_success_rate": float(np.mean(self._task_success_rate))
             if len(self._task_success_rate) > 0
             else 0.0,
+            "mean_learning_progress": mean_learning_progress,
         }
 
         if self._task_dist is not None and len(self._task_dist) > 0:
@@ -420,7 +432,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 {
                     "mean_sample_prob": float(np.mean(self._task_dist)),
                     "num_zeros_lp_dist": float(np.sum(self._task_dist == 0)),
-                    "mean_learning_progress": float(np.mean(self._learning_progress())),
                 }
             )
         else:
@@ -428,7 +439,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 {
                     "mean_sample_prob": 0.0,
                     "num_zeros_lp_dist": 0.0,
-                    "mean_learning_progress": 0.0,
                 }
             )
 
@@ -464,7 +474,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     # Bidirectional learning progress implementation (integrated from modules)
 
     def _update_bidirectional_progress(self):
-        """Update bidirectional learning progress tracking with current task success rates."""
+        """Sync numpy arrays from per-task EMAs for distribution calculation and stats.
+
+        Note: This no longer recalculates EMAs - it only syncs arrays from per-task dictionaries
+        for compatibility with distribution calculation and statistics.
+        """
         if not self._outcomes:
             return
 
@@ -475,7 +489,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if num_tasks == 0:
             return
 
-        # Calculate task success rates
+        # Calculate task success rates for stats
         task_success_rates = np.array(
             [
                 np.mean(self._outcomes[task_id]) if self._outcomes[task_id] else DEFAULT_SUCCESS_RATE
@@ -488,77 +502,55 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Initialize random baseline if needed
         if self._random_baseline is None or len(self._random_baseline) != num_tasks:
-            # Random baseline should represent baseline/random performance, typically around 0.5
-            # Don't use actual task performance as baseline - that defeats the purpose
             self._random_baseline = np.full(num_tasks, 0.5)
 
         # Create update mask for tasks with sufficient data
         self._update_mask = np.array([len(self._outcomes[task_id]) >= 2 for task_id in task_ids])
 
-        if not np.any(self._update_mask):
-            return
-
-        # Handle division by zero in normalization
-        denominator = 1.0 - self._random_baseline[self._update_mask]
-        denominator = np.where(denominator <= 0, 1.0, denominator)
-
-        # Allow negative normalized rates for bidirectional algorithm
-        # This captures the full range of performance relative to baseline
-        normalized_task_success_rates = (
-            task_success_rates[self._update_mask] - self._random_baseline[self._update_mask]
-        ) / denominator
-
-        # Initialize or update fast and slow EMAs
+        # Sync arrays from per-task EMAs (for distribution calculation)
         if self._p_fast is None or len(self._p_fast) != num_tasks:
             self._p_fast = np.zeros(num_tasks)
             self._p_slow = np.zeros(num_tasks)
             self._p_true = np.zeros(num_tasks)
 
-            self._p_fast[self._update_mask] = normalized_task_success_rates
-            self._p_slow[self._update_mask] = normalized_task_success_rates
-            self._p_true[self._update_mask] = task_success_rates[self._update_mask]
-        else:
-            # Resize arrays if needed
-            if (
-                self._p_fast is not None
-                and self._p_slow is not None
-                and self._p_true is not None
-                and len(self._p_fast) != num_tasks
-            ):
-                new_p_fast = np.zeros(num_tasks)
-                new_p_slow = np.zeros(num_tasks)
-                new_p_true = np.zeros(num_tasks)
+        # Ensure arrays are initialized (type checker guard)
+        assert self._p_fast is not None and self._p_slow is not None and self._p_true is not None
 
-                min_len = min(len(self._p_fast), num_tasks)
-                new_p_fast[:min_len] = self._p_fast[:min_len]
-                new_p_slow[:min_len] = self._p_slow[:min_len]
-                new_p_true[:min_len] = self._p_true[:min_len]
-
-                self._p_fast = new_p_fast
-                self._p_slow = new_p_slow
-                self._p_true = new_p_true
-
-            # Update EMAs (with None checks)
-            if self._p_fast is not None and self._p_slow is not None and self._p_true is not None:
-                # Fast EMA uses the configured timescale
-                self._p_fast[self._update_mask] = (
-                    normalized_task_success_rates * self.hypers.ema_timescale
-                    + self._p_fast[self._update_mask] * (1.0 - self.hypers.ema_timescale)
-                )
-                # Slow EMA uses a much slower timescale for better differentiation
-                slow_timescale = self.hypers.ema_timescale * 0.2
-                self._p_slow[self._update_mask] = normalized_task_success_rates * slow_timescale + self._p_slow[
-                    self._update_mask
-                ] * (1.0 - slow_timescale)
-                self._p_true[self._update_mask] = task_success_rates[
-                    self._update_mask
-                ] * self.hypers.ema_timescale + self._p_true[self._update_mask] * (1.0 - self.hypers.ema_timescale)
+        # Sync per-task EMAs to arrays
+        for idx, task_id in enumerate(task_ids):
+            if task_id in self._per_task_fast and task_id in self._per_task_slow:
+                self._p_fast[idx] = self._per_task_fast[task_id]
+                self._p_slow[idx] = self._per_task_slow[task_id]
+            else:
+                # Initialize from normalized success rate if not in per-task dicts
+                baseline = 0.5
+                denominator = max(1.0 - baseline, 0.01)
+                normalized = (task_success_rates[idx] - baseline) / denominator
+                self._p_fast[idx] = normalized
+                self._p_slow[idx] = normalized
+            self._p_true[idx] = task_success_rates[idx]
 
         self._task_success_rate = task_success_rates
         self._stale_dist = True
 
     def _learning_progress(self, reweight: bool = True) -> np.ndarray:
-        """Calculate learning progress as the difference between fast and slow moving averages."""
+        """Calculate learning progress as the difference between fast and slow moving averages.
+
+        Note: This builds arrays from per-task EMAs for distribution calculation.
+        Individual task scores use per-task EMAs directly.
+        """
+        # Ensure arrays are synced from per-task EMAs
+        if not self._outcomes:
+            return np.array([])
+
+        task_ids = sorted(self._outcomes.keys())
+        if not task_ids:
+            return np.array([])
+
+        # Sync arrays if needed
+        if self._p_fast is None or len(self._p_fast) != len(task_ids):
+            self._update_bidirectional_progress()
+
         if self._p_fast is None or self._p_slow is None:
             return np.array([])
 
@@ -653,6 +645,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 {
                     "outcomes": {k: v for k, v in self._outcomes.items()},
                     "counter": self._counter,
+                    "per_task_fast": self._per_task_fast,
+                    "per_task_slow": self._per_task_slow,
                     "p_fast": self._p_fast.tolist() if self._p_fast is not None else None,
                     "p_slow": self._p_slow.tolist() if self._p_slow is not None else None,
                     "p_true": self._p_true.tolist() if self._p_true is not None else None,
@@ -678,6 +672,24 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if "outcomes" in state:
             self._outcomes = state["outcomes"]
             self._counter = state["counter"]
+
+            # Restore per-task EMAs (new format)
+            if "per_task_fast" in state and "per_task_slow" in state:
+                self._per_task_fast = state["per_task_fast"]
+                self._per_task_slow = state["per_task_slow"]
+            else:
+                # Backward compatibility: reconstruct per-task EMAs from arrays
+                self._per_task_fast = {}
+                self._per_task_slow = {}
+                if state["p_fast"] is not None and state["p_slow"] is not None:
+                    task_ids = sorted(self._outcomes.keys())
+                    p_fast = np.array(state["p_fast"])
+                    p_slow = np.array(state["p_slow"])
+                    for idx, task_id in enumerate(task_ids):
+                        if idx < len(p_fast) and idx < len(p_slow):
+                            self._per_task_fast[task_id] = float(p_fast[idx])
+                            self._per_task_slow[task_id] = float(p_slow[idx])
+
             self._p_fast = np.array(state["p_fast"]) if state["p_fast"] is not None else None
             self._p_slow = np.array(state["p_slow"]) if state["p_slow"] is not None else None
             self._p_true = np.array(state["p_true"]) if state["p_true"] is not None else None
