@@ -669,7 +669,7 @@ class LLMAgentPolicy(AgentPolicy):
             self.debugger = None
 
         # Initialize LLM client
-        # Note: Model selection is handled by LLMMultiAgentPolicy, so model should always be provided
+        # Note: API key validation is handled by LLMMultiAgentPolicy before creating agent policies
         if self.provider == "openai":
             from openai import OpenAI
 
@@ -1169,6 +1169,30 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         self.use_dynamic_prompts = use_dynamic_prompts
         self.context_window_size = context_window_size
         self.mg_cfg = mg_cfg
+
+        # Check API key before model selection for paid providers
+        if provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+            print(
+                "\n\033[1;31mError:\033[0m OPENAI_API_KEY environment variable is not set.\n\n"
+                "To use OpenAI GPT models, you need to:\n"
+                "  1. Get an API key from https://platform.openai.com/api-keys\n"
+                "  2. Export it in your terminal:\n"
+                "     export OPENAI_API_KEY='your-api-key-here'\n\n"
+                "Alternatively, use local Ollama (free):\n"
+                "  cogames play -m <mission> -p class=llm-ollama\n"
+            )
+            sys.exit(1)
+        elif provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
+            print(
+                "\n\033[1;31mError:\033[0m ANTHROPIC_API_KEY environment variable is not set.\n\n"
+                "To use Anthropic Claude models, you need to:\n"
+                "  1. Get an API key from https://console.anthropic.com/settings/keys\n"
+                "  2. Export it in your terminal:\n"
+                "     export ANTHROPIC_API_KEY='your-api-key-here'\n\n"
+                "Alternatively, use local Ollama (free):\n"
+                "  cogames play -m <mission> -p class=llm-ollama\n"
+            )
+            sys.exit(1)
 
         # Select model once for all agents if not specified
         if model is None:
