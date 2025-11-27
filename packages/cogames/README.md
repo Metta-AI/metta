@@ -59,6 +59,11 @@ cogames tutorial
 # Play an episode of the easy_hearts mission with a scripted policy
 cogames play -m easy_hearts -p class=baseline
 
+# Play with an LLM policy (requires Ollama running locally, or API keys for gpt/claude)
+cogames play -m easy_mode -p class=llm-ollama
+cogames play -m easy_mode -p class=llm-gpt
+cogames play -m easy_mode -p class=llm-claude
+
 # Try the scripted policy on a set of eval missions
 cogames eval -set integrated_evals -p class=baseline
 
