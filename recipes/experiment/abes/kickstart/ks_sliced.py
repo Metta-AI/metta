@@ -124,13 +124,13 @@ def train(
     #     "s3://softmax-public/policies/av.student.11.26.07/av.student.11.26.07:v300.mpt"
     # )
     # default size. hit 6.7 at 15b steps
-    # losses_config.sliced_kickstarter.teacher_uri = (
-    #     "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
-    # )
-    # vit_large_lstm. went to 6.7 at 2.5b steps but unstable after that
     losses_config.sliced_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.student.11.25.33/av.student.11.25.33:v500.mpt"
+        "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
     )
+    # vit_large_lstm. went to 6.7 at 2.5b steps but unstable after that
+    # losses_config.sliced_kickstarter.teacher_uri = (
+    #     "s3://softmax-public/policies/av.student.11.25.33/av.student.11.25.33:v500.mpt"
+    # )
 
     ks_end_step = 1_300_000_000
     losses_config.ppo_critic.sample_enabled = False
