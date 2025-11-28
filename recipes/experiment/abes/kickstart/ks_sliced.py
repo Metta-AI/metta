@@ -9,9 +9,8 @@ import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 
 # from metta.agent.policies.vit_large_lstm import ViTLargeLSTMConfig
+# from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policies.vit_large2_lstm import ViTLarge2LSTMConfig
-
-# from metta.agent.policies.vit_large2_lstm import ViTLarge2LSTMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
