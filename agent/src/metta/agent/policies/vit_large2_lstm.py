@@ -17,11 +17,12 @@ class ViTLarge2LSTMConfig(PolicyArchitecture):
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    _token_embed_dim = 8
+    _token_embed_dim = 12  # 8
     _fourier_freqs = 3
-    _latent_dim = 256  # Increased from 64 to 256 (LSTM width)
+    _vit_layers = 3  # 2
+    _latent_dim = 384  # Increased from 64 to 256 (LSTM width)
     _actor_hidden = 1024  # Increased from 256
-    _critic_hidden = 1024  # Increased from 512
+    _critic_hidden = 1536  # Increased from 512
 
     # Whether training passes cached pre-state to the Cortex core
     pass_state_during_training: bool = False
@@ -41,7 +42,7 @@ class ViTLarge2LSTMConfig(PolicyArchitecture):
             latent_dim=_latent_dim,
             num_latents=12,
             num_heads=4,
-            num_layers=2,
+            num_layers=_vit_layers,
         ),
         CortexTDConfig(
             in_key="obs_latent_attn",
@@ -51,7 +52,7 @@ class ViTLarge2LSTMConfig(PolicyArchitecture):
             key_prefix="vit_cortex_state",
             stack_cfg=build_cortex_auto_config(
                 d_hidden=_latent_dim,
-                num_layers=3,  # Increased from 1 to 2
+                num_layers=3,  # Increased from 1 to 3
                 pattern="L",
                 post_norm=False,
             ),

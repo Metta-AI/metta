@@ -7,7 +7,9 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit_large_lstm import ViTLargeLSTMConfig
+
+# from metta.agent.policies.vit_large_lstm import ViTLargeLSTMConfig
+from metta.agent.policies.vit_large2_lstm import ViTLarge2LSTMConfig
 
 # from metta.agent.policies.vit_large2_lstm import ViTLarge2LSTMConfig
 from metta.agent.policy import PolicyArchitecture
@@ -109,9 +111,9 @@ def train(
     eval_simulations = simulations()
 
     if policy_architecture is None:
-        policy_architecture = ViTLargeLSTMConfig()
+        # policy_architecture = ViTLargeLSTMConfig()
         # policy_architecture = ViTDefaultConfig()
-        # policy_architecture = ViTLarge2LSTMConfig()
+        policy_architecture = ViTLarge2LSTMConfig()
 
     losses_config = LossesConfig()
     losses_config.sliced_kickstarter.enabled = True
@@ -124,15 +126,19 @@ def train(
     #     "s3://softmax-public/policies/av.student.11.26.07/av.student.11.26.07:v300.mpt"
     # )
     # default size. hit 6.7 at 15b steps
-    losses_config.sliced_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
-    )
+    # losses_config.sliced_kickstarter.teacher_uri = (
+    #     "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
+    # )
     # vit_large_lstm. went to 6.7 at 2.5b steps but unstable after that
     # losses_config.sliced_kickstarter.teacher_uri = (
     #     "s3://softmax-public/policies/av.student.11.25.33/av.student.11.25.33:v500.mpt"
     # )
+    # trained off vit_large_lstm. hit 7.0 at 3b steps. More stable
+    losses_config.sliced_kickstarter.teacher_uri = (
+        "s3://softmax-public/policies/av.student.student1.11.27.01/av.student.student1.11.27.01:v800.mpt"
+    )
 
-    ks_end_step = 1_300_000_000
+    ks_end_step = 2_000_000_000
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = ks_end_step
@@ -161,7 +167,7 @@ def train(
                 start_value=0.01,
                 end_value=0.0005,
                 start_agent_step=ks_end_step,
-                end_agent_step=1_800_000_000,
+                end_agent_step=2_500_000_000,
             ),
             # HyperUpdateRule(
             #     loss_instance_name="sliced_kickstarter",
