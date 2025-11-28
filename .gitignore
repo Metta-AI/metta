@@ -129,6 +129,9 @@ cluster_test_jobs.json
 
 # MetaScope
 packages/mettagrid/nim/mettascope/dist/
+# Nim test binaries (compiled via `nim c`, not `nim r` which uses nimcache)
+packages/mettagrid/nim/mettascope/tests/test_*
+!packages/mettagrid/nim/mettascope/tests/test_*.nim
 packages/mettagrid/nim/mettascope/bindings/generated/
 mettascope.out
 !packages/mettagrid/nim/mettascope/data/resources/

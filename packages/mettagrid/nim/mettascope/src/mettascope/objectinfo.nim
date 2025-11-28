@@ -119,7 +119,11 @@ proc updateObjectInfo*() =
       protocolNode.find("**/Outputs").addResource(resource)
     recipeArea.addChild(protocolNode)
 
-  for protocol in selection.protocols:
+  # Display the correct protocols for the current step.
+  # Uses getProtocolsAt to handle time-series protocols correctly,
+  # supporting clip/unclip/re-clip cycles with different unclip protocols.
+  let activeProtocols = selection.getProtocolsAt(step)
+  for protocol in activeProtocols:
     addProtocol(protocol)
 
   x.position = vec2(0, 0)
