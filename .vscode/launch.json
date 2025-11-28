@@ -98,7 +98,8 @@
       "type": "debugpy",
       "request": "launch",
       "module": "metta.common.tool.run_tool",
-      "args": ["recipes.experiment.scratchpad.${env:USER}.play"],
+      // "args": ["recipes.experiment.scratchpad.${env:USER}.play"],
+      "args": ["recipes.prod.arena_basic_easy_shaped.play"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
