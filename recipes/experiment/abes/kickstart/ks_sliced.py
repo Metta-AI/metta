@@ -114,7 +114,7 @@ def train(
     )
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
-    losses_config.ppo_critic.deferred_training_start_step = 1_000_000_000
+    losses_config.ppo_critic.deferred_training_start_step = 1_400_000_000
     trainer_cfg = TrainerConfig(losses=losses_config)
 
     if policy_architecture is None:
@@ -123,16 +123,16 @@ def train(
 
     scheduler = SchedulerConfig(
         run_gates=[
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=1_000_000_000),
+            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=1_400_000_000),
             LossRunGate(
                 loss_instance_name="sliced_kickstarter",
                 phase="rollout",
-                end_at_step=1_000_000_000,
+                end_at_step=1_400_000_000,
             ),
             LossRunGate(
                 loss_instance_name="sliced_kickstarter",
                 phase="train",
-                end_at_step=1_000_000_000,
+                end_at_step=1_400_000_000,
             ),
         ],
         rules=[
@@ -164,7 +164,7 @@ def train(
                 start_value=0.3,
                 end_value=0.0,
                 start_agent_step=0,
-                end_agent_step=1_000_000_000,
+                end_agent_step=1_400_000_000,
             ),
             # HyperUpdateRule(
             #     loss_instance_name="sliced_kickstarter",
