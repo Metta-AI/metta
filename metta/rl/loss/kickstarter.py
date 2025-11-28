@@ -140,6 +140,12 @@ class Kickstarter(Loss):
             (teacher_probs * (teacher_log_probs - student_log_probs)).sum(dim=-1).mean()
         )
 
+        # action-level metric: argmax agreement between teacher and student
+        with torch.no_grad():
+            teacher_argmax = teacher_logits.argmax(dim=-1)
+            student_argmax = student_logits.detach().argmax(dim=-1)
+            ks_action_agreement = (teacher_argmax == student_argmax).float().mean()
+
         # value loss
         teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).reshape(B * TT).detach()
         student_value = student_td["values"].to(dtype=torch.float32)
@@ -149,6 +155,7 @@ class Kickstarter(Loss):
 
         self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
+        self.loss_tracker["ks_action_agreement"].append(float(ks_action_agreement.item()))
         self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
         self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
         self.loss_tracker["ks_teacher_lead_prob"].append(float(self.cfg.teacher_lead_prob))

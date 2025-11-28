@@ -74,7 +74,7 @@ def _smollm_config(
         "async_factor": 1,
     }
 
-    ks_act_loss_coef = 1.0
+    ks_act_loss_coef = 2.0
     ks_value_loss_coef = 1.0
 
     return policy_config, trainer_updates, env_updates, num_agents, ks_act_loss_coef, ks_value_loss_coef
@@ -87,10 +87,11 @@ def _kickstarter_config(ks_act_loss_coef: float, ks_value_loss_coef: float) -> t
     loss_config.ppo_actor.enabled = False
     loss_config.ppo.enabled = True
     loss_config.kickstarter.enabled = True
-    # loss_config.kickstarter.student_forward = True
+    #loss_config.kickstarter.student_forward = True
     loss_config.kickstarter.action_loss_coef = ks_act_loss_coef
     loss_config.kickstarter.value_loss_coef = ks_value_loss_coef
     loss_config.kickstarter.teacher_lead_prob = 1.0
+    loss_config.kickstarter.temperature = 1.0
     loss_config.kickstarter.teacher_uri = (
         "s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt"
     )
@@ -101,49 +102,49 @@ def _kickstarter_config(ks_act_loss_coef: float, ks_value_loss_coef: float) -> t
 
     scheduler = SchedulerConfig(
         run_gates=[
-            # LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_step=1_000_000_000),
-            # LossRunGate(
-            #     loss_instance_name="kickstarter",
-            #     phase="rollout",
-            #     end_at_step=1_000_000_000,
-            # ),
-            # LossRunGate(
-            #     loss_instance_name="kickstarter",
-            #     phase="train",
-            #     end_at_step=1_000_000_000,
-            # ),
+            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_step=1_500_000_000),
+            LossRunGate(
+                loss_instance_name="kickstarter",
+                phase="rollout",
+                end_at_step=1_500_000_000,
+            ),
+            LossRunGate(
+                loss_instance_name="kickstarter",
+                phase="train",
+                end_at_step=1_500_000_000,
+            ),
         ],
         rules=[
-            # HyperUpdateRule(
-            #     loss_instance_name="kickstarter",
-            #     attr_path="action_loss_coef",
-            #     mode="progress",
-            #     style="linear",
-            #     start_value=0.6,
-            #     end_value=0.0,
-            #     start_agent_step=500_000_000,
-            #     end_agent_step=1_000_000_000,
-            # ),
-            # HyperUpdateRule(
-            #     loss_instance_name="kickstarter",
-            #     attr_path="value_loss_coef",
-            #     mode="progress",
-            #     style="linear",
-            #     start_value=1.0,
-            #     end_value=0.0,
-            #     start_agent_step=500_000_000,
-            #     end_agent_step=1_000_000_000,
-            # ),
-        HyperUpdateRule(
-            loss_instance_name="kickstarter",
-            attr_path="teacher_lead_prob",
-            mode="progress",
-            style="cosine",
-            start_value=1.0,
-            end_value=0.0,
-            start_agent_step=30_000_000,
-            end_agent_step=500_000_000,
-        ),
+            HyperUpdateRule(
+                loss_instance_name="kickstarter",
+                attr_path="action_loss_coef",
+                mode="progress",
+                style="cosine",
+                start_value=2.0,
+                end_value=0.0,
+                start_agent_step=800_000_000,
+                end_agent_step=1_500_000_000,
+            ),
+            HyperUpdateRule(
+                loss_instance_name="kickstarter",
+                attr_path="value_loss_coef",
+                mode="progress",
+                style="cosine",
+                start_value=1.0,
+                end_value=0.0,
+                start_agent_step=800_000_000,
+                end_agent_step=1_500_000_000,
+            ),
+            HyperUpdateRule(
+                loss_instance_name="kickstarter",
+                attr_path="teacher_lead_prob",
+                mode="progress",
+                style="cosine",
+                start_value=1.0,
+                end_value=0.0,
+                start_agent_step=800_000_000,
+                end_agent_step=1_500_000_000,
+            ),
         ],
     )
 
