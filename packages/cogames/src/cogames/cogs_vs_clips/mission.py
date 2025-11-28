@@ -281,8 +281,7 @@ class Mission(Config):
         env.label = self.full_name()
 
         for variant in self.variants:
-            # This call causes an AssertionError - TODO: FIX
-            # variant.modify_env(self, env)
+            variant.modify_env(self, env)
             env.label += f".{variant.name}"
 
         return env
