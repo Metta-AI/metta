@@ -23,7 +23,7 @@ export const FilterInput: FC<{
         console.dir(inputRef.current);
         inputRef.current?.focus();
         inputRef.current?.select();
-      }, 0)
+      }, 0);
 
       return () => clearTimeout(id);
     }
