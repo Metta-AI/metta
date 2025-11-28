@@ -30,9 +30,10 @@ export const MissionsRenderer: FC<{
     <>
       <div className="mb-4">
         <FilterInput
+          className="md:w-1/2 lg:w-1/3"
+          placeholder="Filter missions..."
           value={filter}
           onChange={setFilter}
-          placeholder="Filter missions..."
         />
       </div>
 

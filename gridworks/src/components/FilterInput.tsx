@@ -1,12 +1,16 @@
+"use client";
+import clsx from "clsx";
 import { type FC, useEffect, useRef } from "react";
 
 export const FilterInput: FC<{
+  className?: string;
   focus?: boolean;
   placeholder?: string;
   value: string;
   onBlur?: () => void;
   onChange: (value: string) => void;
 }> = ({
+  className,
   focus = false,
   placeholder = "Filter...",
   value,
@@ -36,7 +40,7 @@ export const FilterInput: FC<{
       type="text"
       value={value}
       placeholder={placeholder}
-      className="w-full rounded border border-gray-300 p-2"
+      className={clsx("w-full rounded border border-gray-300 p-2", className)}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
     />
