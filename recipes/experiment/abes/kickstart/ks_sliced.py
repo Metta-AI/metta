@@ -138,7 +138,7 @@ def train(
         "s3://softmax-public/policies/av.student.student1.11.27.01/av.student.student1.11.27.01:v800.mpt"
     )
 
-    ks_end_step = 2_000_000_000
+    ks_end_step = 600_000_000
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = ks_end_step
@@ -167,7 +167,7 @@ def train(
                 start_value=0.01,
                 end_value=0.0005,
                 start_agent_step=ks_end_step,
-                end_agent_step=2_500_000_000,
+                end_agent_step=1_500_000_000,
             ),
             # HyperUpdateRule(
             #     loss_instance_name="sliced_kickstarter",
