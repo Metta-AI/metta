@@ -21,6 +21,7 @@ const VariantsMenu: FC<{
 }> = ({ allVariants, selectedVariants, toggleVariant }) => {
   const isSelected = (variant: string) => selectedVariants?.includes(variant);
   const [filter, setFilter] = useState("");
+  const [focus, setFocus] = useState(true);
 
   const filtered = useMemo(() => {
     if (!filter) return allVariants;
@@ -32,9 +33,11 @@ const VariantsMenu: FC<{
   return (
     <DropdownMenu>
       <FilterInput
-        value={filter}
-        onChange={setFilter}
         placeholder="Filter variants..."
+        focus={focus}
+        value={filter}
+        onBlur={() => setFocus(false)}
+        onChange={setFilter}
       />
 
       <div className="max-h-120 overflow-y-auto">
