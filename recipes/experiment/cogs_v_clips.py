@@ -8,6 +8,7 @@ recipes should import from here and extend via custom defaults, similar to how
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -18,6 +19,7 @@ from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -27,11 +29,14 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
+from metta.tools.utils.auto_config import auto_stats_server_uri
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +279,9 @@ def train(
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
     bc_policy_uri: Optional[str] = None,
+    policy_version_id: Optional[str] = None,
     bc_teacher_lead_prob: float = 1.0,
+    bc_steps: Optional[int] = None,
     use_lp: bool = True,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
@@ -313,16 +320,115 @@ def train(
         evaluator=evaluator_cfg,
     )
 
+    # Resolve policy_version_id to bc_policy_uri if provided
+    if policy_version_id is not None:
+        if bc_policy_uri is not None:
+            raise ValueError("Cannot specify both bc_policy_uri and policy_version_id")
+
+        api_url = auto_stats_server_uri()
+        if api_url is None:
+            raise ValueError("stats_server_uri is required when using policy_version_id (set STATS_SERVER_URI env var)")
+
+        stats_client = StatsClient.create(api_url)
+        policy_version = stats_client.get_policy_version(uuid.UUID(policy_version_id))
+
+        # Try to get URI from policy_spec first
+        bc_policy_uri = None
+        if policy_version.policy_spec and len(policy_version.policy_spec) > 0:
+            try:
+                policy_spec = PolicySpec.model_validate(policy_version.policy_spec)
+                if policy_spec.data_path is not None:
+                    bc_policy_uri = policy_spec.data_path
+            except Exception:
+                # If policy_spec validation fails, fall through to s3_path
+                pass
+
+        # Fallback to s3_path if we don't have a URI yet
+        if bc_policy_uri is None:
+            if policy_version.s3_path is not None:
+                # Ensure s3_path is a proper S3 URI
+                if policy_version.s3_path.startswith("s3://"):
+                    bc_policy_uri = policy_version.s3_path
+                else:
+                    bc_policy_uri = f"s3://{policy_version.s3_path}"
+            else:
+                raise ValueError(
+                    f"Policy version {policy_version_id} has neither a valid policy_spec with data_path nor an s3_path"
+                )
+
+    # Determine bc_steps: 0 for pure RL (no bc_policy_uri), 99999 for pure BC, or use provided value
+    if bc_policy_uri is None:
+        bc_steps = 0  # Pure RL mode
+    elif bc_steps is None:
+        bc_steps = 99999  # Pure BC mode
+
+    if bc_policy_uri is not None:
+        tt.training_env.supervisor.policy = bc_policy_uri
+        tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+
+    # Configure BC-to-PPO annealing schedule
+    # bc_steps is in millions of agent steps (e.g., bc_steps=5 means 5M steps)
+    bc_steps_actual = int(bc_steps * 1_000_000)
+
+    anneal_start = int(bc_steps_actual * 0.5)  # Start annealing at 50% of bc_steps
+    anneal_end = bc_steps_actual  # Complete transition at bc_steps
+
+    # Initially: BC enabled, PPO enabled but gated (won't run until bc_steps)
     if bc_policy_uri is not None:
         tt.trainer.losses.supervisor.enabled = True
         tt.trainer.losses.ppo.enabled = False
-        tt.trainer.losses.ppo_actor.enabled = False
+        tt.trainer.losses.ppo_actor.enabled = True  # Enable but gate it
         tt.trainer.losses.ppo_critic.enabled = True
         tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
         tt.trainer.losses.ppo_critic.sample_enabled = False
         tt.trainer.losses.ppo_critic.train_forward_enabled = False
-        tt.training_env.supervisor.policy = bc_policy_uri
-        tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+
+    # Configure scheduler for annealing
+    scheduler = SchedulerConfig(
+        run_gates=[
+            # Enable PPO rollout and training at the end of BC phase
+            LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_steps_actual),
+            LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=bc_steps_actual),
+            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_steps_actual),
+            LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=bc_steps_actual),
+            # Disable supervisor rollout and training at the end of BC phase
+            LossRunGate(
+                loss_instance_name="action_supervisor",
+                phase="rollout",
+                end_at_step=bc_steps_actual,
+            ),
+            LossRunGate(
+                loss_instance_name="action_supervisor",
+                phase="train",
+                end_at_step=bc_steps_actual,
+            ),
+        ],
+        rules=[
+            # Anneal supervisor action_loss_coef from 1.0 to 0.0
+            HyperUpdateRule(
+                loss_instance_name="action_supervisor",
+                attr_path="action_loss_coef",
+                mode="progress",
+                style="linear",
+                start_value=1.0,
+                end_value=0.0,
+                start_agent_step=anneal_start,
+                end_agent_step=anneal_end,
+            ),
+            # Optionally anneal teacher_lead_prob if it was set > 0
+            HyperUpdateRule(
+                loss_instance_name="action_supervisor",
+                attr_path="teacher_lead_prob",
+                mode="progress",
+                style="linear",
+                start_value=bc_teacher_lead_prob,
+                end_value=0.0,
+                start_agent_step=anneal_start,
+                end_agent_step=anneal_end,
+            ),
+        ],
+    )
+    tt.scheduler = scheduler
 
     return tt
 
