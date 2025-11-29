@@ -115,7 +115,7 @@ def train(
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = 1_400_000_000
-    trainer_cfg = TrainerConfig(losses=losses_config)
+    trainer_cfg = TrainerConfig(total_timesteps=4_000_000_000, losses=losses_config)
 
     if policy_architecture is None:
         # policy_architecture = ViTLargeLSTMConfig()
