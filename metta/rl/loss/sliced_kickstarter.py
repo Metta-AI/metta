@@ -294,13 +294,11 @@ class SlicedKickstarter(Loss):
         student_logits = student_td["logits"]
         teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
         student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
-        # student_probs = torch.exp(student_log_probs)
+        student_probs = torch.exp(student_log_probs)
         teacher_probs = torch.exp(teacher_log_probs)
-        # ks_action_loss = (temperature**2) * (
-        #     (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
-        # )
         ks_action_loss = (temperature**2) * (
-            (teacher_probs * (teacher_log_probs - student_log_probs)).sum(dim=-1).mean()
+            (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
+            + (teacher_probs * (teacher_log_probs - student_log_probs)).sum(dim=-1).mean()
         )
 
         # value loss
