@@ -728,6 +728,7 @@ class MettaRepo:
         self,
         name_exact: str | None = None,
         name_fuzzy: str | None = None,
+        version: int | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[PublicPolicyVersionRow], int]:
@@ -742,6 +743,10 @@ class MettaRepo:
             if name_fuzzy:
                 where_conditions.append("p.name ILIKE %s")
                 params.append(f"%{name_fuzzy}%")
+
+            if version is not None:
+                where_conditions.append("pv.version = %s")
+                params.append(version)
 
             where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
 
