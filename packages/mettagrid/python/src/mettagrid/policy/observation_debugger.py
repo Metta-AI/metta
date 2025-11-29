@@ -1,8 +1,4 @@
-"""Human-readable observation debugger for LLM policies.
-
-This module provides utilities to convert agent observations into human-readable
-format, helping debug what the LLM "sees" and "knows" about the game state.
-"""
+"""Human-readable observation debugger for LLM policies."""
 
 from __future__ import annotations
 
@@ -47,8 +43,7 @@ class ObservationDebugger:
         # Parse observation tokens
         spatial_grid = self._build_spatial_grid(obs)
         agent_state = self._extract_agent_state(obs, agent_x, agent_y)
-        nearby_objects = self._find_nearby_objects(obs, agent_x, agent_y)
-        directional_info = self._analyze_directions(obs, spatial_grid, agent_x, agent_y)
+        directional_info = self._analyze_directions( spatial_grid, agent_x, agent_y)
 
         # Agent state section
         lines.append("\n📊 AGENT STATE:")
@@ -61,14 +56,6 @@ class ObservationDebugger:
         lines.append("\n🧭 DIRECTIONAL AWARENESS:")
         for direction, info in directional_info.items():
             lines.append(f"  {direction}: {info}")
-
-        # Nearby objects section
-        lines.append("\n🎯 NEARBY OBJECTS:")
-        if nearby_objects:
-            for obj_info in nearby_objects:
-                lines.append(f"  {obj_info}")
-        else:
-            lines.append("  No objects detected nearby")
 
         # Spatial grid visualization
         lines.append("\n🗺️  SPATIAL GRID (what agent sees):")
@@ -99,7 +86,6 @@ class ObservationDebugger:
         grid: dict[tuple[int, int], list[dict]] = {}
 
         for token in obs.tokens:
-            # IMPORTANT: row() returns X, col() returns Y (swapped from typical convention)
             x, y = token.row(), token.col()
             if (x, y) not in grid:
                 grid[(x, y)] = []
@@ -134,7 +120,6 @@ class ObservationDebugger:
             if token.feature.name == "tag":
                 tag_name = self.policy_env_info.tags[token.value] if token.value < len(self.policy_env_info.tags) else None
                 if tag_name == "agent":
-                    # IMPORTANT: row() returns X, col() returns Y
                     return token.row(), token.col()
 
         # If no agent tag found, assume center (egocentric view default)
@@ -155,7 +140,6 @@ class ObservationDebugger:
 
         for token in obs.tokens:
             # Look for agent-specific features at agent's location
-            # IMPORTANT: row() returns X, col() returns Y
             if token.row() == agent_x and token.col() == agent_y:
                 if token.feature.name == "agent:frozen":
                     state["Frozen"] = "Yes" if token.value > 0 else "No"
@@ -179,67 +163,10 @@ class ObservationDebugger:
 
         return state
 
-    def _find_nearby_objects(self, obs: AgentObservation, agent_x: int, agent_y: int) -> list[str]:
-        """Find nearby objects and their properties.
-
-        Args:
-            obs: Agent observation
-            agent_x: Agent's X coordinate
-            agent_y: Agent's Y coordinate
-
-        Returns:
-            List of human-readable object descriptions
-        """
-        objects = []
-        seen_locations = set()
-
-        for token in obs.tokens:
-            # IMPORTANT: row() returns X, col() returns Y
-            x, y = token.row(), token.col()
-            location_key = (x, y, token.feature.name)
-
-            # Skip agent's own location for object detection
-            if x == agent_x and y == agent_y:
-                continue
-
-            # Skip duplicate locations
-            if location_key in seen_locations:
-                continue
-
-            # Look for tag features (indicate objects)
-            if token.feature.name == "tag" and token.value < len(self.policy_env_info.tags):
-                seen_locations.add(location_key)
-                tag_name = self.policy_env_info.tags[token.value]
-                dx = x - agent_x
-                dy = y - agent_y
-                distance = abs(dx) + abs(dy)  # Manhattan distance
-
-                # Determine direction
-                direction = self._get_direction_description(dx, dy)
-
-                obj_desc = f"{tag_name} at {direction} (distance: {distance})"
-
-                # Add additional properties if available
-                properties = []
-                for t in obs.tokens:
-                    if t.row() == x and t.col() == y:
-                        if t.feature.name == "cooldown_remaining" and t.value > 0:
-                            properties.append(f"cooldown: {t.value}")
-                        elif t.feature.name == "remaining_uses" and t.value > 0:
-                            properties.append(f"uses left: {t.value}")
-
-                if properties:
-                    obj_desc += f" [{', '.join(properties)}]"
-
-                objects.append(obj_desc)
-
-        return sorted(objects, key=lambda x: int(x.split("distance: ")[1].split(")")[0])) if objects else []
-
-    def _analyze_directions(self, obs: AgentObservation, spatial_grid: dict[tuple[int, int], list[dict]], agent_x: int, agent_y: int) -> dict[str, str]:
+    def _analyze_directions(self,  spatial_grid: dict[tuple[int, int], list[dict]], agent_x: int, agent_y: int) -> dict[str, str]:
         """Analyze what's in each cardinal direction.
 
         Args:
-            obs: Agent observation
             spatial_grid: Spatial grid of tokens
             agent_x: Agent's X coordinate
             agent_y: Agent's Y coordinate
@@ -309,35 +236,37 @@ class ObservationDebugger:
         """Create ASCII visualization of spatial grid.
 
         Args:
-            spatial_grid: Spatial grid of tokens
-            agent_x: Agent's X coordinate
-            agent_y: Agent's Y coordinate
+            spatial_grid: Spatial grid of tokens (keys are (row, col) from token.row(), token.col())
+            agent_x: Agent's row coordinate (from token.row())
+            agent_y: Agent's col coordinate (from token.col())
 
         Returns:
             ASCII grid visualization
         """
         lines = []
-        lines.append("  " + "".join([f"{x:2}" for x in range(self.obs_width)]))
+        # Column headers
+        lines.append("  " + "".join([f"{col:2}" for col in range(self.obs_width)]))
 
-        for y in range(self.obs_height):
-            row = f"{y:2} "
-            for x in range(self.obs_width):
-                if x == agent_x and y == agent_y:
-                    row += "@ "  # Agent position
-                elif (x, y) in spatial_grid:
+        # Grid rows - spatial_grid keys are (row, col)
+        for row in range(self.obs_height):
+            row_str = f"{row:2} "
+            for col in range(self.obs_width):
+                if row == agent_x and col == agent_y:
+                    row_str += "@ "  # Agent position
+                elif (row, col) in spatial_grid:
                     # Find tag to display
                     tag_found = False
-                    for token_info in spatial_grid[(x, y)]:
+                    for token_info in spatial_grid[(row, col)]:
                         if token_info["tag"]:
                             # Use first letter of tag
-                            row += token_info["tag"][0].upper() + " "
+                            row_str += token_info["tag"][0].upper() + " "
                             tag_found = True
                             break
                     if not tag_found:
-                        row += "· "  # Something there but no tag
+                        row_str += "· "  # Something there but no tag
                 else:
-                    row += ". "  # Empty
-            lines.append(row)
+                    row_str += ". "  # Empty
+            lines.append(row_str)
 
         lines.append("\n  Legend: @ = Agent, . = Empty, · = Unknown, Letters = Object tags")
         return "\n".join(lines)
@@ -355,7 +284,7 @@ class ObservationDebugger:
 
         for token in obs.tokens:
             if token.feature.name.startswith("inv:"):
-                resource_name = token.feature.name[4:]  # Remove 'inv:' prefix
+                resource_name = token.feature.name[4:]
                 if token.value > 0:
                     inventory[resource_name] = token.value
 

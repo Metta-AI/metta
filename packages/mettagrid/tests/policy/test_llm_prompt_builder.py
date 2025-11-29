@@ -123,58 +123,56 @@ class TestLLMPromptBuilder:
         """Test that basic_info_prompt contains essential game information."""
         basic_info = prompt_builder.basic_info_prompt()
 
-        # Check for key sections
-        assert "COORDINATE SYSTEM" in basic_info
-        assert "OBSERVATION FORMAT" in basic_info
-        assert "MOVEMENT" in basic_info or "CRITICAL GAMEPLAY RULES" in basic_info
-        assert "AVAILABLE ACTIONS" in basic_info
+        # Check for key sections in minimal prompt
+        assert "GOAL" in basic_info
+        assert "HOW TO PLAY" in basic_info
+        assert "HEART RECIPE" in basic_info
+        assert "VIBES" in basic_info
 
-        # Check coordinate system details
-        assert "11x11 grid" in basic_info
-        assert "x=5, y=5" in basic_info  # Center position
+        # Check heart recipe is present
+        assert "HEART" in basic_info
+        assert "carbon" in basic_info
 
-        # Check that it explains walkability
-        assert "WALKABLE" in basic_info or "walkable" in basic_info
+        # Check key gameplay instructions
+        assert "ADJACENT" in basic_info
+        assert "heart_a" in basic_info
+        assert "heart_b" in basic_info
 
     def test_observable_prompt_extracts_visible_elements(self, prompt_builder, sample_observation):
         """Test that observable_prompt only describes visible elements."""
         observable = prompt_builder.observable_prompt(sample_observation)
 
-        # Should include visible tags section
-        assert "OBJECTS YOU CAN SEE" in observable
+        # Should include spatial map section
+        assert "MAP" in observable
+        assert "@" in observable  # Agent position marker
 
-        # Should include visible features section
-        assert "FEATURES YOU CAN SEE" in observable
+        # Should include directional awareness section
+        assert "ADJACENT TILES" in observable
 
-        # Should include current observation JSON
-        assert "CURRENT OBSERVATION" in observable
-        assert "visible_objects" in observable
+        # Should include inventory section
+        assert "INVENTORY" in observable
 
     def test_observable_prompt_filters_to_visible_only(self, prompt_builder, sample_observation):
         """Test that observable_prompt doesn't include invisible elements."""
         observable = prompt_builder.observable_prompt(sample_observation)
 
-        # Should mention visible tags (wall=8, carbon_extractor=2)
-        assert "wall" in observable.lower() or "tag 8" in observable.lower()
+        # Should mention visible objects with directions (wall, carbon_extractor)
+        assert "wall" in observable.lower() or "carbon_extractor" in observable.lower()
 
-        # Should NOT mention tags that aren't visible (e.g., chest, assembler)
-        # This is harder to test definitively, but we can check structure
-        visible_section = observable.split("OBJECTS YOU CAN SEE")[1].split("===")[0]
-        # Count how many tag descriptions are present
-        tag_count = visible_section.count("Tag ")
-        # Should be small (only visible tags)
-        assert tag_count <= 5  # Sample has 2 tags, but this is a loose check
+        # Should have directional info
+        assert "North" in observable or "South" in observable or "East" in observable or "West" in observable
+
+        # Should show blocked status for adjacent walls
+        assert "BLOCKED" in observable
 
     def test_full_prompt_combines_basic_and_observable(self, prompt_builder, sample_observation):
         """Test that full_prompt contains both basic_info and observable."""
         full = prompt_builder.full_prompt(sample_observation)
-        basic = prompt_builder.basic_info_prompt()
-        observable = prompt_builder.observable_prompt(sample_observation)
 
         # Full prompt should contain key parts of both
-        assert "COORDINATE SYSTEM" in full  # From basic_info
-        assert "OBJECTS YOU CAN SEE" in full  # From observable
-        assert "CURRENT OBSERVATION" in full  # From observable
+        assert "GOAL" in full  # From basic_info
+        assert "MAP" in full  # From observable (spatial grid)
+        assert "ADJACENT TILES" in full  # From observable
 
         # Should also include the response instructions
         assert "EXACTLY ONE action name" in full
@@ -184,8 +182,8 @@ class TestLLMPromptBuilder:
         prompt, includes_basic = prompt_builder.context_prompt(sample_observation)
 
         assert includes_basic is True
-        assert "COORDINATE SYSTEM" in prompt
-        assert "AVAILABLE ACTIONS" in prompt
+        assert "GOAL" in prompt
+        assert "HEART RECIPE" in prompt
         assert prompt_builder.step_count == 1
 
     def test_context_prompt_second_step_excludes_basic_info(self, prompt_builder, sample_observation):
@@ -197,9 +195,8 @@ class TestLLMPromptBuilder:
         prompt, includes_basic = prompt_builder.context_prompt(sample_observation)
 
         assert includes_basic is False
-        assert "COORDINATE SYSTEM" not in prompt
-        assert "AVAILABLE ACTIONS" not in prompt
-        assert "OBJECTS YOU CAN SEE" in prompt  # Observable is still there
+        assert "GOAL" not in prompt  # Basic info not included
+        assert "ADJACENT TILES" in prompt  # Observable is still there
         assert prompt_builder.step_count == 2
 
     def test_context_prompt_resets_at_window_boundary(self, prompt_builder, sample_observation):
@@ -232,7 +229,7 @@ class TestLLMPromptBuilder:
         )
 
         assert includes_basic is True
-        assert "COORDINATE SYSTEM" in prompt
+        assert "GOAL" in prompt
 
     def test_reset_context(self, prompt_builder, sample_observation):
         """Test that reset_context resets the step counter."""
@@ -341,8 +338,8 @@ class TestLLMPromptBuilder:
         observable = prompt_builder.observable_prompt(empty_obs)
         assert isinstance(observable, str)
 
-        # Should still have structure
-        assert "CURRENT OBSERVATION" in observable
+        # Should still have directional awareness structure
+        assert "ADJACENT TILES" in observable
 
     def test_json_serialization_of_observation(self, prompt_builder, sample_observation):
         """Test that observation JSON is valid and serializable."""

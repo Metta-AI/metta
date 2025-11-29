@@ -27,11 +27,6 @@ def initialize_or_load_policy(
 
     Expects PolicySpec to have local paths, shorthand or fully-specified. But should not have remote paths (e.g. s3://).
 
-    Args:
-        policy_env_info: Policy environment interface
-        policy_spec: Policy specification with class path and optional data path
-        mg_cfg: Optional MettaGridConfig to pass to policies that accept it (e.g., LLM policies)
-
     Returns:
         Initialized policy instance
     """
