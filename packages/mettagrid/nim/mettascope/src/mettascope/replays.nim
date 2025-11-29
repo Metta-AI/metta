@@ -46,6 +46,8 @@ type
     itemId*: int
     count*: int
 
+  ProtocolTimeEntry* = tuple[step: int, protocols: seq[Protocol]]
+
   Entity* = ref object
     # Common keys.
     id*: int
@@ -91,6 +93,7 @@ type
     cooldownMultiplier*: seq[float]
     currentRecipeId*: int
     protocols*: seq[Protocol]
+    protocolTimeSeries*: seq[ProtocolTimeEntry]
 
     # Computed fields.
     gainMap*: seq[seq[ItemAmount]]
@@ -189,6 +192,18 @@ let EmptyReplay* = Replay(
   mapSize: (0, 0),
   fileName: "",
 )
+
+proc getProtocolsAt*(entity: Entity, step: int): seq[Protocol] =
+  ## Get the protocols active at the given step.
+  ## For time-series format, finds the latest entry with step <= requested step.
+  ## For direct array format, returns the protocols field.
+  if entity.protocolTimeSeries.len == 0:
+    return entity.protocols
+  # Find the latest entry with step <= requested step
+  for i in countdown(entity.protocolTimeSeries.len - 1, 0):
+    if entity.protocolTimeSeries[i].step <= step:
+      return entity.protocolTimeSeries[i].protocols
+  return @[]
 
 proc parseHook*(s: string, i: var int, v: var IVec2) =
   var arr: array[2, int32]
@@ -731,7 +746,25 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
         entity.cooldownTime = 0
 
     if "protocols" in obj:
-      entity.protocols = fromJson($(obj["protocols"]), seq[Protocol])
+      let protocolsNode = obj["protocols"]
+      # Protocols can be either a direct array [{...}, {...}] or a time-series
+      # format [[step, [{...}]], [step, [{...}]], ...]. Handle both cases.
+      # For time-series, we store ALL entries in protocolTimeSeries to support
+      # correct lookup at any step (handles clip/unclip/re-clip cycles with
+      # different unclip protocols).
+      if protocolsNode.kind == JArray and protocolsNode.len > 0:
+        let firstElem = protocolsNode[0]
+        if firstElem.kind == JArray and firstElem.len == 2 and firstElem[0].kind == JInt:
+          # Time-series format: store all entries in protocolTimeSeries
+          entity.protocolTimeSeries = @[]
+          for elem in protocolsNode:
+            if elem.kind == JArray and elem.len == 2 and elem[0].kind == JInt:
+              let step = elem[0].getInt
+              let protocols = fromJson($elem[1], seq[Protocol])
+              entity.protocolTimeSeries.add((step: step, protocols: protocols))
+        else:
+          # Direct array format: store in protocols field
+          entity.protocols = fromJson($protocolsNode, seq[Protocol])
 
     replay.objects.add(entity)
 
