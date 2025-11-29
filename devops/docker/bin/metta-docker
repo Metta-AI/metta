@@ -1,0 +1,38 @@
+#!/bin/bash
+
+if ! [ -d .git/ ]; then
+    echo "fatal: run in git root" >&2
+    exit 1
+fi
+
+origin="$(git remote -vv | head -n1 | awk '{print $2}')"
+case "$origin" in
+  *Metta-AI/metta*)
+    ;;
+  *)
+    echo "fatal: run in metta repo" >&2
+    exit 1
+    ;;
+esac
+
+image="${IMAGE:-metta:everything}"
+
+user_home_volume="${METTA_DOCKER_USER_HOME:-$HOME/.metta-docker-home}"
+mkdir -p "$user_home_volume"
+
+docker run --rm -t "${GPU_FLAGS[@]}" --network=host \
+--gpus all \
+--user 1000:1000 \
+--entrypoint "" \
+-v "$user_home_volume":/user \
+-e HOME=/user \
+-e METTA_HOME=/user/.metta \
+-e CUBLAS_WORKSPACE_CONFIG=:4096:8 \
+-e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+-e VIRTUAL_ENV= \
+-e GIT_CONFIG_COUNT=1 \
+-e GIT_CONFIG_KEY_0=safe.directory \
+-e GIT_CONFIG_VALUE_0=/workspace \
+-v "$PWD":/workspace \
+-w /workspace \
+"$image" "$@"
