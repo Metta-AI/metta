@@ -133,6 +133,16 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
         label="Ladybug",
         policy_path="cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
     ),
+    "thinky": AgentConfig(
+        key="thinky",
+        label="Thinky",
+        policy_path="cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
+    ),
+    "racecar": AgentConfig(
+        key="racecar",
+        label="RaceCar",
+        policy_path="cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy",
+    ),
     "starter": AgentConfig(
         key="starter",
         label="Starter",
