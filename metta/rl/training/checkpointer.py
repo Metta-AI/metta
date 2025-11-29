@@ -8,7 +8,8 @@ from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training import DistributedHelper, TrainerComponent
+from metta.rl.training.component import TrainerComponent
+from metta.rl.training.distributed_helper import DistributedHelper
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface

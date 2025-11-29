@@ -17,7 +17,7 @@ from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.context import WandbRun
-from metta.rl.training import TrainerComponent
+from metta.rl.training.component import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.remote import evaluate_remotely

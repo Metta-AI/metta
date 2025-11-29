@@ -22,14 +22,12 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from recipes.experiment.cogs_v_clips import BASELINE as COGS_BASELINE
 from recipes.experiment.cvc.dense_training_env import DENSE_TRAINING_MISSIONS
 
 
@@ -232,9 +230,8 @@ def train(
         use_all_maps=use_all_maps,
     )
 
-    trainer_cfg = TrainerConfig(
-        losses=LossesConfig(),
-    )
+    baseline = COGS_BASELINE.model_copy(deep=True)
+    baseline.training_env.curriculum = resolved_curriculum
 
     # Create eval suite with the dense training missions
     # Build eval simulations for each mission at full resource level (10)
@@ -248,15 +245,9 @@ def train(
         )
         eval_simulations.append(sim)
 
-    evaluator_cfg = EvaluatorConfig(
-        simulations=eval_simulations,
-    )
+    baseline.evaluator.simulations = eval_simulations
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
-        evaluator=evaluator_cfg,
-    )
+    return baseline
 
 
 def evaluate(

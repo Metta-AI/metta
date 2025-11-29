@@ -3,19 +3,10 @@
 from metta.agent.policies.vit_grpo import ViTGRPOConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.trainer_config import OptimizerConfig
 from metta.tools.train import TrainTool
-
-# Import everything from the base arena recipe
-from recipes.experiment.arena import (
-    make_curriculum,
-    simulations,
-)
 from recipes.experiment.arena import train_shaped as base_train_shaped
-from recipes.prod.arena_basic_easy_shaped import (
-    train as arena_basic_easy_shaped_train,
-)
+from recipes.prod.arena_basic_easy_shaped import BASELINE as ARENA_BASELINE
 
 
 def train(
@@ -28,7 +19,7 @@ def train(
     trajectories. This can be more sample efficient and stable than PPO
     in certain environments.
     """
-    curriculum = make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    tool = ARENA_BASELINE.model_copy(deep=True)
 
     # Configure GRPO loss
     grpo_config = GRPOConfig(
@@ -40,29 +31,11 @@ def train(
         target_kl=None,
     )
 
-    # Configure optimizer
-    optimizer_config = OptimizerConfig(
-        type="adamw_schedulefree",
-        learning_rate=0.01,
-        beta1=0.9,
-        beta2=0.999,
-        eps=3.186531e-07,
-        weight_decay=0.01,
-        warmup_steps=2000,
-    )
+    # Override losses to use GRPO instead of PPO
+    tool.trainer.losses = LossesConfig(grpo=grpo_config)
+    tool.policy_architecture = ViTGRPOConfig()
 
-    trainer_config = TrainerConfig(
-        losses=LossesConfig(grpo=grpo_config),
-        optimizer=optimizer_config,
-        total_timesteps=50_000_000_000,
-    )
-
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        trainer=trainer_config,
-        evaluator=EvaluatorConfig(simulations=simulations()),
-        policy_architecture=ViTGRPOConfig(),
-    )
+    return tool
 
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
@@ -71,11 +44,10 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     This provides easier training with reward shaping and converters enabled,
     using the critic-free GRPO algorithm.
     """
-
-    # Get the base shaped training tool
+    baseline = ARENA_BASELINE.model_copy(deep=True)
     base_tool = base_train_shaped(rewards=rewards)
+    baseline.training_env.curriculum = base_tool.training_env.curriculum
 
-    # Configure GRPO loss
     grpo_config = GRPOConfig(
         clip_coef=0.2,
         ent_coef=0.01,
@@ -85,12 +57,8 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         target_kl=None,
     )
 
-    loss_config = LossesConfig(
-        grpo=grpo_config,
-    )
-
-    # Configure optimizer
-    optimizer_config = OptimizerConfig(
+    baseline.trainer.losses = LossesConfig(grpo=grpo_config)
+    baseline.trainer.optimizer = OptimizerConfig(
         type="adamw_schedulefree",
         learning_rate=0.01,
         beta1=0.9,
@@ -99,19 +67,9 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         weight_decay=0.01,
         warmup_steps=2000,
     )
+    baseline.policy_architecture = ViTGRPOConfig()
 
-    trainer_config = TrainerConfig(
-        losses=loss_config,
-        optimizer=optimizer_config,
-        total_timesteps=50_000_000_000,
-    )
-
-    return TrainTool(
-        training_env=base_tool.training_env,
-        trainer=trainer_config,
-        evaluator=base_tool.evaluator,
-        policy_architecture=ViTGRPOConfig(),
-    )
+    return baseline
 
 
 def basic_easy_shaped() -> TrainTool:
@@ -120,9 +78,7 @@ def basic_easy_shaped() -> TrainTool:
     This provides easier training with reward shaping and converters enabled,
     using the critic-free GRPO algorithm.
     """
-
-    # Get the base shaped training tool
-    base_tool = arena_basic_easy_shaped_train()
+    tool = ARENA_BASELINE.model_copy(deep=True)
 
     # Configure GRPO loss
     grpo_config = GRPOConfig(
@@ -134,30 +90,8 @@ def basic_easy_shaped() -> TrainTool:
         target_kl=None,
     )
 
-    loss_config = LossesConfig(
-        grpo=grpo_config,
-    )
+    # Override losses to use GRPO instead of PPO
+    tool.trainer.losses = LossesConfig(grpo=grpo_config)
+    tool.policy_architecture = ViTGRPOConfig()
 
-    # Configure optimizer
-    optimizer_config = OptimizerConfig(
-        type="adamw_schedulefree",
-        learning_rate=0.01,
-        beta1=0.9,
-        beta2=0.999,
-        eps=3.186531e-07,
-        weight_decay=0.01,
-        warmup_steps=2000,
-    )
-
-    trainer_config = TrainerConfig(
-        losses=loss_config,
-        optimizer=optimizer_config,
-        total_timesteps=50_000_000_000,
-    )
-
-    return TrainTool(
-        training_env=base_tool.training_env,
-        trainer=trainer_config,
-        evaluator=base_tool.evaluator,
-        policy_architecture=ViTGRPOConfig(),
-    )
+    return tool

@@ -8,6 +8,7 @@ recipes should import from here and extend via custom defaults, similar to how
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -18,20 +19,35 @@ from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
     DiscreteRandomConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.trainer_config import (
+    InitialPolicyConfig,
+    OptimizerConfig,
+    TorchProfilerConfig,
+    TrainerConfig,
+)
+from metta.rl.training import (
+    CheckpointerConfig,
+    EvaluatorConfig,
+    GradientReporterConfig,
+    HeartbeatConfig,
+    StatsReporterConfig,
+    TrainingEnvironmentConfig,
+    WandbAborterConfig,
+)
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +279,131 @@ def make_curriculum(
 # but in practice they do
 
 
+def _make_baseline(
+    num_cogs: int = 4,
+    curriculum: Optional[CurriculumConfig] = None,
+    base_missions: Optional[list[str]] = None,
+    enable_detailed_slice_logging: bool = False,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+    max_evals: Optional[int] = None,
+    use_lp: bool = True,
+) -> TrainTool:
+    """Create baseline configuration with all configs explicitly set."""
+    training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
+    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
+    if curriculum is None:
+        curriculum = make_curriculum(
+            num_cogs=num_cogs,
+            missions=training_missions,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            variants=variants,
+            algorithm_config=cur_alg,
+        )
+
+    resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
+    eval_suite = make_eval_suite(
+        num_cogs=num_cogs,
+        difficulty=eval_difficulty,
+        variants=resolved_eval_variants,
+        max_evals=max_evals,
+    )
+
+    optimizer_config = OptimizerConfig(
+        type="adamw_schedulefree",
+        learning_rate=0.00092,
+        beta1=0.9,
+        beta2=0.999,
+        eps=3.186531e-07,
+        weight_decay=0.01,
+        momentum=0.9,
+        warmup_steps=1000,
+    )
+
+    trainer_config = TrainerConfig(
+        total_timesteps=50_000_000_000,
+        optimizer=optimizer_config,
+        losses=LossesConfig(),
+        require_contiguous_env_ids=False,
+        verbose=True,
+        batch_size=524288,
+        minibatch_size=16384,
+        bptt_horizon=64,
+        update_epochs=1,
+        scale_batches_by_world_size=False,
+        compile=False,
+        compile_mode="reduce-overhead",
+        detect_anomaly=False,
+        heartbeat=HeartbeatConfig(epoch_interval=1),
+        initial_policy=InitialPolicyConfig(
+            uri=None,
+            type="top",
+            range=1,
+            metric="epoch",
+            filters={},
+        ),
+        profiler=TorchProfilerConfig(
+            interval_epochs=0,
+            profile_dir=None,
+        ),
+    )
+
+    training_env_config = TrainingEnvironmentConfig(
+        curriculum=curriculum,
+        num_workers=1,
+        async_factor=2,
+        auto_workers=True,
+        forward_pass_minibatch_target_size=4096,
+        zero_copy=True,
+        vectorization="multiprocessing",
+        seed=0,
+        write_replays=False,
+        replay_dir=Path("./train_dir/replays/training"),
+        supervisor=EnvSupervisorConfig(),
+        maps_cache_size=None,
+    )
+
+    evaluator_config = EvaluatorConfig(
+        epoch_interval=100,
+        evaluate_local=True,
+        evaluate_remote=False,
+        num_training_tasks=2,
+        simulations=eval_suite,
+        training_replay_envs=[],
+        replay_dir=None,
+        skip_git_check=False,
+        git_hash=None,
+        verbose=False,
+        allow_eval_without_stats=False,
+    )
+
+    return TrainTool(
+        run=None,
+        trainer=trainer_config,
+        training_env=training_env_config,
+        policy_architecture=ViTDefaultConfig(),
+        initial_policy_uri=None,
+        checkpointer=CheckpointerConfig(epoch_interval=30),
+        gradient_reporter=GradientReporterConfig(epoch_interval=0),
+        stats_server_uri=None,
+        wandb=WandbConfig.Unconfigured(),
+        group=None,
+        evaluator=evaluator_config,
+        torch_profiler=TorchProfilerConfig(interval_epochs=0, profile_dir=None),
+        scheduler=None,
+        context_checkpointer={},
+        stats_reporter=StatsReporterConfig(),
+        wandb_aborter=WandbAborterConfig(epoch_interval=5),
+        map_preview_uri=None,
+        disable_macbook_optimize=False,
+        sandbox=False,
+    )
+
+
+BASELINE = _make_baseline()
+
+
 def train(
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
@@ -276,55 +417,40 @@ def train(
     bc_policy_uri: Optional[str] = None,
     bc_teacher_lead_prob: float = 1.0,
     use_lp: bool = True,
+    baseline: Optional[TrainTool] = None,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
     if mission is not None:
         training_missions = [mission]
 
-    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
-    curriculum = curriculum or make_curriculum(
-        num_cogs=num_cogs,
-        missions=training_missions,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-        variants=variants,
-        algorithm_config=cur_alg,
-    )
-
-    trainer_cfg = TrainerConfig(
-        losses=LossesConfig(),
-    )
-
-    resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
-    eval_suite = make_eval_suite(
-        num_cogs=num_cogs,
-        difficulty=eval_difficulty,
-        variants=resolved_eval_variants,
-        max_evals=max_evals,
-    )
-
-    evaluator_cfg = EvaluatorConfig(
-        simulations=eval_suite,
-    )
-
-    tt = TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=evaluator_cfg,
-    )
+    if baseline is None:
+        baseline = _make_baseline(
+            num_cogs=num_cogs,
+            curriculum=curriculum,
+            base_missions=training_missions,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            variants=variants,
+            eval_variants=eval_variants,
+            eval_difficulty=eval_difficulty,
+            max_evals=max_evals,
+            use_lp=use_lp,
+        )
+    else:
+        baseline = baseline.model_copy(deep=True)
 
     if bc_policy_uri is not None:
-        tt.trainer.losses.supervisor.enabled = True
-        tt.trainer.losses.ppo.enabled = False
-        tt.trainer.losses.ppo_actor.enabled = False
-        tt.trainer.losses.ppo_critic.enabled = True
-        tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
-        tt.trainer.losses.ppo_critic.sample_enabled = False
-        tt.trainer.losses.ppo_critic.train_forward_enabled = False
-        tt.training_env.supervisor.policy = bc_policy_uri
-        tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+        baseline.trainer.losses.supervisor.enabled = True
+        baseline.trainer.losses.ppo.enabled = False
+        baseline.trainer.losses.ppo_actor.enabled = False
+        baseline.trainer.losses.ppo_critic.enabled = True
+        baseline.trainer.losses.ppo_critic.rollout_forward_enabled = False
+        baseline.trainer.losses.ppo_critic.sample_enabled = False
+        baseline.trainer.losses.ppo_critic.train_forward_enabled = False
+        baseline.training_env.supervisor.policy = bc_policy_uri
+        baseline.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
 
-    return tt
+    return baseline
 
 
 def train_variants(

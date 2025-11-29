@@ -29,15 +29,13 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
+from recipes.experiment.cogs_v_clips import BASELINE as COGS_BASELINE
 
 # Missions from eval_missions where scripted agents perform well
 MISSIONS: tuple[str, ...] = (
@@ -475,9 +473,8 @@ def train(
         stats_max_cap=stats_max_cap,
     )
 
-    trainer_cfg = TrainerConfig(
-        losses=LossesConfig(),
-    )
+    baseline = COGS_BASELINE.model_copy(deep=True)
+    baseline.training_env.curriculum = resolved_curriculum
 
     # For evaluation, convert "all" to None (evaluation doesn't use "all variants")
     # Only use specific variants if provided, otherwise use eval_variants or None
@@ -494,15 +491,9 @@ def train(
         variants=resolved_eval_variants,
     )
 
-    evaluator_cfg = EvaluatorConfig(
-        simulations=eval_suite,
-    )
+    baseline.evaluator.simulations = eval_suite
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
-        evaluator=evaluator_cfg,
-    )
+    return baseline
 
 
 def evaluate(

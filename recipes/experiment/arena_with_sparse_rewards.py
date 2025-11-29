@@ -11,8 +11,6 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.contrastive_config import ContrastiveConfig
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -23,6 +21,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+from recipes.experiment.arena import BASELINE as ARENA_BASELINE
 
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -95,9 +94,16 @@ def train(
     # These parameters can now be swept over.
     temperature: float = 0.07,
     contrastive_coef: float = 0.1,
+    baseline: Optional[TrainTool] = None,
 ) -> TrainTool:
     """Train with sparse rewards and optional contrastive loss."""
+    if baseline is None:
+        baseline = ARENA_BASELINE.model_copy(deep=True)
+    else:
+        baseline = baseline.model_copy(deep=True)
+
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    baseline.training_env.curriculum = curriculum
 
     contrastive_config = ContrastiveConfig(
         enabled=enable_contrastive,
@@ -107,15 +113,10 @@ def train(
         use_projection_head=True,
     )
 
-    trainer_config = TrainerConfig(
-        losses=LossesConfig(contrastive=contrastive_config),
-    )
+    baseline.trainer.losses = LossesConfig(contrastive=contrastive_config)
+    baseline.evaluator.simulations = simulations()
 
-    return TrainTool(
-        trainer=trainer_config,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=simulations()),
-    )
+    return baseline
 
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:

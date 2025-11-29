@@ -14,8 +14,23 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.common.wandb.context import WandbConfig
+from metta.rl.loss.losses import LossesConfig
+from metta.rl.trainer_config import (
+    InitialPolicyConfig,
+    OptimizerConfig,
+    TorchProfilerConfig,
+    TrainerConfig,
+)
+from metta.rl.training import (
+    CheckpointerConfig,
+    EvaluatorConfig,
+    GradientReporterConfig,
+    HeartbeatConfig,
+    StatsReporterConfig,
+    TrainingEnvironmentConfig,
+    WandbAborterConfig,
+)
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -27,6 +42,7 @@ from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -95,26 +111,129 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
     ]
 
 
+def _make_baseline(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+) -> TrainTool:
+    """Create baseline configuration with all configs explicitly set.
+
+    Pattern: Create _make_baseline(), export as BASELINE, interventions import and use model_copy(deep=True).
+    """
+    if curriculum is None:
+        curriculum = make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    eval_simulations = simulations()
+
+    optimizer_config = OptimizerConfig(
+        type="adamw_schedulefree",
+        learning_rate=0.00092,
+        beta1=0.9,
+        beta2=0.999,
+        eps=3.186531e-07,
+        weight_decay=0.01,
+        momentum=0.9,
+        warmup_steps=1000,
+    )
+
+    trainer_config = TrainerConfig(
+        total_timesteps=50_000_000_000,
+        optimizer=optimizer_config,
+        losses=LossesConfig(),
+        require_contiguous_env_ids=False,
+        verbose=True,
+        batch_size=524288,
+        minibatch_size=16384,
+        bptt_horizon=64,
+        update_epochs=1,
+        scale_batches_by_world_size=False,
+        compile=False,
+        compile_mode="reduce-overhead",
+        detect_anomaly=False,
+        heartbeat=HeartbeatConfig(epoch_interval=1),
+        initial_policy=InitialPolicyConfig(
+            uri=None,
+            type="top",
+            range=1,
+            metric="epoch",
+            filters={},
+        ),
+        profiler=TorchProfilerConfig(
+            interval_epochs=0,
+            profile_dir=None,
+        ),
+    )
+
+    training_env_config = TrainingEnvironmentConfig(
+        curriculum=curriculum,
+        num_workers=1,
+        async_factor=2,
+        auto_workers=True,
+        forward_pass_minibatch_target_size=4096,
+        zero_copy=True,
+        vectorization="multiprocessing",
+        seed=0,
+        write_replays=False,
+        replay_dir=Path("./train_dir/replays/training"),
+        supervisor=EnvSupervisorConfig(),
+        maps_cache_size=None,
+    )
+
+    evaluator_config = EvaluatorConfig(
+        epoch_interval=100,
+        evaluate_local=True,
+        evaluate_remote=False,
+        num_training_tasks=2,
+        simulations=eval_simulations,
+        training_replay_envs=[],
+        replay_dir=None,
+        skip_git_check=False,
+        git_hash=None,
+        verbose=False,
+        allow_eval_without_stats=False,
+    )
+
+    return TrainTool(
+        run=None,
+        trainer=trainer_config,
+        training_env=training_env_config,
+        policy_architecture=ViTDefaultConfig(),
+        initial_policy_uri=None,
+        checkpointer=CheckpointerConfig(epoch_interval=30),
+        gradient_reporter=GradientReporterConfig(epoch_interval=0),
+        stats_server_uri=None,
+        wandb=WandbConfig.Unconfigured(),
+        group=None,
+        evaluator=evaluator_config,
+        torch_profiler=TorchProfilerConfig(interval_epochs=0, profile_dir=None),
+        scheduler=None,
+        context_checkpointer={},
+        stats_reporter=StatsReporterConfig(),
+        wandb_aborter=WandbAborterConfig(epoch_interval=5),
+        map_preview_uri=None,
+        disable_macbook_optimize=False,
+        sandbox=False,
+    )
+
+
+BASELINE = _make_baseline()
+
+
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    baseline: Optional[TrainTool] = None,
 ) -> TrainTool:
-    curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    if baseline is None:
+        baseline = _make_baseline(
+            curriculum=curriculum,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
 
-    eval_simulations = simulations()
-    trainer_cfg = TrainerConfig()
+    if policy_architecture is not None:
+        baseline = baseline.model_copy(deep=True)
+        baseline.policy_architecture = policy_architecture
 
-    if policy_architecture is None:
-        policy_architecture = ViTDefaultConfig()
-
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
-        policy_architecture=policy_architecture,
-        torch_profiler=TorchProfilerConfig(),
-    )
+    return baseline
 
 
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
