@@ -9,6 +9,7 @@ module "standard_service_account_irsa" {
     main = {
       provider_arn               = module.eks.oidc_provider_arn
       namespace_service_accounts = [
+        "cronjobs:standard-service-account",
         "monitoring:standard-service-account",
       ]
     }
