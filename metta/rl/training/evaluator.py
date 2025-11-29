@@ -13,7 +13,7 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
-from metta.common.util.git_helpers import GitError, get_task_commit_hash
+from metta.common.util.git_helpers import GitError, get_current_git_branch, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.context import WandbRun
@@ -51,6 +51,10 @@ class EvaluatorConfig(Config):
     replay_dir: Optional[str] = None
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
+    use_branch_checkout: bool = Field(
+        default=False,
+        description="Use git branch name instead of commit SHA for remote eval checkout (useful for rewritten history)",
+    )
     verbose: bool = Field(default=False)
     allow_eval_without_stats: bool = Field(
         default=False,
@@ -92,10 +96,27 @@ class Evaluator(TrainerComponent):
         self._git_hash = config.git_hash
         if self._evaluate_remote and not self._git_hash:
             try:
-                self._git_hash = get_task_commit_hash(
-                    target_repo=REPO_SLUG,
-                    skip_git_check=config.skip_git_check,
-                )
+                if config.use_branch_checkout:
+                    # Use branch name instead of commit SHA
+                    branch_name = get_current_git_branch(
+                        target_repo=REPO_SLUG,
+                        skip_git_check=config.skip_git_check,
+                    )
+                    if branch_name:
+                        logger.info(f"Using branch-based checkout: {branch_name}")
+                        self._git_hash = branch_name
+                    else:
+                        logger.warning("Could not determine branch, falling back to commit hash")
+                        self._git_hash = get_task_commit_hash(
+                            target_repo=REPO_SLUG,
+                            skip_git_check=config.skip_git_check,
+                        )
+                else:
+                    # Use commit SHA (default behavior)
+                    self._git_hash = get_task_commit_hash(
+                        target_repo=REPO_SLUG,
+                        skip_git_check=config.skip_git_check,
+                    )
             except GitError as e:
                 raise GitError(f"{e}\n\nYou can skip this check with evaluator.skip_git_check=true") from e
 

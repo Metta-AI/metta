@@ -64,3 +64,55 @@ def get_task_commit_hash(
         target_repo=target_repo,
         allow_untracked=False,
     )
+
+
+def get_current_git_branch(
+    target_repo: Optional[str] = None,
+    skip_git_check: bool = False,
+) -> Optional[str]:
+    """Get current git branch for task execution.
+
+    This is similar to get_task_commit_hash but returns the branch name instead
+    of the commit SHA. Useful when working with rewritten histories (e.g., gt submit).
+
+    Args:
+        target_repo: Optional repository slug (e.g., "owner/repo") to validate against
+        skip_git_check: Skip validation checks (useful in CI/remote environments)
+
+    Returns:
+        Current branch name if in a git repo, None otherwise
+
+    Raises:
+        GitError: If validation fails (uncommitted changes, unpushed commits, etc.)
+    """
+    # Check if we're in a git repo
+    try:
+        branch_name = gitta.get_current_branch()
+    except (gitta.GitError, ValueError):
+        logger.warning("Not in a git repository or detached HEAD, using branch=None")
+        return None
+
+    # Check if we're in the right repo
+    if target_repo and not gitta.is_repo_match(target_repo):
+        logger.warning("Not in repository %s, using branch=None", target_repo)
+        return None
+
+    # Skip validation if requested or on SkyPilot
+    if skip_git_check:
+        return branch_name
+
+    if os.getenv("SKYPILOT_TASK_ID"):
+        logger.info("Running on SkyPilot, skipping git validation")
+        return branch_name
+
+    # Perform validation to ensure we're in a clean state
+    # Note: we still validate the commit state even in branch mode
+    # to ensure the branch is in a clean, pushed state
+    gitta.validate_commit_state(
+        require_clean=True,
+        require_pushed=True,
+        target_repo=target_repo,
+        allow_untracked=False,
+    )
+
+    return branch_name
