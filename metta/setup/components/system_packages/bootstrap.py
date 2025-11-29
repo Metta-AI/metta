@@ -18,7 +18,7 @@ from pathlib import Path
 
 # Bootstrap dependency versions
 REQUIRED_NIM_VERSION = "2.2.6"
-REQUIRED_NIMBY_VERSION = "0.1.6"
+REQUIRED_NIMBY_VERSION = "0.1.13"
 MIN_BAZEL_VERSION = "7.0.0"
 DEFAULT_BAZEL_VERSION = "latest"
 BAZELISK_VERSION = "v1.19.0"

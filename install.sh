@@ -65,24 +65,19 @@ if ! check_cmd uv; then
 
   # Ensure common bin directories are in PATH before installing
   for dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
-    if [ -d "$dir" ] && [ ":${PATH}:" != *":${dir}:"* ]; then
-      export PATH="${dir}:${PATH}"
+    if [ -d "$dir" ]; then
+      case ":$PATH:" in
+        *":$dir:"*) ;; # Already in PATH
+        *) export PATH="$dir:$PATH" ;;
+      esac
     fi
   done
 
   curl -LsSf https://astral.sh/uv/install.sh | sh
 
-  # Source cargo env if it exists (uv installer typically installs to ~/.cargo/bin)
-  if [ -f "$HOME/.cargo/env" ]; then
-    . "$HOME/.cargo/env"
-  fi
-
-  # Check common locations and add to PATH if needed
-  for dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
-    if [ -d "$dir" ] && [ -f "$dir/uv" ] && [ ":${PATH}:" != *":${dir}:"* ]; then
-      export PATH="${dir}:${PATH}"
-    fi
-  done
+  # Source env files if they exist (uv installer creates these)
+  [ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
+  [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
   if ! check_cmd uv; then
     echo "Error: Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"
