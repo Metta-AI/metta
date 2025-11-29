@@ -60,7 +60,6 @@ class AgentConfig(Config):
         description="Resource limits for this agent",
     )
     rewards: AgentRewards = Field(default_factory=AgentRewards)
-    action_failure_penalty: float = Field(default=0, ge=0)
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")

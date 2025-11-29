@@ -165,7 +165,6 @@ public:
     } else {
       actor.stats.incr("action." + _action_name + ".failed");
       actor.stats.incr("action.failed");
-      *actor.reward -= actor.action_failure_penalty;
     }
 
     return success;

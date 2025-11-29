@@ -458,7 +458,6 @@ void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat
   agent->stats.incr(stat);
   agent->stats.incr(stat + "." + std::to_string(type));
   _action_success[agent_idx] = false;
-  *agent->reward -= agent->action_failure_penalty;
 }
 
 void MettaGrid::_step() {
@@ -707,7 +706,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["freeze_duration"] = agent->freeze_duration;
       obj_dict["vibe"] = agent->vibe;
       obj_dict["agent_id"] = agent->agent_id;
-      obj_dict["action_failure_penalty"] = agent->action_failure_penalty;
       obj_dict["current_stat_reward"] = agent->current_stat_reward;
       obj_dict["prev_action_name"] = agent->prev_action_name;
       obj_dict["steps_without_motion"] = agent->steps_without_motion;

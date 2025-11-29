@@ -25,9 +25,7 @@ def create_test_sim(global_obs_config: dict[str, bool]) -> Simulation:
         max_steps=100,
         resource_names=["item1", "item2"],
         global_obs=GlobalObsConfig(**global_obs_config),
-        agent=AgentConfig(
-            default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
-        ),
+        agent=AgentConfig(default_resource_limit=10, freeze_duration=0, rewards=AgentRewards()),
         actions=ActionsConfig(noop=NoopActionConfig(enabled=True), move=MoveActionConfig(enabled=True)),
         objects={"wall": WallConfig()},
     )
@@ -127,9 +125,7 @@ def test_global_obs_default_values():
         max_steps=100,
         resource_names=["item1"],
         # No global_obs specified - should use defaults
-        agent=AgentConfig(
-            default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
-        ),
+        agent=AgentConfig(default_resource_limit=10, freeze_duration=0, rewards=AgentRewards()),
         actions=ActionsConfig(noop=NoopActionConfig(enabled=True)),
         objects={"wall": WallConfig()},
     )

@@ -112,7 +112,6 @@ protected:
                        1,                               // group_id
                        "test_group",                    // group_name
                        100,                             // freeze_duration
-                       0.0f,                            // action_failure_penalty
                        create_test_inventory_config(),  // resource_limits
                        create_test_stats_rewards(),     // stats_rewards
                        create_test_stats_reward_max(),  // stats_reward_max
@@ -145,8 +144,7 @@ TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
   auto stats_reward_max = create_test_stats_reward_max();
   stats_reward_max["chest.heart.amount"] = 5.0f;
 
-  AgentConfig agent_cfg(
-      0, "agent", 1, "test_group", 100, 0.0f, create_test_inventory_config(), rewards, stats_reward_max);
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, create_test_inventory_config(), rewards, stats_reward_max);
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
 
@@ -229,7 +227,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   std::unordered_map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;  // Cap at 2.0 instead of 10.0
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max);
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, inventory_config, rewards, stats_reward_max);
 
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
@@ -296,7 +294,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   stats_reward_max[std::string(TestItemStrings::HEART) + ".amount"] = 30.0f;  // Cap for HEART
   // LASER and ARMOR have no caps
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max);
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, inventory_config, rewards, stats_reward_max);
 
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
@@ -353,7 +351,7 @@ TEST_F(MettaGridCppTest, SharedInventoryLimits) {
   auto rewards = create_test_stats_rewards();
   auto stats_reward_max = create_test_stats_reward_max();
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max);
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, inventory_config, rewards, stats_reward_max);
 
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
