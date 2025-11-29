@@ -54,6 +54,9 @@ build:macos --copt=-mmacosx-version-min=11.0
 build:macos --linkopt=-mmacosx-version-min=11.0
 build:macos --host_copt=-mmacosx-version-min=11.0
 build:macos --host_linkopt=-mmacosx-version-min=11.0
+# Force SDK path for standard library headers
+build:macos --action_env=SDKROOT
+build:macos --action_env=DEVELOPER_DIR
 
 # Platform-specific settings for Linux
 build:linux --copt=-fvisibility=hidden
