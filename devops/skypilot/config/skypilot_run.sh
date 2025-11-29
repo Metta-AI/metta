@@ -194,6 +194,10 @@ start_monitors() {
   fi
 }
 
+start_datadog_agent() {
+  uv run python devops/skypilot/utils/start_datadog_agent.py &
+}
+
 run_cmd() {
   echo "[INFO] Starting process (node rank: $RANK)"
 
@@ -209,7 +213,7 @@ run_cmd() {
 
   echo "[INFO] Running command: ${cmd[*]}"
 
-  # Use process substitution so $! is the trainer (not tee)
+  export PYTHONUNBUFFERED=1
   setsid "${cmd[@]}" &
   export CMD_PID=$!
 
@@ -218,7 +222,14 @@ run_cmd() {
   export CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2> /dev/null | tr -d ' ')
   echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
 
+  # Verify training process is actually running
+  if ! ps -p "$CMD_PID" > /dev/null 2>&1; then
+    echo "[ERROR] Training process died immediately after startup!"
+    exit 1
+  fi
+
   start_monitors
+  start_datadog_agent
 
   wait "$CMD_PID"
   CMD_EXIT=$?
