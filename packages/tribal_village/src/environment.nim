@@ -14,9 +14,10 @@ const
   MapRoomBorder* = 0
 
   # World Objects
-  MapRoomObjectsHouses* = 12
-  MapAgentsPerHouse* = 5
-  MapRoomObjectsAgents* = MapRoomObjectsHouses * MapAgentsPerHouse  # 60 total agents
+  # Eight bases with six agents each -> 48 agents total (divisible by 12 and 16 for batching).
+  MapRoomObjectsHouses* = 8
+  MapAgentsPerHouse* = 6
+  MapRoomObjectsAgents* = MapRoomObjectsHouses * MapAgentsPerHouse  # 48 total agents
   MapRoomObjectsConverters* = 10
   MapRoomObjectsMines* = 20
   MapRoomObjectsWalls* = 30
