@@ -111,20 +111,16 @@ def test_observable_prompt_only_includes_visible_elements():
 
     observable = builder.observable_prompt(obs)
 
-    # Should include visible object types
+    # Should include visible object types in nearby objects
     assert "wall" in observable.lower()
     assert "carbon" in observable.lower()
 
-    # Should include visible features
-    assert "inv:energy" in observable or "energy" in observable.lower()
-    assert "cooldown" in observable.lower()
+    # Should include directional awareness
+    assert "ADJACENT TILES" in observable
+    assert "BLOCKED" in observable  # Wall is adjacent
 
-    # Should NOT include objects/features that aren't visible
-    # (Can't easily test this without knowing all descriptions, but check for some)
-    # Assembler (tag 1) is NOT in observation, so shouldn't be prominent
-    assembler_count = observable.lower().count("assembler")
-    # It might appear once in a feature list, but shouldn't be in the "OBJECTS YOU CAN SEE" section
-    # This is a weak test, but validates the concept
+    # Should include inventory
+    assert "energy" in observable.lower()
 
 
 def test_dynamic_prompt_changes_based_on_observation():
@@ -205,8 +201,8 @@ def test_full_prompt_structure():
     assert "COORDINATE SYSTEM" in full or "coordinate system" in full.lower()
     assert "11x11" in full
 
-    # Should contain observable content
-    assert "OBJECTS YOU CAN SEE" in full or "objects you can see" in full.lower()
+    # Should contain observable content (new format uses ADJACENT TILES and NEARBY OBJECTS)
+    assert "ADJACENT TILES" in full or "NEARBY OBJECTS" in full
     assert "wall" in full.lower()
 
     # Should contain response instructions
@@ -287,16 +283,13 @@ def test_observable_features_are_grouped_correctly():
 
     observable = builder.observable_prompt(obs)
 
-    # Should have section headers for different feature groups
-    assert "Inventory" in observable or "inventory" in observable.lower()
-    assert "Requirements" in observable or "protocol_input" in observable
-    assert "Outputs" in observable or "protocol_output" in observable
+    # Should have directional awareness and inventory sections
+    assert "ADJACENT TILES" in observable
+    assert "INVENTORY" in observable or "inventory" in observable.lower()
 
-    # Features should be listed
-    assert "inv:energy" in observable
-    assert "inv:carbon" in observable
-    assert "protocol_input:carbon" in observable
-    assert "protocol_output:heart" in observable
+    # Inventory should be listed
+    assert "energy" in observable.lower()
+    assert "carbon" in observable.lower()
 
 
 def test_agent_sees_11x11_grid():
