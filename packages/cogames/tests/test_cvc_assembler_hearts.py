@@ -47,10 +47,12 @@ def _make_simulation() -> Simulation:
     assembler_cfg = CvCAssemblerConfig(
         first_heart_cost=FIRST_HEART_COST, additional_heart_cost=ADDITIONAL_HEART_COST
     ).station_cfg()
-    assembler_cfg.map_char = "&"
     cfg.game.objects["assembler"] = assembler_cfg
 
-    cfg = cfg.with_ascii_map(ASCII_MAP)
+    cfg = cfg.with_ascii_map(
+        ASCII_MAP,
+        char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty", "&": "assembler"},
+    )
     return Simulation(cfg)
 
 

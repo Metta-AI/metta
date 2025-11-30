@@ -69,7 +69,6 @@ class MiniscopeState:
     map_width: int = 0
 
     # Shared data for components
-    object_type_names: Optional[List[str]] = None
     resource_names: Optional[List[str]] = None
     symbol_map: Optional[Dict[str, str]] = None
     vibes: Optional[List[str]] = None

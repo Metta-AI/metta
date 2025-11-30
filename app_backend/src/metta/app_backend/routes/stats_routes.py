@@ -34,6 +34,7 @@ class PolicyVersionCreate(BaseModel):
     policy_spec: dict[str, Any] = Field(default_factory=dict)
     git_hash: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
+    s3_path: str | None = None
 
 
 class EpisodeCreate(BaseModel):
@@ -73,6 +74,13 @@ class CompleteBulkUploadRequest(BaseModel):
     upload_id: uuid.UUID
 
 
+class CompletePolicySubmitRequest(BaseModel):
+    """Request to complete a policy submission after uploading to S3."""
+
+    upload_id: uuid.UUID
+    name: str
+
+
 class MyPolicyVersionsResponse(BaseModel):
     entries: list[PublicPolicyVersionRow]
 
@@ -89,9 +97,26 @@ class EpisodeQueryResponse(BaseModel):
     episodes: list[EpisodeWithTags]
 
 
+class PolicyVersionsResponse(BaseModel):
+    entries: list[PublicPolicyVersionRow]
+    total_count: int
+
+
 def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     """Create a stats router with the given StatsRepo instance."""
     router = APIRouter(prefix="/stats", tags=["stats"])
+
+    async def _create_policy_version_from_s3_key(name: str, user_id: str, s3_key: str) -> UUIDResponse:
+        s3_path = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
+        policy_id = await stats_repo.upsert_policy(name=name, user_id=user_id, attributes={})
+        policy_version_id = await stats_repo.create_policy_version(
+            policy_id=policy_id,
+            s3_path=s3_path,
+            git_hash=None,
+            policy_spec={},
+            attributes={},
+        )
+        return UUIDResponse(id=policy_version_id)
 
     @router.post("/policies")
     @timed_route("create_policy")
@@ -118,7 +143,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             policy_id = uuid.UUID(policy_id_str)
             policy_version_id = await stats_repo.create_policy_version(
                 policy_id=policy_id,
-                s3_path=None,
+                s3_path=policy_version.s3_path,
                 git_hash=policy_version.git_hash,
                 policy_spec=policy_version.policy_spec,
                 attributes=policy_version.attributes,
@@ -166,7 +191,6 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
         # Construct S3 path: cogames/submissions/{user_id}/{uuid}.zip
         s3_key = f"cogames/submissions/{user}/{submission_uuid}.zip"
-        s3_path = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
 
         # Upload file to S3 using streaming to avoid loading entire file into memory
         try:
@@ -194,15 +218,51 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             ) from e
 
         try:
-            policy_id = await stats_repo.upsert_policy(name=name, user_id=user, attributes={})
-            policy_version_id = await stats_repo.create_policy_version(
-                policy_id=policy_id,
-                s3_path=s3_path,
-                git_hash=None,
-                policy_spec={},
-                attributes={},
-            )
-            return UUIDResponse(id=policy_version_id)
+            return await _create_policy_version_from_s3_key(name=name, user_id=user, s3_key=s3_key)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to submit policy: {str(e)}") from e
+
+    @router.post("/policies/submit/presigned-url")
+    @timed_route("get_submit_policy_presigned_url")
+    async def get_submit_policy_presigned_url(user: UserOrToken) -> PresignedUploadUrlResponse:
+        """Generate a presigned URL for direct S3 upload of a policy submission zip."""
+        try:
+            upload_id = uuid.uuid4()
+            s3_key = f"cogames/submissions/{user}/{upload_id}.zip"
+
+            from botocore.config import Config
+
+            session = aioboto3.Session()
+            async with session.client("s3", config=Config(signature_version="s3v4")) as s3_client:  # type: ignore
+                presigned_url = await s3_client.generate_presigned_url(
+                    "put_object",
+                    Params={
+                        "Bucket": OBSERVATORY_S3_BUCKET,
+                        "Key": s3_key,
+                        "ContentType": "application/zip",
+                    },
+                    ExpiresIn=3600,  # 1 hour expiration
+                )
+
+            return PresignedUploadUrlResponse(upload_url=presigned_url, s3_key=s3_key, upload_id=upload_id)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate presigned URL: {str(e)}") from e
+
+    @router.post("/policies/submit/complete")
+    @timed_route("complete_policy_submit")
+    async def complete_policy_submit(request: CompletePolicySubmitRequest, user: UserOrToken) -> UUIDResponse:
+        """Finalize a policy submission after the client uploads the zip to S3."""
+        s3_key = f"cogames/submissions/{user}/{request.upload_id}.zip"
+
+        try:
+            session = aioboto3.Session()
+            async with session.client("s3") as s3_client:  # type: ignore
+                await s3_client.head_object(Bucket=OBSERVATORY_S3_BUCKET, Key=s3_key)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Uploaded submission not found in S3: {str(e)}") from e
+
+        try:
+            return await _create_policy_version_from_s3_key(name=request.name, user_id=user, s3_key=s3_key)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to submit policy: {str(e)}") from e
 
@@ -347,6 +407,42 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to complete bulk upload: {str(e)}") from e
+
+    @router.get("/policies")
+    @timed_route("get_policies")
+    async def get_policies(
+        name_exact: Optional[str] = None,
+        name_fuzzy: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> PolicyVersionsResponse:
+        try:
+            entries, total_count = await stats_repo.get_policy_versions(
+                name_exact=name_exact,
+                name_fuzzy=name_fuzzy,
+                limit=limit,
+                offset=offset,
+            )
+            return PolicyVersionsResponse(entries=entries, total_count=total_count)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
+
+    @router.get("/policies/{policy_id}/versions")
+    @timed_route("get_versions_for_policy")
+    async def get_versions_for_policy(
+        policy_id: str,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> PolicyVersionsResponse:
+        try:
+            entries, total_count = await stats_repo.get_versions_for_policy(
+                policy_id=policy_id,
+                limit=limit,
+                offset=offset,
+            )
+            return PolicyVersionsResponse(entries=entries, total_count=total_count)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get policy versions: {str(e)}") from e
 
     @router.get("/policies/my-versions")
     @timed_route("get_my_policy_versions")

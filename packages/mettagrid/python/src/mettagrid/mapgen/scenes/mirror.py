@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field
 
 from mettagrid.mapgen.area import Area, AreaWhere
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
+from mettagrid.mapgen.scene import AnySceneConfig, ChildrenAction, Scene, SceneConfig
 
 Symmetry = Literal["horizontal", "vertical", "x4"]
 
@@ -22,12 +22,12 @@ def _make_area_if_positive(
 
 
 class MirrorConfig(SceneConfig):
-    scene: SceneConfig
+    scene: AnySceneConfig
     symmetry: Symmetry = "horizontal"
 
 
 class InnerMirrorConfig(SceneConfig):
-    scene: SceneConfig
+    scene: AnySceneConfig
 
 
 class Mirror(Scene[MirrorConfig]):

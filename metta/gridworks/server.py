@@ -11,6 +11,7 @@ from metta.common.util.log_config import init_logging
 from metta.gridworks.routes.cogames import make_cogames_routes
 from metta.gridworks.routes.configs import make_configs_router
 from metta.gridworks.routes.schemas import make_schemas_router
+from mettagrid.mapgen.utils.ascii_grid import default_char_to_name
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,10 @@ def make_app():
         return {
             "repo_root": os.getcwd(),
         }
+
+    @app.get("/mettagrid-encoding")
+    async def route_mettagrid_encoding() -> dict[str, str]:
+        return default_char_to_name()
 
     app.include_router(make_configs_router())
     app.include_router(make_schemas_router())

@@ -90,7 +90,7 @@
               echo "# ROCm PyTorch already installed, skipping reinstall"
             else
               echo "# Installing ROCm PyTorch..."
-              pip install --force-reinstall --index-url https://download.pytorch.org/whl/rocm6.4 torch torchvision torchaudio
+              pip install --force-reinstall --extra-index-url https://download.pytorch.org/whl/rocm6.4 torch==2.9.0+rocm6.4
             fi
           else
             echo "# No AMD GPU detected, using default PyTorch installation"
