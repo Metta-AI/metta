@@ -12,6 +12,23 @@ class Vibe:
     category: str = "misc"
 
 
+TRAINING_VIBES = [
+    Vibe("😐", "default", category="emotion"),  # neutral
+    Vibe("🔋", "charger", category="resource"),  # energy / charge
+    Vibe("⚫", "carbon_a", category="resource"),  # C — Carbon
+    Vibe("⬛", "carbon_b", category="resource"),
+    Vibe("⚪", "oxygen_a", category="resource"),  # O — Oxygen
+    Vibe("⬜", "oxygen_b", category="resource"),
+    Vibe("🟣", "germanium_a", category="resource"),  # G — Germanium
+    Vibe("🟪", "germanium_b", category="resource"),
+    Vibe("🟠", "silicon_a", category="resource"),  # S — Silicon
+    Vibe("🟧", "silicon_b", category="resource"),
+    Vibe("❤️", "heart_a", category="resource"),  # reward / health
+    Vibe("💟", "heart_b", category="resource"),
+    Vibe("⚙️", "gear", category="gear"),
+    Vibe("📦", "chest", category="station"),
+]
+
 VIBES = [
     Vibe("😐", "default", category="emotion"),  # neutral
     # Resources

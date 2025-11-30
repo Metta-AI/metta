@@ -14,15 +14,7 @@ import time
 from typing import NamedTuple, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-from cogames.cogs_vs_clips.evals.diagnostic_evals import (
-    DIAGNOSTIC_EVALS,
-)
 from cogames.cogs_vs_clips.mission import Mission
-from cogames.cogs_vs_clips.missions import (
-    HarvestMission,
-    RepairMission,
-    VibeCheckMission,
-)
 from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -36,6 +28,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
+from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
 
@@ -80,20 +73,6 @@ FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
     *DIAGNOSTIC_MISSIONS,  # Diagnostic missions
 )
 
-# Create mission name mapping for eval missions and training facility missions
-_MISSION_BY_NAME: dict[str, Mission] = {}
-# Add training facility missions to the mapping
-TRAINING_FACILITY_MISSION_OBJECTS = [
-    HarvestMission,
-    VibeCheckMission,
-    RepairMission,
-    # Note: 'easy_hearts' is intentionally omitted from the full curriculum
-    # for now due to its reduced vibe action space (see comment above).
-    # Note: 'assemble' is not a defined mission object - it may be resolved via make_training_env
-]
-for mission in TRAINING_FACILITY_MISSION_OBJECTS:
-    _MISSION_BY_NAME[mission.name] = mission
-
 
 def get_all_variant_names() -> list[str]:
     """Get all variant names from VARIANTS."""
@@ -104,17 +83,17 @@ class _ResolvedVariants(NamedTuple):
     """Internal helper for normalized variant handling."""
 
     names: list[str]
-    # True when caller requested \"all\" variants (string or single-item list),
+    # True when caller requested "all" variants (string or single-item list),
     # which we expand to the full list of variant names.
     is_all: bool
 
 
 def _resolve_variants_arg(variants: Optional[Sequence[str] | str]) -> _ResolvedVariants:
-    """Normalize a variants argument into a list of names and an \"all\" flag.
+    """Normalize a variants argument into a list of names and an "all" flag.
 
     Supports:
-    - None / \"none\" / [] -> no variants
-    - \"all\" / [\"all\"] (case-insensitive) -> expand to all variants
+    - None / "none" / [] -> no variants
+    - "all" / ["all"] (case-insensitive) -> expand to all variants
     - comma-separated string -> split into names
     - list/sequence of names -> used as-is
     """
@@ -162,6 +141,13 @@ def resolve_missions(
     Returns:
         List of mission name strings
 
+    Examples:
+        >>> resolve_missions("eval_missions")
+        ['go_together', 'oxygen_bottleneck', ...]
+        >>> resolve_missions(["eval_missions", "diagnostic_missions"])
+        ['go_together', ..., 'diagnostic_assemble_seeded_near', ...]
+        >>> resolve_missions("extractor_hub_30,extractor_hub_50")
+        ['extractor_hub_30', 'extractor_hub_50']
     """
     # Handle None - default to all missions
     if missions is None:
@@ -225,6 +211,36 @@ def _deduplicate_assembler_protocols(env: MettaGridConfig) -> None:
     assembler.protocols = deduplicated
 
 
+def _enforce_training_vibes(env: MettaGridConfig) -> None:
+    """Enforce the training set of vibes and action space consistency."""
+    training_vibe_names = [v.name for v in vibes.TRAINING_VIBES]
+    env.game.vibe_names = training_vibe_names
+
+    if env.game.actions:
+        # Configure vibe action
+        if env.game.actions.change_vibe:
+            env.game.actions.change_vibe.number_of_vibes = len(training_vibe_names)
+            # Filter initial vibe
+            if env.game.agent.initial_vibe >= len(training_vibe_names):
+                env.game.agent.initial_vibe = 0
+
+        # Disable attack and resource_mod to align with Navigation tasks (which default to disabled/missing)
+        # This ensures action space is 19 (1 noop + 4 move + 14 vibes)
+        if env.game.actions.attack:
+            env.game.actions.attack.enabled = False
+        if env.game.actions.resource_mod:
+            env.game.actions.resource_mod.enabled = False
+
+    # Prune transfers
+    allowed_vibes = set(env.game.vibe_names)
+    chest = env.game.objects.get("chest")
+    if chest:
+        vibe_transfers = getattr(chest, "vibe_transfers", None)
+        if isinstance(vibe_transfers, dict):
+            new_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
+            setattr(chest, "vibe_transfers", new_transfers)
+
+
 def make_curriculum(
     base_missions: Optional[list[str] | str] = None,
     num_cogs: int = 4,
@@ -266,43 +282,18 @@ def make_curriculum(
     if variant_names:
         # Create separate tasks for each mission-variant combination
         for mission_name in base_missions:
-            mission_template = None
-
-            # Check if this is an eval mission
-            mission_template = _MISSION_BY_NAME.get(mission_name)
-
-            # Check if this is a diagnostic mission (class-based)
-            if mission_template is None and mission_name in DIAGNOSTIC_MISSIONS:
-                for mission_cls in DIAGNOSTIC_EVALS:
-                    temp_mission = mission_cls()  # type: ignore[call-arg]
-                    if temp_mission.name == mission_name:
-                        mission_template = temp_mission
-                        break
-
             # For each variant, create a separate curriculum task
             for variant_name in variant_names:
                 try:
-                    if mission_template is None:
-                        # Fall back to make_training_env for standard missions
-                        try:
-                            mission_env = cogs_v_clips.make_training_env(
-                                num_cogs=num_cogs,
-                                mission=mission_name,
-                                variants=[variant_name],
-                            )
-                        except ValueError:
-                            # Skip missions that don't exist
-                            continue
-                        # Deduplicate assembler protocols to avoid C++ config errors
-                        _deduplicate_assembler_protocols(mission_env)
-                    else:
-                        # Use the mission template directly (works for both eval and diagnostic missions)
-                        mission = cogs_v_clips._prepare_mission(
-                            mission_template,
-                            num_cogs=num_cogs,
-                            variant_names=[variant_name],
-                        )
-                        mission_env = mission.make_env()
+                    # Unified path: Always use make_training_env, which resolves via global MISSIONS registry
+                    mission_env = cogs_v_clips.make_training_env(
+                        num_cogs=num_cogs,
+                        mission=mission_name,
+                        variants=[variant_name],
+                    )
+
+                    # Enforce training vibes
+                    _enforce_training_vibes(mission_env)
 
                     # Deduplicate assembler protocols to avoid C++ config errors
                     _deduplicate_assembler_protocols(mission_env)
@@ -313,7 +304,6 @@ def make_curriculum(
                     try:
                         mission_env.label = label  # type: ignore[attr-defined]
                     except Exception:
-                        # Best-effort; if the config does not support labels, leave it as default.
                         pass
 
                     # Initialize stats rewards dict if needed (for bucket overrides to work)
@@ -332,12 +322,12 @@ def make_curriculum(
 
                     # Add buckets for stats rewards (now supported with dict keys containing dots)
                     # Reward for gaining resources (not just having them) to avoid rewarding initial inventory
-                    mission_tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.0, 0.005])
-                    mission_tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0.0, 0.005])
+                    mission_tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
+                    mission_tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
                     mission_tasks.add_bucket(
-                        "game.agent.rewards.stats.germanium.gained", [0.0, 0.005]
+                        "game.agent.rewards.stats.germanium.gained", [0.0, 0.005, 0.01, 0.015, 0.02]
                     )
-                    mission_tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.0, 0.005])
+                    mission_tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
 
                     # Cap resource rewards to prevent hoarding
                     mission_tasks.add_bucket("game.agent.rewards.stats_max.carbon.gained", [stats_max_cap])
@@ -347,9 +337,8 @@ def make_curriculum(
 
                     all_mission_tasks.append(mission_tasks)
                 except Exception as e:
-                    # Skip incompatible variant combinations (same logic as test)
+                    # Skip incompatible variant combinations
                     error_str = str(e).lower()
-                    # Skip expected incompatibilities
                     if any(
                         skip_phrase in error_str
                         for skip_phrase in [
@@ -362,34 +351,13 @@ def make_curriculum(
                             "protocol with vibes",
                         ]
                     ):
-                        # These are expected incompatibilities, skip them silently
                         import logging
-
                         logging.debug(
                             f"Skipping incompatible mission-variant combination {mission_name}+{variant_name}: {e}"
                         )
                         continue
-                    # For actual map building errors, log as warning but still skip
-                    # (we don't want to fail the entire curriculum creation)
-                    if any(
-                        key_phrase in error_str
-                        for key_phrase in [
-                            "surface",
-                            "spawn",
-                            "exceeds available",
-                            "no surface found",
-                            "number of agents",
-                        ]
-                    ):
-                        import logging
-
-                        logging.warning(
-                            f"Skipping mission-variant combination {mission_name}+{variant_name} due to map building error: {e}"
-                        )
-                        continue
-                    # For other unexpected errors, log as warning and skip
+                    # For map building errors or other unexpected errors
                     import logging
-
                     logging.warning(f"Failed to create mission-variant combination {mission_name}+{variant_name}: {e}")
                     continue
 
@@ -400,62 +368,34 @@ def make_curriculum(
         # No variants: just create tasks for base missions
         for mission_name in base_missions:
             try:
-                mission_template = None
+                # Unified path: Always use make_training_env
+                mission_env = cogs_v_clips.make_training_env(
+                    num_cogs=num_cogs,
+                    mission=mission_name,
+                    variants=None,  # No variants
+                )
 
-                # Check if this is an eval mission
-                mission_template = _MISSION_BY_NAME.get(mission_name)
+                # Enforce training vibes
+                _enforce_training_vibes(mission_env)
 
-                # Check if this is a diagnostic mission (class-based)
-                if mission_template is None and mission_name in DIAGNOSTIC_MISSIONS:
-                    for mission_cls in DIAGNOSTIC_EVALS:
-                        temp_mission = mission_cls()  # type: ignore[call-arg]
-                        if temp_mission.name == mission_name:
-                            mission_template = temp_mission
-                            break
+                # Deduplicate assembler protocols
+                _deduplicate_assembler_protocols(mission_env)
 
-                if mission_template is None:
-                    # Fall back to make_training_env for standard missions
-                    try:
-                        mission_env = cogs_v_clips.make_training_env(
-                            num_cogs=num_cogs,
-                            mission=mission_name,
-                            variants=None,  # No variants
-                        )
-                    except ValueError:
-                        # Skip missions that don't exist
-                        continue
-                    # Deduplicate assembler protocols to avoid C++ config errors
-                    _deduplicate_assembler_protocols(mission_env)
-                else:
-                    # Use the mission template directly (works for both eval and diagnostic missions)
-                    mission = cogs_v_clips._prepare_mission(
-                        mission_template,
-                        num_cogs=num_cogs,
-                        variant_names=[],  # No variants
-                    )
-                    mission_env = mission.make_env()
-
-                    # Deduplicate assembler protocols to avoid C++ config errors
-                    _deduplicate_assembler_protocols(mission_env)
-
-                # Give each environment a label so per-label rewards can be tracked in stats/W&B.
-                # Use the mission name as the label, which is stable across curriculum tasks.
+                # Give each environment a label
                 try:
                     mission_env.label = mission_name  # type: ignore[attr-defined]
                 except Exception:
-                    # Best-effort; if the config does not support labels, leave it as default.
                     pass
 
-                # Initialize stats rewards dict if needed (for bucket overrides to work)
+                # Initialize stats rewards dict
                 if not mission_env.game.agent.rewards.stats:
                     mission_env.game.agent.rewards.stats = {}
-                # Initialize stats_max dict if needed
+                # Initialize stats_max dict
                 if not mission_env.game.agent.rewards.stats_max:
                     mission_env.game.agent.rewards.stats_max = {}
             except Exception as e:
-                # Skip incompatible combinations (same logic as variants case)
+                # Skip incompatible combinations
                 error_str = str(e).lower()
-                # Skip expected incompatibilities
                 if any(
                     skip_phrase in error_str
                     for skip_phrase in [
@@ -468,29 +408,11 @@ def make_curriculum(
                         "protocol with vibes",
                     ]
                 ):
-                    # These are expected incompatibilities, skip them silently
                     import logging
-
                     logging.debug(f"Skipping incompatible mission {mission_name}: {e}")
                     continue
-                # For actual map building errors, log as warning but still skip
-                if any(
-                    key_phrase in error_str
-                    for key_phrase in [
-                        "surface",
-                        "spawn",
-                        "exceeds available",
-                        "no surface found",
-                        "number of agents",
-                    ]
-                ):
-                    import logging
-
-                    logging.warning(f"Skipping mission {mission_name} due to map building error: {e}")
-                    continue
-                # For other unexpected errors, log as warning and skip
+                # For map building errors or other unexpected errors
                 import logging
-
                 logging.warning(f"Failed to create mission {mission_name}: {e}")
                 continue
 
@@ -708,6 +630,7 @@ def experiment(
 
     subprocess.run(cmd, check=True)
     print(f"✓ Successfully launched job: {run_name}")
+
 
 __all__ = [
     "make_curriculum",

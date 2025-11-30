@@ -1,4 +1,5 @@
 from recipes.experiment.cvc import mission_variant_curriculum
+from cogames.cogs_vs_clips.navigation_missions import NAVIGATION_MISSIONS
 
 # Missions where S3 policies got reward > 0 (from evaluation results)
 # Based on evaluation results showing environments where S3 policies succeeded
@@ -120,6 +121,69 @@ def submit_full_curriculum_experiment_all_variants():
     variants="all",
     )
 
+def submit_full_curriculum_with_navigation():
+    """Submit full CVC curriculum + Navigation missions (all variants)."""
+    # None means full curriculum missions
+    # We can't easily append to None, so we fetch the full list
+    from recipes.experiment.cvc.mission_variant_curriculum import FULL_CURRICULUM_MISSIONS
+
+    nav_mission_names = [m.name for m in NAVIGATION_MISSIONS]
+    combined_missions = list(FULL_CURRICULUM_MISSIONS) + nav_mission_names
+
+    mission_variant_curriculum.experiment(
+        base_missions=combined_missions,
+        run_name="full_curriculum_experiment_with_navigation",
+        skip_git_check=True,
+        variants=None,
+    )
+
+def submit_full_curriculum_with_navigation_with_variants():
+    """Submit full CVC curriculum + Navigation missions (all variants)."""
+    # None means full curriculum missions
+    # We can't easily append to None, so we fetch the full list
+    from recipes.experiment.cvc.mission_variant_curriculum import FULL_CURRICULUM_MISSIONS
+
+    nav_mission_names = [m.name for m in NAVIGATION_MISSIONS]
+    combined_missions = list(FULL_CURRICULUM_MISSIONS) + nav_mission_names
+
+    mission_variant_curriculum.experiment(
+        base_missions=combined_missions,
+        run_name="full_curriculum_experiment_with_navigation_all_variants",
+        skip_git_check=True,
+        variants="all",
+    )
+
+def submit_missions_with_navigation():
+    """Submit full CVC curriculum + Navigation missions (all variants)."""
+    # None means full curriculum missions
+    # We can't easily append to None, so we fetch the full list
+    from recipes.experiment.cvc.mission_variant_curriculum import FULL_CURRICULUM_MISSIONS
+
+    nav_mission_names = [m.name for m in NAVIGATION_MISSIONS]
+    combined_missions = S3_SUCCESFUL_TRAINING_MISSIONS + S3_SUCCESSFUL_EVAL_MISSIONS + nav_mission_names
+
+    mission_variant_curriculum.experiment(
+        base_missions=combined_missions,
+        run_name="full_curriculum_plus_navigation_all_variants",
+        skip_git_check=True,
+        variants=None,
+    )
+
+def submit_missions_with_navigation_with_variants():
+    """Submit full CVC curriculum + Navigation missions (all variants)."""
+    # None means full curriculum missions
+    # We can't easily append to None, so we fetch the full list
+    from recipes.experiment.cvc.mission_variant_curriculum import FULL_CURRICULUM_MISSIONS
+
+    nav_mission_names = [m.name for m in NAVIGATION_MISSIONS]
+    combined_missions = S3_SUCCESFUL_TRAINING_MISSIONS + S3_SUCCESSFUL_EVAL_MISSIONS + nav_mission_names
+
+    mission_variant_curriculum.experiment(
+        base_missions=combined_missions,
+        run_name="full_curriculum_plus_navigation_all_variants",
+        skip_git_check=True,
+        variants="all",
+    )
 
 if __name__ == "__main__":
     # submit_variants_experiments()
@@ -127,8 +191,14 @@ if __name__ == "__main__":
     # submit_single_mission_experiments()
     # submit_all_missions_no_variants()
     # submit_all_missions_with_variants()
-    submit_full_curriculum_experiment_standard()
-    submit_full_curriculum_experiment_all_variants()
+    # submit_full_curriculum_experiment_standard()
+    # submit_full_curriculum_experiment_all_variants()
+
+    submit_full_curriculum_with_navigation()
+    submit_full_curriculum_with_navigation_with_variants()
+    submit_missions_with_navigation()
+    submit_missions_with_navigation_with_variants()
+
     print("\n" + "=" * 80)
     print("All experiments submitted successfully!")
     print("=" * 80)
