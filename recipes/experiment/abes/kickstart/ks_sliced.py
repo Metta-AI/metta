@@ -19,7 +19,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -115,6 +115,8 @@ def train(
         policy_architecture = ViTLarge2LSTMConfig()
 
     losses_config = LossesConfig()
+    # add vit_reconstruction loss
+    losses_config.vit_reconstruction.enabled = True
     losses_config.sliced_kickstarter.enabled = True
     # the original teacher
     # losses_config.sliced_kickstarter.teacher_uri = (
@@ -137,10 +139,7 @@ def train(
         "s3://softmax-public/policies/av.student.student1.11.27.01/av.student.student1.11.27.01:v800.mpt"
     )
 
-    # add vit_reconstruction loss
-    losses_config.vit_reconstruction.enabled = True
-
-    ks_end_step = 600_000_000
+    ks_end_step = 1_000_000_000
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = ks_end_step
@@ -171,26 +170,6 @@ def train(
                 start_agent_step=ks_end_step,
                 end_agent_step=1_500_000_000,
             ),
-            # HyperUpdateRule(
-            #     loss_instance_name="sliced_kickstarter",
-            #     attr_path="action_loss_coef",
-            #     mode="progress",
-            #     style="linear",
-            #     start_value=0.6,
-            #     end_value=0.0,
-            #     start_agent_step=500_000_000,
-            #     end_agent_step=1_000_000_000,
-            # ),
-            # HyperUpdateRule(
-            #     loss_instance_name="sliced_kickstarter",
-            #     attr_path="value_loss_coef",
-            #     mode="progress",
-            #     style="linear",
-            #     start_value=1.0,
-            #     end_value=0.0,
-            #     start_agent_step=500_000_000,
-            #     end_agent_step=1_000_000_000,
-            # ),
             HyperUpdateRule(
                 loss_instance_name="sliced_kickstarter",
                 attr_path="teacher_led_proportion",
@@ -201,36 +180,6 @@ def train(
                 start_agent_step=0,
                 end_agent_step=ks_end_step,
             ),
-            # HyperUpdateRule(
-            #     loss_instance_name="sliced_kickstarter",
-            #     attr_path="teacher_led_proportion",
-            #     mode="progress",
-            #     style="cosine",
-            #     start_value=0.2,
-            #     end_value=0.0,
-            #     start_agent_step=500_000_000,
-            #     end_agent_step=1_000_000_000,
-            # ),
-            # HyperUpdateRule(
-            #     loss_instance_name="sliced_kickstarter",
-            #     attr_path="student_led_proportion",
-            #     mode="progress",
-            #     style="linear",
-            #     start_value=0.30,
-            #     end_value=0.0,
-            #     start_agent_step=0,
-            #     end_agent_step=500_000_000,
-            # ),
-            # HyperUpdateRule(
-            #     loss_instance_name="sliced_kickstarter",
-            #     attr_path="student_led_proportion",
-            #     mode="progress",
-            #     style="cosine",
-            #     start_value=0.3,
-            #     end_value=0.0,
-            #     start_agent_step=500_000_000,
-            #     end_agent_step=1_000_000_000,
-            # ),
         ],
     )
 
@@ -241,7 +190,6 @@ def train(
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
         scheduler=scheduler,
-        checkpointer=CheckpointerConfig(epoch_interval=100),
     )
 
 
