@@ -51,8 +51,6 @@ class LossesConfig(Config):
         loss_configs: dict[str, LossConfig] = {}
         if self.sliced_kickstarter.enabled:
             loss_configs["sliced_kickstarter"] = self.sliced_kickstarter
-        if self.vit_reconstruction.enabled:
-            loss_configs["vit_reconstruction"] = self.vit_reconstruction
         if self.ppo_critic.enabled:
             loss_configs["ppo_critic"] = self.ppo_critic
         if self.quantile_ppo_critic.enabled:
@@ -61,6 +59,8 @@ class LossesConfig(Config):
             loss_configs["ppo_actor"] = self.ppo_actor
         if self.ppo.enabled:
             loss_configs["ppo"] = self.ppo
+        if self.vit_reconstruction.enabled:
+            loss_configs["vit_reconstruction"] = self.vit_reconstruction
         if self.contrastive.enabled:
             loss_configs["contrastive"] = self.contrastive
         if self.grpo.enabled:

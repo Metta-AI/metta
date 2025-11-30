@@ -108,7 +108,6 @@ def train(
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
-        # policy_architecture = ViTLarge2LSTMConfig()
 
     return TrainTool(
         trainer=trainer_cfg,

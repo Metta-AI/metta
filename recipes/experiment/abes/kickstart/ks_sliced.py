@@ -7,10 +7,7 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-
-# from metta.agent.policies.vit_large_lstm import ViTLargeLSTMConfig
-# from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policies.vit_large2_lstm import ViTLarge2LSTMConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -110,31 +107,14 @@ def train(
     eval_simulations = simulations()
 
     if policy_architecture is None:
-        # policy_architecture = ViTLargeLSTMConfig()
-        # policy_architecture = ViTDefaultConfig()
-        policy_architecture = ViTLarge2LSTMConfig()
+        policy_architecture = ViTDefaultConfig()
 
     losses_config = LossesConfig()
     # add vit_reconstruction loss
     losses_config.vit_reconstruction.enabled = True
+
     losses_config.sliced_kickstarter.enabled = True
-    # the original teacher
-    # losses_config.sliced_kickstarter.teacher_uri = (
-    #     "s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt"
-    # )
-    # vit_large_lstm
-    # losses_config.sliced_kickstarter.teacher_uri = (
-    #     "s3://softmax-public/policies/av.student.11.26.07/av.student.11.26.07:v300.mpt"
-    # )
-    # default size. hit 6.7 at 15b steps
-    # losses_config.sliced_kickstarter.teacher_uri = (
-    #     "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
-    # )
-    # vit_large_lstm. went to 6.7 at 2.5b steps but unstable after that
-    # losses_config.sliced_kickstarter.teacher_uri = (
-    #     "s3://softmax-public/policies/av.student.11.25.33/av.student.11.25.33:v500.mpt"
-    # )
-    # trained off vit_large_lstm. hit 7.0 at 3b steps. More stable
+    # teacher was trained off vit_large_lstm. hit 7.0 at 3b steps. More stable
     losses_config.sliced_kickstarter.teacher_uri = (
         "s3://softmax-public/policies/av.student.student1.11.27.01/av.student.student1.11.27.01:v800.mpt"
     )
@@ -160,16 +140,6 @@ def train(
             ),
         ],
         rules=[
-            HyperUpdateRule(
-                loss_instance_name="ppo_actor",
-                attr_path="ent_coef",
-                mode="progress",
-                style="linear",
-                start_value=0.01,
-                end_value=0.0005,
-                start_agent_step=ks_end_step,
-                end_agent_step=1_500_000_000,
-            ),
             HyperUpdateRule(
                 loss_instance_name="sliced_kickstarter",
                 attr_path="teacher_led_proportion",
