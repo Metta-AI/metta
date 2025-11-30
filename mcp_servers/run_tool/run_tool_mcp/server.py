@@ -1,12 +1,6 @@
-"""
-Run Tool MCP Server
-
-Model Context Protocol server that enables LLMs to execute and discover Metta run.py commands.
-Provides access to training, evaluation, play, replay, and other run.py tools.
-"""
+"""Run Tool MCP Server."""
 
 import asyncio
-import json
 import logging
 import os
 import sys
@@ -18,8 +12,33 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
 from .config import RunToolMCPConfig
-from .descriptions import MCP_TOOL_DESCRIPTIONS
-from .models import (
+
+
+def _setup_working_directory() -> Path:
+    """Set working directory and Python path to repo root before importing metta modules."""
+    config = RunToolMCPConfig.from_env()
+    repo_root = config.repo_root
+
+    try:
+        os.chdir(repo_root)
+    except Exception:
+        pass
+
+    common_src = repo_root / "common" / "src"
+    if common_src.exists() and str(common_src) not in sys.path:
+        sys.path.insert(0, str(common_src))
+
+    repo_root_str = str(repo_root)
+    if repo_root_str not in sys.path:
+        sys.path.insert(0, repo_root_str)
+
+    return repo_root
+
+
+_setup_working_directory()
+
+from .descriptions import MCP_TOOL_DESCRIPTIONS  # noqa: E402
+from .models import (  # noqa: E402
     ErrorResponse,
     EvaluateInput,
     GetToolArgumentsInput,
@@ -30,24 +49,10 @@ from .models import (
     TrainInput,
     ValidateCommandInput,
 )
-
-
-def _setup_working_directory() -> Path:
-    """Set working directory to repo root before importing metta modules."""
-    config = RunToolMCPConfig.from_env()
-    repo_root = config.repo_root
-
-    try:
-        os.chdir(repo_root)
-    except Exception:
-        pass
-
-    return repo_root
-
-
-_setup_working_directory()
+from .schema import get_tool_registry_schema, pydantic_to_mcp_schema  # noqa: E402
+from .utils import normalize_arguments  # noqa: E402
 from .executor import RunToolExecutor  # noqa: E402
-from .tools import run_tool  # noqa: E402
+from . import tools  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +61,6 @@ class RunToolMCPServer:
     """MCP Server that exposes run.py execution and discovery functionality."""
 
     def __init__(self, server_name: str = "run-tool-mcp", version: str = "0.1.0"):
-        """Initialize the Run Tool MCP Server.
-
-        Args:
-            server_name: Name of the MCP server (used in protocol)
-            version: Version of the server
-        """
         self.app = Server(server_name)
         self.version = version
         self.config = RunToolMCPConfig.from_env()
@@ -88,100 +87,6 @@ class RunToolMCPServer:
             f"timeout={self.config.timeout}s)"
         )
 
-    def _pydantic_to_mcp_schema(self, model_class: type) -> Dict[str, Any]:
-        """Convert a Pydantic model to MCP inputSchema format."""
-        schema = model_class.model_json_schema()
-        mcp_schema: Dict[str, Any] = {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        }
-
-        if "properties" in schema:
-            for prop_name, prop_schema in schema["properties"].items():
-                mcp_prop: Dict[str, Any] = {}
-                if "type" in prop_schema:
-                    mcp_prop["type"] = prop_schema["type"]
-                if "description" in prop_schema:
-                    mcp_prop["description"] = prop_schema["description"]
-                if "default" in prop_schema:
-                    mcp_prop["default"] = prop_schema["default"]
-
-                mcp_schema["properties"][prop_name] = mcp_prop
-
-        if "required" in schema:
-            mcp_schema["required"] = schema["required"]
-
-        return mcp_schema
-
-    def _get_tool_registry_schema(self, tool_type: str) -> Dict[str, Any] | None:
-        """Generate MCP schema from ToolRegistry class for train/evaluate wrappers.
-
-        Args:
-            tool_type: Tool type name (e.g., 'train', 'evaluate')
-
-        Returns:
-            MCP schema dict or None if tool not found
-        """
-        from metta.common.tool.tool_registry import tool_registry
-
-        tool_class = tool_registry.name_to_tool.get(tool_type)
-        if not tool_class:
-            return None
-
-        tool_schema = tool_class.model_json_schema()
-        tool_description = None
-        if hasattr(tool_class, "model_fields") and "description" in tool_class.model_fields:
-            field = tool_class.model_fields["description"]
-            if field.description:
-                tool_description = field.description
-
-        wrapper_schema: Dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "recipe": {
-                    "type": "string",
-                    "description": "Recipe name (e.g., 'arena', 'navigation')",
-                },
-                "arguments": {
-                    "type": "object",
-                    "description": tool_description or f"Dictionary of arguments matching {tool_class.__name__} fields",
-                    "properties": {},
-                },
-                "dry_run": {
-                    "type": "boolean",
-                    "default": False,
-                    "description": "Validate without executing",
-                },
-                "verbose": {
-                    "type": "boolean",
-                    "default": False,
-                    "description": "Show verbose output",
-                },
-            },
-            "required": ["recipe"],
-        }
-
-        if tool_type == "train":
-            wrapper_schema["properties"]["tool_maker"] = {
-                "type": "string",
-                "description": "Optional tool maker name (e.g., 'train_shaped'). Defaults to 'train'",
-            }
-
-        if "properties" in tool_schema:
-            for prop_name, prop_schema in tool_schema["properties"].items():
-                mcp_prop: Dict[str, Any] = {}
-                if "type" in prop_schema:
-                    mcp_prop["type"] = prop_schema["type"]
-                if "description" in prop_schema:
-                    mcp_prop["description"] = prop_schema["description"]
-                if "default" in prop_schema:
-                    mcp_prop["default"] = prop_schema["default"]
-
-                wrapper_schema["properties"]["arguments"]["properties"][prop_name] = mcp_prop
-
-        return wrapper_schema
-
     def _create_error_response(self, message: str, tool: str | None = None, **kwargs: Any) -> List[types.TextContent]:
         """Create a standardized error response using ErrorResponse model."""
         error = ErrorResponse(message=message, tool=tool, **kwargs)
@@ -193,21 +98,6 @@ class RunToolMCPServer:
             return self._create_error_response(message=f"{param_name} parameter is required")
         return None
 
-    def _normalize_arguments(self, arguments: Any) -> dict[str, Any] | None:
-        """Normalize arguments to a dict, handling JSON strings."""
-        if arguments is None:
-            return None
-        if isinstance(arguments, dict):
-            return arguments
-        if isinstance(arguments, str):
-            try:
-                return json.loads(arguments)
-            except json.JSONDecodeError:
-                logger.warning(f"Failed to parse arguments as JSON: {arguments}")
-                return None
-        logger.warning(f"Unexpected arguments type: {type(arguments)}")
-        return None
-
     def _setup_tools(self) -> None:
         """Register all MCP tools with the server."""
 
@@ -217,64 +107,54 @@ class RunToolMCPServer:
                 types.Tool(
                     name="list_recipes",
                     description=MCP_TOOL_DESCRIPTIONS["list_recipes"],
-                    inputSchema=self._pydantic_to_mcp_schema(ListRecipesInput),
+                    inputSchema=pydantic_to_mcp_schema(ListRecipesInput),
                 ),
                 types.Tool(
                     name="list_tools_in_recipe",
                     description=MCP_TOOL_DESCRIPTIONS["list_tools_in_recipe"],
-                    inputSchema=self._pydantic_to_mcp_schema(ListToolsInRecipeInput),
+                    inputSchema=pydantic_to_mcp_schema(ListToolsInRecipeInput),
                 ),
                 types.Tool(
                     name="list_recipes_for_tool",
                     description=MCP_TOOL_DESCRIPTIONS["list_recipes_for_tool"],
-                    inputSchema=self._pydantic_to_mcp_schema(ListRecipesForToolInput),
+                    inputSchema=pydantic_to_mcp_schema(ListRecipesForToolInput),
                 ),
                 types.Tool(
                     name="get_tool_arguments",
                     description=MCP_TOOL_DESCRIPTIONS["get_tool_arguments"],
-                    inputSchema=self._pydantic_to_mcp_schema(GetToolArgumentsInput),
+                    inputSchema=pydantic_to_mcp_schema(GetToolArgumentsInput),
                 ),
                 types.Tool(
                     name="validate_command",
                     description=MCP_TOOL_DESCRIPTIONS["validate_command"],
-                    inputSchema=self._pydantic_to_mcp_schema(ValidateCommandInput),
+                    inputSchema=pydantic_to_mcp_schema(ValidateCommandInput),
                 ),
                 types.Tool(
                     name="run_tool",
                     description=MCP_TOOL_DESCRIPTIONS["run_tool"],
-                    inputSchema=self._pydantic_to_mcp_schema(RunToolInput),
+                    inputSchema=pydantic_to_mcp_schema(RunToolInput),
                 ),
                 types.Tool(
                     name="train",
                     description=MCP_TOOL_DESCRIPTIONS["train"],
-                    inputSchema=(self._get_tool_registry_schema("train") or self._pydantic_to_mcp_schema(TrainInput)),
+                    inputSchema=(get_tool_registry_schema("train") or pydantic_to_mcp_schema(TrainInput)),
                 ),
                 types.Tool(
                     name="evaluate",
                     description=MCP_TOOL_DESCRIPTIONS["evaluate"],
-                    inputSchema=(
-                        self._get_tool_registry_schema("evaluate") or self._pydantic_to_mcp_schema(EvaluateInput)
-                    ),
+                    inputSchema=(get_tool_registry_schema("evaluate") or pydantic_to_mcp_schema(EvaluateInput)),
                 ),
             ]
 
         @self.app.call_tool()
         async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
-            """Handle tool invocation requests.
-
-            Args:
-                name: Name of the tool to call
-                arguments: Dictionary of tool arguments
-
-            Returns:
-                List of TextContent objects with tool results
-            """
+            """Handle tool invocation requests."""
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(f"Tool called: {name} with arguments: {arguments}")
 
             try:
                 if name == "list_recipes":
-                    result = await run_tool.list_recipes()
+                    result = await tools.list_recipes()
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "list_tools_in_recipe":
@@ -282,7 +162,7 @@ class RunToolMCPServer:
                     error_response = self._validate_required_param("recipe", recipe)
                     if error_response:
                         return error_response
-                    result = await run_tool.list_tools_in_recipe(recipe=recipe)
+                    result = await tools.list_tools_in_recipe(recipe=recipe)
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "list_recipes_for_tool":
@@ -290,7 +170,7 @@ class RunToolMCPServer:
                     error_response = self._validate_required_param("tool_type", tool_type)
                     if error_response:
                         return error_response
-                    result = await run_tool.list_recipes_for_tool(tool_type=tool_type)
+                    result = await tools.list_recipes_for_tool(tool_type=tool_type)
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_tool_arguments":
@@ -298,7 +178,7 @@ class RunToolMCPServer:
                     error_response = self._validate_required_param("tool_path", tool_path)
                     if error_response:
                         return error_response
-                    result = await run_tool.get_tool_arguments(tool_path=tool_path)
+                    result = await tools.get_tool_arguments(tool_path=tool_path)
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "validate_command":
@@ -306,8 +186,8 @@ class RunToolMCPServer:
                     error_response = self._validate_required_param("tool_path", tool_path)
                     if error_response:
                         return error_response
-                    normalized_args = self._normalize_arguments(arguments.get("arguments"))
-                    result = await run_tool.validate_command(tool_path=tool_path, arguments=normalized_args)
+                    normalized_args = normalize_arguments(arguments.get("arguments"))
+                    result = await tools.validate_command(tool_path=tool_path, arguments=normalized_args)
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "run_tool":
@@ -315,8 +195,8 @@ class RunToolMCPServer:
                     error_response = self._validate_required_param("tool_path", tool_path)
                     if error_response:
                         return error_response
-                    normalized_args = self._normalize_arguments(arguments.get("arguments"))
-                    result = await run_tool.execute_run_tool(
+                    normalized_args = normalize_arguments(arguments.get("arguments"))
+                    result = await tools.execute_run_tool(
                         executor=self.executor,
                         tool_path=tool_path,
                         arguments=normalized_args,
@@ -333,8 +213,8 @@ class RunToolMCPServer:
                         return error_response
                     tool_maker = arguments.get("tool_maker", "train")
                     tool_path = f"{tool_maker} {recipe}" if tool_maker != "train" else f"train {recipe}"
-                    normalized_args = self._normalize_arguments(arguments.get("arguments"))
-                    result = await run_tool.execute_run_tool(
+                    normalized_args = normalize_arguments(arguments.get("arguments"))
+                    result = await tools.execute_run_tool(
                         executor=self.executor,
                         tool_path=tool_path,
                         arguments=normalized_args,
@@ -349,8 +229,8 @@ class RunToolMCPServer:
                     if error_response:
                         return error_response
                     tool_path = f"evaluate {recipe}"
-                    normalized_args = self._normalize_arguments(arguments.get("arguments"))
-                    result = await run_tool.execute_run_tool(
+                    normalized_args = normalize_arguments(arguments.get("arguments"))
+                    result = await tools.execute_run_tool(
                         executor=self.executor,
                         tool_path=tool_path,
                         arguments=normalized_args,
@@ -422,3 +302,4 @@ def cli_main() -> None:
 
 if __name__ == "__main__":
     cli_main()
+

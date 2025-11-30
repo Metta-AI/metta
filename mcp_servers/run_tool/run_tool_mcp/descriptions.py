@@ -1,8 +1,5 @@
 """MCP tool descriptions for the Run Tool MCP Server."""
 
-# MCP Tool Descriptions
-# These descriptions guide AI assistants on when to use each MCP tool
-
 MCP_TOOL_DESCRIPTIONS = {
     "list_recipes": (
         "USE THIS TOOL when the user asks about available recipes, wants to see what recipes exist, "
@@ -63,3 +60,4 @@ MCP_TOOL_DESCRIPTIONS = {
         "from the response in your chat message so the user can see the exact run.py command."
     ),
 }
+

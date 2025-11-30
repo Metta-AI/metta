@@ -1,37 +1,56 @@
 """Executor for running tools programmatically using existing utilities."""
 
 import io
-import json
 import logging
 import sys
 from pathlib import Path
 from typing import Any, Optional
 
 from metta.common.tool.recipe_registry import recipe_registry
-from metta.common.tool.run_tool import build_and_execute_tool, nestify, parse_cli_args
+from metta.common.tool.run_tool import build_and_execute_tool, nestify
 from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
 from metta.common.tool.tool_registry import tool_registry
 
 from .models import ErrorResponse, ToolExecutionResult
-from .tools.run_tool import get_tool_arguments
+from .tools import get_tool_arguments
+from .utils import determine_error_type, format_command_preview
 
 logger = logging.getLogger(__name__)
 
 
-class RunToolExecutor:
-    """Executes tools programmatically using existing run_tool utilities.
+def format_execution_summary(command: str, dry_run: bool) -> str:
+    """Format execution summary message."""
+    if dry_run:
+        return f"Would execute: {command} (dry run - validation only)"
+    return f"Executed: {command}"
 
-    Uses the same logic as run_tool.main() but executes directly without subprocesses.
-    """
+
+def create_execution_result(
+    success: bool,
+    exit_code: int,
+    stdout: str,
+    stderr: str,
+    command: str,
+    error: str | None = None,
+    summary: str | None = None,
+) -> dict[str, Any]:
+    """Create ToolExecutionResult and return as dict."""
+    result = ToolExecutionResult(
+        success=success,
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr=stderr,
+        command=command,
+        error=error,
+        summary=summary,
+    )
+    return result.model_dump()
+
+
+class RunToolExecutor:
+    """Executes tools programmatically using existing run_tool utilities."""
 
     def __init__(self, run_script_path: Path, repo_root: Path, timeout: int = 3600):
-        """Initialize the executor.
-
-        Args:
-            run_script_path: Path to the run.py script (kept for compatibility, not used)
-            repo_root: Root of the Metta repository
-            timeout: Default timeout in seconds (for future async support)
-        """
         self.run_script_path = run_script_path
         self.repo_root = repo_root
         self.timeout = timeout
@@ -44,21 +63,7 @@ class RunToolExecutor:
         verbose: bool = False,
         timeout: Optional[int] = None,
     ) -> dict[str, Any]:
-        """Execute a tool programmatically.
-
-        Replicates run_tool.main() logic but executes directly without subprocess.
-
-        Args:
-            tool_path: Tool path (e.g., 'train arena', 'arena.train')
-            arguments: Dictionary of key=value arguments
-            dry_run: If True, validate without executing
-            verbose: If True, show verbose output
-            timeout: Override default timeout
-
-        Returns:
-            Dictionary with success, exit_code, stdout, stderr, error, command
-        """
-        # Capture stdout/stderr to collect tool output
+        """Execute a tool programmatically."""
         stdout_capture = io.StringIO()
         stderr_capture = io.StringIO()
         original_stdout = sys.stdout
@@ -68,58 +73,14 @@ class RunToolExecutor:
             sys.stdout = stdout_capture
             sys.stderr = stderr_capture
 
-            cli_args_list: list[str] = []
-            if arguments:
-                if isinstance(arguments, str):
-                    try:
-                        arguments = json.loads(arguments)
-                    except json.JSONDecodeError:
-                        logger.warning(f"Failed to parse arguments as JSON: {arguments}")
-                        arguments = None
-                if isinstance(arguments, dict):
-                    for key, value in arguments.items():
-                        if value is None:
-                            continue
-                        if isinstance(value, bool):
-                            value_str = str(value).lower()
-                        elif isinstance(value, (list, dict)):
-                            value_str = json.dumps(value)
-                        else:
-                            value_str = str(value)
-                        cli_args_list.append(f"{key}={value_str}")
-
-            second_token = None
-            if cli_args_list and "=" not in cli_args_list[0] and not cli_args_list[0].startswith("-"):
-                second_token = cli_args_list[0]
-
-            resolved_tool_path, args_consumed = parse_two_token_syntax(tool_path, second_token)
-
-            remaining_cli_args = cli_args_list[args_consumed:]
-
-            cmd_parts = ["./tools/run.py", resolved_tool_path]
-            if remaining_cli_args:
-                cmd_parts.extend(remaining_cli_args)
-            equivalent_command = " ".join(cmd_parts)
-
-            try:
-                cli_args = parse_cli_args(remaining_cli_args)
-            except ValueError as e:
-                result = ToolExecutionResult(
-                    success=False,
-                    exit_code=2,
-                    stdout=stdout_capture.getvalue(),
-                    stderr=f"Error parsing arguments: {e}",
-                    command=equivalent_command,
-                    error="argument_parse_error",
-                    summary=f"Failed to parse arguments: {e}",
-                )
-                return result.model_dump()
-
+            resolved_tool_path, _ = parse_two_token_syntax(tool_path, None)
+            cli_args = arguments or {}
             nested_cli = nestify(cli_args)
+            equivalent_command = format_command_preview(resolved_tool_path, cli_args)
 
             tool_maker = resolve_and_load_tool_maker(resolved_tool_path)
             if tool_maker is None:
-                result = ToolExecutionResult(
+                return create_execution_result(
                     success=False,
                     exit_code=1,
                     stdout=stdout_capture.getvalue(),
@@ -128,7 +89,6 @@ class RunToolExecutor:
                     error="tool_not_found",
                     summary=f"Tool '{tool_path}' not found",
                 )
-                return result.model_dump()
 
             if verbose:
                 logger.info(f"Loading tool: {tool_maker.__module__}.{tool_maker.__name__}")
@@ -158,39 +118,19 @@ class RunToolExecutor:
                 output_exception_func=output_exception_handler,
             )
 
-            error_type = None
-            if exit_code != 0:
-                stderr_content = stderr_capture.getvalue()
-                if "Unknown arguments" in stderr_content:
-                    error_type = "unknown_arguments"
-                elif "Error creating tool configuration" in stderr_content:
-                    error_type = "tool_construction_error"
-                elif "Error applying override" in stderr_content:
-                    error_type = "override_error"
-                elif exit_code == 130:
-                    error_type = "interrupted"
-                elif "Tool invocation failed" in stderr_content:
-                    error_type = "invocation_error"
-                else:
-                    error_type = "execution_error"
+            stderr_content = stderr_capture.getvalue()
+            error_type = determine_error_type(exit_code, stderr_content)
+            summary = format_execution_summary(equivalent_command, dry_run)
 
-            summary = None
-            if dry_run:
-                summary = f"Would execute: {equivalent_command} (dry run - validation only)"
-            else:
-                summary = f"Executed: {equivalent_command}"
-
-            result = ToolExecutionResult(
+            return create_execution_result(
                 success=exit_code == 0,
                 exit_code=exit_code,
                 stdout=stdout_capture.getvalue(),
-                stderr=stderr_capture.getvalue(),
+                stderr=stderr_content,
                 command=equivalent_command,
                 error=error_type,
                 summary=summary,
             )
-
-            return result.model_dump()
 
         finally:
             sys.stdout = original_stdout
@@ -199,41 +139,36 @@ class RunToolExecutor:
     async def execute_list_command(
         self, recipe: Optional[str] = None, tool_type: Optional[str] = None
     ) -> dict[str, Any]:
-        """Execute a --list command to discover tools using recipe_registry.
-
-        Args:
-            recipe: Recipe name to list tools for (e.g., 'arena')
-            tool_type: Tool type to find recipes for (e.g., 'train')
-
-        Returns:
-            Dictionary with discovery results
-        """
+        """Execute a --list command to discover tools using recipe_registry."""
         if recipe:
             recipe_obj = recipe_registry.get(recipe)
             if recipe_obj:
                 tools = sorted(recipe_obj.get_all_tool_maker_names())
                 output_lines = [f"  {recipe_obj.short_name}.{tool}" for tool in tools]
-                return {
-                    "success": True,
-                    "exit_code": 0,
-                    "stdout": "\n".join(output_lines),
-                    "stderr": "",
-                }
-            return {
-                "success": False,
-                "exit_code": 1,
-                "stdout": "",
-                "stderr": f"Recipe '{recipe}' not found",
-            }
+                return create_execution_result(
+                    success=True,
+                    exit_code=0,
+                    stdout="\n".join(output_lines),
+                    stderr="",
+                    command=f"./tools/run.py {recipe} --list",
+                )
+            return create_execution_result(
+                success=False,
+                exit_code=1,
+                stdout="",
+                stderr=f"Recipe '{recipe}' not found",
+                command=f"./tools/run.py {recipe} --list",
+            )
 
         elif tool_type:
             if tool_type not in tool_registry.name_to_tool:
-                return {
-                    "success": False,
-                    "exit_code": 1,
-                    "stdout": "",
-                    "stderr": f"Tool type '{tool_type}' not found",
-                }
+                return create_execution_result(
+                    success=False,
+                    exit_code=1,
+                    stdout="",
+                    stderr=f"Tool type '{tool_type}' not found",
+                    command=f"./tools/run.py {tool_type} --list",
+                )
 
             recipes = recipe_registry.get_all()
             output_lines = []
@@ -244,71 +179,66 @@ class RunToolExecutor:
                         output_lines.append(f"  {r.short_name}.{maker_name}")
 
             if output_lines:
-                return {
-                    "success": True,
-                    "exit_code": 0,
-                    "stdout": "\n".join(output_lines),
-                    "stderr": "",
-                }
-            return {
-                "success": True,
-                "exit_code": 0,
-                "stdout": f"No recipes found supporting '{tool_type}'",
-                "stderr": "",
-            }
+                return create_execution_result(
+                    success=True,
+                    exit_code=0,
+                    stdout="\n".join(output_lines),
+                    stderr="",
+                    command=f"./tools/run.py {tool_type} --list",
+                )
+            return create_execution_result(
+                success=True,
+                exit_code=0,
+                stdout=f"No recipes found supporting '{tool_type}'",
+                stderr="",
+                command=f"./tools/run.py {tool_type} --list",
+            )
 
-        return {
-            "success": False,
-            "exit_code": 1,
-            "stdout": "",
-            "stderr": "Either recipe or tool_type must be provided",
-        }
+        return create_execution_result(
+            success=False,
+            exit_code=1,
+            stdout="",
+            stderr="Either recipe or tool_type must be provided",
+            command="./tools/run.py --list",
+        )
 
     async def execute_help_command(self, tool_path: str) -> dict[str, Any]:
-        """Get tool arguments using get_tool_arguments.
-
-        Args:
-            tool_path: Tool path (e.g., 'train arena')
-
-        Returns:
-            Dictionary with help output
-        """
+        """Get tool arguments using get_tool_arguments."""
+        help_command = f"./tools/run.py {tool_path} --help"
         try:
             result_json = await get_tool_arguments(tool_path)
             try:
                 error_response = ErrorResponse.model_validate_json(result_json)
                 if error_response.status == "error":
-                    result = ToolExecutionResult(
+                    return create_execution_result(
                         success=False,
                         exit_code=1,
                         stdout="",
                         stderr=error_response.message,
-                        command=f"./tools/run.py {tool_path} --help",
+                        command=help_command,
                         error="help_error",
                         summary=f"Error getting tool arguments: {error_response.message}",
                     )
-                    return result.model_dump()
             except Exception:
                 pass
 
-            result = ToolExecutionResult(
+            return create_execution_result(
                 success=True,
                 exit_code=0,
                 stdout=result_json,
                 stderr="",
-                command=f"./tools/run.py {tool_path} --help",
+                command=help_command,
                 summary="Tool arguments retrieved successfully",
             )
-            return result.model_dump()
         except Exception as e:
             logger.exception("Error executing help command")
-            result = ToolExecutionResult(
+            return create_execution_result(
                 success=False,
                 exit_code=1,
                 stdout="",
                 stderr=str(e),
-                command=f"./tools/run.py {tool_path} --help",
+                command=help_command,
                 error="help_error",
                 summary=f"Error executing help command: {str(e)}",
             )
-            return result.model_dump()
+

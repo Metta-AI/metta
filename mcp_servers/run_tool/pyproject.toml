@@ -9,9 +9,6 @@ dependencies = ["mcp>=1.0.0"]
 [project.scripts]
 run-tool-mcp = "run_tool_mcp.server:cli_main"
 
-[tool.setuptools.packages.find]
-include = ["run_tool_mcp"]
-
 [build-system]
 requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"

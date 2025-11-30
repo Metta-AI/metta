@@ -1,7 +1,6 @@
 """Tool functions for run.py execution and discovery."""
 
 import inspect
-import json
 import logging
 from typing import Any
 
@@ -10,7 +9,7 @@ from metta.common.tool.recipe_registry import recipe_registry
 from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
 from metta.common.tool.tool_registry import tool_registry
 
-from ..models import (
+from .models import (
     ErrorResponse,
     RecipeForToolInfo,
     RecipeInfo,
@@ -18,27 +17,17 @@ from ..models import (
     RecipesForToolResponse,
     ToolArgumentInfo,
     ToolArgumentsResponse,
+    ToolExecutionResult,
     ToolListResponse,
     ValidationResponse,
 )
+from .utils import format_command_preview
 
 logger = logging.getLogger(__name__)
 
 
 def _normalize_tool_path(tool_path: str) -> str:
-    """Normalize tool path to handle two-token syntax like 'train arena'.
-
-    This function handles the same syntax as the CLI run.py:
-    - 'train arena' -> 'arena.train'
-    - 'arena.train' -> 'arena.train' (no change)
-    - 'experiments.recipes.arena.train' -> 'experiments.recipes.arena.train' (no change)
-
-    Args:
-        tool_path: Tool path in any format
-
-    Returns:
-        Normalized tool path (e.g., 'arena.train')
-    """
+    """Normalize tool path to handle two-token syntax like 'train arena'."""
     parts = tool_path.strip().split(None, 1)
 
     if len(parts) == 2:
@@ -51,11 +40,7 @@ def _normalize_tool_path(tool_path: str) -> str:
 
 
 async def list_recipes() -> str:
-    """List all available recipes.
-
-    Returns:
-        JSON string with list of recipes and their tools
-    """
+    """List all available recipes."""
     try:
         recipes = recipe_registry.get_all()
         result = RecipeListResponse(
@@ -76,14 +61,7 @@ async def list_recipes() -> str:
 
 
 async def list_tools_in_recipe(recipe: str) -> str:
-    """List all tools available in a specific recipe.
-
-    Args:
-        recipe: Recipe name (e.g., 'arena')
-
-    Returns:
-        JSON string with list of tools
-    """
+    """List all tools available in a specific recipe."""
     try:
         recipe_obj = recipe_registry.get(recipe)
         if not recipe_obj:
@@ -108,14 +86,7 @@ async def list_tools_in_recipe(recipe: str) -> str:
 
 
 async def list_recipes_for_tool(tool_type: str) -> str:
-    """List all recipes that support a specific tool type.
-
-    Args:
-        tool_type: Tool type (e.g., 'train', 'evaluate')
-
-    Returns:
-        JSON string with list of recipes supporting the tool
-    """
+    """List all recipes that support a specific tool type."""
     try:
         recipes = recipe_registry.get_all()
         matching_recipes = []
@@ -132,7 +103,6 @@ async def list_recipes_for_tool(tool_type: str) -> str:
                 )
 
         if not matching_recipes:
-            # Check if tool type exists
             if tool_type not in tool_registry.name_to_tool:
                 error = ErrorResponse(
                     message=f"Tool type '{tool_type}' not found",
@@ -149,19 +119,10 @@ async def list_recipes_for_tool(tool_type: str) -> str:
 
 
 async def get_tool_arguments(tool_path: str) -> str:
-    """Get available arguments for a tool using --help.
-
-    Args:
-        tool_path: Tool path (e.g., 'train arena', 'arena.train')
-
-    Returns:
-        JSON string with tool arguments information
-    """
+    """Get available arguments for a tool using --help."""
     try:
-        # Normalize tool path to handle two-token syntax
         normalized_path = _normalize_tool_path(tool_path)
 
-        # Try to resolve the tool maker to get type information
         tool_maker = resolve_and_load_tool_maker(normalized_path)
         if not tool_maker:
             error = ErrorResponse(message=f"Tool '{tool_path}' not found", normalized_path=normalized_path)
@@ -170,7 +131,6 @@ async def get_tool_arguments(tool_path: str) -> str:
         function_parameters: dict[str, ToolArgumentInfo] | None = None
         tool_config_fields: dict[str, ToolArgumentInfo] | None = None
 
-        # Get function parameters if it's a function
         if inspect.isfunction(tool_maker) or inspect.ismethod(tool_maker):
             sig = inspect.signature(tool_maker)
             function_parameters = {}
@@ -182,11 +142,9 @@ async def get_tool_arguments(tool_path: str) -> str:
                 )
                 function_parameters[name] = param_info
 
-        # Get tool fields if it returns a Tool
         if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
             tool_class = tool_maker
         else:
-            # Try to call it to get the tool instance
             try:
                 sig = inspect.signature(tool_maker)
                 kwargs = {}
@@ -199,7 +157,6 @@ async def get_tool_arguments(tool_path: str) -> str:
                 tool_class = None
 
         if tool_class and issubclass(tool_class, Tool):
-            # Get Pydantic model fields
             tool_config_fields = {}
             for field_name, field in tool_class.model_fields.items():
                 field_info = ToolArgumentInfo(
@@ -228,22 +185,12 @@ async def get_tool_arguments(tool_path: str) -> str:
 
 
 async def validate_command(tool_path: str, arguments: dict[str, Any] | None = None) -> str:
-    """Validate a command without executing it.
-
-    Args:
-        tool_path: Tool path (e.g., 'train arena', 'arena.train')
-        arguments: Dictionary of arguments
-
-    Returns:
-        JSON string with validation result
-    """
+    """Validate a command without executing it."""
     try:
-        # Normalize tool path to handle two-token syntax
         normalized_path = _normalize_tool_path(tool_path)
 
         tool_maker = resolve_and_load_tool_maker(normalized_path)
         if not tool_maker:
-            # Try to find similar recipes
             recipes = recipe_registry.get_all()
             suggestions = [
                 r.short_name
@@ -254,7 +201,8 @@ async def validate_command(tool_path: str, arguments: dict[str, Any] | None = No
             result = ValidationResponse(
                 valid=False,
                 error=f"Tool '{tool_path}' not found",
-                normalized_path=normalized_path,
+                tool_path=normalized_path,
+                original_path=tool_path,
                 suggestions=suggestions,
             )
             return result.model_dump_json(indent=2)
@@ -267,7 +215,6 @@ async def validate_command(tool_path: str, arguments: dict[str, Any] | None = No
                 param_names = set(sig.parameters.keys())
                 provided_keys = set(arguments.keys())
 
-                # Check for unknown function parameters
                 unknown_params = provided_keys - param_names
                 if unknown_params:
                     warnings = [f"Unknown function parameters: {unknown_params}"]
@@ -297,42 +244,9 @@ async def execute_run_tool(
     verbose: bool = False,
     timeout: int | None = None,
 ) -> str:
-    """Execute a run.py command.
-
-    Args:
-        executor: RunToolExecutor instance
-        tool_path: Tool path (e.g., 'train arena')
-        arguments: Dictionary of arguments
-        dry_run: If True, validate without executing
-        verbose: If True, show verbose output
-        timeout: Override default timeout
-
-    Returns:
-        JSON string with execution result including command summary
-    """
+    """Execute a run.py command."""
     resolved_path, _ = parse_two_token_syntax(tool_path, None)
-    preview_args = []
-    if arguments:
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError:
-                logger.warning(f"Failed to parse arguments as JSON: {arguments}")
-                arguments = None
-        if isinstance(arguments, dict):
-            for key, value in arguments.items():
-                if value is not None:
-                    if isinstance(value, bool):
-                        value_str = str(value).lower()
-                    elif isinstance(value, (list, dict)):
-                        value_str = json.dumps(value)
-                    else:
-                        value_str = str(value)
-                    preview_args.append(f"{key}={value_str}")
-
-    preview_command = "./tools/run.py " + resolved_path
-    if preview_args:
-        preview_command += " " + " ".join(preview_args)
+    preview_command = format_command_preview(resolved_path, arguments)
 
     result_dict = await executor.execute(
         tool_path=tool_path,
@@ -342,7 +256,9 @@ async def execute_run_tool(
         timeout=timeout,
     )
 
-    if "command" not in result_dict or not result_dict["command"]:
-        result_dict["command"] = preview_command
+    result = ToolExecutionResult.model_validate(result_dict)
+    if not result.command:
+        result.command = preview_command
 
-    return json.dumps(result_dict, indent=2)
+    return result.model_dump_json(indent=2)
+

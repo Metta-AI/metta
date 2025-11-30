@@ -105,7 +105,6 @@ class ErrorResponse(BaseModel):
     normalized_path: str | None = Field(default=None, description="Normalized tool path")
 
 
-# MCP Tool Input Models (for schema generation)
 class ListRecipesInput(BaseModel):
     """Input for list_recipes tool."""
 
@@ -176,3 +175,4 @@ class EvaluateInput(BaseModel):
     )
     dry_run: bool = Field(default=False, description="Validate without executing")
     verbose: bool = Field(default=False, description="Show verbose output")
+

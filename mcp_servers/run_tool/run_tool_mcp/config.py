@@ -11,7 +11,7 @@ class RunToolMCPConfig:
 
     repo_root: Path
     run_script_path: Path
-    timeout: int = 3600  # 1 hour default timeout
+    timeout: int = 3600
     log_level: str = "INFO"
     log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
@@ -31,7 +31,7 @@ class RunToolMCPConfig:
                     log_format=os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
                 )
 
-        repo_root = Path(__file__).parent.parent.parent.parent.resolve()
+        repo_root = Path(__file__).parent.parent.parent.resolve()
         if (repo_root / "tools" / "run.py").exists():
             run_script_path = repo_root / "tools" / "run.py"
             return cls(
@@ -57,7 +57,7 @@ class RunToolMCPConfig:
         raise FileNotFoundError(
             f"Could not find Metta repository root. "
             f"Set METTA_REPO_ROOT environment variable to point to the Metta repository root. "
-            f"Tried: {Path(__file__).parent.parent.parent.parent}, {cwd}"
+            f"Tried: {Path(__file__).parent.parent.parent}, {cwd}"
         )
 
     def validate(self) -> list[str]:
@@ -70,3 +70,4 @@ class RunToolMCPConfig:
         if self.timeout <= 0:
             errors.append(f"Timeout must be positive, got: {self.timeout}")
         return errors
+
