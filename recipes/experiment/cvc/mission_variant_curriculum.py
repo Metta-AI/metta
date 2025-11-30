@@ -154,7 +154,6 @@ def resolve_missions(
 
     # Mission set name -> mission name list mapping
     MISSION_SETS: dict[str, tuple[str, ...]] = {
-        "eval_missions": MISSIONS,
         "diagnostic_missions": DIAGNOSTIC_MISSIONS,
         "training_facility_missions": TRAINING_FACILITY_MISSIONS,
         "all": FULL_CURRICULUM_MISSIONS,
