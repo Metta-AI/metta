@@ -144,7 +144,97 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
     def build(self) -> GameMap: ...
 
 
-class NavigationFromNumpy(TerrainFromNumpy):
+class NavigationFromNumpyConfig(MapBuilderConfig["NavigationFromNumpy"], WithMaxRetriesConfig):
+    """Config for NavigationFromNumpy - explicit module-level class to avoid dynamic CloneConfig.
+
+    This is needed because TerrainFromNumpyConfig is already bound to TerrainFromNumpy.
+    When NavigationFromNumpy tries to reuse it, MapBuilder.__init_subclass__ would create
+    a local CloneConfig class which can't be pickled for multiprocessing.
+    """
+
+    objects: dict[str, int] = Field(default_factory=dict)
+    agents: int | dict[str, int] = Field(default=0, ge=0)
+    dir: str
+    file: Optional[str] = None
+    remove_altars: bool = False
+    seed: Optional[int] = None  # Use seed instead of Random object for picklability
+
+
+class NavigationFromNumpy(MapBuilder[NavigationFromNumpyConfig]):
+    def __init__(self, config: NavigationFromNumpyConfig):
+        super().__init__(config)
+        # Create Random instance from seed for use in build methods
+        self.rng = random.Random(self.config.seed)
+
+    def setup(self):
+        """Setup map directory - copied from TerrainFromNumpy."""
+        root = self.config.dir.split("/")[0]
+
+        map_dir = f"train_dir/{self.config.dir}"
+        root_dir = f"train_dir/{root}"
+
+        s3_path = f"{MAPS_ROOT}/{root}.zip"
+        local_zipped_dir = root_dir + ".zip"
+        # Only one process can hold this lock at a time:
+        with FileLock(local_zipped_dir + ".lock"):
+            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
+                download_from_s3(s3_path, local_zipped_dir)
+            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
+                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
+                    zip_ref.extractall(os.path.dirname(root_dir))
+                os.remove(local_zipped_dir)
+                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
+        return map_dir
+
+    def get_valid_positions(self, level: MapGrid, assemblers=False):
+        """Get valid positions - copied from TerrainFromNumpy."""
+        # Create a boolean mask for empty cells
+        empty_mask = level == "empty"
+
+        if assemblers:
+            has_empty_neighbor = (
+                np.roll(empty_mask, 1, axis=0)  # Check up
+                & np.roll(empty_mask, -1, axis=0)  # Check down
+                & np.roll(empty_mask, 1, axis=1)  # Check left
+                & np.roll(empty_mask, -1, axis=1)  # Check right
+            )
+            valid_mask = empty_mask & has_empty_neighbor
+        else:
+            has_empty_neighbor = (
+                np.roll(empty_mask, 1, axis=0)  # Check up
+                | np.roll(empty_mask, -1, axis=0)  # Check down
+                | np.roll(empty_mask, 1, axis=1)  # Check left
+                | np.roll(empty_mask, -1, axis=1)  # Check right
+            )
+
+            # Valid positions are empty cells with at least one empty neighbor
+            # Exclude border cells (indices 0 and -1)
+            valid_mask = empty_mask & has_empty_neighbor
+            valid_mask[0, :] = False
+            valid_mask[-1, :] = False
+            valid_mask[:, 0] = False
+            valid_mask[:, -1] = False
+
+        # Get coordinates of valid positions
+        valid_positions = list(zip(*np.where(valid_mask), strict=False))
+        return valid_positions
+
+    def clean_grid(self, grid: MapGrid, assemblers=True):
+        """Clean grid - copied from TerrainFromNumpy."""
+        grid[grid == "agent.agent"] = "empty"
+        if self.config.remove_altars:
+            grid[grid == "altar"] = "empty"
+
+        # Prepare agent labels
+        if isinstance(self.config.agents, int):
+            agent_labels = ["agent.agent"] * self.config.agents
+        else:
+            agent_labels = [f"agent.{name}" for name, count in self.config.agents.items() for _ in range(count)]
+
+        valid_positions = self.get_valid_positions(grid, assemblers)
+        self.rng.shuffle(valid_positions)
+        return grid, valid_positions, agent_labels
+
     def build(self):
         map_dir = self.setup()
         if self.config.file is None:
