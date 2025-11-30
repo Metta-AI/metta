@@ -137,6 +137,9 @@ def train(
         "s3://softmax-public/policies/av.student.student1.11.27.01/av.student.student1.11.27.01:v800.mpt"
     )
 
+    # add vit_reconstruction loss
+    losses_config.vit_reconstruction.enabled = True
+
     ks_end_step = 600_000_000
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
