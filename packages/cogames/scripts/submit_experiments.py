@@ -144,7 +144,7 @@ def submit_all_missions_no_variants():
 def submit_all_missions_with_variants():
     mission_variant_curriculum.experiment(
     base_missions=S3_SUCCESFUL_TRAINING_MISSIONS,
-    run_name=f"single_mission_experiment_training_missions_standard",
+    run_name=f"single_mission_experiment_training_missions_all_variants",
     skip_git_check=True,
     variants=S3_SUCCESFUL_VARIANTS,
     additional_args=[
@@ -155,7 +155,7 @@ def submit_all_missions_with_variants():
 
     mission_variant_curriculum.experiment(
     base_missions=S3_SUCCESSFUL_EVAL_MISSIONS,
-    run_name=f"single_mission_experiment_training_missions_standard",
+    run_name=f"single_mission_experiment_training_missions_all_variants",
     skip_git_check=True,
     variants=S3_SUCCESFUL_VARIANTS,
     additional_args=[
@@ -166,7 +166,7 @@ def submit_all_missions_with_variants():
 
     mission_variant_curriculum.experiment(
     base_missions=S3_SUCCESFUL_TRAINING_MISSIONS +S3_SUCCESSFUL_EVAL_MISSIONS,
-    run_name=f"single_mission_experiment_training_missions_standard",
+    run_name=f"single_mission_experiment_training_missions_all_variants",
     skip_git_check=True,
     variants=S3_SUCCESFUL_VARIANTS,
     additional_args=[
@@ -178,7 +178,9 @@ def submit_all_missions_with_variants():
 if __name__ == "__main__":
     # submit_variants_experiments()
     # submit_full_curriculum_experiment()
-    submit_s3_successful_missions_experiment()
+    submit_single_mission_experiments()
+    submit_all_missions_no_variants()
+    submit_all_missions_with_variants()
     print("\n" + "=" * 80)
     print("All experiments submitted successfully!")
     print("=" * 80)
