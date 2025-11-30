@@ -135,7 +135,7 @@ class NavigationDenseMission(Mission):
 
 
 # 1. Navigation Sequence Missions (from eval config)
-NAVIGATION_MISSIONS: list[Mission] = [
+NAVIGATION_EVAL_MISSIONS: list[Mission] = [
     NavigationMission(
         name=f"navigation_{eval_cfg['name']}",
         nav_map_name=eval_cfg['name'],
@@ -145,6 +145,8 @@ NAVIGATION_MISSIONS: list[Mission] = [
     )
     for eval_cfg in navigation.NAVIGATION_EVALS
 ]
+
+NAVIGATION_MISSIONS = []
 
 # 3. Training Missions (Varied Terrain configurations)
 # From recipes.experiment.navigation.make_curriculum
