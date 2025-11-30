@@ -241,4 +241,3 @@ class RunToolExecutor:
                 error="help_error",
                 summary=f"Error executing help command: {str(e)}",
             )
-

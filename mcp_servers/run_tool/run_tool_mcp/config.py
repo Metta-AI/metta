@@ -70,4 +70,3 @@ class RunToolMCPConfig:
         if self.timeout <= 0:
             errors.append(f"Timeout must be positive, got: {self.timeout}")
         return errors
-

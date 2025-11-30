@@ -175,4 +175,3 @@ class EvaluateInput(BaseModel):
     )
     dry_run: bool = Field(default=False, description="Validate without executing")
     verbose: bool = Field(default=False, description="Show verbose output")
-

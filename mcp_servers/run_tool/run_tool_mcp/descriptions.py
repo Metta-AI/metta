@@ -60,4 +60,3 @@ MCP_TOOL_DESCRIPTIONS = {
         "from the response in your chat message so the user can see the exact run.py command."
     ),
 }
-
