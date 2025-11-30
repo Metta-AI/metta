@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier
 from metta.agent.policy import Policy
@@ -162,7 +163,7 @@ class ViTReconstructionLoss(Loss):
         self.cfg: ViTReconstructionLossConfig = cfg  # type: ignore
         self.decoder = None
 
-    def _init_decoder(self, latent_dim: int) -> None:
+    def _init_decoder(self, latent_dim: int, context: ComponentContext) -> None:
         # 1. Derive num_attribute_classes from environment
         if self.cfg.num_attribute_classes is not None:
             num_attribute_classes = self.cfg.num_attribute_classes
@@ -209,7 +210,22 @@ class ViTReconstructionLoss(Loss):
             device=self.device,
         ).to(self.device)
 
-        # Attach to policy to ensure parameters are optimized
+        # Register new parameters with the optimizer since they were created after optimizer init
+        if context.optimizer is not None:
+            context.optimizer.add_param_group({"params": self.decoder.parameters()})
+
+        # Handle distributed training: wrap decoder in DDP if needed
+        # The policy is already DDP wrapped by Trainer, but this new module is not.
+        if context.distributed.is_distributed:
+            # Note: DDP wrapper broadcasts parameters from rank 0 to others on init
+            self.decoder = DDP(
+                self.decoder,
+                device_ids=[context.distributed.config.local_rank],
+                output_device=context.distributed.config.local_rank,
+                # broadcast_buffers is True by default, which is correct for syncing buffers
+            )
+
+        # Attach to policy to ensure parameters are accessible if needed
         # Unwrapping policy if it's wrapped (e.g. DDP)
         target_policy = self.policy
         if hasattr(target_policy, "module"):
@@ -246,7 +262,7 @@ class ViTReconstructionLoss(Loss):
 
         # Lazy initialization of decoder
         if self.decoder is None:
-            self._init_decoder(latent_dim=obs_latent_attn.shape[-1])
+            self._init_decoder(latent_dim=obs_latent_attn.shape[-1], context=context)
 
         # Run decoder
         pred_logits, pred_values, target_ids, target_values, valid_mask = self.decoder(obs_shim_tokens, obs_latent_attn)
