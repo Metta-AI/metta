@@ -17,11 +17,12 @@ from sky.schemas.api.responses import StatusResponse
 from typer import rich_utils
 
 import gitta as git
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter
+
 from devops.skypilot.utils.cost_monitor import get_instance_cost
 from devops.skypilot.utils.task_helpers import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.log_config import init_logging
-from metta.common.util.retry import retry_function
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
@@ -201,7 +202,7 @@ def check_cluster_status(cluster_name: str) -> Optional[str]:
 
 
 def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> bool:
-    """Wait for cluster to reach UP state using retry utility.
+    """Wait for cluster to reach UP state using tenacity retry.
 
     Returns:
         True if cluster reached UP state, False if timeout or error.
@@ -209,6 +210,11 @@ def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> boo
     print("⏳ Waiting for cluster to be fully ready...")
     start_time = time.time()
 
+    @retry(
+        stop=stop_after_attempt(timeout_seconds // 5 + 1),
+        wait=wait_exponential_jitter(initial=1.0, max=5.0),
+        reraise=True,
+    )
     def check_and_validate_status():
         elapsed = time.time() - start_time
         remaining = timeout_seconds - elapsed
@@ -230,12 +236,7 @@ def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> boo
             raise Exception(f"Cluster in unexpected state: {status}")
 
     try:
-        retry_function(
-            check_and_validate_status,
-            max_retries=timeout_seconds // 5,
-            max_delay=5.0,
-            exceptions=(Exception,),
-        )
+        check_and_validate_status()
         print(f"{green('✓')} Cluster is now UP and ready")
         return True
     except Exception as e:
