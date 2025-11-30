@@ -1,0 +1,98 @@
+# BUILD.bazel for mettagrid tests
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+# Common test dependencies
+TEST_DEPS = [
+    "//cpp:mettagrid_core",
+    "@googletest//:gtest_main",
+]
+
+TEST_COPTS = [
+    "-std=c++20",
+    "-DCUDA_DISABLED",  # Disable CUDA for now
+]
+
+# Existing tests
+cc_test(
+    name = "test_grid_object",
+    srcs = ["test_grid_object.cpp"],
+    copts = TEST_COPTS,
+    deps = TEST_DEPS,
+)
+
+cc_test(
+    name = "test_observations",
+    srcs = ["test_observations.cpp"],
+    copts = TEST_COPTS,
+    deps = TEST_DEPS,
+)
+
+cc_test(
+    name = "test_stats_tracker",
+    srcs = ["test_stats_tracker.cpp"],
+    copts = TEST_COPTS,
+    deps = TEST_DEPS,
+)
+
+cc_test(
+    name = "test_clipper",
+    srcs = ["test_clipper.cpp"],
+    copts = TEST_COPTS,
+    deps = TEST_DEPS,
+)
+
+cc_test(
+    name = "test_mettagrid",
+    srcs = ["test_mettagrid.cpp"],
+    copts = TEST_COPTS,
+    deps = TEST_DEPS,
+)
+
+# New matrix profile tests
+cc_test(
+    name = "test_matrix_profile",
+    srcs = [
+        "test_matrix_profile.cpp",
+        "//cpp:src/matrix_profile.cpp",
+    ],
+    copts = TEST_COPTS,
+    includes = ["//cpp:include/mettagrid"],
+    deps = TEST_DEPS,
+)
+
+cc_test(
+    name = "test_agent_similarity",
+    srcs = [
+        "test_agent_similarity.cpp",
+        "//cpp:src/matrix_profile.cpp",
+    ],
+    copts = TEST_COPTS,
+    includes = ["//cpp:include/mettagrid"],
+    deps = TEST_DEPS,
+)
+
+cc_test(
+    name = "test_behavioral_analysis",
+    srcs = [
+        "test_behavioral_analysis.cpp",
+        "//cpp:src/matrix_profile.cpp",
+    ],
+    copts = TEST_COPTS,
+    includes = ["//cpp:include/mettagrid"],
+    deps = TEST_DEPS,
+)
+
+# Test suite
+test_suite(
+    name = "all_tests",
+    tests = [
+        ":test_grid_object",
+        ":test_observations",
+        ":test_stats_tracker",
+        ":test_clipper",
+        ":test_mettagrid",
+        ":test_matrix_profile",
+        ":test_agent_similarity",
+        ":test_behavioral_analysis",
+    ],
+)
