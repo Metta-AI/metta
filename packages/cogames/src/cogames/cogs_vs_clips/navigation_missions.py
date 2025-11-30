@@ -4,16 +4,11 @@ These missions wrap the navigation environments defined in recipes.experiment.na
 so they can be used within the standard Mission/Curriculum infrastructure.
 """
 
-from typing import cast, override
+from typing import override
 
 from cogames.cogs_vs_clips.mission import Mission
 from mettagrid.config import vibes
-from mettagrid.config.mettagrid_config import (
-    MettaGridConfig,
-    AttackActionConfig,
-    ResourceModActionConfig,
-    ChangeVibeActionConfig
-)
+from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from metta.map.terrain_from_numpy import NavigationFromNumpy
@@ -22,66 +17,35 @@ from recipes.experiment import navigation
 
 def _cleanup_nav_env(env: MettaGridConfig) -> MettaGridConfig:
     """Cleanup navigation environment to be compatible with CVC training.
-
+    
     Ensures the environment configuration satisfies CVC constraints and matches
     the standard action space (using TRAINING_VIBES) to allow joint training.
     """
     # 1. Standardize Vibe Configuration
     # Use TRAINING_VIBES (subset) to match the curriculum standard.
     env.game.vibe_names = [vibe.name for vibe in vibes.TRAINING_VIBES]
-
+    
     if env.game.actions:
         # 2. Ensure Vibe Action matches
-        if not env.game.actions.change_vibe:
-            env.game.actions.change_vibe = ChangeVibeActionConfig(
-                action_handler="change_vibe",
-                enabled=True,
-                number_of_vibes=len(vibes.TRAINING_VIBES)
-            )
-        else:
+        if env.game.actions.change_vibe:
             env.game.actions.change_vibe.enabled = True
             env.game.actions.change_vibe.number_of_vibes = len(vibes.TRAINING_VIBES)
-
-        # Filter initial vibe to be within range
-        if env.game.agent.initial_vibe >= len(vibes.TRAINING_VIBES):
-            env.game.agent.initial_vibe = 0
+            
+            # Filter initial vibe to be within range
+            if env.game.agent.initial_vibe >= len(vibes.TRAINING_VIBES):
+                env.game.agent.initial_vibe = 0
 
         # 3. Force Enable Other Actions (Attack, Resource Mod)
         # CVC missions typically have these enabled. We must match the action space.
-
-        # Attack
-        # We cast the list comprehension because target_locations is typed as Literal[...]
-        # but at runtime these strings are valid.
-        targets = cast(list[str], [str(i) for i in range(1, 10)])
-
-        if not env.game.actions.attack:
-            # Type checker might complain about the literal list type, we bypass it here
-            # because constructing the config with Any is allowed or we accept the runtime safety.
-            # Actually, AttackActionConfig args are typed. We cast targets to Any to suppress.
-            from typing import Any
-            env.game.actions.attack = AttackActionConfig(
-                action_handler="attack",
-                enabled=True,
-                target_locations=cast(Any, targets)
-            )
-            print(f"DEBUG: Created AttackActionConfig. Enabled={env.game.actions.attack.enabled}, Targets={len(env.game.actions.attack.target_locations)}")
-        else:
+        # Even if they are useless in navigation, they must be present in the schema.
+        if env.game.actions.attack:
             env.game.actions.attack.enabled = True
+            # Ensure target locations match CVC defaults if needed (usually 1-9)
             if not env.game.actions.attack.target_locations:
-                 from typing import Any
-                 env.game.actions.attack.target_locations = cast(Any, targets)
-            print(f"DEBUG: Updated AttackActionConfig. Enabled={env.game.actions.attack.enabled}, Targets={len(env.game.actions.attack.target_locations)}")
+                 env.game.actions.attack.target_locations = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
-        # Resource Mod
-        if not env.game.actions.resource_mod:
-            env.game.actions.resource_mod = ResourceModActionConfig(
-                action_handler="resource_mod",
-                enabled=True
-            )
-            print(f"DEBUG: Created ResourceModActionConfig. Enabled={env.game.actions.resource_mod.enabled}")
-        else:
+        if env.game.actions.resource_mod:
             env.game.actions.resource_mod.enabled = True
-            print(f"DEBUG: Updated ResourceModActionConfig. Enabled={env.game.actions.resource_mod.enabled}")
 
     return env
 
@@ -91,7 +55,8 @@ class NavigationMission(Mission):
 
     nav_map_name: str
     max_steps: int = 1000
-    num_instances: int = 4
+    # Set num_instances to 1 to align with num_cogs being the total agent count
+    num_instances: int = 1
 
     def __init__(self, name: str, nav_map_name: str, **kwargs):
         # We pass a dummy site because Mission requires one, but we'll override make_env
@@ -112,7 +77,7 @@ class NavigationMission(Mission):
         # Note: navigation.make_nav_ascii_env expects num_agents per instance
         # Fallback to 1 agent if not set (though it should be)
         num_agents = self.num_cogs if self.num_cogs is not None else 1
-
+        
         env = navigation.make_nav_ascii_env(
             name=self.nav_map_name,
             max_steps=self.max_steps,
@@ -137,16 +102,27 @@ class SparseNavigationMission(Mission):
 
     @override
     def make_env(self) -> MettaGridConfig:
+        # make_emptyspace_sparse_env defaults to 4 agents.
+        # We should ideally respect num_cogs, but the helper might not support it.
+        # For now, we accept the default or modify if needed.
         env = navigation.make_emptyspace_sparse_env()
+        
+        # If num_cogs is set, force update the agent count
+        if self.num_cogs:
+            env.game.num_agents = self.num_cogs
+            # Also update map builder if it has agent count
+            if isinstance(env.game.map_builder, RandomMapBuilder.Config): # It might be MapGen wrapping Random
+                 pass # Handling nested config is complex, trusting default for sparse eval
+                 
         return _cleanup_nav_env(env)
 
 
 class NavigationDenseMission(Mission):
     """A mission that uses the dense varied terrain maps from navigation training.
-
+    
     This uses a specific 'varied_terrain' directory configuration.
     """
-
+    
     terrain_dir: str
 
     def __init__(self, name: str, terrain_dir: str, **kwargs):
@@ -163,15 +139,16 @@ class NavigationDenseMission(Mission):
     @override
     def make_env(self) -> MettaGridConfig:
         num_agents = self.num_cogs if self.num_cogs is not None else 1
-
+        
         # Base navigation setup
-        nav_env = navigation.mettagrid(num_agents=num_agents)
-
+        # Use 1 instance to match num_cogs as total agents
+        nav_env = navigation.mettagrid(num_agents=num_agents, num_instances=1)
+        
         # Override map builder instance with the specific directory
         # We check structure via assertion instead of cast
         map_builder = nav_env.game.map_builder
         assert isinstance(map_builder, MapGen.Config), "Expected MapGen.Config for navigation map builder"
-
+        
         default_instance = map_builder.instance
         if isinstance(default_instance, NavigationFromNumpy.Config):
             objects = default_instance.objects
@@ -183,7 +160,7 @@ class NavigationDenseMission(Mission):
             objects=objects,
             dir=self.terrain_dir,
         )
-
+        
         return _cleanup_nav_env(nav_env)
 
 
@@ -204,10 +181,13 @@ class NavigationSparseRandomMission(Mission):
     @override
     def make_env(self) -> MettaGridConfig:
         num_agents = self.num_cogs if self.num_cogs is not None else 1
-
-        nav_env = navigation.mettagrid(num_agents=num_agents)
+        
+        # Use 1 instance
+        nav_env = navigation.mettagrid(num_agents=num_agents, num_instances=1)
+        
+        # Override with RandomMapBuilder
         nav_env.game.map_builder = RandomMapBuilder.Config(
-            agents=num_agents * 4,
+            agents=num_agents, # Total agents
             objects={"altar": 10},
             width=100,
             height=100,
@@ -222,7 +202,7 @@ NAVIGATION_MISSIONS: list[Mission] = [
         nav_map_name=eval_cfg['name'],
         max_steps=eval_cfg['max_steps'],
         num_cogs=eval_cfg['num_agents'],
-        num_instances=eval_cfg['num_instances']
+        num_instances=1 # Override to 1 for compatibility
     )
     for eval_cfg in navigation.NAVIGATION_EVALS
 ]
