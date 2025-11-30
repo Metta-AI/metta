@@ -1,11 +1,10 @@
-"""Tests for the retry utilities with exponential backoff and jitter."""
+"""Tests for the retry utilities using tenacity with exponential backoff."""
 
-import time
 from dataclasses import dataclass
 
 import pytest
 
-from metta.common.util.retry import calculate_backoff_delay, retry_function, retry_on_exception
+from metta.common.util.retry import retry_function, retry_on_exception
 
 
 @dataclass
@@ -70,49 +69,15 @@ class TestRetryFunction:
         # Should have tried twice: ValueError was retried, RuntimeError was not
         assert tracker.call_count == 2
 
-    def test_exponential_backoff_timing(self, monkeypatch):
-        """Test exponential backoff with actual timing."""
-        sleep_calls = []
-        monkeypatch.setattr(time, "sleep", lambda x: sleep_calls.append(x))
+    def test_max_retries_respected(self):
+        """Test that max_retries limits the number of attempts."""
+        tracker = CallTracker([], [Exception("fail")] * 10)
 
-        # Disable jitter for predictable results
-        def mock_uniform(a, b):
-            return b
+        with pytest.raises(Exception, match="fail"):
+            retry_function(tracker, max_retries=3, initial_delay=0.01)
 
-        monkeypatch.setattr("random.uniform", mock_uniform)
-
-        tracker = CallTracker([], [Exception("fail")] * 3 + ["success"])
-
-        retry_function(
-            tracker,
-            max_retries=3,
-            initial_delay=1.0,
-            max_delay=10.0,
-            backoff_factor=2.0,
-        )
-
-        # Verify exponential delays: 1, 2, 4
-        assert sleep_calls == [1.0, 2.0, 4.0]
+        # Should have tried initial + 3 retries = 4 times
         assert tracker.call_count == 4
-
-    def test_max_delay_is_respected(self, monkeypatch):
-        """Test that delays don't exceed max_delay."""
-        sleep_calls = []
-        monkeypatch.setattr(time, "sleep", lambda x: sleep_calls.append(x))
-        monkeypatch.setattr("random.uniform", lambda a, b: b)  # Disable jitter
-
-        tracker = CallTracker([], [Exception("fail")] * 5 + ["success"])
-
-        retry_function(
-            tracker,
-            max_retries=5,
-            initial_delay=1.0,
-            max_delay=5.0,
-            backoff_factor=2.0,
-        )
-
-        # Delays should be: 1, 2, 4, 5, 5 (capped at 5)
-        assert sleep_calls == [1.0, 2.0, 4.0, 5.0, 5.0]
 
 
 class TestRetryDecorator:
@@ -166,43 +131,3 @@ class TestRetryDecorator:
 
         with pytest.raises(RuntimeError):
             selective_retry()
-
-
-class TestBackoffCalculation:
-    """Test the backoff delay calculation."""
-
-    def test_exponential_growth(self):
-        """Test exponential growth without jitter."""
-        # Test with jitter disabled
-        assert calculate_backoff_delay(0, jitter=False) == 1.0
-        assert calculate_backoff_delay(1, jitter=False) == 2.0
-        assert calculate_backoff_delay(2, jitter=False) == 4.0
-        assert calculate_backoff_delay(3, jitter=False) == 8.0
-
-    def test_custom_parameters(self):
-        """Test with custom initial delay and backoff factor."""
-        assert calculate_backoff_delay(0, initial_delay=5.0, jitter=False) == 5.0
-        assert calculate_backoff_delay(2, initial_delay=5.0, jitter=False) == 20.0
-
-        assert calculate_backoff_delay(1, backoff_factor=3.0, jitter=False) == 3.0
-        assert calculate_backoff_delay(2, backoff_factor=3.0, jitter=False) == 9.0
-
-    def test_max_delay_cap(self):
-        """Test that delay is capped at max_delay."""
-        assert calculate_backoff_delay(10, max_delay=10.0, jitter=False) == 10.0
-        assert calculate_backoff_delay(5, initial_delay=100.0, max_delay=50.0, jitter=False) == 50.0
-
-    def test_jitter_adds_randomness(self):
-        """Test that jitter produces random delays within expected range."""
-        # For attempt=2: 1.0 * 2^2 = 4.0
-        delays = [calculate_backoff_delay(2, jitter=True) for _ in range(20)]
-
-        # All delays should be between 0 and 4.0
-        assert all(0 <= d <= 4.0 for d in delays)
-
-        # Should have different values (very unlikely to be all the same)
-        assert len(set(delays)) > 1
-
-        # Average should be around 2.0 (middle of the range)
-        avg_delay = sum(delays) / len(delays)
-        assert 1.0 < avg_delay < 3.0

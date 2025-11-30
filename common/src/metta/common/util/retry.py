@@ -1,21 +1,15 @@
-import random
-import time
 from functools import wraps
 from typing import Any, Callable, TypeVar
 
+from tenacity import (
+    RetryError,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
+
 T = TypeVar("T")
-
-
-def calculate_backoff_delay(
-    attempt: int,
-    initial_delay: float = 1.0,
-    max_delay: float = 60.0,
-    backoff_factor: float = 2.0,
-    jitter: bool = True,
-) -> float:
-    """Calculate delay with exponential backoff and optional jitter."""
-    delay = min(initial_delay * (backoff_factor**attempt), max_delay)
-    return random.uniform(0, delay) if jitter else delay
 
 
 def retry_function(
@@ -26,28 +20,33 @@ def retry_function(
     backoff_factor: float = 2.0,
     exceptions: tuple[type[Exception], ...] = (Exception,),
 ) -> T:
-    """Execute a function with retry logic using exponential backoff."""
-    last_exception: Exception | None = None
+    """Execute a function with retry logic using exponential backoff.
 
-    for attempt in range(max_retries + 1):
-        try:
-            return func()
-        except exceptions as e:
-            last_exception = e
+    Args:
+        func: A callable with no arguments to execute.
+        max_retries: Maximum number of retry attempts after the initial call.
+        initial_delay: Initial delay in seconds before first retry.
+        max_delay: Maximum delay in seconds between retries.
+        backoff_factor: Multiplier for exponential backoff (used as exp_base).
+        exceptions: Tuple of exception types to catch and retry on.
 
-            # If not the last attempt, sleep before retrying
-            if attempt < max_retries:
-                delay = calculate_backoff_delay(
-                    attempt=attempt,
-                    initial_delay=initial_delay,
-                    max_delay=max_delay,
-                    backoff_factor=backoff_factor,
-                )
-                time.sleep(delay)
+    Returns:
+        The return value of the function.
 
-    # If we get here, all retries failed
-    assert last_exception is not None  # Should always have an exception here
-    raise last_exception
+    Raises:
+        The last exception raised if all retries fail.
+    """
+    retryer = retry(
+        stop=stop_after_attempt(max_retries + 1),
+        wait=wait_exponential_jitter(initial=initial_delay, max=max_delay, exp_base=backoff_factor),
+        retry=retry_if_exception_type(exceptions),
+        reraise=True,
+    )
+    try:
+        return retryer(func)()
+    except RetryError:
+        # This shouldn't happen with reraise=True, but handle it just in case
+        raise
 
 
 def retry_on_exception(
@@ -57,7 +56,18 @@ def retry_on_exception(
     backoff_factor: float = 2.0,
     exceptions: tuple[type[Exception], ...] = (Exception,),
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
-    """Decorator to retry a function on exception with exponential backoff."""
+    """Decorator to retry a function on exception with exponential backoff.
+
+    Args:
+        max_retries: Maximum number of retry attempts after the initial call.
+        initial_delay: Initial delay in seconds before first retry.
+        max_delay: Maximum delay in seconds between retries.
+        backoff_factor: Multiplier for exponential backoff (used as exp_base).
+        exceptions: Tuple of exception types to catch and retry on.
+
+    Returns:
+        A decorator that wraps functions with retry logic.
+    """
 
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
