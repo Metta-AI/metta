@@ -7,7 +7,7 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit_large2_lstm import ViTLarge2LSTMConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -104,10 +104,11 @@ def train(
 
     eval_simulations = simulations()
     trainer_cfg = TrainerConfig()
+    trainer_cfg.losses.vit_reconstruction.enabled = True
 
     if policy_architecture is None:
-        # policy_architecture = ViTDefaultConfig()
-        policy_architecture = ViTLarge2LSTMConfig()
+        policy_architecture = ViTDefaultConfig()
+        # policy_architecture = ViTLarge2LSTMConfig()
 
     return TrainTool(
         trainer=trainer_cfg,
