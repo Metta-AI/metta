@@ -1,5 +1,4 @@
 import os
-import shutil
 import subprocess
 import sys
 
@@ -12,19 +11,16 @@ from metta.setup.utils import error, success
 class CoreSetup(SetupModule):
     always_required = True
 
+    def dependencies(self) -> list[str]:
+        return ["system"]  # Changed: core depends on system (system installs bootstrap deps first)
+
     @property
     def description(self) -> str:
         return "Core Python dependencies and virtual environment"
 
     def check_installed(self) -> bool:
-        # TODO: cooling: remove partial redundancy with install.sh system dep existence checks
-        # TODO: check versions
-        # TODO: move some of this logic into components/system.py, and ideally have components/system.py
-        # and have core.py and system.py checks run before requiring a full uv sync
-        for system_dep in ["uv", "bazel", "git", "g++", "nimby", "nim"]:
-            if not shutil.which(system_dep):
-                error(f"{system_dep} is not installed. Please install it using `./install.sh`")
-                sys.exit(1)
+        # System deps (bazel, nimby, nim, git, g++) are now checked by system.py
+        # Only check uv here (needed for this module to run)
         try:
             subprocess.run(["uv", "--version"], check=True, capture_output=True)
             return True
