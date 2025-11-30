@@ -130,10 +130,22 @@ class ViTReconstructionDecoder(nn.Module):
 
         valid_mask = input_coords != 255
 
+        # Safeguard against out-of-bounds attribute IDs (e.g. unknown features mapped to 255)
+        # We mask them out so they don't crash one_hot, and they are already excluded by valid_mask
+        # if they are padding. If they are valid tokens with OOB attrs, we treat them as class 0
+        # but ensure they don't contribute to the loss or targets by updating valid_mask.
+
+        # Update valid_mask to strictly exclude OOB attributes
+        is_oob = input_attrs >= self._num_attribute_classes
+        valid_mask = valid_mask & (~is_oob)
+
+        # Safe attrs for one_hot - map OOB to 0 (ignored due to match_matrix masking)
+        safe_attrs = input_attrs.masked_fill(is_oob, 0)
+
         match_matrix = input_coords.unsqueeze(2) == input_coords.unsqueeze(1)
         match_matrix = match_matrix & valid_mask.unsqueeze(1) & valid_mask.unsqueeze(2)
 
-        attrs_one_hot = F.one_hot(input_attrs, num_classes=self._num_attribute_classes).float()
+        attrs_one_hot = F.one_hot(safe_attrs, num_classes=self._num_attribute_classes).float()
 
         target_ids = torch.bmm(match_matrix.float(), attrs_one_hot)
         target_ids = torch.clamp(target_ids, max=1.0)
