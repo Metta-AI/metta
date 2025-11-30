@@ -1,40 +1,3 @@
-#!/usr/bin/env -S uv run
-"""Submit mission-variant curriculum experiments.
-
-This script submits:
-1. Variants curriculum experiments (variants="all"):
-   - For each mission in DEFAULT_CURRICULUM_MISSIONS: all variants on that single mission
-   - All variants on all DEFAULT_CURRICULUM_MISSIONS
-2. Full curriculum experiment (variants=None):
-   - All maps, standard variant (no variants)
-3. S3 successful missions experiment (variants="all"):
-   - All variants on missions where S3 policies got reward
-
-1. Tier-based curriculum experiments:
-   - Tier 1 (Easy/Proven): go_together, collect_resources_classic, collect_resources_spread
-   - Tier 2 (Medium, includes Tier 1): Tier 1 + extractor_hub, divide_and_conquer, harvest, repair, vibe_check
-   - Tier 3 (Hard, includes Tier 1+2): Tier 2 + oxygen_bottleneck, energy_starved, collect_far
-
-2. Full curriculum experiments:
-   - With diagnostics (baseline)
-   - Without diagnostics (test impact of easy missions)
-   - Variant-enhanced (add proven variants to Tier 1 missions)
-
-3. Proven variant curricula (for reference):
-   - go_together, collect_resources_classic, collect_resources_spread with all variants
-
-Key improvements:
-- Progressive deposit rewards: [1.5, 2.0, 2.5, 3.0]
-- Adjusted inventory rewards: [0.1, 0.2, 0.3, 0.5]
-- Selective variant inclusion (only proven variants)
-- Eval environments match training mission:variant combinations
-
-REMOVED experiments (all failed):
-- oxygen_bottleneck, energy_starved, collect_far variant-only curricula
-- extractor_hub_30/50/70 variant-only curricula
-- all_default_missions_all_variants: 300/300 missions failing
-"""
-
 from recipes.experiment.cvc import mission_variant_curriculum
 
 # Missions where S3 policies got reward > 0 (from evaluation results)
@@ -51,20 +14,15 @@ S3_SUCCESSFUL_EVAL_MISSIONS = [
     "easy_medium_hearts",
     "easy_mode",
     "easy_small_hearts",
-    # "go_together",
     "repair",
     "single_use_swarm_easy",
     "vibe_check",
 ]
 
 S3_SUCCESFUL_TRAINING_MISSIONS = [
-    # "go_together",
     "diagnostic_extract_missing_oxygen",
     "diagnostic_extract_missing_silicon",
     "repair",
-    "extractor_hub_30",
-    "extractor_hub_50",
-    "extractor_hub_70",
 ]
 
 S3_SUCCESFUL_VARIANTS = [
@@ -146,12 +104,31 @@ def submit_all_missions_with_variants():
     variants=S3_SUCCESFUL_VARIANTS,
     )
 
+def submit_full_curriculum_experiment_standard():
+    mission_variant_curriculum.experiment(
+    base_missions=None,
+    run_name=f"full_curriculum_experiment_standard",
+    skip_git_check=True,
+    variants=None,
+    )
+
+def submit_full_curriculum_experiment_all_variants():
+    mission_variant_curriculum.experiment(
+    base_missions=None,
+    run_name=f"full_curriculum_experiment_all_variants",
+    skip_git_check=True,
+    variants="all",
+    )
+
+
 if __name__ == "__main__":
     # submit_variants_experiments()
     # submit_full_curriculum_experiment()
-    submit_single_mission_experiments()
-    submit_all_missions_no_variants()
-    submit_all_missions_with_variants()
+    # submit_single_mission_experiments()
+    # submit_all_missions_no_variants()
+    # submit_all_missions_with_variants()
+    submit_full_curriculum_experiment_standard()
+    submit_full_curriculum_experiment_all_variants()
     print("\n" + "=" * 80)
     print("All experiments submitted successfully!")
     print("=" * 80)

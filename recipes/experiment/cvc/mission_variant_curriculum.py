@@ -162,13 +162,6 @@ def resolve_missions(
     Returns:
         List of mission name strings
 
-    Examples:
-        >>> resolve_missions("eval_missions")
-        ['go_together', 'oxygen_bottleneck', ...]
-        >>> resolve_missions(["eval_missions", "diagnostic_missions"])
-        ['go_together', ..., 'diagnostic_assemble_seeded_near', ...]
-        >>> resolve_missions("extractor_hub_30,extractor_hub_50")
-        ['extractor_hub_30', 'extractor_hub_50']
     """
     # Handle None - default to all missions
     if missions is None:
