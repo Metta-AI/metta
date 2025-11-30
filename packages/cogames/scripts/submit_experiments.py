@@ -51,15 +51,14 @@ S3_SUCCESSFUL_EVAL_MISSIONS = [
     "easy_medium_hearts",
     "easy_mode",
     "easy_small_hearts",
-    "go_together",
+    # "go_together",
     "repair",
     "single_use_swarm_easy",
     "vibe_check",
 ]
 
 S3_SUCCESFUL_TRAINING_MISSIONS = [
-    "collect_resources_classic",
-    "go_together",
+    # "go_together",
     "diagnostic_extract_missing_oxygen",
     "diagnostic_extract_missing_silicon",
     "repair",
@@ -101,10 +100,6 @@ def submit_single_mission_experiments():
         run_name=f"single_mission_experiment_{mission}_standard",
         skip_git_check=True,
         variants=None,
-        additional_args=[
-            "progressive_deposit_rewards=True",
-            "adjusted_inventory_rewards=True",
-        ],
     )
 
 def submit_all_missions_no_variants():
@@ -113,10 +108,6 @@ def submit_all_missions_no_variants():
     run_name=f"single_mission_experiment_training_missions_standard",
     skip_git_check=True,
     variants=None,
-    additional_args=[
-        "progressive_deposit_rewards=True",
-        "adjusted_inventory_rewards=True",
-    ],
     )
 
     mission_variant_curriculum.experiment(
@@ -124,10 +115,6 @@ def submit_all_missions_no_variants():
     run_name=f"single_mission_experiment_training_missions_standard",
     skip_git_check=True,
     variants=None,
-    additional_args=[
-        "progressive_deposit_rewards=True",
-        "adjusted_inventory_rewards=True",
-    ],
     )
 
     mission_variant_curriculum.experiment(
@@ -135,10 +122,6 @@ def submit_all_missions_no_variants():
     run_name=f"single_mission_experiment_training_missions_standard",
     skip_git_check=True,
     variants=None,
-    additional_args=[
-        "progressive_deposit_rewards=True",
-        "adjusted_inventory_rewards=True",
-    ],
     )
 
 def submit_all_missions_with_variants():
@@ -147,10 +130,6 @@ def submit_all_missions_with_variants():
     run_name=f"single_mission_experiment_training_missions_all_variants",
     skip_git_check=True,
     variants=S3_SUCCESFUL_VARIANTS,
-    additional_args=[
-        "progressive_deposit_rewards=True",
-        "adjusted_inventory_rewards=True",
-    ],
     )
 
     mission_variant_curriculum.experiment(
@@ -158,21 +137,13 @@ def submit_all_missions_with_variants():
     run_name=f"single_mission_experiment_training_missions_all_variants",
     skip_git_check=True,
     variants=S3_SUCCESFUL_VARIANTS,
-    additional_args=[
-        "progressive_deposit_rewards=True",
-        "adjusted_inventory_rewards=True",
-    ],
     )
 
     mission_variant_curriculum.experiment(
     base_missions=S3_SUCCESFUL_TRAINING_MISSIONS +S3_SUCCESSFUL_EVAL_MISSIONS,
     run_name=f"single_mission_experiment_training_missions_all_variants",
-    skip_git_check=True,
+    skip_git_check= True,
     variants=S3_SUCCESFUL_VARIANTS,
-    additional_args=[
-        "progressive_deposit_rewards=True",
-        "adjusted_inventory_rewards=True",
-    ],
     )
 
 if __name__ == "__main__":
