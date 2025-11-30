@@ -2,10 +2,10 @@
 Harvest Policy - A focused scripted agent for the harvest mission.
 
 This policy autonomously performs the harvest mission:
-1. Gather resources from corner extractors (carbon, oxygen, germanium, silicon)
-2. Craft hearts at the assembler (requires heart_a vibe)
+1. Gather resources from corner extractors
+2. Craft hearts at the assembler
 3. Deposit hearts in the chest
-4. Maintain energy by using the charger when low
+4. Recharge energy at the charger
 
 Designed as a readable reference implementation for competing against neural network policies.
 """
@@ -99,6 +99,7 @@ class HarvestState:
     # Exploration state
     exploration_direction: Optional[str] = None
     exploration_step: int = 0
+    explored_cells: set[tuple[int, int]] = field(default_factory=set)
 
     # Current observation
     current_obs: Optional[AgentObservation] = None
@@ -219,13 +220,14 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         if state.row < 0:
             return
 
-        # Mark all observed cells as FREE initially
+        # Mark all observed cells as FREE initially and track as explored
         for obs_r in range(2 * self._obs_hr + 1):
             for obs_c in range(2 * self._obs_wr + 1):
                 r = obs_r - self._obs_hr + state.row
                 c = obs_c - self._obs_wr + state.col
                 if 0 <= r < state.map_height and 0 <= c < state.map_width:
                     state.occupancy[r][c] = CellType.FREE.value
+                    state.explored_cells.add((r, c))
 
         # Process visible objects
         for pos, obj_state in parsed.nearby_objects.items():
@@ -497,9 +499,35 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         return self._actions.noop.Noop()
 
     def _explore(self, state: HarvestState) -> Action:
-        """Explore in a random direction to discover objects."""
-        # Pick a random direction and stick to it for a while
-        if state.exploration_direction is None or state.step_count - state.exploration_step > 10:
+        """Explore using frontier-based navigation for better maze coverage."""
+        # Find frontier cells: explored cells adjacent to unexplored passable cells
+        frontier_targets = self._find_frontier_targets(state)
+
+        if frontier_targets:
+            # Navigate to nearest frontier cell using direct BFS (avoid recursion via _move_towards)
+            nearest = min(
+                frontier_targets,
+                key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col),
+            )
+            start = (state.row, state.col)
+            goal_cells = {nearest}
+            path = shortest_path(state, start, goal_cells, False, CellType)
+
+            if path:
+                next_pos = path[0]
+                dr = next_pos[0] - state.row
+                dc = next_pos[1] - state.col
+                if dr == -1:
+                    return self._actions.move.Move("north")
+                elif dr == 1:
+                    return self._actions.move.Move("south")
+                elif dc == 1:
+                    return self._actions.move.Move("east")
+                elif dc == -1:
+                    return self._actions.move.Move("west")
+
+        # Fallback: random direction exploration for when stuck or no frontier
+        if state.exploration_direction is None or state.step_count - state.exploration_step > 15:
             directions = ["north", "south", "east", "west"]
             random.shuffle(directions)
 
@@ -520,6 +548,26 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Blocked - pick a new direction
         state.exploration_direction = None
         return self._actions.noop.Noop()
+
+    def _find_frontier_targets(self, state: HarvestState) -> list[tuple[int, int]]:
+        """Find explored cells that are adjacent to unexplored cells (frontier)."""
+        frontiers = []
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+        for r, c in state.explored_cells:
+            # Skip if not traversable (can't stand there)
+            if not path_is_traversable(state, r, c, CellType):
+                continue
+
+            # Check if any neighbor is unexplored
+            for dr, dc in directions:
+                nr, nc = r + dr, c + dc
+                if path_is_within_bounds(state, nr, nc) and (nr, nc) not in state.explored_cells:
+                    # This is a frontier cell - we can stand here and see unexplored areas
+                    frontiers.append((r, c))
+                    break
+
+        return frontiers
 
 
 class HarvestPolicy(MultiAgentPolicy):
