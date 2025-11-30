@@ -8,7 +8,7 @@ import boto3
 import numpy as np
 from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
 from metta.common.util.log_config import getRankAwareLogger
 from mettagrid.map_builder import MapGrid
@@ -51,20 +51,23 @@ def download_from_s3(s3_path: str, save_path: str):
 
 
 class TerrainFromNumpyConfig(MapBuilderConfig["TerrainFromNumpy"], WithMaxRetriesConfig):
-    # Allow non-pydantic types like random.Random
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     objects: dict[str, int] = Field(default_factory=dict)
     agents: int | dict[str, int] = Field(default=0, ge=0)
     dir: str
     file: Optional[str] = None
     remove_altars: bool = False
-    rng: random.Random = Field(default_factory=random.Random, exclude=True)
+    seed: Optional[int] = None  # Use seed instead of Random object for picklability
 
 
 class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
     """This class is used to load a terrain environment from numpy arrays on s3.
 
     It's not a MapGen scene, because we don't know the grid size until we load the file."""
+
+    def __init__(self, config: TerrainFromNumpyConfig):
+        super().__init__(config)
+        # Create Random instance from seed for use in build methods
+        self.rng = random.Random(self.config.seed)
 
     def setup(self):
         root = self.config.dir.split("/")[0]
@@ -98,6 +101,11 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
             )
             valid_mask = empty_mask & has_empty_neighbor
         else:
+            # For non-assemblers, any empty cell is valid?
+            # But we should also check for connectivity or at least valid placement rules.
+            # For now, assuming same rules or simpler.
+            # Actually, let's use the same logic for safety:
+
             has_empty_neighbor = (
                 np.roll(empty_mask, 1, axis=0)  # Check up
                 | np.roll(empty_mask, -1, axis=0)  # Check down
@@ -129,7 +137,7 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
             agent_labels = [f"agent.{name}" for name, count in self.config.agents.items() for _ in range(count)]
 
         valid_positions = self.get_valid_positions(grid, assemblers)
-        self.config.rng.shuffle(valid_positions)
+        self.rng.shuffle(valid_positions)
         return grid, valid_positions, agent_labels
 
     @abstractmethod
@@ -140,7 +148,7 @@ class NavigationFromNumpy(TerrainFromNumpy):
     def build(self):
         map_dir = self.setup()
         if self.config.file is None:
-            uri = pick_random_file(map_dir, self.config.rng)
+            uri = pick_random_file(map_dir, self.rng)
         else:
             uri = self.config.file
 
@@ -161,7 +169,7 @@ class NavigationFromNumpy(TerrainFromNumpy):
             if count < 0:
                 continue
             # Sample from remaining valid positions
-            positions = self.config.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
+            positions = self.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
@@ -186,8 +194,8 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         while len(empty_centers) < num_patches and attempts < max_attempts:
             # Randomly pick a center not in valid_positions_set and not too close to the edge
-            x = self.config.rng.randint(half_patch, grid_shape[0] - half_patch - 1)
-            y = self.config.rng.randint(half_patch, grid_shape[1] - half_patch - 1)
+            x = self.rng.randint(half_patch, grid_shape[0] - half_patch - 1)
+            y = self.rng.randint(half_patch, grid_shape[1] - half_patch - 1)
             center = (x, y)
             if center in valid_positions_set_lookup or center in empty_centers:
                 attempts += 1
@@ -213,7 +221,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
     def build(self):
         map_dir = self.setup()
         if self.config.file is None:
-            uri = pick_random_file(map_dir, self.config.rng)
+            uri = pick_random_file(map_dir, self.rng)
         else:
             uri = self.config.file
 
@@ -235,7 +243,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         for obj_name, count in self.config.objects.items():
             # Sample from remaining valid positions
-            positions = self.config.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
+            positions = self.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
@@ -251,7 +259,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 #         map_dir = self.setup()
 
 #         if self.config.file is None:
-#             uri = pick_random_file(map_dir, self.config.rng)
+#             uri = pick_random_file(map_dir, self.rng)
 #         else:
 #             uri = self.config.file
 
@@ -268,7 +276,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 #         grid[mask] = "empty"
 
 #         object_names = [name for name in self.config.objects for _ in range(self.config.objects[name])]
-#         self.config.rng.shuffle(object_names)
+#         self.rng.shuffle(object_names)
 
 #         for idx, object in zip(converter_indices, object_names, strict=False):
 #             grid[tuple(idx)] = object

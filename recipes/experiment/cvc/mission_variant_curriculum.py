@@ -32,15 +32,6 @@ from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
 
-# Missions from eval_missions where scripted agents perform well
-MISSIONS: tuple[str, ...] = (
-    "go_together",  # 55.0% success, 5.22 avg reward
-    "oxygen_bottleneck",  # 51.2% success, 3.02 avg reward
-    "collect_resources_classic",  # 50.0% success, 4.90 avg reward
-    "collect_resources_spread",  # 50.0% success, 4.45 avg reward
-    "single_use_swarm",  # 42.5% success, 0.46 avg reward
-)
-
 # Diagnostic missions where scripted agents can get reward
 DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
     "diagnostic_assemble_seeded_near",
@@ -64,12 +55,13 @@ TRAINING_FACILITY_MISSIONS: tuple[str, ...] = (
 
 FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
     *cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS,  # Base curriculum missions
-    *MISSIONS,  # All eval missions
     # Training facility missions we currently support in this repo
     "harvest",
     "assemble",
     "vibe_check",
     "repair",
+    "oxygen_bottleneck",
+    "single_use_swarm",
     *DIAGNOSTIC_MISSIONS,  # Diagnostic missions
 )
 
