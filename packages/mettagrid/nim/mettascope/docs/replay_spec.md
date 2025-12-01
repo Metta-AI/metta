@@ -51,7 +51,7 @@ include a numeric `type_id`, but new data should rely on the string `type_name` 
 ```json
 {
   ...
-  "type_names": ["agent", "wall", "altar", ... ],
+  "type_names": ["agent", "wall", "assembler", ... ],
   "action_names": ["noop", "move", "rotate", ... ],
   "item_names": ["hearts", "coconuts", ... ],
   "group_names": ["group1", "group2", ... ],
