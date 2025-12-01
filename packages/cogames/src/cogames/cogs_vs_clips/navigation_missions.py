@@ -129,9 +129,6 @@ def _cleanup_nav_env(env: MettaGridConfig) -> MettaGridConfig:
         if env.game.actions.attack:
             env.game.actions.attack.enabled = False
 
-        if env.game.actions.resource_mod:
-            env.game.actions.resource_mod.enabled = False
-
     return env
 
 

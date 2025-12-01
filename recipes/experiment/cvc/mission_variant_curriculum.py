@@ -214,13 +214,9 @@ def _enforce_training_vibes(env: MettaGridConfig) -> None:
             if env.game.agent.initial_vibe >= len(training_vibe_names):
                 env.game.agent.initial_vibe = 0
 
-        # Disable attack and resource_mod to align with Navigation tasks (which default to disabled/missing)
         # This ensures action space is 19 (1 noop + 4 move + 14 vibes)
         if env.game.actions.attack:
             env.game.actions.attack.enabled = False
-        if env.game.actions.resource_mod:
-            env.game.actions.resource_mod.enabled = False
-
     # Prune transfers
     allowed_vibes = set(env.game.vibe_names)
     chest = env.game.objects.get("chest")
