@@ -9,6 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import NavigationFromNumpy
+from metta.agent.policies.trxl import TRXLConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
@@ -169,6 +170,7 @@ def make_curriculum(
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    arch_type: str = "default",
 ) -> TrainTool:
     resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
@@ -176,10 +178,17 @@ def train(
         simulations=make_navigation_eval_suite(),
     )
 
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
-        evaluator=evaluator_cfg,
-    )
+    kwargs = {
+        "training_env": TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        "evaluator": evaluator_cfg,
+    }
+
+    if arch_type == "trxl":
+        kwargs["policy_architecture"] = TRXLConfig()
+    elif arch_type != "default":
+        raise ValueError(f"Unknown arch_type={arch_type!r} (expected 'default' or 'trxl')")
+
+    return TrainTool(**kwargs)
 
 
 def evaluate(
