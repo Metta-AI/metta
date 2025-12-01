@@ -456,7 +456,6 @@ class MettaGridConfig(Config):
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
-        # Default to the full vibe set so the dummy env's action space matches standard missions.
         change_vibe_cfg = ChangeVibeActionConfig(number_of_vibes=len(VIBES))
         actions = ActionsConfig(move=MoveActionConfig(), change_vibe=change_vibe_cfg)
         objects = {}
