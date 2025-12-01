@@ -8,9 +8,22 @@ from typing import Literal, Optional
 import typer
 from rich.console import Console
 
-from tribal_village_env.cogames.train import TribalTrainRequest, TribalTrainSettings, train
+from tribal_village_env.cogames.train import train
 
-DEFAULTS = TribalTrainRequest()
+DEFAULTS = dict(
+    checkpoints_path=Path("./train_dir"),
+    steps=10_000_000,
+    seed=42,
+    batch_size=4096,
+    minibatch_size=4096,
+    num_workers=None,
+    parallel_envs=64,
+    vector_batch_size=None,
+    max_steps=1000,
+    render_scale=1,
+    render_mode="ansi",
+    log_outputs=False,
+)
 
 
 def _import_cogames_deps():  # pragma: no cover - imported lazily for optional dependency
@@ -95,29 +108,28 @@ def attach_train_command(
         policy_spec = get_policy_spec(ctx, policy)
         torch_device = resolve_training_device(console, device)
 
-        request = TribalTrainRequest(
-            checkpoints_path=checkpoints_path,
-            steps=steps,
-            seed=seed,
-            batch_size=batch_size,
-            minibatch_size=minibatch_size,
-            num_workers=num_workers,
-            parallel_envs=parallel_envs,
-            vector_batch_size=vector_batch_size,
-            max_steps=max_steps,
-            render_scale=render_scale,
-            render_mode=render_mode,
-            log_outputs=log_outputs,
-        )
-
-        settings = TribalTrainSettings.from_request(
-            request=request,
-            policy_spec=policy_spec,
-            torch_device=torch_device,
-        )
-
         try:
-            train(settings)
+            train(
+                {
+                    "policy_class_path": policy_spec.class_path,
+                    "device": torch_device,
+                    "checkpoints_path": checkpoints_path,
+                    "steps": steps,
+                    "seed": seed,
+                    "batch_size": batch_size,
+                    "minibatch_size": minibatch_size,
+                    "vector_num_workers": num_workers,
+                    "vector_num_envs": parallel_envs,
+                    "vector_batch_size": vector_batch_size,
+                    "env_config": {
+                        "max_steps": max_steps,
+                        "render_scale": render_scale,
+                        "render_mode": render_mode,
+                    },
+                    "initial_weights_path": policy_spec.data_path,
+                    "log_outputs": log_outputs,
+                }
+            )
         except ValueError as exc:  # pragma: no cover - user input
             console.print(f"[red]Error: {exc}[/red]")
             raise typer.Exit(1) from exc

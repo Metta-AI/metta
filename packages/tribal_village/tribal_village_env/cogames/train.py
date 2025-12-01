@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import platform
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Optional
 
@@ -35,72 +34,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger("cogames.tribal_village.train")
 
 
-@dataclass(frozen=True)
-class TribalTrainRequest:
-    """CLI-friendly inputs with sensible defaults."""
-
-    checkpoints_path: Path = Path("./train_dir")
-    steps: int = 10_000_000
-    seed: int = 42
-    batch_size: int = 4096
-    minibatch_size: int = 4096
-    num_workers: Optional[int] = None
-    parallel_envs: Optional[int] = 64
-    vector_batch_size: Optional[int] = None
-    max_steps: int = 1000
-    render_scale: int = 1
-    render_mode: Literal["ansi", "rgb_array"] = "ansi"
-    log_outputs: bool = False
-
-    def env_config(self) -> dict[str, Any]:
-        return {
-            "max_steps": self.max_steps,
-            "render_scale": self.render_scale,
-            "render_mode": self.render_mode,
-        }
-
-
-@dataclass
-class TribalTrainSettings:
-    """Resolved trainer settings used by the runtime."""
-
-    policy_class_path: str
-    device: TorchDevice
-    checkpoints_path: Path
-    steps: int
-    seed: int
-    batch_size: int
-    minibatch_size: int
-    vector_num_envs: Optional[int]
-    vector_batch_size: Optional[int]
-    vector_num_workers: Optional[int]
-    log_outputs: bool
-    env_config: dict[str, Any]
-    initial_weights_path: Optional[str]
-
-    @classmethod
-    def from_request(
-        cls,
-        *,
-        request: TribalTrainRequest,
-        policy_spec: PolicySpec,
-        torch_device: TorchDevice,
-    ) -> "TribalTrainSettings":
-        return cls(
-            policy_class_path=policy_spec.class_path,
-            device=torch_device,
-            checkpoints_path=request.checkpoints_path,
-            steps=request.steps,
-            seed=request.seed,
-            batch_size=request.batch_size,
-            minibatch_size=request.minibatch_size,
-            vector_num_envs=request.parallel_envs,
-            vector_batch_size=request.vector_batch_size,
-            vector_num_workers=request.num_workers,
-            log_outputs=request.log_outputs,
-            env_config=request.env_config(),
-            initial_weights_path=policy_spec.data_path,
-        )
+def _default_env_config(
+    *,
+    max_steps: int = 1000,
+    render_scale: int = 1,
+    render_mode: Literal["ansi", "rgb_array"] = "ansi",
+) -> dict[str, Any]:
+    return {"max_steps": max_steps, "render_scale": render_scale, "render_mode": render_mode}
 
 
 class TribalEnvFactory:
@@ -191,26 +131,28 @@ class FlattenVecEnv:
             self.inner.close()
 
 
-def _resolve_worker_counts(settings: TribalTrainSettings) -> tuple[int, int]:
+def _resolve_worker_counts(
+) -> tuple[int, int]:
+) -> tuple[int, int]:
     try:
         cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
     except Exception:
         cpu_cores = None
 
-    desired_workers = settings.vector_num_workers or cpu_cores or 4
+    desired_workers = vector_num_workers or cpu_cores or 4
     num_workers = min(desired_workers, max(1, cpu_cores or desired_workers))
 
-    num_envs = settings.vector_num_envs or 64
+    num_envs = vector_num_envs or 64
 
     adjusted_envs, adjusted_workers = _resolve_vector_counts(
         num_envs,
         num_workers,
-        envs_user_supplied=settings.vector_num_envs is not None,
-        workers_user_supplied=settings.vector_num_workers is not None,
+        envs_user_supplied=vector_num_envs is not None,
+        workers_user_supplied=vector_num_workers is not None,
     )
 
     if adjusted_envs != num_envs:
-        log_fn = logger.warning if settings.vector_num_envs is not None else logger.info
+        log_fn = logger.warning if vector_num_envs is not None else logger.info
         log_fn(
             "Auto-adjusting num_envs from %s to %s so num_workers=%s divides evenly",
             num_envs,
@@ -220,7 +162,7 @@ def _resolve_worker_counts(settings: TribalTrainSettings) -> tuple[int, int]:
         num_envs = adjusted_envs
 
     if adjusted_workers != num_workers:
-        log_fn = logger.warning if settings.vector_num_workers is not None else logger.info
+        log_fn = logger.warning if vector_num_workers is not None else logger.info
         log_fn(
             "Auto-adjusting num_workers from %s to %s to evenly divide num_envs=%s",
             num_workers,
@@ -247,7 +189,7 @@ def _resolve_vector_batch_size(num_envs: int, num_workers: int, vector_batch_siz
     return vector_batch_size
 
 
-def train(settings: TribalTrainSettings) -> None:
+def train(settings: dict[str, Any]) -> None:
     """Run PPO training for Tribal Village using the provided settings."""
 
     from tribal_village_env.build import ensure_nim_library_current
@@ -260,11 +202,14 @@ def train(settings: TribalTrainSettings) -> None:
     if platform.system() == "Darwin":
         multiprocessing.set_start_method("spawn", force=True)
 
-    num_envs, num_workers = _resolve_worker_counts(settings)
-    vector_batch_size = _resolve_vector_batch_size(num_envs, num_workers, settings.vector_batch_size)
+    num_envs, num_workers = _resolve_worker_counts(
+        vector_num_envs=settings.get("vector_num_envs"),
+        vector_num_workers=settings.get("vector_num_workers"),
+    )
+    vector_batch_size = _resolve_vector_batch_size(num_envs, num_workers, settings.get("vector_batch_size"))
 
     base_config = {"render_mode": "ansi", "render_scale": 1}
-    base_config.update(settings.env_config)
+    base_config.update(settings.get("env_config", {}))
 
     env_creator = TribalEnvFactory(base_config)
     base_cfg = env_creator.clone_cfg()
@@ -293,20 +238,22 @@ def train(settings: TribalTrainSettings) -> None:
     )
 
     resolved_initial_weights: Optional[str] = None
-    if settings.initial_weights_path is not None:
+    initial_weights_path = settings.get("initial_weights_path")
+    if initial_weights_path is not None:
         try:
-            resolved_initial_weights = resolve_policy_data_path(settings.initial_weights_path)
+            resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
         except FileNotFoundError as exc:
             console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
+            resolved_initial_weights = None
 
-    policy_spec = PolicySpec(class_path=settings.policy_class_path, data_path=resolved_initial_weights)
+    policy_spec = PolicySpec(class_path=settings["policy_class_path"], data_path=resolved_initial_weights)
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
     network = policy.network()
-    assert network is not None, f"Policy {settings.policy_class_path} must be trainable (network() returned None)"
-    network.to(settings.device)
+    assert network is not None, f"Policy {settings['policy_class_path']} must be trainable (network() returned None)"
+    network.to(settings["device"])
 
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
-    if not use_rnn and "lstm" in settings.policy_class_path.lower():
+    if not use_rnn and "lstm" in settings["policy_class_path"].lower():
         use_rnn = True
 
     env_name = "tribal_village"
@@ -323,40 +270,43 @@ def train(settings: TribalTrainSettings) -> None:
 
     effective_agents_per_batch = agents_per_batch or total_agents
     amended_batch_size = effective_agents_per_batch
-    if settings.batch_size != amended_batch_size:
+    batch_size = settings["batch_size"]
+    if batch_size != amended_batch_size:
         logger.warning(
             "batch_size=%s overridden to %s to match agents_per_batch; larger batches not yet supported",
-            settings.batch_size,
+            batch_size,
             amended_batch_size,
         )
 
-    amended_minibatch_size = min(settings.minibatch_size, amended_batch_size)
-    if amended_minibatch_size != settings.minibatch_size:
+    minibatch_size = settings["minibatch_size"]
+    amended_minibatch_size = min(minibatch_size, amended_batch_size)
+    if amended_minibatch_size != minibatch_size:
         logger.info(
             "Reducing minibatch_size from %s to %s to keep it <= batch_size",
-            settings.minibatch_size,
+            minibatch_size,
             amended_minibatch_size,
         )
 
-    effective_timesteps = max(settings.steps, amended_batch_size)
-    if effective_timesteps != settings.steps:
+    steps = settings["steps"]
+    effective_timesteps = max(steps, amended_batch_size)
+    if effective_timesteps != steps:
         logger.info(
             "Raising total_timesteps from %s to %s to keep it >= batch_size",
-            settings.steps,
+            steps,
             effective_timesteps,
         )
 
     checkpoint_interval = 200
     train_args = dict(
         env=env_name,
-        device=settings.device.type,
+        device=settings["device"].type,
         total_timesteps=effective_timesteps,
         minibatch_size=amended_minibatch_size,
         batch_size=amended_batch_size,
-        data_dir=str(settings.checkpoints_path),
+        data_dir=str(settings["checkpoints_path"]),
         checkpoint_interval=checkpoint_interval,
         bptt_horizon=bptt_horizon,
-        seed=settings.seed,
+        seed=settings["seed"],
         use_rnn=use_rnn,
         torch_deterministic=True,
         cpu_offload=False,
@@ -390,7 +340,7 @@ def train(settings: TribalTrainSettings) -> None:
         trainer = pufferl.PuffeRL(train_args, vecenv, network)
 
         with DeferSigintContextManager():
-            while trainer.global_step < settings.steps:
+            while trainer.global_step < settings["steps"]:
                 trainer.evaluate()
                 trainer.train()
 
@@ -416,7 +366,7 @@ def train(settings: TribalTrainSettings) -> None:
             pass
 
         console.rule("[bold green]Training Summary")
-        checkpoints = find_policy_checkpoints(settings.checkpoints_path, env_name)
+        checkpoints = find_policy_checkpoints(settings["checkpoints_path"], env_name)
 
         if checkpoints and not training_diverged:
             final_checkpoint = checkpoints[-1]
@@ -428,8 +378,8 @@ def train(settings: TribalTrainSettings) -> None:
                     style="yellow",
                 )
 
-            policy_shorthand = get_policy_class_shorthand(settings.policy_class_path)
-            policy_arg = policy_shorthand if policy_shorthand else settings.policy_class_path
+            policy_shorthand = get_policy_class_shorthand(settings["policy_class_path"])
+            policy_arg = policy_shorthand if policy_shorthand else settings["policy_class_path"]
             policy_with_checkpoint = f"{policy_arg}:{final_checkpoint}"
 
             console.print()
@@ -442,6 +392,8 @@ def train(settings: TribalTrainSettings) -> None:
             console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
         else:
             console.print()
-            console.print(f"[yellow]No checkpoint files found. Check {settings.checkpoints_path} for saved models.[/yellow]")
+            console.print(
+                f"[yellow]No checkpoint files found. Check {settings['checkpoints_path']} for saved models.[/yellow]"
+            )
 
         console.rule("[bold green]End Training")
