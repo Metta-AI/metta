@@ -88,15 +88,9 @@ fi
 
 # Install bootstrap dependencies (bazel, nimby, nim, git, g++) BEFORE uv sync
 # This ensures uv sync can build packages like mettagrid that require these tools
-if [ -n "$NON_INTERACTIVE_ADDITION" ]; then
-  BOOTSTRAP_NON_INTERACTIVE="--non-interactive"
-else
-  BOOTSTRAP_NON_INTERACTIVE=""
-fi
-
 echo "Installing bootstrap dependencies..."
 # Use --no-sync so we don't attempt a dependency sync before Bazel/Nim/Nimby exist
-uv run --no-sync python -m metta.setup.components.system_packages.bootstrap $BOOTSTRAP_NON_INTERACTIVE
+uv run --no-sync python -m metta.setup.components.system_packages.bootstrap $NON_INTERACTIVE_ADDITION
 
 uv sync
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
