@@ -14,6 +14,7 @@ from typing import NamedTuple, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.variants import VARIANTS
+from metta.agent.policies.trxl import TRXLConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -462,6 +463,7 @@ def train(
     variants: Optional[Sequence[str] | str] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    arch_type: str = "default",
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips with mission-variant curriculum.
 
@@ -520,11 +522,18 @@ def train(
         simulations=eval_suite,
     )
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
-        evaluator=evaluator_cfg,
-    )
+    kwargs = {
+        "trainer": trainer_cfg,
+        "training_env": TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        "evaluator": evaluator_cfg,
+    }
+
+    if arch_type == "trxl":
+        kwargs["policy_architecture"] = TRXLConfig()
+    elif arch_type != "default":
+        raise ValueError(f"Unknown arch_type={arch_type!r} (expected 'default' or 'trxl')")
+
+    return TrainTool(**kwargs)
 
 
 def evaluate(
