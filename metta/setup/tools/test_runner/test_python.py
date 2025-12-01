@@ -206,7 +206,7 @@ def run(
             "-v",
             "-rw",
             "-o",
-            "console_output_style=classic",
+            "console_output_style=count",
         ]
 
         # Apply benchmark filtering for CI mode
