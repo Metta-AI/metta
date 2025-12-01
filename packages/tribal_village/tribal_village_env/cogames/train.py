@@ -313,7 +313,7 @@ def train(settings: dict[str, Any]) -> None:
     trainer = pufferl.PuffeRL(train_args, vecenv, network)
 
     with DeferSigintContextManager():
-        while trainer.global_step < settings["steps"]:
+        while trainer.global_step < effective_timesteps:
             trainer.evaluate()
             trainer.train()
 

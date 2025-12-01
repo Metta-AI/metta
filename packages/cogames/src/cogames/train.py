@@ -308,7 +308,7 @@ def train(
 
     with DeferSigintContextManager():
         try:
-            while trainer.global_step < num_steps:
+            while trainer.global_step < effective_timesteps:
                 eval_stats = trainer.evaluate()
                 if log_outputs and eval_stats:
                     console.log(f"Evaluation: {datetime.now(UTC)}")
