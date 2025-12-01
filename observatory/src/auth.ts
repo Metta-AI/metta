@@ -34,18 +34,9 @@ export function hasToken(): boolean {
 }
 
 /**
- * Get the auth server URL (where to redirect for login)
- */
-export function getAuthServerUrl(): string {
-  // Use the same default as CoGames CLI: https://softmax.com/api
-  return import.meta.env.VITE_API_URL || 'https://softmax.com/api'
-}
-
-/**
  * Initiate the login flow by redirecting to the auth server
  */
 export function initiateLogin(): void {
-  const authServerUrl = getAuthServerUrl()
   const callbackUrl = `${window.location.origin}/auth/callback`
 
   // Build the authentication URL
@@ -53,7 +44,7 @@ export function initiateLogin(): void {
     callback: callbackUrl,
   })
 
-  const authUrl = `${authServerUrl}/tokens/cli?${params.toString()}`
+  const authUrl = `${config.authServerUrl}/tokens/cli?${params.toString()}`
 
   // Redirect to the auth server
   window.location.href = authUrl
