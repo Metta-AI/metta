@@ -1,30 +1,9 @@
 ---
-description: Python and ML/RL coding standards
+description: Python coding standards
 globs: ["*.py"]
 alwaysApply: false
 ---
 
-# Python Standards
+# Python
 
-## Imports
-- At file top, never inside functions (no local imports for circular deps)
-- Order: stdlib → third-party → local, blank lines between
-- Start with `from __future__ import annotations` for forward references
-- Circular deps: Extract types to `types.py` OR use module imports (`import x.y as y_mod`)
-- See CLAUDE.md "Python Imports & Circular Dependencies" for full guidance
-
-## Types
-- Always annotate function params
-- Modern syntax: `list[str]`, `type | None`
-- Annotate returns for public APIs, complex logic
-
-## Classes
-- Private: `_name` (internal), Public: no `_` (API only)
-- Properties: `@property` for computed values
-- Tests can access `_private` members
-
-## ML/RL patterns
-- PolicyStore - checkpoint management
-- MettaAgent/DistributedMettaAgent
-- Policy URIs: `file://./path` or `wandb://run/name`
-- Use explicit `torch.device` hints, macOS: `device=cpu`
+See STYLE_GUIDE.md for full coding standards.
