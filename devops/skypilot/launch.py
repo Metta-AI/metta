@@ -171,7 +171,7 @@ Examples:
         "-hb",
         "--heartbeat-timeout-seconds",
         type=int,
-        default=1200,
+        default=3600,
         help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
     )
     parser.add_argument(
