@@ -402,6 +402,7 @@ def experiment(
         f"run={run_name}-{datetime.now().strftime('%Y-%m-%d_%H%M%S')}",
         f"num_cogs={num_cogs}",
         "--gpus=4",
+        "--heartbeat-timeout-seconds=3600",
     ]
 
     if skip_git_check:
