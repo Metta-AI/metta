@@ -1,7 +1,7 @@
 from pydantic import Field
 
 from metta.common.tool import Tool
-from mettagrid.util.url_schemes import resolve_uri
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 
 class ResolveUriTool(Tool):

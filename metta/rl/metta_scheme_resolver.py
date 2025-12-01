@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import logging
-import re
 import uuid
+from pathlib import Path
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
 from metta.tools.utils.auto_config import auto_stats_server_uri
-from mettagrid.util.url_schemes import ParsedScheme, SchemeResolver, resolve_uri
+from mettagrid.util.uri_resolvers.base import ParsedScheme, SchemeResolver, _extract_run_and_epoch
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -44,17 +45,24 @@ def _parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
     - policy-name:latest -> (policy-name, None) meaning latest
     - policy-name:vX -> (policy-name, X) meaning specific version
     """
-    match = re.match(r"^(.+):(v(\d+)|latest)$", identifier)
-    if match:
-        name = match.group(1)
-        if match.group(2) == "latest":
-            return name, None
-        else:
-            return name, int(match.group(3))
+    if identifier.endswith(":latest"):
+        return identifier[:-7], None
+    info = _extract_run_and_epoch(Path(identifier))
+    if info:
+        return info
     return identifier, None
 
 
 class MettaSchemeResolver(SchemeResolver):
+    """Resolves metta:// URIs to checkpoint URIs via the stats server.
+
+    Supported formats:
+      - metta://policy/<uuid>              (policy version by UUID)
+      - metta://policy/<name>              (latest version of named policy)
+      - metta://policy/<name>:latest       (latest version of named policy)
+      - metta://policy/<name>:v<N>         (specific version N of named policy)
+    """
+
     @property
     def scheme(self) -> str:
         return "metta"
@@ -74,11 +82,6 @@ class MettaSchemeResolver(SchemeResolver):
         if not stats_server_uri:
             raise ValueError("Cannot resolve metta:// URI: stats server not configured")
         return StatsClient.create(stats_server_uri)
-
-    def _resolve_policy_version_by_uuid(
-        self, stats_client: StatsClient, policy_version_id: uuid.UUID
-    ) -> PolicyVersionWithName:
-        return stats_client.get_policy_version(policy_version_id)
 
     def _resolve_policy_version_by_name(
         self, stats_client: StatsClient, name: str, version: int | None
@@ -107,7 +110,7 @@ class MettaSchemeResolver(SchemeResolver):
         stats_client = self._get_stats_client()
 
         if _is_uuid(policy_identifier):
-            policy_version = self._resolve_policy_version_by_uuid(stats_client, uuid.UUID(policy_identifier))
+            policy_version = stats_client.get_policy_version(uuid.UUID(policy_identifier))
         else:
             name, version = _parse_policy_identifier(policy_identifier)
             policy_version = self._resolve_policy_version_by_name(stats_client, name, version)
