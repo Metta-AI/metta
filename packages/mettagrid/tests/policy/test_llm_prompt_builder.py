@@ -352,3 +352,133 @@ class TestLLMPromptBuilder:
         # Should be deserializable
         parsed = json.loads(json_str)
         assert parsed["agent_id"] == obs_json["agent_id"]
+
+    # --- Tests merged from test_llm_prompt_compatibility.py ---
+
+    def test_dynamic_prompt_changes_based_on_observation(self, mock_policy_env_info):
+        """Test that observable prompt changes when observation changes."""
+        builder = LLMPromptBuilder(policy_env_info=mock_policy_env_info)
+
+        tag_feature = mock_policy_env_info.obs_features[0]  # tag
+
+        # Observation 1: Just a wall
+        obs1 = AgentObservation(
+            agent_id=0,
+            tokens=[
+                ObservationToken(
+                    feature=tag_feature,
+                    location=(5, 4),
+                    value=8,  # wall (index 8)
+                    raw_token=(tag_feature.id, (5 << 16) | 4, 8),
+                ),
+            ],
+        )
+
+        # Observation 2: Wall + assembler
+        obs2 = AgentObservation(
+            agent_id=0,
+            tokens=[
+                ObservationToken(
+                    feature=tag_feature,
+                    location=(5, 4),
+                    value=8,  # wall
+                    raw_token=(tag_feature.id, (5 << 16) | 4, 8),
+                ),
+                ObservationToken(
+                    feature=tag_feature,
+                    location=(6, 5),
+                    value=1,  # assembler
+                    raw_token=(tag_feature.id, (6 << 16) | 5, 1),
+                ),
+            ],
+        )
+
+        prompt1 = builder.observable_prompt(obs1)
+        prompt2 = builder.observable_prompt(obs2)
+
+        # Both should mention wall
+        assert "wall" in prompt1.lower() or "W" in prompt1
+        assert "wall" in prompt2.lower() or "W" in prompt2
+
+        # Prompts should be different (obs2 has assembler)
+        assert prompt1 != prompt2
+
+    def test_agent_sees_11x11_grid(self):
+        """Verify that the agent observes an 11x11 grid."""
+        cfg = MettaGridConfig()
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(cfg)
+
+        assert policy_env_info.obs_width == 11, f"Expected obs_width=11, got {policy_env_info.obs_width}"
+        assert policy_env_info.obs_height == 11, f"Expected obs_height=11, got {policy_env_info.obs_height}"
+        assert policy_env_info.obs_width * policy_env_info.obs_height == 121  # 11x11 = 121 cells
+
+    def test_coordinates_are_egocentric(self):
+        """Verify that coordinates are egocentric (agent always at center 5,5)."""
+        cfg = MettaGridConfig()
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(cfg)
+
+        center_x = policy_env_info.obs_width // 2
+        center_y = policy_env_info.obs_height // 2
+
+        assert center_x == 5, f"Expected center_x=5, got {center_x}"
+        assert center_y == 5, f"Expected center_y=5, got {center_y}"
+
+    def test_egocentric_observation_bounds(self):
+        """Verify that egocentric observations have correct bounds."""
+        cfg = MettaGridConfig()
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(cfg)
+
+        assert policy_env_info.obs_width == 11
+        assert policy_env_info.obs_height == 11
+
+    def test_observable_features_are_grouped_correctly(self, mock_policy_env_info):
+        """Test that features are grouped by type (inventory, protocol, agent, etc.)."""
+        # Add protocol features to the mock
+        obs_features = list(mock_policy_env_info.obs_features) + [
+            ObservationFeatureSpec(id=6, name="inv:carbon", normalization=1.0),
+            ObservationFeatureSpec(id=7, name="protocol_input:carbon", normalization=1.0),
+            ObservationFeatureSpec(id=8, name="protocol_output:heart", normalization=1.0),
+        ]
+
+        extended_info = PolicyEnvInterface(
+            obs_features=obs_features,
+            tags=mock_policy_env_info.tags,
+            actions=mock_policy_env_info.actions,
+            num_agents=2,
+            observation_space=mock_policy_env_info.observation_space,
+            action_space=mock_policy_env_info.action_space,
+            obs_width=11,
+            obs_height=11,
+            assembler_protocols=[],
+            tag_id_to_name=mock_policy_env_info.tag_id_to_name,
+        )
+
+        builder = LLMPromptBuilder(policy_env_info=extended_info)
+
+        inv_energy = next(f for f in obs_features if f.name == "inv:energy")
+        inv_carbon = next(f for f in obs_features if f.name == "inv:carbon")
+
+        obs = AgentObservation(
+            agent_id=0,
+            tokens=[
+                ObservationToken(
+                    feature=inv_energy,
+                    location=(5, 5),
+                    value=100,
+                    raw_token=(inv_energy.id, (5 << 16) | 5, 100),
+                ),
+                ObservationToken(
+                    feature=inv_carbon,
+                    location=(5, 5),
+                    value=50,
+                    raw_token=(inv_carbon.id, (5 << 16) | 5, 50),
+                ),
+            ],
+        )
+
+        observable = builder.observable_prompt(obs)
+
+        # Should have inventory section
+        assert "INVENTORY" in observable or "inventory" in observable.lower()
+        assert "energy" in observable.lower()
+        assert "carbon" in observable.lower()
