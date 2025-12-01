@@ -27,7 +27,7 @@ from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.file import write_data
-from mettagrid.util.url_schemes import policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 

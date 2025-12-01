@@ -68,7 +68,6 @@ class AgentConfig(GridObjectConfig):
         group_id: int = ...,
         group_name: str = ...,
         freeze_duration: int = 0,
-        action_failure_penalty: float = 0,
         resource_limits: dict[int, int] = {},
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
@@ -84,7 +83,6 @@ class AgentConfig(GridObjectConfig):
     group_id: int
     group_name: str
     freeze_duration: int
-    action_failure_penalty: float
     resource_limits: dict[int, int]
     stat_rewards: dict[str, float]  # Added this
     stat_reward_max: dict[str, float]  # Added this
@@ -98,10 +96,10 @@ class ActionConfig:
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
     ) -> None: ...
     required_resources: dict[int, int]
-    consumed_resources: dict[int, float]
+    consumed_resources: dict[int, int]
 
 class Protocol:
     def __init__(self) -> None: ...
@@ -122,7 +120,7 @@ class AttackActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
         defense_resources: dict[int, int] = {},
         enabled: bool = True,
     ) -> None: ...
@@ -133,23 +131,10 @@ class ChangeVibeActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
         number_of_vibes: int = ...,
     ) -> None: ...
     number_of_vibes: int
-
-class ResourceModConfig(ActionConfig):
-    def __init__(
-        self,
-        required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
-        modifies: dict[int, float] = {},
-        agent_radius: int = 0,
-        scales: bool = False,
-    ) -> None: ...
-    modifies: dict[int, float]
-    agent_radius: int
-    scales: bool
 
 class GlobalObsConfig:
     def __init__(

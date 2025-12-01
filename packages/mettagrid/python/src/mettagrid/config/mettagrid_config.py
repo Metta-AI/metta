@@ -60,7 +60,6 @@ class AgentConfig(Config):
         description="Resource limits for this agent",
     )
     rewards: AgentRewards = Field(default_factory=AgentRewards)
-    action_failure_penalty: float = Field(default=0, ge=0)
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
@@ -98,7 +97,7 @@ class ActionConfig(Config):
     enabled: bool = Field(default=True)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: dict[str, int] = Field(default_factory=dict)
-    consumed_resources: dict[str, float] = Field(default_factory=dict)
+    consumed_resources: dict[str, int] = Field(default_factory=dict)
 
     def actions(self) -> list[Action]:
         if self.enabled:
@@ -163,21 +162,6 @@ class AttackActionConfig(ActionConfig):
         return Action(name=f"attack_{location}")
 
 
-class ResourceModActionConfig(ActionConfig):
-    """Resource mod action configuration."""
-
-    action_handler: str = Field(default="resource_mod")
-    modifies: dict[str, float] = Field(default_factory=dict)
-    agent_radius: int = Field(default=0, ge=0, le=255)
-    scales: bool = Field(default=False)
-
-    def _actions(self) -> list[Action]:
-        return [self.ResourceMod()]
-
-    def ResourceMod(self) -> Action:
-        return Action(name="resource_mod")
-
-
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -189,11 +173,10 @@ class ActionsConfig(Config):
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
-    resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
     def actions(self) -> list[Action]:
         return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe, self.resource_mod]],
+            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe]],
             [],
         )
 
@@ -394,7 +377,7 @@ class GameConfig(Config):
     vibe_names: list[str] = Field(default_factory=list)
     num_agents: int = Field(ge=1, default=24)
     # max_steps = zero means "no limit"
-    max_steps: int = Field(ge=0, default=1000)
+    max_steps: int = Field(ge=0, default=10000)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = Field(default=False)
     obs: ObsConfig = Field(default_factory=ObsConfig)
