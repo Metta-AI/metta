@@ -270,10 +270,12 @@ modifications.
 
 **Options:**
 
-- `--agents N`: Number of agents (default: 2)
-- `--width W`: Map width (default: 10)
-- `--height H`: Map height (default: 10)
+- `--cogs N` or `-c N`: Number of cogs
+- `--width W` or `-w W`: Map width
+- `--height H` or `-h H`: Map height
 - `--output PATH`: Save to file
+
+Note: If `--cogs`, `--width`, or `--height` are not specified, the values come from the base mission's configuration.
 
 You will be able to provide your specified `--output` path as the `MISSION` argument to other `cogames` commands.
 
