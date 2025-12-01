@@ -39,14 +39,14 @@ other objects. Each agent has energy, resources, and shield properties that gove
 
 <img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_tiny_galaxy/tg_sliced/tg_items/tg_items_heart_full.png?raw=true" width="32"/>
 
-The `assembler` object allows agents to spend energy to gain rewards. Agents can power the assembler by using the `use` action
-when near it. The assembler has a cooldown period between uses.
+The `assembler` object allows agents to spend energy to gain rewards. Agents can power the assembler by using the `use`
+action when near it. The assembler has a cooldown period between uses.
 
-- Using the heart assembler costs `assembler.use_cost energy`. So, no matter how much energy you have, you are always dumping
-  the same amount of energy in it and getting the same amount of reward.
-- After the heart assembler is used, it is unable to be used for the next value in `assembler.cooldown` (defaults to a single
-  delay) timesteps. The cooldown field accepts either an integer or a list of integers; when a list is provided the
-  assembler cycles through those delays.
+- Using the heart assembler costs `assembler.use_cost energy`. So, no matter how much energy you have, you are always
+  dumping the same amount of energy in it and getting the same amount of reward.
+- After the heart assembler is used, it is unable to be used for the next value in `assembler.cooldown` (defaults to a
+  single delay) timesteps. The cooldown field accepts either an integer or a list of integers; when a list is provided
+  the assembler cycles through those delays.
 - A single use of the heart assembler gives you a single unit of reward: if
   `target._type_id == ObjectType.assemblerT: self.env._rewards[actor_id] += 1`
 
@@ -117,9 +117,9 @@ resources to another agent in an adjacent cell. It is currently not implemented.
 
 ### Use
 
-The `use` action allows agents to interact with objects such as assemblers, converters, and generators. The specific effects
-of the `use` action depend on the target object and can include converting resources to energy, powering the assembler for
-rewards, or harvesting resources from generators.
+The `use` action allows agents to interact with objects such as assemblers, converters, and generators. The specific
+effects of the `use` action depend on the target object and can include converting resources to energy, powering the
+assembler for rewards, or harvesting resources from generators.
 
 ## Configuration
 
@@ -132,7 +132,8 @@ layout of the gridworld, the placement of objects, and various properties of the
    Reward value: 0.005 per unit (max 2)   - Used to create batteries and lasers
 2. Battery   - Intermediate resource created from ore at a generator. Generator turns one ore into one battery.   -
    Reward value: 0.01 per unit (max 2)   - Used to create hearts and lasers
-3. Heart / heart assembler   - High value reward, requires 3 batteries to be converted into a heart at a heart assembler.
+3. Heart / heart assembler   - High value reward, requires 3 batteries to be converted into a heart at a heart
+   assembler.
 4. Laser   - Weapon resource created from ore and batteries. Requires 1 ore and 2 batteries. Created at the lasery.
 
 - Consumed on use. When hitting an unarmored agent: freezes them and steals their whole inventory. When hitting an
