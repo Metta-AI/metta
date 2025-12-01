@@ -29,7 +29,7 @@ DEFAULT_CHAR_TO_NAME: dict[str, str] = {
     **GLOBAL_DEFAULT_MAPPINGS,
     "p": "agent.prey",
     "P": "agent.predator",
-    "_": "altar",
+    "_": "assembler",
     "c": "converter",
     "C": "chest",
     "Z": "assembler",
