@@ -41,8 +41,10 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
             f"run={arena_train_name}",
             "trainer.total_timesteps=100",
             "checkpointer.epoch_interval=1",
+            "training_env.forward_pass_minibatch_target_size=96",
+            "training_env.vectorization=serial",
         ],
-        timeout_s=60,
+        timeout_s=180,  # CI runners are slower; initialization alone can take 30+ seconds
         is_training_job=True,
         group=group,
     )
@@ -65,7 +67,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         name=arena_play_name,
         module="recipes.prod.arena_basic_easy_shaped.play",
         args=["max_steps=10", "render=log", "open_browser_on_start=False"],  # Headless mode for CI
-        timeout_s=60,
+        timeout_s=120,  # CI runners need more time for initialization
         group=group,  # Tag with group for monitoring
     )
 
@@ -90,7 +92,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         name=cvc_small_play_name,
         module="recipes.prod.cvc.fixed_maps.play",
         args=["max_steps=10", "render=log", "open_browser_on_start=False"],  # Headless mode for CI
-        timeout_s=60,
+        timeout_s=120,  # CI runners need more time for initialization
         group=group,  # Tag with group for monitoring
     )
 

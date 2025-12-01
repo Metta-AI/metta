@@ -7,15 +7,16 @@ import { AsciiEncoding, MettaGrid } from "@/lib/MettaGrid";
 export const AsciiEditor: FC<{
   grid: MettaGrid;
   setGrid: (grid: MettaGrid) => void;
-}> = ({ grid, setGrid }) => {
-  const [ascii, setAscii] = useState(grid.toAscii(AsciiEncoding.default()));
+  encoding: AsciiEncoding;
+}> = ({ grid, setGrid, encoding }) => {
+  const [ascii, setAscii] = useState(grid.toAscii(encoding));
 
   const [state, setState] = useState<
     { type: "idle" } | { type: "applied" } | { type: "error"; error: string }
   >({ type: "idle" });
 
   useEffect(() => {
-    setAscii(grid.toAscii(AsciiEncoding.default()));
+    setAscii(grid.toAscii(encoding));
   }, [grid]);
 
   return (
@@ -31,7 +32,7 @@ export const AsciiEditor: FC<{
       <Button
         onClick={() => {
           try {
-            setGrid(MettaGrid.fromAscii(ascii, AsciiEncoding.default()));
+            setGrid(MettaGrid.fromAscii(ascii, encoding));
             setState({ type: "applied" });
           } catch (e) {
             setState({
@@ -41,7 +42,7 @@ export const AsciiEditor: FC<{
           }
         }}
         theme="primary"
-        disabled={ascii === grid.toAscii(AsciiEncoding.default())}
+        disabled={ascii === grid.toAscii(encoding)}
       >
         Apply
       </Button>
