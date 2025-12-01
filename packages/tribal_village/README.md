@@ -44,6 +44,10 @@ uv run --project packages/tribal_village tribal-village play --render ansi --ste
 nimble buildLib  # Builds in danger mode for maximum performance
 # Launch a quick sanity check (works from any directory once installed)
 python -c "from tribal_village_env import TribalVillageEnv; env = TribalVillageEnv()"
+
+# Run CoGames trainer without installing globally (uses local checkout)
+uv run --project packages/cogames --with ./packages/tribal_village \
+  cogames train-tribal -p class=tribal --steps 1000000 --parallel-envs 8 --num-workers 4 --log-outputs
 ```
 
 > Prefer avoiding a global editable install? Use `uv run --project packages/tribal_village python -c "..."` to execute
