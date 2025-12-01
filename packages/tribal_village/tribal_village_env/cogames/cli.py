@@ -35,55 +35,30 @@ def attach_train_command(
             console_fallback.print("[yellow]CoGames not installed; Tribal train command unavailable.[/yellow]")
         return False
 
+    opt = typer.Option  # shorthand
+
     @app.command(name=command_name, help="Train a policy on the Tribal Village environment")
     def train_tribal_cmd(  # noqa: PLR0913 - CLI surface mirrors cogames train
         ctx: typer.Context,
-        policy: str = typer.Option("class=tribal", "--policy", "-p", help=f"Policy ({policy_arg_example})"),  # noqa: B008
-        checkpoints_path: Path = typer.Option(  # noqa: B008
-            Path("./train_dir"),
-            "--checkpoints",
-            help="Path to save training data",
-        ),
-        steps: int = typer.Option(10_000_000, "--steps", "-s", help="Number of training steps", min=1),  # noqa: B008
-        device: str = typer.Option(  # noqa: B008
-            "auto",
-            "--device",
-            help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
-        ),
-        seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),  # noqa: B008
-        batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),  # noqa: B008
-        minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),  # noqa: B008
-        num_workers: Optional[int] = typer.Option(  # noqa: B008
-            None,
-            "--num-workers",
-            help="Number of worker processes (defaults to number of CPU cores)",
-            min=1,
-        ),
-        parallel_envs: Optional[int] = typer.Option(  # noqa: B008
-            64,
-            "--parallel-envs",
-            help="Number of parallel environments (defaults to 64 when omitted)",
-            min=1,
-        ),
-        vector_batch_size: Optional[int] = typer.Option(  # noqa: B008
+        policy: str = opt("class=tribal", "--policy", "-p", help=f"Policy ({policy_arg_example})"),  # noqa: B008
+        checkpoints_path: Path = opt(Path("./train_dir"), "--checkpoints", help="Path to save training data"),  # noqa: B008
+        steps: int = opt(10_000_000, "--steps", "-s", help="Number of training steps", min=1),  # noqa: B008
+        device: str = opt("auto", "--device", help="Device to train on (e.g. 'auto', 'cpu', 'cuda')"),  # noqa: B008
+        seed: int = opt(42, "--seed", help="Seed for training", min=0),  # noqa: B008
+        batch_size: int = opt(4096, "--batch-size", help="Batch size for training", min=1),  # noqa: B008
+        minibatch_size: int = opt(4096, "--minibatch-size", help="Minibatch size for training", min=1),  # noqa: B008
+        num_workers: Optional[int] = opt(None, "--num-workers", help="Number of worker processes", min=1),  # noqa: B008
+        parallel_envs: Optional[int] = opt(64, "--parallel-envs", help="Number of parallel environments", min=1),  # noqa: B008
+        vector_batch_size: Optional[int] = opt(  # noqa: B008
             None,
             "--vector-batch-size",
             help="Override vectorized environment batch size",
             min=1,
         ),
-        max_steps: int = typer.Option(1000, "--episode-steps", help="Episode length", min=1),  # noqa: B008
-        render_scale: int = typer.Option(  # noqa: B008
-            1,
-            "--render-scale",
-            help="Scale factor for rendered frames (lower uses less memory)",
-            min=1,
-        ),
-        render_mode: Literal["ansi", "rgb_array"] = typer.Option(  # noqa: B008
-            "ansi",
-            "--render-mode",
-            help="Rendering mode used by the environment",
-        ),
-        log_outputs: bool = typer.Option(False, "--log-outputs", help="Log training outputs"),  # noqa: B008
+        max_steps: int = opt(1000, "--episode-steps", help="Episode length", min=1),  # noqa: B008
+        render_scale: int = opt(1, "--render-scale", help="Scale factor for rendered frames", min=1),  # noqa: B008
+        render_mode: Literal["ansi", "rgb_array"] = opt("ansi", "--render-mode", help="Rendering mode"),  # noqa: B008
+        log_outputs: bool = opt(False, "--log-outputs", help="Log training outputs"),  # noqa: B008
     ) -> None:
         policy_spec = get_policy_spec(ctx, policy)
         torch_device = resolve_training_device(console, device)
