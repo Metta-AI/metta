@@ -130,8 +130,8 @@ As another example, if the `rotation` key was always 1, it could also be stored 
 Here are the keys supported for both agents and objects:
 
 - `id` - The id of the object.
-- `type_name` - The type of the object; its value must be present in the `type_names` array. Legacy
-  data may include a numeric `type_id` as an additional field mapping into the same array.
+- `type_name` - The type of the object; its value must be present in the `type_names` array. Legacy data may include a
+  numeric `type_id` as an additional field mapping into the same array.
 - `location` - The [x, y] location of the object (sometimes called the column and row).
 - `orientation` - The rotation of the object.
 
