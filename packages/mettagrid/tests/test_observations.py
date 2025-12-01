@@ -319,7 +319,7 @@ class TestGlobalTokens:
         obs = env._c_sim.observations()
 
         # Check episode completion updated (1/10 = 10%)
-        expected_completion = int(round(0.1 * 255))
+        expected_completion = int(0.1 * 256)
         completion_values = helper.find_token_values(
             obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
         )

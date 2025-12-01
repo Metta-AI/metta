@@ -190,7 +190,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             group_id=team_id,
             group_name=group_name,
             freeze_duration=agent_props["freeze_duration"],
-            action_failure_penalty=agent_props["action_failure_penalty"],
             inventory_config=inventory_config,
             stat_rewards=stat_rewards,
             stat_reward_max=stat_reward_max,
@@ -238,8 +237,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                         f"already exists in {object_type}"
                     )
                 seen_vibes_and_min_agents.append((vibe_ids, protocol_config.min_agents))
-                input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
-                output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
+                # Ensure keys and values are explicitly Python ints for C++ binding
+                # Build dict item-by-item to ensure pybind11 recognizes it as dict[int, int]
+                input_res = {}
+                for k, v in protocol_config.input_resources.items():
+                    key = int(resource_name_to_id[k])
+                    val = int(v)
+                    input_res[key] = val
+                output_res = {}
+                for k, v in protocol_config.output_resources.items():
+                    key = int(resource_name_to_id[k])
+                    val = int(v)
+                    output_res[key] = val
                 cpp_protocol = CppProtocol()
                 cpp_protocol.min_agents = protocol_config.min_agents
                 cpp_protocol.vibes = vibe_ids
@@ -425,9 +434,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
 
-    # Add resource_loss_prob
-    game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
-
     # Add inventory regeneration interval
     game_cpp_params["inventory_regen_interval"] = game_config.inventory_regen_interval
 
@@ -439,12 +445,20 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_protocol = CppProtocol()
             cpp_protocol.min_agents = protocol_config.min_agents
             cpp_protocol.vibes = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
-            cpp_protocol.input_resources = {
-                resource_name_to_id[k]: v for k, v in protocol_config.input_resources.items()
-            }
-            cpp_protocol.output_resources = {
-                resource_name_to_id[k]: v for k, v in protocol_config.output_resources.items()
-            }
+            # Ensure keys and values are explicitly Python ints for C++ binding
+            # Build dict item-by-item to ensure pybind11 recognizes it as dict[int, int]
+            input_res = {}
+            for k, v in protocol_config.input_resources.items():
+                key = int(resource_name_to_id[k])
+                val = int(v)
+                input_res[key] = val
+            cpp_protocol.input_resources = input_res
+            output_res = {}
+            for k, v in protocol_config.output_resources.items():
+                key = int(resource_name_to_id[k])
+                val = int(v)
+                output_res[key] = val
+            cpp_protocol.output_resources = output_res
             cpp_protocol.cooldown = protocol_config.cooldown
             clipper_protocols.append(cpp_protocol)
         clipper_config = CppClipperConfig()

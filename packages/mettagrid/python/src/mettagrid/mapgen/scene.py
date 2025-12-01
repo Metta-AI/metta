@@ -6,7 +6,13 @@ from enum import StrEnum, auto
 from typing import Any, ClassVar, Final, Generic, Self, TypeVar, get_args, get_origin
 
 import numpy as np
-from pydantic import ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
+from pydantic import (
+    ModelWrapValidatorHandler,
+    SerializeAsAny,
+    field_serializer,
+    model_serializer,
+    model_validator,
+)
 
 from mettagrid.base_config import Config
 from mettagrid.map_builder import MapGrid
@@ -111,11 +117,18 @@ class SceneConfig(Config):
     # Transform relative to the area that this scene config receives in `create`.
     transform: GridTransform = GridTransform.IDENTITY
 
+    @field_serializer("transform")
+    def _ser_transform(self, value: GridTransform):
+        # Emit as the enum value (str) to avoid UnexpectedValue warnings during dumps
+        return value.value
+
     def model_dump(self, **kwargs) -> dict[str, Any]:
-        return super().model_dump(serialize_as_any=True, **kwargs)
+        kwargs.setdefault("serialize_as_any", True)
+        return super().model_dump(**kwargs)
 
     def model_dump_json(self, **kwargs) -> str:
-        return super().model_dump_json(serialize_as_any=True, **kwargs)
+        kwargs.setdefault("serialize_as_any", True)
+        return super().model_dump_json(**kwargs)
 
     @property
     def scene_cls(self) -> type[Scene]:

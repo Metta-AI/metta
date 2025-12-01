@@ -8,7 +8,6 @@ from rich.table import Table
 
 from cogames.cli.base import console
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS as CORE_EVAL_MISSIONS
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant, Site
@@ -23,7 +22,6 @@ from mettagrid.mapgen.mapgen import MapGen
 
 # Combined registry of all evaluation missions (not shown in default 'missions' list)
 EVAL_MISSIONS_ALL: list[Mission] = [
-    *CORE_EVAL_MISSIONS,
     *INTEGRATED_EVAL_MISSIONS,
     *SPANNING_EVAL_MISSIONS,
     *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
@@ -35,7 +33,6 @@ def load_mission_set(mission_set: str) -> list[Mission]:
 
     Args:
         mission_set: Name of mission set to load. Options:
-            - "eval_missions": Core evaluation missions
             - "integrated_evals": Integrated evaluation missions
             - "spanning_evals": Spanning evaluation missions
             - "diagnostic_evals": Diagnostic evaluation missions
@@ -50,7 +47,6 @@ def load_mission_set(mission_set: str) -> list[Mission]:
     if mission_set == "all":
         # All missions: eval missions + integrated + spanning + diagnostic + core missions
         missions_list = []
-        missions_list.extend(CORE_EVAL_MISSIONS)
         missions_list.extend(INTEGRATED_EVAL_MISSIONS)
         missions_list.extend(SPANNING_EVAL_MISSIONS)
         missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
@@ -63,8 +59,6 @@ def load_mission_set(mission_set: str) -> list[Mission]:
 
     elif mission_set == "diagnostic_evals":
         missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
-    elif mission_set == "eval_missions":
-        missions_list = list(CORE_EVAL_MISSIONS)
     elif mission_set == "integrated_evals":
         missions_list = list(INTEGRATED_EVAL_MISSIONS)
     elif mission_set == "spanning_evals":

@@ -10,6 +10,7 @@
 #include "objects/assembler_config.hpp"
 #include "objects/protocol.hpp"
 #include "systems/clipper.hpp"
+#include "systems/stats_tracker.hpp"
 
 // Test-specific inventory item types
 namespace TestItems {
@@ -22,6 +23,8 @@ protected:
   void SetUp() override {
     grid = std::make_unique<Grid>(10, 10);
     current_timestep = 0;
+    resource_names = {"ore", "battery"};
+    stats_tracker = std::make_unique<StatsTracker>(&resource_names);
     unclip_protocol =
         std::make_shared<Protocol>(0,
                                    std::vector<ObservationType>{},
@@ -35,13 +38,15 @@ protected:
   std::unique_ptr<Grid> grid;
   std::shared_ptr<Protocol> unclip_protocol;
   unsigned int current_timestep;
+  std::vector<std::string> resource_names;
+  std::unique_ptr<StatsTracker> stats_tracker;
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(GridCoord r, GridCoord c) {
     AssemblerConfig cfg(1, "test_assembler");
     // cfg.protocols is empty by default, which is fine for these tests
 
-    Assembler* assembler = new Assembler(r, c, cfg);
+    Assembler* assembler = new Assembler(r, c, cfg, stats_tracker.get());
     grid->add_object(assembler);
     assembler->set_current_timestep_ptr(&current_timestep);
     return assembler;
@@ -245,6 +250,8 @@ protected:
   void SetUp() override {
     current_timestep = 0;
     rng.seed(42);
+    resource_names = {"ore", "battery"};
+    stats_tracker = std::make_unique<StatsTracker>(&resource_names);
     unclip_protocol =
         std::make_shared<Protocol>(0,
                                    std::vector<ObservationType>{},
@@ -258,6 +265,8 @@ protected:
   std::shared_ptr<Protocol> unclip_protocol;
   unsigned int current_timestep;
   std::mt19937 rng;
+  std::vector<std::string> resource_names;
+  std::unique_ptr<StatsTracker> stats_tracker;
 
   // Helper to create an assembler at a specific location
   Assembler* create_assembler(Grid& grid, GridCoord r, GridCoord c, bool clip_immune = false) {
@@ -265,7 +274,7 @@ protected:
     // cfg.protocols is empty by default, which is fine for these tests
     cfg.clip_immune = clip_immune;
 
-    Assembler* assembler = new Assembler(r, c, cfg);
+    Assembler* assembler = new Assembler(r, c, cfg, stats_tracker.get());
     grid.add_object(assembler);
     assembler->set_current_timestep_ptr(&current_timestep);
     return assembler;

@@ -19,15 +19,20 @@ const MenuLink: FC<PropsWithChildren<{ to: string; isActive: boolean }>> = ({ to
 export const TopMenu: FC = () => {
   const location = useLocation()
 
+  const isPoliciesActive = location.pathname === '/' || location.pathname.startsWith('/policies')
+
   return (
     <nav className="border-b border-gray-300 px-5">
       <div className="max-w-7xl mx-auto flex items-center">
         <div className="flex">
-          <MenuLink to="/eval-tasks" isActive={location.pathname.startsWith('/eval-task')}>
-            Evaluate Policies
+          <MenuLink to="/" isActive={isPoliciesActive}>
+            Policies
           </MenuLink>
           <MenuLink to="/leaderboard" isActive={location.pathname.startsWith('/leaderboard')}>
             Leaderboard
+          </MenuLink>
+          <MenuLink to="/eval-tasks" isActive={location.pathname.startsWith('/eval-task')}>
+            Remote Evals
           </MenuLink>
           <MenuLink to="/sql-query" isActive={location.pathname === '/sql-query'}>
             SQL Query

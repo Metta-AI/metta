@@ -18,6 +18,7 @@
 #include "objects/protocol.hpp"
 #include "objects/usable.hpp"
 #include "systems/observation_encoder.hpp"
+#include "systems/stats_tracker.hpp"
 
 class Clipper;
 
@@ -138,14 +139,20 @@ private:
     return false;
   }
 
-  // Give output resources to agents
-  void static give_output_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  // Give output resources to agents and log creation stats
+  void give_output_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
     std::vector<HasInventory*> agents_as_inventory_havers;
     for (Agent* agent : surrounding_agents) {
       agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
     }
     for (const auto& [item, amount] : protocol.output_resources) {
-      HasInventory::shared_update(agents_as_inventory_havers, item, amount);
+      InventoryDelta distributed = HasInventory::shared_update(agents_as_inventory_havers, item, amount);
+
+      // Count newly created outputs
+      if (stats_tracker && distributed > 0) {
+        const std::string& resource_name = stats_tracker->resource_name(item);
+        stats_tracker->add("assembler." + resource_name + ".created", static_cast<float>(distributed));
+      }
     }
   }
 
@@ -201,6 +208,9 @@ public:
   // Grid access for finding surrounding agents
   class Grid* grid;
 
+  // Game-level stats tracker (shared across environment)
+  StatsTracker* stats_tracker;
+
   // Clipper pointer, for when we become unclipped.
   Clipper* clipper_ptr;
 
@@ -212,7 +222,7 @@ public:
   // Allow partial usage during cooldown
   bool allow_partial_usage;
 
-  Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
+  Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg, StatsTracker* stats)
       : protocols(build_protocol_map(cfg.protocols)),
         unclip_protocols(),
         is_clipped(cfg.start_clipped),
@@ -223,6 +233,7 @@ public:
         uses_count(0),
         max_uses(cfg.max_uses),
         grid(nullptr),
+        stats_tracker(stats),
         current_timestep_ptr(nullptr),
         obs_encoder(nullptr),
         allow_partial_usage(cfg.allow_partial_usage),
