@@ -67,6 +67,7 @@ class NotificationBase(ABC):
             for attempt in Retrying(
                 stop=stop_after_attempt(4),
                 wait=wait_exponential_jitter(initial=2.0, max=30.0),
+                reraise=True,
             ):
                 with attempt:
                     self._send(payload)

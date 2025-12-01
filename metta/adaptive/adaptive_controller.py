@@ -113,6 +113,7 @@ class AdaptiveController:
                                 for attempt in Retrying(
                                     stop=stop_after_attempt(4),
                                     wait=wait_exponential_jitter(initial=1.0, max=30.0),
+                                    reraise=True,
                                 ):
                                     with attempt:
                                         on_eval_completed(run, self.store, runs)
