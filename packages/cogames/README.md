@@ -15,7 +15,7 @@ gathering resources, operating machinery, and assembling components. Success is 
 missions requires multiple cogs working in tandem.
 
 <p align="middle">
-<img src="assets/showoff.gif" alt="Example Cogs vs Clips video">
+<img src="assets/cvc-reel.gif" alt="Example Cogs vs Clips">
 <br>
 
 There are many mission configurations available, with different map sizes, resource and station layouts, and game rules.
@@ -36,8 +36,13 @@ policy plays with other policies in the pool through running multi-policy, multi
 
 ## Quick Start
 
-Upon installation, try playing cogames with our default starter policies as Cogs. Use `cogames policies` to see a full
-list of default policies.
+Let's walk through playing an easy mission in Cogs vs. Clips, then training a simple starter policy. `easy_mode` uses
+three variants to simplify training:
+
+- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
+  energy)
+- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
+- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
 
 ```bash
 # We recommend using a virtual env
@@ -48,6 +53,22 @@ source .venv/bin/activate
 # Install cogames
 uv pip install cogames
 
+# Play an episode yourself
+cogames tutorial
+
+# Play an episode of the easy_mode mission with a scripted policy
+cogames play -m easy_mode -p class=baseline
+
+# Try the scripted policy on a set of eval missions
+cogames eval -set integrated_evals -p class=baseline
+
+# Train with an LSTM policy on easy_mode
+cogames train -m easy_mode -p class=lstm
+```
+
+Other useful commands:
+
+```bash
 # List available missions
 cogames missions
 
@@ -72,32 +93,8 @@ cogames submissions
 # Show current leaderboard
 cogames leaderboard
 
-# Show version info (cogames, mettagrid, pufferlib-core)
+# Show version info for the installed tooling stack
 cogames version
-```
-
-## Easy Mode - Best for getting started
-
-Let's walk through playing an easy mission in Cogs vs. Clips, then training a simple starter policy. `easy_mode` uses
-three variants to simplify training:
-
-- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
-  energy)
-- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
-- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
-
-```bash
-# Play an episode yourself
-cogames tutorial
-
-# Play an episode of the easy_mode mission with a scripted policy
-cogames play -m easy_mode -p baseline
-
-# Try the scripted policy on a set of eval missions
-cogames eval -set integrated_evals -p baseline
-
-# Train with an LSTM policy on easy_mode
-cogames train -m easy_mode -p lstm
 ```
 
 ## Play, Train, and Eval
@@ -110,12 +107,13 @@ To specify a `MISSION`, you can:
 - Use a path to a mission configuration file, e.g. `path/to/mission.yaml`.
 - Alternatively, specify a set of missions with `-set` or `-S`.
 
-To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][:PROPORTION]`:
+To specify a `POLICY`, use comma-separated key/value pairs:
 
-- `CLASS`: Use a policy shorthand or full path from the registry given by `cogames policies`, e.g. `lstm` or
-  `cogames.policy.random.RandomPolicy`.
-- `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
-- `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
+- `class=`: Policy shorthand or full class path from `cogames policies`, e.g. `class=lstm` or
+  `class=cogames.policy.random.RandomPolicy`.
+- `data=`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
+- `proportion=`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
+- `kw.<arg>=`: Optional policy `__init__` keyword arguments (all values parsed as strings).
 
 ### `cogames play -m [MISSION] -p [POLICY]`
 
@@ -142,20 +140,20 @@ Train a policy on a mission.
 By default, our `stateless` policy architecture will be used. But as is explained above, you can select a different
 policy architecture we support out of the box (like `lstm`), or can define your own and supply a path to it.
 
-Any policy provided must implement the `TrainablePolicy` interface, which you can find in
-`cogames/policy/interfaces.py`.
+Any policy provided must implement the `MultiAgentPolicy` interface with a trainable `network()` method, which you can
+find in `mettagrid/policy/policy.py`.
 
 You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
 
 ```
-cogames train -m [MISSION] -p path/to/policy.py:train_dir/my_checkpoint.pt
+cogames train -m [MISSION] -p class=path.to.policy.MyPolicy,data=train_dir/my_checkpoint.pt
 ```
 
 Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those
 environments:
 
 ```
-cogames train -m training_facility_1 -m training_facility_2 -p stateless
+cogames train -m training_facility_1 -m training_facility_2 -p class=stateless
 ```
 
 You can also specify multiple missions with `*` wildcards:
@@ -174,12 +172,12 @@ You can also specify multiple missions with `*` wildcards:
 ### Custom Policy Architectures
 
 To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as StatelessPolicy). To
-supply your own, you will want to extend `cogames.policy.Policy`.
+supply your own, extend the canonical `cogames.policy.MultiAgentPolicy` base class.
 
 ```python
-from mettagrid.policy.policy import MultiAgentPolicy as Policy
+from cogames.policy import MultiAgentPolicy
 
-class MyPolicy(Policy):
+class MyPolicy(MultiAgentPolicy):
     def __init__(self, observation_space, action_space):
         self.network = MyNetwork(observation_space, action_space)
 
@@ -200,7 +198,7 @@ class MyPolicy(Policy):
 ```
 
 To train with using your class, supply a path to it in your POLICY argument, e.g.
-`cogames train training_facility_1 path.to.MyPolicy`.
+`cogames train -m training_facility_1 -p class=path.to.MyPolicy`.
 
 #### Environment API
 
@@ -246,13 +244,13 @@ You can provide multiple `-p POLICY` arguments if you want to run evaluations on
 
 ```bash
 # Evaluate a single trained policy checkpoint
-cogames eval -m machina_1 -p stateless:train_dir/model.pt
+cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt
 
 # Evaluate a single trained policy across a mission set with multiple agents
-cogames eval -set integrated_evals -p stateless:train_dir/model.pt
+cogames eval -set integrated_evals -p class=stateless,data=train_dir/model.pt
 
 # Mix two policies: 3 parts your policy, 5 parts random policy
-cogames eval -m machina_1 -p stateless:train_dir/model.pt:3 -p random::5
+cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=3 -p class=random,proportion=5
 ```
 
 **Options:**
@@ -286,6 +284,12 @@ You will be able to provide your specified `--output` path as the `MISSION` argu
 Make sure you have authenticated before submitting a policy.
 
 ### `cogames submit -p [POLICY] -n [NAME]`
+
+Example:
+
+```
+cogames submit -p class=stateless,data=train_dir/model.pt -n my_policy
+```
 
 **Options:**
 

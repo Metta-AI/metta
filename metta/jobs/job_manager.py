@@ -23,6 +23,8 @@ class ExitCode:
     """Special exit codes."""
 
     SKIPPED = -2  # Job skipped due to failed dependency
+    ERROR_TIMEOUT = -3  # Job stuck in ERROR state too long
+    TIMEOUT = 124  # Job exceeded timeout_s (matches standard timeout command)
 
 
 # SkyPilot job statuses that indicate the job is still running
@@ -354,49 +356,54 @@ class JobManager:
 
         return True
 
-    def _handle_local_job_completion(self, job_name: str, job: LocalJob) -> bool:
-        """Handle completion of a local job.
+    def _handle_job_timeout(self, job_name: str, timeout_s: int) -> bool:
+        """Handle job timeout - mark as failed with TIMEOUT exit code.
 
-        Returns True if job was marked complete, False otherwise.
+        Args:
+            job_name: Name of job that timed out
+            timeout_s: The timeout value that was exceeded
+
+        Returns:
+            True if job was marked as timed out, False otherwise
         """
-        # Fetch final logs
-        try:
-            job.get_logs()
-        except Exception:
-            pass
-
-        job_result = job.get_result()
-        if not job_result:
-            return False
-
         with Session(self._engine) as session:
             job_state = session.get(JobState, job_name)
-            if not job_state:
+            if not job_state or job_state.status == JobStatus.COMPLETED:
                 return False
 
             self._update_job_status(job_state, JobStatus.COMPLETED)
             job_state.completed_at = datetime.now().isoformat(timespec="seconds")
-            job_state.exit_code = job_result.exit_code
-            job_state.logs_path = job_result.logs_path
+            job_state.exit_code = ExitCode.TIMEOUT
+            job_state.acceptance_passed = False  # Timeout is always a failure
 
-            logger.info(f"Job completed: {job_name} (exit_code={job_result.exit_code}, logs={job_result.logs_path})")
-
-            # Fetch final metrics
-            if job_state.config.metrics_to_track and job_state.wandb_run_id:
-                logger.debug(f"Fetching final metrics for {job_name}")
-                job_state.fetch_and_update_metrics()
-
-            # Evaluate acceptance criteria
-            if job_state.config.acceptance_criteria:
-                job_state.acceptance_passed = job_state.evaluate_acceptance()
-            else:
-                job_state.acceptance_passed = None
+            logger.info(f"[JOB_TIMEOUT] Job timed out: {job_name} (timeout_s={timeout_s})")
 
             session.add(job_state)
             session.commit()
 
-        # Note: Active job cleanup happens in monitor thread's finally block
         return True
+
+    def _finalize_job_completion(self, job_state: JobState) -> None:
+        """Fetch final metrics and evaluate acceptance criteria for a completed job.
+
+        This method should be called after a job reaches terminal state and has been
+        marked as COMPLETED with an exit code set. It handles the final steps:
+        - Fetching final metrics from wandb
+        - Evaluating acceptance criteria
+
+        Args:
+            job_state: JobState object (must be attached to an active session)
+        """
+        # Fetch final metrics
+        if job_state.config.metrics_to_track and job_state.wandb_run_id:
+            logger.debug(f"Fetching final metrics for {job_state.name}")
+            job_state.fetch_and_update_metrics()
+
+        # Evaluate acceptance criteria
+        if job_state.config.acceptance_criteria:
+            job_state.acceptance_passed = job_state.evaluate_acceptance()
+        else:
+            job_state.acceptance_passed = None
 
     def _handle_remote_job_completion(self, job_name: str, status: str, job_id: int) -> bool:
         """Handle completion of a remote job.
@@ -433,16 +440,8 @@ class JobManager:
                 f"exit_code={exit_code}, job_id={job_id})"
             )
 
-            # Fetch final metrics
-            if job_state.config.metrics_to_track and job_state.wandb_run_id:
-                logger.debug(f"Fetching final metrics for {job_name}")
-                job_state.fetch_and_update_metrics()
-
-            # Evaluate acceptance criteria
-            if job_state.config.acceptance_criteria:
-                job_state.acceptance_passed = job_state.evaluate_acceptance()
-            else:
-                job_state.acceptance_passed = None
+            # Fetch metrics and evaluate acceptance
+            self._finalize_job_completion(job_state)
 
             session.add(job_state)
             session.commit()
@@ -452,6 +451,44 @@ class JobManager:
             )
 
         # Note: Active job cleanup happens in monitor thread's finally block
+        return True
+
+    def _handle_job_completion_from_result(self, job_name: str, result: "JobResult") -> bool:  # noqa: F821
+        """Handle job completion from a JobResult (used by both local and remote monitors).
+
+        Args:
+            job_name: Name of job that completed
+            result: JobResult from job.wait()
+
+        Returns:
+            True if job was marked complete, False otherwise
+        """
+
+        with Session(self._engine) as session:
+            job_state = session.get(JobState, job_name)
+            if not job_state or job_state.status == JobStatus.COMPLETED:
+                return False
+
+            self._update_job_status(job_state, JobStatus.COMPLETED)
+            job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+            job_state.exit_code = result.exit_code
+            job_state.logs_path = result.logs_path
+
+            # Timeout is always a failure for acceptance
+            if result.exit_code == ExitCode.TIMEOUT:
+                logger.info(
+                    f"[JOB_TIMEOUT] Job timed out: {job_name} "
+                    f"(timeout_s={job_state.config.timeout_s}, exit_code={ExitCode.TIMEOUT})"
+                )
+                job_state.acceptance_passed = False
+            else:
+                logger.info(f"Job completed: {job_name} (exit_code={result.exit_code}, logs={result.logs_path})")
+                # Fetch final metrics and evaluate acceptance
+                self._finalize_job_completion(job_state)
+
+            session.add(job_state)
+            session.commit()
+
         return True
 
     def _start_local_monitor(self, job_name: str, fetch_immediately: bool = False) -> None:
@@ -466,33 +503,43 @@ class JobManager:
         """
 
         def monitor_loop():
-            # For reattached jobs, fetch metrics immediately; for new jobs, wait full interval
-            last_metrics_fetch = -self.metrics_fetch_interval_s if fetch_immediately else 0.0
-
             try:
+                # Get job and its timeout from config
+                with self._local_jobs_lock:
+                    job = self._active_local_jobs.get(job_name)
+                if not job:
+                    return
+
+                # Get start time from job state (or use current time if not set)
+                with Session(self._engine) as session:
+                    job_state = session.get(JobState, job_name)
+                    started_at = job_state.started_at if job_state else None
+
+                if started_at:
+                    start_time = datetime.fromisoformat(started_at)
+                else:
+                    start_time = datetime.now()
+
                 while True:
-                    # Get job from active_local_jobs (protected by lock)
-                    with self._local_jobs_lock:
-                        job = self._active_local_jobs.get(job_name)
-                    if not job:
-                        break
-
-                    # Check if job completed
+                    # Check if job completed naturally
                     if job.is_complete():
-                        self._handle_local_job_completion(job_name, job)
+                        result = job.get_result()
+                        if result:
+                            self._handle_job_completion_from_result(job_name, result)
                         break
 
-                    # Fetch metrics periodically while running
-                    now = time.time()
-                    if now - last_metrics_fetch >= self.metrics_fetch_interval_s:
-                        with Session(self._engine) as session:
-                            job_state = session.get(JobState, job_name)
-                            if job_state and job_state.status == JobStatus.RUNNING:
-                                job_state.fetch_and_update_metrics()
-                                if job_state.metrics:
-                                    session.add(job_state)
-                                    session.commit()
-                        last_metrics_fetch = now
+                    # Check if timeout exceeded
+                    elapsed = (datetime.now() - start_time).total_seconds()
+                    if elapsed > job.timeout_s:
+                        logger.warning(
+                            f"Job {job_name} exceeded timeout ({job.timeout_s}s, elapsed={elapsed:.0f}s), cancelling..."
+                        )
+                        try:
+                            job.cancel()
+                        except Exception as e:
+                            logger.warning(f"Failed to cancel job {job_name}: {e}")
+                        self._handle_job_timeout(job_name, job.timeout_s)
+                        break
 
                     time.sleep(1.0)  # Check every second
 
@@ -554,28 +601,71 @@ class JobManager:
                             # Reset retry delay on success
                             retry_delay = 5.0
 
+                            # Log what we got back from SkyPilot
+                            logger.debug(f"[BATCH_STATUS] Received {len(statuses)} status updates: {statuses}")
+
                             # Update database with statuses
                             with Session(self._engine) as session:
                                 for job_id, status_info in statuses.items():
                                     job_name = remote_jobs.get(job_id)
                                     if not job_name:
+                                        logger.warning(f"[BATCH_STATUS] Got status for unknown job_id={job_id}")
                                         continue
 
                                     status = status_info.get("status")
+                                    logger.debug(
+                                        f"[BATCH_STATUS] Processing job_id={job_id}, job_name={job_name}, "
+                                        f"status={status}, status_info={status_info}"
+                                    )
+
                                     if status:
                                         job_state = session.get(JobState, job_name)
                                         if job_state:
                                             prev_status = job_state.skypilot_status
+                                            prev_job_status = job_state.status
+
+                                            # Always log status for debugging
+                                            logger.debug(
+                                                f"[BATCH_STATUS] Job {job_name}: "
+                                                f"prev_sky_status={prev_status}, new_sky_status={status}, "
+                                                f"prev_job_status={prev_job_status}"
+                                            )
+
                                             if prev_status != status:
                                                 logger.info(
                                                     f"[STATUS_UPDATE] Job {job_name} (job_id={job_id}): "
                                                     f"prev_status={prev_status} -> new_status={status}, "
                                                     f"full_status_info={status_info}"
                                                 )
+
+                                            # Update skypilot status
                                             job_state.skypilot_status = status
+
+                                            # Store job_id if not already set
+                                            if not job_state.job_id:
+                                                job_state.job_id = str(job_id)
+
+                                            # Check if job reached terminal state
+                                            is_terminal = status not in SKYPILOT_RUNNING_STATUSES
+                                            is_running = job_state.status == JobStatus.RUNNING
+                                            if is_terminal and is_running:
+                                                logger.info(
+                                                    f"[STATUS_TERMINAL] Job {job_name} reached terminal "
+                                                    f"state: {status}, marking as completed"
+                                                )
+                                                self._update_job_status(job_state, JobStatus.COMPLETED)
+                                                job_state.exit_code = self._map_skypilot_status_to_exit_code(status)
+                                                job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+
+                                                # Fetch metrics and evaluate acceptance
+                                                self._finalize_job_completion(job_state)
+
                                             session.add(job_state)
+                                        else:
+                                            logger.warning(f"[BATCH_STATUS] Job {job_name} not found in database")
 
                                 session.commit()
+                                logger.debug("[BATCH_STATUS] Database committed successfully")
 
                         except Exception as e:
                             logger.warning(f"Shared status monitor failed (will retry in {retry_delay:.0f}s): {e}")
@@ -620,15 +710,23 @@ class JobManager:
             error_timeout_s = 120  # 2 minutes - fail job if stuck in ERROR this long
             last_logged_status = None
 
+            # Get job and timeout from config
+            with self._remote_jobs_lock:
+                job = self._active_remote_jobs.get(job_name)
+            if not job:
+                return
+            job_timeout_s = job.timeout_s
+
             try:
                 while True:
-                    # Read status from database (written by shared status monitor)
+                    # Read job state from database (status written by shared status monitor)
                     with Session(self._engine) as session:
                         job_state = session.get(JobState, job_name)
                         if not job_state:
                             logger.warning(f"Job {job_name} not found in database")
                             break
                         status = job_state.skypilot_status
+                        started_at = job_state.started_at
 
                     # Log status changes for debugging
                     if status != last_logged_status:
@@ -639,6 +737,22 @@ class JobManager:
                         # Wait for shared monitor to populate status
                         time.sleep(1.0)
                         continue
+
+                    # Check if timeout exceeded (using started_at for reattached jobs)
+                    if started_at:
+                        started_time = datetime.fromisoformat(started_at)
+                        elapsed = (datetime.now() - started_time).total_seconds()
+                        if elapsed > job_timeout_s:
+                            logger.warning(
+                                f"Job {job_name} exceeded timeout "
+                                f"({job_timeout_s}s, elapsed={elapsed:.0f}s), cancelling..."
+                            )
+                            try:
+                                job.cancel()
+                            except Exception as e:
+                                logger.warning(f"Failed to cancel job {job_name}: {e}")
+                            self._handle_job_timeout(job_name, job_timeout_s)
+                            break
 
                     # Track ERROR state duration
                     if status == "ERROR":
@@ -658,7 +772,7 @@ class JobManager:
                                 if job_state:
                                     self._update_job_status(job_state, JobStatus.COMPLETED)
                                     job_state.completed_at = datetime.now().isoformat(timespec="seconds")
-                                    job_state.exit_code = -3  # Special code for ERROR timeout
+                                    job_state.exit_code = ExitCode.ERROR_TIMEOUT
                                     session.add(job_state)
                                     session.commit()
                             break
@@ -674,8 +788,6 @@ class JobManager:
                     # While running: fetch logs and metrics periodically
                     if status == "RUNNING":
                         # Fetch logs
-                        with self._remote_jobs_lock:
-                            job = self._active_remote_jobs.get(job_name)
                         if job:
                             try:
                                 job.get_logs()
@@ -698,7 +810,6 @@ class JobManager:
 
             except Exception as e:
                 logger.warning(f"Remote monitor thread for {job_name} failed: {e}")
-                time.sleep(1.0)
 
             finally:
                 # Always clean up active job and monitor thread on exit

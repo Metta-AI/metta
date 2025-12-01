@@ -7,8 +7,11 @@ alwaysApply: false
 # Python Standards
 
 ## Imports
-- At file top, never inside functions
+- At file top, never inside functions (no local imports for circular deps)
 - Order: stdlib → third-party → local, blank lines between
+- Start with `from __future__ import annotations` for forward references
+- Circular deps: Extract types to `types.py` OR use module imports (`import x.y as y_mod`)
+- See CLAUDE.md "Python Imports & Circular Dependencies" for full guidance
 
 ## Types
 - Always annotate function params

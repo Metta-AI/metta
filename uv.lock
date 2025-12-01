@@ -709,6 +709,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "tensordict" },
     { name = "torch" },
+    { name = "transformers" },
     { name = "triton", marker = "sys_platform == 'linux'" },
 ]
 
@@ -726,6 +727,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "tensordict" },
     { name = "torch" },
+    { name = "transformers", specifier = ">=4.57.0" },
     { name = "triton", marker = "sys_platform == 'linux'", specifier = ">=2.0.0" },
 ]
 
@@ -2090,6 +2092,7 @@ dependencies = [
     { name = "duckdb" },
     { name = "einops" },
     { name = "fastapi" },
+    { name = "gitta" },
     { name = "google-api-python-client" },
     { name = "google-auth" },
     { name = "google-auth-oauthlib" },
@@ -2211,6 +2214,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.3.0" },
     { name = "einops", specifier = ">=0.8.1" },
     { name = "fastapi", specifier = ">=0.115.5" },
+    { name = "gitta", editable = "packages/gitta" },
     { name = "google-api-python-client", specifier = ">=2.0.0" },
     { name = "google-auth", specifier = ">=2.0.0" },
     { name = "google-auth-oauthlib", specifier = ">=1.0.0" },

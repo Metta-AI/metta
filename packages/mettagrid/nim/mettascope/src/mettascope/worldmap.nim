@@ -15,6 +15,7 @@ var
   visibilityMap*: TileMap
   px*: Pixelator
   sq*: ShaderQuad
+  previousPanelSize*: Vec2 = vec2(0, 0)
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -182,10 +183,22 @@ proc updateVisibilityMap*(visibilityMap: TileMap) {.measure.} =
 
 proc buildAtlas*() {.measure.} =
   ## Build the atlas.
-  for path in walkDirRec(dataDir):
-    if path.endsWith(".png") and "fidget" notin path:
-      let name = path.replace(dataDir & "/", "").replace(".png", "")
-      bxy.addImage(name, readImage(path))
+  bxy.addImage("minimapPip", readImage(dataDir & "/minimapPip.png"))
+  bxy.addImage("selection", readImage(dataDir & "/selection.png"))
+  bxy.addImage("agents/path", readImage(dataDir & "/agents/path.png"))
+  bxy.addImage("agents/footprints", readImage(dataDir & "/agents/footprints.png"))
+  bxy.addImage("actions/thoughts_lightning", readImage(dataDir & "/actions/thoughts_lightning.png"))
+  bxy.addImage("actions/icons/unknown", readImage(dataDir & "/actions/icons/unknown.png"))
+  bxy.addImage("actions/arrow", readImage(dataDir & "/actions/arrow.png"))
+  bxy.addImage("actions/thoughts", readImage(dataDir & "/actions/thoughts.png"))
+
+  proc addDir(rootDir: string, dir: string) =
+    for path in walkDirRec(rootDir / dir):
+      if path.endsWith(".png") and "fidget" notin path:
+        let name = path.replace(rootDir & "/", "").replace(".png", "")
+        bxy.addImage(name, readImage(path))
+
+  addDir(dataDir, "resources")
 
 proc getProjectionView*(): Mat4 {.measure.} =
   ## Get the projection and view matrix.
@@ -318,7 +331,11 @@ proc drawObjects*() {.measure.} =
         pos * TILE_SIZE
       )
     else:
-      let spriteName = replay.typeImages.getOrDefault(thing.typeName, "objects/unknown")
+      let spriteName =
+        if "objects/" & thing.typeName in px:
+          "objects/" & thing.typeName
+        else:
+          "objects/unknown"
       if thing.isClipped.at:
         px.drawSprite(
           spriteName & ".clipped",
@@ -795,6 +812,42 @@ proc fitFullMap*(panel: Panel) {.measure.} =
     z = panel.zoom * panel.zoom
   panel.pos.x = rectW / 2.0f - cx * z
   panel.pos.y = rectH / 2.0f - cy * z
+
+proc adjustPanelForResize*(panel: Panel) {.measure.} =
+  ## Adjust pan and zoom when panel resizes to show the same portion of the map.
+  let currentSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
+
+  # Skip if this is the first time or no change
+  if previousPanelSize.x <= 0 or previousPanelSize.y <= 0 or currentSize == previousPanelSize:
+    previousPanelSize = currentSize
+    return
+
+  # Calculate current center point in world coordinates using previous panel size
+  let
+    oldRectW = previousPanelSize.x
+    oldRectH = previousPanelSize.y
+    rectW = panel.rect.w.float32
+    rectH = panel.rect.h.float32
+    z = panel.zoom * panel.zoom
+    centerX = (oldRectW / 2.0f - panel.pos.x) / z
+    centerY = (oldRectH / 2.0f - panel.pos.y) / z
+
+  # Adjust zoom with square root of proportional scaling - moderate the zoom increase
+  # when panel gets bigger to keep map elements reasonably sized
+  let
+    oldDiagonal = sqrt(oldRectW * oldRectW + oldRectH * oldRectH)
+    newDiagonal = sqrt(rectW * rectW + rectH * rectH)
+    zoomFactor = sqrt(newDiagonal / oldDiagonal)
+
+  panel.zoom = clamp(panel.zoom * zoomFactor, panel.minZoom, panel.maxZoom)
+
+  # Recalculate pan to keep the same center point
+  let newZ = panel.zoom * panel.zoom
+  panel.pos.x = rectW / 2.0f - centerX * newZ
+  panel.pos.y = rectH / 2.0f - centerY * newZ
+
+  # Update previous size
+  previousPanelSize = currentSize
 
 proc drawWorldMap*(panel: Panel) {.measure.} =
   ## Draw the world map.

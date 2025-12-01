@@ -5,7 +5,7 @@ import
 proc getMinimalReplay(fileName: string = "sample.json.z"): JsonNode =
   ## Create a minimal valid replay dict per the spec.
   result = %*{
-    "version": 2,
+    "version": 3,
     "num_agents": 2,
     "max_steps": 100,
     "map_size": [10, 10],
@@ -56,7 +56,7 @@ proc getMinimalReplay(fileName: string = "sample.json.z"): JsonNode =
         "is_frozen": false,
         "freeze_duration": 0,
         "orientation": 1,
-        "inventory": [[0, []], [100, [1]], [200, [1, 1]]],
+        "inventory": [[0, []], [100, [[1, 1]]], [200, [[1, 2]]]],
         "inventory_max": 10,
         "color": 1,
       },
@@ -104,7 +104,7 @@ block schema_validation:
     replay["version"] = %*1
     let issues = validateReplay(replay)
     doAssert issues.len > 0, "Should have validation issues"
-    doAssert issues[0].message.contains("'version' must equal 2"), &"Unexpected issue: {issues[0].message}"
+    doAssert issues[0].message.contains("'version' must equal 3"), &"Unexpected issue: {issues[0].message}"
     echo "✓ Invalid version properly rejected"
 
   block invalid_num_agents:
@@ -131,3 +131,23 @@ block schema_validation:
     let issues = validateReplay(replay)
     doAssert issues.len == 0, &"Replay with map but empty objects should be valid when num_agents=0, but got: {issues}"
     echo "✓ Empty objects array valid when no agents expected"
+
+  block missing_required_fields_gracefully_handled:
+    var replay = getMinimalReplay()
+    # Remove type_name from first object (required field)
+    replay["objects"][0].delete("type_name")
+    let issues = validateReplay(replay)
+    # Should have issues but not crash
+    doAssert issues.len > 0, "Should have validation issues for missing required fields"
+    doAssert issues.anyIt(it.message.contains("is missing (required)")), &"Expected missing fields validation error, got: {issues}"
+    echo "✓ Missing required fields handled gracefully without crashing"
+
+  block invalid_location_format_gracefully_handled:
+    var replay = getMinimalReplay()
+    # Set invalid location format (stepData is not an array of length 2)
+    replay["objects"][0]["location"] = %*["invalid_step_data", [1, [2, 3]]]
+    let issues = validateReplay(replay)
+    # Should have issues but not crash
+    doAssert issues.len > 0, "Should have validation issues for invalid location format"
+    doAssert issues.anyIt(it.message.contains("items must be [step, [x, y]] pairs")), &"Expected location format validation error, got: {issues}"
+    echo "✓ Invalid location format handled gracefully without crashing"

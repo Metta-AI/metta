@@ -1,209 +1,36 @@
-import { useEffect, useState } from 'react'
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
-import { ServerRepo, Repo } from './repo'
-import { SQLQuery } from './SQLQuery'
-import { EvalTasks } from './EvalTasks'
+import { Route, Routes } from 'react-router-dom'
+
+import { AppProvider } from './AppContext'
+import { EpisodeDetailPage } from './EpisodeDetailPage'
+import { EvalTasks } from './EvalTasks/index'
 import { Leaderboard } from './Leaderboard'
-import { config } from './config'
-
-// CSS for navigation
-const NAV_CSS = `
-.nav-container {
-  background: #fff;
-  border-bottom: 1px solid #ddd;
-  padding: 0 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.1);
-}
-
-.nav-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.nav-brand {
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-  text-decoration: none;
-}
-
-.nav-tabs {
-  display: flex;
-  gap: 0;
-}
-
-.nav-tab {
-  padding: 15px 20px;
-  text-decoration: none;
-  color: #666;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s ease;
-}
-
-.nav-tab:hover {
-  color: #333;
-  background: #f8f9fa;
-}
-
-.nav-tab.active {
-  color: #007bff;
-  border-bottom-color: #007bff;
-}
-
-.page-container {
-  padding-top: 0;
-}
-`
+import { PoliciesPage } from './PoliciesPage'
+import { PolicyPage } from './PolicyPage'
+import { PolicyVersionPage } from './PolicyVersionPage'
+import { SQLQuery } from './SQLQuery'
+import { TopMenu } from './TopMenu'
 
 function App() {
-  // Data loading state
-  type DefaultState = {
-    type: 'error'
-    error: string | null
-  }
-  type LoadingState = {
-    type: 'loading'
-  }
-  type RepoState = {
-    type: 'repo'
-    repo: Repo
-    currentUser: string
-  }
-  type State = DefaultState | LoadingState | RepoState
+  return (
+    <AppProvider>
+      <div>
+        <TopMenu />
 
-  const [state, setState] = useState<State>({ type: 'loading' })
-  const location = useLocation()
-  const navigate = useNavigate()
-
-  useEffect(() => {
-    const initializeRepo = async () => {
-      const serverUrl = config.apiBaseUrl
-      try {
-        const repo = new ServerRepo(serverUrl)
-
-        // Get current user
-        const userInfo = await repo.whoami()
-        const currentUser = userInfo.user_email
-
-        setState({ type: 'repo', repo, currentUser })
-      } catch (err: any) {
-        setState({
-          type: 'error',
-          error: `Failed to connect to server: ${err.message}. Make sure the server is running at ${serverUrl}`,
-        })
-      }
-    }
-
-    initializeRepo()
-  }, [navigate])
-
-  if (state.type === 'error') {
-    return (
-      <div
-        style={{
-          fontFamily: 'Arial, sans-serif',
-          margin: 0,
-          padding: '20px',
-          background: '#f8f9fa',
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: '600px',
-            margin: '0 auto',
-            background: '#fff',
-            padding: '40px',
-            borderRadius: '8px',
-            boxShadow: '0 2px 4px rgba(0,0,0,.1)',
-            textAlign: 'center',
-          }}
-        >
-          <h1
-            style={{
-              color: '#333',
-              marginBottom: '20px',
-            }}
-          >
-            Policy Evaluation Dashboard
-          </h1>
-          <p style={{ marginBottom: '20px', color: '#666' }}>Unable to connect to the evaluation server.</p>
-          {state.error && <div style={{ color: 'red', marginTop: '10px', marginBottom: '20px' }}>{state.error}</div>}
-          <p style={{ color: '#666', fontSize: '14px' }}>Please ensure the server is running and accessible.</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (state.type === 'loading') {
-    return (
-      <div
-        style={{
-          fontFamily: 'Arial, sans-serif',
-          margin: 0,
-          padding: '20px',
-          background: '#f8f9fa',
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <div
-          style={{
-            textAlign: 'center',
-            color: '#666',
-          }}
-        >
-          <h2>Connecting to server...</h2>
-          <p>Loading evaluation data from the server.</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (state.type === 'repo') {
-    return (
-      <div style={{ fontFamily: 'Arial, sans-serif', margin: 0 }}>
-        <style>{NAV_CSS}</style>
-        <nav className="nav-container">
-          <div className="nav-content">
-            <div className="nav-tabs">
-              <Link
-                to="/eval-tasks"
-                className={`nav-tab ${location.pathname.startsWith('/eval-task') ? 'active' : ''}`}
-              >
-                Evaluate Policies
-              </Link>
-              <Link to="/leaderboard" className={`nav-tab ${location.pathname === '/leaderboard' ? 'active' : ''}`}>
-                Leaderboard
-              </Link>
-              <Link to="/sql-query" className={`nav-tab ${location.pathname === '/sql-query' ? 'active' : ''}`}>
-                SQL Query
-              </Link>
-            </div>
-          </div>
-        </nav>
-
-        <div className="page-container">
+        <div>
           <Routes>
-            <Route path="/eval-tasks" element={<EvalTasks repo={state.repo} />} />
-            <Route path="/leaderboard" element={<Leaderboard repo={state.repo} currentUser={state.currentUser} />} />
-            <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />
-            <Route path="/" element={<EvalTasks repo={state.repo} />} />
+            <Route path="/" element={<PoliciesPage />} />
+            <Route path="/policies" element={<PoliciesPage />} />
+            <Route path="/policies/:policyId" element={<PolicyPage />} />
+            <Route path="/policies/versions/:policyVersionId" element={<PolicyVersionPage />} />
+            <Route path="/eval-tasks" element={<EvalTasks />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/episodes/:episodeId" element={<EpisodeDetailPage />} />
+            <Route path="/sql-query" element={<SQLQuery />} />
           </Routes>
         </div>
       </div>
-    )
-  }
-
-  return null
+    </AppProvider>
+  )
 }
 
 export default App
