@@ -20,8 +20,8 @@ if TYPE_CHECKING:
 
 class ViTReconstructionLossConfig(LossConfig):
     # Weights for the two parts of the loss
-    id_loss_coef: float = Field(default=1.0, ge=0)
-    val_loss_coef: float = Field(default=1.0, ge=0)
+    id_loss_coef: float = Field(default=0.08, ge=0)
+    val_loss_coef: float = Field(default=0.4, ge=0)
 
     # Architecture parameters (optional, derived from policy/env if not provided)
     num_attribute_classes: Optional[int] = None
