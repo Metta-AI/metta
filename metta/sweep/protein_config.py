@@ -27,10 +27,6 @@ class ProteinSettings(Config):
     num_random_samples: int = Field(default=0, description="Number of random samples before using GP")
     seed_with_search_center: bool = Field(default=True, description="Whether to seed with the search center")
     expansion_rate: float = Field(default=0.25, description="Rate of search space expansion")
-    acquisition_fn: Literal["naive", "ei", "ucb"] = Field(
-        default="naive", description="Acquisition function for Bayesian optimization"
-    )
-    ucb_beta: float = Field(default=2.0, description="Beta parameter for UCB acquisition function")
     randomize_acquisition: bool = Field(
         default=False, description="Whether to randomize acquisition function parameters for diversity"
     )
