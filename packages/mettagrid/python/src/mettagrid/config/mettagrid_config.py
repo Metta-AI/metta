@@ -452,11 +452,7 @@ class MettaGridConfig(Config):
 
     @staticmethod
     def EmptyRoom(
-        num_agents: int,
-        width: int = 10,
-        height: int = 10,
-        border_width: int = 1,
-        with_walls: bool = False,
+        num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
