@@ -6,6 +6,7 @@ import pytest
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AssemblerConfig,
+    ChangeVibeActionConfig,
     ChestConfig,
     GameConfig,
     MettaGridConfig,
@@ -27,17 +28,22 @@ def sim_with_assembler():
             num_agents=2,
             obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
+            vibe_names=["neutral", "deposit", "withdraw"],
             resource_names=["iron", "steel"],
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            actions=ActionsConfig(
+                noop=NoopActionConfig(),
+                move=MoveActionConfig(),
+                change_vibe=ChangeVibeActionConfig(number_of_vibes=3),
+            ),
             objects={
                 "wall": WallConfig(),
                 "assembler": AssemblerConfig(
+                    name="assembler",
                     protocols=[
                         ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20)
                     ],
                     max_uses=10,
                     allow_partial_usage=True,
-                    exhaustion=0.1,
                 ),
             },
             map_builder=RandomMapBuilder.Config(
@@ -64,10 +70,7 @@ def sim_with_chest():
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects={
                 "wall": WallConfig(),
-                "chest": ChestConfig(
-                    resource_type="gold",
-                    position_deltas=[("NW", 1), ("N", 1), ("NE", 1), ("SW", -1), ("S", -1), ("SE", -1)],
-                ),
+                "chest": ChestConfig(vibe_transfers={}),
             },
             map_builder=RandomMapBuilder.Config(
                 width=10,
@@ -192,8 +195,6 @@ class TestAssemblerProperties:
             assert "uses_count" in assembler
             assert "max_uses" in assembler
             assert "allow_partial_usage" in assembler
-            assert "exhaustion" in assembler
-            assert "cooldown_multiplier" in assembler
 
             # Check initial values
             assert assembler["cooldown_remaining"] == 0, "Should start with no cooldown"
@@ -201,8 +202,6 @@ class TestAssemblerProperties:
             assert assembler["uses_count"] == 0, "Should start with zero uses"
             assert assembler["max_uses"] == 10, "Max uses should match config"
             assert assembler["allow_partial_usage"] is True, "Should match config"
-            assert assembler["exhaustion"] == pytest.approx(0.1), "Exhaustion should match config"
-            assert assembler["cooldown_multiplier"] == pytest.approx(1.0), "Should start at 1.0"
 
     def test_assembler_current_protocol(self, sim_with_assembler):
         """Test that current protocol is exposed."""
@@ -267,22 +266,11 @@ class TestChestProperties:
 
         if chest:
             # Check chest-specific properties
-            assert "resource_type" in chest
-            assert "position_deltas" in chest
-            assert "max_inventory" in chest
+            assert "vibe_transfers" in chest
 
             # Check values match config
-            assert chest["resource_type"] == 0, "Should be gold (resource 0)"
-            # Positions are stored as integers internally (bit indices)
-            # NW=0, N=1, NE=2, SW=5, S=6, SE=7
-            # Positive delta = deposit, negative delta = withdraw
-            position_deltas = chest["position_deltas"]
-            assert position_deltas[0] == 1, "NW should have delta +1 (deposit)"
-            assert position_deltas[1] == 1, "N should have delta +1 (deposit)"
-            assert position_deltas[2] == 1, "NE should have delta +1 (deposit)"
-            assert position_deltas[5] == -1, "SW should have delta -1 (withdraw)"
-            assert position_deltas[6] == -1, "S should have delta -1 (withdraw)"
-            assert position_deltas[7] == -1, "SE should have delta -1 (withdraw)"
+            vibe_transfers = chest["vibe_transfers"]
+            assert isinstance(vibe_transfers, dict)
 
             # Check that chest has inventory dict
             assert "inventory" in chest

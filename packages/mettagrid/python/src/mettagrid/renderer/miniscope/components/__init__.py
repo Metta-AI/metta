@@ -1,4 +1,4 @@
-"""Miniscope UI components."""
+"""Convenience re-exports for miniscope components."""
 
 from .agent_control import AgentControlComponent
 from .agent_info import AgentInfoComponent
@@ -11,13 +11,13 @@ from .symbols_table import SymbolsTableComponent
 from .vibe_picker import VibePickerComponent
 
 __all__ = [
-    "MiniscopeComponent",
-    "MapComponent",
-    "AgentInfoComponent",
-    "ObjectInfoComponent",
-    "VibePickerComponent",
-    "SimControlComponent",
-    "HelpPanelComponent",
     "AgentControlComponent",
+    "AgentInfoComponent",
+    "HelpPanelComponent",
+    "MapComponent",
+    "MiniscopeComponent",
+    "ObjectInfoComponent",
+    "SimControlComponent",
     "SymbolsTableComponent",
+    "VibePickerComponent",
 ]

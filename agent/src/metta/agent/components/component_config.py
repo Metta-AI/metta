@@ -3,7 +3,7 @@ from typing import Any
 
 import torch.nn as nn
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class ComponentConfig(Config, ABC):

@@ -79,26 +79,6 @@ def _extract_re_run_commands(output: str) -> List[str]:
     return ordered
 
 
-def _extract_lint_failures(output: str) -> tuple[list[str], list[str]]:
-    formatters: set[str] = set()
-    linters: set[str] = set()
-    for raw in output.splitlines():
-        line = raw.strip()
-        if line.startswith("Formatting failed for:"):
-            payload = line.split(":", 1)[1]
-            for part in payload.split(","):
-                name = part.strip()
-                if name:
-                    formatters.add(name)
-        elif line.startswith("Linting failed for:"):
-            payload = line.split(":", 1)[1]
-            for part in payload.split(","):
-                name = part.strip()
-                if name:
-                    linters.add(name)
-    return sorted(formatters), sorted(linters)
-
-
 def _summarize(stage: str, success: bool, output: str) -> List[str]:
     bullet = "✅" if success else "❌"
     lines: list[str] = [f"- {bullet} Stage `{stage}` {'passed' if success else 'failed'}."]
@@ -141,17 +121,6 @@ def _summarize(stage: str, success: bool, output: str) -> List[str]:
     elif stage == "cpp-benchmarks":
         lines.append("- Re-run locally: `metta cpptest --benchmark`")
         lines.append("- See log output above for benchmark failures.")
-    elif stage == "lint":
-        formatters, linters = _extract_lint_failures(output)
-        if formatters:
-            joined = ", ".join(formatters)
-            lines.append(f"- Failed formatters: {joined}")
-        if linters:
-            joined = ", ".join(linters)
-            lines.append(f"- Failed linters: {joined}")
-        if not formatters and not linters:
-            lines.append("- Inspect lint output above for details.")
-        lines.append("- Re-run locally: `metta lint --fix`")
     else:
         lines.append("- See log output above for details.")
 

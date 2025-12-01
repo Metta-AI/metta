@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from types import MethodType
-from typing import TYPE_CHECKING, Any, Callable
+from abc import ABC
+from typing import override
 
-from pydantic import Field, PrivateAttr
+from pydantic import Field
 
-from cogames.cogs_vs_clips.procedural import apply_procedural_overrides_to_builder
 from cogames.cogs_vs_clips.stations import (
-    RESOURCE_CHESTS,
     CarbonExtractorConfig,
     ChargerConfig,
     CvCAssemblerConfig,
@@ -18,7 +16,8 @@ from cogames.cogs_vs_clips.stations import (
     SiliconExtractorConfig,
     resources,
 )
-from mettagrid.config import Config, vibes
+from mettagrid.base_config import Config
+from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
@@ -26,40 +25,94 @@ from mettagrid.config.mettagrid_config import (
     ChangeVibeActionConfig,
     ClipperConfig,
     GameConfig,
+    GlobalObsConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
     ProtocolConfig,
+    ResourceLimitsConfig,
 )
-from mettagrid.map_builder.map_builder import MapBuilderConfig
-
-if TYPE_CHECKING:
-    from cogames.cogs_vs_clips.sites import Site
+from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
 
-class MissionVariant(Config):
-    name: str = Field()
-    description: str = Field()
+class MissionVariant(Config, ABC):
+    # Note: we could derive the name from the class name automatically, but it would make it
+    # harder to find the variant source code based on CLI interactions.
+    name: str
+    description: str = Field(default="")
 
-    def apply(self, mission: "Mission") -> "Mission":
+    def modify_mission(self, mission: Mission) -> None:
+        # Override this method to modify the mission.
+        # Variants are allowed to modify the mission in-place - it's guaranteed to be a one-time only instance.
+        pass
+
+    def modify_env(self, mission: Mission, env: MettaGridConfig) -> None:
+        # Override this method to modify the produced environment.
+        # Variants are allowed to modify the environment in-place.
+        pass
+
+    def compat(self, mission: Mission) -> bool:
+        """Check if this variant is compatible with the given mission.
+
+        Returns True if the variant can be safely applied to the mission.
+        Override this method to add compatibility checks.
+        """
+        return True
+
+    def apply(self, mission: Mission) -> Mission:
+        mission = mission.model_copy(deep=True)
+        mission.variants.append(self)
+        self.modify_mission(mission)
         return mission
+
+    # Temporary helper useful as long as we have one-time variants in missions.py file.
+    def as_mission(self, name: str, description: str, site: Site) -> Mission:
+        return Mission(
+            name=name,
+            description=description,
+            site=site,
+            variants=[self],
+        )
+
+
+class NumCogsVariant(MissionVariant):
+    name: str = "num_cogs"
+    description: str = "Set the number of cogs for the mission."
+    num_cogs: int
+
+    @override
+    def modify_mission(self, mission: Mission) -> None:
+        if self.num_cogs < mission.site.min_cogs or self.num_cogs > mission.site.max_cogs:
+            raise ValueError(
+                f"Invalid number of cogs for {mission.site.name}: {self.num_cogs}. "
+                + f"Must be between {mission.site.min_cogs} and {mission.site.max_cogs}"
+            )
+
+        mission.num_cogs = self.num_cogs
+
+
+class Site(Config):
+    name: str
+    description: str
+    map_builder: AnyMapBuilderConfig
+
+    min_cogs: int = Field(default=1, ge=1)
+    max_cogs: int = Field(default=1000, ge=1)
+
+
+MAP_MISSION_DELIMITER = "."
 
 
 class Mission(Config):
-    """Mission configuration for Cogs vs Clips.
+    """Mission configuration for Cogs vs Clips."""
 
-    This class combines both the mission template (with defaults) and the
-    instantiated mission configuration (with specific map and num_cogs).
-    """
+    name: str
+    description: str
+    site: Site
+    num_cogs: int | None = None
 
-    name: str = Field()
-    description: str = Field()
-    site: Site | None = Field(default=None)
-
-    # Map and num_cogs are optional for template missions, required for instantiated missions
-    map: MapBuilderConfig | None = Field(default=None)
-    num_cogs: int | None = Field(default=None)
-    procedural_overrides: dict[str, Any] = Field(default_factory=dict)
+    # Variants are applied to the mission immediately, and to its env when make_env is called
+    variants: list[MissionVariant] = Field(default_factory=list)
 
     carbon_extractor: CarbonExtractorConfig = Field(default_factory=CarbonExtractorConfig)
     oxygen_extractor: OxygenExtractorConfig = Field(default_factory=OxygenExtractorConfig)
@@ -70,8 +123,8 @@ class Mission(Config):
     wall: CvCWallConfig = Field(default_factory=CvCWallConfig)
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
-    clip_rate: float = Field(default=0.0)
-    cargo_capacity: int = Field(default=255)
+    clip_period: int = Field(default=0)
+    cargo_capacity: int = Field(default=100)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
     inventory_regen_interval: int = Field(default=1)
@@ -81,98 +134,40 @@ class Mission(Config):
     # Control vibe swapping in variants
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
-    _env_modifiers: list[Callable[[MettaGridConfig], None]] = PrivateAttr(default_factory=list)
-    _env_modifier_hooked: bool = PrivateAttr(default=False)
+    compass_enabled: bool = Field(default=False)
 
-    def configure(self):
-        pass
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Can't call `variant.apply` here because it will create a new mission instance
+        for variant in self.variants:
+            variant.modify_mission(self)
 
-    def instantiate(
-        self,
-        map_builder: MapBuilderConfig,
-        num_cogs: int,
-        variant: MissionVariant | None = None,
-        *,
-        cli_override: bool = False,
-    ) -> "Mission":
-        """Create an instantiated mission with specific map and num_cogs.
-
-        Args:
-            map_builder: Map configuration
-            num_cogs: Number of cogs (agents)
-            variant: Optional variant to apply
-            cli_override: If True, prefer the provided num_cogs over mission/variant settings
-
-        Returns:
-            New Mission instance with map and num_cogs set
-        """
-        mission = self.model_copy(deep=True)
-        if "make_env" in mission.__dict__:
-            delattr(mission, "make_env")
-        mission._env_modifiers = []
-        mission._env_modifier_hooked = False
-        mission.configure()
-        mission.map = map_builder
-
-        if variant:
+    def with_variants(self, variants: list[MissionVariant]) -> Mission:
+        mission = self
+        for variant in variants:
             mission = variant.apply(mission)
-
-        if cli_override:
-            mission.num_cogs = num_cogs
-        elif mission.num_cogs is None:
-            mission.num_cogs = num_cogs
-
-        # Apply mission-level procedural overrides to supported builders (hub-only, machina, etc.)
-        mission.map = apply_procedural_overrides_to_builder(
-            mission.map or map_builder,
-            num_cogs=int(mission.num_cogs or 0),
-            overrides=mission.procedural_overrides,
-        )
-
         return mission
 
-    def add_env_modifier(self, modifier: Callable[[MettaGridConfig], None]) -> "Mission":
-        """Register a callable to mutate the environment config after creation."""
-        self._ensure_env_modifier_wrapper()
-        self._env_modifiers.append(modifier)
-        return self
-
-    def _ensure_env_modifier_wrapper(self) -> None:
-        if self._env_modifier_hooked:
-            return
-
-        original_make_env = self.make_env
-
-        def wrapped_make_env(_self: "Mission", *args: Any, **kwargs: Any) -> MettaGridConfig:
-            env_cfg = original_make_env(*args, **kwargs)
-            for modifier in _self._env_modifiers:
-                modifier(env_cfg)
-            return env_cfg
-
-        object.__setattr__(self, "make_env", MethodType(wrapped_make_env, self))
-        self._env_modifier_hooked = True
+    def full_name(self) -> str:
+        return f"{self.site.name}{MAP_MISSION_DELIMITER}{self.name}"
 
     def make_env(self) -> MettaGridConfig:
         """Create a MettaGridConfig from this mission.
 
-        Requires that map and num_cogs are set (i.e., this is an instantiated mission).
+        Applies all variants to the produced configuration.
 
         Returns:
             MettaGridConfig ready for environment creation
-
-        Raises:
-            ValueError: If map or num_cogs is not set
         """
-        if self.map is None:
-            raise ValueError("Cannot make_env without a map. Call instantiate() first.")
-        if self.num_cogs is None:
-            raise ValueError("Cannot make_env without num_cogs. Call instantiate() first.")
+        map_builder = self.site.map_builder
+        num_cogs = self.num_cogs if self.num_cogs is not None else self.site.min_cogs
 
         game = GameConfig(
-            map_builder=self.map,
-            num_agents=self.num_cogs,
+            map_builder=map_builder,
+            num_agents=num_cogs,
             resource_names=resources,
             vibe_names=[vibe.name for vibe in vibes.VIBES],
+            global_obs=GlobalObsConfig(compass=self.compass_enabled),
             actions=ActionsConfig(
                 move=MoveActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=NoopActionConfig(),
@@ -186,20 +181,24 @@ class Mission(Config):
             ),
             agent=AgentConfig(
                 resource_limits={
-                    "heart": self.heart_capacity,
-                    "energy": self.energy_capacity,
-                    ("carbon", "oxygen", "germanium", "silicon"): self.cargo_capacity,
-                    ("scrambler", "modulator", "decoder", "resonator"): self.gear_capacity,
+                    "heart": ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"]),
+                    "energy": ResourceLimitsConfig(limit=self.energy_capacity, resources=["energy"]),
+                    "cargo": ResourceLimitsConfig(
+                        limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
+                    ),
+                    "gear": ResourceLimitsConfig(
+                        limit=self.gear_capacity, resources=["scrambler", "modulator", "decoder", "resonator"]
+                    ),
                 },
                 rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1 / self.num_cogs},
+                    stats={"chest.heart.amount": 1 / num_cogs},
                 ),
                 initial_inventory={
                     "energy": self.energy_capacity,
                 },
-                shareable_resources=["energy"],
+                vibe_transfers={"charger": {"energy": 20}},
                 inventory_regen_amounts={"energy": self.energy_regen_amount},
-                diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon"],
+                diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,
             clipper=ClipperConfig(
@@ -221,7 +220,7 @@ class Mission(Config):
                         cooldown=1,
                     ),
                 ],
-                clip_rate=self.clip_rate,
+                clip_period=self.clip_period,
             ),
             objects={
                 "wall": self.wall.station_cfg(),
@@ -232,41 +231,57 @@ class Mission(Config):
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
-                # Clipped variants
-                "clipped_carbon_extractor": self.carbon_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_oxygen_extractor": self.oxygen_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_germanium_extractor": self.germanium_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_silicon_extractor": self.silicon_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                **RESOURCE_CHESTS,
+                # Resource-specific chests used by diagnostic missions
+                # These use simplified vibe_transfers (only "default") to avoid issues when vibes are restricted
+                "chest_carbon": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_carbon",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
+                "chest_oxygen": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_oxygen",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
+                "chest_germanium": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_germanium",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
+                "chest_silicon": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_silicon",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
+                # Clipped variants with unique map_names so they don't conflict with regular extractors
+                # These are used by maps that explicitly place clipped extractors
+                "clipped_carbon_extractor": self.carbon_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_carbon_extractor"}),
+                "clipped_oxygen_extractor": self.oxygen_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_oxygen_extractor"}),
+                "clipped_germanium_extractor": self.germanium_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_germanium_extractor"}),
+                "clipped_silicon_extractor": self.silicon_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_silicon_extractor"}),
             },
         )
 
-        # if hasattr(self, "heart_chorus_length"):
-        #     length_raw = self.heart_chorus_length
-        #     try:
-        #         chorus_len = max(1, int(length_raw))
-        #     except Exception:
-        #         chorus_len = 4
-        #     inputs = getattr(
-        #         self,
-        #         "heart_chorus_inputs",
-        #         {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1},
-        #     )
-        #     assembler_cfg = game.objects.get("assembler")
-        #     if isinstance(assembler_cfg, CvCAssemblerConfig):
-        #         chorus = ProtocolConfig(input_resources=dict(inputs), output_resources={"heart": 1}, cooldown=1)
-        #         non_heart = [
-        #             (vibes_list, recipe)
-        #             for vibes_list, recipe in assembler_cfg.recipes
-        #             if recipe.output_resources.get("heart", 0) == 0
-        #         ]
-        #         assembler_cfg.recipes = [(["heart"] * chorus_len, chorus), *non_heart]
-        return MettaGridConfig(game=game)
+        env = MettaGridConfig(game=game)
+        # Precaution - copy the env, in case the code above uses some global variable that we don't want to modify.
+        # This allows variants to modify the env without copying it again.
+        env = env.model_copy(deep=True)
+        env.label = self.full_name()
+
+        for variant in self.variants:
+            variant.modify_env(self, env)
+            env.label += f".{variant.name}"
+
+        return env

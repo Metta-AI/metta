@@ -59,6 +59,8 @@ cache-keys = [
   { file = "cpp/**/*.{cpp,hpp}" },
   { file = "nim/mettascope/src/**/*.{nim,nims}" },
   { file = "nim/mettascope/bindings/bindings.nim" },
+  { file = "nim/mettascope/nimby.lock" },
+  { file = "bazel_build.py" },
   { file = "nim/mettascope/mettascope.nimble" },
 ]
 

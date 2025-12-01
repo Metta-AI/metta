@@ -6,6 +6,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from mettagrid.policy.token_encoder import coordinates
 
 if TYPE_CHECKING:
     from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -112,6 +113,11 @@ class ObsTokenPadStrip(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         observations = td[self.in_key]
+        if observations.dim() == 2:
+            # Some call sites (single-agent eval/play) feed a single sequence; add batch axis
+            observations = observations.unsqueeze(0)
+            td[self.in_key] = observations
+
         M = observations.shape[1]
 
         # Apply feature remapping if active
@@ -278,12 +284,11 @@ class ObsTokenToBoxShim(nn.Module):
         token_observations = td[self.in_key]
         B_TT = td.batch_size.numel()
 
-        # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
+        # coords_byte contains row and column encoded in a single byte (row/high nibble, col/low nibble)
         coords_byte = token_observations[..., 0].to(torch.uint8)
 
-        # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
-        y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        # Extract x/y coordinate indices (low nibble -> x/col, high nibble -> y/row)
+        x_coord_indices, y_coord_indices = coordinates(token_observations, torch.long)
         atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
 

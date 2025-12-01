@@ -9,8 +9,15 @@
     },
   ],
   "settings": {
-    "ruff.enable": true,
-    "ruff.nativeServer": "on",
+    "emeraldwalk.runonsave": {
+      "commands": [
+        {
+          "match": ".*",
+          "isAsync": false,
+          "cmd": "uv run --no-sync python -m metta.setup.tools.code_formatters --verbose --fix ${file}",
+        },
+      ],
+    },
     "terminal.integrated.profiles.osx": {
       "metta-0": {
         "path": "bash",

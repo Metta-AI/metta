@@ -1,4 +1,4 @@
-"""Test that Policy correctly implements TrainablePolicy interface."""
+"""Test that Policy correctly implements MultiAgentPolicy interface."""
 
 import torch
 from tensordict import TensorDict
@@ -6,7 +6,7 @@ from tensordict import TensorDict
 from metta.agent.policy import Policy
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig
-from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, ObservationToken
 
@@ -37,9 +37,9 @@ class SimplePolicy(Policy):
         return self._device
 
 
-def test_policy_inherits_from_trainable_policy():
-    """Verify Policy is a subclass of TrainablePolicy."""
-    assert issubclass(Policy, TrainablePolicy)
+def test_policy_inherits_from_multi_agent_policy():
+    """Verify Policy is a subclass of MultiAgentPolicy."""
+    assert issubclass(Policy, MultiAgentPolicy)
 
 
 def test_policy_implements_network_method():
@@ -79,7 +79,7 @@ def test_agent_policy_adapter_step():
     # Create a simple observation (single agent, token-based)
     # Create mock feature spec for padding tokens
     feature = ObservationFeatureSpec(id=0, name="padding", normalization=255.0)
-    tokens = [ObservationToken(feature=feature, location=(0, 0), value=0) for _ in range(10)]
+    tokens = [ObservationToken(feature=feature, location=(0, 0), value=0, raw_token=(255, 0, 0)) for _ in range(10)]
     obs = AgentObservation(agent_id=0, tokens=tokens)
 
     # Get action

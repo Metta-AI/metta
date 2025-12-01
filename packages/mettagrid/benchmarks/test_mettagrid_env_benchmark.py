@@ -32,10 +32,6 @@ def simulation(num_agents: int):
 
     sim = Simulation(cfg, seed=seed)
 
-    # Verify deterministic grid generation
-    initial_hash = sim.initial_grid_hash
-    print(f"Initial grid hash: {initial_hash}")
-
     yield sim
     # Cleanup after test
     sim.close()

@@ -1,9 +1,13 @@
 """Map component for miniscope renderer."""
 
+from typing import TYPE_CHECKING
+
 from mettagrid.renderer.miniscope.buffer import MapBuffer
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
-from mettagrid.simulator import BoundingBox, Simulation
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
 
 from .base import MiniscopeComponent
 
@@ -13,7 +17,7 @@ class MapComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: Simulation,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -29,7 +33,6 @@ class MapComponent(MiniscopeComponent):
 
         # Create map buffer - will be initialized with data from state
         self._map_buffer = MapBuffer(
-            object_type_names=state.object_type_names or [],
             symbol_map=state.symbol_map or {},
             initial_height=sim.map_height,
             initial_width=sim.map_width,
@@ -38,7 +41,6 @@ class MapComponent(MiniscopeComponent):
     def _update_buffer_config(self) -> None:
         """Update buffer configuration from state."""
         if self.state:
-            self._map_buffer._object_type_names = self.state.object_type_names or []
             self._map_buffer._symbol_map = self.state.symbol_map or {}
 
     def handle_input(self, ch: str) -> bool:
@@ -89,13 +91,7 @@ class MapComponent(MiniscopeComponent):
         self._update_buffer_config()
 
         # Get grid objects from environment
-        bbox = BoundingBox(
-            min_row=0,
-            max_row=self._sim.map_height,
-            min_col=0,
-            max_col=self._sim.map_width,
-        )
-        grid_objects = self._sim.grid_objects(bbox)
+        grid_objects = self._sim.grid_objects()
 
         # Get viewport size from panel
         assert self._panel is not None

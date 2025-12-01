@@ -10,7 +10,7 @@ map_data: |-
   #.#.####..#
   #n#.......#
   ###########
-char_to_name_map:
+char_to_map_name:
   "#": wall
   ".": empty
   "m": mine_red

@@ -11,9 +11,9 @@ from mettagrid.mapgen.utils.ascii_grid import merge_with_global_defaults
 
 class AsciiMapBuilderConfig(MapBuilderConfig):
     map_data: list[list[str]]
-    char_to_name_map: dict[
+    char_to_map_name: dict[
         Annotated[str, StringConstraints(min_length=1, max_length=1)],  # keys are single characters
-        Annotated[str, StringConstraints(pattern=r"^[\w\.]+$")],  # values are object names
+        Annotated[str, StringConstraints(pattern=r"^[\w\.]+$")],  # values are map_names
     ]
 
     @field_validator("map_data", mode="before")
@@ -37,9 +37,9 @@ class AsciiMapBuilderConfig(MapBuilderConfig):
             )
         return map_data
 
-    @field_validator("char_to_name_map", mode="after")
+    @field_validator("char_to_map_name", mode="after")
     @classmethod
-    def _validate_char_to_name_map(cls, value: dict[str, str]):
+    def _validate_char_to_map_name(cls, value: dict[str, str]):
         return merge_with_global_defaults(value)
 
     @property
@@ -60,13 +60,13 @@ class AsciiMapBuilder(MapBuilder[AsciiMapBuilderConfig]):
         super().__init__(config)
 
         self._level = np.array([list(line) for line in config.map_data], dtype="U6")
-        self._level = np.vectorize(self._char_to_object_name)(self._level)
+        self._level = np.vectorize(self._char_to_map_name)(self._level)
 
-    def _char_to_object_name(self, char: str) -> str:
-        """Convert a map character to an object name."""
-        if char in self.config.char_to_name_map:
-            return self.config.char_to_name_map[char]
-        raise ValueError(f"Unknown character: '{char}'. Available: {list(self.config.char_to_name_map.keys())}")
+    def _char_to_map_name(self, char: str) -> str:
+        """Convert a map character to a map_name."""
+        if char in self.config.char_to_map_name:
+            return self.config.char_to_map_name[char]
+        raise ValueError(f"Unknown character: '{char}'. Available: {list(self.config.char_to_map_name.keys())}")
 
     def build(self) -> GameMap:
         return GameMap(self._level)

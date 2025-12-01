@@ -225,23 +225,30 @@ class MapBuilder(ABC, Generic[ConfigT]):
                 )
         raise ValueError(f"Failed to build map for {num_agents} agents")
 
+    def shuffle_spawn_indices(self, indices: np.ndarray):
+        """
+        Shuffle the spawn indices. This method can be overridden to implement a
+        different (seed-dependent) shuffle algorithm.
+        """
+        np.random.shuffle(indices)
+
     def _designate_agent_spawn_points(self, game_map: GameMap, num_agents: int) -> None:
         """
         Validate that the map provides enough spawn points and trim excess when necessary.
         """
 
+        # Handle spawn points: treat them as potential spawn locations
+        # If there are more spawn points than agents, replace the excess with empty spaces
         spawn_mask = np.char.startswith(game_map.grid, "agent")
         level_agents = np.count_nonzero(spawn_mask)
 
         if level_agents < num_agents:
-            raise ValueError(
-                (
-                    f"Number of agents {num_agents} exceeds available spawn points {level_agents} in map. "
-                    "After removing the border width, the map might be too small to fit all agents."
-                )
-            )
+            raise ValueError((f"Number of agents {num_agents} exceeds available spawn points {level_agents} in map."))
 
         if level_agents > num_agents:
+            # Replace excess spawn points with empty spaces
             spawn_indices = np.argwhere(spawn_mask)
+            # Randomly select num_agents spawn points to keep, replace the rest with empty
+            self.shuffle_spawn_indices(spawn_indices)
             for idx in spawn_indices[num_agents:]:
                 game_map.grid[tuple(idx)] = "empty"

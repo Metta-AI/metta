@@ -2,12 +2,11 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 import numpy as np
 
-if TYPE_CHECKING:
-    from mettagrid.simulator import Action
+from mettagrid.simulator.interface import Action
 
 
 class RenderMode(str, Enum):
@@ -36,6 +35,7 @@ class MiniscopeState:
     # Playback state
     playback: PlaybackState = PlaybackState.STOPPED
     fps: float = 4.0
+    true_fps: float = 0.0  # Actual measured FPS
     step_count: int = 0
     max_steps: Optional[int] = None
 
@@ -53,7 +53,7 @@ class MiniscopeState:
 
     # Agent control
     manual_agents: Set[int] = field(default_factory=set)
-    user_action: Optional["Action"] = None
+    user_action: Optional[Action] = None
     should_step: bool = False
 
     # User input
@@ -69,7 +69,6 @@ class MiniscopeState:
     map_width: int = 0
 
     # Shared data for components
-    object_type_names: Optional[List[str]] = None
     resource_names: Optional[List[str]] = None
     symbol_map: Optional[Dict[str, str]] = None
     vibes: Optional[List[str]] = None
@@ -95,11 +94,11 @@ class MiniscopeState:
 
     def increase_speed(self) -> None:
         """Increase playback speed."""
-        self.fps = min(60.0, self.fps * 1.5)
+        self.fps = min(600.0, self.fps * 1.5)
 
     def decrease_speed(self) -> None:
         """Decrease playback speed."""
-        self.fps = max(0.5, self.fps / 1.5)
+        self.fps = max(0.01, self.fps / 1.5)
 
     def get_frame_delay(self) -> float:
         """Get the delay between frames in seconds."""

@@ -53,19 +53,29 @@ class PolicySelectorWidget(anywidget.AnyWidget):
     max_displayed_policies = traitlets.Int(100).tag(sync=True)
 
     # Event communication
-    selection_changed = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
+    selection_changed = traitlets.Dict(allow_none=True, default_value=None).tag(
+        sync=True
+    )
     filter_changed = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
-    api_search_requested = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
-    api_search_completed = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
+    api_search_requested = traitlets.Dict(allow_none=True, default_value=None).tag(
+        sync=True
+    )
+    api_search_completed = traitlets.Dict(allow_none=True, default_value=None).tag(
+        sync=True
+    )
     load_all_policies_requested = traitlets.Bool(False).tag(sync=True)
 
     # Alternative: use a simple counter that changes on each search request
     search_trigger = traitlets.Int(0).tag(sync=True)
-    current_search_params = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
+    current_search_params = traitlets.Dict(allow_none=True, default_value=None).tag(
+        sync=True
+    )
 
     # Search configuration
     use_api_search = traitlets.Bool(True).tag(sync=True)  # Enable API-based search
-    search_debounce_ms = traitlets.Int(300).tag(sync=True)  # Debounce delay in milliseconds
+    search_debounce_ms = traitlets.Int(300).tag(
+        sync=True
+    )  # Debounce delay in milliseconds
 
     def __init__(self, client=None, **kwargs):
         super().__init__(**kwargs)
@@ -85,7 +95,9 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         self.observe(self._on_filter_changed, names="filter_changed")
         self.observe(self._on_api_search_requested, names="api_search_requested")
         self.observe(self._on_search_trigger, names="search_trigger")
-        self.observe(self._on_load_all_policies_requested, names="load_all_policies_requested")
+        self.observe(
+            self._on_load_all_policies_requested, names="load_all_policies_requested"
+        )
 
     def _on_selection_changed(self, change):
         """Handle policy selection events from JavaScript."""
@@ -114,11 +126,15 @@ class PolicySelectorWidget(anywidget.AnyWidget):
 
                 search_term = search_params.get("searchTerm", "")
                 policy_type = (
-                    search_params.get("policyTypeFilter", [None])[0] if search_params.get("policyTypeFilter") else None
+                    search_params.get("policyTypeFilter", [None])[0]
+                    if search_params.get("policyTypeFilter")
+                    else None
                 )
                 tags = search_params.get("tagFilter")
 
-                print(f"🔍 Searching for: term='{search_term}', type={policy_type}, tags={tags}")
+                print(
+                    f"🔍 Searching for: term='{search_term}', type={policy_type}, tags={tags}"
+                )
 
                 # Use sync version of client method if available, otherwise fall back to async in thread
                 if hasattr(self._client, "search_policies_sync"):
@@ -162,7 +178,9 @@ class PolicySelectorWidget(anywidget.AnyWidget):
                         try:
                             loop = asyncio.new_event_loop()
                             asyncio.set_event_loop(loop)
-                            result = loop.run_until_complete(self._handle_api_search(search_params))
+                            result = loop.run_until_complete(
+                                self._handle_api_search(search_params)
+                            )
                             print("🟢 Async search thread completed")
                             return result
                         except Exception as e:
@@ -171,12 +189,16 @@ class PolicySelectorWidget(anywidget.AnyWidget):
 
                             print(traceback.format_exc())
                             # Force update to stop spinner
-                            current_data = list(self.policy_data) if self.policy_data else []
+                            current_data = (
+                                list(self.policy_data) if self.policy_data else []
+                            )
                             self.policy_data = current_data
                         finally:
                             loop.close()
 
-                    search_thread = threading.Thread(target=run_async_search, daemon=True)
+                    search_thread = threading.Thread(
+                        target=run_async_search, daemon=True
+                    )
                     search_thread.start()
 
             except Exception as e:
@@ -209,11 +231,15 @@ class PolicySelectorWidget(anywidget.AnyWidget):
 
                 search_term = search_params.get("searchTerm", "")
                 policy_type = (
-                    search_params.get("policyTypeFilter", [None])[0] if search_params.get("policyTypeFilter") else None
+                    search_params.get("policyTypeFilter", [None])[0]
+                    if search_params.get("policyTypeFilter")
+                    else None
                 )
                 tags = search_params.get("tagFilter")
 
-                print(f"🔍 Searching for: term='{search_term}', type={policy_type}, tags={tags}")
+                print(
+                    f"🔍 Searching for: term='{search_term}', type={policy_type}, tags={tags}"
+                )
 
                 if hasattr(self._client, "search_policies_sync"):
                     print("🔄 Using synchronous client method...")
@@ -421,7 +447,11 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         Returns:
             List of policy metadata dicts for selected policies
         """
-        return [policy for policy in self.policy_data if policy.get("id") in self.selected_policies]
+        return [
+            policy
+            for policy in self.policy_data
+            if policy.get("id") in self.selected_policies
+        ]
 
     def set_client(self, client):
         """Set the client for API-based operations.
@@ -432,7 +462,9 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         # Validate client has required methods if not None
         if client is not None:
             if not hasattr(client, "search_policies"):
-                raise ValueError("Client must have a 'search_policies' method (expected ScorecardClient)")
+                raise ValueError(
+                    "Client must have a 'search_policies' method (expected ScorecardClient)"
+                )
 
         self._client = client
         # Automatically enable API search when client is set
@@ -459,7 +491,9 @@ class PolicySelectorWidget(anywidget.AnyWidget):
             List of loaded policies
         """
         if not self._client:
-            print("⚠️ No client configured. Use widget.set_client(scorecard_client) first.")
+            print(
+                "⚠️ No client configured. Use widget.set_client(scorecard_client) first."
+            )
             return []
 
         try:
@@ -490,7 +524,9 @@ class PolicySelectorWidget(anywidget.AnyWidget):
             List of policy dictionaries
         """
         if not self._client:
-            print("⚠️ No search client configured. Use widget.set_client(scorecard_client) to enable API search.")
+            print(
+                "⚠️ No search client configured. Use widget.set_client(scorecard_client) to enable API search."
+            )
             print("   Falling back to local data filtering")
             return self.policy_data
 
@@ -526,7 +562,9 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         """Handle API search request automatically."""
         search_term = search_params.get("searchTerm", "")
         policy_type = (
-            search_params.get("policyTypeFilter", [None])[0] if search_params.get("policyTypeFilter") else None
+            search_params.get("policyTypeFilter", [None])[0]
+            if search_params.get("policyTypeFilter")
+            else None
         )
         tags = search_params.get("tagFilter")
 

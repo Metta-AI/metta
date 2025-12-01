@@ -9,6 +9,7 @@ class DatadogConfig(BaseSettings):
 
     # Core settings
     DD_TRACE_ENABLED: bool = Field(default=False, description="Enable Datadog tracing")
+    DD_LOGS_INJECTION: bool = Field(default=True, description="Inject trace ids into logs for correlation")
     DD_SERVICE: str = Field(default="metta", description="Service name")
     DD_ENV: str = Field(default="development", description="Environment (production, staging, development)")
     DD_VERSION: str | None = Field(default=None, description="Service version (e.g., git commit hash)")
@@ -22,7 +23,8 @@ class DatadogConfig(BaseSettings):
     DD_SITE: str = Field(default="datadoghq.com", description="Datadog site")
 
     def to_env_dict(self) -> dict[str, str]:
-        return self.model_dump(mode="json", exclude_none=True)
+        env_vars = self.model_dump(mode="json", exclude_none=True)
+        return {key: (str(value).lower() if isinstance(value, bool) else str(value)) for key, value in env_vars.items()}
 
 
 datadog_config = DatadogConfig()

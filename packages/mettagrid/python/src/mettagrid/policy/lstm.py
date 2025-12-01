@@ -7,8 +7,7 @@ import torch.nn as nn
 from einops import rearrange
 
 import pufferlib.pytorch
-from mettagrid.config.mettagrid_config import ActionsConfig
-from mettagrid.policy.policy import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import LSTMState, LSTMStateDict
 from mettagrid.simulator import Action as MettaGridAction
@@ -18,22 +17,22 @@ logger = logging.getLogger("mettagrid.policy.lstm_policy")
 
 
 class LSTMPolicyNet(torch.nn.Module):
-    def __init__(self, actions_cfg: ActionsConfig, obs_shape: tuple):
+    def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__()
         # Public: Required by PufferLib for RNN state management
         self.hidden_size = 128
 
         self._net = torch.nn.Sequential(
-            pufferlib.pytorch.layer_init(torch.nn.Linear(np.prod(obs_shape).item(), self.hidden_size)),
+            pufferlib.pytorch.layer_init(
+                torch.nn.Linear(np.prod(policy_env_info.observation_space.shape), self.hidden_size)
+            ),
             torch.nn.ReLU(),
             pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
         )
 
         self._rnn = torch.nn.LSTM(self.hidden_size, self.hidden_size, batch_first=True)
 
-        self._num_actions = len(actions_cfg.actions())
-
-        self._action_head = torch.nn.Linear(self.hidden_size, self._num_actions)
+        self._action_head = torch.nn.Linear(self.hidden_size, len(policy_env_info.actions.actions()))
         self._value_head = torch.nn.Linear(self.hidden_size, 1)
 
     def forward_eval(
@@ -148,57 +147,47 @@ class LSTMPolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
-    """Per-agent policy that uses the shared LSTM network."""
+def obs_to_obs_tensor(obs: MettaGridObservation, obs_shape: Tuple[int, ...], device: torch.device) -> torch.Tensor:
+    """Get action and update state for this agent."""
 
-    def __init__(self, net: LSTMPolicyNet, device: torch.device, num_actions: int, obs_shape: tuple, actions: list):
+    # Create observation array matching the training format
+    # Training uses a fixed-size buffer of (num_tokens, token_dim) from policy_env_info
+    obs_array = np.full(obs_shape, [255, 0, 0], dtype=np.uint8)
+
+    # Fill with actual token data
+    for i, token in enumerate(obs.tokens):
+        if i < obs_shape[0]:
+            obs_array[i] = token.raw_token
+
+    return torch.from_numpy(obs_array).unsqueeze(0).to(device)
+
+
+class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
+    """Per-agent policy implementation that uses the shared LSTM network."""
+
+    def __init__(self, net: LSTMPolicyNet, device: torch.device, policy_env_info: PolicyEnvInterface):
         self._net = net
         self._device = device
-        self._num_actions = num_actions
-        self._obs_shape = obs_shape
-        self._actions = actions
+        self._policy_env_info = policy_env_info
 
-    def agent_state(self, agent_id: int = 0) -> Optional[LSTMState]:
+    def initial_agent_state(self) -> LSTMState:
         """Get initial state for a new agent.
 
-        Args:
-            agent_id: The ID of the agent (unused for LSTM)
-
-        For LSTM, we return None and let the network initialize the state on first forward pass.
+        For LSTM, we return a zero-initialized state with shape (num_layers, hidden_size).
         """
-        return None
+        num_layers = self._net._rnn.num_layers * (2 if self._net._rnn.bidirectional else 1)
+        hidden_size = self._net.hidden_size
+        # Create zero tensors with shape (num_layers, hidden_size) for a single agent
+        hidden = torch.zeros((num_layers, hidden_size), device=self._device)
+        cell = torch.zeros((num_layers, hidden_size), device=self._device)
+        return LSTMState(hidden=hidden, cell=cell)
 
     def step_with_state(
         self,
-        obs: Union[MettaGridObservation, torch.Tensor],
+        obs: MettaGridObservation,
         state: Optional[LSTMState],
     ) -> Tuple[MettaGridAction, Optional[LSTMState]]:
-        """Get action and update state for this agent."""
-        # Convert single observation to batch of 1 for network forward pass
-        if isinstance(obs, torch.Tensor):
-            obs_tensor = obs.to(self._device).unsqueeze(0) if obs.dim() < 2 else obs.to(self._device)
-        elif isinstance(obs, MettaGridObservation):
-            # Convert AgentObservation to token array format
-            tokens = []
-            for token in obs.tokens:
-                col, row = token.location
-                # Pack coordinates into a single byte: first 4 bits are col, last 4 bits are row
-                coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
-                feature_id = token.feature.id
-                value = token.value
-                tokens.append([coords_byte, feature_id, value])
-
-            # Pad to expected shape (num_tokens, token_dim)
-            # obs_shape is (num_tokens, token_dim) e.g. (200, 3)
-            num_tokens, token_dim = self._obs_shape
-            while len(tokens) < num_tokens:
-                tokens.append([0xFF, 0, 0])
-
-            # Convert to numpy array and flatten: [num_tokens, token_dim] -> [num_tokens * token_dim]
-            obs_array = np.array(tokens, dtype=np.uint8).flatten()
-            obs_tensor = torch.from_numpy(obs_array).unsqueeze(0).to(self._device).float()
-        else:
-            obs_tensor = torch.tensor(obs, device=self._device, dtype=torch.float32).unsqueeze(0)
+        obs_tensor = obs_to_obs_tensor(obs, self._policy_env_info.observation_space.shape, self._device)
 
         with torch.no_grad():
             self._net.eval()
@@ -238,39 +227,41 @@ class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
             dist = torch.distributions.Categorical(logits=logits)
             sampled_action = dist.sample().cpu().item()
             # Convert action index to Action object
-            action = self._actions[sampled_action]
+            action = list(self._policy_env_info.actions.actions())[sampled_action]
             return action, new_state.detach() if new_state is not None else None
 
 
-class LSTMPolicy(TrainablePolicy):
+class LSTMPolicy(MultiAgentPolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
-    def __init__(
-        self, actions_cfg: ActionsConfig, obs_shape: tuple, device: torch.device, policy_env_info: PolicyEnvInterface
-    ):
+    short_names = ["lstm"]
+
+    def __init__(self, policy_env_info: PolicyEnvInterface, device: Optional[torch.device] = None):
         super().__init__(policy_env_info)
-        self._net = LSTMPolicyNet(actions_cfg, obs_shape).to(device)
-        self._device = device
-        self._num_actions = len(actions_cfg.actions())
-        self._obs_shape = obs_shape
-        self._actions = actions_cfg.actions()
-        self._agent_policy = LSTMAgentPolicy(self._net, device, self._num_actions, obs_shape, self._actions)
+        self._device = device if device is not None else torch.device("cpu")
+        self._policy_env_info = policy_env_info
+        self._net = LSTMPolicyNet(policy_env_info).to(self._device)
+        self._agent_policy = LSTMAgentPolicy(self._net, self._device, policy_env_info)
+        self._agent_policy._device = self._device
 
     def network(self) -> nn.Module:
+        """Return the underlying LSTM network for training."""
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a StatefulPolicy wrapper for a specific agent."""
-        return StatefulAgentPolicy(self._agent_policy, agent_id)
+        return StatefulAgentPolicy(self._agent_policy, self._policy_env_info, agent_id=agent_id)
 
     def is_recurrent(self) -> bool:
         return True
 
     def load_policy_data(self, checkpoint_path: str) -> None:
+        """Load LSTM network weights from file."""
         self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))
         self._net = self._net.to(self._device)
-        # Update the agent policy's reference to the network
         self._agent_policy._net = self._net
+        self._agent_policy._device = self._device
 
     def save_policy_data(self, checkpoint_path: str) -> None:
+        """Save LSTM network weights to file."""
         torch.save(self._net.state_dict(), checkpoint_path)

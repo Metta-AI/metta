@@ -2,29 +2,23 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from functools import cached_property
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
-from mettagrid.config.mettagrid_c_config import from_mettagrid_config
-from mettagrid.config.mettagrid_config import MettaGridConfig
+# Don't use `from ... import ...` here because it will cause a circular import.
+import mettagrid.config.mettagrid_c_config as mettagrid_c_config
+import mettagrid.config.mettagrid_config as mettagrid_config
+from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.map_builder.map_builder import GameMap
 from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from mettagrid.mettagrid_c import PackedCoordinate
+from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
+from mettagrid.simulator.interface import Action, AgentObservation, ObservationToken, SimulatorEventHandler
+from mettagrid.simulator.map_cache import SharedMapCache, get_shared_cache
 
 if TYPE_CHECKING:
-    from mettagrid.config.id_map import IdMap
     from mettagrid.mettagrid_c import EpisodeStats
-
-from mettagrid.config.id_map import ObservationFeatureSpec
-from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
-from mettagrid.simulator.interface import (
-    Action,
-    AgentObservation,
-    ObservationToken,
-    SimulatorEventHandler,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -37,18 +31,32 @@ class BoundingBox:
     max_col: int
 
 
+@dataclass
+class Buffers:
+    observations: np.ndarray
+    terminals: np.ndarray
+    truncations: np.ndarray
+    rewards: np.ndarray
+    masks: np.ndarray
+    actions: np.ndarray
+    teacher_actions: np.ndarray
+
+
 class Simulation:
     def __init__(
         self,
-        config: MettaGridConfig,
+        config: mettagrid_config.MettaGridConfig,
         seed: int = 0,
-        event_handlers: Optional[Sequence[SimulatorEventHandler]] | None = None,
+        event_handlers: Sequence[SimulatorEventHandler] = (),  # Use tuple to avoid mutable default
         simulator: Optional[Simulator] | None = None,
+        buffers: Optional[Buffers] = None,
+        maps_cache: Optional[SharedMapCache] = None,
     ):
         self._config = config
         self._seed = seed
-        self._event_handlers = event_handlers or []
+        self._event_handlers = list(event_handlers)
         self._simulator = simulator
+        self._maps_cache = maps_cache
         self._context: Dict[str, Any] = {}
 
         for handler in self._event_handlers:
@@ -59,35 +67,44 @@ class Simulation:
 
         game_config_dict = self._config.game.model_dump()
 
-        map_grid = self._make_map().grid.tolist()
+        with self._timer("sim.init.make_map"):
+            map_grid = self._make_map().grid.tolist()
 
         # Create C++ config
         try:
-            c_cfg = from_mettagrid_config(game_config_dict)
+            c_cfg = mettagrid_c_config.convert_to_cpp_game_config(game_config_dict)
         except Exception as e:
             logger.error(f"Error creating C++ config: {e}")
             logger.error(f"Game config: {game_config_dict}")
             raise e
 
         # Create C++ environment
-        self.__c_sim = MettaGridCpp(c_cfg, map_grid, self._seed)
+        with self._timer("sim.init.create_c_sim"):
+            self.__c_sim = MettaGridCpp(c_cfg, map_grid, self._seed)
 
         # Compute action_ids from config actions
         self._action_ids: dict[str, int] = {
             action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
         }
 
+        # Set buffers on C++ simulation if provided (for PufferEnv shared memory)
+        if buffers is not None:
+            self.__c_sim.set_buffers(
+                buffers.observations,
+                buffers.terminals,
+                buffers.truncations,
+                buffers.rewards,
+                buffers.actions,
+            )
+
         # Build feature dict from id_map
-        self._features: dict[int, ObservationFeatureSpec] = {feature.id: feature for feature in self.id_map.features()}
+        self._features: dict[int, ObservationFeatureSpec] = {
+            feature.id: feature for feature in self._config.game.id_map().features()
+        }
 
         self._start_episode()
 
-        self._timer.start("thread_idle")
-
-    @cached_property
-    def id_map(self) -> IdMap:
-        """Get the observation feature ID map for this simulation."""
-        return self._config.id_map()
+        self._timer.start("sim.thread_idle")
 
     def agents(self) -> list[SimulationAgent]:
         return [self.agent(agent_id) for agent_id in range(self.num_agents)]
@@ -101,42 +118,44 @@ class Simulation:
     def is_done(self) -> bool:
         return bool(self.__c_sim.truncations().all() or self.__c_sim.terminals().all())
 
+    @with_instance_timer("sim.episode.start", timer_attr="_timer")
     def _start_episode(self) -> None:
         """Start a new episode (internal use only)."""
         self._episode_started = True
         self._context = {}
+
         for handler in self._event_handlers:
             with self._timer(f"sim.on_episode_start.{handler.__class__.__name__}"):
                 handler.on_episode_start()
 
+    @with_instance_timer("sim.episode.end", timer_attr="_timer")
     def end_episode(self) -> None:
         """Force the episode to end by setting all agents to truncated state."""
         self.__c_sim.truncations()[:] = True
 
-    @with_instance_timer("step", timer_attr="_timer")
+    @with_instance_timer("sim.step", timer_attr="_timer")
     def step(self) -> None:
         """Execute one timestep of the environment dynamics.
 
         Actions must be set beforehand using agent(i).set_action() or by setting
         actions directly via _c_sim.actions()[i] = action_idx.
         """
-        self._timer.stop("thread_idle")
+        self._timer.stop("sim.thread_idle")
 
-        with self._timer("c_sim.step"):
+        with self._timer("sim.step.c_sim"):
             self.__c_sim.step()
 
         for handler in self._event_handlers:
-            with self._timer(f"sim.on_step.{handler.__class__.__name__}"):
+            with self._timer(f"sim.step.{handler.__class__.__name__.lower()}"):
                 handler.on_step()
 
         if self.is_done():
-            self._timer.start("episode_end")
-            for handler in self._event_handlers:
-                with self._timer(f"sim.on_episode_end.{handler.__class__.__name__}"):
-                    handler.on_episode_end()
-            self._timer.stop("episode_end")
+            with self._timer("sim.episode.end"):
+                for handler in self._event_handlers:
+                    with self._timer(f"sim.episode.end.{handler.__class__.__name__.lower()}"):
+                        handler.on_episode_end()
 
-        self._timer.start("thread_idle")
+        self._timer.start("sim.thread_idle")
 
     def close(self) -> None:
         """Close the environment."""
@@ -148,7 +167,7 @@ class Simulation:
             self._simulator._on_simulation_closed(self)
 
     @property
-    def config(self) -> MettaGridConfig:
+    def config(self) -> mettagrid_config.MettaGridConfig:
         return self._config
 
     @property
@@ -197,10 +216,6 @@ class Simulation:
         return self._features[feature_id]
 
     @property
-    def initial_grid_hash(self) -> int:
-        return self.__c_sim.initial_grid_hash
-
-    @property
     def action_success(self) -> list[bool]:
         return self.__c_sim.action_success()
 
@@ -245,32 +260,17 @@ class Simulation:
         return self.__c_sim.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
 
     def _make_map(self) -> GameMap:
-        map_builder = self._config.game.map_builder.create()
-        game_map = map_builder.build()
-
-        # Handle spawn points: treat them as potential spawn locations
-        # If there are more spawn points than agents, replace the excess with empty spaces
-        spawn_mask = np.char.startswith(game_map.grid, "agent")
-        level_agents = np.count_nonzero(spawn_mask)
-        num_agents = self._config.game.num_agents
-
-        if level_agents < num_agents:
-            raise ValueError(
-                f"Number of agents {num_agents} exceeds available spawn points {level_agents} in map. "
-                f"This may be because your map, after removing border width, is too small to fit the number of agents."
-            )
-        elif level_agents > num_agents:
-            # Replace excess spawn points with empty spaces
-            spawn_indices = np.argwhere(spawn_mask)
-            # Keep first num_agents spawn points, replace the rest with empty
-            for idx in spawn_indices[num_agents:]:
-                game_map.grid[tuple(idx)] = "empty"
-
-        return game_map
+        if self._maps_cache is None:
+            return self._config.game.map_builder.create().build_for_num_agents(self._config.game.num_agents)
+        return self._maps_cache.get_or_create(self._config.game.map_builder, self._config.game.num_agents)
 
 
 class Simulator:
-    def __init__(self):
+    def __init__(self, maps_cache_size: Optional[int] = None):
+        self._maps_cache = None
+        if maps_cache_size is not None:
+            self._maps_cache = get_shared_cache(maps_per_key=maps_cache_size)
+
         self._config_invariants = None
         self._event_handlers = []
         self._current_simulation = None
@@ -278,7 +278,9 @@ class Simulator:
     def add_event_handler(self, handler: SimulatorEventHandler) -> None:
         self._event_handlers.append(handler)
 
-    def new_simulation(self, config: MettaGridConfig, seed: int = 0) -> Simulation:
+    def new_simulation(
+        self, config: mettagrid_config.MettaGridConfig, seed: int = 0, buffers: Optional[Buffers] = None
+    ) -> Simulation:
         assert self._current_simulation is None, "A simulation is already running"
         if self._config_invariants is None:
             self._config_invariants = self._compute_config_invariants(config)
@@ -291,7 +293,12 @@ class Simulator:
             raise ValueError("Config invariants have changed")
 
         self._current_simulation = Simulation(
-            config=config, seed=seed, event_handlers=self._event_handlers, simulator=self
+            config=config,
+            seed=seed,
+            event_handlers=self._event_handlers,
+            simulator=self,
+            buffers=buffers,
+            maps_cache=self._maps_cache,
         )
         return self._current_simulation
 
@@ -305,7 +312,7 @@ class Simulator:
         if self._current_simulation is not None:
             self._current_simulation.close()
 
-    def _compute_config_invariants(self, config: MettaGridConfig) -> dict[str, Any]:
+    def _compute_config_invariants(self, config: mettagrid_config.MettaGridConfig) -> dict[str, Any]:
         return {
             "num_agents": config.game.num_agents,
             "action_names": [action.name for action in config.game.actions.actions()],
@@ -343,6 +350,7 @@ class SimulationAgent:
                     feature=self._sim.get_feature(feature_id),
                     location=PackedCoordinate.unpack(location) or (0, 0),
                     value=int(value),
+                    raw_token=o,
                 )
             )
         return AgentObservation(agent_id=self._agent_id, tokens=tokens)

@@ -86,7 +86,6 @@ For post-training evaluation to compare different policies:
 ```bash
 ./tools/run.py evaluate navigation \
     policy_uris=wandb://run/YOUR_POLICY_URI \
-    stats_db_uri=wandb://stats/navigation_db \
     system.device=cpu
 ```
 
@@ -102,8 +101,7 @@ For post-training evaluation to compare different policies:
 To run style checks and tests locally:
 
 ```bash
-ruff format
-ruff check
+metta lint --fix
 pyright metta  # optional, some stubs are missing
 pytest
 ```

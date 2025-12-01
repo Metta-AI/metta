@@ -37,7 +37,7 @@ from metta.adaptive.utils import (
     create_training_job,
     generate_run_id,
 )
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class AsyncCappedSchedulerConfig(Config):
     """Configuration for the asynchronous optimizing scheduler."""
 
     max_trials: int = 10
-    recipe_module: str = "experiments.recipes.arena"
+    recipe_module: str = "recipes.experiment.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
     train_overrides: dict[str, Any] = Field(default_factory=dict)

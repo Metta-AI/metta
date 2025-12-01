@@ -6,7 +6,7 @@ Changing feature IDs will break models trained on old feature IDs.
 
 from pydantic import ConfigDict, Field
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class ObsConfig(Config):

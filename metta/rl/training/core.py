@@ -6,9 +6,9 @@ from pydantic import ConfigDict
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class CoreTrainingLoop:
             loss.on_rollout_start(context)
 
         # Get buffer for storing experience
-        buffer_step = self.experience.buffer[self.experience.ep_indices, self.experience.ep_lengths - 1]
+        buffer_step = self.experience.buffer[self.experience.row_slot_ids, self.experience.t_in_row - 1]
         buffer_step = buffer_step.select(*self.policy_spec.keys())
 
         total_steps = 0
@@ -115,6 +115,11 @@ class CoreTrainingLoop:
                     td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
                 td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
                 td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
+                # Row-aligned state: provide row slot id and position within row
+                row_ids = self.experience.row_slot_ids[training_env_id].to(device=target_device, dtype=torch.long)
+                t_in_row = self.experience.t_in_row[training_env_id].to(device=target_device, dtype=torch.long)
+                td["row_id"] = row_ids
+                td["t_in_row"] = t_in_row
                 self.add_last_action_to_td(td, env)
 
                 self._ensure_rollout_metadata(td)
@@ -268,8 +273,8 @@ class CoreTrainingLoop:
                     # Get max_grad_norm from first loss that has it
                     actual_max_grad_norm = max_grad_norm
                     for loss_obj in self.losses.values():
-                        if hasattr(loss_obj.loss_cfg, "max_grad_norm"):
-                            actual_max_grad_norm = loss_obj.loss_cfg.max_grad_norm
+                        if hasattr(loss_obj.cfg, "max_grad_norm"):
+                            actual_max_grad_norm = loss_obj.cfg.max_grad_norm
                             break
 
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)

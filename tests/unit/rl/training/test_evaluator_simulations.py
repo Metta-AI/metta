@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from unittest.mock import Mock
 
 import torch
@@ -17,8 +16,7 @@ class _FakeTask:
 
 
 def _make_evaluator(cfg: EvaluatorConfig) -> Evaluator:
-    system_cfg = SimpleNamespace(vectorization="serial")
-    return Evaluator(config=cfg, device=torch.device("cpu"), system_cfg=system_cfg, stats_client=None)
+    return Evaluator(config=cfg, device=torch.device("cpu"), seed=0, run_name="test", stats_client=None)
 
 
 def test_build_simulations_defaults_to_curriculum_tasks() -> None:

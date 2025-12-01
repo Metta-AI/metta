@@ -30,7 +30,7 @@ def basic_sim() -> Simulation:
             obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=1000,
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-            objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+            objects={"wall": WallConfig(tags=["wall"])},
             resource_names=["laser", "armor", "heart"],
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
@@ -39,10 +39,12 @@ def basic_sim() -> Simulation:
                     ["#", ".", ".", ".", "@", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
+
+    cfg.game.global_obs.compass = True
 
     return Simulation(cfg)
 
@@ -56,7 +58,7 @@ def adjacent_agents_sim() -> Simulation:
             obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=1000,
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-            objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+            objects={"wall": WallConfig(tags=["wall"])},
             resource_names=["laser", "armor", "heart"],
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
@@ -66,7 +68,7 @@ def adjacent_agents_sim() -> Simulation:
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -82,14 +84,45 @@ class TestObservations:
         obs = basic_sim._c_sim.observations()
 
         # global token is always at the center of the observation window
-        global_token_location = PackedCoordinate.pack(
-            basic_sim.config.game.obs.height // 2, basic_sim.config.game.obs.width // 2
-        )
+        obs_half_height = basic_sim.config.game.obs.height // 2
+        obs_half_width = basic_sim.config.game.obs.width // 2
+        global_token_location = PackedCoordinate.pack(obs_half_height, obs_half_width)
+        compass_feature_id = basic_sim.config.game.id_map().feature_id("agent:compass")
+        helper = ObservationHelper()
 
-        # Test global tokens (first 4 tokens)
+        # Map agent_id -> (row, col)
+        agent_positions: dict[int, tuple[int, int]] = {}
+        for obj in basic_sim.grid_objects().values():
+            type_name = obj["type_name"]
+            if type_name in {"agent", "agent.agent"}:
+                agent_positions[int(obj["agent_id"])] = (int(obj["r"]), int(obj["c"]))
+
+        map_center_row = basic_sim.map_height // 2
+        map_center_col = basic_sim.map_width // 2
+        center_obs_position = (obs_half_width, obs_half_height)
+
+        # Test center-aligned global tokens
         for agent_idx in range(basic_sim.num_agents):
-            for token_idx in range(4):
+            for token_idx in range(3):
                 assert obs[agent_idx, token_idx, 0] == global_token_location
+
+            compass_tokens = helper.find_tokens(obs[agent_idx], feature_id=compass_feature_id)
+
+            agent_row, agent_col = agent_positions[agent_idx]
+            delta_row = map_center_row - agent_row
+            delta_col = map_center_col - agent_col
+            step_row = 0 if delta_row == 0 else (1 if delta_row > 0 else -1)
+            step_col = 0 if delta_col == 0 else (1 if delta_col > 0 else -1)
+
+            if step_row == 0 and step_col == 0:
+                assert compass_tokens.shape[0] == 0, "Compass should be absent when agent is at the center"
+            else:
+                assert compass_tokens.shape[0] == 1, "Expected exactly one compass token"
+                compass_position = helper.get_positions_from_tokens(compass_tokens)[0]
+                expected_position = (center_obs_position[0] + step_col, center_obs_position[1] + step_row)
+                assert compass_position == expected_position, (
+                    f"Compass should point from {center_obs_position} toward {expected_position}"
+                )
 
         # Test empty terminator
         assert (obs[0, -1, :] == TokenTypes.EMPTY_TOKEN).all()
@@ -98,7 +131,10 @@ class TestObservations:
     def test_detailed_wall_observations(self, basic_sim):
         """Test detailed wall observations for both agents."""
         obs = basic_sim._c_sim.observations()
-        type_id_feature_id = basic_sim.config.id_map().feature_id("type_id")
+        tag_feature_id = basic_sim.config.game.id_map().feature_id("tag")
+        # Find tag id for 'wall'
+        tag_names_list = basic_sim.config.game.id_map().tag_names()  # list of tag names, sorted alphabetically
+        wall_tag_id = next(i for i, name in enumerate(tag_names_list) if name == "wall")
         helper = ObservationHelper()
 
         # The environment creates a 4x8 grid (height=4, width=8):
@@ -130,9 +166,7 @@ class TestObservations:
             (0, 2),  # bottom-left
         ]
 
-        agent0_wall_tokens = helper.find_tokens(
-            agent0_obs, feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
-        )
+        agent0_wall_tokens = helper.find_tokens(agent0_obs, feature_id=tag_feature_id, value=wall_tag_id)
         agent0_wall_positions = helper.get_positions_from_tokens(agent0_wall_tokens)
         assert set(agent0_wall_positions) == set(wall_positions_agent0), (
             f"Agent 0: Expected walls at {wall_positions_agent0}, got {agent0_wall_positions}"
@@ -157,9 +191,7 @@ class TestObservations:
             (2, 2),  # bottom-right
         ]
 
-        agent1_wall_tokens = helper.find_tokens(
-            agent1_obs, feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
-        )
+        agent1_wall_tokens = helper.find_tokens(agent1_obs, feature_id=tag_feature_id, value=wall_tag_id)
         agent1_wall_positions = helper.get_positions_from_tokens(agent1_wall_tokens)
         assert set(agent1_wall_positions) == set(wall_positions_agent1), (
             f"Agent 1: Expected walls at {wall_positions_agent1}, got {agent1_wall_positions}"
@@ -228,9 +260,9 @@ class TestGlobalTokens:
     def test_initial_global_tokens(self, basic_sim):
         """Test initial global token values."""
         obs = basic_sim._c_sim.observations()
-        episode_completion_pct_feature_id = basic_sim.config.id_map().feature_id("episode_completion_pct")
-        last_action_feature_id = basic_sim.config.id_map().feature_id("last_action")
-        last_reward_feature_id = basic_sim.config.id_map().feature_id("last_reward")
+        episode_completion_pct_feature_id = basic_sim.config.game.id_map().feature_id("episode_completion_pct")
+        last_action_feature_id = basic_sim.config.game.id_map().feature_id("last_action")
+        last_reward_feature_id = basic_sim.config.game.id_map().feature_id("last_reward")
         helper = ObservationHelper()
 
         # Global tokens are at the center of the observation window
@@ -264,15 +296,15 @@ class TestGlobalTokens:
                 obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
                 max_steps=10,  # Important: 10 steps total so 1 step = 10%
                 actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-                objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+                objects={"wall": WallConfig(tags=["wall"])},
                 global_obs=GlobalObsConfig(episode_completion_pct=True, last_action=True, last_reward=True),
                 resource_names=["laser", "armor", "heart"],
-                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_name_map=DEFAULT_CHAR_TO_NAME),
+                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_map_name=DEFAULT_CHAR_TO_NAME),
             )
         )
         env = Simulation(cfg)
-        episode_completion_pct_feature_id = env.config.id_map().feature_id("episode_completion_pct")
-        last_action_feature_id = env.config.id_map().feature_id("last_action")
+        episode_completion_pct_feature_id = env.config.game.id_map().feature_id("episode_completion_pct")
+        last_action_feature_id = env.config.game.id_map().feature_id("last_action")
         obs = env._c_sim.observations()
         helper = ObservationHelper()
 
@@ -287,7 +319,7 @@ class TestGlobalTokens:
         obs = env._c_sim.observations()
 
         # Check episode completion updated (1/10 = 10%)
-        expected_completion = int(round(0.1 * 255))
+        expected_completion = int(0.1 * 256)
         completion_values = helper.find_token_values(
             obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
         )
@@ -344,13 +376,13 @@ class TestGlobalTokens:
                     move=MoveActionConfig(),
                     change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=8),
                 ),
-                objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+                objects={"wall": WallConfig(tags=["wall"])},
                 resource_names=["laser", "armor"],
-                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_name_map=DEFAULT_CHAR_TO_NAME),
+                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_map_name=DEFAULT_CHAR_TO_NAME),
             )
         )
         sim = Simulation(cfg)
-        vibe_feature_id = sim.id_map.feature_id("vibe")
+        vibe_feature_id = sim.config.game.id_map().feature_id("vibe")
 
         obs = sim._c_sim.observations()
 
@@ -449,14 +481,16 @@ class TestEdgeObservations:
                 max_steps=50,  # Enough steps to walk around
                 actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
                 objects={
-                    "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID),
+                    "wall": WallConfig(tags=["wall"]),
                 },
                 resource_names=["laser", "resource1", "resource2"],  # laser required for attack action
-                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_name_map=DEFAULT_CHAR_TO_NAME),
+                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_map_name=DEFAULT_CHAR_TO_NAME),
             )
         )
         sim = Simulation(cfg)
-        type_id_feature_id = sim.config.id_map().feature_id("type_id")
+        tag_feature_id = sim.config.game.id_map().feature_id("tag")
+        tag_names_list = sim.config.game.id_map().tag_names()
+        wall_tag_id = tag_names_list.index("wall")
 
         obs = sim._c_sim.observations()
 
@@ -466,7 +500,7 @@ class TestEdgeObservations:
 
         # Check walls are visible around the edges
         # Agent at (row=2, col=2) with 7x7 window should see walls at top and left
-        wall_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID)
+        wall_tokens = helper.find_tokens(obs[0], feature_id=tag_feature_id, value=wall_tag_id)
         assert len(wall_tokens) > 0, "Should see walls around edges"
 
         print("\nInitial state: Agent at (2,2), walls visible")
@@ -482,7 +516,7 @@ class TestEdgeObservations:
             assert len(agent_tokens) > 0, f"Agent should still see itself at center (3,3) after step {step + 1}"
 
             # Verify walls are still visible at edges
-            wall_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID)
+            wall_tokens = helper.find_tokens(obs[0], feature_id=tag_feature_id, value=wall_tag_id)
             assert len(wall_tokens) > 0, f"Should still see walls after step {step + 1}"
 
         print("\nAfter moving east 5 steps: Agent observation window correctly tracks position")
@@ -505,7 +539,7 @@ class TestEdgeObservations:
         assert len(agent_tokens) > 0, "Agent should still see itself at center (3,3)"
 
         # Verify walls are still visible at the edges
-        wall_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID)
+        wall_tokens = helper.find_tokens(obs[0], feature_id=tag_feature_id, value=wall_tag_id)
         assert len(wall_tokens) > 0, "Should still see walls at edges even at bottom-right corner"
 
         print("\nSUCCESS: Observation window correctly tracks agent movement to corner")

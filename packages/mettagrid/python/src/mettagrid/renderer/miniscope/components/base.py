@@ -1,13 +1,17 @@
 """Base component class for miniscope renderer."""
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from rich.console import Console
 
 from mettagrid.renderer.miniscope.miniscope_panel import MiniscopePanel, PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-from mettagrid.simulator import Simulation
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
+else:
+    Simulation = object  # Fallback placeholder for runtime
 
 
 class MiniscopeComponent(ABC):
@@ -15,7 +19,7 @@ class MiniscopeComponent(ABC):
 
     def __init__(
         self,
-        sim: Simulation,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -35,7 +39,7 @@ class MiniscopeComponent(ABC):
         self._console = Console()
 
     @property
-    def env(self) -> Simulation:
+    def env(self) -> "Simulation":
         """Get the environment."""
         return self._sim
 

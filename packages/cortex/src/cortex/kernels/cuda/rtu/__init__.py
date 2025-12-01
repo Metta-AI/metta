@@ -1,4 +1,4 @@
-"""RTU CUDA kernels."""
+"""CUDA RTU kernels package exports."""
 
 from .rtu_stream_diag_cuda import rtu_stream_diag_cuda
 from .rtu_stream_full_cuda import rtu_stream_full_cuda

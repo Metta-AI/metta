@@ -3,9 +3,11 @@ import time
 from typing import Optional
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.renderer.renderer import Renderer, RenderMode, create_renderer
-from mettagrid.simulator import Simulator
+from mettagrid.simulator import Simulator, SimulatorEventHandler
+from mettagrid.util.stats_writer import StatsWriter
 
 logger = logging.getLogger(__name__)
 
@@ -17,38 +19,34 @@ class Rollout:
         self,
         config: MettaGridConfig,
         policies: list[AgentPolicy],
-        max_action_time_ms: int = 10000,
+        max_action_time_ms: int | None = 10000,
         render_mode: Optional[RenderMode] = None,
         seed: int = 0,
-        pass_sim_to_policies: bool = False,
+        event_handlers: Optional[list[SimulatorEventHandler]] = None,
+        stats_writer: Optional[StatsWriter] = None,
     ):
         self._config = config
         self._policies = policies
         self._simulator = Simulator()
-        self._max_action_time_ms = max_action_time_ms
+        self._max_action_time_ms: int = max_action_time_ms or 10000
         self._renderer: Optional[Renderer] = None
         self._timeout_counts: list[int] = [0] * len(policies)
-        self._pass_sim_to_policies = pass_sim_to_policies  # Whether to pass the simulation to the policies
         # Attach renderer if specified
         if render_mode is not None:
             self._renderer = create_renderer(render_mode)
             self._simulator.add_event_handler(self._renderer)
+        # Attach stats tracker if provided
+        if stats_writer is not None:
+            self._simulator.add_event_handler(StatsTracker(stats_writer))
+        # Attach additional event handlers
+        for handler in event_handlers or []:
+            self._simulator.add_event_handler(handler)
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
         # Reset policies and create agent policies if needed
-        if self._pass_sim_to_policies and len(self._policies) > 0 and hasattr(self._policies[0], "agent_policy"):
-            # Multi-agent policy (like scripted agents) - reset with simulation, then create agent policies
-            policy = self._policies[0]
-            policy.reset(simulation=self._sim)
-            self._policies = [policy.agent_policy(i) for i in range(config.game.num_agents)]
-        else:
-            # Regular agent policies - only pass simulation if policy expects it
-            for policy in self._policies:
-                if self._pass_sim_to_policies:
-                    policy.reset(simulation=self._sim)
-                else:
-                    policy.reset()
+        for policy in self._policies:
+            policy.reset()
 
     def step(self) -> None:
         """Execute one step of the rollout."""

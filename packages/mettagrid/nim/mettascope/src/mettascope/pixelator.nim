@@ -1,6 +1,7 @@
 import
   std/[os, json, strutils, tables],
-  pixie, opengl, boxy/[shaders, allocator], jsony, shady, vmath
+  pixie, opengl, boxy/[shaders], jsony, shady, vmath,
+  allocator
 
 # This file specifically deals with the pixel atlas texture.
 # It supports pixel art style drawing with pixel perfect AA sampling.
@@ -194,6 +195,10 @@ proc drawSprite*(
 ) =
   ## Draws a sprite at the given position.
   px.drawSprite(name, pos.x.uint16, pos.y.uint16)
+
+proc contains*(px: Pixelator, name: string): bool =
+  ## Checks if the given sprite is in the atlas.
+  name in px.atlas.entries
 
 proc clear*(px: Pixelator) =
   ## Clears the current instance queue.

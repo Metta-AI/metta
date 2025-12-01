@@ -9,7 +9,7 @@ from mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig, MapGrid
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.area import Area, AreaWhere
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, load_symbol, validate_any_scene_config
+from mettagrid.mapgen.scene import AnySceneConfig, ChildrenAction, SceneConfig, load_symbol
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
 from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
@@ -38,11 +38,11 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
     # Can be either a scene config or another MapBuilder config.
     # If it's a scene config, you need to set `width` and `height` explicitly.
     # If `instances` or `num_agents` are set, this configuration will be used multiple times.
-    instance: SceneConfig | AnyMapBuilderConfig | None = Field(default=None)
+    instance: AnySceneConfig | AnyMapBuilderConfig | None = Field(default=None)
 
     # Legacy fields, to be removed soon.
     instance_map: AnyMapBuilderConfig | None = Field(default=None, deprecated="Use `instance` instead")
-    root: SceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
+    root: AnySceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
 
     @model_validator(mode="before")
     @classmethod
@@ -82,9 +82,9 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
             if t is None:
                 raise ValueError("'type' is required")
             target = load_symbol(t) if isinstance(t, str) else t
-            if isinstance(target, type) and issubclass(target, Scene):
-                return validate_any_scene_config(v)
-            elif isinstance(target, type) and issubclass(target, MapBuilder):
+            if isinstance(target, type) and issubclass(target, SceneConfig):
+                return SceneConfig.model_validate(v)
+            elif isinstance(target, type) and issubclass(target, MapBuilderConfig):
                 return MapBuilderConfig.model_validate(v)
             else:
                 raise ValueError(f"Invalid instance type: {target!r}")
@@ -128,6 +128,8 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
     # many agents there are in the instance scene. (It will assume that the instance always places the same number
     # of agents.)
     num_agents: int | None = Field(default=None, ge=0)
+
+    fixed_spawn_order: bool = Field(default=False, description="If True, the spawn order will be fixed")
 
     # Inner border width between instances. This value usually shouldn't be changed.
     instance_border_width: int = Field(default=5, ge=0)
@@ -333,6 +335,16 @@ class MapGen(MapBuilder[MapGenConfig]):
                     return self._wrap_with_instance_id(scene_config, 0)
                 return scene_config
             else:
+                # If instance_scene_factories is empty but instance is a MapBuilderConfig,
+                # prerendering should have happened. This is a fallback for edge cases.
+                if isinstance(self.config.instance, MapBuilderConfig):
+                    # Prerender on the fly as a fallback
+                    instance_map_builder = self.config.instance.create()
+                    if not isinstance(instance_map_builder, MapBuilder):
+                        raise ValueError("instance must be a MapBuilder")
+                    instance_map = instance_map_builder.build()
+                    instance_grid = instance_map.grid
+                    return CopyGrid.Config(grid=instance_grid)
                 assert isinstance(self.config.instance, SceneConfig), (
                     "Internal logic error: instance is not a scene but we don't have prebuilt instances either"
                 )
@@ -443,3 +455,8 @@ class MapGen(MapBuilder[MapGenConfig]):
 
     def get_scene_tree(self) -> dict:
         return self.root_scene.get_scene_tree()
+
+    def shuffle_spawn_indices(self, indices: np.ndarray):
+        if self.config.fixed_spawn_order:
+            return
+        self.rng.shuffle(indices)

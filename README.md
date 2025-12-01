@@ -1,9 +1,6 @@
 # Metta AI
 
 <p align="center">
-  <a href="https://codecov.io/gh/Metta-AI/metta">
-    <img src="https://codecov.io/gh/Metta-AI/metta/graph/badge.svg?token=SX28I8PS3E" alt="codecov">
-  </a>
   <a href="https://github.com/Metta-AI/metta/actions/workflows/checks.yml">
     <img src="https://github.com/Metta-AI/metta/actions/workflows/checks.yml/badge.svg" alt="Tests">
   </a>
@@ -29,7 +26,7 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
 <p align="middle">
 <img src="docs/readme_showoff.gif" alt="Metta learning example video">
 <br>
-<a href="https://metta-ai.github.io/metta/?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fandre_pufferbox_33%2Freplay.77200.json.z&play=true">Interactive demo</a>
+<a href="https://metta-ai.github.io/metta/mettascope/mettascope.html?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fandre_pufferbox_33%2Freplay.77200.json.z&play=true">Interactive demo</a>
 </p>
 
 Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI
@@ -193,9 +190,8 @@ builds its configuration, and runs it.
 All the notebooks available at `./notebooks`
 
 #### Train on Cogames:
+
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)
-
-
 
 ### Task arguments
 
@@ -243,7 +239,7 @@ Examples:
 
 Shorthands are supported:
 
-- Omit `experiments.recipes.`: `arena.train` == `experiments.recipes.arena.train`
+- Omit `recipes.experiment.` or `recipes.prod.`: `arena.train` == `recipes.experiment.arena.train`
 - Two‑token form: `train arena` == `arena.train`
 
 Tips:

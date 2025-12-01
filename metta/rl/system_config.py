@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from pydantic import ConfigDict, Field
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 def guess_device() -> str:
@@ -43,7 +43,6 @@ class SystemConfig(Config):
     torch_deterministic: bool = Field(default=True)
     device: str = Field(default_factory=guess_device)
     data_dir: Path = Field(default_factory=guess_data_dir)
-    remote_prefix: str | None = Field(default=None)
     local_only: bool = Field(default=False)
     nccl_timeout: timedelta = Field(default=timedelta(minutes=10))
 

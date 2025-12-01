@@ -16,8 +16,7 @@
  * Utilities for packing/unpacking grid coordinates into compact byte representation.
  *
  * Provides space-efficient coordinate storage for contexts where memory is at a premium
- * (e.g., observation tokens). This is a compressed alternative to GridLocation when
- * the layer component is not needed and coordinates fit in 4 bits each.
+ * (e.g., observation tokens). This compresses GridLocation when coordinates fit in 4 bits each.
  *
  * Packing scheme:
  * - Upper 4 bits: row (r / y-coordinate)

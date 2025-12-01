@@ -45,6 +45,10 @@ def test_fast_policy_forward_produces_actions_and_values():
 
     td = _build_token_observations(batch_size=1, num_tokens=4)
     ensure_sequence_metadata(td, batch_size=1, time_steps=1)
+    # Minimal rollout metadata required by CortexTD when TT==1
+    td.set("training_env_ids", torch.zeros((1, 1), dtype=torch.long))
+    td.set("row_id", torch.zeros(1, dtype=torch.long))
+    td.set("t_in_row", torch.zeros(1, dtype=torch.long))
     output_td = policy(td.clone())
 
     assert "actions" in output_td

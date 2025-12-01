@@ -1,4 +1,4 @@
-name: "Build (and sometimes Deploy) to GitHub Pages"
+name: "Build and Deploy to WASM Mettascope"
 on:
   push:
     paths: &site_paths
@@ -29,29 +29,24 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "minimal"
+          install-mode: "testing"
 
-      # setup-environment has it's own cache for installing `nim` however it lacks dependencies for mettascope
-      # so we add our own cache step here to cache dependencies for mettascope for performance
-      - name: Cache Nim dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.nimble
-          key: nim-binary-${{ runner.os }}-${{ hashFiles('packages/mettagrid/nim/mettascope/mettascope.nimble') }}
-          restore-keys: |
-            nim-binary-${{ runner.os }}-
+      - name: Install Mettascope Dependencies
+        run: |
+          cd ..
+          nimby sync -g metta/packages/mettagrid/nim/mettascope/nimby.lock
+          nimby list
+          cat nim.cfg
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: 4.0.19
-          actions-cache-folder: 'emsdk-cache'
+          actions-cache-folder: "emsdk-cache"
 
       - name: Build mettascope
         run: |
           cd packages/mettagrid/nim/mettascope
-          nimble install -y
-          nimble deps --tree
           cd ../../../..
           mkdir -p packages/mettagrid/nim/mettascope/dist
           nim c -d:emscripten packages/mettagrid/nim/mettascope/src/mettascope.nim

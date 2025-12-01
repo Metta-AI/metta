@@ -252,7 +252,7 @@ class TestComprehensiveEnvironmentIntegration:
         }
 
         args = [
-            "experiments.recipes.navigation.train",
+            "recipes.experiment.navigation.train",
             f"run={run_name}",
             "trainer.total_timesteps=50",
             "wandb=off",
@@ -300,7 +300,7 @@ class TestComprehensiveEnvironmentIntegration:
         }
 
         train_args = [
-            "experiments.recipes.arena.train",
+            "recipes.experiment.arena.train",
             f"run={run_name}",
             "trainer.total_timesteps=100",
             "wandb=off",
@@ -317,7 +317,7 @@ class TestComprehensiveEnvironmentIntegration:
 
         # Test simulation tool configuration
         sim_args = [
-            "experiments.recipes.arena.evaluate",
+            "recipes.experiment.arena.evaluate",
             "policy_uri=mock://test",  # Use mock policy
             "--dry-run",
         ]

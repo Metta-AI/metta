@@ -6,7 +6,9 @@ Supports both sync (wait) and async (submit + poll) execution patterns.
 
 from __future__ import annotations
 
+import logging
 import os
+import select
 import shlex
 import signal
 import subprocess
@@ -30,6 +32,8 @@ from devops.skypilot.utils.job_helpers import (
 from metta.common.util.fs import get_repo_root
 from metta.common.util.retry import retry_function
 from metta.jobs.job_config import JobConfig
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,10 +59,11 @@ class JobResult:
 class Job(ABC):
     """Abstract base class for job execution."""
 
-    def __init__(self, name: str, log_dir: str, timeout_s: int = 3600):
+    def __init__(self, name: str, log_dir: str, timeout_s: int, config: "JobConfig"):
         self.name = name
         self.log_dir = Path(log_dir)
         self.timeout_s = timeout_s
+        self.config = config
         self._submitted = False
         self._result: Optional[JobResult] = None
 
@@ -164,7 +169,17 @@ class Job(ABC):
 
     @property
     def run_name(self) -> str | None:
-        """Get WandB run name (remote training jobs only, returns None for local jobs)."""
+        """Extract WandB run name from job config args if present.
+
+        Only applicable for training jobs. Returns None for non-training jobs
+        or if run= is not specified in args.
+        """
+        if not self.config.is_training_job:
+            return None
+        # Look for run=<name> in args
+        for arg in self.config.args:
+            if arg.startswith("run="):
+                return arg.split("=", 1)[1]
         return None
 
     @property
@@ -182,9 +197,8 @@ class LocalJob(Job):
         log_dir: str = "logs/local",
         cwd: Optional[str] = None,
     ):
-        super().__init__(config.name, log_dir, config.timeout_s)
+        super().__init__(config.name, log_dir, config.timeout_s, config)
         self.cwd = cwd or get_repo_root()
-
         if "cmd" in config.metadata:
             cmd = config.metadata["cmd"]
             if isinstance(cmd, str):
@@ -256,13 +270,28 @@ class LocalJob(Job):
 
     def _read_output(self) -> None:
         """Non-blocking read of available output (called while job runs)."""
+
         if not (self._proc and self._proc.stdout):
             return
-        chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
-        if chunk:
-            log_path = self._get_log_path()
-            with open(log_path, "ab") as f:
-                f.write(chunk)
+
+        # Use select to check if data is available (with 0 timeout for non-blocking)
+        try:
+            readable, _, _ = select.select([self._proc.stdout], [], [], 0)
+            if not readable:
+                return
+        except (ValueError, TypeError):
+            # Handle mock objects or invalid file descriptors gracefully
+            return
+
+        try:
+            chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
+            if chunk:
+                log_path = self._get_log_path()
+                with open(log_path, "ab") as f:
+                    f.write(chunk)
+        except (OSError, AttributeError):
+            # Handle read errors gracefully
+            pass
 
     def _drain_output(self) -> None:
         """Blocking read of all remaining output (called when job completes)."""
@@ -340,13 +369,12 @@ class RemoteJob(Job):
         job_id: Optional[int] = None,
         skip_git_check: bool = False,
     ):
-        super().__init__(config.name, log_dir, config.timeout_s)
+        super().__init__(config.name, log_dir, config.timeout_s, config)
 
         if not config.remote and not job_id:
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
         arg_list = config.args
-
         if config.remote:
             base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
             if not config.remote.spot:
@@ -354,7 +382,6 @@ class RemoteJob(Job):
         else:
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
-        self.config = config
         self.module = config.module
         self.args = arg_list
         self.base_args = base_args
@@ -367,7 +394,6 @@ class RemoteJob(Job):
         self._exit_code: Optional[int] = None
         self._timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         self._full_logs_fetched = False
-        self._run_name: Optional[str] = None  # WandB run name (only for training jobs)
 
     def _generate_run_name(self) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -393,7 +419,9 @@ class RemoteJob(Job):
         ]
 
         # Only pass run= for training jobs (they use WandB for experiment tracking)
-        if run_name:
+        # Check if run= is already in args to avoid conflicts
+        has_run_arg = any(arg.startswith("run=") for arg in self.args)
+        if run_name and not has_run_arg:
             cmd.append(f"run={run_name}")
 
         cmd.extend(self.args)
@@ -456,7 +484,6 @@ class RemoteJob(Job):
         try:
             # Only generate run_name for training jobs (they use WandB)
             run_name = self._generate_run_name() if self.config.is_training_job else None
-            self._run_name = run_name  # Store for WandB URL construction (None for non-training)
             request_id, job_id, _ = retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,
@@ -566,11 +593,20 @@ class RemoteJob(Job):
             job_info = job_statuses.get(self._job_id)
 
             if not job_info:
+                logger.warning(f"[STATUS_QUERY] Job {self._job_id}: No job info returned from SkyPilot API")
                 return True
 
+            prev_status = self._job_status
             self._job_status = job_info["status"]
 
-            return self._job_status in (
+            if prev_status != self._job_status:
+                logger.info(
+                    f"[STATUS_QUERY] Job {self._job_id}: "
+                    f"prev_status={prev_status} -> new_status={self._job_status}, "
+                    f"full_job_info={job_info}"
+                )
+
+            is_terminal = self._job_status in (
                 "SUCCEEDED",
                 "FAILED",
                 "FAILED_SETUP",
@@ -579,6 +615,11 @@ class RemoteJob(Job):
                 "UNKNOWN",
                 "ERROR",
             )
+
+            if is_terminal:
+                logger.info(f"[STATUS_TERMINAL] Job {self._job_id}: detected terminal status={self._job_status}")
+
+            return is_terminal
 
         except sky.exceptions.ClusterNotUpError:
             return False
@@ -643,17 +684,28 @@ class RemoteJob(Job):
     def _fetch_result(self) -> JobResult:
         if self._exit_code is not None:
             exit_code = self._exit_code
+            reason = "explicit_exit_code"
         elif self._job_status == "SUCCEEDED":
             exit_code = 0
+            reason = "job_status=SUCCEEDED"
         elif self._job_status in ("FAILED", "FAILED_SETUP", "FAILED_DRIVER", "UNKNOWN", "ERROR"):
             exit_code = 1
+            reason = f"job_status={self._job_status}"
         elif self._job_status == "CANCELLED":
             exit_code = 130
+            reason = "job_status=CANCELLED"
         elif not self._job_id:
             exit_code = 1
+            reason = "no_job_id"
         else:
             # Unknown status - default to failure for safety
             exit_code = 1
+            reason = f"unknown_status={self._job_status}"
+
+        logger.info(
+            f"[FETCH_RESULT] Job {self.name} (job_id={self._job_id}): "
+            f"status={self._job_status}, exit_code={exit_code}, reason={reason}"
+        )
 
         duration = None
         if self._start_time:
@@ -682,11 +734,6 @@ class RemoteJob(Job):
     def request_id(self) -> str | None:
         """Return SkyPilot request ID if available."""
         return self._request_id
-
-    @property
-    def run_name(self) -> str | None:
-        """Return the WandB run name used for this job."""
-        return self._run_name
 
     def _handle_interrupt(self) -> None:
         if self._job_id:

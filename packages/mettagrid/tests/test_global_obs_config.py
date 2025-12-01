@@ -13,6 +13,7 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.simulator import Action, Simulation
+from mettagrid.test_support import ObservationHelper
 from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
 
@@ -24,11 +25,9 @@ def create_test_sim(global_obs_config: dict[str, bool]) -> Simulation:
         max_steps=100,
         resource_names=["item1", "item2"],
         global_obs=GlobalObsConfig(**global_obs_config),
-        agent=AgentConfig(
-            default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
-        ),
+        agent=AgentConfig(default_resource_limit=10, freeze_duration=0, rewards=AgentRewards()),
         actions=ActionsConfig(noop=NoopActionConfig(enabled=True), move=MoveActionConfig(enabled=True)),
-        objects={"wall": WallConfig(swappable=False)},
+        objects={"wall": WallConfig()},
     )
 
     game_map = [
@@ -126,11 +125,9 @@ def test_global_obs_default_values():
         max_steps=100,
         resource_names=["item1"],
         # No global_obs specified - should use defaults
-        agent=AgentConfig(
-            default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
-        ),
+        agent=AgentConfig(default_resource_limit=10, freeze_duration=0, rewards=AgentRewards()),
         actions=ActionsConfig(noop=NoopActionConfig(enabled=True)),
-        objects={"wall": WallConfig(swappable=False)},
+        objects={"wall": WallConfig()},
     )
 
     game_map = [["agent.agent"]]
@@ -151,3 +148,29 @@ def test_global_obs_default_values():
     assert "episode_completion_pct" in global_obs_data, "Should have episode_completion_pct by default"
     assert "last_action" in global_obs_data, "Should have last_action by default"
     assert "last_reward" in global_obs_data, "Should have last_reward by default"
+
+
+def test_compass_toggle():
+    """Compass token should be present only when enabled."""
+    helper = ObservationHelper()
+
+    enabled_sim = create_test_sim(
+        {"episode_completion_pct": False, "last_action": False, "last_reward": False, "compass": True}
+    )
+    compass_feature_id = enabled_sim.config.game.id_map().feature_id("agent:compass")
+
+    enabled_obs = enabled_sim._c_sim.observations()
+    compass_counts = [
+        helper.find_tokens(enabled_obs[i], feature_id=compass_feature_id).shape[0]
+        for i in range(enabled_sim.num_agents)
+    ]
+    assert any(count == 1 for count in compass_counts), "At least one agent should receive a compass token"
+
+    disabled_sim = create_test_sim(
+        {"episode_completion_pct": False, "last_action": False, "last_reward": False, "compass": False}
+    )
+    disabled_obs = disabled_sim._c_sim.observations()
+    for i in range(disabled_sim.num_agents):
+        assert helper.find_tokens(disabled_obs[i], feature_id=compass_feature_id).shape[0] == 0, (
+            "Compass tokens should be absent when disabled"
+        )

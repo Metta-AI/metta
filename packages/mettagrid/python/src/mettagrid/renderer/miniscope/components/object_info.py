@@ -1,10 +1,12 @@
 """Object info panel component for miniscope renderer."""
 
-from typing import Dict
+from typing import TYPE_CHECKING, Dict
 
 from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
-from mettagrid.simulator import BoundingBox, Simulation
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
 
 from .base import MiniscopeComponent
 
@@ -14,7 +16,7 @@ class ObjectInfoComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: Simulation,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -30,10 +32,6 @@ class ObjectInfoComponent(MiniscopeComponent):
         if sidebar_panel is None:
             sidebar_panel = panels.register_sidebar_panel("object_info")
         self._set_panel(sidebar_panel)
-
-    def _get_object_type_names(self) -> list[str]:
-        """Get object type names from state."""
-        return self.state.object_type_names if self.state else []
 
     def _get_resource_names(self) -> list[str]:
         """Get resource names from state."""
@@ -62,13 +60,7 @@ class ObjectInfoComponent(MiniscopeComponent):
             self._panel.set_content(lines)
             return
 
-        bbox = BoundingBox(
-            min_row=0,
-            max_row=self._sim.map_height,
-            min_col=0,
-            max_col=self._sim.map_width,
-        )
-        grid_objects = self._sim.grid_objects(bbox)
+        grid_objects = self._sim.grid_objects()
 
         panel_height = self.state.viewport_height // 2 if self.state.viewport_height else 20
 
@@ -104,12 +96,10 @@ class ObjectInfoComponent(MiniscopeComponent):
             lines.append("Status: (empty space)".ljust(width))
             return lines
 
-        # Get type name - prefer type_name field if available, otherwise look up
-        if "type_name" in selected_obj:
-            type_name = selected_obj["type_name"]
-        else:
-            object_type_names = self._get_object_type_names()
-            type_name = object_type_names[selected_obj["type"]] if object_type_names else str(selected_obj["type"])
+        # Get type name (breaking: require type_name present)
+        type_name = selected_obj.get("type_name")
+        if type_name is None:
+            type_name = "<missing type_name>"
         lines.append(f"Type: {type_name}"[:width].ljust(width))
         lines.append(f"Cursor pos: ({cursor_row}, {cursor_col})"[:width].ljust(width))
         actual_r = selected_obj.get("r", "?")

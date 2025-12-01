@@ -69,7 +69,6 @@ class StatsTracker(SimulatorEventHandler):
             "seed": self._sim.seed,
             "map_w": self._sim.map_width,
             "map_h": self._sim.map_height,
-            "initial_grid_hash": self._sim.initial_grid_hash,
             "steps": self._sim.current_step,
             "max_steps": self._sim.config.game.max_steps,
             "completion_time": time.time(),

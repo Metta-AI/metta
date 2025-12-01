@@ -1,7 +1,8 @@
 import re
 
-from experiments.notebooks.utils.metrics import get_run
 from IPython.display import IFrame, display
+
+from notebooks.utils.metrics import get_run
 
 
 def show_replay(
@@ -31,7 +32,9 @@ def show_replay(
         target_step = int(step)
         selected = min(replay_urls, key=lambda r: abs(r["step"] - target_step))
         if selected["step"] != target_step:
-            print(f"Note: Requested step {target_step}, showing closest available step {selected['step']}")
+            print(
+                f"Note: Requested step {target_step}, showing closest available step {selected['step']}"
+            )
 
     url = selected["url"]
     separator = "&" if "?" in url else "?"
@@ -58,7 +61,11 @@ def fetch_replay_urls_for_run(run) -> list[dict]:
     replay_urls = []
 
     # Filter for replay HTML files
-    replay_files = [f for f in files if "media/html/replays/all_" in f.name and f.name.endswith(".html")]
+    replay_files = [
+        f
+        for f in files
+        if "media/html/replays/all_" in f.name and f.name.endswith(".html")
+    ]
 
     if not replay_files:
         return []
@@ -98,6 +105,8 @@ def fetch_replay_urls_for_run(run) -> list[dict]:
     return replay_urls
 
 
-def show_replays(run_names: list[str], step: str | int = "last", width: int = 1000, height: int = 600) -> None:
+def show_replays(
+    run_names: list[str], step: str | int = "last", width: int = 1000, height: int = 600
+) -> None:
     for run_name in run_names:
         show_replay(run_name, step=step, width=width, height=height)

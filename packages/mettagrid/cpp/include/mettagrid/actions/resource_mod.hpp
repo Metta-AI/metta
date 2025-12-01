@@ -86,10 +86,10 @@ protected:
 
           if (target_row >= 0 && target_row < static_cast<int>(_grid->height) && target_col >= 0 &&
               target_col < static_cast<int>(_grid->width)) {
-            GridLocation loc(target_row, target_col, GridLayer::AgentLayer);
+            GridLocation loc(target_row, target_col);
             GridObject* obj = _grid->object_at(loc);
-            if (obj != nullptr) {
-              Agent* agent = static_cast<Agent*>(obj);
+            Agent* agent = dynamic_cast<Agent*>(obj);
+            if (agent) {
               affected_agents.push_back(agent);
             }
           }

@@ -45,7 +45,7 @@ def base_config():
             attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
         ),
         objects={
-            "wall": WallConfig(swappable=False),
+            "wall": WallConfig(),
         },
         agent=AgentConfig(rewards=AgentRewards()),
     )
@@ -111,13 +111,13 @@ def test_attack_integration(make_sim, complex_game_map):
             {
                 "team_id": 0,
                 "freeze_duration": 6,
-                "resource_limits": {"laser": 10},
+                "resource_limits": {"laser": {"limit": 10, "resources": ["laser"]}},
                 "initial_inventory": {"laser": 5},
             },
             {
                 "team_id": 1,
                 "freeze_duration": 6,
-                "resource_limits": {"laser": 10},
+                "resource_limits": {"laser": {"limit": 10, "resources": ["laser"]}},
                 "initial_inventory": {"laser": 5},
             },
         ],

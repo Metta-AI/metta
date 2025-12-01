@@ -6,6 +6,7 @@ from cortex.blocks.column import ColumnBlock
 from cortex.blocks.column.auto import build_column_auto_block, build_column_auto_config
 from cortex.blocks.passthrough import PassThroughBlock
 from cortex.blocks.postup import PostUpBlock
+from cortex.blocks.postup_gated import PostUpGatedBlock
 from cortex.blocks.preup import PreUpBlock
 from cortex.blocks.registry import build_block, get_block_class, register_block
 
@@ -15,6 +16,7 @@ __all__ = [
     "PassThroughBlock",
     "PreUpBlock",
     "PostUpBlock",
+    "PostUpGatedBlock",
     "ColumnBlock",
     "build_column_auto_config",
     "build_column_auto_block",

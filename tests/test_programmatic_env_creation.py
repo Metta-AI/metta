@@ -4,6 +4,7 @@ Demonstrates the new pattern for creating environments as shown in experiments/a
 """
 
 import pytest
+from pydantic import ValidationError
 
 import mettagrid.builder.envs as eb
 from mettagrid.builder import building
@@ -15,6 +16,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
+    ResourceLimitsConfig,
     WallConfig,
 )
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -109,9 +111,9 @@ class TestProgrammaticEnvironments:
                         },
                     ),
                     resource_limits={
-                        "heart": 255,
-                        "ore_red": 10,
-                        "battery_red": 5,
+                        "heart": ResourceLimitsConfig(limit=255, resources=["heart"]),
+                        "ore_red": ResourceLimitsConfig(limit=10, resources=["ore_red"]),
+                        "battery_red": ResourceLimitsConfig(limit=5, resources=["battery_red"]),
                     },
                 ),
                 map_builder=RandomMapBuilder.Config(
@@ -131,10 +133,9 @@ class TestProgrammaticEnvironments:
         assert rewards["battery_red"] == 0.8
 
         # Verify resource limits
-        limits = config.game.agent.resource_limits
-        assert limits["heart"] == 255
-        assert limits["ore_red"] == 10
-        assert limits["battery_red"] == 5
+        assert config.game.agent.get_limit_for_resource("heart") == 255
+        assert config.game.agent.get_limit_for_resource("ore_red") == 10
+        assert config.game.agent.get_limit_for_resource("battery_red") == 5
 
     def test_config_with_teams(self):
         """Test creating an environment with agent teams."""
@@ -207,32 +208,23 @@ class TestProgrammaticEnvironments:
         # assert set(cpp_config.objects["agent.team_b"]["resource_rewards"].values()) == {0.5, 0.8, 1}
 
 
-class TestTypeIdAllocation:
-    """Unit tests for automatic type_id resolution."""
+class TestTypeIdentityBreakingChange:
+    """Tests reflecting the breaking removal of type_id from Python configs."""
 
-    def test_auto_assign_type_ids_with_mixed_explicit_and_implicit_values(self):
+    def test_passing_type_id_raises_validation_error(self):
+        with pytest.raises(ValidationError):
+            # Pydantic should reject unknown field 'type_id'
+            _ = WallConfig(type_id=123)  # type: ignore[arg-type]
+
+    def test_cpp_config_builds_without_type_ids(self):
+        # Building C++ config should succeed with name-only objects
+        from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
+
         objects = {
-            "apple": WallConfig(type_id=2),
-            "banana": WallConfig(),
-            "carrot": WallConfig(type_id=4),
-            "date": WallConfig(),
-            "elderberry": WallConfig(),
+            "apple": WallConfig(name="apple"),
+            "banana": WallConfig(name="banana"),
+            "carrot": WallConfig(name="carrot"),
         }
-
-        config = GameConfig(objects=objects)
-
-        assert config.objects["apple"].type_id == 2
-        assert config.objects["banana"].type_id == 1
-        assert config.objects["carrot"].type_id == 4
-        assert config.objects["date"].type_id == 3
-        assert config.objects["elderberry"].type_id == 5
-
-    def test_auto_assign_type_ids_raises_when_pool_exhausted(self):
-        objects = {f"object_{index:03d}": WallConfig() for index in range(256)}
-
-        config = GameConfig(objects=objects)
-        with pytest.raises(ValueError) as err:
-            # Trigger lazy assignment by accessing objects
-            _ = config.objects
-
-        assert "auto-generated type_id exceeds uint8 range" in str(err.value)
+        cfg = GameConfig(objects=objects)
+        cpp_cfg = convert_to_cpp_game_config(cfg)
+        assert cpp_cfg is not None

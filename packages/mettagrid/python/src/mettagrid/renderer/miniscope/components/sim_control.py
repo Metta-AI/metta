@@ -1,11 +1,15 @@
 """Simulation control component for miniscope renderer."""
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 from rich.text import Text
 
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, PlaybackState, RenderMode
-from mettagrid.simulator import Simulation
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
 
 from .base import MiniscopeComponent
 
@@ -15,7 +19,7 @@ class SimControlComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: Simulation,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -98,7 +102,8 @@ class SimControlComponent(MiniscopeComponent):
         # Format values
         mode_text = self.state.mode.value.upper()
         status = "PAUSED" if self.state.playback == PlaybackState.PAUSED else "PLAYING"
-        sps = f"{self.state.fps:.1f}" if self.state.fps < 10 else f"{int(self.state.fps)}"
+        fps = f"{self.state.fps:.1f}" if self.state.fps < 10 else f"{int(self.state.fps)}"
+        true_fps = f"{self.state.true_fps:.1f}" if self.state.true_fps < 10 else f"{int(self.state.true_fps)}"
         camera_pos = f"({self.state.camera_row},{self.state.camera_col})"
 
         # Build sidebar status indicators (only toggleable panels)
@@ -123,7 +128,7 @@ class SimControlComponent(MiniscopeComponent):
         text.append(
             f"Step {self.state.step_count} | "
             + f"Reward: {total_reward:.2f} | "
-            + f"SPS: {sps} | Status: {status} | "
+            + f"SPS: {fps} ({true_fps}) | Status: {status} | "
             + f"Mode: {mode_text} | Camera: {camera_pos}"
         )
 

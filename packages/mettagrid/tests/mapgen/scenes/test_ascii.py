@@ -11,7 +11,7 @@ def make_yaml_map(map_lines: list[str], legend: dict[str, str]) -> str:
     map_block = "\n".join(f"  {line}" for line in map_lines)
     return (
         "type: mettagrid.map_builder.ascii.AsciiMapBuilder.Config\n"
-        f"map_data: |-\n{map_block}\nchar_to_name_map:\n{legend_block}\n"
+        f"map_data: |-\n{map_block}\nchar_to_map_name:\n{legend_block}\n"
     )
 
 

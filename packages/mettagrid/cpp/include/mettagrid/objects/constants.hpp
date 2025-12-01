@@ -7,18 +7,6 @@
 
 #include "core/types.hpp"
 
-enum EventType {
-  FinishConverting = 0,
-  CoolDown = 1,
-  EventTypeCount
-};
-
-namespace GridLayer {
-constexpr ObservationType AgentLayer = 0;
-constexpr ObservationType ObjectLayer = 1;
-constexpr ObservationType GridLayerCount = 2;
-};  // namespace GridLayer
-
 // We want empty tokens to be 0xff, since 0s are very natural numbers to have in the observations, and we want
 // empty to be obviously different.
 const uint8_t EmptyTokenByte = 0xff;

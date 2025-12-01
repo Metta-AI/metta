@@ -37,7 +37,9 @@ def monitor_training_statuses(
                 {
                     "name": run_name,
                     "state": run.state,
-                    "created": datetime.fromisoformat(run.created_at).strftime("%Y-%m-%d %H:%M"),
+                    "created": datetime.fromisoformat(run.created_at).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
                 }
             )
             if run.summary:

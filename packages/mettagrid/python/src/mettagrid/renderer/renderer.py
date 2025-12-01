@@ -57,7 +57,7 @@ def create_renderer(render_mode: RenderMode) -> Renderer:
     """Create the appropriate renderer based on render_mode."""
     if render_mode == "unicode":
         # Text-based interactive rendering
-        from mettagrid.renderer.miniscope import MiniscopeRenderer
+        from mettagrid.renderer.miniscope.miniscope import MiniscopeRenderer
 
         return MiniscopeRenderer()
     elif render_mode == "gui":

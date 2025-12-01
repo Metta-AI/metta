@@ -190,7 +190,7 @@ def test_8way_movement_obstacles():
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -248,7 +248,7 @@ def test_8way_movement_with_simple_environment():
                     ["#", ".", ".", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -312,7 +312,7 @@ def test_8way_movement_boundary_check():
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )

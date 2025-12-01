@@ -12,9 +12,7 @@ from typing import List, Optional
 from rich.console import Console
 
 from mettagrid.config.vibes import VIBES as VIBE_DATA
-from mettagrid.renderer.renderer import Renderer
-
-from .components import (
+from mettagrid.renderer.miniscope.components import (
     AgentControlComponent,
     AgentInfoComponent,
     HelpPanelComponent,
@@ -25,6 +23,8 @@ from .components import (
     SymbolsTableComponent,
     VibePickerComponent,
 )
+from mettagrid.renderer.renderer import Renderer
+
 from .miniscope_panel import LAYOUT_PADDING, RESERVED_VERTICAL_LINES, SIDEBAR_WIDTH, PanelLayout
 from .miniscope_state import MiniscopeState, PlaybackState, RenderMode
 from .symbol import DEFAULT_SYMBOL_MAP
@@ -73,6 +73,8 @@ class MiniscopeRenderer(Renderer):
 
         # Timing
         self._last_frame_time = 0.0
+        self._ema_frame_time: float = 0.0  # Exponential moving average of frame times
+        self._ema_alpha: float = 0.2  # Smoothing factor for EMA (higher = more responsive)
 
         # Sidebar hotkey mapping
         self._sidebar_hotkeys: dict[str, str] = {}
@@ -89,13 +91,15 @@ class MiniscopeRenderer(Renderer):
         )
 
         # Initialize configuration in state
-        self._state.object_type_names = self._sim.object_type_names
         self._state.resource_names = self._sim.resource_names
         self._state.symbol_map = DEFAULT_SYMBOL_MAP.copy()
 
         # Add custom symbols from game config
         for obj in self._sim.config.game.objects.values():
-            self._state.symbol_map[obj.name] = obj.render_symbol
+            # Key by render_name (preferred) and also alias by name for convenience
+            self._state.symbol_map[obj.render_name or obj.name] = obj.render_symbol
+            if obj.render_name and obj.render_name != obj.name:
+                self._state.symbol_map[obj.name] = obj.render_symbol
 
         self._state.vibes = [g.symbol for g in VIBE_DATA] if VIBE_DATA else None
 
@@ -142,6 +146,28 @@ class MiniscopeRenderer(Renderer):
         # Start paused
         self._state.playback = PlaybackState.PAUSED
         self._last_frame_time = time.time()
+        self._ema_frame_time = 0.0  # Reset EMA for new episode
+
+    def _update_fps(self, current_time: float) -> None:
+        """Update FPS calculation using exponential moving average.
+
+        Args:
+            current_time: Current timestamp in seconds
+        """
+        if self._last_frame_time > 0:
+            frame_time = current_time - self._last_frame_time
+            # Update exponential moving average
+            if self._ema_frame_time == 0:
+                # Initialize EMA with first measurement
+                self._ema_frame_time = frame_time
+            else:
+                # Apply EMA formula: EMA = alpha * new_value + (1 - alpha) * previous_EMA
+                self._ema_frame_time = self._ema_alpha * frame_time + (1 - self._ema_alpha) * self._ema_frame_time
+
+            # Calculate FPS from average frame time
+            self._state.true_fps = 1.0 / self._ema_frame_time if self._ema_frame_time > 0 else 0.0
+
+        self._last_frame_time = current_time
 
     def on_step(self) -> None:
         """Handle step event."""
@@ -149,7 +175,7 @@ class MiniscopeRenderer(Renderer):
 
         self._state.step_count = self._sim.current_step
         if self._state.total_rewards is not None:
-            self._state.total_rewards += self._sim.episode_rewards
+            self._state.total_rewards = self._sim.episode_rewards
 
     def on_episode_end(self) -> None:
         """Clean up renderer resources."""
@@ -185,6 +211,9 @@ class MiniscopeRenderer(Renderer):
 
             # Update viewport size based on sidebar visibility
             self._update_viewport_size()
+
+            # Update FPS calculation
+            self._update_fps(time.time())
 
             # Clear panels for new frame
             self._panels.clear_all()

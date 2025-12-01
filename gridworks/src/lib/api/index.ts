@@ -1,6 +1,7 @@
-import * as z from "zod/v4";
+import * as z from "zod";
 
 import { API_URL } from "../../server/constants";
+import { fetchApi } from "./utils";
 
 const childrenActionSchema = z.object({
   get scene() {
@@ -37,11 +38,14 @@ const sceneTreeSchema = z.object({
   get children() {
     return z.array(sceneTreeSchema);
   },
+  render_start_time: z.number(),
+  render_end_time: z.number(),
+  render_with_children_end_time: z.number(),
 });
 
 export type SceneTree = z.infer<typeof sceneTreeSchema>;
 
-const storableMapSchema = z.object({
+export const storableMapSchema = z.object({
   frontmatter: z.object({
     metadata: z.record(z.string(), z.unknown()),
     config: z.record(z.string(), z.unknown()),
@@ -53,31 +57,6 @@ const storableMapSchema = z.object({
 
 export type StorableMap = z.infer<typeof storableMapSchema>;
 
-async function fetchApi<T extends z.ZodTypeAny>(
-  url: string,
-  schema: T
-): Promise<z.infer<T>> {
-  const response = await fetch(url);
-  if (response.status === 500) {
-    let detail = "Unknown error";
-    if (response.headers.get("content-type") === "application/json") {
-      try {
-        const data = await response.json();
-        if (data.detail) {
-          detail = String(data.detail);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    } else {
-      detail = await response.text();
-    }
-    throw new Error(detail);
-  }
-  const data = await response.json();
-  return schema.parse(data);
-}
-
 const configMakerSchema = z.object({
   absolute_path: z.string(),
   path: z.string(),
@@ -85,30 +64,34 @@ const configMakerSchema = z.object({
   line: z.number(),
 });
 
-const viewConfigSchema = z.object({
-  maker: configMakerSchema,
-  config: z.object({
-    value: z
-      .record(z.string(), z.unknown())
-      .or(z.array(z.record(z.string(), z.unknown()))),
-    unset_fields: z.array(z.string()),
-  }),
+export const extendedConfigSchema = z.object({
+  value: z
+    .record(z.string(), z.unknown())
+    .or(z.array(z.record(z.string(), z.unknown()))),
+  unset_fields: z.array(z.string()),
 });
 
-export type Config = z.infer<typeof viewConfigSchema>;
+export type ExtendedConfig = z.infer<typeof extendedConfigSchema>;
+
+const viewConfigSchema = z.object({
+  maker: configMakerSchema,
+  config: extendedConfigSchema,
+});
+
+export type MakerConfig = z.infer<typeof viewConfigSchema>;
 
 const groupedConfigMakersSchema = z.record(
   z.string(),
   z.array(configMakerSchema).optional()
 );
 
-type GroupedConfigMakers = z.infer<typeof groupedConfigMakersSchema>;
+export type GroupedConfigMakers = z.infer<typeof groupedConfigMakersSchema>;
 
 export async function listConfigMakers(): Promise<GroupedConfigMakers> {
   return await fetchApi(`${API_URL}/configs`, groupedConfigMakersSchema);
 }
 
-export async function getConfig(path: string): Promise<Config> {
+export async function getConfig(path: string): Promise<MakerConfig> {
   return await fetchApi(
     `${API_URL}/configs/get?path=${encodeURIComponent(path)}`,
     viewConfigSchema
@@ -138,4 +121,10 @@ export async function getRepoRoot(): Promise<string> {
   return parsed.repo_root;
 }
 
+export async function getMettagridEncoding(): Promise<Record<string, string>> {
+  const response = await fetch(`${API_URL}/mettagrid-encoding`);
+  const data = await response.json();
+  const parsed = z.record(z.string(), z.string()).parse(data);
+  return parsed;
+}
 export { getJsonSchemas } from "./schemas";

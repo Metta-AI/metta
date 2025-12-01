@@ -14,7 +14,7 @@ from sky.server.common import get_server_url
 from sqlmodel import Session
 
 from metta.jobs.job_manager import JobManager
-from metta.jobs.job_state import JobState
+from metta.jobs.job_state import JobState, JobStatus
 
 
 class JobDisplay:
@@ -28,12 +28,14 @@ class JobDisplay:
         return job_state.config.is_training_job if job_state else False
 
     def _get_display_name(self, job_name: str) -> str:
-        """Strip version prefix for cleaner display.
+        """Strip prefix for cleaner display by taking everything after the last dot.
 
-        Example: "v2025.10.27-1726_cpp_ci" → "cpp_ci"
+        Examples:
+            "jack.stable.2025.11.10-142732.python_ci" → "python_ci"
+            "jack.stable.2025.11.10-142732.arena_train" → "arena_train"
         """
-        if "_" in job_name:
-            return job_name.split("_", 1)[1]
+        if "." in job_name:
+            return job_name.rsplit(".", 1)[1]
         return job_name
 
     def _format_status_with_color(self, status: str) -> str:
@@ -146,10 +148,10 @@ class JobDisplay:
 
         # Compute counts
         total = len(jobs)
-        running = sum(1 for j in jobs if j.status == "running")
-        pending = sum(1 for j in jobs if j.status == "pending")
-        succeeded = sum(1 for j in jobs if j.status == "completed" and j.exit_code == 0)
-        failed = sum(1 for j in jobs if j.status == "completed" and j.exit_code != 0)
+        running = sum(1 for j in jobs if j.status == JobStatus.RUNNING)
+        pending = sum(1 for j in jobs if j.status == JobStatus.PENDING)
+        succeeded = sum(1 for j in jobs if j.status == JobStatus.COMPLETED and j.exit_code == 0)
+        failed = sum(1 for j in jobs if j.status == JobStatus.COMPLETED and j.exit_code != 0)
         elapsed_s = time.time() - self._start_time
 
         # Print title if provided
@@ -172,9 +174,9 @@ class JobDisplay:
         print()
 
         # Separate jobs into three categories
-        active_jobs = [j for j in jobs if j.status in ("running", "pending")]
-        completed_jobs = [j for j in jobs if j.status == "completed" and j.exit_code == 0]
-        failed_jobs = [j for j in jobs if j.status == "completed" and j.exit_code != 0]
+        active_jobs = [j for j in jobs if j.status in (JobStatus.RUNNING, JobStatus.PENDING)]
+        completed_jobs = [j for j in jobs if j.status == JobStatus.COMPLETED and j.exit_code == 0]
+        failed_jobs = [j for j in jobs if j.status == JobStatus.COMPLETED and j.exit_code != 0]
 
         # Print failed jobs FIRST (at the top for maximum visibility)
         if failed_jobs:
@@ -220,7 +222,7 @@ class JobDisplay:
                     dep_state = session.get(JobState, dep_name)
                     if not dep_state:
                         unsatisfied.append(dep_name)
-                    elif dep_state.status != "completed":
+                    elif dep_state.status != JobStatus.COMPLETED:
                         unsatisfied.append(dep_name)
                     elif dep_state.exit_code != 0 or dep_state.acceptance_passed is False:
                         unsatisfied.append(f"{dep_name} (failed)")
@@ -511,3 +513,255 @@ def format_job_status_line(job_state: JobState, show_duration: bool = True) -> s
         line += f" [{format_duration(job_state.duration_s)}]"
 
     return line
+
+
+def report_on_jobs(
+    job_manager: JobManager, job_names: list[str], title: str = "Jobs Summary", dump_failed_logs: bool = False
+) -> None:
+    """Report on job results with summary and details.
+
+    Shared reporting function used by both CI and stable release validation.
+    Shows overall stats, then lists each job with acceptance criteria and training artifacts.
+
+    Args:
+        job_manager: JobManager instance
+        job_names: List of job names to report on
+        title: Title for the report
+        dump_failed_logs: If True, dump full log file contents for failed jobs (useful for CI)
+    """
+    print("\n" + "=" * 80)
+    print(title)
+    print("=" * 80)
+
+    # Get all job states
+    jobs = [job_manager.get_job_state(name) for name in job_names if job_manager.get_job_state(name)]
+
+    if not jobs:
+        print("No jobs found")
+        return
+
+    # Compute counts
+    total = len(jobs)
+    completed = sum(1 for j in jobs if j.status == JobStatus.COMPLETED)
+    succeeded = sum(1 for j in jobs if j.status == JobStatus.COMPLETED and j.is_successful)
+    failed = sum(1 for j in jobs if j.status == JobStatus.COMPLETED and not j.is_successful)
+
+    # Show progress bar
+    progress = format_progress_bar(completed, total)
+    pct = (completed / total * 100) if total > 0 else 0
+    print(f"\nProgress: {completed}/{total} ({pct:.0f}%)")
+    print(f"{progress}")
+    print(f"Succeeded: \033[92m{succeeded}\033[0m  Failed: \033[91m{failed}\033[0m")
+    print()
+
+    # Show each job with detailed acceptance criteria and training artifacts
+    for job_state in jobs:
+        display = format_job_with_acceptance(job_state, dump_failed_logs=dump_failed_logs)
+        print(display)
+        print()
+
+
+def _format_artifact_with_color(uri: str) -> str:
+    """Format artifact URI with color styling.
+
+    Helper for format_job_with_acceptance to add colors to artifact links.
+    """
+    from metta.common.util.text_styles import cyan, magenta
+
+    result = format_artifact_link(uri)
+    if uri.startswith("wandb://") or uri.startswith("s3://") or uri.startswith("file://"):
+        return magenta(result)
+    elif uri.startswith("http"):
+        return cyan(result)
+    return result
+
+
+def _extract_error_context(logs_path: str | None) -> list[str]:
+    """Extract error context from log file.
+
+    Returns last few lines with error information for display in final report.
+    """
+    if not logs_path:
+        return []
+
+    try:
+        log_file = Path(logs_path)
+        if not log_file.exists():
+            return []
+
+        lines = log_file.read_text(errors="ignore").splitlines()
+        if not lines:
+            return []
+
+        # Look for error patterns in last 100 lines
+        error_patterns = ["Error:", "Exception:", "Traceback", "FAILED", "RuntimeError", "ModuleNotFoundError"]
+        search_start = max(0, len(lines) - 100)
+        for i in range(len(lines) - 1, search_start - 1, -1):
+            line = lines[i]
+            if any(pattern in line for pattern in error_patterns):
+                # Found error - return context (3 lines before and 7 lines after)
+                context_start = max(0, i - 3)
+                context_end = min(len(lines), i + 7)
+                return lines[context_start:context_end]
+
+        # No explicit error found - show last 5 non-empty lines
+        non_empty = [line for line in lines if line.strip()]
+        if non_empty:
+            return non_empty[-5:]
+
+        return []
+
+    except Exception:
+        return []
+
+
+def _read_full_log(logs_path: str | None) -> list[str]:
+    """Read entire log file contents.
+
+    Returns all lines from the log file for full output in CI mode.
+    """
+    if not logs_path:
+        return []
+
+    try:
+        log_file = Path(logs_path)
+        if not log_file.exists():
+            return []
+
+        lines = log_file.read_text(errors="ignore").splitlines()
+        return lines
+
+    except Exception:
+        return []
+
+
+def format_job_with_acceptance(job_state: JobState, dump_failed_logs: bool = False) -> str:
+    """Format job status integrated with acceptance criteria.
+
+    Composes job_monitor primitives with job-level acceptance logic.
+
+    Args:
+        job_state: Job state with status, metrics and acceptance
+        dump_failed_logs: If True, include full log file contents for failed jobs (useful for CI)
+
+    Returns:
+        Multi-line formatted string with job status + acceptance + artifacts
+    """
+    from metta.common.util.text_styles import green, red
+
+    lines = []
+
+    # Job status line using primitive
+    status_line = format_job_status_line(job_state, show_duration=True)
+    lines.append(status_line)
+
+    # Check for launch/execution failures first (exit_code != 0 with no metrics)
+    if job_state.status == JobStatus.COMPLETED and job_state.exit_code not in (0, None):
+        has_metrics = job_state.metrics and any(k for k in job_state.metrics.keys() if not k.startswith("_"))
+
+        if not has_metrics:
+            # Job failed before producing metrics - distinguish between cancelled and launch failure
+            if job_state.exit_code == 130:
+                lines.append(red("  ✗ JOB CANCELLED"))
+                lines.append("    Job was interrupted (SIGINT)")
+            else:
+                lines.append(red("  ✗ JOB FAILED TO LAUNCH"))
+                lines.append(f"    Exit code: {job_state.exit_code}")
+                if job_state.logs_path:
+                    lines.append(f"    Logs: {job_state.logs_path}")
+                    # Extract and show error context
+                    error_context = _extract_error_context(job_state.logs_path)
+                    if error_context:
+                        lines.append("    Error:")
+                        for line in error_context[:7]:  # Show up to 7 lines
+                            # Clean up line and truncate if too long
+                            clean_line = line.strip()[:100]
+                            if clean_line:
+                                lines.append(f"      {clean_line}")
+                else:
+                    lines.append("    Logs: N/A")
+        elif job_state.config.acceptance_criteria:
+            # Job ran but failed (has metrics) - show acceptance results
+            if job_state.acceptance_passed:
+                lines.append(green("  ✓ Acceptance criteria passed"))
+            else:
+                lines.append(red("  ✗ ACCEPTANCE CRITERIA FAILED"))
+
+            # Show ALL criteria with pass/fail indicators
+            for criterion in job_state.config.acceptance_criteria:
+                if criterion.metric not in job_state.metrics:
+                    lines.append(
+                        red(f"    ✗ {criterion.metric}: MISSING (expected {criterion.operator} {criterion.threshold})")
+                    )
+                else:
+                    actual = job_state.metrics[criterion.metric]
+                    target_str = f"{criterion.operator} {criterion.threshold}"
+                    if criterion.evaluate(actual):
+                        lines.append(green(f"    ✓ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+                    else:
+                        lines.append(red(f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+    # Acceptance criteria for successful jobs
+    elif job_state.config.acceptance_criteria:
+        if job_state.status == JobStatus.COMPLETED:
+            # For completed jobs: show pass/fail with indicators
+            if job_state.acceptance_passed:
+                lines.append(green("  ✓ Acceptance criteria passed"))
+            else:
+                lines.append(red("  ✗ ACCEPTANCE CRITERIA FAILED"))
+
+            # Show ALL criteria with pass/fail indicators
+            for criterion in job_state.config.acceptance_criteria:
+                if criterion.metric not in job_state.metrics:
+                    lines.append(
+                        red(f"    ✗ {criterion.metric}: MISSING (expected {criterion.operator} {criterion.threshold})")
+                    )
+                else:
+                    actual = job_state.metrics[criterion.metric]
+                    target_str = f"{criterion.operator} {criterion.threshold}"
+                    # Use criterion's evaluate method
+                    if criterion.evaluate(actual):
+                        lines.append(green(f"    ✓ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+                    else:
+                        lines.append(red(f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+        elif job_state.status == JobStatus.RUNNING:
+            # For running jobs: show criteria without pass/fail (not decided yet)
+            lines.append("  🎯 Acceptance criteria:")
+            for criterion in job_state.config.acceptance_criteria:
+                if criterion.metric in job_state.metrics:
+                    actual = job_state.metrics[criterion.metric]
+                    lines.append(
+                        f"    • {criterion.metric}: {actual:.1f} (target: {criterion.operator} {criterion.threshold})"
+                    )
+                else:
+                    lines.append(f"    • {criterion.metric}: (target: {criterion.operator} {criterion.threshold})")
+
+    # Artifacts (only show for training jobs)
+    if job_state.config.is_training_job:
+        if job_state.wandb_url:
+            artifact_str = _format_artifact_with_color(job_state.wandb_url)
+            lines.append(f"  {artifact_str}")
+
+        if job_state.checkpoint_uri:
+            artifact_str = _format_artifact_with_color(job_state.checkpoint_uri)
+            lines.append(f"  {artifact_str}")
+
+    # Always show log path for debugging
+    if job_state.logs_path:
+        artifact_str = _format_artifact_with_color(job_state.logs_path)
+        lines.append(f"  {artifact_str}")
+
+    # Dump full log file for failed jobs in non-interactive mode (CI)
+    if dump_failed_logs and not job_state.is_successful and job_state.logs_path:
+        lines.append("")
+        lines.append("  " + "=" * 70)
+        lines.append(f"  FULL LOG OUTPUT: {job_state.logs_path}")
+        lines.append("  " + "=" * 70)
+        log_content = _read_full_log(job_state.logs_path)
+        if log_content:
+            for line in log_content:
+                lines.append(f"  {line}")
+        else:
+            lines.append("  (Log file not found or empty)")
+        lines.append("  " + "=" * 70)
+
+    return "\n".join(lines)

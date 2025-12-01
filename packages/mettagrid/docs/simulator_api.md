@@ -82,7 +82,6 @@ rewards, and environment state.
 
 - **`map_width: int`**: Width of the game map
 - **`map_height: int`**: Height of the game map
-- **`initial_grid_hash: int`**: Hash of the initial grid state
 
 ##### Action Space
 
@@ -207,6 +206,10 @@ if not agent.last_action_success:
 ```
 
 ## Observation System
+
+> **Note**: For detailed technical information about the observation format, including binary structure, coordinate
+> encoding, feature IDs, and how to use `IdMap` to discover features, see [observations.md](observations.md). This
+> section focuses on using observations via the Python API.
 
 ### ObservationFeatureSpec
 

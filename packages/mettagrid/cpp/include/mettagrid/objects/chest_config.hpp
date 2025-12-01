@@ -9,20 +9,23 @@
 
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
+#include "objects/inventory_config.hpp"
 
 struct ChestConfig : public GridObjectConfig {
   ChestConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
       : GridObjectConfig(type_id, type_name, initial_vibe),
-        resource_type(0),
-        position_deltas({}),
-        initial_inventory(0),
-        max_inventory(255) {}
+        vibe_transfers({}),
+        initial_inventory({}),
+        inventory_config() {}
 
-  InventoryItem resource_type;
-  std::unordered_map<int, int>
-      position_deltas;    // position_index -> delta (positive = deposit amount, negative = withdraw amount)
-  int initial_inventory;  // Initial amount of resource_type in the chest
-  int max_inventory;      // Maximum inventory (-1 = unlimited)
+  // Maps vibe to resource deltas (positive = deposit, negative = withdraw)
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;
+
+  // Initial inventory for each resource type
+  std::unordered_map<InventoryItem, int> initial_inventory;
+
+  // Inventory configuration with limits
+  InventoryConfig inventory_config;
 };
 
 namespace py = pybind11;
@@ -36,10 +39,9 @@ inline void bind_chest_config(py::module& m) {
       .def_readwrite("type_id", &ChestConfig::type_id)
       .def_readwrite("type_name", &ChestConfig::type_name)
       .def_readwrite("tag_ids", &ChestConfig::tag_ids)
-      .def_readwrite("resource_type", &ChestConfig::resource_type)
-      .def_readwrite("position_deltas", &ChestConfig::position_deltas)
+      .def_readwrite("vibe_transfers", &ChestConfig::vibe_transfers)
       .def_readwrite("initial_inventory", &ChestConfig::initial_inventory)
-      .def_readwrite("max_inventory", &ChestConfig::max_inventory)
+      .def_readwrite("inventory_config", &ChestConfig::inventory_config)
       .def_readwrite("initial_vibe", &ChestConfig::initial_vibe);
 }
 

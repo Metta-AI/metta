@@ -15,7 +15,7 @@ from pydantic import (
 )
 from typing_extensions import Generic
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.util.module import load_symbol
 
@@ -177,6 +177,14 @@ class TaskGeneratorSet(TaskGenerator):
         )
         weights: list[float] = Field(default_factory=list, description="Weights for sampling each task generator")
 
+        @field_validator("task_generators")
+        @classmethod
+        def validate_task_generators(cls, v):
+            """Ensure at least one task generator is provided."""
+            if not v:
+                raise ValueError("TaskGeneratorSet must have at least one task generator")
+            return v
+
         @field_validator("weights")
         @classmethod
         def validate_weights(cls, v, info):
@@ -201,6 +209,8 @@ class TaskGeneratorSet(TaskGenerator):
         self._weights = self._config.weights if self._config.weights else [1.0] * len(self._sub_task_generators)
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+        if not self._sub_task_generators:
+            raise ValueError("TaskGeneratorSet has no task generators to sample from")
         chosen_generator = rng.choices(self._sub_task_generators, weights=self._weights)[0]
         result = chosen_generator.get_task(task_id)
 
@@ -301,8 +311,6 @@ class BucketedTaskGenerator(TaskGenerator):
 
         # Get task from the child generator
         mg_config = self._child_generator.get_task(task_id)
-        if self._config.label is not None:
-            mg_config.label += "|" + self._config.label
 
         # Apply the sampled bucket values as overrides
         return self._apply_overrides(mg_config, overrides)

@@ -100,7 +100,7 @@ policy_widget.on_filter_changed(on_filter_change)
 
 ## Example
 
-See `experiments/marimo/policy-selector-example.py` for a complete working example that demonstrates all features of the
+See `notebooks/marimo/policy-selector-example.py` for a complete working example that demonstrates all features of the
 widget.
 
 ## API Reference

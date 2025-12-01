@@ -2,4 +2,4 @@ iterations: 10
 pattern: ..
 pattern_size: 3
 temperature: 1.0
-type: mettagrid.mapgen.scenes.convchain.ConvChain
+type: mettagrid.mapgen.scenes.convchain.ConvChain.Config

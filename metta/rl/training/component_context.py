@@ -9,7 +9,6 @@ import torch
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
-from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.training import Experience, TrainingEnvironment
 from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.stopwatch import Stopwatch
@@ -47,7 +46,6 @@ class TrainerState:
     epoch: int = 0
     agent_step: int = 0
     latest_policy_uri: Optional[str] = None
-    latest_eval_scores: Optional[EvalRewardSummary] = None
     latest_losses_stats: Dict[str, float] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
     training_env_window: Optional[TrainingEnvWindow] = None
@@ -93,6 +91,10 @@ class ComponentContext:
         self.system_monitor: SystemMonitor | None = None
         self.latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
         self.losses: Dict[str, Any] = {}
+
+        # Scheduler-related state
+        self.loss_run_gates: Dict[str, Dict[str, bool]] = {}
+        self.loss_scheduler: Any | None = None
 
         self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
         self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
@@ -175,14 +177,6 @@ class ComponentContext:
     # ------------------------------------------------------------------
     # Stats tracking
     # ------------------------------------------------------------------
-    @property
-    def latest_eval_scores(self) -> Optional[EvalRewardSummary]:
-        return self.state.latest_eval_scores
-
-    @latest_eval_scores.setter
-    def latest_eval_scores(self, value: Optional[EvalRewardSummary]) -> None:
-        self.state.latest_eval_scores = value
-
     @property
     def latest_losses_stats(self) -> Dict[str, float]:
         return self.state.latest_losses_stats

@@ -1,3 +1,4 @@
+eval_plots/
 external/
 resources
 
@@ -95,12 +96,13 @@ gpu_names_cache.json
 sweep_id
 
 # Notebooks
-experiments/notebooks/.ipynb_checkpoints
-experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
-experiments/recipes/scratchpad/*.py
-!experiments/recipes/scratchpad/README.md
-!experiments/recipes/scratchpad/template.py
-!experiments/recipes/scratchpad/__init__.py
+notebooks/.ipynb_checkpoints
+notebooks/utils/eval_finder_widget/eval_finder_widget/static/index.js
+notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
+recipes/experiment/scratchpad/
+!recipes/experiment/scratchpad/README.md
+!recipes/experiment/scratchpad/template.py
+!recipes/experiment/scratchpad/__init__.py
 packages/cogames/experiments
 
 resources
@@ -132,11 +134,18 @@ mettascope.out
 !packages/mettagrid/nim/mettascope/data/resources/
 packages/mettagrid/nim/mettascope/src/tmp
 packages/mettagrid/python/src/mettagrid/nim/mettascope/
-agent/src/metta/ops/agalite_kernels/_build/
+packages/mettagrid/nim/mettascope/nim.cfg
+packages/cogames/src/cogames/policy/nim_agents/nim.cfg
 
-# Nim runtime
-.nim_runtime
+# Nim Agents
+packages/cogames/src/cogames/policy/nim_agents/bindings/generated
 
+# Uncategorized
 .terraform*
 terraform.tfstate
 .cache/torch_ext/
+
+# Python import analysis
+tools/dev/python_imports/cycles_report.json
+tools/dev/python_imports/architecture_report.json
+tools/dev/python_imports/analysis_summary.md

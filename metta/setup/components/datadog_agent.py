@@ -1,6 +1,7 @@
 import os
 import platform
 import subprocess
+from shutil import which
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
@@ -83,11 +84,16 @@ class DatadogAgentSetup(SetupModule):
         if self.check_installed():
             info("Datadog agent already installed.")
             # Just restart with new config/tags if needed
+            restart_cmd = ["systemctl", "restart", "datadog-agent"]
+            if which("sudo"):
+                restart_cmd = ["sudo", *restart_cmd]
             try:
-                subprocess.run(["sudo", "systemctl", "restart", "datadog-agent"], check=True)
-                success("Datadog agent restarted with updated configuration.")
+                subprocess.run(restart_cmd, check=True)
+                success(f"Datadog agent restarted with updated configuration (cmd: {' '.join(restart_cmd)}).")
+            except FileNotFoundError:
+                warning("systemctl not available; skipping Datadog agent restart.")
             except subprocess.CalledProcessError:
-                warning("Failed to restart Datadog agent.")
+                warning(f"Failed to restart Datadog agent using {' '.join(restart_cmd)}.")
             return
 
         info("Installing Datadog agent...")

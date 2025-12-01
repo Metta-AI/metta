@@ -1,8 +1,8 @@
 import importlib
 
 
-def load_symbol(full_name: str):
-    """Load a symbol from a full name, for example: 'mettagrid.config.Config' -> Config.
+def load_symbol(full_name: str, strict: bool = True):
+    """Load a symbol from a full name, for example: 'mettagrid.base_config.Config' -> Config.
 
     Handles nested attributes like 'mettagrid.map_builder.ascii.AsciiMapBuilder.Config'.
     """
@@ -16,18 +16,21 @@ def load_symbol(full_name: str):
         module_name = ".".join(parts[:i])
         try:
             module = importlib.import_module(module_name)
+        except ImportError as e:
+            last_error = e
+            continue
+        try:
             # Navigate through the remaining attributes
             value = module
             for attr_name in parts[i:]:
                 value = getattr(value, attr_name)
             return value
-        except ImportError as e:
-            last_error = e
-            continue
         except AttributeError:
             continue
 
     # If we get here, we couldn't load the symbol
     if last_error:
         raise last_error
-    raise ModuleNotFoundError(f"Could not load symbol: {full_name}")
+    if strict:
+        raise ModuleNotFoundError(f"Could not load symbol: {full_name}")
+    return None

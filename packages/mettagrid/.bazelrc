@@ -17,9 +17,13 @@ build:opt --strip=always
 
 # Debug build mode. --compilation_mode=[opt|dbg] is a required Bazel field.
 build:dbg --compilation_mode=dbg
-build:dbg --copt=-O0
-build:dbg --copt=-g
 build:dbg --strip=never
+build:dbg --copt=-g
+build:dbg --copt=-O0
+build:dbg --spawn_strategy=local
+build:dbg --strategy=CppCompile=local
+build:dbg --apple_generate_dsym
+
 # AddressSanitizer disabled - causes issues on macOS with Python extensions
 # build:dbg --copt=-fsanitize=address
 # build:dbg --copt=-fsanitize=undefined

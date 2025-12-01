@@ -1,0 +1,148 @@
+from typing import TYPE_CHECKING, Any
+
+import torch
+import torch.nn.functional as F
+from pydantic import Field
+from tensordict import TensorDict
+from torch import Tensor
+from torchrl.data import Composite, UnboundedContinuous
+
+from metta.agent.policy import Policy
+from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.training import ComponentContext
+from metta.rl.utils import prepare_policy_forward_td
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
+
+
+class KickstarterConfig(LossConfig):
+    teacher_uri: str = Field(default="")
+    action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
+    value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
+    temperature: float = Field(default=2.0, gt=0)
+    student_forward: bool = Field(default=False)  # use this if you need to forward student during train (eg if no PPO)
+    teacher_lead_prob: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
+
+    def create(
+        self,
+        policy: Policy,
+        trainer_cfg: "TrainerConfig",
+        vec_env: Any,
+        device: torch.device,
+        instance_name: str,
+        loss_config: Any,
+    ) -> "Kickstarter":
+        """Create Kickstarter loss instance."""
+        return Kickstarter(
+            policy,
+            trainer_cfg,
+            vec_env,
+            device,
+            instance_name=instance_name,
+            loss_config=loss_config,
+        )
+
+
+class Kickstarter(Loss):
+    """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
+    value against the student's using a KL divergence and MSE loss respectively.
+    """
+
+    __slots__ = (
+        "teacher_policy",
+        "student_forward",
+    )
+
+    def __init__(
+        self,
+        policy: Policy,
+        trainer_cfg: "TrainerConfig",
+        vec_env: Any,
+        device: torch.device,
+        instance_name: str,
+        loss_config: Any = None,
+    ):
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        self.student_forward = self.cfg.student_forward
+
+        policy_env_info = getattr(self.env, "policy_env_info", None)
+        if policy_env_info is None:
+            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
+        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
+        self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
+
+    def get_experience_spec(self) -> Composite:
+        # Get action space size for logits shape
+        act_space = self.env.single_action_space
+        num_actions = act_space.n
+
+        scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+        logits_f32 = UnboundedContinuous(shape=torch.Size([num_actions]), dtype=torch.float32)
+
+        return Composite(
+            teacher_logits=logits_f32,
+            teacher_values=scalar_f32,
+        )
+
+    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+        with torch.no_grad():
+            teacher_td = td.clone()
+            self.teacher_policy.forward(teacher_td)
+            teacher_actions = teacher_td["actions"]
+            td["teacher_logits"] = teacher_td["logits"]
+            td["teacher_values"] = teacher_td["values"]
+            self.policy.forward(td)
+
+        # Store experience
+        env_slice = context.training_env_id
+        if env_slice is None:
+            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        self.replay.store(data_td=td, env_id=env_slice)
+
+        if torch.rand(1) < self.cfg.teacher_lead_prob:
+            # overwrite student actions w teacher actions with some probability. anneal this.
+            td["actions"] = teacher_actions
+
+    def run_train(
+        self,
+        shared_loss_data: TensorDict,
+        context: ComponentContext,
+        mb_idx: int,
+    ) -> tuple[Tensor, TensorDict, bool]:
+        minibatch = shared_loss_data["sampled_mb"]
+        B, TT = minibatch.batch_size
+
+        # Student forward pass
+        if self.student_forward:  # leave to false if also running PPO since it forwards student during train
+            student_td, _, _ = prepare_policy_forward_td(minibatch, self.policy.get_agent_experience_spec(), clone=True)
+            student_td = self.policy(student_td, action=None)
+        else:
+            student_td = shared_loss_data["policy_td"].reshape(B * TT)  # shared_loss_data is populated by PPO
+
+        # action loss
+        temperature = self.cfg.temperature
+        teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).reshape(B * TT, -1).detach()
+        student_logits = student_td["logits"].to(dtype=torch.float32)
+        teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
+        student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
+        student_probs = torch.exp(student_log_probs)
+        ks_action_loss = (temperature**2) * (
+            (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
+        )
+
+        # value loss
+        teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).reshape(B * TT).detach()
+        student_value = student_td["values"].to(dtype=torch.float32)
+        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
+
+        loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
+
+        self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
+        self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
+        self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
+        self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
+
+        return loss, shared_loss_data, False

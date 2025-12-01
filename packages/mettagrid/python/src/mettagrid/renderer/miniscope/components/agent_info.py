@@ -1,13 +1,15 @@
 """Agent info panel component for miniscope renderer."""
 
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 import numpy as np
 
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
 from mettagrid.renderer.miniscope.symbol import get_symbol_for_object
-from mettagrid.simulator import BoundingBox, Simulation
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
 
 from .base import MiniscopeComponent
 
@@ -17,7 +19,7 @@ class AgentInfoComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: Simulation,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -33,10 +35,6 @@ class AgentInfoComponent(MiniscopeComponent):
         if sidebar_panel is None:
             sidebar_panel = panels.register_sidebar_panel("agent_info")
         self._set_panel(sidebar_panel)
-
-    def _get_object_type_names(self) -> list[str]:
-        """Get object type names from state."""
-        return self.state.object_type_names if self.state else []
 
     def _get_resource_names(self) -> list[str]:
         """Get resource names from state."""
@@ -60,13 +58,7 @@ class AgentInfoComponent(MiniscopeComponent):
             self._panel.set_content(["Agent info unavailable"])
             return
 
-        bbox = BoundingBox(
-            min_row=0,
-            max_row=self._sim.map_height,
-            min_col=0,
-            max_col=self._sim.map_width,
-        )
-        grid_objects = self._sim.grid_objects(bbox)
+        grid_objects = self._sim.grid_objects()
 
         lines = self._build_lines(
             grid_objects,
@@ -113,10 +105,9 @@ class AgentInfoComponent(MiniscopeComponent):
             reward = float(total_rewards[selected_agent])
 
         symbol_map = self._get_symbol_map()
-        object_type_names = self._get_object_type_names()
         agent_symbol = ""
-        if symbol_map and object_type_names:
-            agent_symbol = get_symbol_for_object(agent_obj, object_type_names, symbol_map)
+        if symbol_map:
+            agent_symbol = get_symbol_for_object(agent_obj, symbol_map)
 
         vibes = self._get_vibes()
         vibe_id = agent_obj.get("vibe")

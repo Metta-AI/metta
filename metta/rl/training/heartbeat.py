@@ -4,7 +4,7 @@ import logging
 
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.training import TrainerComponent
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,6 @@
 #include "objects/constants.hpp"
 #include "objects/has_vibe.hpp"
 
-using Layer = ObservationType;
 using TypeId = ObservationType;
 using ObservationCoord = ObservationType;
 using Vibe = ObservationType;
@@ -39,14 +38,12 @@ class GridLocation {
 public:
   GridCoord r;
   GridCoord c;
-  Layer layer;
 
-  inline GridLocation(GridCoord r, GridCoord c, Layer layer) : r(r), c(c), layer(layer) {}
-  inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c), layer(0) {}
-  inline GridLocation() : r(0), c(0), layer(0) {}
+  inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c) {}
+  inline GridLocation() : r(0), c(0) {}
 
   inline bool operator==(const GridLocation& other) const {
-    return r == other.r && c == other.c && layer == other.layer;
+    return r == other.r && c == other.c;
   }
 };
 
@@ -82,10 +79,6 @@ public:
     this->location = object_location;
     this->tag_ids = tags;
     this->vibe = object_vibe;
-  }
-
-  virtual bool swappable() const {
-    return false;
   }
 
   virtual std::vector<PartialObservationToken> obs_features() const {

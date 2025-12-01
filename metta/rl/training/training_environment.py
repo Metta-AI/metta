@@ -7,7 +7,7 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Literal, Tuple
+from typing import Any, List, Literal, Optional, Tuple
 
 import numpy as np
 import torch
@@ -15,12 +15,14 @@ from pydantic import Field
 from torch import Tensor
 
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
+from metta.rl.training.batch import calculate_batch_sizes
 from metta.rl.vecenv import make_vecenv
-from metta.utils.batch import calculate_batch_sizes
+from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
-from mettagrid.config import Config
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,11 @@ class TrainingEnvironmentConfig(Config):
         default_factory=lambda: Path("./train_dir/replays/training"),
         description="Base directory where training replays will be stored when writing is enabled.",
     )
+
+    supervisor: EnvSupervisorConfig = Field(default_factory=EnvSupervisorConfig)
+
+    maps_cache_size: Optional[int] = Field(default=None, ge=1)
+    """Number of maps to cache in shared memory. None for unlimited."""
 
 
 @dataclass
@@ -160,13 +167,21 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         self._num_workers = num_workers
 
+        # Create replay writer if replay writing is enabled
+        replay_writer = None
+        if self._replay_directory is not None:
+            replay_writer = ReplayLogWriter(str(self._replay_directory))
+
         self._vecenv = make_vecenv(
             self._curriculum,
             cfg.vectorization,
+            env_supervisor_cfg=cfg.supervisor,
             num_envs=self._num_envs,
             batch_size=self._batch_size,
             num_workers=num_workers,
             zero_copy=cfg.zero_copy,
+            maps_cache_size=cfg.maps_cache_size,
+            replay_writer=replay_writer,
         )
 
         # NOTE: Downstream rollout code currently assumes that PufferLib returns
@@ -241,6 +256,9 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         # Convert to tensors
         o = torch.as_tensor(o)
+        if o.ndim == 2:
+            # Some vecenv backends collapse the batch axis when only one env/agent is ready
+            o = o.unsqueeze(0)
         r = torch.as_tensor(r)
         d = torch.as_tensor(d)
         t = torch.as_tensor(t)

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import logging
 import re
 from abc import abstractmethod
+from typing import Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from metta.rl.system_config import SystemConfig
-from mettagrid.config import Config
+from mettagrid.base_config import Config
+
+logger = logging.getLogger(__name__)
 
 
 class Tool(Config):
@@ -44,3 +48,27 @@ class Tool(Config):
 
     @abstractmethod
     def invoke(self, args: dict[str, str]) -> int | None: ...
+
+
+class ToolResult(BaseModel):
+    result: Literal["success", "failure"]
+    warnings: list[str] = []
+    error: str | None = None
+    output_uri: str | None = None
+
+
+class ToolWithResult(Tool):
+    result_file_path: str
+
+    @abstractmethod
+    def run_job(self) -> ToolResult: ...
+
+    def invoke(self, args: dict[str, str]) -> int | None:
+        try:
+            result = self.run_job()
+        except Exception as e:
+            logger.error(f"Error running job: {e}", exc_info=True)
+            result = ToolResult(result="failure", error=str(e))
+        with open(self.result_file_path, "w") as f:
+            f.write(result.model_dump_json())
+        return 0

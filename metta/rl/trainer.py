@@ -267,6 +267,7 @@ class Trainer:
             if rollout_result.raw_infos:
                 self._prev_agent_step_for_step_callbacks = previous_agent_step
                 self._invoke_callback(TrainerCallback.STEP, rollout_result.raw_infos)
+            self._invoke_callback(TrainerCallback.ROLLOUT_END)
 
         # Training phase
         with self.timer("_train"):
@@ -354,6 +355,8 @@ class Trainer:
                 elif callback_type == TrainerCallback.EPOCH_END:
                     if component.should_handle_epoch(current_epoch):
                         component.on_epoch_end(current_epoch)
+                elif callback_type == TrainerCallback.ROLLOUT_END:
+                    component.on_rollout_end()
                 elif callback_type == TrainerCallback.TRAINING_COMPLETE:
                     component.on_training_complete()
                 elif callback_type == TrainerCallback.FAILURE:

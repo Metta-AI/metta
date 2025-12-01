@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import Field, model_validator
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
     # For type checking only; avoid runtime import cycles
@@ -157,7 +157,7 @@ class SweepParameters:
 
     # PPO specific parameters
     PPO_CLIP_COEF = {
-        "trainer.losses.loss_configs.ppo.clip_coef": ParameterConfig(
+        "trainer.losses.ppo.clip_coef": ParameterConfig(
             min=0.05,
             max=0.3,
             distribution="uniform",
@@ -167,7 +167,7 @@ class SweepParameters:
     }
 
     PPO_ENT_COEF = {
-        "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
+        "trainer.losses.ppo.ent_coef": ParameterConfig(
             min=0.0001,
             max=0.03,
             distribution="log_normal",
@@ -177,7 +177,7 @@ class SweepParameters:
     }
 
     PPO_GAE_LAMBDA = {
-        "trainer.losses.loss_configs.ppo.gae_lambda": ParameterConfig(
+        "trainer.losses.ppo.gae_lambda": ParameterConfig(
             min=0.8,
             max=0.99,
             distribution="uniform",
@@ -187,7 +187,7 @@ class SweepParameters:
     }
 
     PPO_VF_COEF = {
-        "trainer.losses.loss_configs.ppo.vf_coef": ParameterConfig(
+        "trainer.losses.ppo.vf_coef": ParameterConfig(
             min=0.1,
             max=1.0,
             distribution="uniform",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.map_builder.map_builder import MapGrid
 
 
