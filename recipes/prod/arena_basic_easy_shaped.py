@@ -104,7 +104,6 @@ def train(
 
     eval_simulations = simulations()
     trainer_cfg = TrainerConfig()
-    trainer_cfg.losses.vit_reconstruction.enabled = True
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()

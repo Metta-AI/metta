@@ -7,10 +7,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "metta.common.tool.run_tool",
-      // "args": ["recipes.experiment.scratchpad.${env:USER}.train"],
-      // "args": ["recipes.prod.arena_basic_easy_shaped.train"],
-      "args": ["recipes.experiment.abes.kickstart.ks_sliced.train"],
-      // "args": ["recipes.experiment.abes.kickstart.ks_logit.train"],
+      "args": ["recipes.experiment.scratchpad.${env:USER}.train"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -98,8 +95,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "metta.common.tool.run_tool",
-      // "args": ["recipes.experiment.scratchpad.${env:USER}.play"],
-      "args": ["recipes.prod.arena_basic_easy_shaped.play"],
+      "args": ["recipes.experiment.scratchpad.${env:USER}.play"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
