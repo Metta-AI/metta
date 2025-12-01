@@ -117,13 +117,7 @@ class PublicPolicyVersionRow(BaseModel):
     name: str
     version: int
     tags: dict[str, str] = Field(default_factory=dict)
-
-
-class LeaderboardEntry(BaseModel):
-    policy_version: PublicPolicyVersionRow
-    user_id: str
-    scores: dict[str, float]
-    avg_score: float | None = None
+    version_count: int | None = None
 
 
 class EpisodeReplay(BaseModel):
@@ -730,6 +724,102 @@ class MettaRepo:
                 )
                 return await cur.fetchall()
 
+    async def get_policy_versions(
+        self,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[PublicPolicyVersionRow], int]:
+        async with self.connect() as con:
+            where_conditions: list[str] = []
+            params: list[Any] = []
+
+            if name_exact:
+                where_conditions.append("p.name = %s")
+                params.append(name_exact)
+
+            if name_fuzzy:
+                where_conditions.append("p.name ILIKE %s")
+                params.append(f"%{name_fuzzy}%")
+
+            where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+
+            count_query = f"""
+                SELECT COUNT(DISTINCT pv.policy_id)
+                FROM policy_versions pv
+                JOIN policies p ON pv.policy_id = p.id
+                {where_clause}
+            """
+            count_result = await con.execute(count_query, params)
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            params.extend([limit, offset])
+
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT DISTINCT ON (pv.policy_id)
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version,
+                        pv.version AS version_count
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    {where_clause}
+                    ORDER BY pv.policy_id, pv.version DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    params,
+                )
+                rows = await cur.fetchall()
+
+            return rows, total_count
+
+    async def get_versions_for_policy(
+        self,
+        policy_id: str,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> tuple[list[PublicPolicyVersionRow], int]:
+        async with self.connect() as con:
+            count_query = """
+                SELECT COUNT(*)
+                FROM policy_versions pv
+                WHERE pv.policy_id = %s
+            """
+            count_result = await con.execute(count_query, (policy_id,))
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    WHERE pv.policy_id = %s
+                    ORDER BY pv.version DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (policy_id, limit, offset),
+                )
+                rows = await cur.fetchall()
+
+            return rows, total_count
+
     async def upsert_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> None:
         if not tags:
             return
@@ -835,100 +925,6 @@ class MettaRepo:
                 )
 
             return id
-
-    async def get_avg_per_agent_score_by_tag(
-        self,
-        tag_key: str,
-        user_id: str | None = None,
-        policy_version_id: uuid.UUID | None = None,
-    ) -> list[LeaderboardEntry]:
-        """Fetch average per-agent scores per tag with optional filters."""
-        params: list[Any] = [tag_key]
-        user_filter_clause = ""
-        policy_filter_clause = ""
-
-        if user_id is not None:
-            user_filter_clause = "AND pol.user_id = %s"
-            params.append(user_id)
-
-        if policy_version_id is not None:
-            policy_filter_clause = "AND pv.id = %s"
-            params.append(policy_version_id)
-
-        query = f"""
-SELECT
-    pv.id AS policy_version_id,
-    pv.internal_id,
-    pv.policy_id,
-    pv.version,
-    pv.s3_path,
-    pv.git_hash,
-    pv.policy_spec,
-    pv.attributes,
-    pv.created_at,
-    pol.created_at AS policy_created_at,
-    pol.name AS policy_name,
-    pol.user_id,
-    et.value AS leaderboard_name,
-    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent
-FROM episode_policies ep
-JOIN episodes e ON e.id = ep.episode_id
-JOIN policy_versions pv ON pv.id = ep.policy_version_id
-JOIN policies pol ON pol.id = pv.policy_id
-JOIN episode_policy_metrics epm
-    ON epm.episode_internal_id = e.internal_id
-    AND epm.pv_internal_id = pv.internal_id
-JOIN episode_tags et ON et.episode_id = e.id
-WHERE epm.metric_name = 'reward'
-  AND et.key = %s
-  {user_filter_clause}
-  {policy_filter_clause}
-GROUP BY
-    pv.id,
-    pv.internal_id,
-    pv.policy_id,
-    pv.version,
-    pv.s3_path,
-    pv.git_hash,
-    pv.policy_spec,
-    pv.attributes,
-    pv.created_at,
-    pol.name,
-    pol.user_id,
-    pol.created_at,
-    et.value
-ORDER BY pv.created_at DESC, pol.user_id, pv.id, et.value
-"""
-
-        async with self.connect() as con:
-            async with con.cursor(row_factory=dict_row) as cur:
-                await cur.execute(query, params)
-                rows = await cur.fetchall()
-
-        entries_by_policy: dict[uuid.UUID, LeaderboardEntry] = {}
-        for row in rows:
-            policy_version_id_value = row["policy_version_id"]
-            entry = entries_by_policy.get(policy_version_id_value)
-            if entry is None:
-                policy_version = PublicPolicyVersionRow(
-                    id=row["policy_version_id"],
-                    policy_id=row["policy_id"],
-                    version=row["version"],
-                    created_at=row["created_at"],
-                    policy_created_at=row["policy_created_at"],
-                    name=row["policy_name"],
-                    user_id=row["user_id"],
-                )
-                entry = LeaderboardEntry(
-                    policy_version=policy_version,
-                    user_id=row["user_id"],
-                    scores={},
-                )
-                entries_by_policy[policy_version_id_value] = entry
-
-            entry.scores[row["leaderboard_name"]] = row["avg_reward_per_agent"]
-
-        return list(entries_by_policy.values())
 
     async def get_leaderboard_policies(
         self,

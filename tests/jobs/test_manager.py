@@ -1,10 +1,12 @@
 """Tests for JobManager."""
 
 import tempfile
+import time
 from pathlib import Path
 
 from metta.jobs.job_config import JobConfig
-from metta.jobs.job_manager import JobManager
+from metta.jobs.job_manager import ExitCode, JobManager
+from metta.jobs.job_state import JobStatus
 
 
 def test_job_manager_basic():
@@ -59,3 +61,42 @@ def test_job_manager_group_operations():
         assert "job_0" in jobs
         assert "job_1" in jobs
         assert "job_2" in jobs
+
+
+def test_job_manager_timeout_enforcement():
+    """Test that JobManager enforces timeout_s and marks job as failed with correct exit code."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_dir = Path(tmpdir)
+        # Create logs directory that LocalJob expects
+        (base_dir / "logs").mkdir(exist_ok=True)
+        manager = JobManager(base_dir, max_local_jobs=1)
+
+        # Submit a job with very short timeout that runs a long command
+        config = JobConfig(
+            name="timeout_test",
+            module="__unused__",
+            args=[],
+            timeout_s=3,  # 3 second timeout
+            metadata={"cmd": ["sleep", "60"]},  # Sleep for 60 seconds (will be killed)
+        )
+        manager.submit(config)
+
+        # Wait for the job to start and then timeout
+        # Poll for up to 15 seconds to give time for timeout to trigger
+        start = time.time()
+        max_wait = 15
+        job_state = None
+
+        while time.time() - start < max_wait:
+            job_state = manager.get_job_state("timeout_test")
+            if job_state and job_state.status == JobStatus.COMPLETED:
+                break
+            time.sleep(0.5)
+
+        # Verify job was marked as timed out
+        assert job_state is not None, "Job state should exist"
+        assert job_state.status == JobStatus.COMPLETED, f"Job should be completed, got {job_state.status}"
+        assert job_state.exit_code == ExitCode.TIMEOUT, (
+            f"Exit code should be {ExitCode.TIMEOUT} (timeout), got {job_state.exit_code}"
+        )
+        assert job_state.acceptance_passed is False, "Timeout should mark acceptance as failed"

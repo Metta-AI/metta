@@ -68,7 +68,6 @@ cat >> "$METTA_ENV_FILE" << EOF
 export PYTHONUNBUFFERED=1
 export PYTHONPATH="\${PYTHONPATH:+\$PYTHONPATH:}\$(pwd)"
 export PYTHONOPTIMIZE=1
-export HYDRA_FULL_ERROR=1
 
 export WANDB_DIR="./wandb"
 export WANDB_API_KEY="\${WANDB_PASSWORD}"

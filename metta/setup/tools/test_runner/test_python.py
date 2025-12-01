@@ -204,6 +204,9 @@ def run(
             "--disable-warnings",
             "--color=no",
             "-v",
+            "-rw",
+            "-o",
+            "console_output_style=classic",
         ]
 
         # Apply benchmark filtering for CI mode

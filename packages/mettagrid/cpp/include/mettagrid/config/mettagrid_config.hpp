@@ -39,7 +39,6 @@ struct GameConfig {
   std::unordered_map<std::string, ObservationType> feature_ids;
   std::unordered_map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects;
-  float resource_loss_prob = 0.0;
   std::unordered_map<int, std::string> tag_id_map;
 
   // FEATURE FLAGS
@@ -83,7 +82,6 @@ inline void bind_game_config(py::module& m) {
                     const std::unordered_map<std::string, ObservationType>&,
                     const std::unordered_map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>>&,
-                    float,
                     const std::unordered_map<int, std::string>&,
 
                     // FEATURE FLAGS
@@ -107,7 +105,6 @@ inline void bind_game_config(py::module& m) {
            py::arg("feature_ids"),
            py::arg("actions"),
            py::arg("objects"),
-           py::arg("resource_loss_prob") = 0.0f,
            py::arg("tag_id_map") = std::unordered_map<int, std::string>(),
 
            // FEATURE FLAGS
@@ -136,7 +133,6 @@ inline void bind_game_config(py::module& m) {
       // .def_readwrite("actions", &GameConfig::actions)
       // .def_readwrite("objects", &GameConfig::objects);
 
-      .def_readwrite("resource_loss_prob", &GameConfig::resource_loss_prob)
       .def_readwrite("tag_id_map", &GameConfig::tag_id_map)
 
       // FEATURE FLAGS

@@ -14,10 +14,9 @@ Just simple, clean, correct behavior.
 from __future__ import annotations
 
 import random
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Optional
 
 from mettagrid.config.mettagrid_config import CardinalDirection, CardinalDirections
-from mettagrid.config.vibes import VIBE_BY_NAME
 from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
@@ -35,7 +34,24 @@ from .types import (
     Phase,
     SimpleAgentState,
 )
-from .utils import is_adjacent, is_station, is_wall
+from .utils import (
+    change_vibe_action as utils_change_vibe_action,
+)
+from .utils import (
+    is_adjacent,
+    is_station,
+    is_wall,
+    read_inventory_from_obs,
+)
+from .utils import (
+    parse_observation as utils_parse_observation,
+)
+from .utils import (
+    update_agent_position as utils_update_agent_position,
+)
+from .utils import (
+    use_object_at as utils_use_object_at,
+)
 
 # Sentinel for agent-centric features
 AGENT_SENTINEL = 0x55
@@ -92,43 +108,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             "silicon": "silicon_a",
         }
 
-    def _change_vibe_action(self, vibe_name: str) -> Action:
-        """
-        Return a safe vibe-change action.
-        Guard against disabled or single-vibe configurations before issuing the action.
-        """
-        change_vibe_cfg = self._actions.change_vibe
-        if not change_vibe_cfg.enabled:
-            raise Exception("change_vibe is not enabled")
-        # Raise loudly if the requested vibe isn't registered instead of silently
-        # falling back to noop; otherwise config issues become very hard to spot.
-        vibe = VIBE_BY_NAME.get(vibe_name)
-        if vibe is None:
-            raise Exception(f"No valid vibes called {vibe_name}")
-        return self._actions.change_vibe.ChangeVibe(vibe)
-
-    def _read_inventory_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
-        """Read inventory from observation tokens at center cell and update state."""
-        inv = {}
-        center_r, center_c = self._obs_hr, self._obs_wr
-        for tok in obs.tokens:
-            if tok.location == (center_r, center_c):
-                feature_name = tok.feature.name
-                if feature_name.startswith("inv:"):
-                    resource_name = feature_name[4:]  # Remove "inv:" prefix
-                    inv[resource_name] = tok.value
-
-        s.energy = inv.get("energy", 0)
-        s.carbon = inv.get("carbon", 0)
-        s.oxygen = inv.get("oxygen", 0)
-        s.germanium = inv.get("germanium", 0)
-        s.silicon = inv.get("silicon", 0)
-        s.hearts = inv.get("heart", 0)
-        s.decoder = inv.get("decoder", 0)
-        s.modulator = inv.get("modulator", 0)
-        s.resonator = inv.get("resonator", 0)
-        s.scrambler = inv.get("scrambler", 0)
-
     def initial_agent_state(self) -> SimpleAgentState:
         """Get initial state for an agent."""
         # Cache tag name mapping for efficient tag -> object name lookup
@@ -159,143 +138,67 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             heart_recipe=heart_recipe,
         )
 
-    def _process_feature_at_position(
-        self,
-        position_features: dict[tuple[int, int], dict[str, Union[int, list[int], dict[str, int]]]],
-        pos: tuple[int, int],
-        feature_name: str,
-        value: int,
-    ) -> None:
-        """Process a single observation feature and add it to position_features."""
-        if pos not in position_features:
-            position_features[pos] = {}
+    def step_with_state(self, obs: AgentObservation, s: SimpleAgentState) -> tuple[Action, SimpleAgentState]:
+        """Main step function that processes observation and returns action with updated state."""
+        s.step_count += 1
 
-        # Handle spatial features (tag, cooldown, etc.)
-        if feature_name in self._spatial_feature_names:
-            # Tag: collect all tags as a list (objects can have multiple tags)
-            if feature_name == "tag":
-                tags = position_features[pos].setdefault("tags", [])
-                assert isinstance(tags, list), "tags must be a list"
-                tags.append(value)
-                return
-            # Other spatial features are single values
-            position_features[pos][feature_name] = value
-            return
+        # Store observation for collision detection
+        s.current_obs = obs
+        s.agent_occupancy.clear()
 
-        # Handle agent features (agent:group -> agent_group, etc.)
-        agent_feature_key = self._agent_feature_key_by_name.get(feature_name)
-        if agent_feature_key is not None:
-            position_features[pos][agent_feature_key] = value
-            return
+        # Read inventory from observation
+        read_inventory_from_obs(s, obs, obs_hr=self._obs_hr, obs_wr=self._obs_wr)
 
-        # Handle protocol features (recipes)
-        if feature_name.startswith(self._protocol_input_prefix):
-            resource = feature_name[len(self._protocol_input_prefix) :]
-            inputs = position_features[pos].setdefault("protocol_inputs", {})
-            assert isinstance(inputs, dict), "protocol_inputs must be a dict"
-            inputs[resource] = value
-            return
+        # Update agent position based on last action
+        self._update_agent_position(s)
 
-        if feature_name.startswith(self._protocol_output_prefix):
-            resource = feature_name[len(self._protocol_output_prefix) :]
-            outputs = position_features[pos].setdefault("protocol_outputs", {})
-            assert isinstance(outputs, dict), "protocol_outputs must be a dict"
-            outputs[resource] = value
-            return
+        # Parse observation to get structured data
+        parsed = self.parse_observation(s, obs)
 
-    def _create_object_state(self, features: dict[str, Union[int, list[int], dict[str, int]]]) -> ObjectState:
-        """Create an ObjectState from collected features.
+        # Update occupancy map and discover objects
+        self._update_occupancy_and_discover(s, parsed)
 
-        Note: Objects can have multiple tags (e.g., "wall" + "green" vibe).
-        We use the first tag as the primary object name.
-        """
-        # Get tags list (now stored as "tags" instead of "tag")
-        tag_ids = features.get("tags", [])
-        assert isinstance(tag_ids, list), "tags must be a list"
+        # Update phase based on current state
+        self._update_phase(s)
 
-        # Use first tag as primary object name
-        if tag_ids:
-            primary_tag_id = tag_ids[0]
-            obj_name = self._tag_names.get(primary_tag_id, f"unknown_tag_{primary_tag_id}")
-        else:
-            obj_name = "unknown"
+        # Update vibe to match phase
+        desired_vibe = self._get_vibe_for_phase(s.phase, s)
+        if s.current_glyph != desired_vibe:
+            s.current_glyph = desired_vibe
+            # Return vibe change action this step
+            action = utils_change_vibe_action(desired_vibe, actions=self._actions)
+            s.last_action = action
+            return action, s
 
-        # Helper to safely extract int values
-        def get_int(key: str, default: int) -> int:
-            val = features.get(key, default)
-            assert isinstance(val, int), f"Expected {key} to be an integer, got {type(val)}"
-            return val
+        # Check for stuck state and handle escape
+        stuck_action = self._check_stuck_and_escape(s)
+        if stuck_action is not None:
+            s.last_action = stuck_action
+            return stuck_action, s
 
-        # Helper to safely extract dict values
-        def get_dict(key: str) -> dict[str, int]:
-            val = features.get(key, {})
-            assert isinstance(val, dict), f"Expected {key} to be a dict, got {type(val)}"
-            return dict(val)
+        # Execute action for current phase
+        action = self._execute_phase(s)
 
-        return ObjectState(
-            name=obj_name,
-            cooldown_remaining=get_int("cooldown_remaining", 0),
-            clipped=get_int("clipped", 0),
-            remaining_uses=get_int("remaining_uses", 999),
-            protocol_inputs=get_dict("protocol_inputs"),
-            protocol_outputs=get_dict("protocol_outputs"),
-            agent_group=get_int("agent_group", -1),
-            agent_frozen=get_int("agent_frozen", 0),
-        )
+        # Save action for next step's position update
+        s.last_action = action
+
+        return action, s
 
     def parse_observation(
         self, state: SimpleAgentState, obs: AgentObservation, debug: bool = False
     ) -> ParsedObservation:
-        """Parse token-based observation into structured format.
-
-        AgentObservation with tokens (ObservationToken list)
-        - Inventory is obtained via agent.inventory (not parsed here)
-        - Only spatial features are parsed from observations
-
-        Converts egocentric spatial coordinates to world coordinates using agent position.
-        Agent position (agent_row, agent_col) comes from simulation.grid_objects().
-        """
-        # First pass: collect all spatial features by position
-        position_features: dict[tuple[int, int], dict[str, Union[int, list[int], dict[str, int]]]] = {}
-
-        for tok in obs.tokens:
-            obs_r, obs_c = tok.location
-            feature_name = tok.feature.name
-            value = tok.value
-
-            # Skip center location - that's inventory/global obs, obtained via agent.inventory
-            if obs_r == self._obs_hr and obs_c == self._obs_wr:
-                continue
-
-            # Convert observation-relative coords to world coords
-            if state.row >= 0 and state.col >= 0:
-                r = obs_r - self._obs_hr + state.row
-                c = obs_c - self._obs_wr + state.col
-
-                if 0 <= r < state.map_height and 0 <= c < state.map_width:
-                    self._process_feature_at_position(position_features, (r, c), feature_name, value)
-
-        # Second pass: create ObjectState for each position with tags
-        nearby_objects = {
-            pos: self._create_object_state(features)
-            for pos, features in position_features.items()
-            if "tags" in features  # Note: stored as "tags" (plural) to support multiple tags per object
-        }
-
-        return ParsedObservation(
-            row=state.row,
-            col=state.col,
-            energy=0,  # Inventory obtained via agent.inventory
-            carbon=0,
-            oxygen=0,
-            germanium=0,
-            silicon=0,
-            hearts=0,
-            decoder=0,
-            modulator=0,
-            resonator=0,
-            scrambler=0,
-            nearby_objects=nearby_objects,
+        """Parse token-based observation into structured format."""
+        return utils_parse_observation(
+            state,
+            obs,
+            obs_hr=self._obs_hr,
+            obs_wr=self._obs_wr,
+            spatial_feature_names=self._spatial_feature_names,
+            agent_feature_key_by_name=self._agent_feature_key_by_name,
+            protocol_input_prefix=self._protocol_input_prefix,
+            protocol_output_prefix=self._protocol_output_prefix,
+            tag_names=self._tag_names,
+            debug=debug,
         )
 
     def _try_random_direction(self, s: SimpleAgentState) -> Optional[Action]:
@@ -330,44 +233,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         self._clear_stuck_state(s)
         return action if action else self._actions.noop.Noop()
 
-    def step_with_state(self, obs: AgentObservation, state: SimpleAgentState) -> Tuple[Action, SimpleAgentState]:
-        """Compute action for one agent (returns action index)."""
-        state.step_count += 1
-
-        # Store observation for collision detection
-        state.current_obs = obs
-        state.agent_occupancy.clear()
-
-        # Read inventory from observation tokens at center cell
-        self._read_inventory_from_obs(state, obs)
-        self._update_agent_position(state)
-        parsed = self.parse_observation(state, obs)
-        self._update_occupancy_and_discover(state, parsed)
-
-        self._update_phase(state)
-
-        # Update vibe to match phase
-        desired_vibe = self._get_vibe_for_phase(state.phase, state)
-        if state.current_glyph != desired_vibe:
-            state.current_glyph = desired_vibe
-            # Return vibe change action this step
-            action = self._change_vibe_action(desired_vibe)
-            state.last_action = action
-            return action, state
-
-        # Check for stuck loop and attempt escape
-        action = self._check_stuck_and_escape(state)
-        if action is not None:
-            state.last_action = action
-            return action, state
-
-        action = self._execute_phase(state)
-
-        # Save action for next step's position update
-        state.last_action = action
-
-        return action, state
-
     def _update_occupancy_and_discover(self, s: SimpleAgentState, parsed: ParsedObservation) -> None:
         """Update occupancy map and discover objects from parsed observation."""
         # Discover heart recipe from assembler protocol (if not yet discovered)
@@ -391,17 +256,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         IMPORTANT: When using objects (extractors, stations), the agent "moves into" them but doesn't
         actually change position. We detect this by checking the using_object_this_step flag.
         """
-        # If last action was a move and we're not using an object, update position
-        # We assume the move succeeded unless we were using an object
-        if s.last_action and s.last_action.name.startswith("move_") and not s.using_object_this_step:
-            # Extract direction from action name (e.g., "move_north" -> "north")
-            direction = s.last_action.name[5:]  # Remove "move_" prefix
-            if direction in self._move_deltas:
-                dr, dc = self._move_deltas[direction]
-                s.row += dr
-                s.col += dc
-        # Clear the flag for next step
-        s.using_object_this_step = False
+        # Use utility function for basic position update
+        utils_update_agent_position(s, move_deltas=self._move_deltas)
 
         # Update position history and detect loops
         current_pos = (s.row, s.col)
@@ -841,19 +697,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return self._explore(s)
         return action
 
-    def _use_object_at(self, s: SimpleAgentState, target_pos: tuple[int, int], using_for: str = "") -> Action:
-        """Use an object by moving into its cell. Sets a flag so position tracking knows not to update.
-
-        This is the generic "move into to use" action for extractors, assemblers, chests, chargers, etc.
-        The 'using_for' parameter is used for tracking what we're using (e.g., 'extractor', 'assembler').
-        """
-        action = self._move_into_cell(s, target_pos)
-
-        # Mark that we're using an object so position tracking doesn't update
-        s.using_object_this_step = True
-
-        return action
-
     def _use_extractor_if_ready(self, s: SimpleAgentState, extractor: ExtractorInfo, resource_type: str) -> Action:
         """Try to use extractor if ready. Returns appropriate action."""
 
@@ -876,7 +719,13 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         s.pending_use_amount = old_amount
         s.waiting_at_extractor = extractor.position
 
-        return self._use_object_at(s, extractor.position, using_for=f"{resource_type}_extractor")
+        return utils_use_object_at(
+            s,
+            extractor.position,
+            actions=self._actions,
+            move_deltas=self._move_deltas,
+            using_for=f"{resource_type}_extractor",
+        )
 
     def _do_gather(self, s: SimpleAgentState) -> Action:
         """
@@ -933,12 +782,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if explore_action is not None:
             return explore_action
 
-        # First, ensure we have the correct glyph (heart) for assembling
-        if s.current_glyph != "heart_a":
-            vibe_action = self._change_vibe_action("heart_a")
-            s.current_glyph = "heart_a"
-            return vibe_action
-
         # Assembler is known, navigate to it and use it
         assembler = s.stations["assembler"]
         assert assembler is not None  # Guaranteed by _explore_until above
@@ -949,7 +792,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return nav_action
 
         # Adjacent - use it
-        return self._use_object_at(s, assembler, using_for="assembler")
+        return utils_use_object_at(
+            s, assembler, actions=self._actions, move_deltas=self._move_deltas, using_for="assembler"
+        )
 
     def _do_deliver(self, s: SimpleAgentState) -> Action:
         """Deliver hearts to chest."""
@@ -957,14 +802,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         explore_action = self._explore_until(s, condition=lambda: s.stations["chest"] is not None, reason="Need chest")
         if explore_action is not None:
             return explore_action
-
-        # First, ensure we have the correct glyph (default/neutral) for chest deposit
-        # - "default" vibe: DEPOSIT resources (positive values)
-        # - specific resource vibes (e.g., "heart_a"): WITHDRAW resources (negative values)
-        if s.current_glyph != "default":
-            vibe_action = self._change_vibe_action("default")
-            s.current_glyph = "default"
-            return vibe_action
 
         # Chest is known, navigate to it and use it
         chest = s.stations["chest"]
@@ -976,7 +813,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return nav_action
 
         # Adjacent - use it
-        return self._use_object_at(s, chest, using_for="chest")
+        return utils_use_object_at(s, chest, actions=self._actions, move_deltas=self._move_deltas, using_for="chest")
 
     def _do_recharge(self, s: SimpleAgentState) -> Action:
         """Recharge at charger."""
@@ -997,7 +834,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return nav_action
 
         # Adjacent - use it
-        return self._use_object_at(s, charger, using_for="charger")
+        return utils_use_object_at(
+            s, charger, actions=self._actions, move_deltas=self._move_deltas, using_for="charger"
+        )
 
     def _do_unclip(self, s: SimpleAgentState) -> Action:
         """Unclip extractors - this is implemented in the UnclippingAgent."""

@@ -278,8 +278,10 @@ class Mission(Config):
         # Precaution - copy the env, in case the code above uses some global variable that we don't want to modify.
         # This allows variants to modify the env without copying it again.
         env = env.model_copy(deep=True)
+        env.label = self.full_name()
 
         for variant in self.variants:
             variant.modify_env(self, env)
+            env.label += f".{variant.name}"
 
         return env

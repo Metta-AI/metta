@@ -88,7 +88,6 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                     feature_ids,
                     actions_cfg,
                     objects_cfg,
-                    0.0f,
                     tag_id_map,
                     false,
                     std::unordered_map<std::string, float>(),
