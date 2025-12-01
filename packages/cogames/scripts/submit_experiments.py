@@ -192,12 +192,12 @@ if __name__ == "__main__":
     # submit_all_missions_no_variants()
     # submit_all_missions_with_variants()
     # submit_full_curriculum_experiment_standard()
-    # submit_full_curriculum_experiment_all_variants()
+    submit_full_curriculum_experiment_all_variants()
 
-    submit_full_curriculum_with_navigation()
-    submit_full_curriculum_with_navigation_with_variants()
-    submit_missions_with_navigation()
-    submit_missions_with_navigation_with_variants()
+    # submit_full_curriculum_with_navigation()
+    # submit_full_curriculum_with_navigation_with_variants()
+    # submit_missions_with_navigation()
+    # submit_missions_with_navigation_with_variants()
 
     print("\n" + "=" * 80)
     print("All experiments submitted successfully!")
