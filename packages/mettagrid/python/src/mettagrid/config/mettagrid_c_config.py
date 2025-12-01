@@ -34,12 +34,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if "obs" in config_dict and "features" in config_dict["obs"]:
             config_dict["obs"] = config_dict["obs"].copy()
             config_dict["obs"].pop("features", None)
-        # Let GameConfig manage vibe synchronization; avoid stale fields.
+        # Keep vibe_names in sync with number_of_vibes; favor the explicit count.
         config_dict.pop("vibe_names", None)
+        change_vibe_cfg = config_dict.setdefault("actions", {}).setdefault("change_vibe", {})
+        change_vibe_cfg["number_of_vibes"] = change_vibe_cfg.get("number_of_vibes") or len(VIBES)
         game_config = GameConfig(**config_dict)
 
-    # Keep vibes consistent no matter which field the user modified.
-    game_config._sync_vibes()
+    # Ensure runtime object has consistent vibes.
+    game_config.actions.change_vibe.number_of_vibes = game_config.actions.change_vibe.number_of_vibes or len(VIBES)
+    game_config.vibe_names = [vibe.name for vibe in VIBES[: game_config.actions.change_vibe.number_of_vibes]]
 
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
