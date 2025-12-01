@@ -3,14 +3,13 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-from gymnasium import spaces
 import torch
+from gymnasium import spaces
+from tribal_village_env.cogames.policy import TribalPolicyEnvInfo, TribalVillagePufferPolicy
 
-from mettagrid.policy.loader import discover_and_register_policies, resolve_policy_class_path
 from mettagrid.config.id_map import ObservationFeatureSpec
+from mettagrid.policy.loader import discover_and_register_policies, resolve_policy_class_path
 from mettagrid.simulator.interface import AgentObservation, ObservationToken
-from tribal_village_env.cogames.policy import TribalPolicyEnvInfo
-from tribal_village_env.cogames.policy import TribalVillagePufferPolicy
 
 
 def test_policy_env_info_names_and_actions():

@@ -5,12 +5,10 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import platform
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Literal, Optional
 
 import numpy as np
 import psutil
-import torch
 from rich.console import Console
 
 from cogames.policy.signal_handler import DeferSigintContextManager
@@ -25,11 +23,7 @@ from mettagrid.policy.policy import PolicySpec
 from pufferlib import pufferl
 from pufferlib import vector as pvector
 from pufferlib.pufferlib import set_buffers
-
 from tribal_village_env.cogames.policy import TribalPolicyEnvInfo
-
-if TYPE_CHECKING:
-    from torch import device as TorchDevice
 
 logger = logging.getLogger("cogames.tribal_village.train")
 
@@ -180,7 +174,6 @@ def train(settings: dict[str, Any]) -> None:
         )
         num_workers = adjusted_workers
 
-    envs_per_worker = max(1, num_envs // num_workers)
     vector_batch_size = settings.get("vector_batch_size")
     if vector_batch_size is None:
         vector_batch_size = num_envs
@@ -258,9 +251,7 @@ def train(settings: dict[str, Any]) -> None:
     adam_eps = 1e-8
 
     total_agents = max(1, getattr(vecenv, "num_agents", getattr(driver_env, "num_agents", 1)))
-    env_count = max(1, getattr(vecenv, "num_environments", num_envs))
     num_workers = max(1, getattr(vecenv, "num_workers", num_workers))
-    envs_per_worker = max(1, getattr(vecenv, "envs_per_worker", env_count // num_workers))
 
     effective_agents_per_batch = agents_per_batch or total_agents
     amended_batch_size = effective_agents_per_batch
