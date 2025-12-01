@@ -82,7 +82,7 @@ class SlicedKickstarter(Loss):
         self.student_forward = self.cfg.student_forward
 
         # Load teacher. Lazy import to avoid circular dependency
-        from metta.rl.checkpoint_manager import CheckpointManager
+        from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
         base_policy_env_info = getattr(self.env, "policy_env_info", None)
         if base_policy_env_info is None:
@@ -100,7 +100,7 @@ class SlicedKickstarter(Loss):
 
         # Initialize the teacher policy using the same extended env info so that its
         # obs encoder also understands the extra feature.
-        teacher_spec = CheckpointManager.policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
+        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
         self.teacher_policy = initialize_or_load_policy(self.extended_policy_env_info, teacher_spec)
 
     def get_experience_spec(self) -> Composite:
