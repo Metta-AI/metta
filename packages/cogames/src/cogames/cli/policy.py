@@ -11,14 +11,15 @@ from rich.table import Table
 from cogames.cli.base import console
 from mettagrid.policy.loader import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
 
 default_checkpoint_dir = Path("train_dir")
 
-policy_arg_example = "class=CLS[,data=PATH][,kw.x=val]"
-policy_arg_w_proportion_example = "class=CLS[,data=PATH][,proportion=1.0][,kw.x=val]"
+policy_arg_example = "URI or class=CLS[,data=PATH][,kw.x=val]"
+policy_arg_w_proportion_example = "URI or class=CLS[,data=PATH][,proportion=1.0][,kw.x=val]"
 
 
 class PolicySpecWithProportion(PolicySpec):
@@ -48,12 +49,18 @@ def list_checkpoints():
 
 
 def describe_policy_arg(with_proportion: bool):
+    console.print("[bold cyan]-p [POLICY][/bold cyan] accepts two formats:\n")
+    console.print("[bold]1. URI format[/bold] (for .mpt checkpoints):")
+    console.print("  - metta://policy/<name> or metta://policy/<uuid>")
+    console.print("  - s3://bucket/path/to/checkpoint.mpt")
+    console.print("  - file:///path/to/checkpoint.mpt or /path/to/checkpoint.mpt")
+    console.print()
     console.print(
-        "To specify a [bold cyan]-p [POLICY][/bold cyan], use comma-separated key=value pairs: "
+        "[bold]2. Key-value format[/bold]: "
         + (policy_arg_example if not with_proportion else policy_arg_w_proportion_example)
     )
     subcommand_parts = [
-        "[blue]class[/blue]: shorthand (e.g. 'stateless', 'random') or fully qualified class path.",
+        "[blue]class[/blue]: shorthand (e.g. 'lstm', 'random') or fully qualified class path.",
         "[cyan]data[/cyan]: optional checkpoint path.",
     ]
     if with_proportion:
@@ -61,7 +68,7 @@ def describe_policy_arg(with_proportion: bool):
             "[light_slate_grey]proportion[/light_slate_grey]: optional float specifying the population share."
         )
     subcommand_parts.append("[magenta]kw.<arg>[/magenta]: optional policy __init__ kwarg (string values).")
-    console.print("\n" + "\n".join([f"  - {part}" for part in subcommand_parts]) + "\n")
+    console.print("\n".join([f"  - {part}" for part in subcommand_parts]) + "\n")
 
 
 def _translate_error(e: Exception) -> str:
@@ -116,11 +123,29 @@ def get_policy_specs_with_proportions(
 
 
 def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
-    """Parse a policy CLI option into its components."""
+    """Parse a policy CLI option into its components.
 
+    Supports two formats:
+    - URI: metta://policy/xxx, s3://bucket/path, file:///path, or bare .mpt paths
+    - Key-value: class=CLS[,data=PATH][,proportion=1.0][,kw.x=val]
+    """
     raw = spec.strip()
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
+
+    try:
+        resolved = resolve_uri(raw)
+        if resolved.endswith(".mpt"):
+            base_spec = policy_spec_from_uri(raw)
+            return PolicySpecWithProportion(
+                class_path=base_spec.class_path,
+                init_kwargs=base_spec.init_kwargs,
+                proportion=1.0,
+            )
+    except ValueError:
+        pass
+    except Exception as e:
+        raise ValueError(f"Failed to resolve URI '{raw}': {e}") from e
 
     entries = [part.strip() for part in raw.split(",") if part.strip()]
     if not entries:
