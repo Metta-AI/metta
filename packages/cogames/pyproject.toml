@@ -24,9 +24,6 @@ dependencies = [
 ]
 dynamic = ["version"]
 
-[project.optional-dependencies]
-tribal = ["tribal-village"]
-
 [project.scripts]
 cogames = "cogames.main:app"
 
@@ -57,7 +54,6 @@ source = ["cogames"]
 
 [tool.uv.sources]
 mettagrid = { workspace = true }
-tribal-village = { workspace = true }
 
 [tool.uv]
 cache-keys = [

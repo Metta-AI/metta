@@ -69,6 +69,13 @@ class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
 
         self._action_names = policy_env_info.action_names
         self._num_actions = len(self._action_names)
+        obs_shape = policy_env_info.observation_space.shape
+        if len(obs_shape) == 2:
+            self._num_tokens = obs_shape[0]
+            self._token_dim = obs_shape[1]
+        else:
+            self._num_tokens = None
+            self._token_dim = None
         self._device = next(self._net.parameters()).device
 
     def network(self) -> torch.nn.Module:  # type: ignore[override]
@@ -93,8 +100,17 @@ class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
 
     def step(self, obs: Union[AgentObservation, np.ndarray, torch.Tensor, Sequence[Any]]) -> Action:  # type: ignore[override]
         if isinstance(obs, AgentObservation):
-            obs_shape = self.policy_env_info.observation_space.shape
-            obs_array = np.zeros(obs_shape, dtype=np.float32)
+            if self._num_tokens is not None and self._token_dim is not None:
+                obs_array = np.full((self._num_tokens, self._token_dim), fill_value=255.0, dtype=np.float32)
+                for idx, token in enumerate(obs.tokens):
+                    if idx >= self._num_tokens:
+                        break
+                    raw = np.asarray(token.raw_token, dtype=np.float32)
+                    limit = min(self._token_dim, raw.size)
+                    obs_array[idx, :limit] = raw[:limit]
+            else:
+                # Fallback to zeros with the declared observation shape when token metadata is unavailable
+                obs_array = np.zeros(self.policy_env_info.observation_space.shape, dtype=np.float32)
         else:
             obs_array = np.asarray(obs, dtype=np.float32)
 
