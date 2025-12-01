@@ -135,7 +135,7 @@ Here are the keys supported for both agents and objects:
 - `location` - The [x, y] location of the object (sometimes called the column and row).
 - `orientation` - The rotation of the object.
 
-- `inventory` - The current list of item amounts that map to the `item_names` array. Array of `[itemId, count]` pairs.
+- `inventory` - The current list of item amounts that map to the `item_names` array. Array of `[item_id, count]` pairs.
   Example: `[[0, 2], [1, 1]]`. If `item_names = ["hearts", "bread"]`, then inventory is 2 hearts and 1 bread.
 
   Note: In the replay data, this is represented in the `inventory` field as a time series showing how inventory changes
@@ -165,20 +165,19 @@ Assembler specific keys:
 - `protocols` - Array of protocol objects that define what the assembler can do. Each protocol contains:
   - `minAgents`: Minimum number of agents required to activate this protocol
   - `vibes`: Array of required vibe IDs that agents must have to participate
-  - `inputs`: Array of `[itemId, count]` pairs required as input
-  - `outputs`: Array of `[itemId, count]` pairs produced as output
+  - `inputs`: Array of `[item_id, count]` pairs required as input
+  - `outputs`: Array of `[item_id, count]` pairs produced as output
   - `cooldown`: Number of steps the assembler must wait after using this protocol
-- `currentRecipeId` - Index into the `protocols` array indicating which protocol is currently active.
-- `cooldownRemaining` - Time series of remaining cooldown steps before the assembler can be used again.
-- `cooldownDuration` - Total cooldown time in steps.
-- `isClipped` - Time series boolean indicating if the assembler is clipped (disabled).
-- `isClipImmune` - Time series boolean indicating if the assembler is immune to clipping.
-- `usesCount` - Time series of how many times the assembler has been used.
-- `maxUses` - Maximum number of times the assembler can be used before exhaustion.
-- `allowPartialUsage` - Boolean indicating if partial usage is allowed.
+- `current_recipe_id` - Index into the `protocols` array indicating which protocol is currently active.
+- `cooldown_remaining` - Time series of remaining cooldown steps before the assembler can be used again.
+- `cooldown_duration` - Total cooldown time in steps.
+- `is_clipped` - Time series boolean indicating if the assembler is clipped (disabled).
+- `is_clip_immune` - Time series boolean indicating if the assembler is immune to clipping.
+- `uses_count` - Time series of how many times the assembler has been used.
+- `max_uses` - Maximum number of times the assembler can be used before exhaustion.
+- `allow_partial_usage` - Boolean indicating if partial usage is allowed.
 - `exhaustion` - Time series boolean indicating if the assembler is exhausted.
-- `cooldownMultiplier` - Time series float multiplier applied to cooldown duration.
-
+- `cooldown_multiplier` - Time series float multiplier applied to cooldown duration.
 
 Keys are allowed to be missing. If a key is missing, missing keys are always 0, false, or []. Extra keys are ignored but
 can be used by later implementations. If a time series starts from some other step like 100, then the first 99 steps are
