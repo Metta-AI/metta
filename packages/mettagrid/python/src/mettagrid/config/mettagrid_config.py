@@ -97,7 +97,7 @@ class ActionConfig(Config):
     enabled: bool = Field(default=True)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: dict[str, int] = Field(default_factory=dict)
-    consumed_resources: dict[str, float] = Field(default_factory=dict)
+    consumed_resources: dict[str, int] = Field(default_factory=dict)
 
     def actions(self) -> list[Action]:
         if self.enabled:
