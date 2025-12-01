@@ -14,7 +14,6 @@ import time
 from typing import NamedTuple, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -229,7 +228,7 @@ def _enforce_training_vibes(env: MettaGridConfig) -> None:
         vibe_transfers = getattr(chest, "vibe_transfers", None)
         if isinstance(vibe_transfers, dict):
             new_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
-            setattr(chest, "vibe_transfers", new_transfers)
+            chest.vibe_transfers = new_transfers
 
 
 def make_curriculum(
@@ -343,12 +342,14 @@ def make_curriculum(
                         ]
                     ):
                         import logging
+
                         logging.debug(
                             f"Skipping incompatible mission-variant combination {mission_name}+{variant_name}: {e}"
                         )
                         continue
                     # For map building errors or other unexpected errors
                     import logging
+
                     logging.warning(f"Failed to create mission-variant combination {mission_name}+{variant_name}: {e}")
                     continue
 
@@ -400,10 +401,12 @@ def make_curriculum(
                     ]
                 ):
                     import logging
+
                     logging.debug(f"Skipping incompatible mission {mission_name}: {e}")
                     continue
                 # For map building errors or other unexpected errors
                 import logging
+
                 logging.warning(f"Failed to create mission {mission_name}: {e}")
                 continue
 

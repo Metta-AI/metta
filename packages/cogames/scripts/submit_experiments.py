@@ -1,5 +1,5 @@
-from recipes.experiment.cvc import mission_variant_curriculum
 from cogames.cogs_vs_clips.navigation_missions import NAVIGATION_MISSIONS
+from recipes.experiment.cvc import mission_variant_curriculum
 
 # Missions where S3 policies got reward > 0 (from evaluation results)
 # Based on evaluation results showing environments where S3 policies succeeded
@@ -49,77 +49,83 @@ S3_SUCCESFUL_VARIANTS = [
     "super_charged",
     "tiny_heart_protocols",
     "vibe_check_min_2",
-    "trader"
+    "trader",
 ]
+
 
 def submit_single_mission_experiments():
     for mission in S3_SUCCESFUL_TRAINING_MISSIONS:
         mission_variant_curriculum.experiment(
-        base_missions=[mission],
-        run_name=f"single_mission_experiment_{mission}_standard",
+            base_missions=[mission],
+            run_name=f"single_mission_experiment_{mission}_standard",
+            skip_git_check=True,
+            variants=None,
+        )
+
+
+def submit_all_missions_no_variants():
+    mission_variant_curriculum.experiment(
+        base_missions=S3_SUCCESFUL_TRAINING_MISSIONS,
+        run_name="single_mission_experiment_training_missions_standard",
         skip_git_check=True,
         variants=None,
     )
 
-def submit_all_missions_no_variants():
     mission_variant_curriculum.experiment(
-    base_missions=S3_SUCCESFUL_TRAINING_MISSIONS,
-    run_name=f"single_mission_experiment_training_missions_standard",
-    skip_git_check=True,
-    variants=None,
+        base_missions=S3_SUCCESSFUL_EVAL_MISSIONS,
+        run_name="single_mission_experiment_training_missions_standard",
+        skip_git_check=True,
+        variants=None,
     )
 
     mission_variant_curriculum.experiment(
-    base_missions=S3_SUCCESSFUL_EVAL_MISSIONS,
-    run_name=f"single_mission_experiment_training_missions_standard",
-    skip_git_check=True,
-    variants=None,
+        base_missions=S3_SUCCESFUL_TRAINING_MISSIONS + S3_SUCCESSFUL_EVAL_MISSIONS,
+        run_name="single_mission_experiment_training_missions_standard",
+        skip_git_check=True,
+        variants=None,
     )
 
-    mission_variant_curriculum.experiment(
-    base_missions=S3_SUCCESFUL_TRAINING_MISSIONS +S3_SUCCESSFUL_EVAL_MISSIONS,
-    run_name=f"single_mission_experiment_training_missions_standard",
-    skip_git_check=True,
-    variants=None,
-    )
 
 def submit_all_missions_with_variants():
     mission_variant_curriculum.experiment(
-    base_missions=S3_SUCCESFUL_TRAINING_MISSIONS,
-    run_name=f"single_mission_experiment_training_missions_all_variants",
-    skip_git_check=True,
-    variants=S3_SUCCESFUL_VARIANTS,
+        base_missions=S3_SUCCESFUL_TRAINING_MISSIONS,
+        run_name="single_mission_experiment_training_missions_all_variants",
+        skip_git_check=True,
+        variants=S3_SUCCESFUL_VARIANTS,
     )
 
     mission_variant_curriculum.experiment(
-    base_missions=S3_SUCCESSFUL_EVAL_MISSIONS,
-    run_name=f"single_mission_experiment_training_missions_all_variants",
-    skip_git_check=True,
-    variants=S3_SUCCESFUL_VARIANTS,
+        base_missions=S3_SUCCESSFUL_EVAL_MISSIONS,
+        run_name="single_mission_experiment_training_missions_all_variants",
+        skip_git_check=True,
+        variants=S3_SUCCESFUL_VARIANTS,
     )
 
     mission_variant_curriculum.experiment(
-    base_missions=S3_SUCCESFUL_TRAINING_MISSIONS +S3_SUCCESSFUL_EVAL_MISSIONS,
-    run_name=f"single_mission_experiment_training_missions_all_variants",
-    skip_git_check= True,
-    variants=S3_SUCCESFUL_VARIANTS,
+        base_missions=S3_SUCCESFUL_TRAINING_MISSIONS + S3_SUCCESSFUL_EVAL_MISSIONS,
+        run_name="single_mission_experiment_training_missions_all_variants",
+        skip_git_check=True,
+        variants=S3_SUCCESFUL_VARIANTS,
     )
+
 
 def submit_full_curriculum_experiment_standard():
     mission_variant_curriculum.experiment(
-    base_missions=None,
-    run_name=f"full_curriculum_experiment_standard",
-    skip_git_check=True,
-    variants=None,
+        base_missions=None,
+        run_name="full_curriculum_experiment_standard",
+        skip_git_check=True,
+        variants=None,
     )
+
 
 def submit_full_curriculum_experiment_all_variants():
     mission_variant_curriculum.experiment(
-    base_missions=None,
-    run_name=f"full_curriculum_experiment_all_variants.12.01",
-    skip_git_check=True,
-    variants="all",
+        base_missions=None,
+        run_name="full_curriculum_experiment_all_variants.12.01",
+        skip_git_check=True,
+        variants="all",
     )
+
 
 def submit_full_curriculum_with_navigation():
     """Submit full CVC curriculum + Navigation missions (all variants)."""
@@ -137,6 +143,7 @@ def submit_full_curriculum_with_navigation():
         variants=None,
     )
 
+
 def submit_full_curriculum_with_navigation_with_variants():
     """Submit full CVC curriculum + Navigation missions (all variants)."""
     # None means full curriculum missions
@@ -153,11 +160,11 @@ def submit_full_curriculum_with_navigation_with_variants():
         variants="all",
     )
 
+
 def submit_missions_with_navigation():
     """Submit full CVC curriculum + Navigation missions (all variants)."""
     # None means full curriculum missions
     # We can't easily append to None, so we fetch the full list
-    from recipes.experiment.cvc.mission_variant_curriculum import FULL_CURRICULUM_MISSIONS
 
     nav_mission_names = [m.name for m in NAVIGATION_MISSIONS]
     combined_missions = S3_SUCCESFUL_TRAINING_MISSIONS + S3_SUCCESSFUL_EVAL_MISSIONS + nav_mission_names
@@ -169,11 +176,11 @@ def submit_missions_with_navigation():
         variants=None,
     )
 
+
 def submit_missions_with_navigation_with_variants():
     """Submit full CVC curriculum + Navigation missions (all variants)."""
     # None means full curriculum missions
     # We can't easily append to None, so we fetch the full list
-    from recipes.experiment.cvc.mission_variant_curriculum import FULL_CURRICULUM_MISSIONS
 
     nav_mission_names = [m.name for m in NAVIGATION_MISSIONS]
     combined_missions = S3_SUCCESFUL_TRAINING_MISSIONS + S3_SUCCESSFUL_EVAL_MISSIONS + nav_mission_names
@@ -184,6 +191,7 @@ def submit_missions_with_navigation_with_variants():
         skip_git_check=True,
         variants="all",
     )
+
 
 def submit_s3_successful_missions_experiment():
     """Submit curriculum experiment with only missions where S3 policies got reward, all variants."""

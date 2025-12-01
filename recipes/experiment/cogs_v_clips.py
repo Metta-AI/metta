@@ -17,16 +17,12 @@ from cogames.cli.mission import find_mission, parse_variants
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
-from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
-    DiscreteRandomConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import EvaluatorConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -206,7 +202,7 @@ def make_training_env(
             allowed = set(allowed_vibes)
             # Use setattr to satisfy type checker
             new_transfers = {vibe: transfers for vibe, transfers in vibe_transfers.items() if vibe in allowed}
-            setattr(chest, "vibe_transfers", new_transfers)
+            chest.vibe_transfers = new_transfers
 
     return env
 
@@ -286,7 +282,7 @@ def train(
         )
 
     eval_variants = _resolve_eval_variants(variants, eval_variants)
-    evaluator_cfg = EvaluatorConfig(
+    _evaluator_cfg = EvaluatorConfig(
         simulations=make_eval_suite(
             num_cogs=num_cogs,
             difficulty=eval_difficulty,
