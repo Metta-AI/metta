@@ -446,7 +446,7 @@ class RemoteJob(Job):
         try:
 
             @retry(
-                stop=stop_after_attempt(3),
+                stop=stop_after_attempt(2),
                 wait=wait_exponential_jitter(initial=2.0, max=60.0),
                 reraise=True,
             )

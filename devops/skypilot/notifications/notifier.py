@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from tenacity import retry, stop_after_attempt, wait_exponential_jitter
+from tenacity import Retrying, stop_after_attempt, wait_exponential_jitter
 
 from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.log_config import getRankAwareLogger
@@ -64,17 +64,13 @@ class NotificationBase(ABC):
 
         # Send with retry
         try:
-
-            @retry(
+            for attempt in Retrying(
                 stop=stop_after_attempt(4),
                 wait=wait_exponential_jitter(initial=2.0, max=30.0),
-                reraise=True,
-            )
-            def send_with_retry():
-                self._send(payload)
-
-            send_with_retry()
-            logger.info(f"✅ Successfully sent {self.name} notification")
+            ):
+                with attempt:
+                    self._send(payload)
+            logger.info(f"Successfully sent {self.name} notification")
             return True
         except Exception as e:
             logger.error(f"{self.name} notification failed: {e}", exc_info=True)
