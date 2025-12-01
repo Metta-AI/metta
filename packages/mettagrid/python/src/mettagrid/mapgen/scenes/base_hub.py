@@ -184,7 +184,7 @@ class BaseHub(Scene[BaseHubConfig]):
         grid[1 : h - 1, x0:x1] = "empty"
         grid[y0:y1, 1 : w - 1] = "empty"
 
-        # Place central altar, charger, and chest after carving so they persist
+        # Place central assembler, charger, and chest after carving so they persist
         if 1 <= cx < w - 1 and 1 <= cy < h - 1:
             grid[cy, cx] = cfg.assembler_object
 

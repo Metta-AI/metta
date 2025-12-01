@@ -2421,6 +2421,7 @@ source = { editable = "common" }
 dependencies = [
     { name = "cogames" },
     { name = "rich" },
+    { name = "tenacity" },
     { name = "wandb" },
 ]
 
@@ -2438,6 +2439,7 @@ dev = [
 requires-dist = [
     { name = "cogames", editable = "packages/cogames" },
     { name = "rich", specifier = ">=14.1" },
+    { name = "tenacity", specifier = ">=9.0.0" },
     { name = "wandb", specifier = ">=0.22.3" },
 ]
 

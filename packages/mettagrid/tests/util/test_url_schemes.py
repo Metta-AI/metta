@@ -1,10 +1,9 @@
 import pytest
 
-from mettagrid.util.url_schemes import (
+from mettagrid.util.uri_resolvers.schemes import (
     FileSchemeResolver,
     MockSchemeResolver,
     S3SchemeResolver,
-    get_scheme_resolver,
     parse_uri,
     resolve_uri,
 )
@@ -50,32 +49,6 @@ class TestMockSchemeResolver:
         resolver = MockSchemeResolver()
         with pytest.raises(ValueError, match="must include a path"):
             resolver.parse("mock://")
-
-
-class TestSchemeResolverRegistry:
-    def test_get_file_resolver(self):
-        resolver = get_scheme_resolver("file")
-        assert resolver is not None
-        assert isinstance(resolver, FileSchemeResolver)
-
-    def test_get_s3_resolver(self):
-        resolver = get_scheme_resolver("s3")
-        assert resolver is not None
-        assert isinstance(resolver, S3SchemeResolver)
-
-    def test_get_mock_resolver(self):
-        resolver = get_scheme_resolver("mock")
-        assert resolver is not None
-        assert isinstance(resolver, MockSchemeResolver)
-
-    def test_get_metta_resolver(self):
-        resolver = get_scheme_resolver("metta")
-        assert resolver is not None
-        assert resolver.scheme == "metta"
-
-    def test_unknown_scheme_returns_none(self):
-        resolver = get_scheme_resolver("unknown")
-        assert resolver is None
 
 
 class TestParseUri:

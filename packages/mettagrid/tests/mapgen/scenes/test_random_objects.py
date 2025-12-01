@@ -5,9 +5,9 @@ from mettagrid.test_support.mapgen import render_scene
 
 def test_objects():
     scene = render_scene(
-        RandomObjects.Config(object_ranges={"altar": FloatUniformDistribution(low=0.2, high=0.5)}),
+        RandomObjects.Config(object_ranges={"assembler": FloatUniformDistribution(low=0.2, high=0.5)}),
         (10, 10),
     )
 
-    altar_count = (scene.grid == "altar").sum()
-    assert 0.2 * 100 <= altar_count <= 0.5 * 100
+    assembler_count = (scene.grid == "assembler").sum()
+    assert 0.2 * 100 <= assembler_count <= 0.5 * 100

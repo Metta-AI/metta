@@ -7,8 +7,8 @@ from mettagrid.config.mettagrid_config import (
 wall = WallConfig(name="wall", render_symbol="⬛")
 
 # Assembler building definitions
-assembler_altar = AssemblerConfig(
-    name="altar",
+assembler_assembler = AssemblerConfig(
+    name="assembler",
     render_symbol="🎯",
     protocols=[ProtocolConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10)],
 )

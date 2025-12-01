@@ -41,7 +41,7 @@ class TestBasicPolicyEnvironment:
     def test_basic_environment_creation(self, simple_env_config):
         """Test that we can create environments programmatically."""
         assert simple_env_config.game.num_agents == 2
-        assert "altar" in simple_env_config.game.objects
+        assert "assembler" in simple_env_config.game.objects
         assert simple_env_config.game.actions.move is not None
 
     def test_environment_reset_and_step(self, env_with_config):

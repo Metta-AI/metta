@@ -52,7 +52,7 @@ class TestMazePrimMapBuilder:
         game_map = builder.build()
 
         assert game_map.grid[1, 1] == "agent.agent"  # start position
-        assert game_map.grid[9, 9] == "altar"  # end position
+        assert game_map.grid[9, 9] == "assembler"  # end position
 
     def test_build_odd_dimensions_preserved(self):
         config = MazePrimMapBuilder.Config(width=11, height=13, start_pos=(1, 1), end_pos=(9, 11), seed=42)
@@ -90,7 +90,7 @@ class TestMazePrimMapBuilder:
 
         assert game_map.grid.shape == (5, 5)
         assert game_map.grid[1, 1] == "agent.agent"
-        assert game_map.grid[3, 3] == "altar"
+        assert game_map.grid[3, 3] == "assembler"
 
         # Should have some empty cells (paths)
         unique, counts = np.unique(game_map.grid, return_counts=True)
@@ -118,11 +118,11 @@ class TestMazePrimMapBuilder:
         assert "wall" in count_dict
         assert "empty" in count_dict
         assert "agent.agent" in count_dict
-        assert "altar" in count_dict
+        assert "assembler" in count_dict
 
         # Should have exactly one start and one end
         assert count_dict["agent.agent"] == 1
-        assert count_dict["altar"] == 1
+        assert count_dict["assembler"] == 1
 
 
 class TestMazeKruskalMapBuilder:
@@ -156,7 +156,7 @@ class TestMazeKruskalMapBuilder:
         game_map = builder.build()
 
         assert game_map.grid[1, 1] == "agent.agent"  # start position
-        assert game_map.grid[9, 9] == "altar"  # end position
+        assert game_map.grid[9, 9] == "assembler"  # end position
 
     def test_build_odd_dimensions_preserved(self):
         config = MazeKruskalMapBuilder.Config(width=11, height=13, start_pos=(1, 1), end_pos=(9, 11), seed=42)
@@ -194,7 +194,7 @@ class TestMazeKruskalMapBuilder:
 
         assert game_map.grid.shape == (5, 5)
         assert game_map.grid[1, 1] == "agent.agent"
-        assert game_map.grid[3, 3] == "altar"
+        assert game_map.grid[3, 3] == "assembler"
 
     def test_build_returns_game_map(self):
         config = MazeKruskalMapBuilder.Config(width=7, height=7, start_pos=(1, 1), end_pos=(5, 5), seed=42)
@@ -217,11 +217,11 @@ class TestMazeKruskalMapBuilder:
         assert "wall" in count_dict
         assert "empty" in count_dict
         assert "agent.agent" in count_dict
-        assert "altar" in count_dict
+        assert "assembler" in count_dict
 
         # Should have exactly one start and one end
         assert count_dict["agent.agent"] == 1
-        assert count_dict["altar"] == 1
+        assert count_dict["assembler"] == 1
 
     def test_union_find_algorithm_integrity(self):
         """Test that Kruskal's algorithm produces a proper maze (connected)"""
@@ -236,10 +236,10 @@ class TestMazeKruskalMapBuilder:
 
         empty_count = count_dict.get("empty", 0)
         agent_count = count_dict.get("agent.agent", 0)
-        altar_count = count_dict.get("altar", 0)
+        assembler_count = count_dict.get("assembler", 0)
 
         # Should have paths connecting all cells
-        total_path_cells = empty_count + agent_count + altar_count
+        total_path_cells = empty_count + agent_count + assembler_count
         assert total_path_cells > 0
 
 
@@ -266,8 +266,8 @@ class TestMazeAlgorithmComparison:
         # Both should have start and end positions
         assert prim_map.grid[1, 1] == "agent.agent"
         assert kruskal_map.grid[1, 1] == "agent.agent"
-        assert prim_map.grid[9, 9] == "altar"
-        assert kruskal_map.grid[9, 9] == "altar"
+        assert prim_map.grid[9, 9] == "assembler"
+        assert kruskal_map.grid[9, 9] == "assembler"
 
         # Both should have similar structure (walls and paths)
         prim_unique, prim_counts = np.unique(prim_map.grid, return_counts=True)

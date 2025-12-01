@@ -29,6 +29,10 @@ Many things you do drain your charge. Fortunately, the team has several ways to 
 - Energy can be shared with team mates. Docking with a team mate while vibing Energy will transfer **20** energy to
   them.
 
+<p align="middle">
+<img src="assets/charger.png" alt="Charger">
+<br>
+
 #### Cargo Limits
 
 Your chassis has limited capacity for:
@@ -95,9 +99,17 @@ The exact behavior of each extractor may vary across missions. Here are some typ
 | Silicon Extractor   | +15 silicon                 | 10       | Difficult to extract. Takes 20 energy.                        |
 | Solar Array         | +50 energy                  |          | Recharges over 10 turns. Partial usage allowed.               |
 
+<p align="middle">
+<img src="assets/extractor.png" alt="Resource extractors">
+<br>
+
 ### Station Type: Assembler
 
 Assemblers converts raw resources into gear and precious HEART units.
+
+<p align="middle">
+<img src="assets/assembler.png" alt="HEART assembler">
+<br>
 
 #### Assembler Interaction Protocol
 

@@ -34,22 +34,34 @@ class CvCWallConfig(CvCStationConfig):
 class ExtractorConfig(CvCStationConfig):
     """Base class for all extractor configs."""
 
-    efficiency: int = Field(default=100)
+    # How much this extractor produces relative to its default.
+    # Efficiency outside of this range won't technically break things, but they'll be far enough from the
+    # expectations that we don't want to go beyond them without some thought.
+    efficiency: int = Field(ge=20, le=500, default=100)
+    # How much additional agents increase production.
+    # Scaled so 0 means none and 100 means some version of "twice as much".
+    synergy: int = Field(default=0)
+    max_uses: int = Field()
 
 
 class ChargerConfig(ExtractorConfig):
+    max_uses: int = 0  # unlimited uses
+
     def station_cfg(self) -> AssemblerConfig:
+        output = 50 * self.efficiency // 100
         return AssemblerConfig(
             name="charger",
             render_symbol=vibes.VIBE_BY_NAME["charger"].symbol,
             # Protocols
             allow_partial_usage=True,  # can use it while its on cooldown
-            max_uses=0,  # unlimited uses
+            max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
-                    output_resources={"energy": 50 * self.efficiency // 100},
+                    min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
+                    output_resources={"energy": output * (100 + additional_agents * self.synergy) // 100},
                     cooldown=10,
                 )
+                for additional_agents in range(4)
             ],
             # Clipping
             start_clipped=self.start_clipped,
@@ -62,15 +74,18 @@ class CarbonExtractorConfig(ExtractorConfig):
     max_uses: int = Field(default=25)
 
     def station_cfg(self) -> AssemblerConfig:
+        output = 2 * self.efficiency // 100
         return AssemblerConfig(
             name="carbon_extractor",
             render_symbol=vibes.VIBE_BY_NAME["carbon_a"].symbol,
             max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
-                    output_resources={"carbon": 2 * self.efficiency // 100},
+                    min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
+                    output_resources={"carbon": output * (100 + additional_agents * self.synergy) // 100},
                     cooldown=0,
                 )
+                for additional_agents in range(4)
             ],
             # Clipping
             start_clipped=self.start_clipped,
@@ -83,6 +98,8 @@ class OxygenExtractorConfig(ExtractorConfig):
     max_uses: int = Field(default=5)
 
     def station_cfg(self) -> AssemblerConfig:
+        # efficiency impacts cooldown, not output
+        output = 10
         return AssemblerConfig(
             name="oxygen_extractor",
             render_symbol=vibes.VIBE_BY_NAME["oxygen_a"].symbol,
@@ -90,9 +107,11 @@ class OxygenExtractorConfig(ExtractorConfig):
             allow_partial_usage=True,  # can use it while its on cooldown
             protocols=[
                 ProtocolConfig(
-                    output_resources={"oxygen": 10},
+                    min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
+                    output_resources={"oxygen": output * (100 + additional_agents * self.synergy) // 100},
                     cooldown=int(10_000 / self.efficiency),
                 )
+                for additional_agents in range(4)
             ],
             # Clipping
             start_clipped=self.start_clipped,
@@ -100,25 +119,23 @@ class OxygenExtractorConfig(ExtractorConfig):
         )
 
 
-# Rare and doesn't regenerate. But more cogs increase efficiency.
+# Rare regenerates slowly. More cogs increase the amount extracted.
 class GermaniumExtractorConfig(ExtractorConfig):
-    # How much one agent gets.
-    efficiency: int = 2
-    # How much each additional agent gets.
-    synergy: int = 1
+    max_uses: int = Field(default=5)
+    synergy: int = 50
 
     def station_cfg(self) -> AssemblerConfig:
+        # efficiency impacts cooldown, not output
+        output = 2
         return AssemblerConfig(
             name="germanium_extractor",
             render_symbol=vibes.VIBE_BY_NAME["germanium_a"].symbol,
-            # Germanium is inherently a single use resource.
-            max_uses=1,
+            max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
-                    # For the 1 agent protocol, we set min_agents to zero so it's visible when no
-                    # agents are adjacent to the extractor.
                     min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
-                    output_resources={"germanium": self.efficiency + additional_agents * self.synergy},
+                    output_resources={"germanium": output * (100 + additional_agents * self.synergy) // 100},
+                    cooldown=int(20_000 / self.efficiency),
                 )
                 for additional_agents in range(4)
             ],
@@ -133,15 +150,18 @@ class SiliconExtractorConfig(ExtractorConfig):
     max_uses: int = Field(default=10)
 
     def station_cfg(self) -> AssemblerConfig:
+        output = 15 * self.efficiency // 100
         return AssemblerConfig(
             name="silicon_extractor",
             render_symbol=vibes.VIBE_BY_NAME["silicon_a"].symbol,
             max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
+                    min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
                     input_resources={"energy": 20},
-                    output_resources={"silicon": max(1, int(15 * self.efficiency // 100))},
+                    output_resources={"silicon": output * (100 + additional_agents * self.synergy) // 100},
                 )
+                for additional_agents in range(4)
             ],
             # Clipping
             start_clipped=self.start_clipped,

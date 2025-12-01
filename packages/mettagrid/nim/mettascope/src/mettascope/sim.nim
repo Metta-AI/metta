@@ -11,7 +11,7 @@ const
   # MapRoomHeight* = 100
   # MapRoomBorder* = 0
   # MapRoomObjectsAgents* = 70
-  # MapRoomObjectsAltars* = 50
+  # MapRoomObjectsassemblers* = 50
   # MapRoomObjectsConverters* = 100
   # MapRoomObjectsGenerators* = 100
   # MapRoomObjectsWalls* = 400
@@ -23,7 +23,7 @@ const
   MapRoomHeight* = 40
   MapRoomBorder* = 0
   MapRoomObjectsAgents* = 10
-  MapRoomObjectsAltars* = 10
+  MapRoomObjectsassemblers* = 10
   MapRoomObjectsConverters* = 10
   MapRoomObjectsGenerators* = 10
   MapRoomObjectsWalls* = 40
@@ -41,9 +41,9 @@ const
   MapObjectAgentAttackDamage* = 10
   MapObjectAgentAttackCost* = 5
 
-  MapObjectAltarHp* = 30
-  MapObjectAltarCooldown* = 10
-  MapObjectAltarUseCost* = 100
+  MapObjectassemblerHp* = 30
+  MapObjectassemblerCooldown* = 10
+  MapObjectassemblerUseCost* = 100
 
   MapObjectConverterHp* = 30
   MapObjectConverterCooldown* = 2
@@ -93,9 +93,9 @@ type
     ConverterOutputResourceLayer = 18
     ConverterOutputEnergyLayer = 19
     ConverterReadyLayer = 20
-    AltarLayer = 21
-    AltarHpLayer = 22
-    AltarReadyLayer = 23
+    assemblerLayer = 21
+    assemblerHpLayer = 22
+    assemblerReadyLayer = 23
 
   Orientation* = enum
     N # Up, Key W
@@ -108,7 +108,7 @@ type
     Wall
     Generator
     Converter
-    Altar
+    assembler
 
   Thing* = ref object
     kind*: ThingKind
@@ -136,7 +136,7 @@ type
     actionInvalid*: int
     actionAttack*: int
     actionAttackAgent*: int
-    actionAttackAltar*: int
+    actionAttackassembler*: int
     actionAttackConverter*: int
     actionAttackGenerator*: int
     actionAttackWall*: int
@@ -148,7 +148,7 @@ type
     actionUse*: int
     actionUseGenerator*: int
     actionUseConverter*: int
-    actionUseAltar*: int
+    actionUseassembler*: int
 
   Environment* = ref object
     currentStep*: int
@@ -182,7 +182,7 @@ proc render*(env: Environment): string =
             cell = "g"
           of Converter:
             cell = "c"
-          of Altar:
+          of assembler:
             cell = "a"
           break
       result.add(cell)
@@ -212,9 +212,9 @@ proc renderObservations*(env: Environment): string =
     "converter:output_resource",
     "converter:output_energy",
     "converter:ready",
-    "altar",
-    "altar:hp",
-    "altar:ready",
+    "assembler",
+    "assembler:hp",
+    "assembler:ready",
   ]
   for id, obs in env.observations:
     result.add "Agent: " & $id & "\n"
@@ -311,12 +311,12 @@ proc updateObservations(env: Environment, agentId: int) =
         # converter:ready
         obs[20][x][y] = (thing.cooldown == 0).uint8
 
-      of Altar:
-        # altar
+      of assembler:
+        # assembler
         obs[21][x][y] = 1
-        # altar:hp
+        # assembler:hp
         obs[22][x][y] = thing.hp.uint8
-        # altar:ready
+        # assembler:ready
         obs[23][x][y] = (thing.cooldown == 0).uint8
 
 proc updateObservations(
@@ -454,14 +454,14 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
     inc env.stats[id].actionInvalid
   of Agent:
     inc env.stats[id].actionInvalid
-  of Altar:
-    if thing.cooldown == 0 and agent.energy >= MapObjectAltarUseCost:
+  of assembler:
+    if thing.cooldown == 0 and agent.energy >= MapObjectassemblerUseCost:
       agent.reward += 1
-      agent.energy -= MapObjectAltarUseCost
+      agent.energy -= MapObjectassemblerUseCost
       env.updateObservations(AgentEnergyLayer, agent.pos, agent.energy)
-      thing.cooldown = MapObjectAltarCooldown
-      env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
-      inc env.stats[id].actionUseAltar
+      thing.cooldown = MapObjectassemblerCooldown
+      env.updateObservations(assemblerReadyLayer, thing.pos, thing.cooldown)
+      inc env.stats[id].actionUseassembler
       inc env.stats[id].actionUse
   of Generator:
     if thing.cooldown == 0 and agent.energy >= MapObjectGeneratorUseCost:
@@ -512,8 +512,8 @@ proc attackAction*(env: Environment, id: int, agent: Thing, argument: int) =
     if target.hp <= 0:
       env.things.del(env.things.find(target))
       env.grid[target.pos.x][target.pos.y] = nil
-    if target.kind == Altar:
-      inc env.stats[id].actionAttackAltar
+    if target.kind == assembler:
+      inc env.stats[id].actionAttackassembler
     elif target.kind == Converter:
       inc env.stats[id].actionAttackConverter
     elif target.kind == Generator:
@@ -621,12 +621,12 @@ proc init(env: Environment) =
       energy: MapObjectAgentInitialEnergy,
     ))
 
-  for i in 0 ..< MapRoomObjectsAltars:
+  for i in 0 ..< MapRoomObjectsassemblers:
     let pos = r.randomEmptyPos(env)
     env.add(Thing(
-      kind: Altar,
+      kind: assembler,
       pos: pos,
-      hp: MapObjectAltarHp,
+      hp: MapObjectassemblerHp,
     ))
 
   for i in 0 ..< MapRoomObjectsConverters:
@@ -697,12 +697,12 @@ proc loadMap*(env: Environment, map: string) =
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
         hp: MapObjectConverterHp,
       ))
-    of Altar:
+    of assembler:
       env.add(Thing(
         kind: kind,
         id: id,
         pos: ivec2(parts[2].parseInt, parts[3].parseInt),
-        hp: MapObjectAltarHp,
+        hp: MapObjectassemblerHp,
       ))
 
   for agentId in 0 ..< MapAgents:
@@ -744,10 +744,10 @@ proc nextStep*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]])
 
   # Update objects
   for thing in env.things:
-    if thing.kind == Altar:
+    if thing.kind == assembler:
       if thing.cooldown > 0:
         thing.cooldown -= 1
-        env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
+        env.updateObservations(assemblerReadyLayer, thing.pos, thing.cooldown)
     elif thing.kind == Converter:
       if thing.cooldown > 0:
         thing.cooldown -= 1
@@ -814,7 +814,7 @@ proc getEpisodeStats*(env: Environment): string =
   display "action.invalid", actionInvalid
   display "action.attack", actionAttack
   display "action.attack.agent", actionAttackAgent
-  display "action.attack.altar", actionAttackAltar
+  display "action.attack.assembler", actionAttackassembler
   display "action.attack.converter", actionAttackConverter
   display "action.attack.generator", actionAttackGenerator
   display "action.attack.wall", actionAttackWall
@@ -824,7 +824,7 @@ proc getEpisodeStats*(env: Environment): string =
   display "action.shield", actionShield
   display "action.swap", actionSwap
   display "action.use", actionUse
-  display "action.use.altar", actionUseAltar
+  display "action.use.assembler", actionUseassembler
   display "action.use.converter", actionUseConverter
   display "action.use.generator", actionUseGenerator
 

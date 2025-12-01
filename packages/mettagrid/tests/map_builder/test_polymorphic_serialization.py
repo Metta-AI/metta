@@ -21,7 +21,7 @@ def test_random_config_serialization():
         width=20,
         height=30,
         seed=42,
-        objects={"wall": 5, "altar": 1},
+        objects={"wall": 5, "assembler": 1},
         agents=2,
         border_width=1,
         border_object="wall",
@@ -45,7 +45,7 @@ def test_random_config_serialization():
     assert deserialized.width == 20
     assert deserialized.height == 30
     assert deserialized.seed == 42
-    assert deserialized.objects == {"wall": 5, "altar": 1}
+    assert deserialized.objects == {"wall": 5, "assembler": 1}
 
 
 def test_default_values_serialization():

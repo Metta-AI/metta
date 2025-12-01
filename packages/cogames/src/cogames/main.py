@@ -60,8 +60,13 @@ from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator import Simulator
 
-# Always add current directory to Python path
+# Always add current directory to Python path so optional plugins in the repo are discoverable.
 sys.path.insert(0, ".")
+
+try:  # Optional plugin
+    from tribal_village_env.cogames import register_cli as register_tribal_cli
+except ImportError:  # pragma: no cover - plugin optional
+    register_tribal_cli = None
 
 
 logger = logging.getLogger("cogames.main")
@@ -96,6 +101,9 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
     callback=lambda: discover_and_register_policies("cogames.policy"),
 )
+
+if register_tribal_cli is not None:
+    register_tribal_cli(app)
 
 
 @app.command(name="tutorial", help="Print instructions on how to play CvC and runs cogames play --mission tutorial")

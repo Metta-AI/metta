@@ -18,7 +18,7 @@ LEGEND = {
     ".": "empty",
     "m": "mine_red",
     "n": "generator_red",
-    "_": "altar",
+    "_": "assembler",
     "@": "agent.agent",
 }
 
@@ -37,7 +37,7 @@ def test_serializes_map_from_yaml_string():
           ".": empty
           "m": mine_red
           "n": generator_red
-          "_": altar
+          "_": assembler
           "@": agent.agent
         """
     )

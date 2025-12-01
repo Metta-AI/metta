@@ -50,7 +50,7 @@ class TestAsciiMapBuilder:
         "#": "wall",
         "@": "agent.agent",
         ".": "empty",
-        "_": "altar",
+        "_": "assembler",
         "p": "agent.prey",
         "P": "agent.predator",
     }
@@ -101,7 +101,7 @@ class TestAsciiMapBuilder:
             expected = np.array(
                 [
                     ["wall", "wall", "wall", "wall", "wall"],
-                    ["wall", "agent.agent", "empty", "altar", "wall"],
+                    ["wall", "agent.agent", "empty", "assembler", "wall"],
                     ["wall", "agent.prey", "empty", "agent.predator", "wall"],
                     ["wall", "wall", "wall", "wall", "wall"],
                 ],

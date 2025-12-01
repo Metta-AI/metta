@@ -44,6 +44,10 @@ uv run --project packages/tribal_village tribal-village play --render ansi --ste
 nimble buildLib  # Builds in danger mode for maximum performance
 # Launch a quick sanity check (works from any directory once installed)
 python -c "from tribal_village_env import TribalVillageEnv; env = TribalVillageEnv()"
+
+# Run CoGames trainer without installing globally (uses local checkout)
+uv run --project packages/cogames --with ./packages/tribal_village \
+  cogames train-tribal -p class=tribal --steps 1000000 --parallel-envs 8 --num-workers 4 --log-outputs
 ```
 
 > Prefer avoiding a global editable install? Use `uv run --project packages/tribal_village python -c "..."` to execute
@@ -57,7 +61,7 @@ The Python environment accepts a config dictionary to customize the Nim simulati
 config = {
     'max_steps': 1000,          # Episode length
     'ore_per_battery': 1,       # Ore needed to craft battery
-    'batteries_per_heart': 1,   # Batteries needed for heart at altar
+    'batteries_per_heart': 1,   # Batteries needed for heart at assembler
     'enable_combat': True,      # Enable tumor spawning and combat
     'tumor_spawn_rate': 0.1,   # Tumor spawn frequency (lower = slower spawns)
     'tumor_damage': 1,         # Damage tumors deal to agents
@@ -104,7 +108,7 @@ for diagonal **Actions**: U (use/craft), P (special action) **Global**: Space (p
 
 - **Layer 0**: Team-aware agent presence (1=team0, 2=team1, 3=team2, 255=Tumor)
 - **Layers 1-9**: Agent orientation + inventories (ore, battery, water, wheat, wood, spear, lantern, armor)
-- **Layers 10-18**: Buildings (walls, mines, converters, altars) + status
+- **Layers 10-18**: Buildings (walls, mines, converters, assemblers) + status
 - **Layers 19-20**: Environmental effects + bread inventory
 
 ### Action Space

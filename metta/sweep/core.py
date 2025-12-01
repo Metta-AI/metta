@@ -223,6 +223,7 @@ def make_sweep(
     num_parallel_trials: int = 1,
     train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
+    cost_key: Optional[str] = None,
     # Catch all for un-exposed tool overrides.
     # See SweepTool definition for details.
     **advanced,
@@ -239,6 +240,9 @@ def make_sweep(
             num_parallel_trials: Max parallel jobs
             train_overrides: Optional overrides for training configuration
             eval_overrides: Optional overrides for evaluation configuration
+            cost_key: Optional metric path to extract cost from run summary.
+                If provided, the cost will be read from summary[cost_key].
+                If not provided, defaults to run.cost (which is 0 if not set).
             **advanced: Additional SweepTool options
 
         Protein config args:
@@ -287,6 +291,7 @@ def make_sweep(
         scheduler_type=scheduler_type,
         train_overrides=train_overrides or {},
         eval_overrides=eval_overrides or {},
+        cost_key=cost_key,
         **scheduler_config,
         **advanced,
     )

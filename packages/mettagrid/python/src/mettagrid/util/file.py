@@ -13,7 +13,8 @@ from urllib.parse import urlparse
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 
-from mettagrid.util.url_schemes import ParsedScheme, parse_uri
+from mettagrid.util.uri_resolvers.base import ParsedScheme
+from mettagrid.util.uri_resolvers.schemes import parse_uri
 
 logger = logging.getLogger(__name__)
 

@@ -4,11 +4,11 @@ from mettagrid.test_support.mapgen import render_scene
 
 def test_objects():
     scene = render_scene(
-        Random.Config(objects={"altar": 3, "temple": 2}),
+        Random.Config(objects={"assembler": 3, "temple": 2}),
         (3, 3),
     )
 
-    assert (scene.grid == "altar").sum() == 3
+    assert (scene.grid == "assembler").sum() == 3
     assert (scene.grid == "temple").sum() == 2
 
 

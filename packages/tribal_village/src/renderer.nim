@@ -22,7 +22,7 @@ proc isInfected*(pos: IVec2): bool =
 proc getInfectionSprite*(entityType: string): string =
   ## Get the appropriate infection overlay sprite for static environmental objects only
   case entityType:
-  of "building", "mine", "converter", "altar", "armory", "forge", "clay_oven", "weaving_loom":
+  of "building", "mine", "converter", "assembler", "armory", "forge", "clay_oven", "weaving_loom":
     return "agents/frozen"  # Ice cube overlay for static buildings
   of "terrain", "wheat", "tree":
     return "agents/frozen"  # Ice cube overlay for terrain features (walls excluded)
@@ -56,13 +56,13 @@ proc drawFloor*() =
   # Draw the floor tiles everywhere first as the base layer
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
- 
+
       let tileColor = env.tileColors[x][y]
-      
+
       let finalR = min(tileColor.r * tileColor.intensity, 1.5)
       let finalG = min(tileColor.g * tileColor.intensity, 1.5)
       let finalB = min(tileColor.b * tileColor.intensity, 1.5)
-      
+
       if env.terrain[x][y] == Water:
         let waterBlend = 0.7  # How much water color to keep
         let r = finalR * (1.0 - waterBlend) + 0.3 * waterBlend
@@ -78,7 +78,7 @@ proc drawTerrain*() =
       let pos = ivec2(x, y)
       let infectionLevel = getInfectionLevel(pos)
       let infected = infectionLevel >= 1.0
-      
+
       case env.terrain[x][y]
       of Wheat:
         bxy.drawImage("objects/wheat_field", pos.vec2, angle = 0, scale = 1/200)
@@ -102,10 +102,10 @@ proc generateWallSprites(): seq[string] =
   for i in 0 .. 15:
     var suffix = ""
     if (i and 8) != 0: suffix.add("n")
-    if (i and 4) != 0: suffix.add("w")  
+    if (i and 4) != 0: suffix.add("w")
     if (i and 2) != 0: suffix.add("s")
     if (i and 1) != 0: suffix.add("e")
-    
+
     if suffix.len > 0:
       result[i] = "objects/wall." & suffix
     else:
@@ -148,17 +148,17 @@ proc drawWalls*() =
               hasWall(x - 1, y + 1) and
               hasWall(x + 1, y - 1):
             continue
-        
+
         let brightness = 0.3  # Fixed wall brightness
         let wallTint = color(brightness, brightness, brightness, 1.0)
-        
-        bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32), 
+
+        bxy.drawImage(wallSprites[tile], vec2(x.float32, y.float32),
                      angle = 0, scale = 1/200, tint = wallTint)
 
   for fillPos in wallFills:
     let brightness = 0.3  # Fixed wall fill brightness
     let fillTint = color(brightness, brightness, brightness, 1.0)
-    bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3), 
+    bxy.drawImage("objects/wall.fill", fillPos.vec2 + vec2(0.5, 0.3),
                   angle = 0, scale = 1/200, tint = fillTint)
 
 proc drawObjects*() =
@@ -169,7 +169,7 @@ proc drawObjects*() =
         let pos = ivec2(x, y)
         let infectionLevel = getInfectionLevel(pos)
         let infected = infectionLevel >= 1.0
-        
+
         case thing.kind
         of Wall:
           discard
@@ -184,7 +184,7 @@ proc drawObjects*() =
             of NE: "agents/agent.e"  # Use east sprite for NE
             of SW: "agents/agent.w"  # Use west sprite for SW
             of SE: "agents/agent.e"  # Use east sprite for SE
-          
+
           # Draw agent sprite with normal coloring (no infection overlay for agents)
           bxy.drawImage(
             agentImage,
@@ -193,22 +193,22 @@ proc drawObjects*() =
             scale = 1/200,
             tint = generateEntityColor("agent", agent.agentId)
           )
-        
-        of Altar:
-          let baseImage = "objects/altar"
+
+        of assembler:
+          let baseImage = "objects/assembler"
           bxy.drawImage(
             baseImage,
             pos.vec2,
             angle = 0,
             scale = 1/200,
-            tint = getAltarColor(pos)
+            tint = getassemblerColor(pos)
           )
           if infected:
             # Add infection overlay sprite
-            let overlaySprite = getInfectionSprite("altar")
+            let overlaySprite = getInfectionSprite("assembler")
             if overlaySprite != "":
               bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
-        
+
         of Converter:
           let baseImage = "objects/converter"
           bxy.drawImage(baseImage, pos.vec2, angle = 0, scale = 1/200)
@@ -217,7 +217,7 @@ proc drawObjects*() =
             let overlaySprite = getInfectionSprite("converter")
             if overlaySprite != "":
               bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
-        
+
         of Mine, Spawner:
           let imageName = if thing.kind == Mine: "objects/mine" else: "objects/spawner"
           bxy.drawImage(imageName, pos.vec2, angle = 0, scale = 1/200)
@@ -226,7 +226,7 @@ proc drawObjects*() =
             let overlaySprite = getInfectionSprite("mine")
             if overlaySprite != "":
               bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
-        
+
         of Tumor:
           # Map diagonal orientations to cardinal sprites
           let spriteDir = case thing.orientation:
@@ -242,7 +242,7 @@ proc drawObjects*() =
 
           # Tumors draw directly with tint variations baked into the sprite
           bxy.drawImage(baseImage, pos.vec2, angle = 0, scale = 1/200)
-        
+
         of Armory, Forge, ClayOven, WeavingLoom:
           let imageName = case thing.kind:
             of Armory: "objects/armory"
@@ -250,20 +250,20 @@ proc drawObjects*() =
             of ClayOven: "objects/clay_oven"
             of WeavingLoom: "objects/weaving_loom"
             else: ""
-          
+
           bxy.drawImage(imageName, pos.vec2, angle = 0, scale = 1/200)
           if infected:
             # Add infection overlay sprite
             let overlayType = case thing.kind:
               of Armory: "armory"
-              of Forge: "forge" 
+              of Forge: "forge"
               of ClayOven: "clay_oven"
               of WeavingLoom: "weaving_loom"
               else: "building"
             let overlaySprite = getInfectionSprite(overlayType)
             if overlaySprite != "":
               bxy.drawImage(overlaySprite, pos.vec2, angle = 0, scale = 1/200)
-        
+
         of PlantedLantern:
           # Draw lantern using a simple image with team color tint
           let lantern = thing
@@ -351,4 +351,4 @@ proc drawSelection*() =
       scale = 1/200
     )
 
- 
+

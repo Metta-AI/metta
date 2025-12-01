@@ -26,7 +26,6 @@ public:
   // however, this should not be relied on for correctness.
   std::unordered_map<std::string, RewardType> stat_rewards;
   std::unordered_map<std::string, RewardType> stat_reward_max;
-  float action_failure_penalty;
   std::string group_name;
   // We expect only a small number (single-digit) of soul-bound resources.
   std::vector<InventoryItem> soul_bound_resources;

@@ -161,7 +161,7 @@ proc tribal_village_render_rgb(
               rByte = 0'u8
               gByte = 200'u8
               bByte = 200'u8
-            of Altar:
+            of assembler:
               rByte = 220'u8
               gByte = 0'u8
               bByte = 220'u8

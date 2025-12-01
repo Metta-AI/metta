@@ -127,7 +127,7 @@ mcp_servers/pr_similarity/cache/
 recipe_test_jobs.json
 cluster_test_jobs.json
 
-# MetaScope
+# MettaScope
 packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
 mettascope.out

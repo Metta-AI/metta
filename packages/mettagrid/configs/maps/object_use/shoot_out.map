@@ -17,4 +17,4 @@ char_to_map_name:
   ".": empty
   "S": lasery
   "@": agent.agent
-  "_": altar
+  "_": assembler

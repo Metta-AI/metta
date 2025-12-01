@@ -57,7 +57,7 @@ class TerrainFromNumpyConfig(MapBuilderConfig["TerrainFromNumpy"], WithMaxRetrie
     agents: int | dict[str, int] = Field(default=0, ge=0)
     dir: str
     file: Optional[str] = None
-    remove_altars: bool = False
+    remove_assemblers: bool = False
     rng: random.Random = Field(default_factory=random.Random, exclude=True)
 
 
@@ -119,7 +119,7 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
 
     def clean_grid(self, grid: MapGrid, assemblers=True):
         grid[grid == "agent.agent"] = "empty"
-        if self.config.remove_altars:
+        if self.config.remove_assemblers:
             grid[grid == "altar"] = "empty"
 
         # Prepare agent labels
@@ -165,6 +165,8 @@ class NavigationFromNumpy(TerrainFromNumpy):
             for pos in positions:
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
+
+        grid[grid == "altar"] = "assembler"
 
         return GameMap(grid=grid)
 

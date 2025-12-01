@@ -22,7 +22,7 @@ class TestRandomMapBuilderConfig:
 
 class TestRandomMapBuilder:
     def test_build_deterministic_with_seed(self):
-        objects = {"wall": 3, "altar": 2}
+        objects = {"wall": 3, "assembler": 2}
         config = RandomMapBuilder.Config(width=4, height=4, objects=objects, agents=1, seed=42)
         builder = config.create()
         map1 = builder.build()
@@ -34,7 +34,7 @@ class TestRandomMapBuilder:
         assert np.array_equal(map1.grid, map2.grid)
 
     def test_build_different_seeds_different_results(self):
-        objects = {"wall": 3, "altar": 2}
+        objects = {"wall": 3, "assembler": 2}
         config1 = RandomMapBuilder.Config(width=4, height=4, objects=objects, agents=1, seed=42)
         config2 = RandomMapBuilder.Config(width=4, height=4, objects=objects, agents=1, seed=123)
 
@@ -47,7 +47,7 @@ class TestRandomMapBuilder:
         assert not np.array_equal(map1.grid, map2.grid)
 
     def test_build_correct_object_counts(self):
-        objects = {"wall": 3, "altar": 2}
+        objects = {"wall": 3, "assembler": 2}
         config = RandomMapBuilder.Config(width=5, height=3, objects=objects, agents=1, seed=42)
         builder = config.create()
         game_map = builder.build()
@@ -57,7 +57,7 @@ class TestRandomMapBuilder:
         count_dict = dict(zip(unique, counts, strict=False))
 
         assert count_dict.get("wall", 0) == 3
-        assert count_dict.get("altar", 0) == 2
+        assert count_dict.get("assembler", 0) == 2
         assert count_dict.get("agent.agent", 0) == 1
         # Remaining should be empty
         total_objects = 3 + 2 + 1
@@ -90,7 +90,7 @@ class TestRandomMapBuilder:
 
     def test_build_too_many_objects_halving(self):
         # Create scenario where objects exceed 2/3 of area
-        objects = {"wall": 10, "altar": 10}  # 20 objects
+        objects = {"wall": 10, "assembler": 10}  # 20 objects
         config = RandomMapBuilder.Config(
             width=5,
             height=5,
@@ -173,7 +173,7 @@ class TestRandomMapBuilder:
 
     def test_build_large_map_performance(self):
         """Test that large maps can be built without performance issues"""
-        objects = {"wall": 50, "altar": 20}
+        objects = {"wall": 50, "assembler": 20}
         config = RandomMapBuilder.Config(width=50, height=50, objects=objects, agents=10, seed=42)
         builder = config.create()
 

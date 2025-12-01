@@ -6,8 +6,15 @@ from typing import Optional
 
 import typer
 from rich.console import Console
+
 from tribal_village_env.build import ensure_nim_library_current
 from tribal_village_env.environment import TribalVillageEnv
+
+# Optional CoGames training integration
+try:
+    from tribal_village_env.cogames.cli import attach_train_command
+except ImportError:  # CoGames not installed; CLI should still work for play mode
+    attach_train_command = None  # type: ignore[assignment]
 
 app = typer.Typer(
     help="CLI for playing Tribal Village",
@@ -17,6 +24,10 @@ app = typer.Typer(
     add_completion=False,
 )
 console = Console()
+
+# Attempt to register the PufferLib trainer if CoGames is installed locally.
+if attach_train_command is not None:
+    attach_train_command(app, command_name="train", require_cogames=False, console_fallback=console)
 
 
 def _project_root() -> Path:

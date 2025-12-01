@@ -107,7 +107,7 @@ ASSEMBLER_TYPES = {
     "mine_red": empty_assemblers.mine_red,
     "mine_blue": empty_assemblers.mine_blue,
     "mine_green": empty_assemblers.mine_green,
-    "altar": empty_assemblers.altar,
+    "assembler": empty_assemblers.assembler,
     "factory": empty_assemblers.factory,
     "temple": empty_assemblers.temple,
     "armory": empty_assemblers.armory,

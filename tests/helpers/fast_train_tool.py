@@ -18,7 +18,7 @@ from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.policy.mpt_artifact import save_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.url_schemes import checkpoint_filename
+from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
 
 class DummyPolicyArchitecture(PolicyArchitecture):

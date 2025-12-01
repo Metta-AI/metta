@@ -22,7 +22,7 @@ map_data: |-
 char_to_map_name:
   "#": wall
   ".": empty
-  "_": altar
+  "_": assembler
   "m": mine_red
   "@": agent.agent
   "n": generator_red
