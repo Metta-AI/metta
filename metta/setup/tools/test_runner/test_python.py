@@ -203,8 +203,6 @@ def run(
             *cmd,
             "-n",
             "4",
-            "--ddtrace",
-            "--ddtrace-patch-all",
             "--timeout=100",
             "--timeout-method=thread",
             "--disable-warnings",
