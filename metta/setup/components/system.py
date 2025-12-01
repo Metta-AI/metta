@@ -37,7 +37,7 @@ class SystemSetup(SetupModule):
     always_required = True
 
     def dependencies(self) -> list[str]:
-        return []  # Changed: system installs before core (core needs system deps for uv sync)
+        return []
 
     @property
     @override
