@@ -51,8 +51,6 @@ class TestInstallSoftmax(BaseMettaSetupTest):
         # Clean and symlink setup
         r_clean = self._run_metta_command(["clean"])
         assert r_clean.returncode == 0
-        r_symlink = self._run_metta_command(["symlink-setup"])
-        assert r_symlink.returncode == 0
 
         # Verify config written
         config = SavedSettings(self.test_config_dir / "config.yaml")

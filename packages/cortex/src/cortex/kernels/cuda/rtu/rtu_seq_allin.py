@@ -19,6 +19,9 @@ def _load_ext():
         sources=sources,
         extra_cflags=["-O3"],
         extra_cuda_cflags=["-O3", "-Xptxas", "-O3"],
+        # Use torch's default build cache under ~/.cache/torch_extensions
+        # (avoid creating per-arch folders inside the repo).
+        build_directory=None,
         verbose=False,
     )
     return _ext

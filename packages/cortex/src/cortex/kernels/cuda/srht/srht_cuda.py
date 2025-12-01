@@ -14,6 +14,7 @@ def _load_ext():
     global _ext
     if _ext is not None:
         return _ext
+
     _ext = load(
         name="srht_cuda",
         sources=[
@@ -22,6 +23,7 @@ def _load_ext():
         ],
         extra_cflags=["-O3"],
         extra_cuda_cflags=["-O3", "-Xptxas", "-O3"],
+        build_directory=None,
         verbose=False,
     )
     return _ext

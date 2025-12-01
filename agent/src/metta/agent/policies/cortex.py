@@ -2,8 +2,7 @@ from typing import List
 
 from cortex.stacks import build_cortex_auto_config
 
-from metta.agent.components.action import ActionEmbeddingConfig
-from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
+from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.cortex import CortexTDConfig
 from metta.agent.components.misc import MLPConfig
@@ -17,8 +16,6 @@ class CortexBaseConfig(PolicyArchitecture):
     """ViT-style policy with Cortex stack (xLSTM) replacing LSTM core."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-
-    _embedding_dim = 16
 
     _token_embed_dim = 8
     _fourier_freqs = 3
@@ -50,9 +47,7 @@ class CortexBaseConfig(PolicyArchitecture):
             d_hidden=_latent_dim,
             out_features=_core_out,
             # Default to the mixed Cortex auto stack (Axon/mLSTM/sLSTM) via config.
-            stack_cfg=build_cortex_auto_config(
-                d_hidden=_latent_dim, num_layers=3, post_norm=True, use_axonlayers=False
-            ),
+            stack_cfg=build_cortex_auto_config(d_hidden=_latent_dim, post_norm=True),
             key_prefix="cortex_state",
         ),
         MLPConfig(
@@ -71,19 +66,7 @@ class CortexBaseConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[_critic_hidden],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(
-            in_key="actor_hidden",
-            out_key="actor_query",
-            hidden_size=_actor_hidden,
-            embed_dim=_embedding_dim,
-        ),
-        ActorKeyConfig(
-            query_key="actor_query",
-            embedding_key="action_embedding",
-            out_key="logits",
-            embed_dim=_embedding_dim,
-        ),
+        ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=_actor_hidden),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")

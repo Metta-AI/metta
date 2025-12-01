@@ -1,5 +1,9 @@
-import time
-from typing import Any, Dict
+# ruff: noqa: E402
+# need this to import and call suppress_noisy_logs first
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
+from typing import Dict
 from unittest import mock
 
 import pytest
@@ -10,7 +14,7 @@ from testcontainers.postgres import PostgresContainer
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
-from metta.app_backend.test_support import create_test_stats_client
+from metta.app_backend.test_support.client_adapter import create_test_stats_client
 from metta.common.test_support import docker_client_fixture, isolated_test_schema_uri
 
 # Register the docker_client fixture
@@ -25,11 +29,11 @@ def mock_debug_user_email():
 
 
 # Skip all tests that use postgres_container; it is flaky
-def pytest_collection_modifyitems(config, items):
-    skip_pg = pytest.mark.skip(reason="postgres_container flaky")
-    for item in items:
-        if "postgres_container" in item.fixturenames:
-            item.add_marker(skip_pg)
+# def pytest_collection_modifyitems(config, items):
+#     skip_pg = pytest.mark.skip(reason="postgres_container flaky")
+#     for item in items:
+#         if "postgres_container" in item.fixturenames:
+#             item.add_marker(skip_pg)
 
 
 @pytest.fixture(scope="class")
@@ -89,17 +93,20 @@ def auth_headers() -> Dict[str, str]:
 @pytest.fixture(scope="class")
 def stats_client(test_client: TestClient) -> StatsClient:
     """Create a stats client for testing."""
-    # First create a machine token
-    token_response = test_client.post(
-        "/tokens",
-        json={"name": "test_token", "permissions": ["read", "write"]},
-        headers={"X-Auth-Request-Email": "test_user@example.com"},
-    )
-    assert token_response.status_code == 200, f"Failed to create token: {token_response.text}"
-    token = token_response.json()["token"]
+    # Create stats client with a dummy token (auth will use X-Auth-Request-Email header instead)
+    client = create_test_stats_client(test_client, machine_token="dummy_token")
+    # Override the request method to add X-Auth-Request-Email header
+    original_request = client._http_client.request
+    client._test_user_email = "test_user@example.com"
 
-    # Create stats client that works with TestClient
-    return create_test_stats_client(test_client, machine_token=token)
+    def request_with_auth(method: str, url: str, **kwargs):
+        headers = kwargs.get("headers", {})
+        headers["X-Auth-Request-Email"] = getattr(client, "_test_user_email", "test_user@example.com")
+        kwargs["headers"] = headers
+        return original_request(method, url, **kwargs)
+
+    client._http_client.request = request_with_auth
+    return client
 
 
 # Isolated fixtures for function-scoped testing
@@ -131,114 +138,17 @@ def isolated_test_client(isolated_test_app: FastAPI) -> TestClient:
 @pytest.fixture(scope="function")
 def isolated_stats_client(isolated_test_client: TestClient) -> StatsClient:
     """Create a stats client with isolated database for testing."""
-    # First create a machine token
-    token_response = isolated_test_client.post(
-        "/tokens",
-        json={"name": "test_token", "permissions": ["read", "write"]},
-        headers={"X-Auth-Request-Email": "test_user@example.com"},
-    )
-    assert token_response.status_code == 200, f"Failed to create token: {token_response.text}"
-    token = token_response.json()["token"]
+    # Create stats client with a dummy token (auth will use X-Auth-Request-Email header instead)
+    client = create_test_stats_client(isolated_test_client, machine_token="dummy_token")
+    # Override the request method to add X-Auth-Request-Email header
+    original_request = client._http_client.request
+    client._test_user_email = "test_user@example.com"
 
-    # Create stats client that works with TestClient
-    return create_test_stats_client(isolated_test_client, machine_token=token)
+    def request_with_auth(method: str, url: str, **kwargs):
+        headers = kwargs.get("headers", {})
+        headers["X-Auth-Request-Email"] = getattr(client, "_test_user_email", "test_user@example.com")
+        kwargs["headers"] = headers
+        return original_request(method, url, **kwargs)
 
-
-@pytest.fixture
-def create_test_data(stats_client: StatsClient):
-    def _create(
-        run_name: str,
-        num_policies: int = 2,
-        create_run_free_policies: int = 0,
-        overriding_stats_client: StatsClient | None = None,
-    ) -> dict[str, Any]:
-        use_stats_client = overriding_stats_client or stats_client
-        data: dict[str, Any] = {"policies": [], "policy_names": [], "policy_epoch_ids": []}
-
-        if num_policies > 0:
-            timestamp = int(time.time() * 1_000_000)
-            training_run = use_stats_client.create_training_run(
-                name=f"{run_name}_{timestamp}",
-                attributes={"environment": "test_env", "algorithm": "test_alg"},
-                url="https://example.com/run",
-                tags=["test_tag", "scorecard_test"],
-            )
-
-            epoch1 = use_stats_client.create_epoch(
-                run_id=training_run.id,
-                start_training_epoch=0,
-                end_training_epoch=100,
-                attributes={"learning_rate": "0.001"},
-            )
-            epoch2 = use_stats_client.create_epoch(
-                run_id=training_run.id,
-                start_training_epoch=100,
-                end_training_epoch=200,
-                attributes={"learning_rate": "0.0005"},
-            )
-
-            data["training_run"] = training_run
-            data["epochs"] = [epoch1, epoch2]
-
-            timestamp = int(time.time() * 1_000_000)
-            for i in range(num_policies):
-                epoch = epoch1 if i == 0 else epoch2
-                policy_name = f"policy_{run_name}_{i}_{timestamp}"
-                policy = use_stats_client.create_policy(
-                    name=policy_name,
-                    description=f"Test policy {i} for {run_name}",
-                    epoch_id=epoch.id,
-                )
-                data["policies"].append(policy)
-                data["policy_names"].append(policy_name)
-                data["policy_epoch_ids"].append(epoch.id)
-
-        timestamp = int(time.time() * 1_000_000)
-        for i in range(create_run_free_policies):
-            policy_name = f"runfree_policy_{run_name}_{i}_{timestamp}"
-            policy = use_stats_client.create_policy(
-                name=policy_name,
-                description=f"Run-free test policy {i} for {run_name}",
-                epoch_id=None,
-            )
-            data["policies"].append(policy)
-            data["policy_names"].append(policy_name)
-            data["policy_epoch_ids"].append(None)
-
-        return data
-
-    return _create
-
-
-@pytest.fixture
-def record_episodes(stats_client: StatsClient):
-    def _record(
-        test_data: dict,
-        eval_category: str,
-        env_names: list[str],
-        metric_values: dict[str, float],
-        overriding_stats_client: StatsClient | None = None,
-    ) -> None:
-        use_stats_client = overriding_stats_client or stats_client
-        policy_epoch_ids: list[Any] = test_data.get("policy_epoch_ids", [])
-        epochs = test_data.get("epochs", [])
-        for i, policy in enumerate(test_data["policies"]):
-            epoch_id = None
-            if i < len(policy_epoch_ids):
-                epoch_id = policy_epoch_ids[i]
-            elif epochs:
-                epoch_id = epochs[i % len(epochs)].id
-            for env_name in env_names:
-                metric_key = f"policy_{i}_{env_name}"
-                metric_value = metric_values.get(metric_key, 50.0)
-                use_stats_client.record_episode(
-                    agent_policies={0: policy.id},
-                    agent_metrics={0: {"reward": metric_value}},
-                    primary_policy_id=policy.id,
-                    stats_epoch=epoch_id,
-                    sim_suite=eval_category,
-                    env_name=env_name,
-                    replay_url=f"https://example.com/replay/{policy.id}/{env_name}",
-                )
-
-    return _record
+    client._http_client.request = request_with_auth
+    return client

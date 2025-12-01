@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional
 
 import einops
@@ -9,7 +10,8 @@ from torchrl.data import Composite, UnboundedDiscrete
 import pufferlib.pytorch
 from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.training import GameRules
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.token_encoder import coordinates
 
 
 class PufferPolicyConfig(PolicyArchitecture):
@@ -30,20 +32,13 @@ class PufferPolicyConfig(PolicyArchitecture):
 class PufferPolicy(Policy):
     """Policy that exactly matches PufferLib architecture"""
 
-    def __init__(self, game_rules: GameRules, config: Optional[PufferPolicyConfig] = None):
-        super().__init__()
+    def __init__(self, policy_env_info: PolicyEnvInterface, config: Optional[PufferPolicyConfig] = None):
+        super().__init__(policy_env_info)
 
         self.policy = torch.nn.Module()
         self.config = config or PufferPolicyConfig()
-        self.game_rules = game_rules
         self.is_continuous = False
-        self.action_space = game_rules.action_space
-
-        self.active_action_names = []
-        self.num_active_actions = len(game_rules.action_names)
-
-        self.out_width = game_rules.obs_width
-        self.out_height = game_rules.obs_height
+        self.action_space = policy_env_info.action_space
 
         self.num_layers = 24
         hidden_size = 512
@@ -73,9 +68,9 @@ class PufferPolicy(Policy):
         )
 
         max_values = [1.0] * self.num_layers
-        for feature_id, norm_value in game_rules.feature_normalizations.items():
-            if feature_id < self.num_layers:
-                max_values[feature_id] = norm_value if norm_value > 0 else 1.0
+        for feature in policy_env_info.obs_features:
+            if feature.id < self.num_layers:
+                max_values[feature.id] = feature.normalization if feature.normalization > 0 else 1.0
 
         max_vec = torch.tensor(max_values, dtype=torch.float32)
         # Clamp minimum value to 1.0 to avoid near-zero divisions
@@ -83,7 +78,7 @@ class PufferPolicy(Policy):
         max_vec = max_vec[None, :, None, None]
         self.policy.register_buffer("max_vec", max_vec)
 
-        self.total_actions = len(game_rules.action_names)
+        self.total_actions = len(policy_env_info.actions.actions())
         self.policy.actor = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, self.total_actions), std=0.01)
         self.policy.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
@@ -103,6 +98,11 @@ class PufferPolicy(Policy):
         # Action probabilities component
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
+    @dataclass
+    class _AgentState:
+        hidden: torch.Tensor
+        cell: torch.Tensor
+
     def encode_observations(self, observations: torch.Tensor) -> torch.Tensor:
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
@@ -113,9 +113,8 @@ class PufferPolicy(Policy):
         observations[observations == 255] = 0
         coords_byte = observations[..., 0].to(torch.uint8)
 
-        # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
-        x_coords = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
-        y_coords = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        # Extract x/y coordinate indices (low nibble -> x/col, high nibble -> y/row)
+        x_coords, y_coords = coordinates(observations, torch.long)
         atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
 
@@ -192,13 +191,34 @@ class PufferPolicy(Policy):
 
         return td
 
-    def initialize_to_environment(self, game_rules: GameRules, device: torch.device):
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
         self.to(device)
-        self.action_probs.initialize_to_environment(game_rules, device)
+        self.action_probs.initialize_to_environment(policy_env_info, device)
 
     def reset_memory(self):
         self._hidden_state = None
         self._cell_state = None
+
+    def initial_agent_state(self) -> "PufferPolicy._AgentState":
+        device = self.device
+        hidden = torch.zeros(1, 1, 512, device=device)
+        cell = torch.zeros(1, 1, 512, device=device)
+        return PufferPolicy._AgentState(hidden=hidden, cell=cell)
+
+    def load_agent_state(self, state: Optional["PufferPolicy._AgentState"]) -> None:
+        if state is None:
+            self.reset_memory()
+            return
+        self._hidden_state = state.hidden.clone()
+        self._cell_state = state.cell.clone()
+
+    def dump_agent_state(self) -> Optional["PufferPolicy._AgentState"]:
+        if self._hidden_state is None or self._cell_state is None:
+            return None
+        return PufferPolicy._AgentState(
+            hidden=self._hidden_state.detach().clone(),
+            cell=self._cell_state.detach().clone(),
+        )
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
@@ -213,8 +233,8 @@ class PufferPolicy(Policy):
 
     @property
     def action_names(self) -> list[str]:
-        return self.game_rules.action_names
+        return [action.name for action in self.policy_env_info.actions.actions()]
 
     @property
     def observation_space(self):
-        return self.game_rules.observation_space
+        return self.policy_env_info.observation_space

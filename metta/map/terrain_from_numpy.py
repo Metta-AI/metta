@@ -1,6 +1,7 @@
 import os
 import random
 import zipfile
+from abc import ABC, abstractmethod
 from typing import Optional
 
 import boto3
@@ -10,8 +11,9 @@ from filelock import FileLock
 from pydantic import ConfigDict, Field
 
 from metta.common.util.log_config import getRankAwareLogger
-from metta.utils.uri import ParsedURI
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
+from mettagrid.map_builder import MapGrid
+from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig, WithMaxRetriesConfig
+from mettagrid.util.file import ParsedURI
 
 logger = getRankAwareLogger(__name__)
 
@@ -48,23 +50,21 @@ def download_from_s3(s3_path: str, save_path: str):
         raise e
 
 
-class TerrainFromNumpy(MapBuilder):
+class TerrainFromNumpyConfig(MapBuilderConfig["TerrainFromNumpy"], WithMaxRetriesConfig):
+    # Allow non-pydantic types like random.Random
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    objects: dict[str, int] = Field(default_factory=dict)
+    agents: int | dict[str, int] = Field(default=0, ge=0)
+    dir: str
+    file: Optional[str] = None
+    remove_altars: bool = False
+    rng: random.Random = Field(default_factory=random.Random, exclude=True)
+
+
+class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
     """This class is used to load a terrain environment from numpy arrays on s3.
 
     It's not a MapGen scene, because we don't know the grid size until we load the file."""
-
-    class Config(MapBuilderConfig["TerrainFromNumpy"]):
-        # Allow non-pydantic types like random.Random
-        model_config = ConfigDict(arbitrary_types_allowed=True)
-        objects: dict[str, int] = Field(default_factory=dict)
-        agents: int | dict[str, int] = Field(default=0, ge=0)
-        dir: str
-        file: Optional[str] = None
-        remove_altars: bool = False
-        rng: random.Random = Field(default_factory=random.Random, exclude=True)
-
-    def __init__(self, config: Config):
-        self.config = config
 
     def setup(self):
         root = self.config.dir.split("/")[0]
@@ -85,7 +85,7 @@ class TerrainFromNumpy(MapBuilder):
                 logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
         return map_dir
 
-    def get_valid_positions(self, level, assemblers=False):
+    def get_valid_positions(self, level: MapGrid, assemblers=False):
         # Create a boolean mask for empty cells
         empty_mask = level == "empty"
 
@@ -117,7 +117,7 @@ class TerrainFromNumpy(MapBuilder):
         valid_positions = list(zip(*np.where(valid_mask), strict=False))
         return valid_positions
 
-    def clean_grid(self, grid, assemblers=True):
+    def clean_grid(self, grid: MapGrid, assemblers=True):
         grid[grid == "agent.agent"] = "empty"
         if self.config.remove_altars:
             grid[grid == "altar"] = "empty"
@@ -132,14 +132,11 @@ class TerrainFromNumpy(MapBuilder):
         self.config.rng.shuffle(valid_positions)
         return grid, valid_positions, agent_labels
 
-    def build(self):
-        pass
+    @abstractmethod
+    def build(self) -> GameMap: ...
 
 
 class NavigationFromNumpy(TerrainFromNumpy):
-    def __init__(self, config: TerrainFromNumpy.Config):
-        super().__init__(config)
-
     def build(self):
         map_dir = self.setup()
         if self.config.file is None:
@@ -173,10 +170,7 @@ class NavigationFromNumpy(TerrainFromNumpy):
 
 
 class CogsVClippiesFromNumpy(TerrainFromNumpy):
-    def __init__(self, config: TerrainFromNumpy.Config):
-        super().__init__(config)
-
-    def carve_out_patches(self, grid, valid_positions_set):
+    def carve_out_patches(self, grid: MapGrid, valid_positions_set: set[tuple[int, int]]):
         # Carve out 9x9 empties at random coordinates (not in valid_positions_set) and gather the center points
         grid_shape = grid.shape
         empty_centers = []

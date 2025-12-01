@@ -1,30 +1,18 @@
-# Use Python 3.12 slim image as base
-FROM python:3.12-slim
+FROM ubuntu:22.04
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /workspace
 
-# Install Bazel for mettagrid build
-RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
-    && chmod +x /usr/local/bin/bazel
+COPY . /workspace/metta
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
+WORKDIR /workspace/metta
 
-# Set working directory
-WORKDIR /app
+RUN bash ./devops/tools/install-system.sh
 
-# Copy entire project structure
-COPY . .
-
-# Install dependencies using uv
-RUN cd app_backend && uv sync --frozen
+# Pre-build app_backend package to avoid issues during container startup
+RUN uv sync --frozen --package metta-app-backend
 
 # Set working directory to app_backend
-WORKDIR /app/app_backend
+WORKDIR /workspace/metta/app_backend
 
 # Expose port
 EXPOSE 8000

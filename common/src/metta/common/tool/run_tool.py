@@ -1,6 +1,12 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
 """Runner that takes a function that creates a ToolConfig,
 invokes the function, and then runs the tool defined by the config."""
+
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 
 import argparse
 import copy
@@ -13,7 +19,6 @@ import signal
 import sys
 import tempfile
 import traceback
-import warnings
 from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
@@ -22,9 +27,9 @@ from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
 from metta.common.tool.recipe_registry import recipe_registry
-from metta.common.tool.tool_path import resolve_and_load_tool_maker
+from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
 from metta.common.tool.tool_registry import tool_registry
-from metta.common.util.log_config import init_logging
+from metta.common.util.log_config import init_logging, init_mettagrid_system_environment
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.rl.system_config import seed_everything
 from mettagrid.base_config import Config
@@ -34,23 +39,6 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------------------
 # Environment setup
 # --------------------------------------------------------------------------------------
-
-
-def init_mettagrid_system_environment() -> None:
-    """Initialize environment variables for headless operation."""
-    os.environ.setdefault("GLFW_PLATFORM", "osmesa")  # Use OSMesa as the GLFW backend
-    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-    os.environ.setdefault("MPLBACKEND", "Agg")
-    os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
-    os.environ.setdefault("DISPLAY", "")
-
-    # Suppress deprecation warnings
-    warnings.filterwarnings("ignore", category=DeprecationWarning)
-    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
-    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
-
-    # Silence PyTorch distributed elastic warning about redirects on MacOS/Windows
-    logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
 
 
 T = TypeVar("T", bound=Config)
@@ -71,7 +59,7 @@ def output_error(message: str) -> None:
     if sys.stdout.isatty():
         print(message, file=sys.stderr)
     else:
-        logger.error(message.strip())
+        logger.error(message.strip(), exc_info=True)
 
 
 def output_exception(message: str) -> None:
@@ -470,7 +458,7 @@ constructor/function vs configuration overrides based on introspection.
         nargs="?",
         help=(
             "Path or shorthand to the tool maker (function or Tool class). Examples: "
-            "'experiments.recipes.arena.train', 'arena.train', or two-part "
+            "'recipes.experiment.arena.train', 'arena.train', or two-part "
             "'train arena' (equivalent to 'arena.train')."
         ),
     )
@@ -511,7 +499,7 @@ constructor/function vs configuration overrides based on introspection.
         )
         return 2
     # Support shorthand syntax for tool path:
-    #  - Allow omitting 'experiments.recipes.' prefix, e.g. 'arena.train'
+    #  - Allow omitting 'recipes.prod.' or 'recipes.experiment.' prefix, e.g. 'arena.train'
     #  - Allow two-part form 'train arena' as sugar for 'arena.train'
 
     # Exit on ctrl+c with proper exit code
@@ -559,19 +547,12 @@ constructor/function vs configuration overrides based on introspection.
         # If listing failed, continue to show error below
 
     # Try two-part form first if next arg looks like a module name (not key=value)
-    tool_maker = None
-    args_consumed = 0
 
-    if raw_positional_args and ("=" not in raw_positional_args[0]) and (not raw_positional_args[0].startswith("-")):
-        # Try 'train arena' → 'arena.train'
-        two_part_path = f"{raw_positional_args[0]}.{tool_path}"
-        tool_maker = resolve_and_load_tool_maker(two_part_path)
-        if tool_maker:
-            args_consumed = 1
+    second_token = raw_positional_args[0] if raw_positional_args else None
+    resolved_tool_path, args_consumed = parse_two_token_syntax(tool_path, second_token)
 
-    # If two-part didn't work, try single form
-    if not tool_maker:
-        tool_maker = resolve_and_load_tool_maker(tool_path)
+    # Try to load the tool maker with the resolved path
+    tool_maker = resolve_and_load_tool_maker(resolved_tool_path)
 
     # Rebuild the arg list to parse (skip consumed args)
     all_args = raw_positional_args[args_consumed:] + unknown_args

@@ -7,13 +7,6 @@ let
   traceWidth = 0.54 / 2
   traceHeight = 2.0
 
-# Double-click detection variables
-const
-  ClickInterval = 0.3 # seconds
-  ClickDistance = 10.0 # pixels
-var
-  lastClickTime = 0.0
-  lastClickPos = vec2(0, 0)
 
 proc drawAgentTraces*(panel: Panel) =
 
@@ -26,33 +19,38 @@ proc drawAgentTraces*(panel: Panel) =
 
   panel.beginPanAndZoom()
 
+  # Follow selected agent when lockFocus is enabled
+  if settings.lockFocus and selection != nil and selection.isAgent:
+    let rectW = panel.rect.w.float32
+    let rectH = panel.rect.h.float32
+    if rectW > 0 and rectH > 0:
+      let z = panel.zoom * panel.zoom
+      let centerX = step.float32 * traceWidth + traceWidth / 2
+      let centerY = selection.agentId.float32 * traceHeight + traceHeight / 2
+      panel.pos.x = rectW / 2.0f - centerX * z
+      panel.pos.y = rectH / 2.0f - centerY * z
+
   if panel.hasMouse and window.buttonDown[MouseLeft]:
-    let
-      mousePos = bxy.getTransform().inverse * window.mousePos.vec2
-      isClick = dist(mousePos, lastClickPos) < ClickDistance
+    let mousePos = bxy.getTransform().inverse * window.mousePos.vec2
 
     if window.buttonPressed[MouseLeft]:
-      let currentTime = epochTime()
-      if currentTime - lastClickTime < ClickInterval and isClick:
-        echo "Double-click detected at position: ", mousePos
-        followSelection = true
-      else:
-        echo "Single press at position: ", mousePos
-        followSelection = false
-        let
-          newStep = floor(mousePos.x() / traceWidth).int
-          agentId = floor(mousePos.y() / traceHeight).int
-        if newStep >= 0 and newStep < replay.maxSteps and agentId >= 0 and
-            agentId < replay.agents.len:
-          step = newStep
-          stepFloat = newStep.float32
-          selection = replay.agents[agentId]
-          centerAt(worldMapPanel, selection)
+      echo "Single press at position: ", mousePos
+      settings.lockFocus = false
+      let
+        newStep = floor(mousePos.x() / traceWidth).int
+        agentId = floor(mousePos.y() / traceHeight).int
+      if newStep >= 0 and newStep < replay.maxSteps and agentId >= 0 and
+          agentId < replay.agents.len:
+        step = newStep
+        stepFloat = newStep.float32
+        selection = replay.agents[agentId]
+        centerAt(worldMapPanel, selection)
 
-      lastClickTime = currentTime
-      lastClickPos = mousePos
-    elif window.buttonReleased[MouseLeft] and isClick:
-      echo "Single release at position: ", mousePos
+  # Handle double-click to toggle focus lock
+  if window.buttonPressed[DoubleClick]:
+    let mousePos = bxy.getTransform().inverse * window.mousePos.vec2
+    echo "Double-click detected at position: ", mousePos
+    settings.lockFocus = true
 
   # Selected agent
   if selection != nil and selection.isAgent:

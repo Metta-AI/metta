@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
 import time
 from contextlib import contextmanager
@@ -13,6 +12,7 @@ from typing import Any, Dict, Generator, Optional
 import httpx
 
 from .core import GitError
+from .secrets import get_github_token
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ def github_client(
     Args:
         repo: Repository in format "owner/repo"
         token: GitHub token. If not provided, uses GITHUB_TOKEN env var
+            or falls back to AWS Secrets Manager (github/token)
         base_url: Base URL for the API (default: https://api.github.com/repos/{repo})
         timeout: Request timeout in seconds
         **headers: Additional headers to include in requests
@@ -63,7 +64,7 @@ def github_client(
     Yields:
         Configured httpx.Client for GitHub API requests
     """
-    github_token = token or os.environ.get("GITHUB_TOKEN")
+    github_token = token or get_github_token(required=False)
 
     # Build base URL
     if base_url is None:
@@ -125,8 +126,10 @@ def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
         resp = httpx.get(url, headers=headers, timeout=5.0)
         resp.raise_for_status()
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            # Commit not in repo or no PRs -> treat as "no match"
+        if e.response.status_code in (404, 422):
+            # 404: Commit not in repo or no PRs
+            # 422: Commit SHA doesn't exist on GitHub (e.g., local-only commit)
+            # Both cases -> treat as "no match"
             result: tuple[int, str] | None = None
         else:
             raise GitError(f"GitHub API error ({e.response.status_code}): {e.response.text}") from e
@@ -186,6 +189,7 @@ def post_commit_status(
         description: A short description of the status
         target_url: The target URL to associate with this status
         token: GitHub token. If not provided, uses GITHUB_TOKEN env var
+            or falls back to AWS Secrets Manager (github/token)
 
     Returns:
         The created status object
@@ -197,10 +201,8 @@ def post_commit_status(
     if not repo:
         raise ValueError("Repository must be provided in format 'owner/repo'")
 
-    # Get token
-    github_token = token or os.environ.get("GITHUB_TOKEN")
-    if not github_token:
-        raise ValueError("GitHub token not provided and GITHUB_TOKEN environment variable not set")
+    # Get token (required)
+    github_token = token or get_github_token(required=True)
 
     # Build request
     url = f"https://api.github.com/repos/{repo}/statuses/{commit_sha}"
@@ -249,6 +251,7 @@ def create_pr(
         head: Head branch name
         base: Base branch name
         token: GitHub token. If not provided, uses GITHUB_TOKEN env var
+            or falls back to AWS Secrets Manager (github/token)
         draft: Create as draft PR
 
     Returns:
@@ -261,10 +264,8 @@ def create_pr(
     if not repo:
         raise ValueError("Repository must be provided in format 'owner/repo'")
 
-    # Get token
-    github_token = token or os.environ.get("GITHUB_TOKEN")
-    if not github_token:
-        raise ValueError("GitHub token not provided and GITHUB_TOKEN environment variable not set")
+    # Get token (required)
+    github_token = token or get_github_token(required=True)
 
     # Build request
     url = f"https://api.github.com/repos/{repo}/pulls"
@@ -335,7 +336,7 @@ def get_commits(
                 error_msg = f"Failed to get commits: {e}"
                 if hasattr(e, "response") and e.response is not None:
                     error_msg += f" - Status: {e.response.status_code}"
-                logger.error(error_msg)
+                logger.error(error_msg, exc_info=True)
                 raise GitError(error_msg) from e
 
             commits = resp.json() or []
@@ -393,7 +394,7 @@ def get_workflow_runs(
             error_msg = f"Failed to get workflow runs: {e}"
             if hasattr(e, "response") and e.response is not None:
                 error_msg += f" - Status: {e.response.status_code}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             raise GitError(error_msg) from e
 
         return (resp.json() or {}).get("workflow_runs", [])
@@ -432,7 +433,7 @@ def get_workflow_run_jobs(
             error_msg = f"Failed to get workflow run jobs: {e}"
             if hasattr(e, "response") and e.response is not None:
                 error_msg += f" - Status: {e.response.status_code}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             raise GitError(error_msg) from e
 
         return (resp.json() or {}).get("jobs", [])

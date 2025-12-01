@@ -1,17 +1,4 @@
-export type ScorecardCell = {
-  evalName: string
-  replayUrl: string | null
-  thumbnailUrl: string | null
-  value: number
-}
-
-export type ScorecardData = {
-  evalNames: string[]
-  cells: Record<string, Record<string, ScorecardCell>>
-  policyAverageScores: Record<string, number>
-  evalAverageScores: Record<string, number>
-  evalMaxScores: Record<string, number>
-}
+import { config } from './config'
 
 export type TokenInfo = {
   id: string
@@ -31,37 +18,6 @@ export type TokenResponse = {
 
 export type TokenListResponse = {
   tokens: TokenInfo[]
-}
-
-// Dashboard state interface for saving/loading
-export interface DashboardState {
-  selectedTrainingRunIds: string[]
-  selectedRunFreePolicyIds: string[]
-  selectedEvalNames: string[]
-  trainingRunPolicySelector: 'latest' | 'best'
-  selectedMetric: string
-}
-
-export type SavedDashboard = {
-  id: string
-  name: string
-  description: string | null
-  type: string
-  dashboard_state: DashboardState
-  created_at: string
-  updated_at: string
-  user_id: string
-}
-
-export type SavedDashboardCreate = {
-  name: string
-  description?: string
-  type: string
-  dashboard_state: Record<string, any>
-}
-
-export type SavedDashboardListResponse = {
-  dashboards: SavedDashboard[]
 }
 
 export type TrainingRun = {
@@ -89,26 +45,49 @@ export type TrainingRunTagsUpdate = {
 }
 
 export type EvalTaskCreateRequest = {
-  policy_id: string
+  command: string
   git_hash: string | null
-  env_overrides?: Record<string, any>
-  sim_suite?: string
+  attributes: Record<string, any>
+}
+
+export type TaskStatus = 'unprocessed' | 'running' | 'canceled' | 'done' | 'error' | 'system_error'
+
+type TaskStatusMixin = {
+  status: TaskStatus
+  status_details: Record<string, any> | null
 }
 
 export type EvalTask = {
-  id: string
-  policy_id: string
-  sim_suite: string
-  status: 'unprocessed' | 'canceled' | 'done' | 'error'
+  // eval_tasks table columns
+  id: number
+  command: string
+  data_uri: string | null
+  git_hash: string | null
+  attributes: Record<string, any>
+  user_id: string
+  created_at: string
+  is_finished: boolean
+  latest_attempt_id: number | null
+
+  // Latest attempt columns (from JOIN)
+  attempt_number: number | null
   assigned_at: string | null
   assignee: string | null
-  created_at: string
-  attributes: Record<string, any>
-  policy_name: string | null
-  retries: number
-  updated_at: string
-  user_id: string | null
-}
+  started_at: string | null
+  finished_at: string | null
+  output_log_path: string | null
+} & TaskStatusMixin
+
+export type TaskAttempt = {
+  id: number
+  task_id: number
+  attempt_number: number
+  assigned_at: string | null
+  assignee: string | null
+  started_at: string | null
+  finished_at: string | null
+  output_log_path: string | null
+} & TaskStatusMixin
 
 export type EvalTasksResponse = {
   tasks: EvalTask[]
@@ -122,16 +101,18 @@ export type PaginatedEvalTasksResponse = {
   total_pages: number
 }
 
+export type TaskAttemptsResponse = {
+  attempts: TaskAttempt[]
+}
+
 export type TaskFilters = {
-  policy_name?: string
-  sim_suite?: string
+  command?: string
+  user_id?: string
   status?: string
   assignee?: string
-  user_id?: string
-  retries?: string
+  git_hash?: string
   created_at?: string
   assigned_at?: string
-  updated_at?: string
 }
 
 // Policy-based scorecard types
@@ -179,14 +160,6 @@ export type MetricsRequest = {
   eval_names: string[]
 }
 
-export type PolicyScorecardRequest = {
-  training_run_ids: string[]
-  run_free_policy_ids: string[]
-  eval_names: string[]
-  training_run_policy_selector: 'latest' | 'best'
-  metric: string
-}
-
 export type TrainingRunScorecardRequest = {
   eval_names: string[]
   metric: string
@@ -199,52 +172,66 @@ export type TrainingRunPolicy = {
   epoch_end: number | null
 }
 
-export type PolicyScorecardCell = {
-  evalName: string
-  replayUrl: string | null
-  thumbnailUrl: string | null
-  value: number
-}
-
-export type PolicyScorecardData = {
-  evalNames: string[]
-  policyNames: string[]
-  cells: Record<string, Record<string, PolicyScorecardCell>>
-  policyAverageScores: Record<string, number>
-  evalAverageScores: Record<string, number>
-  evalMaxScores: Record<string, number>
-}
-
-// Leaderboard types
-export type Leaderboard = {
+export type PublicPolicyVersionRow = {
   id: string
-  name: string
-  user_id: string
-  evals: string[]
-  metric: string
-  start_date: string
-  latest_episode: number
+  policy_id: string
   created_at: string
-  updated_at: string
-}
-
-export type LeaderboardCreateOrUpdate = {
+  policy_created_at: string
+  user_id: string
   name: string
-  evals: string[]
-  metric: string
-  start_date: string
+  version: number
+  tags: Record<string, string>
+  version_count?: number
 }
 
-export type LeaderboardListResponse = {
-  leaderboards: Leaderboard[]
+export type EpisodeReplay = {
+  episode_id: string
+  replay_url: string
 }
 
-export type LeaderboardScorecardRequest = {
-  selector: 'latest' | 'best'
-  num_policies: number
+export type EpisodeWithTags = {
+  id: string
+  primary_pv_id: string | null
+  replay_url: string | null
+  thumbnail_url: string | null
+  attributes: Record<string, any>
+  eval_task_id: string | null
+  created_at: string
+  tags: Record<string, string>
+  avg_rewards: Record<string, number>
 }
 
-import { config } from './config'
+export type LeaderboardPolicyEntry = {
+  policy_version: PublicPolicyVersionRow
+  scores: Record<string, number>
+  avg_score: number | null
+  replays: Record<string, EpisodeReplay[]>
+  score_episode_ids: Record<string, string | null>
+}
+
+export type LeaderboardPoliciesResponse = {
+  entries: LeaderboardPolicyEntry[]
+}
+
+export type PolicyVersionWithName = {
+  id: string
+  policy_id: string
+  version: number
+  name: string
+  created_at: string
+}
+
+export type EpisodeQueryRequest = {
+  primary_policy_version_ids?: string[]
+  tag_filters?: Record<string, string[] | null>
+  limit?: number | null
+  offset?: number
+  episode_ids?: string[]
+}
+
+export type EpisodeQueryResponse = {
+  episodes: EpisodeWithTags[]
+}
 
 export type TableInfo = {
   table_name: string
@@ -281,69 +268,12 @@ export type AIQueryResponse = {
   query: string
 }
 
-/**
- * Interface for data fetching.
- *
- * Currently the data is loaded from a pre-computed JSON file.
- * In the future, we will fetch the data from an API.
- */
-export interface Repo {
-  // Token management methods
-  createToken(tokenData: TokenCreate): Promise<TokenResponse>
-  listTokens(): Promise<TokenListResponse>
-  deleteToken(tokenId: string): Promise<void>
-
-  // Saved dashboard methods
-  listSavedDashboards(): Promise<SavedDashboardListResponse>
-  getSavedDashboard(dashboardId: string): Promise<SavedDashboard>
-  createSavedDashboard(dashboardData: SavedDashboardCreate): Promise<SavedDashboard>
-  updateDashboardState(dashboardId: string, dashboardState: DashboardState): Promise<SavedDashboard>
-  deleteSavedDashboard(dashboardId: string): Promise<void>
-
-  // User methods
-  whoami(): Promise<{ user_email: string }>
-
-  // SQL query methods
-  listTables(): Promise<TableInfo[]>
-  getTableSchema(tableName: string): Promise<TableSchema>
-  executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse>
-  generateAIQuery(description: string): Promise<AIQueryResponse>
-
-  // Training run methods
-  getTrainingRuns(): Promise<TrainingRunListResponse>
-  getTrainingRun(runId: string): Promise<TrainingRun>
-  updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
-  updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
-  generateTrainingRunScorecard(runId: string, request: TrainingRunScorecardRequest): Promise<PolicyScorecardData>
-  getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]>
-
-  // Eval task methods
-  createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
-  getEvalTasks(): Promise<EvalTask[]>
-  getEvalTasksPaginated(page: number, pageSize: number, filters: TaskFilters): Promise<PaginatedEvalTasksResponse>
-  getEvalTask(taskId: string): Promise<EvalTask>
-  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr' | 'output'): string
-  retryEvalTask(taskId: string): Promise<void>
-
-  // Policy methods
-  getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
-
-  // Policy-based scorecard methods
-  getPolicies(): Promise<PoliciesResponse>
-  getEvalNames(request: EvalNamesRequest): Promise<Set<string>>
-  getAvailableMetrics(request: MetricsRequest): Promise<string[]>
-  generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData>
-
-  // Leaderboard methods
-  listLeaderboards(): Promise<LeaderboardListResponse>
-  getLeaderboard(leaderboardId: string): Promise<Leaderboard>
-  createLeaderboard(leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard>
-  updateLeaderboard(leaderboardId: string, leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard>
-  deleteLeaderboard(leaderboardId: string): Promise<void>
-  generateLeaderboardScorecard(leaderboardId: string, request: LeaderboardScorecardRequest): Promise<ScorecardData>
+export type PolicyVersionsResponse = {
+  entries: PublicPolicyVersionRow[]
+  total_count: number
 }
 
-export class ServerRepo implements Repo {
+export class Repo {
   constructor(private baseUrl: string = 'http://localhost:8000') {}
 
   private getHeaders(contentType?: string): Record<string, string> {
@@ -417,30 +347,6 @@ export class ServerRepo implements Repo {
     return this.apiCallDelete(`/tokens/${tokenId}`)
   }
 
-  // Saved dashboard methods
-  async listSavedDashboards(): Promise<SavedDashboardListResponse> {
-    return this.apiCall<SavedDashboardListResponse>('/dashboard/saved')
-  }
-
-  async getSavedDashboard(dashboardId: string): Promise<SavedDashboard> {
-    return this.apiCall<SavedDashboard>(`/dashboard/saved/${encodeURIComponent(dashboardId)}`)
-  }
-
-  async createSavedDashboard(dashboardData: SavedDashboardCreate): Promise<SavedDashboard> {
-    return this.apiCallWithBody<SavedDashboard>('/dashboard/saved', dashboardData)
-  }
-
-  async updateDashboardState(dashboardId: string, dashboardState: DashboardState): Promise<SavedDashboard> {
-    return this.apiCallWithBodyPut<SavedDashboard>(
-      `/dashboard/saved/${encodeURIComponent(dashboardId)}`,
-      dashboardState
-    )
-  }
-
-  async deleteSavedDashboard(dashboardId: string): Promise<void> {
-    return this.apiCallDelete(`/dashboard/saved/${encodeURIComponent(dashboardId)}`)
-  }
-
   // User methods
   async whoami(): Promise<{ user_email: string }> {
     return this.apiCall<{ user_email: string }>('/whoami')
@@ -484,13 +390,6 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBodyPut<TrainingRun>(`/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
   }
 
-  async generateTrainingRunScorecard(
-    runId: string,
-    request: TrainingRunScorecardRequest
-  ): Promise<PolicyScorecardData> {
-    return this.apiCallWithBody<PolicyScorecardData>(`/scorecard/training-run/${encodeURIComponent(runId)}`, request)
-  }
-
   async getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]> {
     return this.apiCall<TrainingRunPolicy[]>(`/training-runs/${encodeURIComponent(runId)}/policies`)
   }
@@ -514,40 +413,30 @@ export class ServerRepo implements Repo {
     params.append('page_size', pageSize.toString())
 
     // Only append non-empty filter values
-    if (filters.policy_name?.trim()) params.append('policy_name', filters.policy_name.trim())
-    if (filters.sim_suite?.trim()) params.append('sim_suite', filters.sim_suite.trim())
+    if (filters.command?.trim()) params.append('command', filters.command.trim())
+    if (filters.user_id?.trim()) params.append('user_id', filters.user_id.trim())
     if (filters.status?.trim()) params.append('status', filters.status.trim())
     if (filters.assignee?.trim()) params.append('assignee', filters.assignee.trim())
-    if (filters.user_id?.trim()) params.append('user_id', filters.user_id.trim())
-    if (filters.retries?.trim()) params.append('retries', filters.retries.trim())
+    if (filters.git_hash?.trim()) params.append('git_hash', filters.git_hash.trim())
     if (filters.created_at?.trim()) params.append('created_at', filters.created_at.trim())
     if (filters.assigned_at?.trim()) params.append('assigned_at', filters.assigned_at.trim())
-    if (filters.updated_at?.trim()) params.append('updated_at', filters.updated_at.trim())
 
     return this.apiCall<PaginatedEvalTasksResponse>(`/tasks/paginated?${params}`)
   }
 
-  async getEvalTask(taskId: string): Promise<EvalTask> {
+  async getEvalTask(taskId: number): Promise<EvalTask> {
     return this.apiCall<EvalTask>(`/tasks/${taskId}`)
   }
 
-  getTaskLogUrl(taskId: string, logType: 'stdout' | 'stderr'): string {
+  async getTaskAttempts(taskId: number): Promise<TaskAttemptsResponse> {
+    return this.apiCall<TaskAttemptsResponse>(`/tasks/${taskId}/attempts`)
+  }
+
+  getTaskLogUrl(taskId: number, logType: 'output'): string {
     return `${this.baseUrl}/tasks/${taskId}/logs/${logType}`
   }
 
-  async retryEvalTask(taskId: string): Promise<void> {
-    await this.apiCallWithBody<void>('/tasks/claimed/update', {
-      updates: {
-        [taskId]: {
-          status: 'unprocessed',
-          clear_assignee: true,
-          attributes: {},
-        },
-      },
-      require_assignee: null,
-    })
-  }
-
+  // Policy methods
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
     const params = new URLSearchParams()
     policyNames.forEach((name) => params.append('policy_names', name))
@@ -555,53 +444,50 @@ export class ServerRepo implements Repo {
     return response.policy_ids
   }
 
-  // Policy-based scorecard methods
-  async getPolicies(): Promise<PoliciesResponse> {
-    return this.apiCall<PoliciesResponse>('/scorecard/policies')
+  // Leaderboard / policy version queries
+  async getPublicLeaderboard(): Promise<LeaderboardPoliciesResponse> {
+    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2')
   }
 
-  async getEvalNames(request: EvalNamesRequest): Promise<Set<string>> {
-    const res = await this.apiCallWithBody<string[]>('/scorecard/evals', request)
-    return new Set(res)
+  async getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse> {
+    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me')
   }
 
-  async getAvailableMetrics(request: MetricsRequest): Promise<string[]> {
-    return this.apiCallWithBody<string[]>('/scorecard/metrics', request)
+  async getLeaderboardPolicy(policyVersionId: string): Promise<LeaderboardPoliciesResponse> {
+    return this.apiCall<LeaderboardPoliciesResponse>(`/leaderboard/v2/policy/${policyVersionId}`)
   }
 
-  async generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData> {
-    return this.apiCallWithBody<PolicyScorecardData>('/scorecard/scorecard', request)
+  async getPolicyVersion(policyVersionId: string): Promise<PolicyVersionWithName> {
+    return this.apiCall<PolicyVersionWithName>(`/stats/policies/versions/${policyVersionId}`)
   }
 
-  // Leaderboard methods
-  async listLeaderboards(): Promise<LeaderboardListResponse> {
-    return this.apiCall<LeaderboardListResponse>('/leaderboards')
+  async queryEpisodes(request: EpisodeQueryRequest): Promise<EpisodeQueryResponse> {
+    return this.apiCallWithBody<EpisodeQueryResponse>('/stats/episodes/query', request)
   }
 
-  async getLeaderboard(leaderboardId: string): Promise<Leaderboard> {
-    return this.apiCall<Leaderboard>(`/leaderboards/${encodeURIComponent(leaderboardId)}`)
+  async getPolicies(params?: {
+    name_exact?: string
+    name_fuzzy?: string
+    limit?: number
+    offset?: number
+  }): Promise<PolicyVersionsResponse> {
+    const searchParams = new URLSearchParams()
+    if (params?.name_exact) searchParams.append('name_exact', params.name_exact)
+    if (params?.name_fuzzy) searchParams.append('name_fuzzy', params.name_fuzzy)
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<PolicyVersionsResponse>(`/stats/policies${query ? `?${query}` : ''}`)
   }
 
-  async createLeaderboard(leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard> {
-    return this.apiCallWithBody<Leaderboard>('/leaderboards', leaderboardData)
-  }
-
-  async updateLeaderboard(leaderboardId: string, leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard> {
-    return this.apiCallWithBodyPut<Leaderboard>(`/leaderboards/${encodeURIComponent(leaderboardId)}`, leaderboardData)
-  }
-
-  async deleteLeaderboard(leaderboardId: string): Promise<void> {
-    return this.apiCallDelete(`/leaderboards/${encodeURIComponent(leaderboardId)}`)
-  }
-
-  async generateLeaderboardScorecard(
-    leaderboardId: string,
-    request: LeaderboardScorecardRequest
-  ): Promise<ScorecardData> {
-    return this.apiCallWithBody<ScorecardData>('/scorecard/leaderboard', {
-      leaderboard_id: leaderboardId,
-      selector: request.selector,
-      num_policies: request.num_policies,
-    })
+  async getVersionsForPolicy(
+    policyId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<PolicyVersionsResponse> {
+    const searchParams = new URLSearchParams()
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<PolicyVersionsResponse>(`/stats/policies/${policyId}/versions${query ? `?${query}` : ''}`)
   }
 }

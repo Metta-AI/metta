@@ -63,12 +63,12 @@ def main():
     print(f"Found EC2 instance: {instance}")
 
     print("Looking up skypilot job...")
-    request_id = sky.jobs.queue(refresh=True, skip_finished=True, all_users=True)
+    # Query only the specific job we need instead of fetching all jobs
+    request_id = sky.jobs.queue(refresh=True, skip_finished=True, all_users=True, job_ids=[job_id])
     jobs = sky.get(request_id)
-    job = next((job for job in jobs if job["job_id"] == job_id), None)
-    if job is None:
-        print(jobs[0])
+    if not jobs:
         raise ValueError(f"Job {job_id} not found")
+    job = jobs[0]
 
     user_hash = job["user_hash"]
 

@@ -22,6 +22,7 @@ def set_buffers(env, buf=None):
         env.rewards = np.zeros(env.num_agents, dtype=np.float32)
         env.terminals = np.zeros(env.num_agents, dtype=bool)
         env.truncations = np.zeros(env.num_agents, dtype=bool)
+        env.teacher_actions = np.zeros(env.num_agents, dtype=env.single_action_space.dtype)
         env.masks = np.ones(env.num_agents, dtype=bool)
 
         # TODO: Major kerfuffle on inferring action space dtype. This needs some asserts?
@@ -35,6 +36,7 @@ def set_buffers(env, buf=None):
         env.rewards = buf["rewards"]
         env.terminals = buf["terminals"]
         env.truncations = buf["truncations"]
+        env.teacher_actions = buf["teacher_actions"]
         env.masks = buf["masks"]
         env.actions = buf["actions"]
 

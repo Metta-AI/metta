@@ -29,7 +29,7 @@ class GridSearchSchedulerConfig(Config):
     `CategoricalParameterConfig` or plain lists of choices.
     """
 
-    recipe_module: str = "experiments.recipes.arena"
+    recipe_module: str = "recipes.experiment.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
     train_overrides: dict[str, Any] = Field(default_factory=dict)

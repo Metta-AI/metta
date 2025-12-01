@@ -31,6 +31,16 @@ PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
 
 
+def cmd(cmd: str) -> None:
+    """Run a command and raise an error if it fails."""
+    print(f"Running: {cmd}")
+    result = subprocess.run(cmd.split(), cwd=METTASCOPE_DIR, capture_output=True, text=True)
+    print(result.stderr, file=sys.stderr)
+    print(result.stdout, file=sys.stderr)
+    if result.returncode != 0:
+        raise RuntimeError(f"Mettascope build failed: {cmd}")
+
+
 def _run_bazel_build() -> None:
     """Run Bazel build to compile the C++ extension."""
     # Check if bazel is available
@@ -141,10 +151,10 @@ def _nim_artifacts_up_to_date() -> bool:
     existing_outputs = {
         generated_dir / name
         for name in (
-            "mettascope2.py",
-            "libmettascope2.dylib",
-            "libmettascope2.so",
-            "libmettascope2.dll",
+            "mettascope.py",
+            "libmettascope.dylib",
+            "libmettascope.so",
+            "libmettascope.dll",
         )
         if (generated_dir / name).exists()
     }
@@ -186,22 +196,15 @@ def _run_mettascope_build() -> None:
         _sync_mettascope_package_data()
         return
 
-    # Check if nim and nimble are available
-    if shutil.which("nim") is None or shutil.which("nimble") is None:
-        raise RuntimeError(
-            "Nim compiler or Nimble package manager not found! To build mettascope, install Nim: https://nim-lang.org/install.html"
-        )
+    for x in ["nim", "nimby"]:
+        if shutil.which(x) is None:
+            raise RuntimeError(f"{x} not found! Install from https://github.com/treeform/nimby.")
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    # Build the Nim bindings library
-    result = subprocess.run(["nimble", "bindings", "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
-    print(result.stderr, file=sys.stderr)
-    print(result.stdout, file=sys.stderr)
-    if result.returncode != 0:
-        print("Warning: Mettascope build failed. bindings failed. STDERR:", file=sys.stderr)
-        print("Mettascope build bindings STDOUT:", file=sys.stderr)
-        raise RuntimeError("Mettascope build failed")
+    cmd("nimby sync -g nimby.lock")
+    cmd("nim c bindings/bindings.nim")
+
     print("Successfully built mettascope")
     _sync_mettascope_package_data()
 

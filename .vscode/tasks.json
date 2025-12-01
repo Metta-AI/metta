@@ -3,20 +3,14 @@
   "tasks": [
     {
       "type": "shell",
-      "command": "uv sync --inexact",
+      "command": "DEBUG=1 uv sync --inexact",
       "label": "uv sync",
-      "group": "build",
-    },
-    {
-      "type": "shell",
-      "command": "bash ./mettascope/install.sh",
-      "label": "build frontend",
       "group": "build",
     },
     {
       "label": "build all",
       "dependsOrder": "sequence",
-      "dependsOn": ["uv sync", "build frontend"],
+      "dependsOn": ["uv sync"],
       "group": {
         "kind": "build",
         "isDefault": true,

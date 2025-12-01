@@ -6,17 +6,18 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tests_support import run_tool_in_process
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from mettagrid import MettaGridEnv
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
     AgentRewards,
     GameConfig,
     MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
 )
 from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.simulator import Simulation
 
 
 class TestComprehensiveEnvironmentIntegration:
@@ -38,9 +39,8 @@ class TestComprehensiveEnvironmentIntegration:
                         "altar": building.assembler_altar,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
+                        move=MoveActionConfig(),
+                        noop=NoopActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -68,8 +68,8 @@ class TestComprehensiveEnvironmentIntegration:
                         "wall": building.wall,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
-                        rotate=ActionConfig(),
+                        move=MoveActionConfig(),
+                        noop=NoopActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -99,9 +99,8 @@ class TestComprehensiveEnvironmentIntegration:
                         "generator_red": building.assembler_generator_red,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
+                        move=MoveActionConfig(),
+                        noop=NoopActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -134,9 +133,8 @@ class TestComprehensiveEnvironmentIntegration:
                         "generator_red": building.assembler_generator_red,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
+                        move=MoveActionConfig(),
+                        noop=NoopActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -178,7 +176,7 @@ class TestComprehensiveEnvironmentIntegration:
 
         # Validate actions are properly configured
         assert env_config.game.actions.move is not None, "Move action not configured"
-        assert env_config.game.actions.rotate is not None, "Rotate action not configured"
+        assert env_config.game.actions.noop is not None, "Noop action not configured"
 
     def test_environment_integration_with_new_recipes(self):
         """Test that environments work with the new recipe system."""
@@ -198,16 +196,10 @@ class TestComprehensiveEnvironmentIntegration:
     def test_programmatic_env_with_mettagrid(self):
         """Test that programmatically created environments work with MettaGridEnv."""
 
-        env_config = self.make_debug_env("tiny_two_altars")
-        env = MettaGridEnv(env_config)
+        cfg = self.make_debug_env("tiny_two_altars")
+        sim = Simulation(cfg)
 
-        try:
-            obs, info = env.reset()
-            assert obs is not None, "Environment reset failed to return observation"
-            assert obs.shape[0] == 2, "Observation should be for 2 agents"
-            assert env.action_space is not None, "Action space not configured"
-        finally:
-            env.close()
+        assert len(sim.observations()) == 2, "Observation should be for 2 agents"
 
     def test_simulation_config_creation(self):
         """Test creating simulation configs from environments."""
@@ -260,7 +252,7 @@ class TestComprehensiveEnvironmentIntegration:
         }
 
         args = [
-            "experiments.recipes.navigation.train",
+            "recipes.experiment.navigation.train",
             f"run={run_name}",
             "trainer.total_timesteps=50",
             "wandb=off",
@@ -308,7 +300,7 @@ class TestComprehensiveEnvironmentIntegration:
         }
 
         train_args = [
-            "experiments.recipes.arena.train",
+            "recipes.experiment.arena.train",
             f"run={run_name}",
             "trainer.total_timesteps=100",
             "wandb=off",
@@ -325,7 +317,7 @@ class TestComprehensiveEnvironmentIntegration:
 
         # Test simulation tool configuration
         sim_args = [
-            "experiments.recipes.arena.evaluate",
+            "recipes.experiment.arena.evaluate",
             "policy_uri=mock://test",  # Use mock policy
             "--dry-run",
         ]

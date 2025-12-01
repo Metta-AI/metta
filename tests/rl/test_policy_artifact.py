@@ -1,35 +1,26 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 
-import gymnasium as gym
-import pytest
 import torch
 import torch.nn as nn
 from pydantic import Field
 from tensordict import TensorDict
 
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
+from metta.agent.components.cortex import CortexTD
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.policy_artifact import (
-    PolicyArtifact,
-    load_policy_artifact,
-    policy_architecture_from_string,
-    policy_architecture_to_string,
-    save_policy_artifact_safetensors,
-)
-from metta.rl.training import GameRules
 from mettagrid.base_config import Config
+from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt, save_mpt
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class DummyActionComponentConfig(Config):
     name: str = "dummy"
 
-    def make_component(self, env=None) -> nn.Module:  # pragma: no cover - simple stub
+    def make_component(self, env=None) -> nn.Module:
         return nn.Identity()
 
 
@@ -39,11 +30,15 @@ class DummyPolicyArchitecture(PolicyArchitecture):
 
 
 class DummyPolicy(Policy):
-    def __init__(self, game_rules: GameRules | None, _: PolicyArchitecture | None = None):
-        super().__init__()
+    def __init__(self, policy_env_info: PolicyEnvInterface | None, _: PolicyArchitecture | None = None):
+        if policy_env_info is None:
+            from mettagrid.config import MettaGridConfig
+
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
         self.linear = nn.Linear(1, 1)
 
-    def forward(self, td: TensorDict) -> TensorDict:  # pragma: no cover - simple passthrough
+    def forward(self, td: TensorDict) -> TensorDict:
         td["logits"] = self.linear(td["env_obs"].float())
         return td
 
@@ -51,7 +46,7 @@ class DummyPolicy(Policy):
     def device(self) -> torch.device:
         return next(self.parameters()).device
 
-    def reset_memory(self) -> None:  # pragma: no cover - no-op for dummy policy
+    def reset_memory(self) -> None:
         return None
 
 
@@ -61,198 +56,142 @@ class ActionTestArchitecture(PolicyArchitecture):
 
 
 class ActionTestPolicy(Policy):
-    def __init__(self, game_rules: GameRules | None, _: PolicyArchitecture | None = None):
-        super().__init__()
+    def __init__(self, policy_env_info: PolicyEnvInterface | None, _: PolicyArchitecture | None = None):
+        if policy_env_info is None:
+            from mettagrid.config import MettaGridConfig
+
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
         config = ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=4)
         self.components = nn.ModuleDict({"action_embedding": ActionEmbedding(config)})
         self._device = torch.device("cpu")
 
-    def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # pragma: no cover - simple passthrough
+    def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:
         return td
 
-    def initialize_to_environment(self, game_rules: GameRules, device: torch.device):
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
         self._device = torch.device(device)
-        self.components["action_embedding"].initialize_to_environment(game_rules, self._device)
+        self.components["action_embedding"].initialize_to_environment(policy_env_info, self._device)
 
     @property
     def device(self) -> torch.device:
         return self._device
 
-    def reset_memory(self) -> None:  # pragma: no cover - no-op for test policy
+    def reset_memory(self) -> None:
         return None
 
 
-def _game_rules() -> GameRules:
-    return GameRules(
-        obs_width=1,
-        obs_height=1,
-        obs_features={},
-        action_names=[],
-        num_agents=1,
-        observation_space=None,
-        action_space=None,
-        feature_normalizations={},
-    )
+def _policy_env_info() -> PolicyEnvInterface:
+    from mettagrid.config import MettaGridConfig
+
+    return PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
 
 
-def test_policy_only_artifact_instantiate() -> None:
-    game_rules = _game_rules()
-    policy = DummyPolicy(game_rules)
+def test_artifact_instantiate() -> None:
+    policy_env_info = _policy_env_info()
+    architecture = DummyPolicyArchitecture()
+    policy = architecture.make_policy(policy_env_info)
 
-    artifact = PolicyArtifact(policy=policy)
+    artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
 
-    instantiated = artifact.instantiate(game_rules, torch.device("cpu"))
-    assert instantiated is policy
+    instantiated = artifact.instantiate(policy_env_info, torch.device("cpu"))
+    assert isinstance(instantiated, DummyPolicy)
     assert instantiated.device.type == "cpu"
 
 
 def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
-    game_rules = _game_rules()
+    policy_env_info = _policy_env_info()
     architecture = DummyPolicyArchitecture()
-    policy = architecture.make_policy(game_rules)
+    policy = architecture.make_policy(policy_env_info)
 
-    artifact_path = tmp_path / "artifact.zip"
-    artifact = save_policy_artifact_safetensors(
-        artifact_path,
-        policy_architecture=architecture,
-        state_dict=policy.state_dict(),
-    )
+    artifact_path = tmp_path / "artifact.mpt"
+    save_mpt(artifact_path, architecture=architecture, state_dict=policy.state_dict())
 
     assert artifact_path.exists()
-    assert artifact.policy_architecture is architecture
-    assert artifact.state_dict is not None
 
-    loaded = load_policy_artifact(artifact_path)
-    assert loaded.policy is None
-    assert isinstance(loaded.policy_architecture, DummyPolicyArchitecture)
+    loaded = load_mpt(str(artifact_path))
+    assert isinstance(loaded.architecture, DummyPolicyArchitecture)
     assert loaded.state_dict is not None
 
-    instantiated = loaded.instantiate(game_rules, torch.device("cpu"))
+    instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
     assert isinstance(instantiated, DummyPolicy)
 
 
-def test_policy_artifact_rejects_policy_and_weights() -> None:
-    game_rules = _game_rules()
-    architecture = DummyPolicyArchitecture()
-    policy = architecture.make_policy(game_rules)
-    state = policy.state_dict()
-
-    with pytest.raises(ValueError):
-        PolicyArtifact(policy_architecture=architecture, state_dict=state, policy=policy)
-
-
-def test_policy_architecture_round_trip_vit() -> None:
+def test_architecture_round_trip_vit() -> None:
     config = ViTDefaultConfig()
-    spec = policy_architecture_to_string(config)
-    reconstructed = policy_architecture_from_string(spec)
+    spec = config.to_spec()
+    reconstructed = PolicyArchitecture.from_spec(spec)
 
     assert isinstance(reconstructed, ViTDefaultConfig)
     assert reconstructed.model_dump() == config.model_dump()
 
 
-def test_policy_architecture_round_trip_fast_with_override() -> None:
+def test_architecture_round_trip_fast_with_override() -> None:
     config = FastConfig(actor_hidden_dim=321)
-    spec = policy_architecture_to_string(config)
-    reconstructed = policy_architecture_from_string(spec)
+    spec = config.to_spec()
+    reconstructed = PolicyArchitecture.from_spec(spec)
 
     assert isinstance(reconstructed, FastConfig)
     assert reconstructed.model_dump() == config.model_dump()
 
 
-def test_policy_architecture_from_string_without_args() -> None:
+def test_architecture_from_spec_without_args() -> None:
     spec = "metta.agent.policies.vit.ViTDefaultConfig"
-    architecture = policy_architecture_from_string(spec)
+    architecture = PolicyArchitecture.from_spec(spec)
     assert isinstance(architecture, ViTDefaultConfig)
 
-    canonical = policy_architecture_to_string(architecture)
+    canonical = architecture.to_spec()
     assert canonical.startswith("metta.agent.policies.vit.ViTDefaultConfig(")
-    # Canonical string should parse back to the same config
-    round_tripped = policy_architecture_from_string(canonical)
+    round_tripped = PolicyArchitecture.from_spec(canonical)
     assert round_tripped.model_dump() == architecture.model_dump()
 
 
-def test_policy_architecture_from_string_with_args_round_trip() -> None:
+def test_architecture_from_spec_with_args_round_trip() -> None:
     spec = "metta.agent.policies.fast.FastConfig(actor_hidden_dim=2048, critic_hidden_dim=4096)"
-    architecture = policy_architecture_from_string(spec)
+    architecture = PolicyArchitecture.from_spec(spec)
 
     assert isinstance(architecture, FastConfig)
     assert architecture.actor_hidden_dim == 2048
     assert architecture.critic_hidden_dim == 4096
 
-    canonical = policy_architecture_to_string(architecture)
+    canonical = architecture.to_spec()
     assert "actor_hidden_dim=2048" in canonical
     assert "critic_hidden_dim=4096" in canonical
-    # Canonical string should parse back to the same config
-    round_tripped = policy_architecture_from_string(canonical)
+    round_tripped = PolicyArchitecture.from_spec(canonical)
     assert round_tripped.model_dump() == architecture.model_dump()
 
 
-def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
-    obs_features = {"token": SimpleNamespace(id=0, normalization=1.0)}
-    game_rules = GameRules(
-        obs_width=1,
-        obs_height=1,
-        obs_features=obs_features,
-        action_names=["noop"],
-        num_agents=1,
-        observation_space=None,
-        action_space=gym.spaces.Discrete(1),
-        feature_normalizations={0: 1.0},
-    )
+def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
+    from mettagrid.config import MettaGridConfig
 
-    architecture = FastLSTMResetConfig()
-    policy = architecture.make_policy(game_rules)
-    policy.initialize_to_environment(game_rules, torch.device("cpu"))
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
 
-    artifact_path = tmp_path / "artifact.zip"
-    save_policy_artifact_safetensors(
-        artifact_path,
-        policy_architecture=architecture,
-        state_dict=policy.state_dict(),
-    )
+    architecture = FastConfig()
+    policy = architecture.make_policy(policy_env_info)
+    policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
-    loaded = load_policy_artifact(artifact_path)
-    reloaded = loaded.instantiate(game_rules, torch.device("cpu"))
+    artifact_path = tmp_path / "artifact.mpt"
+    save_mpt(artifact_path, architecture=architecture, state_dict=policy.state_dict())
 
-    assert reloaded.network.module.lstm_reset.func.lstm_h.size(1) == 0
+    loaded = load_mpt(str(artifact_path))
+    reloaded = loaded.instantiate(policy_env_info, torch.device("cpu"))
+
+    assert hasattr(reloaded, "core")
+    assert isinstance(reloaded.core, CortexTD)
 
 
 def test_policy_artifact_reinitializes_environment_dependent_buffers() -> None:
-    """Policies should refresh action embeddings after weights are loaded."""
-
-    obs_features = {"token": SimpleNamespace(id=0, normalization=1.0)}
-
-    old_rules = GameRules(
-        obs_width=1,
-        obs_height=1,
-        obs_features=obs_features,
-        action_names=["noop", "attack_0", "attack_1"],
-        num_agents=1,
-        observation_space=None,
-        action_space=gym.spaces.Discrete(3),
-        feature_normalizations={0: 1.0},
-    )
-
-    new_rules = GameRules(
-        obs_width=1,
-        obs_height=1,
-        obs_features=obs_features,
-        action_names=["noop", "attack_0", "attack_1"],
-        num_agents=1,
-        observation_space=None,
-        action_space=gym.spaces.Discrete(3),
-        feature_normalizations={0: 1.0},
-    )
-
+    policy_env_info = _policy_env_info()
     architecture = ActionTestArchitecture()
-    policy = architecture.make_policy(old_rules)
-    policy.initialize_to_environment(old_rules, torch.device("cpu"))
+    policy = architecture.make_policy(policy_env_info)
+    policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
-    artifact = PolicyArtifact(policy_architecture=architecture, state_dict=policy.state_dict())
+    artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
     artifact.state_dict["components.action_embedding.active_indices"] = torch.tensor([5, 6, 7], dtype=torch.long)
 
-    reloaded = artifact.instantiate(new_rules, torch.device("cpu"))
+    reloaded = artifact.instantiate(policy_env_info, torch.device("cpu"))
 
     action_component = reloaded.components["action_embedding"]
-    assert tuple(action_component.active_indices.tolist()) == (0, 1, 2)
-    assert action_component.num_actions == 3
+    expected_indices = tuple(range(len(policy_env_info.action_names)))
+    assert tuple(action_component.active_indices.tolist()) == expected_indices
+    assert action_component.num_actions == len(expected_indices)

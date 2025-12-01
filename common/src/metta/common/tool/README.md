@@ -24,7 +24,7 @@ Tools are defined in `metta/tools/` and provide the interface for all operations
 
 ### Recipes
 
-**Recipes** are Python modules (typically in `experiments/recipes/`) that define **tool makers** - functions that return
+**Recipes** are Python modules (typically in `recipes/experiment/`) that define **tool makers** - functions that return
 configured tool instances for specific experiments or environments.
 
 **Key benefit**: Recipes group related configurations together. For example, an `arena` recipe ensures you train,
@@ -43,7 +43,7 @@ first-class objects and/or discover specific patterns that are worth "automating
 Example recipe structure:
 
 ```python
-# experiments/recipes/arena.py
+# recipes/experiment/arena.py
 from metta.tools.train import TrainTool
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -75,7 +75,7 @@ This ensures training, evaluation, and play all use the same arena configuration
 
 ### How They Work Together
 
-1. **Recipe Discovery**: The system automatically discovers recipes in `experiments/recipes/`
+1. **Recipe Discovery**: The system automatically discovers recipes in `recipes/experiment/`
 2. **Tool Loading**: When you run `./tools/run.py train arena`, the runner:
    - Finds the `arena` recipe module
    - Locates the `train` tool maker
@@ -87,7 +87,7 @@ This ensures training, evaluation, and play all use the same arena configuration
 
 ## Recipe Discovery
 
-Recipes are automatically discovered from the `experiments/recipes` directory using `pkgutil.walk_packages()`.
+Recipes are automatically discovered from the `recipes/experiment` directory using `pkgutil.walk_packages()`.
 
 **Important**: Python requires subdirectories to have `__init__.py` files to be importable as packages. If you create a
 new subdirectory for recipes, run:
@@ -122,16 +122,16 @@ The runner supports flexible syntax for invoking tools:
 
 - Example: `train arena` → `arena.train`
 
-**Short recipe names**: Omit the `experiments.recipes.` prefix
+**Short recipe names**: Omit the `recipes.experiment.` or `recipes.prod.` prefix
 
-- Example: `arena` → `experiments.recipes.arena`
+- Example: `arena` → `recipes.experiment.arena` (or `recipes.prod.arena` for prod recipes)
 
 **Equivalent invocations**:
 
 ```bash
 ./tools/run.py train arena run=test
 ./tools/run.py arena.train run=test
-./tools/run.py experiments.recipes.arena.train run=test
+./tools/run.py recipes.experiment.arena.train run=test
 ```
 
 ## Discovering Tools

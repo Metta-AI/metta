@@ -390,7 +390,7 @@ class WandBDashboardMCPServer:
                 return [types.TextContent(type="text", text=result)]
 
             except Exception as e:
-                logger.error(f"Error calling tool {name}: {e}")
+                logger.error(f"Error calling tool {name}: {e}", exc_info=True)
                 return [types.TextContent(type="text", text=f"Error: {str(e)}")]
 
     def _setup_resources(self) -> None:
@@ -443,10 +443,10 @@ async def main():
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception as e:
-        logger.error(f"Server error: {e}")
+        logger.error(f"Server error: {e}", exc_info=True)
         import traceback
 
-        logger.error(f"Full traceback: {traceback.format_exc()}")
+        logger.error(f"Full traceback: {traceback.format_exc()}", exc_info=True)
         sys.exit(1)
 
 

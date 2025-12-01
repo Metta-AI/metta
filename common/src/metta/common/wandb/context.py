@@ -1,7 +1,7 @@
 import logging
 import os
 import socket
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from mettagrid.base_config import Config
 
@@ -18,8 +18,7 @@ class WandbConfig(Config):
     project: str
     entity: str
     group: str | None = None
-    name: str | None = None
-    run_id: str | None = None
+    run_id: str | None = None  # Used for both WandB id and display name
     data_dir: str | None = None
     job_type: str | None = None
     tags: list[str] = []
@@ -117,11 +116,12 @@ class WandbContext:
                 elif isinstance(self.run_config, str):
                     config = self.run_config
                 else:
-                    logger.error(f"Invalid extra_cfg: {self.run_config}")
+                    logger.error(f"Invalid extra_cfg: {self.run_config}", exc_info=True)
                     config = None
 
             self.run = wandb.init(
                 id=self.wandb_config.run_id,
+                name=self.wandb_config.run_id,  # Use run_id as display name
                 job_type=self.wandb_config.job_type,
                 project=self.wandb_config.project,
                 entity=self.wandb_config.entity,
@@ -176,7 +176,67 @@ class WandbContext:
             try:
                 wandb.finish()
             except Exception as e:
-                logger.error(f"Error during W&B cleanup: {str(e)}")
+                logger.error(f"Error during W&B cleanup: {str(e)}", exc_info=True)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cleanup_run(self.run)
+
+
+class WandbRunAppendContext:
+    """
+    Append-only context for logging to an existing W&B run without finishing it.
+
+    This intentionally avoids mutating config/tags/name and never calls finish(),
+    so it can be used by helper processes to stream metrics to an existing run.
+    """
+
+    def __init__(self, wandb_config: WandbConfig, timeout: int = 15) -> None:
+        self.wandb_config = wandb_config
+        self.timeout = timeout
+        self.run: Optional[WandbRun] = None
+
+    def __enter__(self) -> Optional[WandbRun]:
+        if not self.wandb_config.enabled:
+            return None
+
+        if not self.wandb_config.run_id:
+            logger.warning("WandbRunAppendContext requires a run_id to resume a run.")
+            return None
+
+        import wandb
+
+        os.environ.setdefault("WANDB_DISABLE_CODE", "true")
+        os.environ.setdefault("WANDB_DISABLE_GIT", "true")
+        os.environ.setdefault("WANDB_SILENT", "true")
+
+        settings = wandb.Settings(
+            quiet=True,
+            init_timeout=self.timeout,
+            save_code=False,
+            x_primary=False,  # worker, not allowed to mutate shared meta
+            x_update_finish_state=False,  # worker can't finish the run
+            x_disable_meta=True,  # don't collect system metadata
+            x_disable_stats=True,  # don't collect system stats
+            x_disable_machine_info=True,  # don't collect machine info
+            x_disable_viewer=True,  # don't query viewer info
+            disable_code=True,  # don't capture code
+            disable_git=True,  # don't capture git state
+            disable_job_creation=True,  # don't create job artifacts
+        )
+
+        self.run = wandb.init(
+            mode="shared",
+            id=self.wandb_config.run_id,
+            project=self.wandb_config.project,
+            entity=self.wandb_config.entity,
+            resume="must",
+            reinit="return_previous",
+            settings=settings,
+        )
+
+        logger.info("Opened append-only W&B session for %s", self.run.path)
+        return self.run
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Do not finish the run; leave ownership to the primary writer.
+        return False

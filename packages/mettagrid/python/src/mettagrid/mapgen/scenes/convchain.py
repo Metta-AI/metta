@@ -26,7 +26,8 @@ import math
 
 import numpy as np
 
-from mettagrid.mapgen.scene import Config, Scene, SceneConfig
+from mettagrid.base_config import Config
+from mettagrid.mapgen.scene import Scene, SceneConfig
 from mettagrid.mapgen.utils.pattern import Pattern, Symmetry, ascii_to_weights_of_all_patterns
 
 
@@ -64,40 +65,38 @@ class ConvChain(Scene[ConvChainConfig]):
         self._weights = np.maximum(self._weights, 0.1)
 
     def render(self):
-        # Generate the field using the ConvChain algorithm
-
         config = self.config
-
-        # Intentionally use a list here, to avoid numpy array overhead.
-        # (The code is not vectorized, so numpy is not faster here)
+        # Intentionally use a plain Python list: this loop is scalar and numpy adds overhead.
         field = self.rng.choice([False, True], size=self.grid.shape).tolist()
+        # Keep a local list to reduce attribute lookups inside the hot loop.
         weights = list(self._weights)
-
         n = config.pattern_size
+        # Precompute 2^(dy*n+dx) powers to avoid recomputing inside the inner loop.
+        power_lookup = [1 << i for i in range(n * n)]
+        width = self.width
+        height = self.height
 
-        r = 0
         for _ in range(config.iterations * self.width * self.height):
-            x0 = self.rng.integers(0, self.width, dtype=int)
-            y0 = self.rng.integers(0, self.height, dtype=int)
+            x0 = self.rng.integers(0, width, dtype=int)
+            y0 = self.rng.integers(0, height, dtype=int)
 
-            # This algorithm applies some clever bitwise magic to calculate the
-            # energy of the field.
-            #
-            # Refer to the implementation in ConvChainSlow class for more
-            # details, and to the original C# code at
-            # https://github.com/mxgmn/ConvChain/blob/master/ConvChainFast.cs.
+            # This algorithm applies the same bitwise energy calc as ConvChainFast.cs.
+            # For a clearer walkthrough, see ConvChainSlow, or the original C#:
+            # https://github.com/mxgmn/ConvChain/blob/master/ConvChainFast.cs
             q = 1
             for sy in range(y0 - n + 1, y0 + n):
+                y_vals = [(sy + dy) % height for dy in range(n)]
                 for sx in range(x0 - n + 1, x0 + n):
+                    x_vals = [(sx + dx) % width for dx in range(n)]
                     ind = 0
                     difference = 0
                     for dy in range(n):
                         for dx in range(n):
-                            x = (sx + dx) % self.width
-                            y = (sy + dy) % self.height
+                            x = x_vals[dx]
+                            y = y_vals[dy]
 
                             value = field[y][x]
-                            power = 1 << (dy * n + dx)
+                            power = power_lookup[dy * n + dx]
                             if value:
                                 ind += power
                             if x == x0 and y == y0:
@@ -105,19 +104,17 @@ class ConvChain(Scene[ConvChainConfig]):
 
                     q *= weights[ind - difference] / weights[ind]
 
-            # For the sake of parity with ConvChainSlow class, we pre-generate a
-            # random number.
-            # (This allows us to compare whether the output is identical to the
-            # ConvChainSlow version, can be optimized later)
+            # For the sake of parity with ConvChainSlow class, we pre-generate a random number.
+            # (This allows us to compare whether the output is identical to the ConvChainSlow version;
+            # can be optimized later.)
             rnd = self.rng.random()
             if q >= 1:
                 field[y0][x0] = not field[y0][x0]
                 continue
 
-            if self.config.temperature != 1:
-                q = q ** (1.0 / self.config.temperature)
+            if config.temperature != 1:
+                q = q ** (1.0 / config.temperature)
 
-            r += 1
             if q > rnd:
                 field[y0][x0] = not field[y0][x0]
 

@@ -71,8 +71,15 @@ class BSP(Scene[BSPConfig]):
             )
             rooms.append(room)
 
-            grid[room.y : room.y + room.height, room.x : room.x + room.width] = "empty"
-            self.make_area(room.x, room.y, room.width, room.height, tags=["room"])
+            # Clamp room to scene area bounds to avoid subarea overflows
+            rx = max(0, min(int(room.x), self.width - 1))
+            ry = max(0, min(int(room.y), self.height - 1))
+            rw = max(1, min(int(room.width), self.width - rx))
+            rh = max(1, min(int(room.height), self.height - ry))
+
+            grid[ry : ry + rh, rx : rx + rw] = "empty"
+            # Create a sub-area for the clamped room footprint
+            self.make_area(rx, ry, rw, rh, tags=["room"])
 
         # Make corridors
         if config.skip_corridors:
@@ -102,9 +109,15 @@ class BSP(Scene[BSPConfig]):
             # draw lines on the original grid
             for line in lines:
                 if line.direction == "vertical":
-                    grid[line.start[1] : line.start[1] + line.length, line.start[0]] = "empty"
+                    y0 = max(0, line.start[1])
+                    y1 = min(grid.shape[0], line.start[1] + line.length)
+                    if 0 <= line.start[0] < grid.shape[1] and y0 < y1:
+                        grid[y0:y1, line.start[0]] = "empty"
                 else:
-                    grid[line.start[1], line.start[0] : line.start[0] + line.length] = "empty"
+                    x0 = max(0, line.start[0])
+                    x1 = min(grid.shape[1], line.start[0] + line.length)
+                    if 0 <= line.start[1] < grid.shape[0] and x0 < x1:
+                        grid[line.start[1], x0:x1] = "empty"
 
 
 class Zone:

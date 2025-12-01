@@ -29,6 +29,34 @@ struct ActionConfig {
   virtual ~ActionConfig() {}
 };
 
+// Forward declaration
+class ActionHandler;
+
+// Action represents a specific action variant (e.g., move_north, attack_0, etc.)
+class Action {
+public:
+  Action(ActionHandler* handler, const std::string& name, ActionArg arg) : _handler(handler), _name(name), _arg(arg) {}
+
+  bool handle(Agent& actor);
+
+  std::string name() const {
+    return _name;
+  }
+
+  ActionArg arg() const {
+    return _arg;
+  }
+
+  ActionHandler* handler() const {
+    return _handler;
+  }
+
+private:
+  ActionHandler* _handler;
+  std::string _name;
+  ActionArg _arg;
+};
+
 class ActionHandler {
 public:
   unsigned char priority;
@@ -76,8 +104,15 @@ public:
   void init(Grid* grid, std::mt19937* rng) {
     this->_grid = grid;
     _rng = rng;
+
+    // Create actions after construction, when the derived class vtable is set up
+    if (_actions.empty()) {
+      _actions = create_actions();
+    }
   }
 
+  // Returns true if the action was executed, false otherwise. In particular, a result of false should have no impact
+  // on the environment, and should imply that the agent effectively took a noop action.
   bool handle_action(Agent& actor, ActionArg arg) {
     // Handle frozen status
     if (actor.frozen != 0) {
@@ -129,15 +164,10 @@ public:
       }
     } else {
       actor.stats.incr("action." + _action_name + ".failed");
-      actor.stats.incr("action.failure_penalty");
-      *actor.reward -= actor.action_failure_penalty;
+      actor.stats.incr("action.failed");
     }
 
     return success;
-  }
-
-  virtual unsigned char max_arg() const {
-    return 0;
   }
 
   std::string action_name() const {
@@ -145,13 +175,18 @@ public:
   }
 
   virtual std::string variant_name(ActionArg arg) const {
-    if (max_arg() == 0) {
-      return _action_name;
-    }
     return _action_name + "_" + std::to_string(static_cast<int>(arg));
   }
 
+  // Get the actions for this handler
+  const std::vector<Action>& actions() const {
+    return _actions;
+  }
+
 protected:
+  // Subclasses override this to create their specific action instances
+  virtual std::vector<Action> create_actions() = 0;
+
   virtual bool _handle_action(Agent& actor, ActionArg arg) = 0;
 
   InventoryDelta compute_probabilistic_delta(InventoryProbability amount) const {
@@ -182,7 +217,13 @@ protected:
   std::unordered_map<InventoryItem, InventoryQuantity> _required_resources;
   std::unordered_map<InventoryItem, InventoryProbability> _consumed_resources;
   std::mt19937* _rng{};
+  std::vector<Action> _actions;
 };
+
+// Implement Action::handle() inline after ActionHandler is fully defined
+inline bool Action::handle(Agent& actor) {
+  return _handler->handle_action(actor, _arg);
+}
 
 namespace py = pybind11;
 

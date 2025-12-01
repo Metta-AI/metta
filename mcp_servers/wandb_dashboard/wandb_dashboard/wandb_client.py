@@ -54,7 +54,7 @@ class WandBClient:
                 logger.info("WandB API client initialized (authentication may be limited)")
 
         except Exception as e:
-            logger.error(f"Failed to initialize WandB API: {e}")
+            logger.error(f"Failed to initialize WandB API: {e}", exc_info=True)
             raise
 
     def _create_fresh_api_client(self) -> Api:
@@ -66,7 +66,7 @@ class WandBClient:
             logger.info("Created fresh WandB API client")
             return fresh_api
         except Exception as e:
-            logger.error(f"Failed to create fresh API client: {e}")
+            logger.error(f"Failed to create fresh API client: {e}", exc_info=True)
             # Fall back to existing client
             return self.api
 
@@ -158,7 +158,7 @@ class WandBClient:
             return workspaces
 
         except Exception as e:
-            logger.error(f"Failed to list workspaces: {e}")
+            logger.error(f"Failed to list workspaces: {e}", exc_info=True)
             raise
 
     async def get_project_metrics(
@@ -282,7 +282,7 @@ class WandBClient:
             return metrics_list
 
         except Exception as e:
-            logger.error(f"Failed to get project metrics: {e}")
+            logger.error(f"Failed to get project metrics: {e}", exc_info=True)
             raise
 
     async def get_run_details(self, entity: str, project: str, run_id: str) -> Dict[str, Any]:
@@ -312,7 +312,7 @@ class WandBClient:
             }
 
         except Exception as e:
-            logger.error(f"Failed to get run details: {e}")
+            logger.error(f"Failed to get run details: {e}", exc_info=True)
             raise
 
     def is_authenticated(self) -> bool:
@@ -469,7 +469,7 @@ class WandBClient:
             return result
 
         except Exception as e:
-            logger.error(f"Failed to create dashboard: {e}")
+            logger.error(f"Failed to create dashboard: {e}", exc_info=True)
             # Return JSON-serializable error info
             return {"status": "error", "error": str(e), "name": name, "entity": entity, "project": project}
 
@@ -548,7 +548,7 @@ class WandBClient:
             }
 
         except Exception as e:
-            logger.error(f"Failed to update dashboard: {e}")
+            logger.error(f"Failed to update dashboard: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
     async def clone_dashboard(self, source_url: str, new_name: str) -> Dict[str, Any]:
@@ -606,7 +606,7 @@ class WandBClient:
             }
 
         except Exception as e:
-            logger.error(f"Failed to clone dashboard: {e}")
+            logger.error(f"Failed to clone dashboard: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "source_url": source_url, "new_name": new_name}
 
     async def get_dashboard_config(self, dashboard_url: str) -> Dict[str, Any]:
@@ -679,7 +679,7 @@ class WandBClient:
             return config
 
         except Exception as e:
-            logger.error(f"Failed to get dashboard config: {e}")
+            logger.error(f"Failed to get dashboard config: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
     async def add_panel_to_dashboard(
@@ -759,7 +759,7 @@ class WandBClient:
             }
 
         except Exception as e:
-            logger.error(f"Failed to add panel to dashboard: {e}")
+            logger.error(f"Failed to add panel to dashboard: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
     async def update_panel(self, dashboard_url: str, panel_identifier: dict, new_content: str) -> Dict[str, Any]:
@@ -874,7 +874,7 @@ class WandBClient:
             }
 
         except Exception as e:
-            logger.error(f"Failed to update panel: {e}")
+            logger.error(f"Failed to update panel: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
     async def remove_panel(self, dashboard_url: str, panel_identifier: dict) -> Dict[str, Any]:
@@ -990,7 +990,7 @@ class WandBClient:
             }
 
         except Exception as e:
-            logger.error(f"Failed to remove panel: {e}")
+            logger.error(f"Failed to remove panel: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
     async def create_custom_chart(
@@ -1141,7 +1141,7 @@ This chart was created using the WandB MCP server's `create_custom_chart` tool.
                 return {"status": "error", "error": f"Failed to create {chart_type} chart"}
 
         except Exception as e:
-            logger.error(f"Failed to create custom chart: {e}")
+            logger.error(f"Failed to create custom chart: {e}", exc_info=True)
             return {"status": "error", "error": str(e)}
 
     async def bulk_delete_dashboards(self, dashboard_urls: List[str], confirmed: bool = False) -> Dict[str, Any]:
@@ -1227,7 +1227,7 @@ This chart was created using the WandB MCP server's `create_custom_chart` tool.
                         }
                     )
             except Exception as e:
-                logger.error(f"Failed to delete dashboard {dashboard['title']}: {e}")
+                logger.error(f"Failed to delete dashboard {dashboard['title']}: {e}", exc_info=True)
                 failed_deletions.append(
                     {
                         "url": dashboard["url"],
@@ -1297,7 +1297,7 @@ This chart was created using the WandB MCP server's `create_custom_chart` tool.
                 }
 
         except Exception as e:
-            logger.error(f"Error deleting dashboard: {e}")
+            logger.error(f"Error deleting dashboard: {e}", exc_info=True)
             return {
                 "status": "error",
                 "message": f"Error deleting dashboard: {str(e)}",

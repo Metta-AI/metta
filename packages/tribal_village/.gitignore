@@ -1,0 +1,105 @@
+tribal_village
+src/tmp/
+src/mettascope.out
+bindings/generated/
+mettascope2/dist/
+mettascope2/data/fidget/
+data/fidget/
+!data/resources/
+!data/resources/*.png
+uv.lock
+
+# Dynamic libraries (platform-specific compiled binaries)
+*.dylib
+*.dll
+*.so
+
+# Nim compilation artifacts
+*.out
+*.exe
+src/tribal.out
+src/tribal/tribal
+
+# Nim compiled binaries (executables without extension)
+src/tribal/environment
+src/tribal/renderer
+src/tribal/clippy
+src/tribal/placement
+src/tribal/terrain
+
+# Test executables (all compiled test binaries)
+tests/test_*
+tests/debug_*
+tests/quick_*
+tests/fixed_*
+!tests/test_*.nim
+!tests/test_*.py
+!tests/test_*.sh
+!tests/debug_*.nim
+!tests/quick_*.nim
+!tests/fixed_*.nim
+
+# General pattern for Nim binaries in src directories
+# (Nim compiles to extensionless executables on Unix)
+src/**/*
+!src/**/*.nim
+!src/**/*.py
+!src/**/*.sh
+!src/**/*.md
+!src/**/*.txt
+!src/**/*.json
+!src/**/*.yaml
+!src/**/*.yml
+!src/**/*.html
+!src/**/*.css
+!src/**/*.js
+!src/**/*/
+
+# Temporary files and outputs
+*.tmp
+*.tribal
+actions.tmp
+tribal_replay_*.tribal
+
+# Example outputs that shouldn't be committed
+examples/tribal_replay_*.tribal
+examples/*.tmp
+
+# Python package build artifacts
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+build/
+# Emscripten local cache created by nimble wasm
+build/web/emscripten_cache/
+dist/
+.eggs/
+
+# Python virtual environments
+venv/
+env/
+.env
+.venv
+
+# Python testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Python IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python development tools
+.mypy_cache/
+.dmypy.json
+dmypy.json
+nimble.develop
+nimble.paths

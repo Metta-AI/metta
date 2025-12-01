@@ -8,7 +8,6 @@ We use the stable formulations, i.e. we avoid subtraction of forget gates.
 """
 
 import torch
-from einops import rearrange
 from torch.nn.functional import logsigmoid
 
 
@@ -26,11 +25,11 @@ def compute_chunkwise_log_gates_vecB_vecA(
 
     # compute vecB
     vecF_logsig = logsigmoid(vecF.to(dtype=torch.float32))
-    vecF_logsig_chunked = rearrange(vecF_logsig, "b nh (nc l) -> b nh nc l", nc=NC, l=L)
+    vecF_logsig_chunked = vecF_logsig.reshape(B, NH, NC, L)
     vecB = vecF_logsig_chunked.cumsum(dim=-1)
 
     # compute vecA
-    vecI_chunked = rearrange(vecI, "b nh (nc l) -> b nh nc l", nc=NC, l=L)
+    vecI_chunked = vecI.reshape(B, NH, NC, L)
     # unstable vecA computation:
     # vecA = (vecB[..., -1, None] - vecB) + vecI  # (B, NH, NC, L)
     # stable vecA computation:
@@ -59,7 +58,7 @@ def compute_chunkwise_log_gates_vecB(
 
     # compute vecB
     vecF_logsig = logsigmoid(vecF.to(dtype=torch.float32))
-    vecF_logsig_chunked = rearrange(vecF_logsig, "b nh (nc l) -> b nh nc l", nc=NC, l=L)
+    vecF_logsig_chunked = vecF_logsig.reshape(B, NH, NC, L)
     vecB = vecF_logsig_chunked.cumsum(dim=-1)
 
     return vecB

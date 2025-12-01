@@ -4,12 +4,10 @@ packages:
   # see https://github.com/vercel/turborepo/discussions/8514#discussioncomment-9786742
   - "gridworks" # @softmax/gridworks
   - "home" # softmax-home
-  - "library" # @softmax/library
-  - "mettascope" # @softmax/mettascope
   - "observatory" # @softmax/observatory
-  - "experiments/notebooks/utils/scorecard_widget" # @softmax/scorecard_widget
-  - "experiments/notebooks/utils/eval_finder_widget" # @softmax/eval_finder_widget
-  - "experiments/notebooks/utils/policy_selector_widget" # @softmax/policy_selector_widget
+  - "notebooks/utils/scorecard_widget" # @softmax/scorecard_widget
+  - "notebooks/utils/eval_finder_widget" # @softmax/eval_finder_widget
+  - "notebooks/utils/policy_selector_widget" # @softmax/policy_selector_widget
 onlyBuiltDependencies:
   - "@tailwindcss/oxide"
   - es5-ext

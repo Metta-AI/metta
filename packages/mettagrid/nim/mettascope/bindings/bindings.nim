@@ -6,8 +6,7 @@ import
 type
   ActionRequest* = object
     agentId*: int
-    actionId*: int
-    argument*: int
+    actionName*: cstring
 
   RenderResponse* = ref object
     shouldClose*: bool
@@ -27,6 +26,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     #echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
     playMode = Realtime
+    common.replay = loadReplayString(replay, "MettaScope")
     startFidget(
       figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
       windowTitle = "MetaScope V2",
@@ -34,7 +34,6 @@ proc init(dataDir: string, replay: string): RenderResponse =
       windowStyle = DecoratedResizable,
       dataDir = dataDir
     )
-    common.replay = loadReplayString(replay, "MettaScope")
     updateEnvConfig()
     updateVibePanel()
     return
@@ -67,8 +66,7 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         for action in requestActions:
           result.actions.add(ActionRequest(
             agentId: action.agentId,
-            actionId: action.actionId,
-            argument: action.argument
+            actionName: action.actionName
           ))
         requestActions.setLen(0)
         return
@@ -92,6 +90,6 @@ exportProcs:
   init
   render
 
-writeFiles("bindings/generated", "Mettascope2")
+writeFiles("bindings/generated", "Mettascope")
 
 include generated/internal

@@ -10,6 +10,7 @@ def _load_ext():
     global _ext
     if _ext is not None:
         return _ext
+
     sources = [
         os.path.join(_mod_path, "rtu_seq_full_binding.cpp"),
         os.path.join(_mod_path, "rtu_seq_full_kernels.cu"),
@@ -19,6 +20,7 @@ def _load_ext():
         sources=sources,
         extra_cflags=["-O3"],
         extra_cuda_cflags=["-O3", "-Xptxas", "-O3"],
+        build_directory=None,
         verbose=False,
     )
     return _ext

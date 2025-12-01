@@ -8,12 +8,11 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from mettagrid.base_config import Config
 
 
-class GRPOConfig(Config):
+class GRPOConfig(LossConfig):
     """Configuration for Group Relative Policy Optimization."""
 
     # Clip coefficient for policy gradient
@@ -45,7 +44,7 @@ class GRPOConfig(Config):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ):
+    ) -> "GRPO":
         """Points to the GRPO class for initialization."""
         return GRPO(
             policy,
@@ -80,7 +79,7 @@ class GRPO(Loss):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ):
+    ) -> None:
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.burn_in_steps = 0
@@ -125,7 +124,7 @@ class GRPO(Loss):
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
         """GRPO training loop with group-based advantage estimation."""
-        config = self.loss_cfg
+        config = self.cfg
         stop_update_epoch = False
         self.policy.reset_memory()
         self.burn_in_steps_iter = 0
@@ -173,7 +172,7 @@ class GRPO(Loss):
         discounted return against the mean return of a group of trajectories.
         This eliminates the need for a value network.
         """
-        cfg = self.loss_cfg
+        cfg = self.cfg
         with torch.no_grad():
             # Compute discounted returns for all trajectories
             returns = self._compute_returns(
@@ -234,7 +233,7 @@ class GRPO(Loss):
         indices: Tensor,
     ) -> Tensor:
         """Process minibatch update using GRPO loss."""
-        cfg = self.loss_cfg
+        cfg = self.cfg
         old_logprob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
         entropy = policy_td["entropy"]
@@ -290,8 +289,8 @@ class GRPO(Loss):
         pg_loss1 = -adv * importance_sampling_ratio
         pg_loss2 = -adv * torch.clamp(
             importance_sampling_ratio,
-            1 - self.loss_cfg.clip_coef,
-            1 + self.loss_cfg.clip_coef,
+            1 - self.cfg.clip_coef,
+            1 + self.cfg.clip_coef,
         )
         pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
@@ -301,7 +300,7 @@ class GRPO(Loss):
         with torch.no_grad():
             logratio = new_logprob - old_logprob
             approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
-            clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.loss_cfg.clip_coef).float().mean()
+            clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.cfg.clip_coef).float().mean()
 
         return pg_loss, entropy_loss, approx_kl, clipfrac
 

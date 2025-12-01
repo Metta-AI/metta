@@ -6,10 +6,6 @@ from mettagrid.map_builder.utils import create_grid, set_position
 
 
 class MazeConfigMapBuilderConfig(MapBuilderConfig):
-    """
-    Configuration for building a maze.
-    """
-
     width: int
     height: int
     start_pos: tuple[int, int]
@@ -18,16 +14,13 @@ class MazeConfigMapBuilderConfig(MapBuilderConfig):
     seed: Optional[int] = None
 
 
-class MazePrimMapBuilder(MapBuilder):
-    class Config(MazeConfigMapBuilderConfig):
-        pass
-
+class MazePrimMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
     EMPTY, WALL = "empty", "wall"
     START, END = "agent.agent", "altar"
     DIRECTIONS = [(2, 0), (-2, 0), (0, 2), (0, -2)]
 
-    def __init__(self, config: Config):
-        self.config = config
+    def __init__(self, config: MazeConfigMapBuilderConfig):
+        super().__init__(config)
         self._rng = random.Random(config.seed)
         self._width = config.width if config.width % 2 == 1 else config.width - 1
         self._height = config.height if config.height % 2 == 1 else config.height - 1
@@ -66,15 +59,12 @@ class MazePrimMapBuilder(MapBuilder):
 
 
 # Maze generation using Randomized Kruskal's algorithm
-class MazeKruskalMapBuilder(MapBuilder):
-    class Config(MazeConfigMapBuilderConfig):
-        pass
-
+class MazeKruskalMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
     EMPTY, WALL = "empty", "wall"
     START, END = "agent.agent", "altar"
 
     def __init__(self, config: MazeConfigMapBuilderConfig):
-        self.config = config
+        super().__init__(config)
         self._rng = random.Random(config.seed)
         self._width = config.width if config.width % 2 == 1 else config.width - 1
         self._height = config.height if config.height % 2 == 1 else config.height - 1

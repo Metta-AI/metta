@@ -415,7 +415,7 @@ def live_monitor_runs(
 
         except Exception as e:
             error_msg = f"Error fetching run data: {str(e)}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             return Text(error_msg, style="bright_red")
 
     # Start monitoring

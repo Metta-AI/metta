@@ -1,14 +1,15 @@
 """Agent info panel component for miniscope renderer."""
 
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 import numpy as np
 
-from mettagrid import MettaGridEnv
-from mettagrid.core import BoundingBox
-from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
+from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
 from mettagrid.renderer.miniscope.symbol import get_symbol_for_object
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
 
 from .base import MiniscopeComponent
 
@@ -18,7 +19,7 @@ class AgentInfoComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -29,12 +30,11 @@ class AgentInfoComponent(MiniscopeComponent):
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.get_sidebar_panel("agent_info"))
-
-    def _get_object_type_names(self) -> list[str]:
-        """Get object type names from state."""
-        return self.state.object_type_names if self.state else []
+        super().__init__(sim=sim, state=state, panels=panels)
+        sidebar_panel = panels.get_sidebar_panel("agent_info")
+        if sidebar_panel is None:
+            sidebar_panel = panels.register_sidebar_panel("agent_info")
+        self._set_panel(sidebar_panel)
 
     def _get_resource_names(self) -> list[str]:
         """Get resource names from state."""
@@ -44,9 +44,9 @@ class AgentInfoComponent(MiniscopeComponent):
         """Get symbol map from state."""
         return self.state.symbol_map if self.state else {}
 
-    def _get_glyphs(self) -> Optional[list[str]]:
-        """Get glyphs from state."""
-        return self.state.glyphs if self.state else None
+    def _get_vibes(self) -> Optional[list[str]]:
+        """Get vibes from state."""
+        return self.state.vibes if self.state else None
 
     def update(self) -> None:
         """Render the agent info panel using current environment and state."""
@@ -58,13 +58,7 @@ class AgentInfoComponent(MiniscopeComponent):
             self._panel.set_content(["Agent info unavailable"])
             return
 
-        bbox = BoundingBox(
-            min_row=0,
-            max_row=self.env.map_height,
-            min_col=0,
-            max_col=self.env.map_width,
-        )
-        grid_objects = self.env.grid_objects(bbox)
+        grid_objects = self._sim.grid_objects()
 
         lines = self._build_lines(
             grid_objects,
@@ -82,7 +76,7 @@ class AgentInfoComponent(MiniscopeComponent):
         manual_agents: set[int],
     ) -> list[str]:
         """Build fixed-width lines for agent info display."""
-        width = self._width if self._width else SIDEBAR_WIDTH
+        width = self._width if self._width else 40
         width = max(24, width)
 
         lines: list[str] = []
@@ -111,19 +105,18 @@ class AgentInfoComponent(MiniscopeComponent):
             reward = float(total_rewards[selected_agent])
 
         symbol_map = self._get_symbol_map()
-        object_type_names = self._get_object_type_names()
         agent_symbol = ""
-        if symbol_map and object_type_names:
-            agent_symbol = get_symbol_for_object(agent_obj, object_type_names, symbol_map)
+        if symbol_map:
+            agent_symbol = get_symbol_for_object(agent_obj, symbol_map)
 
-        glyphs = self._get_glyphs()
-        glyph_id = agent_obj.get("glyph")
-        glyph_text = ""
-        if glyph_id is not None:
-            if isinstance(glyph_id, int) and glyphs and 0 <= glyph_id < len(glyphs):
-                glyph_text = f"{glyph_id} {glyphs[glyph_id]}"
-            elif isinstance(glyph_id, str):
-                glyph_text = glyph_id
+        vibes = self._get_vibes()
+        vibe_id = agent_obj.get("vibe")
+        vibe_text = ""
+        if vibe_id is not None:
+            if isinstance(vibe_id, int) and vibes and 0 <= vibe_id < len(vibes):
+                vibe_text = f"{vibe_id} {vibes[vibe_id]}"
+            elif isinstance(vibe_id, str):
+                vibe_text = vibe_id
 
         mode_text = "MANUAL" if selected_agent in manual_agents else "Policy"
 
@@ -132,8 +125,8 @@ class AgentInfoComponent(MiniscopeComponent):
         entries.append(("Agent", agent_value))
         entries.append(("Mode", mode_text))
         entries.append(("Reward", f"{reward:.2f}"))
-        if glyph_text:
-            entries.append(("Glyph", glyph_text))
+        if vibe_text:
+            entries.append(("Vibe", vibe_text))
 
         inventory = agent_obj.get("inventory", {}) if agent_obj else {}
         resource_names = self._get_resource_names()

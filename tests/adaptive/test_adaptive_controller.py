@@ -76,7 +76,7 @@ class TestAdaptiveController:
         # Setup: scheduler provides one training job
         training_job = JobDefinition(
             run_id="test_run_001",
-            cmd="experiments.recipes.arena.train",
+            cmd="recipes.experiment.arena.train",
             type=JobTypes.LAUNCH_TRAINING,
         )
         mock_scheduler.schedule.return_value = [training_job]
@@ -153,7 +153,7 @@ class TestAdaptiveController:
         # Setup: scheduler provides one training job
         training_job = JobDefinition(
             run_id="test_run_001",
-            cmd="experiments.recipes.arena.train",
+            cmd="recipes.experiment.arena.train",
             type=JobTypes.LAUNCH_TRAINING,
         )
         mock_scheduler.schedule.return_value = [training_job]
@@ -169,7 +169,7 @@ class TestAdaptiveController:
         """Test that duplicate jobs are not dispatched."""
         training_job = JobDefinition(
             run_id="test_run_001",
-            cmd="experiments.recipes.arena.train",
+            cmd="recipes.experiment.arena.train",
             type=JobTypes.LAUNCH_TRAINING,
         )
 
@@ -190,7 +190,7 @@ class TestAdaptiveController:
         """Test evaluation job dispatch flow."""
         eval_job = JobDefinition(
             run_id="test_run_001",
-            cmd="experiments.recipes.arena.evaluate",
+            cmd="recipes.experiment.arena.evaluate",
             type=JobTypes.LAUNCH_EVAL,
         )
 

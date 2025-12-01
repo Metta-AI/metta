@@ -72,6 +72,41 @@ InventoryDelta HasInventory::shared_update(std::vector<HasInventory*> inventory_
   return delta - delta_remaining;
 }
 
+// Static method for transferring resources between inventories
+InventoryDelta HasInventory::transfer_resources(HasInventory& source,
+                                                HasInventory& target,
+                                                InventoryItem item,
+                                                InventoryDelta delta,
+                                                bool destroy_untransferred_resources) {
+  // We want to only transfer positive deltas. If you want to transfer negative, switch source and target.
+  if (delta <= 0) {
+    return 0;
+  }
+
+  // Figure out how many resources the source can give
+  InventoryQuantity source_available = source.inventory.amount(item);
+  InventoryDelta max_source_can_give = std::min(static_cast<InventoryDelta>(source_available), delta);
+
+  // Figure out how many resources the target can receive
+  InventoryQuantity target_free_space = target.inventory.free_space(item);
+  InventoryDelta max_target_can_receive = static_cast<InventoryDelta>(target_free_space);
+
+  // Calculate the actual transfer amount
+  InventoryDelta transfer_amount = std::min(max_source_can_give, max_target_can_receive);
+  InventoryDelta source_loss = destroy_untransferred_resources ? max_source_can_give : transfer_amount;
+
+  // Remove resources from source
+  [[maybe_unused]] InventoryDelta actually_removed = source.update_inventory(item, -source_loss);
+  assert(actually_removed == -source_loss && "Expected source to lose the amount of resources it claimed to lose");
+
+  // Add resources to target
+  [[maybe_unused]] InventoryDelta actually_added = target.update_inventory(item, transfer_amount);
+  assert(actually_added == transfer_amount &&
+         "Expected target to receive the amount of resources it claimed to receive");
+
+  return transfer_amount;
+}
+
 // Whether the inventory is accessible to an agent.
 bool HasInventory::inventory_is_accessible() {
   return true;

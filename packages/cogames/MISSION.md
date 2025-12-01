@@ -19,15 +19,15 @@ This report arms you with the latest intelligence on what you might face. In dif
 
 Your onboard battery stores limited energy; manage it wisely.
 
-Almost everything you do, from moving to operating stations, drains your charge. Fortunately, the team has several ways
-to share and replenish power.
+Many things you do drain your charge. Fortunately, the team has several ways to replenish power.
 
 - Your onboard battery starts at **100** energy and caps at **100**.
 - Passive solar equipment regenerates **+1** energy per turn.
-- Interacting with solar array stations nets **50** energy, after which they take 10 turns to fully recharge. You can
-  use them while they are recharging, and will get energy commensurate with the fraction of the recharge window that has
-  elapsed.
-- Support teammates by moving onto their position to transfer **half** your energy to them.
+- Docking with fully charged solar array stations nets **50** energy, after which the station will take **10** turns to
+  fully recharge. Partially charged solar array stations can also be used, and will give energy proportional to how
+  charged they are.
+- Energy can be shared with team mates. Docking with a team mate while vibing Energy will transfer **20** energy to
+  them.
 
 #### Cargo Limits
 
@@ -43,17 +43,22 @@ You and your Cog teammates take exactly one action per turn. Actions resolve in 
 
 **MOVE [Direction: N, S, W, E]**
 
-Movement is your primary way to interact with the world. Every step burns **2** energy.
+Movement is your primary way to interact with the world. Every step uses **2** energy (typically offset to **1** by
+solar recharging).
 
 Attempting to move into occupied space will make you interact with the target (described above for other Cogs, and below
 for all other targets).
 
-**EMOTE [Symbol]**
+**VIBE [Symbol]**
 
-You are outfitted with a communication display that can show a symbol visible to all other Cogs. Available symbols may
+You are outfitted with a communication resonator that can be tuned to vibrate at specific frequencies. This vibe can be
+perceived by all Cogs within visual range, and is also used as part of station protocols (below). Available vibes may
 vary by scenario.
 
-EMOTE updates that display and costs **0** energy.
+Each vibe has a string name (e.g., "heart_a"), and a corresponding per-mission integer representation (similar to other
+observations).
+
+VIBE sets your current vibe and costs **0** energy.
 
 **REST**
 
@@ -66,17 +71,8 @@ find and how to use them.
 
 ### Station Interaction Protocol
 
-The are many different station types: Extractors, Assemblers, and Chests. Each has distinct requirements, inputs, and
-outputs, but the ways in which you interact with them follows common rules:
-
-- To attempt activation, position yourself adjacent to the station, then MOVE toward it.
-- Some facilities need teammates at multiple specific **terminals** (the eight tiles surrounding the facility).
-- Station inputs draw from the cargo of surrounding Cogs in clockwise order, starting northwest of the station and
-  moving clockwise. The station drains each Cog's cargo and/or battery in turn until costs are met. If the team lacks
-  the required resources, the station will not trigger and nothing is consumed.
-- Upon success, outputs are placed in the **activator**'s cargo. The activator is the first Cog that MOVEs toward the
-  station. Because turn order is unspecified, coordinate carefully to ensure you and your team elect an activator
-  intentionally.
+The are many different station types: Extractors, Assemblers, and Chests. In all cases stations are activated by Cogs
+positioning themselves adjacent to the station and MOVEing toward it.
 
 ### Station Type: Extractor
 
@@ -85,30 +81,19 @@ until full.
 
 Extractor interaction has a few additional properties:
 
-- Extractors may have **cooldown** periods after interaction. Activating one mid-cooldown generally has no effect.
-- Some extractors allow **partial usage** during cooldown. Inputs and outputs are scaled by the fraction of elapsed
-  cooldown.
+- Extractors may have **cooldown** periods after interaction. Some extractors allow **partial usage** during cooldown.
+  Inputs and outputs are scaled by the fraction of elapsed cooldown.
 - Certain stations have a **maximum number of uses**; once exhausted they stop working.
 
 The exact behavior of each extractor may vary across missions. Here are some typical parameters we have discovered:
 
-| Extractor           | Input cost | Output                                   | Cooldown                        | Max uses |
-| ------------------- | ---------- | ---------------------------------------- | ------------------------------- | -------- |
-| Carbon Extractor    |            | +4 carbon                                |                                 |          |
-| Oxygen Extractor    |            | +100 oxygen                              | 200 turns (partial use allowed) |          |
-| Germanium Extractor |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 2        |
-| Silicon Extractor   | −25 energy | +25 silicon                              |                                 |          |
-| Solar Array         |            | +50 energy                               | 10 turns (partial use allowed)  |          |
-
-Some extractors are worse for wear. Years of neglect have reduced their effectiveness. Here, again, are typical
-parameters we have observed for these depleted extractors:
-
-| Extractor                    | Input cost | Output                                   | Cooldown                       | Max uses |
-| ---------------------------- | ---------- | ---------------------------------------- | ------------------------------ | -------- |
-| Depleted Carbon Extractor    |            | +1                                       |                                | 100      |
-| Depleted Oxygen Extractor    |            | +10 oxygen                               | 40 turns (partial use allowed) | 10       |
-| Depleted Germanium Extractor |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                | 1        |
-| Depleted Silicon Extractor   | -25 energy | +10 silicon                              |                                | 10       |
+| Extractor           | Output                      | Max uses | Notes                                                         |
+| ------------------- | --------------------------- | -------- | ------------------------------------------------------------- |
+| Carbon Extractor    | +2 carbon                   | 25       |                                                               |
+| Oxygen Extractor    | +10 oxygen                  | 10       | Refills over 100 turns. Partial usage allowed.                |
+| Germanium Extractor | +(N+1) germanium for N Cogs | 1        | Capture depends on the number of participating Cogs, up to 4. |
+| Silicon Extractor   | +15 silicon                 | 10       | Difficult to extract. Takes 20 energy.                        |
+| Solar Array         | +50 energy                  |          | Recharges over 10 turns. Partial usage allowed.               |
 
 ### Station Type: Assembler
 
@@ -116,41 +101,53 @@ Assemblers converts raw resources into gear and precious HEART units.
 
 #### Assembler Interaction Protocol
 
-As with Extractors, inputs are drawn from all Cogs on the Assembler's terminals, and outputs go to the activator. But do
-not be fooled: Assemblers can be much more complicated than Extractors. Unlike Extractors, Assemblers can perform many
-distinct functions, each achieved by performing a specific protocol. Protocols supported by assemblers change between
-missions, and so you must discover them out in the wild.
+Unlike Extractors, Assemblers can perform multiple distinct functions, each achieved by performing a specific protocol.
+Protocols supported by assemblers change between missions, and so you must discover them out in the wild.
 
-- Your formation around the eight terminals determines which protocol fires.
+- The number of Cogs and the vibes of those Cogs control which protocol is used when the Assembler is activated.
 - Each protocol demands different inputs and produces different outputs.
+- Input resources are drawn from all adjacent Cogs, and out resources are shared with all adjacent Cogs.
 - Inputs and outputs can include HEART units or gear (scrambler, modulator, decoder, resonator), not just resources and
   energy.
 - Assemblers have no cooldowns, though some may enforce a maximum number of uses.
+
+Examples Protocols
+
+| Vibes                  | Input Resources                                        | Output Resources |
+| ---------------------- | ------------------------------------------------------ | ---------------- |
+| "heart_a"              | 10 / 10 / 2 / 30 carbon / oxygen / germanium / silicon | +1 HEART         |
+| 2 "heart_a"            | 15 / 15 / 3 / 45 carbon / oxygen / germanium / silicon | +2 HEARTs        |
+| 3 "heart_a"            | 20 / 20 / 4 / 60 carbon / oxygen / germanium / silicon | +3 HEARTs        |
+| 4 "heart_a"            | 25 / 25 / 5 / 75 carbon / oxygen / germanium / silicon | +4 HEARTs        |
+| "gear" + "carbon_a"    | 1 carbon                                               | +1 decoder       |
+| "gear" + "oxygen_a"    | 1 oxygen                                               | +1 modulator     |
+| "gear" + "germanium_a" | 1 germanium                                            | +1 scrambler     |
+| "gear" + "silicon_a"   | 1 silicon                                              | +1 resonator     |
 
 ### Station Type: Communal Chests
 
 Chests can store resources and HEARTs. Crucially, depositing HEARTs into chests are how you will ultimately be judged
 for your service.
 
-Each chest has a specific resource type it handles.
-
-To deposit from your cargo into a chest, position yourself at a terminal and MOVE into it. The same is true for
-withdrawing. The terminal you are in -- directly north, east, west, or south of the chest -- will determine which action
-you take.
-
 Be careful, as chests have max storage, and will destroy incoming deposits if full. Withdrawing is always safe: you will
-withdraw all you can, and any amount you cannot fit in your inventory will remain in the chest.
+withdraw all you can, and any amount you cannot fit in your inventory will remain in the chest. Chests typically have a
+capacity of 255 per resource, although this may vary across missions.
 
-Like with extractors, the exact parameters (max storage and initial amount) will vary across missions. Here are some
-typical parameters we have discovered:
+The effect of activating a chest depends on the Cogs vibe.
 
-| Chest           | Max storage | Initial amount |
-| --------------- | ----------- | -------------- |
-| Heart chest     | 255         | 0              |
-| Carbon chest    | 255         | 50             |
-| Oxygen chest    | 255         | 50             |
-| Germanium chest | 255         | 5              |
-| Silicon chest   | 255         | 100            |
+| Vibe          | Effect                    |
+| ------------- | ------------------------- |
+| "default"     | Deposit entire inventory. |
+| "carbon_a"    | Withdraw 10 carbon.       |
+| "carbon_b"    | Deposit 10 carbon.        |
+| "oxygen_a"    | Withdraw 10 oxygen.       |
+| "oxygen_b"    | Deposit 10 oxygen.        |
+| "germanium_a" | Withdraw 1 germanium.     |
+| "germanium_b" | Deposit 1 germanium.      |
+| "silicon_a"   | Withdraw 25 silicon.      |
+| "silicon_b"   | Deposit 25 silicon.       |
+| "heart_a"     | Withdraw 1 heart.         |
+| "heart_b"     | Deposit 1 heart.          |
 
 ---
 
@@ -166,8 +163,7 @@ a station suspends normal output until Cogs run the designated repair protocol.
   cues to triage which stations need attention first.
 - **Prepare**: Infested stations do not support their typical functions, and will need to be repaired. Repair protocols,
   like Assembler protocols, may require specific resources, gear, and team formation around the station's eight
-  terminals. The repair recipe will draw inputs from nearby Cogs in clockwise order, exactly like ordinary station
-  activation.
+  terminals. The repair recipe will draw inputs from nearby Cogs, exactly like ordinary station activation.
 - **Repair**: Move into the station to trigger the repair. A successful repair consumes the required inputs, immediately
   restores normal protocols, and resets the station’s cooldown without increasing wear.
 

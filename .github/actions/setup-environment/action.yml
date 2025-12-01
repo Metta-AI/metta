@@ -2,7 +2,7 @@ name: "Setup Environment"
 description: "Set up the environment for CI"
 inputs:
   install-mode:
-    description: "Installation mode: 'testing', 'runtime', 'linting', or 'minimal'"
+    description: "Installation mode: 'testing', 'runtime', 'metta-cli', or 'minimal'"
     required: false
     default: "testing"
   extra-dependencies:
@@ -22,6 +22,7 @@ runs:
       run: |
         echo "${{ inputs.extra-dependencies }}" | sha256sum | cut -c1-16 > hash.txt
         echo "hash=$(cat hash.txt)" >> "$GITHUB_OUTPUT"
+        rm -f hash.txt
 
     - name: Install uv with built-in caching
       uses: astral-sh/setup-uv@v6
@@ -35,24 +36,20 @@ runs:
           **/pyproject.toml
 
     - name: Get week number for cache key
-      if: inputs.install-mode != 'minimal'
       id: get-week
       shell: bash
       run: |
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
-    - name: Cache nimble
-      id: cache-nimble
-      uses: actions/cache@v4
-      with:
-        path: ~/.nimble
-        key: nim-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
-        restore-keys: |
-          nim-binary-${{ runner.os }}-
-
     - name: Set up nim
-      uses: treeform/setup-nim-action@v2
+      shell: bash
+      run: |
+        curl -L -o nimby https://github.com/treeform/nimby/releases/download/0.1.6/nimby-Linux-X64
+        chmod +x nimby
+        ./nimby use 2.2.6
+        echo "$HOME/.nimby/nim/bin" >> "$GITHUB_PATH"
+        mv nimby "$HOME/.nimby/nim/bin/nimby"
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
@@ -128,15 +125,24 @@ runs:
             uv sync --no-group interactive --no-group dev --group testing
             ;;
 
-          "linting")
-            # Install only the lint group, excluding the main, interactive and dev deps
-            uv sync --only-group lint
-            ;;
-
           # used in the mettascope tests where we run code to generate outputs but do not run tests
           "runtime")
             # Install only main dependencies, excluding all groups
             uv sync --no-group interactive --no-group dev
+            ;;
+
+          "metta-cli")
+            # Install lint group + minimal metta package dependencies for CLI
+            # This enables using `metta lint` and other metta commands while keeping install fast
+            uv sync --only-group lint
+            # Install metta package with only the minimal dependencies needed for CLI
+            # (typer, rich, pydantic, pyyaml, colorama, omegaconf, etc.)
+            uv pip install -e . --no-deps
+            uv pip install typer rich pydantic pyyaml colorama omegaconf skypilot sqlmodel
+            # Install workspace packages that metta CLI imports (with their dependencies)
+            uv pip install -e common
+            uv pip install -e packages/gitta
+            uv pip install -e softmax
             ;;
 
         esac

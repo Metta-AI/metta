@@ -64,11 +64,11 @@ class CurriculumEnv(PufferEnv):
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
-        obs, info = self._env.reset(*args, **kwargs)
 
         # Get a new task from curriculum
         self._current_task = self._curriculum.get_task()
         self._env.set_mg_config(self._current_task.get_env_cfg())
+        obs, info = self._env.reset(*args, **kwargs)
 
         # Invalidate stats cache on reset
         self._stats_cache_valid = False

@@ -8,7 +8,6 @@ low-level C++ API to avoid duplication.
 
 from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     GameConfig,
     ResourceModActionConfig,
@@ -23,7 +22,6 @@ def test_resource_mod_config_creation():
         consumed_resources={"mana": 3.0},
         modifies={"health": 10.0, "gold": -5.0},
         agent_radius=2,
-        converter_radius=1,
         scales=True,
     )
 
@@ -32,7 +30,6 @@ def test_resource_mod_config_creation():
     assert config.consumed_resources == {"mana": 3.0}
     assert config.modifies == {"health": 10.0, "gold": -5.0}
     assert config.agent_radius == 2
-    assert config.converter_radius == 1
     assert config.scales is True
 
 
@@ -41,14 +38,15 @@ def test_resource_mod_default_values():
     config = ResourceModActionConfig(enabled=True, modifies={"health": 10.0})
 
     assert config.agent_radius == 0
-    assert config.converter_radius == 0
     assert config.scales is False
 
 
 def test_resource_mod_in_actions_config():
     """Test that resource_mod can be added to ActionsConfig."""
+    from mettagrid.config.mettagrid_config import MoveActionConfig
+
     actions = ActionsConfig(
-        move=ActionConfig(enabled=True),
+        move=MoveActionConfig(enabled=True),
         resource_mod=ResourceModActionConfig(enabled=True, modifies={"health": 10.0}, agent_radius=1),
     )
 
@@ -59,19 +57,20 @@ def test_resource_mod_in_actions_config():
 
 def test_resource_mod_conversion_to_cpp():
     """Test that ResourceModActionConfig converts properly to C++ config."""
+    from mettagrid.config.mettagrid_config import MoveActionConfig
+
     # Create a GameConfig with resource_mod action
     game_config = GameConfig(
         resource_names=["health", "mana", "gold"],
         num_agents=2,
         actions=ActionsConfig(
-            move=ActionConfig(enabled=True),
+            move=MoveActionConfig(enabled=True),
             resource_mod=ResourceModActionConfig(
                 enabled=True,
                 required_resources={"mana": 5},
                 consumed_resources={"mana": 3.0},
                 modifies={"health": 10.0, "gold": -5.0},
                 agent_radius=2,
-                converter_radius=1,
                 scales=True,
             ),
         ),
@@ -108,7 +107,6 @@ def test_resource_mod_passthrough_fields_to_cpp():
                 consumed_resources={"energy": 1.0},
                 modifies={"health": 3.0, "gold": -1.0},
                 agent_radius=1,
-                converter_radius=2,
                 scales=True,
             )
         ),

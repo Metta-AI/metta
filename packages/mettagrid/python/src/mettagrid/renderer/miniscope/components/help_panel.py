@@ -1,13 +1,15 @@
 """Help panel component for miniscope renderer."""
 
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from rich import box
 from rich.table import Table
 
-from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
 
 from .base import MiniscopeComponent
 
@@ -17,19 +19,22 @@ class HelpPanelComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
         """Initialize the help panel component.
 
         Args:
-            env: MettaGrid environment reference
+            sim: MettaGrid simulator reference
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.get_sidebar_panel("help"))
+        super().__init__(sim=sim, state=state, panels=panels)
+        sidebar_panel = panels.get_sidebar_panel("help")
+        if sidebar_panel is None:
+            sidebar_panel = panels.register_sidebar_panel("help")
+        self._set_panel(sidebar_panel)
 
     def update(self) -> None:
         """Render the help panel."""
@@ -63,7 +68,7 @@ class HelpPanelComponent(MiniscopeComponent):
         lines.append("  m       - Toggle manual mode for selected agent")
         lines.append("  w/a/s/d - Move selected agent (North/West/South/East)")
         lines.append("  r       - Rest (no action)")
-        lines.append("  e       - Change glyph/emote")
+        lines.append("  e       - Change vibe/emote")
         lines.append("")
 
         # Simulation section
@@ -126,7 +131,7 @@ class HelpPanelComponent(MiniscopeComponent):
         table.add_row("", "m", "Toggle manual mode")
         table.add_row("", "w/a/s/d", "Move agent (North/West/South/East)")
         table.add_row("", "r", "Rest (no action)")
-        table.add_row("", "e", "Change glyph/emote")
+        table.add_row("", "e", "Change vibe/emote")
         table.add_row("", "", "")
 
         # Simulation

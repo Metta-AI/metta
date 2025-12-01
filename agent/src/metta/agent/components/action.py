@@ -4,7 +4,7 @@ from einops import repeat
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.rl.training import GameRules
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class ActionEmbeddingConfig(ComponentConfig):
@@ -52,7 +52,7 @@ class ActionEmbedding(nn.Module):
 
     def initialize_to_environment(
         self,
-        env: GameRules,
+        env: PolicyEnvInterface,
         device: torch.device,
     ) -> None:
         action_names = list(env.action_names)

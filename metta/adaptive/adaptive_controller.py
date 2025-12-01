@@ -61,7 +61,7 @@ class AdaptiveController:
                     try:
                         runs = self.store.fetch_runs(filters={"group": self.experiment_id})
                     except Exception as e:
-                        logger.error("Error when fetching WandB runs")
+                        logger.error("Error when fetching WandB runs", exc_info=True)
                         raise e
                 else:
                     runs = []
@@ -98,7 +98,8 @@ class AdaptiveController:
                                 )
                         except Exception as e:
                             logger.error(
-                                f"[AdaptiveController] Error running on_training_completed for {run.run_id}: {e}"
+                                f"[AdaptiveController] Error running on_training_completed for {run.run_id}: {e}",
+                                exc_info=True,
                             )
 
                 if runs and on_eval_completed is not None:
@@ -125,7 +126,10 @@ class AdaptiveController:
                                     },
                                 )
                         except Exception as e:
-                            logger.error(f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}")
+                            logger.error(
+                                f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}",
+                                exc_info=True,
+                            )
 
                 # 2. Calculate available training slots (only count runs actually using training resources)
                 active_training_count = sum(
@@ -151,7 +155,8 @@ class AdaptiveController:
                 if len(training_jobs) > available_training_slots:
                     logger.error(
                         f"[AdaptiveController] Scheduler requested {len(training_jobs)} training jobs "
-                        f"but only {available_training_slots} slots available. Skipping cycle."
+                        f"but only {available_training_slots} slots available. Skipping cycle.",
+                        exc_info=True,
                     )
                     continue
 
@@ -184,19 +189,24 @@ class AdaptiveController:
                             try:
                                 on_job_dispatch(job, self.store)
                             except Exception as e:
-                                logger.error(f"[AdaptiveController] on_job_dispatch failed for {job.run_id}: {e}")
+                                logger.error(
+                                    f"[AdaptiveController] on_job_dispatch failed for {job.run_id}: {e}",
+                                    exc_info=True,
+                                )
 
                         logger.info(
                             f"[AdaptiveController] Dispatched {job.run_id} ({job.type}) (dispatch_id: {dispatch_id})"
                         )
 
                     except Exception as e:
-                        logger.error(f"[AdaptiveController] Failed to dispatch {job.run_id} ({job.type}): {e}")
+                        logger.error(
+                            f"[AdaptiveController] Failed to dispatch {job.run_id} ({job.type}): {e}", exc_info=True
+                        )
 
             except KeyboardInterrupt:
                 logger.info("[AdaptiveController] Interrupted, stopping experiment")
                 break
             except Exception as e:
-                logger.error(f"[AdaptiveController] Error in control loop: {e}")
+                logger.error(f"[AdaptiveController] Error in control loop: {e}", exc_info=True)
 
         logger.info(f"[AdaptiveController] Experiment {self.experiment_id} complete")

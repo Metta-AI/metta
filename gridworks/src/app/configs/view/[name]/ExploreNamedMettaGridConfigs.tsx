@@ -5,13 +5,15 @@ import z from "zod/v4";
 
 import { ConfigViewer } from "@/components/ConfigViewer";
 import { Tabs } from "@/components/Tabs";
-import { Config } from "@/lib/api";
+import { MakerConfig } from "@/lib/api";
 
 import { MapSection } from "./MapSection";
 
 const namedMettaGridConfigsSchema = z.record(z.string(), z.unknown());
 
-export const ExploreNamedMettaGridConfigs: FC<{ cfg: Config }> = ({ cfg }) => {
+export const ExploreNamedMettaGridConfigs: FC<{ cfg: MakerConfig }> = ({
+  cfg,
+}) => {
   const [selectedName, setSelectedName] = useState<string | null>(null);
 
   const selectedConfig = useMemo(() => {

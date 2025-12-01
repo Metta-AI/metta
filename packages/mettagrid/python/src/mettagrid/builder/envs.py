@@ -5,13 +5,15 @@ from mettagrid.builder import building, empty_assemblers
 
 # Local import moved to factory usage to avoid forbidden cross-package dependency at import time
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
     GameConfig,
     MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
+    ResourceLimitsConfig,
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
@@ -34,8 +36,8 @@ def make_arena(
     }
 
     actions = ActionsConfig(
-        noop=ActionConfig(),
-        move=ActionConfig(),
+        noop=NoopActionConfig(),
+        move=MoveActionConfig(),
         attack=AttackActionConfig(
             consumed_resources={
                 "laser": 1,
@@ -78,7 +80,7 @@ def make_arena(
             agent=AgentConfig(
                 default_resource_limit=50,
                 resource_limits={
-                    "heart": 255,
+                    "heart": ResourceLimitsConfig(limit=255, resources=["heart"]),
                 },
                 rewards=AgentRewards(
                     inventory={
@@ -94,10 +96,8 @@ def make_arena(
 def make_navigation(num_agents: int) -> MettaGridConfig:
     nav_assembler = building.AssemblerConfig(
         name="altar",
-        type_id=8,
-        map_char="_",
         render_symbol="🛣️",
-        recipes=[([], building.ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255))],
+        protocols=[building.ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255)],
     )
     cfg = MettaGridConfig(
         game=GameConfig(
@@ -108,8 +108,8 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
             },
             resource_names=["heart"],
             actions=ActionsConfig(
-                move=ActionConfig(enabled=True),
-                noop=ActionConfig(enabled=True),
+                move=MoveActionConfig(enabled=True),
+                noop=NoopActionConfig(enabled=True),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
@@ -158,9 +158,8 @@ def make_assembly_lines(
                 ),
             ),
             actions=ActionsConfig(
-                move=ActionConfig(),
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
+                noop=NoopActionConfig(),
+                move=MoveActionConfig(),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
@@ -169,7 +168,7 @@ def make_assembly_lines(
                     },
                 ),
                 default_resource_limit=1,
-                resource_limits={"heart": 15},
+                resource_limits={"heart": ResourceLimitsConfig(limit=15, resources=["heart"])},
             ),
         ),
     )

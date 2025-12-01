@@ -73,9 +73,6 @@ get_package_name() {
         *) echo "" ;;
       esac
       ;;
-    nimble)
-      get_package_name "nim" "$pkg_manager"
-      ;;
     *)
       echo "$tool"
       ;;
@@ -87,13 +84,13 @@ ensure_tool() {
 
   ensure_paths
 
-  if [ "$(uname -s)" = "Linux" ] && { [ "$tool" = "nim" ] || [ "$tool" = "nimble" ]; }; then
-    if ensure_linux_nim_version "$REQUIRED_NIM_VERSION"; then
+  if [ "$tool" = "nim" ]; then
+    if ensure_nim_via_nimby; then
       ensure_paths
       return 0
     fi
 
-    err "Failed to install Nim via choosenim"
+    err "Failed to install Nim via Nimby"
   fi
 
   # Special handling for Bazel via Bazelisk
@@ -103,6 +100,14 @@ ensure_tool() {
       return 0
     fi
     err "Failed to install Bazel via bazelisk"
+  fi
+
+  if [ "$tool" = "uv" ]; then
+    if ensure_uv_setup; then
+      ensure_paths
+      return 0
+    fi
+    err "Failed to install uv"
   fi
 
   if check_cmd "$tool"; then
@@ -129,11 +134,12 @@ ensure_tool() {
 }
 
 # Required tool versions
-REQUIRED_NIM_VERSION="2.2.4"
+REQUIRED_NIM_VERSION="2.2.6"
+REQUIRED_NIMBY_VERSION="0.1.13"
 REQUIRED_BAZEL_VERSION="7.0.0"
 
 # Common install directories in order of preference
-COMMON_INSTALL_DIRS="/usr/local/bin /usr/bin /opt/bin $HOME/.local/bin $HOME/bin $HOME/.nimble/bin $HOME/.cargo/bin /opt/homebrew/bin"
+COMMON_INSTALL_DIRS="/usr/local/bin /usr/bin /opt/bin $HOME/.local/bin $HOME/bin $HOME/.nimby/nim/bin $HOME/.cargo/bin /opt/homebrew/bin"
 
 # Add common directories to PATH if not already present
 ensure_paths() {
@@ -254,26 +260,33 @@ version_ge() {
   fi
 
   # Fallback: numeric segment compare (handles X.Y.Z)
-  local -a current_parts
-  local -a required_parts
+  local current_rest="$current"
+  local required_rest="$required"
 
-  IFS='.' read -r -a current_parts <<< "$current"
-  IFS='.' read -r -a required_parts <<< "$required"
+  while [ -n "$current_rest" ] || [ -n "$required_rest" ]; do
+    local current_segment="${current_rest%%.*}"
+    local required_segment="${required_rest%%.*}"
 
-  local length="${#current_parts[@]}"
-  if [ "${#required_parts[@]}" -gt "$length" ]; then
-    length="${#required_parts[@]}"
-  fi
+    if [ "$current_segment" = "$current_rest" ]; then
+      current_rest=""
+    else
+      current_rest="${current_rest#*.}"
+    fi
 
-  for ((i = 0; i < length; i++)); do
-    local current_segment="${current_parts[i]:-0}"
-    local required_segment="${required_parts[i]:-0}"
+    if [ "$required_segment" = "$required_rest" ]; then
+      required_rest=""
+    else
+      required_rest="${required_rest#*.}"
+    fi
 
-    if ((current_segment > required_segment)); then
+    current_segment="${current_segment:-0}"
+    required_segment="${required_segment:-0}"
+
+    if [ "$current_segment" -gt "$required_segment" ]; then
       return 0
     fi
 
-    if ((current_segment < required_segment)); then
+    if [ "$current_segment" -lt "$required_segment" ]; then
       return 1
     fi
   done
@@ -327,9 +340,45 @@ get_bazel_version() {
   return 0
 }
 
-ensure_linux_nim_version() {
-  local required_version="$1"
+remove_legacy_nim_installations() {
+  if check_cmd brew && brew list --versions nim > /dev/null 2>&1; then
+    echo "Removing legacy Homebrew Nim installation..."
+    if ! brew uninstall --force nim > /dev/null 2>&1; then
+      echo "Warning: Failed to uninstall Homebrew Nim; please remove it manually." >&2
+    fi
+  fi
 
+  if [ -d "$HOME/.nimble/bin" ]; then
+    echo "Removing legacy Nimble binaries at $HOME/.nimble/bin..."
+    rm -rf "$HOME/.nimble/bin"
+  fi
+
+  if [ -d "$HOME/.choosenim" ]; then
+    echo "Removing legacy choosenim directory at $HOME/.choosenim..."
+    rm -rf "$HOME/.choosenim"
+  fi
+
+  if [ -L "$HOME/.local/bin/nim" ]; then
+    local target
+    target=$(readlink "$HOME/.local/bin/nim")
+    if [ -n "$target" ] && printf "%s" "$target" | grep -q ".nimble"; then
+      echo "Removing legacy symlink $HOME/.local/bin/nim -> $target..."
+      rm -f "$HOME/.local/bin/nim"
+    fi
+  fi
+
+  if [ -L "$HOME/.local/bin/nimble" ]; then
+    local target
+    target=$(readlink "$HOME/.local/bin/nimble")
+    if [ -n "$target" ] && printf "%s" "$target" | grep -q ".nimble"; then
+      echo "Removing legacy symlink $HOME/.local/bin/nimble -> $target..."
+      rm -f "$HOME/.local/bin/nimble"
+    fi
+  fi
+}
+
+ensure_nim_via_nimby() {
+  remove_legacy_nim_installations
   ensure_paths
 
   local current_version=""
@@ -337,61 +386,119 @@ ensure_linux_nim_version() {
     current_version=$(get_nim_version 2> /dev/null || echo "")
   fi
 
-  if [ -n "$current_version" ] && version_ge "$current_version" "$required_version" && check_cmd nimble; then
-    link_nim_bins
+  local nimby_version=""
+  if check_cmd nimby; then
+    nimby_version=$(nimby --version 2> /dev/null | awk '{print $NF}' | tr -d 'v')
+  fi
+
+  local nim_bin_dir="$HOME/.nimby/nim/bin"
+
+  if [ -n "$current_version" ] && version_ge "$current_version" "$REQUIRED_NIM_VERSION" \
+    && [ -n "$nimby_version" ] && version_ge "$nimby_version" "$REQUIRED_NIMBY_VERSION"; then
+    link_nim_bins "$nim_bin_dir"
     return 0
   fi
 
   if [ -n "$current_version" ]; then
-    echo "Found Nim $current_version but require >= $required_version. Upgrading via choosenim..."
+    echo "Found Nim $current_version but require >= $REQUIRED_NIM_VERSION. Installing via Nimby..."
   else
-    echo "Nim not found. Installing via choosenim..."
+    echo "Nim not found. Installing via Nimby..."
   fi
 
-  if ! install_nim_via_choosenim "$required_version"; then
+  if ! install_nim_via_nimby; then
     return 1
   fi
 
-  ensure_paths
-  current_version=$(get_nim_version 2> /dev/null || echo "")
+  link_nim_bins "$nim_bin_dir"
 
-  if [ -n "$current_version" ] && version_ge "$current_version" "$required_version" && check_cmd nimble; then
-    echo "Nim $current_version with nimble found."
-    link_nim_bins
-    return 0
+  return 0
+}
+
+install_nim_via_nimby() {
+  case "$(uname -s)" in
+    Linux) os="Linux" ;;
+    Darwin) os="macOS" ;;
+    *)
+      echo "Unsupported OS" >&2
+      exit 1
+      ;;
+  esac
+
+  case "$(uname -m)" in
+    x86_64 | amd64) arch="X64" ;;
+    arm64 | aarch64) arch="ARM64" ;;
+    *)
+      echo "Unsupported arch" >&2
+      exit 1
+      ;;
+  esac
+
+  local url="https://github.com/treeform/nimby/releases/download/${REQUIRED_NIMBY_VERSION}/nimby-${os}-${arch}"
+  echo "Downloading Nimby from $url"
+  if ! curl -fsSL -o nimby "$url"; then
+    echo "Failed to download Nimby" >&2
+    return 1
   fi
 
-  echo "Nim install finished but requirements are still not satisfied." >&2
-  return 1
+  if ! chmod +x nimby; then
+    echo "Failed to make Nimby executable" >&2
+    return 1
+  fi
+
+  if ! ./nimby use "$REQUIRED_NIM_VERSION"; then
+    echo "Failed to install Nim version $REQUIRED_NIM_VERSION" >&2
+    return 1
+  fi
+  bin="$HOME/.nimby/nim/bin"
+  if ! mkdir -p "$bin"; then
+    echo "Failed to create Nimby bin directory" >&2
+    return 1
+  fi
+
+  if ! mv -f nimby "$bin/nimby"; then
+    echo "Failed to move Nimby to bin directory" >&2
+    return 1
+  fi
+  return 0
 }
 
 link_nim_bins() {
-  local nimble_dir="$HOME/.nimble/bin"
+  local src_dir="${1:-$HOME/.nimby/nim/bin}"
 
-  if [ ! -d "$nimble_dir" ]; then
+  if [ -z "$src_dir" ] || [ ! -d "$src_dir" ]; then
     return 0
   fi
 
-  local install_dir=$(get_install_dir)
+  local install_dir
+  install_dir=$(get_install_dir)
 
   if [ -z "$install_dir" ]; then
-    echo "Nim is installed in $nimble_dir. Add it to your PATH (e.g. export PATH=\"$nimble_dir:\$PATH\")."
+    echo "Nim is installed in $src_dir. Add it to your PATH (e.g. export PATH=\"$src_dir:\$PATH\")."
     return 0
   fi
 
   if [ ! -d "$install_dir" ]; then
     if ! mkdir -p "$install_dir"; then
-      echo "Unable to create $install_dir. Nim binaries remain in $nimble_dir." >&2
+      echo "Unable to create $install_dir. Nim binaries remain in $src_dir." >&2
       return 1
     fi
   fi
 
   local linked_any=0
-  for tool in nim nimble; do
-    local src="$nimble_dir/$tool"
+  local sources_found=0
+  for tool in nim nimby; do
+    local src="$src_dir/$tool"
     local dest="$install_dir/$tool"
 
     if [ -x "$src" ]; then
+      sources_found=1
+      if [ -L "$dest" ]; then
+        local current_target
+        current_target=$(readlink "$dest")
+        if [ "$current_target" = "$src" ]; then
+          continue
+        fi
+      fi
       if ln -sf "$src" "$dest"; then
         linked_any=1
       fi
@@ -400,38 +507,11 @@ link_nim_bins() {
 
   if [ "$linked_any" -eq 1 ]; then
     echo "Linked Nim binaries into $install_dir. Ensure this directory is in your PATH."
-  else
-    echo "Could not link Nim binaries into $install_dir. Binaries remain in $nimble_dir." >&2
-  fi
-}
-
-install_nim_via_choosenim() {
-  if [ "$(uname -s)" != "Linux" ]; then
-    return 1
+  elif [ "$sources_found" -eq 0 ]; then
+    echo "Could not link Nim binaries into $install_dir. Binaries remain in $src_dir." >&2
   fi
 
-  local target_version="${1:-}"
-  local choosenim_args="-y"
-  if [ -n "$target_version" ]; then
-    choosenim_args="$choosenim_args $target_version"
-  fi
-
-  echo "Installing Nim via choosenim${target_version:+ (target $target_version)}..."
-
-  if ! env CHOOSENIM_NO_ANALYTICS=1 CHOOSENIM_NO_COLOR=1 bash -lc "curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- $choosenim_args"; then
-    echo "Failed to run choosenim installer" >&2
-    return 1
-  fi
-
-  ensure_paths
-
-  if check_cmd nim && check_cmd nimble; then
-    echo "Nim installed successfully via choosenim."
-    return 0
-  fi
-
-  echo "Nim install finished but binaries are still missing. Ensure ~/.nimble/bin is in your PATH or install manually." >&2
-  return 1
+  return 0
 }
 
 get_bazelisk_url() {
@@ -462,6 +542,5 @@ ensure_tool "curl"
 ensure_tool "g++"
 ensure_tool "git"
 ensure_tool "nim"
-ensure_tool "nimble"
 ensure_tool "bazel"
-ensure_uv_setup
+ensure_tool "uv"

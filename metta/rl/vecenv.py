@@ -1,5 +1,4 @@
 import logging
-import uuid
 from pathlib import Path
 from typing import Any, Optional
 
@@ -9,10 +8,13 @@ import pufferlib
 import pufferlib.vector
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
-from metta.sim.replay_log_renderer import ReplayLogRenderer
-from mettagrid import MettaGridEnv, RenderMode
-from mettagrid.util.stats_writer import StatsWriter
-from pufferlib.pufferlib import set_buffers
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig
+from mettagrid.envs.early_reset_handler import EarlyResetHandler
+from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
+from mettagrid.envs.stats_tracker import StatsTracker
+from mettagrid.simulator import Simulator
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
+from mettagrid.util.stats_writer import NoopStatsWriter, StatsWriter
 
 logger = logging.getLogger("vecenv")
 
@@ -20,34 +22,28 @@ logger = logging.getLogger("vecenv")
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: Curriculum,
-    render_mode: RenderMode = "none",
+    env_supervisor_cfg: Optional[EnvSupervisorConfig] = None,
     stats_writer: Optional[StatsWriter] = None,
-    replay_writer: Optional[ReplayLogRenderer] = None,
-    replay_directory: str | None = None,
-    is_training: bool = False,
+    replay_writer: Optional[ReplayLogWriter] = None,
     run_dir: str | None = None,
     buf: Optional[Any] = None,
+    maps_cache_size: Optional[int] = None,
     **kwargs,
 ):
     if run_dir is not None:
         init_logging(run_dir=Path(run_dir))
 
-    renderer = replay_writer
-    if replay_directory is not None:
-        base_path = Path(replay_directory)
-        base_path.mkdir(parents=True, exist_ok=True)
-        env_path = base_path / uuid.uuid4().hex[:12]
-        env_path.mkdir(parents=True, exist_ok=True)
-        renderer = ReplayLogRenderer(str(env_path))
+    env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig()
 
-    env = MettaGridEnv(
-        curriculum.get_task().get_env_cfg(),
-        render_mode=render_mode,
-        stats_writer=stats_writer,
-        renderer=renderer,
-        is_training=is_training,
-    )
-    set_buffers(env, buf)
+    sim = Simulator(maps_cache_size=maps_cache_size)
+    # Replay writer is added first so it can complete the replay_url for stats tracker
+    if replay_writer is not None:
+        sim.add_event_handler(replay_writer)
+    stats_writer = stats_writer or NoopStatsWriter()
+    sim.add_event_handler(StatsTracker(stats_writer))
+    sim.add_event_handler(EarlyResetHandler())
+
+    env = MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), env_supervisor_cfg=env_supervisor_cfg, buf=buf)
     env = CurriculumEnv(env, curriculum)
 
     return env
@@ -60,12 +56,11 @@ def make_vecenv(
     num_envs: int = 1,
     batch_size: int | None = None,
     num_workers: int = 1,
-    render_mode: RenderMode = "none",
+    maps_cache_size: int | None = None,
     stats_writer: StatsWriter | None = None,
-    replay_writer: ReplayLogRenderer | None = None,
-    replay_directory: str | None = None,
-    is_training: bool = False,
+    replay_writer: ReplayLogWriter | None = None,
     run_dir: str | None = None,
+    env_supervisor_cfg: EnvSupervisorConfig | None = None,
     **kwargs,
 ) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
@@ -84,12 +79,11 @@ def make_vecenv(
 
     env_kwargs = {
         "curriculum": curriculum,
-        "render_mode": render_mode,
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
-        "replay_directory": replay_directory,
-        "is_training": is_training,
         "run_dir": run_dir,
+        "env_supervisor_cfg": env_supervisor_cfg,
+        "maps_cache_size": maps_cache_size,
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,

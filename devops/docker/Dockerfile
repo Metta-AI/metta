@@ -42,10 +42,6 @@ COPY . .
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/workspace/metta/.venv"
 
-# When building in CI, actions/checkout stores an auth token in .git/config that we need to remove
-# Make sure the remote is configured for anonymous access
-RUN git config --remove-section http."https://github.com/" || true
-RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
 RUN git config --global checkout.defaultRemote origin \
     && git config --global branch.autoSetupMerge simple
 
