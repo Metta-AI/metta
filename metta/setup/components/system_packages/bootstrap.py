@@ -565,6 +565,8 @@ def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> N
 
 def main() -> None:
     """CLI entrypoint for bootstrap installation."""
+    # Use argparse here instead of typer so that this script runs before any project
+    # dependencies (typer/rich/etc.) are installed. argparse is in the stdlib.
     import argparse
     import sys
 
