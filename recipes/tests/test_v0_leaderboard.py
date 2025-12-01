@@ -55,6 +55,20 @@ def test_simulations_builds_configs_for_all_scenarios() -> None:
         assert tags[LEADERBOARD_SIM_NAME_EPISODE_KEY] == scenario.sim_name
 
 
+def test_simulations_minimal_excludes_replacement_scenarios() -> None:
+    """Verify minimal=True only includes candidate scenarios (candidate_count > 0)."""
+    full_configs = leaderboard.simulations(num_episodes=1, map_seed=42, minimal=False)
+    minimal_configs = leaderboard.simulations(num_episodes=1, map_seed=42, minimal=True)
+
+    # minimal should have fewer configs (excludes 3 replacement scenarios)
+    assert len(minimal_configs) == len(full_configs) - 3
+
+    # All minimal configs should have candidate_count > 0
+    for config in minimal_configs:
+        candidate_count = int(config.episode_tags[LEADERBOARD_CANDIDATE_COUNT_KEY])
+        assert candidate_count > 0, f"minimal mode should exclude replacement scenarios, got {candidate_count}"
+
+
 def test_episode_tags_roundtrip() -> None:
     """Ensure tags can be parsed back to original counts (critical for VOR computation)."""
     scenario = leaderboard.LeaderboardScenario(
