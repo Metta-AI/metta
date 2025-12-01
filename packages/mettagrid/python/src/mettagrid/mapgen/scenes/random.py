@@ -39,13 +39,15 @@ class Random(Scene[RandomConfig]):
         symbols = []
         for obj_name, count in config.objects.items():
             symbols.extend([obj_name] * count)
-        symbols.extend(agents)
 
         if not config.too_many_is_ok and len(symbols) > empty_count:
             raise ValueError(f"Too many objects for available empty cells: {len(symbols)} > {empty_count}")
         else:
             # everything will be filled with symbols, oh well
-            symbols = symbols[:empty_count]
+
+            symbols = list(np.random.choice(symbols, size=empty_count // 8, replace=True))
+
+            symbols.extend(agents)
 
         if not symbols:
             return
