@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import uuid
+import zipfile
 from typing import Any, Optional
 
 import torch
@@ -13,8 +15,8 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
+from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.context import WandbRun
-from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.handle_results import render_eval_summary
@@ -24,6 +26,8 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.util.file import write_data
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +105,25 @@ class Evaluator(TrainerComponent):
             return False
         return epoch % interval == 0
 
+    def _create_submission_zip(self, policy_spec: PolicySpec) -> bytes:
+        """Create a submission zip containing policy-spec.json."""
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+            zipf.writestr("policy_spec.json", policy_spec.model_dump_json())
+        return buffer.getvalue()
+
+    def _upload_submission_zip(self, policy_spec: PolicySpec) -> str | None:
+        """Upload a submission zip to S3 and return the s3_path."""
+        checkpoint_uri = policy_spec.init_kwargs.get("checkpoint_uri")
+        if not checkpoint_uri or not checkpoint_uri.startswith("s3://"):
+            return None
+
+        submission_path = checkpoint_uri.replace(".mpt", "-submission.zip")
+        zip_data = self._create_submission_zip(policy_spec)
+        write_data(submission_path, zip_data, content_type="application/zip")
+        logger.info("Uploaded submission zip to %s", submission_path)
+        return submission_path
+
     def _create_policy_version(
         self,
         *,
@@ -109,7 +132,7 @@ class Evaluator(TrainerComponent):
         epoch: int,
         agent_step: int,
     ) -> uuid.UUID:
-        """Write evaluation results to the observatory by creating a DuckDB and uploading it."""
+        """Create a policy version in Observatory with a submission zip."""
 
         # Create or get policy
         policy_id = stats_client.create_policy(
@@ -118,12 +141,16 @@ class Evaluator(TrainerComponent):
             is_system_policy=False,
         )
 
+        # Upload submission zip to S3
+        s3_path = self._upload_submission_zip(policy_spec)
+
         # Create policy version
         policy_version_id = stats_client.create_policy_version(
             policy_id=policy_id.id,
             git_hash=self._git_hash,
             policy_spec=policy_spec.model_dump(mode="json"),
             attributes={"epoch": epoch, "agent_step": agent_step},
+            s3_path=s3_path,
         )
 
         return policy_version_id.id
@@ -179,6 +206,10 @@ class Evaluator(TrainerComponent):
                     agent_step=agent_step,
                 )
 
+            def on_progress(msg: str) -> None:
+                logger.info(msg)
+                record_heartbeat()
+
             rollout_results = simulate_and_record(
                 policy_specs=[policy_spec],
                 simulations=[sim.to_simulation_run_config() for sim in sims],
@@ -186,14 +217,14 @@ class Evaluator(TrainerComponent):
                 seed=self._seed,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
-                on_progress=logger.info,
+                on_progress=on_progress,
             )
             render_eval_summary(
                 rollout_results, policy_names=[self._spec_display_name(policy_spec)], verbose=self._config.verbose
             )
 
     def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
-        return policy_spec_from_uri(policy_uri, device=self._device)
+        return policy_spec_from_uri(policy_uri, device=str(self._device))
 
     @staticmethod
     def _spec_display_name(policy_spec: PolicySpec) -> str:

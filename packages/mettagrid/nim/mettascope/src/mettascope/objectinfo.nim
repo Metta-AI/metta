@@ -1,5 +1,5 @@
 import
-  std/[os, json],
+  std/[os, json, algorithm],
   fidget2,
   common, panels, replays
 
@@ -66,11 +66,13 @@ proc updateObjectInfo*() =
   if selection.isAgent:
     addParam("Agent ID", $selection.agentId)
     addParam("Reward", $selection.totalReward.at)
-    let vibeId = selection.vibeId.at
-    let vibeName = getVibeName(vibeId)
 
-    vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
-    vibeArea.show()
+    if replay.config.game.vibeNames.len > 0:
+      let vibeId = selection.vibeId.at
+      let vibeName = getVibeName(vibeId)
+
+      vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
+      vibeArea.show()
 
   if selection.cooldownRemaining.at > 0:
     addParam("Cooldown Remaining", $selection.cooldownRemaining.at)
@@ -107,6 +109,13 @@ proc updateObjectInfo*() =
     for itemAmount in selection.inventory.at:
       inventory.addResource(itemAmount)
 
+  proc getHeartCount(outputs: seq[ItemAmount], itemNames: seq[string]): int =
+    ## Returns total hearts produced by this protocol.
+    for output in outputs:
+      if output.itemId == 5:  # "heart" item
+        return output.count
+    return 0
+
   proc addProtocol(protocol: Protocol) =
     var protocolNode = recipe.copy()
     for vibe in protocol.vibes:
@@ -117,7 +126,22 @@ proc updateObjectInfo*() =
       protocolNode.find("**/Outputs").addResource(resource)
     recipeArea.addChild(protocolNode)
 
-  for protocol in selection.protocols:
+  # Sort protocols: heart-producing ones first (most hearts first), then others.
+  var sortedProtocols = selection.protocols
+  sortedProtocols.sort(proc(a, b: Protocol): int =
+    let aHearts = getHeartCount(a.outputs, replay.itemNames)
+    let bHearts = getHeartCount(b.outputs, replay.itemNames)
+
+    # non-heart recipes can go in any order after heart recipes.
+    if aHearts > 0 and bHearts == 0:
+      -1
+    elif aHearts == 0 and bHearts > 0:
+      1
+    else:
+      cmp(bHearts, aHearts)
+  )
+
+  for protocol in sortedProtocols:
     addProtocol(protocol)
 
   x.position = vec2(0, 0)

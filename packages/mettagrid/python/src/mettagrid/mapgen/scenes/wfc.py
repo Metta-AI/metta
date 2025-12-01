@@ -63,11 +63,13 @@ class WFC(Scene[WFCConfig]):
         )
 
         self._weights = np.array([p[1] for p in patterns_with_counts], dtype=np.float64)
+        # Cache log(weights) so we don't recompute in the hot loop.
         self._weights_log = np.log(self._weights)
         self._patterns = [p[0] for p in patterns_with_counts]
         self._pattern_count = len(self._weights)
 
         self._sum_of_weights = np.sum(self._weights)
+        # Use cached log weights to avoid extra np.log calls.
         self._sum_of_weight_log_weights = np.sum(self._weights * self._weights_log)
 
         self._starting_entropy = np.log(self._sum_of_weights) - self._sum_of_weight_log_weights / self._sum_of_weights
@@ -109,6 +111,7 @@ class WFCRenderSession:
         self.pattern_count = len(self.scene._weights)
         self.width = self.scene.width
         self.height = self.scene.height
+        # Track which cells are already queued to avoid duplicate heap entries.
         self.queue_mask = np.zeros((self.height, self.width), dtype=bool)
 
         self.reset()
@@ -117,6 +120,7 @@ class WFCRenderSession:
         start = time.time()
         self.wave = np.full((self.height, self.width, self.pattern_count), True, dtype=np.bool_)
 
+        # Reset queue mask at the start of each render session.
         self.queue_mask.fill(False)
 
         self.compatible = np.zeros((self.height, self.width, 4, self.pattern_count), dtype=np.int_)

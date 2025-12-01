@@ -4,10 +4,10 @@ from contextlib import ExitStack
 from typing import Sequence
 
 from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
-from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.sim.runner import SimulationRunConfig
 from metta.tools.multi_policy_eval import MultiPolicyEvalTool
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 from recipes.experiment import arena
 
 

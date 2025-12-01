@@ -21,7 +21,8 @@ class TestVibeBasedSharing:
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
                 ["#", "#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
         # Configure resources and sharing
@@ -121,7 +122,8 @@ class TestVibeBasedSharing:
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
                 ["#", "#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
         cfg.game.resource_names = ["charger", "water", "food"]

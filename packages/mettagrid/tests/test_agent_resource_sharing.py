@@ -13,7 +13,8 @@ class TestAgentResourceSharing:
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
                 ["#", "#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
         # Configure resources and sharing via vibe_transfers

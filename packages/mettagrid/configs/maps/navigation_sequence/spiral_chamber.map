@@ -36,4 +36,4 @@ char_to_map_name:
   "m": mine_red
   "n": generator_red
   "@": agent.agent
-  "_": altar
+  "_": assembler
