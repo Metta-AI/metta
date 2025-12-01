@@ -115,8 +115,8 @@ class AdaptiveController:
                                     wait=wait_exponential_jitter(initial=1.0, max=30.0),
                                     reraise=True,
                                 )
-                                def call_on_eval_completed():
-                                    on_eval_completed(run, self.store, runs)  # type: ignore
+                                def call_on_eval_completed(run=run, runs=runs):  # Need defaults to bind vars in loop
+                                    on_eval_completed(run, self.store, runs)
 
                                 call_on_eval_completed()
 

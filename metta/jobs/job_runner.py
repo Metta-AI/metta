@@ -22,6 +22,7 @@ from typing import Callable, Optional
 import sky
 import sky.exceptions
 import sky.jobs
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 from devops.skypilot.utils.job_helpers import (
     check_job_statuses,
@@ -31,7 +32,6 @@ from devops.skypilot.utils.job_helpers import (
 )
 from metta.common.util.fs import get_repo_root
 from metta.jobs.job_config import JobConfig
-from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 logger = logging.getLogger(__name__)
 

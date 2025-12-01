@@ -14,11 +14,10 @@ import sky.exceptions
 import typer
 import yaml
 from sky.schemas.api.responses import StatusResponse
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 from typer import rich_utils
 
 import gitta as git
-from tenacity import retry, stop_after_attempt, wait_exponential_jitter
-
 from devops.skypilot.utils.cost_monitor import get_instance_cost
 from devops.skypilot.utils.task_helpers import set_task_secrets
 from metta.common.util.cli import spinner
