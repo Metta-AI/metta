@@ -6,6 +6,8 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.crl import CRLConfig
+from metta.rl.loss.crl_actor import CRLActorConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.loss import Loss, LossConfig
@@ -35,6 +37,11 @@ class LossesConfig(Config):
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
     kickstarter: KickstarterConfig = Field(default_factory=lambda: KickstarterConfig(enabled=False))
 
+    # Contrastive RL (self-supervised goal-conditioned RL)
+    # Based on "1000 Layer Networks for Self-Supervised RL" (Wang et al., 2025)
+    crl: CRLConfig = Field(default_factory=lambda: CRLConfig(enabled=False))
+    crl_actor: CRLActorConfig = Field(default_factory=lambda: CRLActorConfig(enabled=False))
+
     def _configs(self) -> dict[str, LossConfig]:
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
         # also, the way it's setup doesn't let the experimenter give names to losses.
@@ -53,6 +60,11 @@ class LossesConfig(Config):
             loss_configs["grpo"] = self.grpo
         if self.kickstarter.enabled:
             loss_configs["kickstarter"] = self.kickstarter
+        # CRL losses (critic must run before actor)
+        if self.crl.enabled:
+            loss_configs["crl"] = self.crl
+        if self.crl_actor.enabled:
+            loss_configs["crl_actor"] = self.crl_actor
         return loss_configs
 
     def init_losses(
