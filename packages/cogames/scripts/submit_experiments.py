@@ -2,6 +2,7 @@ import time
 
 from cogames.cogs_vs_clips.navigation_missions import NAVIGATION_MISSIONS
 from recipes.experiment.cvc import mission_variant_curriculum
+
 # Missions where S3 policies got reward > 0 (from evaluation results)
 # Based on evaluation results showing environments where S3 policies succeeded
 S3_SUCCESSFUL_EVAL_MISSIONS = [
