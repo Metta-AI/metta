@@ -15,6 +15,7 @@ from metta.rl.loss.ppo_actor import PPOActorConfig
 from metta.rl.loss.ppo_critic import PPOCriticConfig
 from metta.rl.loss.quantile_ppo_critic import QuantilePPOCriticConfig
 from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
+from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedClonerConfig
 from metta.rl.loss.vit_reconstruction import ViTReconstructionLossConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
@@ -41,6 +42,9 @@ class LossesConfig(Config):
     kickstarter: KickstarterConfig = Field(default_factory=lambda: KickstarterConfig(enabled=False))
     sliced_kickstarter: SlicedKickstarterConfig = Field(default_factory=lambda: SlicedKickstarterConfig(enabled=False))
     logit_kickstarter: LogitKickstarterConfig = Field(default_factory=lambda: LogitKickstarterConfig(enabled=False))
+    sliced_scripted_cloner: SlicedScriptedClonerConfig = Field(
+        default_factory=lambda: SlicedScriptedClonerConfig(enabled=False)
+    )
     vit_reconstruction: ViTReconstructionLossConfig = Field(
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
     )
@@ -51,6 +55,8 @@ class LossesConfig(Config):
         loss_configs: dict[str, LossConfig] = {}
         if self.sliced_kickstarter.enabled:
             loss_configs["sliced_kickstarter"] = self.sliced_kickstarter
+        if self.sliced_scripted_cloner.enabled:
+            loss_configs["sliced_scripted_cloner"] = self.sliced_scripted_cloner
         if self.ppo_critic.enabled:
             loss_configs["ppo_critic"] = self.ppo_critic
         if self.quantile_ppo_critic.enabled:

@@ -1,11 +1,11 @@
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import torch
-import torch.nn.functional as F
 from pydantic import Field
 from tensordict import NonTensorData, TensorDict
 from torch import Tensor
-from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
@@ -13,19 +13,15 @@ from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.config.id_map import ObservationFeatureSpec
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
-class SlicedKickstarterConfig(LossConfig):
-    teacher_uri: str = Field(default="")
-    action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
-    value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
-    temperature: float = Field(default=2.0, gt=0)
-    student_forward: bool = Field(default=True)  # probably always true for sliced_kickstarter
+class SlicedScriptedClonerConfig(LossConfig):
+    action_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
+    student_forward: bool = Field(default=True)  # Always true for this loss
 
     # remainder of the sum below is left for the PPO loss to use
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
@@ -39,9 +35,9 @@ class SlicedKickstarterConfig(LossConfig):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ) -> "SlicedKickstarter":
-        """Create Kickstarter loss instance."""
-        return SlicedKickstarter(
+    ) -> "SlicedScriptedCloner":
+        """Create SlicedScriptedCloner loss instance."""
+        return SlicedScriptedCloner(
             policy,
             trainer_cfg,
             vec_env,
@@ -51,13 +47,12 @@ class SlicedKickstarterConfig(LossConfig):
         )
 
 
-class SlicedKickstarter(Loss):
-    """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
-    value against the student's using a KL divergence and MSE loss respectively.
+class SlicedScriptedCloner(Loss):
+    """This uses a scripted policy's actions (provided by the environment) to supervise the student
+    on specific slices of the experience, similar to SlicedKickstarter but with Ground Truth actions.
     """
 
     __slots__ = (
-        "teacher_policy",
         "student_forward",
         "rollout_batch_size",
         "extended_policy_env_info",
@@ -80,40 +75,26 @@ class SlicedKickstarter(Loss):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         self.student_forward = self.cfg.student_forward
 
-        # Load teacher. Lazy import to avoid circular dependency
-        from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
-
         base_policy_env_info = getattr(self.env, "policy_env_info", None)
         if base_policy_env_info is None:
-            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
+            raise RuntimeError("Environment metadata is required")
 
         # Extend the policy_env_info with an extra observation feature so the obs shim
-        # can reserve a dedicated attribute index for the injected Kickstarter token.
+        # can reserve a dedicated attribute index for the injected tokens.
         self.extended_policy_env_info = self._build_extended_policy_env_info(base_policy_env_info)
 
         # Re-initialize the student policy to use the extended observation features.
-        # This will, in particular, re-run ObsShimTokens.initialize_to_environment with
-        # the updated feature list.
         if hasattr(self.policy, "initialize_to_environment"):
             self.policy.initialize_to_environment(self.extended_policy_env_info, self.device)
 
-        # Initialize the teacher policy using the same extended env info so that its
-        # obs encoder also understands the extra feature.
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
-        self.teacher_policy = initialize_or_load_policy(self.extended_policy_env_info, teacher_spec)
-
     def get_experience_spec(self) -> Composite:
-        # Get action space size for logits shape
         act_space = self.env.single_action_space
-        num_actions = act_space.n
-
-        scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
-        logits_f32 = UnboundedContinuous(shape=torch.Size([num_actions]), dtype=torch.float32)
+        act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+        teacher_actions = UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype)
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
 
         return Composite(
-            teacher_logits=logits_f32,
-            teacher_values=scalar_f32,
+            teacher_actions=teacher_actions,
             stud_mask=boolean,
             teacher_mask=boolean,
             ppo_mask=boolean,
@@ -121,12 +102,6 @@ class SlicedKickstarter(Loss):
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
-            teacher_td = td.clone()
-            self.teacher_policy.forward(teacher_td)
-            teacher_actions = teacher_td["actions"]
-            td["teacher_logits"] = teacher_td["logits"]
-            td["teacher_values"] = teacher_td["values"]
-
             if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
                 self._create_slices(td.batch_size.numel())
 
@@ -147,7 +122,7 @@ class SlicedKickstarter(Loss):
         self.replay.store(data_td=td, env_id=env_slice)
 
         if self.teacher_mask.any():
-            td["actions"][self.teacher_mask] = teacher_actions[self.teacher_mask]
+            td["actions"][self.teacher_mask] = td["teacher_actions"][self.teacher_mask]
 
     def _build_extended_policy_env_info(self, policy_env_info: PolicyEnvInterface) -> PolicyEnvInterface:
         """Create a PolicyEnvInterface that includes extra features for KS tokens.
@@ -166,7 +141,7 @@ class SlicedKickstarter(Loss):
                 break
 
         if len(free_ids) < 2:
-            raise ValueError("Not enough free observation feature IDs for SlicedKickstarter extra tokens.")
+            raise ValueError("Not enough free observation feature IDs for SlicedScriptedCloner extra tokens.")
 
         self.student_feature_id, self.teacher_feature_id = free_ids[0], free_ids[1]
 
@@ -186,20 +161,7 @@ class SlicedKickstarter(Loss):
         return policy_env_info.model_copy(update={"obs_features": extended_features})
 
     def _inject_extra_obs_token(self, td: TensorDict) -> None:
-        """Inject synthetic observation tokens at the start of selected sequences.
-
-        For each batch element:
-        - If stud_mask[b] is True, inject a token with attr_idx = student_feature_id.
-        - If teacher_mask[b] is True, inject a token with attr_idx = teacher_feature_id.
-        - Other batch elements are left unchanged.
-
-        Injected tokens have:
-        - coord byte = 0 (top-left tile)
-        - attr_val   = 1
-
-        To keep the observation shape consistent, we drop the last token in the
-        sequence for modified rows and prepend the new token.
-        """
+        """Inject synthetic observation tokens at the start of selected sequences."""
         if "env_obs" not in td.keys():
             return
 
@@ -268,7 +230,7 @@ class SlicedKickstarter(Loss):
         shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
         # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
 
-        # sliced kickstarter MUST run first since it decides what to pass to PPO
+        # sliced cloner MUST run first since it decides what to pass to PPO
         student_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
         self.policy.reset_memory()
@@ -287,29 +249,19 @@ class SlicedKickstarter(Loss):
             return self._zero_tensor, shared_loss_data, False
 
         # action loss
-        temperature = self.cfg.temperature
-        teacher_logits = minibatch["teacher_logits"]
-        student_logits = student_td["logits"]
-        teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
-        student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
-        student_probs = torch.exp(student_log_probs)
-        ks_action_loss = (temperature**2) * (
-            (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
-        )
+        policy_full_log_probs = student_td["full_log_probs"].reshape(sliced_b * sliced_tt, -1)
+        teacher_actions = minibatch["teacher_actions"]
 
-        # value loss
-        teacher_value = minibatch["teacher_values"].detach()
-        student_value = student_td["values"]
-        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
+        # get the student's logprob for the action that the teacher chose
+        student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1))
+        student_log_probs = student_log_probs.reshape(minibatch.shape[0])
 
-        loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
+        loss = -student_log_probs.mean() * self.cfg.action_loss_coef
 
-        self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
-        self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
-        self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
-        self.loss_tracker["ks_teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
-        self.loss_tracker["ks_student_led_proportion"].append(float(self.cfg.student_led_proportion))
+        self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
+        self.loss_tracker["supervised_action_loss_coef"].append(float(self.cfg.action_loss_coef))
+        self.loss_tracker["teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
+        self.loss_tracker["student_led_proportion"].append(float(self.cfg.student_led_proportion))
 
         return loss, shared_loss_data, False
 
