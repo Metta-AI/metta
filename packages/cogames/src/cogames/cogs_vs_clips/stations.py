@@ -179,8 +179,7 @@ class CvCChestConfig(CvCStationConfig):
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             vibe_transfers={
                 "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
-                # Heart withdrawal removed - agents can no longer withdraw hearts from chest
-                # "heart_a": {"heart": -1},  # REMOVED
+                "heart_a": {"heart": -1},  # REMOVED
                 "heart_b": {"heart": 1},
                 "carbon_a": {"carbon": -10},
                 "carbon_b": {"carbon": 10},

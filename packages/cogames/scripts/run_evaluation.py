@@ -231,22 +231,22 @@ def _run_case(
 
             out.append(
                 EvalResult(
-                            agent=agent_config.label,
-                            experiment=exp_name,
-                            num_cogs=num_cogs,
+                    agent=agent_config.label,
+                    experiment=exp_name,
+                    num_cogs=num_cogs,
                     difficulty=variant_name or "base",
-                            clip_period=clip_period,
-                            total_reward=total_reward,
-                            avg_reward_per_agent=avg_reward_per_agent,
-                            hearts_assembled=int(total_reward),
+                    clip_period=clip_period,
+                    total_reward=total_reward,
+                    avg_reward_per_agent=avg_reward_per_agent,
+                    hearts_assembled=int(total_reward),
                     heart_gained=heart_gained,
                     avg_heart_gained_per_agent=avg_heart_gained_per_agent,
-                            steps_taken=final_step + 1,
-                            max_steps=actual_max_steps,
-                            success=total_reward > 0,
-                            seed_used=run_seed,
-                            run_index=run_idx + 1,
-                        )
+                    steps_taken=final_step + 1,
+                    max_steps=actual_max_steps,
+                    success=total_reward > 0,
+                    seed_used=run_seed,
+                    run_index=run_idx + 1,
+                )
             )
         return out
     except Exception as e:
