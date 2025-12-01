@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 from gymnasium import spaces
 
-from cogames.policy.tribal_village_policy import TribalPolicyEnvInfo
 from mettagrid.policy.loader import discover_and_register_policies, resolve_policy_class_path
+from tribal_village_env.cogames.policy import TribalPolicyEnvInfo
 
 
 def test_policy_env_info_names_and_actions():
@@ -21,6 +21,6 @@ def test_policy_env_info_names_and_actions():
 
 
 def test_policy_short_name_registration():
-    discover_and_register_policies("cogames.policy")
+    discover_and_register_policies("tribal_village_env.cogames")
     path = resolve_policy_class_path("tribal")
     assert path.endswith("TribalVillagePufferPolicy")
