@@ -1,5 +1,4 @@
 import { getToken, initiateLogin } from './auth'
-import { config } from './config'
 
 export type TokenInfo = {
   id: string
@@ -284,8 +283,7 @@ export class Repo {
       headers['Content-Type'] = contentType
     }
 
-    // Prioritize localStorage token over environment variable token
-    const token = getToken() || config.authToken
+    const token = getToken()
     if (token) {
       headers['X-Auth-Token'] = token
     }

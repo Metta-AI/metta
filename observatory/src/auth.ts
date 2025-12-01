@@ -1,13 +1,15 @@
 // Authentication module for Observatory
 // Manages OAuth tokens in localStorage
 
+import { config } from './config'
+
 const TOKEN_STORAGE_KEY = 'observatory_auth_token'
 
 /**
  * Get the current auth token from localStorage
  */
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_STORAGE_KEY)
+  return config.authToken || localStorage.getItem(TOKEN_STORAGE_KEY)
 }
 
 /**
