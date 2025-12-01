@@ -304,13 +304,6 @@ def run_evaluation(
     max_workers = jobs if jobs > 0 else max(1, os.cpu_count() or 1)
 
     if use_threading:
-        # Pre-import pufferlib on the main thread so its SIGINT handler is registered once.
-        # Avoids ValueError when worker threads import it and attempt to call signal.signal.
-        try:
-            import pufferlib.pufferl  # noqa: F401
-        except Exception as e:
-            logger.debug(f"Could not pre-import pufferlib: {e}")
-
         logger.info(f"Running with {max_workers} parallel workers")
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_map = {
