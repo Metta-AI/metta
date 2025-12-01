@@ -116,7 +116,7 @@ def submit_full_curriculum_experiment_standard():
 def submit_full_curriculum_experiment_all_variants():
     mission_variant_curriculum.experiment(
     base_missions=None,
-    run_name=f"full_curriculum_experiment_all_variants",
+    run_name=f"full_curriculum_experiment_all_variants.12.01",
     skip_git_check=True,
     variants="all",
     )
@@ -132,7 +132,7 @@ def submit_full_curriculum_with_navigation():
 
     mission_variant_curriculum.experiment(
         base_missions=combined_missions,
-        run_name="full_curriculum_experiment_with_navigation",
+        run_name="allmissions_exp_with_nav_no_variants.12.01",
         skip_git_check=True,
         variants=None,
     )
@@ -148,7 +148,7 @@ def submit_full_curriculum_with_navigation_with_variants():
 
     mission_variant_curriculum.experiment(
         base_missions=combined_missions,
-        run_name="full_curriculum_experiment_with_navigation_all_variants",
+        run_name="allmissions_experiment_with_nav_all_variants.12.01",
         skip_git_check=True,
         variants="all",
     )
@@ -164,7 +164,7 @@ def submit_missions_with_navigation():
 
     mission_variant_curriculum.experiment(
         base_missions=combined_missions,
-        run_name="full_curriculum_plus_navigation_all_variants",
+        run_name="subset_missions_experiment_with_nav_no_variants.12.01",
         skip_git_check=True,
         variants=None,
     )
@@ -180,7 +180,7 @@ def submit_missions_with_navigation_with_variants():
 
     mission_variant_curriculum.experiment(
         base_missions=combined_missions,
-        run_name="full_curriculum_plus_navigation_all_variants",
+        run_name="subset_missions_experiment_with_nav_all_variants.12.01",
         skip_git_check=True,
         variants="all",
     )
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     submit_full_curriculum_experiment_all_variants()
 
     # submit_full_curriculum_with_navigation()
-    # submit_full_curriculum_with_navigation_with_variants()
+    submit_full_curriculum_with_navigation_with_variants()
     # submit_missions_with_navigation()
     # submit_missions_with_navigation_with_variants()
 
