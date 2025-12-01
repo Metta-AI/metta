@@ -482,3 +482,55 @@ class TestLLMPromptBuilder:
         assert "INVENTORY" in observable or "inventory" in observable.lower()
         assert "energy" in observable.lower()
         assert "carbon" in observable.lower()
+
+    def test_prompt_sequence_pattern(self, mock_policy_env_info, sample_observation):
+        """Test that prompt sequence follows FULL/SHORT pattern correctly.
+
+        This simulates what happens in llm_policy.py step() method:
+        - Step 1: FULL (basic + obs)
+        - Steps 2-N: SHORT (obs only)
+        - Step N+1: FULL again (context window reset)
+        """
+        context_window_size = 5
+        builder = LLMPromptBuilder(
+            policy_env_info=mock_policy_env_info,
+            context_window_size=context_window_size,
+        )
+
+        results = []
+
+        # Simulate 12 steps (more than 2 full context windows)
+        for _ in range(12):
+            basic_info = builder.basic_info_prompt()
+            observable = builder.observable_prompt(sample_observation)
+            builder._step_counter += 1
+            step = builder.step_count
+            is_first_step = step == 1
+            is_window_reset = step % builder.context_window_size == 1
+            includes_basic_info = is_first_step or is_window_reset
+
+            if includes_basic_info:
+                results.append(f"[Step {step}] FULL: basic, obs")
+            else:
+                results.append(f"[Step {step}] SHORT: obs")
+
+        # Verify the pattern
+        # With context_window_size=5, FULL should be at steps 1, 6, 11
+        assert "FULL" in results[0]  # Step 1
+        assert "SHORT" in results[1]  # Step 2
+        assert "SHORT" in results[2]  # Step 3
+        assert "SHORT" in results[3]  # Step 4
+        assert "SHORT" in results[4]  # Step 5
+        assert "FULL" in results[5]  # Step 6 (6 % 5 == 1)
+        assert "SHORT" in results[6]  # Step 7
+        assert "SHORT" in results[7]  # Step 8
+        assert "SHORT" in results[8]  # Step 9
+        assert "SHORT" in results[9]  # Step 10
+        assert "FULL" in results[10]  # Step 11 (11 % 5 == 1)
+        assert "SHORT" in results[11]  # Step 12
+
+        # Count totals
+        full_count = sum(1 for r in results if "FULL" in r)
+        short_count = sum(1 for r in results if "SHORT" in r)
+        assert full_count == 3  # Steps 1, 6, 11
+        assert short_count == 9  # All other steps

@@ -748,27 +748,6 @@ class LLMAgentPolicy(AgentPolicy):
 
         # Build prompt using dynamic or static approach
         if self.use_dynamic_prompts:
-            # basic_info = self.prompt_builder.basic_info_prompt()
-            # observable = self.prompt_builder.observable_prompt(obs)
-            # self.prompt_builder._step_counter += 1
-            # step = self.prompt_builder.step_count
-            # is_first_step = step == 1
-            # is_window_reset = step % self.prompt_builder.context_window_size == 1
-            # includes_basic_info = is_first_step or is_window_reset
-
-            # if includes_basic_info:
-            #     print(f"[Agent {obs.agent_id}][Step {step}] FULL: basic, obs")
-            # else:
-            #     print(f"[Agent {obs.agent_id}][Step {step}] SHORT: obs")
-            #
-            # # Skip LLM call, return noop
-            # self.last_action = "noop"
-            # for action in self.policy_env_info.actions.actions():
-            #     if action.name == "noop":
-            #         return action
-            # return self.policy_env_info.actions.actions()[0]  # fallback
-            # END DEBUG
-
             user_prompt, includes_basic_info = self.prompt_builder.context_prompt(obs)
             if self.debug_mode:
                 num_msgs = len(self._messages) + 1  # +1 for the new user message we're about to add
