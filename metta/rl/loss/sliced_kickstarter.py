@@ -15,6 +15,7 @@ from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -79,9 +80,6 @@ class SlicedKickstarter(Loss):
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         self.student_forward = self.cfg.student_forward
-
-        # Load teacher. Lazy import to avoid circular dependency
-        from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
         base_policy_env_info = getattr(self.env, "policy_env_info", None)
         if base_policy_env_info is None:
@@ -201,23 +199,27 @@ class SlicedKickstarter(Loss):
         sequence for modified rows and prepend the new token.
         """
         if "env_obs" not in td.keys():
-            return
+            raise ValueError("TensorDict missing 'env_obs' key required for Kickstarter token injection.")
 
         env_obs = td["env_obs"]
 
         # Expect token observations of shape [B, M, 3] with uint8 dtype.
         if env_obs.dim() != 3 or env_obs.size(-1) != 3:
-            return
+            raise ValueError(f"Expected 'env_obs' with shape [B, M, 3], got {env_obs.shape}")
 
         batch_size, num_tokens, token_dim = env_obs.shape
         if num_tokens == 0:
-            return
+            raise ValueError("Encountered 'env_obs' with 0 tokens, cannot inject Kickstarter token.")
 
         # Ensure masks are available and match the current batch size.
         if not hasattr(self, "stud_mask") or not hasattr(self, "teacher_mask"):
-            return
+            raise RuntimeError("Kickstarter masks not initialized. Has _create_slices been called?")
+
         if self.stud_mask.shape[0] != batch_size or self.teacher_mask.shape[0] != batch_size:
-            return
+            raise RuntimeError(
+                f"Batch size mismatch: env_obs={batch_size}, "
+                f"stud_mask={self.stud_mask.shape[0]}, teacher_mask={self.teacher_mask.shape[0]}"
+            )
 
         active_mask = self.stud_mask | self.teacher_mask
         if not torch.any(active_mask):

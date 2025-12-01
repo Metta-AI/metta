@@ -14,6 +14,7 @@ from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -75,9 +76,6 @@ class LogitKickstarter(Loss):
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         self.student_forward = self.cfg.student_forward
-
-        # Load teacher. Lazy import to avoid circular dependency
-        from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
         base_policy_env_info = getattr(self.env, "policy_env_info", None)
         if base_policy_env_info is None:
