@@ -16,7 +16,7 @@ links:
     short_urls: [m, mettascope]
   - name: Skypilot
     icon: https://avatars.githubusercontent.com/u/109387420?s=200&v=4
-    url: https://skypilot-api.softmax-research.net/dashboard/jobs?property=user&operator=%3A&value=$username%40stem.ai
+    url: https://skypilot-api.softmax-research.net/dashboard/jobs?property=user&operator=%3A&value=$username%40softmax.com
     short_urls: [s, sky, skypilot]
     sub_links:
       - name: README

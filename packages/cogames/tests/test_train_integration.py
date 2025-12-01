@@ -54,7 +54,7 @@ def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
     assert isinstance(state_dict, dict), "Checkpoint should be a state dict"
 
 
-# RandomPolicy is not trainable - it doesn't implement TrainablePolicy interface
+# RandomPolicy is not trainable - it returns None from network()
 # so we skip testing it with the train function
 @pytest.mark.timeout(180)
 def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):

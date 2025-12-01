@@ -2092,6 +2092,7 @@ dependencies = [
     { name = "duckdb" },
     { name = "einops" },
     { name = "fastapi" },
+    { name = "gitta" },
     { name = "google-api-python-client" },
     { name = "google-auth" },
     { name = "google-auth-oauthlib" },
@@ -2213,6 +2214,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.3.0" },
     { name = "einops", specifier = ">=0.8.1" },
     { name = "fastapi", specifier = ">=0.115.5" },
+    { name = "gitta", editable = "packages/gitta" },
     { name = "google-api-python-client", specifier = ">=2.0.0" },
     { name = "google-auth", specifier = ">=2.0.0" },
     { name = "google-auth-oauthlib", specifier = ">=1.0.0" },
@@ -2419,6 +2421,7 @@ source = { editable = "common" }
 dependencies = [
     { name = "cogames" },
     { name = "rich" },
+    { name = "tenacity" },
     { name = "wandb" },
 ]
 
@@ -2436,6 +2439,7 @@ dev = [
 requires-dist = [
     { name = "cogames", editable = "packages/cogames" },
     { name = "rich", specifier = ">=14.1" },
+    { name = "tenacity", specifier = ">=9.0.0" },
     { name = "wandb", specifier = ">=0.22.3" },
 ]
 
