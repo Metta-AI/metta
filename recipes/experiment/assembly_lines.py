@@ -413,7 +413,7 @@ def train(
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
     if arch_type == "default":
-        policy_config = ViTDefaultConfig()
+    policy_config = ViTDefaultConfig()
     elif arch_type == "trxl":
         policy_config = TRXLConfig()
     else:
