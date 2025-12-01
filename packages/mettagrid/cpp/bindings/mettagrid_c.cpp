@@ -17,7 +17,6 @@
 #include "actions/move.hpp"
 #include "actions/move_config.hpp"
 #include "actions/noop.hpp"
-#include "actions/resource_mod.hpp"
 #include "config/observation_features.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
@@ -280,16 +279,6 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
     _action_handlers.push_back(action);
   }
   _action_handler_impl.push_back(std::move(change_vibe));
-
-  // ResourceMod
-  auto resource_mod_config = std::static_pointer_cast<const ResourceModConfig>(game_config.actions.at("resource_mod"));
-  auto resource_mod = std::make_unique<ResourceMod>(*resource_mod_config);
-  resource_mod->init(_grid.get(), &_rng);
-  if (resource_mod->priority > _max_action_priority) _max_action_priority = resource_mod->priority;
-  for (const auto& action : resource_mod->actions()) {
-    _action_handlers.push_back(action);
-  }
-  _action_handler_impl.push_back(std::move(resource_mod));
 }
 
 void MettaGrid::add_agent(Agent* agent) {
@@ -942,7 +931,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_attack_action_config(m);
   bind_change_vibe_action_config(m);
   bind_move_action_config(m);
-  bind_resource_mod_config(m);
   bind_global_obs_config(m);
   bind_clipper_config(m);
   bind_game_config(m);
