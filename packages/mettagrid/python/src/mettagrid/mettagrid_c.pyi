@@ -68,7 +68,6 @@ class AgentConfig(GridObjectConfig):
         group_id: int = ...,
         group_name: str = ...,
         freeze_duration: int = 0,
-        action_failure_penalty: float = 0,
         resource_limits: dict[int, int] = {},
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
@@ -84,7 +83,6 @@ class AgentConfig(GridObjectConfig):
     group_id: int
     group_name: str
     freeze_duration: int
-    action_failure_penalty: float
     resource_limits: dict[int, int]
     stat_rewards: dict[str, float]  # Added this
     stat_reward_max: dict[str, float]  # Added this
