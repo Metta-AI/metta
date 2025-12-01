@@ -211,7 +211,16 @@ def train(settings: dict[str, Any]) -> None:
     vector_batch_size = _resolve_vector_batch_size(num_envs, num_workers, settings.get("vector_batch_size"))
 
     base_config = {"render_mode": "ansi", "render_scale": 1}
-    base_config.update(settings.get("env_config", {}))
+    base_config.update(
+        settings.get(
+            "env_config",
+            {
+                "max_steps": 1_000,
+                "render_scale": 1,
+                "render_mode": "ansi",
+            },
+        )
+    )
 
     env_creator = TribalEnvFactory(base_config)
     base_cfg = env_creator.clone_cfg()
