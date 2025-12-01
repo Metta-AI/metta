@@ -18,7 +18,7 @@ from metta.sim.simulate_and_record import (
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.url_schemes import get_checkpoint_metadata, policy_spec_from_uri, resolve_uri
+from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -68,14 +68,14 @@ class EvaluateTool(Tool):
             f"""SELECT pv.id, pv.attributes->>'agent_step'
             FROM policy_versions pv
             JOIN policies p ON pv.policy_id = p.id
-            WHERE p.name = '{metadata["run_name"]}' AND pv.attributes->>'epoch' = '{metadata["epoch"]}'"""
+            WHERE p.name = '{metadata.run_name}' AND pv.attributes->>'epoch' = '{metadata.epoch}'"""
         )
         if result.rows is None or len(result.rows) == 0:
             return None
         return MyPolicyMetadata(
-            policy_name=metadata["run_name"],
+            policy_name=metadata.run_name,
             policy_version_id=result.rows[0][0],
-            epoch=metadata["epoch"],
+            epoch=metadata.epoch,
             agent_step=int(result.rows[0][1]),
         )
 

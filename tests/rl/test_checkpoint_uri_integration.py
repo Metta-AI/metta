@@ -4,14 +4,16 @@ import pytest
 
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from mettagrid.util.file import ParsedURI
-from mettagrid.util.url_schemes import key_and_version
+from mettagrid.util.uri_resolvers.schemes import parse_uri
 
 
 class TestS3URIs:
-    def test_key_and_version_parsing(self):
-        key, version = key_and_version("s3://bucket/foo/checkpoints/foo:v9.mpt")
-        assert key == "foo"
-        assert version == 9
+    def test_checkpoint_info_parsing(self):
+        info = parse_uri("s3://bucket/foo/checkpoints/foo:v9.mpt").checkpoint_info
+        assert info is not None
+        run_name, epoch = info
+        assert run_name == "foo"
+        assert epoch == 9
 
 
 class TestMettaURIs:
