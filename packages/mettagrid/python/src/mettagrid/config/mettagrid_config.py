@@ -393,7 +393,7 @@ class GameConfig(Config):
     vibe_names: list[str] = Field(default_factory=list)
     num_agents: int = Field(ge=1, default=24)
     # max_steps = zero means "no limit"
-    max_steps: int = Field(ge=0, default=1000)
+    max_steps: int = Field(ge=0, default=10000)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = Field(default=False)
     obs: ObsConfig = Field(default_factory=ObsConfig)
