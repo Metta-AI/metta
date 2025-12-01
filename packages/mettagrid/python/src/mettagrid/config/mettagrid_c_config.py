@@ -21,7 +21,6 @@ from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
-from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
@@ -413,23 +412,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         actions_config.change_vibe.number_of_vibes if actions_config.change_vibe.enabled else 0
     )
     actions_cpp_params["change_vibe"] = CppChangeVibeActionConfig(**action_params)
-
-    # Process resource_mod - always add to map (required by C++)
-    action_params = process_action_config("resource_mod", actions_config.resource_mod)
-    if actions_config.resource_mod.enabled:
-        modifies_dict = actions_config.resource_mod.modifies
-        unknown_modifies = set(modifies_dict.keys()) - set(resource_name_to_id.keys())
-        if unknown_modifies:
-            unknown_list = sorted(unknown_modifies)
-            raise ValueError(f"Unknown resource names in modifies for action 'resource_mod': {unknown_list}")
-        action_params["modifies"] = {resource_name_to_id[k]: float(v) for k, v in modifies_dict.items()}
-        action_params["agent_radius"] = actions_config.resource_mod.agent_radius
-        action_params["scales"] = actions_config.resource_mod.scales
-    else:
-        action_params["modifies"] = {}
-        action_params["agent_radius"] = 0
-        action_params["scales"] = False
-    actions_cpp_params["resource_mod"] = CppResourceModConfig(**action_params)
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
