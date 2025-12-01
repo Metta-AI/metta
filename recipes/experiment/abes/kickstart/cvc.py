@@ -278,37 +278,38 @@ def train(
     )
 
     losses_config = LossesConfig()
-    losses_config.supervisor.enabled = True
-    losses_config.supervisor.teacher_lead_prob = 0.5
+    ssc_end_step = 1_000_000_000
+    losses_config.sliced_scripted_cloner.enabled = True
+    losses_config.ppo_critic.sample_enabled = False
+    losses_config.ppo_critic.train_forward_enabled = False
+    losses_config.ppo_critic.deferred_training_start_step = ssc_end_step
 
-    trainer_cfg = TrainerConfig(
-        losses=losses_config,
-    )
+    trainer_cfg = TrainerConfig(losses=losses_config)
 
     scheduler = SchedulerConfig(
         run_gates=[
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=22_000_000_000),
+            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=ssc_end_step),
             LossRunGate(
-                loss_instance_name="kickstarter",
+                loss_instance_name="sliced_scripted_cloner",
                 phase="rollout",
-                end_at_step=22_000_000_000,
+                end_at_step=ssc_end_step,
             ),
             LossRunGate(
-                loss_instance_name="kickstarter",
+                loss_instance_name="sliced_scripted_cloner",
                 phase="train",
-                end_at_step=22_000_000_000,
+                end_at_step=ssc_end_step,
             ),
         ],
         rules=[
             HyperUpdateRule(
-                loss_instance_name="kickstarter",
-                attr_path="action_loss_coef",
+                loss_instance_name="sliced_scripted_cloner",
+                attr_path="teacher_led_proportion",
                 mode="progress",
                 style="linear",
-                start_value=1.0,
+                start_value=0.2,
                 end_value=0.0,
-                start_agent_step=19_000_000_000,
-                end_agent_step=22_000_000_000,
+                start_agent_step=0,
+                end_agent_step=ssc_end_step,
             ),
         ],
     )

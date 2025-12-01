@@ -110,19 +110,16 @@ def train(
         policy_architecture = ViTDefaultConfig()
 
     losses_config = LossesConfig()
-    # add vit_reconstruction loss
-    losses_config.vit_reconstruction.enabled = True
-
     losses_config.sliced_kickstarter.enabled = True
     # teacher was trained off vit_large_lstm. hit 7.0 at 3b steps. More stable
     losses_config.sliced_kickstarter.teacher_uri = (
         "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
     )
-
     ks_end_step = 1_000_000_000
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = ks_end_step
+
     trainer_cfg = TrainerConfig(losses=losses_config)
 
     scheduler = SchedulerConfig(
