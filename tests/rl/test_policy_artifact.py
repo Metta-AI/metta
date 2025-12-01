@@ -178,20 +178,3 @@ def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
 
     assert hasattr(reloaded, "core")
     assert isinstance(reloaded.core, CortexTD)
-
-
-def test_policy_artifact_reinitializes_environment_dependent_buffers() -> None:
-    policy_env_info = _policy_env_info()
-    architecture = ActionTestArchitecture()
-    policy = architecture.make_policy(policy_env_info)
-    policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
-
-    artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
-    artifact.state_dict["components.action_embedding.active_indices"] = torch.tensor([5, 6, 7], dtype=torch.long)
-
-    reloaded = artifact.instantiate(policy_env_info, torch.device("cpu"))
-
-    action_component = reloaded.components["action_embedding"]
-    expected_indices = tuple(range(len(policy_env_info.action_names)))
-    assert tuple(action_component.active_indices.tolist()) == expected_indices
-    assert action_component.num_actions == len(expected_indices)

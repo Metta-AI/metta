@@ -452,13 +452,17 @@ class MettaGridConfig(Config):
 
     @staticmethod
     def EmptyRoom(
-        num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
+        num_agents: int,
+        width: int = 10,
+        height: int = 10,
+        border_width: int = 1,
+        with_walls: bool = False,
+        number_of_vibes: int | None = None,
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
-        actions = ActionsConfig(
-            move=MoveActionConfig(),
-        )
+        change_vibe_cfg = ChangeVibeActionConfig(number_of_vibes=number_of_vibes or 0)
+        actions = ActionsConfig(move=MoveActionConfig(), change_vibe=change_vibe_cfg)
         objects = {}
         if border_width > 0 or with_walls:
             objects["wall"] = WallConfig(render_symbol="⬛")
