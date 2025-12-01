@@ -92,15 +92,18 @@ class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
         torch.save(self._net.state_dict(), policy_data_path)
 
     def step(self, obs: Union[AgentObservation, np.ndarray, torch.Tensor, Sequence[Any]]) -> Action:  # type: ignore[override]
-        obs_array: np.ndarray
         if isinstance(obs, AgentObservation):
             obs_shape = self.policy_env_info.observation_space.shape
-            obs_array = np.zeros(obs_shape, dtype=np.float32)
+            obs_tensor = torch.full(obs_shape, fill_value=255.0, device=self._device, dtype=torch.float32)
+            for idx, token in enumerate(obs.tokens):
+                if idx >= obs_shape[0]:
+                    break
+                raw = torch.as_tensor(token.raw_token, device=self._device, dtype=obs_tensor.dtype)
+                obs_tensor[idx, : raw.numel()] = raw
         else:
-            obs_array = np.asarray(obs, dtype=np.float32)
+            obs_tensor = torch.as_tensor(obs, device=self._device, dtype=torch.float32)
 
-        obs_tensor = torch.as_tensor(obs_array, device=self._device, dtype=torch.float32)
-        if obs_tensor.ndim == 3:
+        if obs_tensor.ndim == len(self.policy_env_info.observation_space.shape):
             obs_tensor = obs_tensor.unsqueeze(0)
 
         obs_tensor = obs_tensor * (1.0 / 255.0)
