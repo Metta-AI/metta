@@ -162,21 +162,6 @@ class AttackActionConfig(ActionConfig):
         return Action(name=f"attack_{location}")
 
 
-class ResourceModActionConfig(ActionConfig):
-    """Resource mod action configuration."""
-
-    action_handler: str = Field(default="resource_mod")
-    modifies: dict[str, float] = Field(default_factory=dict)
-    agent_radius: int = Field(default=0, ge=0, le=255)
-    scales: bool = Field(default=False)
-
-    def _actions(self) -> list[Action]:
-        return [self.ResourceMod()]
-
-    def ResourceMod(self) -> Action:
-        return Action(name="resource_mod")
-
-
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -188,11 +173,10 @@ class ActionsConfig(Config):
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
-    resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
     def actions(self) -> list[Action]:
         return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe, self.resource_mod]],
+            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe]],
             [],
         )
 
