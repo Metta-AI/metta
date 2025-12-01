@@ -411,18 +411,38 @@ class GameConfig(Config):
 
     @model_validator(mode="after")
     def _compute_feature_ids(self) -> "GameConfig":
-        self._populate_vibe_names()
-        # Note that this validation only runs once by default, so later changes by the user can cause this to no
-        # longer be true.
-        if not self.actions.change_vibe.number_of_vibes == len(self.vibe_names):
-            raise ValueError("number_of_vibes must match the number of vibe names")
+        self._sync_vibes()
         return self
 
     def _populate_vibe_names(self) -> None:
         """Populate vibe_names from change_vibe action config if not already set."""
         if not self.vibe_names:
-            num_vibes = self.actions.change_vibe.number_of_vibes
+            num_vibes = self.actions.change_vibe.number_of_vibes or len(VIBES)
             self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
+
+    def _sync_vibes(self) -> None:
+        """Keep number_of_vibes and vibe_names in lockstep.
+
+        - If only number_of_vibes is set, derive vibe_names from it.
+        - If only vibe_names is set, derive number_of_vibes from its length.
+        - If both are set but disagree, favor number_of_vibes and regenerate names.
+        """
+        num_vibes = self.actions.change_vibe.number_of_vibes
+
+        if not num_vibes and self.vibe_names:
+            # User provided explicit vibe names; infer count.
+            self.actions.change_vibe.number_of_vibes = len(self.vibe_names)
+            num_vibes = len(self.vibe_names)
+        elif num_vibes and len(self.vibe_names) != num_vibes:
+            # Count is authoritative when both are present but disagree.
+            self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
+        else:
+            # Neither provided names nor count; fall back to defaults.
+            self._populate_vibe_names()
+
+        # Final guard to ensure consistency if num_vibes was still unset.
+        if not self.actions.change_vibe.number_of_vibes:
+            self.actions.change_vibe.number_of_vibes = len(self.vibe_names)
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
@@ -456,8 +476,7 @@ class MettaGridConfig(Config):
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
-        change_vibe_cfg = ChangeVibeActionConfig(number_of_vibes=len(VIBES))
-        actions = ActionsConfig(move=MoveActionConfig(), change_vibe=change_vibe_cfg)
+        actions = ActionsConfig(move=MoveActionConfig(), change_vibe=ChangeVibeActionConfig(number_of_vibes=len(VIBES)))
         objects = {}
         if border_width > 0 or with_walls:
             objects["wall"] = WallConfig(render_symbol="⬛")
