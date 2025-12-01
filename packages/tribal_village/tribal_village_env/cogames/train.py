@@ -140,11 +140,7 @@ def train(settings: dict[str, Any]) -> None:
 
     vector_num_envs = settings.get("vector_num_envs")
     vector_num_workers = settings.get("vector_num_workers")
-    try:
-        cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
-    except Exception:
-        cpu_cores = None
-
+    cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
     desired_workers = vector_num_workers or cpu_cores or 4
     num_workers = min(desired_workers, max(1, cpu_cores or desired_workers))
     num_envs = vector_num_envs or 64
@@ -224,14 +220,10 @@ def train(settings: dict[str, Any]) -> None:
         num_agents=max(1, getattr(driver_env, "num_agents", 1)),
     )
 
-    resolved_initial_weights: Optional[str] = None
     initial_weights_path = settings.get("initial_weights_path")
-    if initial_weights_path is not None:
-        try:
-            resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
-        except FileNotFoundError as exc:
-            console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
-            resolved_initial_weights = None
+    resolved_initial_weights = (
+        resolve_policy_data_path(initial_weights_path) if initial_weights_path is not None else None
+    )
 
     policy_spec = PolicySpec(class_path=settings["policy_class_path"], data_path=resolved_initial_weights)
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
@@ -318,67 +310,41 @@ def train(settings: dict[str, Any]) -> None:
         prio_beta0=0.2,
     )
 
-    trainer: Optional[pufferl.PuffeRL] = None
-    training_diverged = False
+    trainer = pufferl.PuffeRL(train_args, vecenv, network)
 
-    try:
-        trainer = pufferl.PuffeRL(train_args, vecenv, network)
+    with DeferSigintContextManager():
+        while trainer.global_step < settings["steps"]:
+            trainer.evaluate()
+            trainer.train()
 
-        with DeferSigintContextManager():
-            while trainer.global_step < settings["steps"]:
-                trainer.evaluate()
-                trainer.train()
+    trainer.print_dashboard()
+    trainer.close()
+    vecenv.close()
 
-    except KeyboardInterrupt:  # pragma: no cover - user interrupt
-        logger.warning("Training interrupted by user. Saving latest model if available.")
-    except RuntimeError as exc:  # pragma: no cover - runtime failure
-        training_diverged = True
-        logger.exception("Training diverged with runtime error: %s", exc)
-    finally:
-        if trainer is not None:
-            try:
-                trainer.print_dashboard()
-            except Exception:
-                pass
-            try:
-                trainer.close()
-            except Exception:
-                pass
+    console.rule("[bold green]Training Summary")
+    checkpoints = find_policy_checkpoints(settings["checkpoints_path"], env_name)
 
-        try:
-            vecenv.close()
-        except Exception:
-            pass
-
-        console.rule("[bold green]Training Summary")
-        checkpoints = find_policy_checkpoints(settings["checkpoints_path"], env_name)
-
-        if checkpoints and not training_diverged:
-            final_checkpoint = checkpoints[-1]
-            console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
-            if trainer is not None and trainer.epoch < checkpoint_interval:
-                console.print(
-                    f"Training stopped before first scheduled checkpoint (epoch {checkpoint_interval}). "
-                    "Latest weights may be near-random.",
-                    style="yellow",
-                )
-
-            policy_shorthand = get_policy_class_shorthand(settings["policy_class_path"])
-            policy_arg = policy_shorthand if policy_shorthand else settings["policy_class_path"]
-            policy_with_checkpoint = f"{policy_arg}:{final_checkpoint}"
-
-            console.print()
-            console.print("To continue training this policy:", style="bold")
-            console.print(f"  [yellow]cogames train-tribal -p {policy_with_checkpoint}[/yellow]")
-
-        elif checkpoints and training_diverged:
-            console.print()
-            console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
-            console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
-        else:
-            console.print()
+    if checkpoints:
+        final_checkpoint = checkpoints[-1]
+        console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
+        if trainer.epoch < checkpoint_interval:
             console.print(
-                f"[yellow]No checkpoint files found. Check {settings['checkpoints_path']} for saved models.[/yellow]"
+                f"Training stopped before first scheduled checkpoint (epoch {checkpoint_interval}). "
+                "Latest weights may be near-random.",
+                style="yellow",
             )
 
-        console.rule("[bold green]End Training")
+        policy_shorthand = get_policy_class_shorthand(settings["policy_class_path"])
+        policy_arg = policy_shorthand if policy_shorthand else settings["policy_class_path"]
+        policy_with_checkpoint = f"{policy_arg}:{final_checkpoint}"
+
+        console.print()
+        console.print("To continue training this policy:", style="bold")
+        console.print(f"  [yellow]cogames train-tribal -p {policy_with_checkpoint}[/yellow]")
+    else:
+        console.print()
+        console.print(
+            f"[yellow]No checkpoint files found. Check {settings['checkpoints_path']} for saved models.[/yellow]"
+        )
+
+    console.rule("[bold green]End Training")
