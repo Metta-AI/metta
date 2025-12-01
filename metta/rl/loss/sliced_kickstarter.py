@@ -294,11 +294,7 @@ class SlicedKickstarter(Loss):
         student_logits = student_td["logits"]
         teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
         student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
-        # teacher_probs = torch.exp(teacher_log_probs)
         student_probs = torch.exp(student_log_probs)
-        # ks_action_loss = (temperature**2) * (
-        #     (teacher_probs * (teacher_log_probs - student_log_probs)).sum(dim=-1).mean()
-        # )
         ks_action_loss = (temperature**2) * (
             (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
         )
@@ -324,7 +320,7 @@ class SlicedKickstarter(Loss):
         super().on_train_phase_end(context)
 
     def _create_slices(self, B: int) -> None:
-        assert self.cfg.student_led_proportion + self.cfg.teacher_led_proportion <= 1.0, "Proportions must be <= 1.0"
+        assert self.cfg.student_led_proportion + self.cfg.teacher_led_proportion <= 1.0, "Proportions must sum <= 1.0"
         self.rollout_batch_size = B
 
         rand_assignments = torch.rand(B, device=self.device)
