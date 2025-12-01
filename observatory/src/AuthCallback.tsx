@@ -24,9 +24,11 @@ export function AuthCallback() {
       setStatus('success')
 
       // Redirect to home page after a short delay
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         navigate('/')
       }, 2000)
+
+      return () => clearTimeout(timeoutId)
     } catch (error) {
       setStatus('error')
       setErrorMessage(error instanceof Error ? error.message : 'Failed to save authentication token')
