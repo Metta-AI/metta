@@ -5,17 +5,14 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import platform
-from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
-import numpy as np
 import psutil
 import torch
 from rich.console import Console
 
 from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.train import _resolve_vector_counts
-from tribal_village_env.cogames.policy import TribalPolicyEnvInfo
 from mettagrid.policy.loader import (
     find_policy_checkpoints,
     get_policy_class_shorthand,
@@ -25,116 +22,72 @@ from mettagrid.policy.loader import (
 from mettagrid.policy.policy import PolicySpec
 from pufferlib import pufferl
 from pufferlib import vector as pvector
-from pufferlib.pufferlib import set_buffers
+
+from tribal_village_env.cogames.config import TribalTrainSettings
+from tribal_village_env.cogames.policy import TribalPolicyEnvInfo
+from tribal_village_env.cogames.vector_env import FlattenVecEnv, TribalEnvFactory
 
 logger = logging.getLogger("cogames.tribal_village.train")
 
 
-class _TribalEnvCreator:
-    """Picklable factory for vectorized Tribal Village environments."""
+def _resolve_worker_counts(settings: TribalTrainSettings) -> tuple[int, int]:
+    try:
+        cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
+    except Exception:
+        cpu_cores = None
 
-    def __init__(self, base_config: dict[str, Any]):
-        self._base_config = base_config
+    desired_workers = settings.vector_num_workers or cpu_cores or 4
+    num_workers = min(desired_workers, max(1, cpu_cores or desired_workers))
 
-    def clone_cfg(self) -> dict[str, Any]:
-        return dict(self._base_config)
+    num_envs = settings.vector_num_envs or 64
 
-    def __call__(
-        self,
-        cfg: Optional[dict[str, Any]] = None,
-        buf: Optional[Any] = None,
-        seed: Optional[int] = None,
-    ) -> Any:
-        from tribal_village_env.environment import TribalVillageEnv
+    adjusted_envs, adjusted_workers = _resolve_vector_counts(
+        num_envs,
+        num_workers,
+        envs_user_supplied=settings.vector_num_envs is not None,
+        workers_user_supplied=settings.vector_num_workers is not None,
+    )
 
-        merged_cfg = dict(self._base_config)
-        if cfg is not None:
-            merged_cfg.update(cfg)
-        if seed is not None and "seed" not in merged_cfg:
-            merged_cfg["seed"] = seed
-
-        env = TribalVillageEnv(config=merged_cfg)
-        set_buffers(env, buf)
-        return env
-
-
-class _FlattenVecEnv:
-    """Adapter to present contiguous agents_per_batch to the trainer."""
-
-    def __init__(self, inner: Any):
-        self.inner = inner
-        self.driver_env = getattr(inner, "driver_env", None)
-        for attr in (
-            "single_observation_space",
-            "single_action_space",
-            "action_space",
-            "observation_space",
-            "atn_batch_shape",
-        ):
-            setattr(self, attr, getattr(inner, attr, None))
-
-        self.agents_per_batch = getattr(inner, "agents_per_batch", getattr(inner, "num_agents", 1))
-        self.num_agents = self.agents_per_batch
-        self.num_envs = getattr(inner, "num_envs", getattr(inner, "num_environments", None))
-
-    def async_reset(self, seed: int = 0) -> None:
-        self.inner.async_reset(seed)
-
-    def reset(self, seed: int = 0):
-        self.async_reset(seed)
-        return self.recv()
-
-    def send(self, actions):
-        actions_arr = np.asarray(actions)
-        self.inner.send(actions_arr)
-
-    def recv(self):
-        result = self.inner.recv()
-        if len(result) == 8:
-            o, r, d, t, ta, infos, env_ids, masks = result
-        else:
-            o, r, d, t, infos, env_ids, masks = result
-            ta = None
-
-        o = np.asarray(o, copy=False).reshape(self.agents_per_batch, *self.single_observation_space.shape)
-        r = np.asarray(r, copy=False).reshape(self.agents_per_batch)
-        d = np.asarray(d, copy=False).reshape(self.agents_per_batch)
-        t = np.asarray(t, copy=False).reshape(self.agents_per_batch)
-        mask = (
-            np.asarray(masks, copy=False).reshape(self.agents_per_batch)
-            if masks is not None
-            else np.ones(self.agents_per_batch, dtype=bool)
+    if adjusted_envs != num_envs:
+        log_fn = logger.warning if settings.vector_num_envs is not None else logger.info
+        log_fn(
+            "Auto-adjusting num_envs from %s to %s so num_workers=%s divides evenly",
+            num_envs,
+            adjusted_envs,
+            adjusted_workers,
         )
-        env_ids = (
-            np.asarray(env_ids, copy=False).reshape(self.agents_per_batch)
-            if env_ids is not None
-            else np.arange(self.agents_per_batch, dtype=np.int32)
+        num_envs = adjusted_envs
+
+    if adjusted_workers != num_workers:
+        log_fn = logger.warning if settings.vector_num_workers is not None else logger.info
+        log_fn(
+            "Auto-adjusting num_workers from %s to %s to evenly divide num_envs=%s",
+            num_workers,
+            adjusted_workers,
+            num_envs,
         )
-        infos = infos if isinstance(infos, list) else []
-        return o, r, d, t, ta, infos, env_ids, mask
+        num_workers = adjusted_workers
 
-    def close(self):
-        if hasattr(self.inner, "close"):
-            self.inner.close()
+    return num_envs, num_workers
 
 
-def train(
-    config: Optional[dict[str, Any]],
-    policy_class_path: str,
-    device: torch.device,
-    initial_weights_path: Optional[str],
-    num_steps: int,
-    checkpoints_path: Path,
-    seed: int,
-    batch_size: int,
-    minibatch_size: int,
-    *,
-    vector_num_envs: Optional[int] = None,
-    vector_batch_size: Optional[int] = None,
-    vector_num_workers: Optional[int] = None,
-    log_outputs: bool = False,
-) -> None:
-    """Run PPO training for Tribal Village."""
+def _resolve_vector_batch_size(num_envs: int, num_workers: int, vector_batch_size: Optional[int]) -> int:
+    envs_per_worker = max(1, num_envs // num_workers)
+    if vector_batch_size is None:
+        return num_envs
+    if num_envs % vector_batch_size != 0:
+        logger.warning(
+            "vector_batch_size=%s does not evenly divide num_envs=%s; resetting to %s",
+            vector_batch_size,
+            num_envs,
+            num_envs,
+        )
+        return num_envs
+    return vector_batch_size
+
+
+def train(settings: TribalTrainSettings) -> None:
+    """Run PPO training for Tribal Village using the provided settings."""
 
     from tribal_village_env.build import ensure_nim_library_current
 
@@ -144,76 +97,15 @@ def train(
 
     backend = pvector.Multiprocessing
     if platform.system() == "Darwin":
-        # macOS requires spawn for Multiprocessing to work reliably
         multiprocessing.set_start_method("spawn", force=True)
 
-    try:
-        cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
-    except Exception:
-        cpu_cores = None
-
-    desired_workers = vector_num_workers or cpu_cores or 4
-    num_workers = min(desired_workers, max(1, cpu_cores or desired_workers))
-
-    num_envs = vector_num_envs or 64
-
-    original_envs = num_envs
-    original_workers = num_workers
-
-    adjusted_envs, adjusted_workers = _resolve_vector_counts(
-        num_envs,
-        num_workers,
-        envs_user_supplied=vector_num_envs is not None,
-        workers_user_supplied=vector_num_workers is not None,
-    )
-
-    if adjusted_envs != original_envs:
-        log_fn = logger.warning if vector_num_envs is not None else logger.info
-        log_fn(
-            "Auto-adjusting num_envs from %s to %s so num_workers=%s divides evenly",
-            original_envs,
-            adjusted_envs,
-            adjusted_workers,
-        )
-        num_envs = adjusted_envs
-
-    if adjusted_workers != original_workers:
-        log_fn = logger.warning if vector_num_workers is not None else logger.info
-        log_fn(
-            "Auto-adjusting num_workers from %s to %s to evenly divide num_envs=%s",
-            original_workers,
-            adjusted_workers,
-            num_envs,
-        )
-        num_workers = adjusted_workers
-
-    envs_per_worker = max(1, num_envs // num_workers)
-
-    # To keep pufferlib Multiprocessing happy (agents_per_batch == num_agents) prefer batch_size == num_envs.
-    if vector_batch_size is None:
-        vector_batch_size = num_envs
-    elif num_envs % vector_batch_size != 0:
-        logger.warning(
-            "vector_batch_size=%s does not evenly divide num_envs=%s; resetting to %s",
-            vector_batch_size,
-            num_envs,
-            num_envs,
-        )
-        vector_batch_size = num_envs
-
-    logger.debug(
-        "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
-        num_envs,
-        num_workers,
-        vector_batch_size,
-        envs_per_worker,
-    )
+    num_envs, num_workers = _resolve_worker_counts(settings)
+    vector_batch_size = _resolve_vector_batch_size(num_envs, num_workers, settings.vector_batch_size)
 
     base_config = {"render_mode": "ansi", "render_scale": 1}
-    if config:
-        base_config.update(config)
+    base_config.update(settings.env_config)
 
-    env_creator = _TribalEnvCreator(base_config)
+    env_creator = TribalEnvFactory(base_config)
     base_cfg = env_creator.clone_cfg()
 
     vecenv = pvector.make(
@@ -227,7 +119,7 @@ def train(
     agents_per_batch = getattr(vecenv, "agents_per_batch", None)
     if agents_per_batch is not None:
         vecenv.num_agents = agents_per_batch
-    vecenv = _FlattenVecEnv(vecenv)
+    vecenv = FlattenVecEnv(vecenv)
 
     driver_env = getattr(vecenv, "driver_env", None)
     if driver_env is None:
@@ -240,20 +132,20 @@ def train(
     )
 
     resolved_initial_weights: Optional[str] = None
-    if initial_weights_path is not None:
+    if settings.initial_weights_path is not None:
         try:
-            resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
+            resolved_initial_weights = resolve_policy_data_path(settings.initial_weights_path)
         except FileNotFoundError as exc:
             console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
 
-    policy_spec = PolicySpec(class_path=policy_class_path, data_path=resolved_initial_weights)
+    policy_spec = PolicySpec(class_path=settings.policy_class_path, data_path=resolved_initial_weights)
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
     network = policy.network()
-    assert network is not None, f"Policy {policy_class_path} must be trainable (network() returned None)"
-    network.to(device)
+    assert network is not None, f"Policy {settings.policy_class_path} must be trainable (network() returned None)"
+    network.to(settings.device)
 
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
-    if not use_rnn and "lstm" in policy_class_path.lower():
+    if not use_rnn and "lstm" in settings.policy_class_path.lower():
         use_rnn = True
 
     env_name = "tribal_village"
@@ -263,7 +155,6 @@ def train(
     optimizer = "adam"
     adam_eps = 1e-8
 
-    # Align PPO batch size with vecenv agents_per_batch to avoid buffer shape mismatches.
     total_agents = max(1, getattr(vecenv, "num_agents", getattr(driver_env, "num_agents", 1)))
     env_count = max(1, getattr(vecenv, "num_environments", num_envs))
     num_workers = max(1, getattr(vecenv, "num_workers", num_workers))
@@ -271,40 +162,40 @@ def train(
 
     effective_agents_per_batch = agents_per_batch or total_agents
     amended_batch_size = effective_agents_per_batch
-    if batch_size != amended_batch_size:
+    if settings.batch_size != amended_batch_size:
         logger.warning(
             "batch_size=%s overridden to %s to match agents_per_batch; larger batches not yet supported",
-            batch_size,
+            settings.batch_size,
             amended_batch_size,
         )
 
-    amended_minibatch_size = min(minibatch_size, amended_batch_size)
-    if amended_minibatch_size != minibatch_size:
+    amended_minibatch_size = min(settings.minibatch_size, amended_batch_size)
+    if amended_minibatch_size != settings.minibatch_size:
         logger.info(
             "Reducing minibatch_size from %s to %s to keep it <= batch_size",
-            minibatch_size,
+            settings.minibatch_size,
             amended_minibatch_size,
         )
 
-    effective_timesteps = max(num_steps, amended_batch_size)
-    if effective_timesteps != num_steps:
+    effective_timesteps = max(settings.steps, amended_batch_size)
+    if effective_timesteps != settings.steps:
         logger.info(
             "Raising total_timesteps from %s to %s to keep it >= batch_size",
-            num_steps,
+            settings.steps,
             effective_timesteps,
         )
 
     checkpoint_interval = 200
     train_args = dict(
         env=env_name,
-        device=device.type,
+        device=settings.device.type,
         total_timesteps=effective_timesteps,
         minibatch_size=amended_minibatch_size,
         batch_size=amended_batch_size,
-        data_dir=str(checkpoints_path),
+        data_dir=str(settings.checkpoints_path),
         checkpoint_interval=checkpoint_interval,
         bptt_horizon=bptt_horizon,
-        seed=seed,
+        seed=settings.seed,
         use_rnn=use_rnn,
         torch_deterministic=True,
         cpu_offload=False,
@@ -338,7 +229,7 @@ def train(
         trainer = pufferl.PuffeRL(train_args, vecenv, network)
 
         with DeferSigintContextManager():
-            while trainer.global_step < num_steps:
+            while trainer.global_step < settings.steps:
                 trainer.evaluate()
                 trainer.train()
 
@@ -364,7 +255,7 @@ def train(
             pass
 
         console.rule("[bold green]Training Summary")
-        checkpoints = find_policy_checkpoints(checkpoints_path, env_name)
+        checkpoints = find_policy_checkpoints(settings.checkpoints_path, env_name)
 
         if checkpoints and not training_diverged:
             final_checkpoint = checkpoints[-1]
@@ -376,8 +267,8 @@ def train(
                     style="yellow",
                 )
 
-            policy_shorthand = get_policy_class_shorthand(policy_class_path)
-            policy_arg = policy_shorthand if policy_shorthand else policy_class_path
+            policy_shorthand = get_policy_class_shorthand(settings.policy_class_path)
+            policy_arg = policy_shorthand if policy_shorthand else settings.policy_class_path
             policy_with_checkpoint = f"{policy_arg}:{final_checkpoint}"
 
             console.print()
@@ -390,6 +281,6 @@ def train(
             console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
         else:
             console.print()
-            console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")
+            console.print(f"[yellow]No checkpoint files found. Check {settings.checkpoints_path} for saved models.[/yellow]")
 
         console.rule("[bold green]End Training")
