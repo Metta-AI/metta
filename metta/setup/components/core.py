@@ -8,19 +8,17 @@ from metta.setup.utils import error, success
 
 
 @register_module
-class CoreSetup(SetupModule):
+class UvSetup(SetupModule):
     always_required = True
 
     def dependencies(self) -> list[str]:
-        return ["system"]  # Changed: core depends on system (system installs bootstrap deps first)
+        return ["system"]
 
     @property
     def description(self) -> str:
-        return "Core Python dependencies and virtual environment"
+        return "Python dependencies via uv sync"
 
     def check_installed(self) -> bool:
-        # System deps (bazel, nimby, nim, git, g++) are now checked by system.py
-        # Only check uv here (needed for this module to run)
         try:
             subprocess.run(["uv", "--version"], check=True, capture_output=True)
             return True
@@ -34,4 +32,4 @@ class CoreSetup(SetupModule):
         env = os.environ.copy()
         env["METTAGRID_FORCE_NIM_BUILD"] = "1"
         self.run_command(cmd, non_interactive=non_interactive, env=env, capture_output=False)
-        success("Core dependencies installed")
+        success("Python dependencies installed")
