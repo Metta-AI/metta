@@ -110,10 +110,10 @@ def make_random_maps_curriculum(
 
     # Bucket over extractor max_uses (resource scarcity)
     # 0 = unlimited, higher = limited resource
-    tasks.add_bucket("game.objects.carbon_extractor.max_uses", [1, 5, 10, 20, 25, 50, 100])
-    tasks.add_bucket("game.objects.oxygen_extractor.max_uses", [1, 5, 10, 20, 25, 50, 100])
-    tasks.add_bucket("game.objects.germanium_extractor.max_uses", [1, 5, 10, 20, 25, 50, 100])
-    tasks.add_bucket("game.objects.silicon_extractor.max_uses", [1, 5, 10, 20, 25, 50, 100])
+    tasks.add_bucket("game.objects.carbon_extractor.max_uses", [1, 3, 8, 10, 20])
+    tasks.add_bucket("game.objects.oxygen_extractor.max_uses", [1, 3, 8, 10, 20])
+    tasks.add_bucket("game.objects.germanium_extractor.max_uses", [1, 3, 8, 10, 20])
+    tasks.add_bucket("game.objects.silicon_extractor.max_uses", [1, 3, 8, 10, 20])
 
     # Standard curriculum buckets
     tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500, 2000, 3000, 4000])
