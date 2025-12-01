@@ -6,7 +6,7 @@ import logging
 import multiprocessing
 import platform
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import psutil
@@ -131,66 +131,6 @@ class FlattenVecEnv:
             self.inner.close()
 
 
-def _resolve_worker_counts(
-    *,
-    vector_num_envs: Optional[int],
-    vector_num_workers: Optional[int],
-) -> tuple[int, int]:
-    try:
-        cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
-    except Exception:
-        cpu_cores = None
-
-    desired_workers = vector_num_workers or cpu_cores or 4
-    num_workers = min(desired_workers, max(1, cpu_cores or desired_workers))
-
-    num_envs = vector_num_envs or 64
-
-    adjusted_envs, adjusted_workers = _resolve_vector_counts(
-        num_envs,
-        num_workers,
-        envs_user_supplied=vector_num_envs is not None,
-        workers_user_supplied=vector_num_workers is not None,
-    )
-
-    if adjusted_envs != num_envs:
-        log_fn = logger.warning if vector_num_envs is not None else logger.info
-        log_fn(
-            "Auto-adjusting num_envs from %s to %s so num_workers=%s divides evenly",
-            num_envs,
-            adjusted_envs,
-            adjusted_workers,
-        )
-        num_envs = adjusted_envs
-
-    if adjusted_workers != num_workers:
-        log_fn = logger.warning if vector_num_workers is not None else logger.info
-        log_fn(
-            "Auto-adjusting num_workers from %s to %s to evenly divide num_envs=%s",
-            num_workers,
-            adjusted_workers,
-            num_envs,
-        )
-        num_workers = adjusted_workers
-
-    return num_envs, num_workers
-
-
-def _resolve_vector_batch_size(num_envs: int, num_workers: int, vector_batch_size: Optional[int]) -> int:
-    envs_per_worker = max(1, num_envs // num_workers)
-    if vector_batch_size is None:
-        return num_envs
-    if num_envs % vector_batch_size != 0:
-        logger.warning(
-            "vector_batch_size=%s does not evenly divide num_envs=%s; resetting to %s",
-            vector_batch_size,
-            num_envs,
-            num_envs,
-        )
-        return num_envs
-    return vector_batch_size
-
-
 def train(settings: dict[str, Any]) -> None:
     """Run PPO training for Tribal Village using the provided settings."""
 
@@ -204,11 +144,54 @@ def train(settings: dict[str, Any]) -> None:
     if platform.system() == "Darwin":
         multiprocessing.set_start_method("spawn", force=True)
 
-    num_envs, num_workers = _resolve_worker_counts(
-        vector_num_envs=settings.get("vector_num_envs"),
-        vector_num_workers=settings.get("vector_num_workers"),
+    vector_num_envs = settings.get("vector_num_envs")
+    vector_num_workers = settings.get("vector_num_workers")
+    try:
+        cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
+    except Exception:
+        cpu_cores = None
+
+    desired_workers = vector_num_workers or cpu_cores or 4
+    num_workers = min(desired_workers, max(1, cpu_cores or desired_workers))
+    num_envs = vector_num_envs or 64
+
+    adjusted_envs, adjusted_workers = _resolve_vector_counts(
+        num_envs,
+        num_workers,
+        envs_user_supplied=vector_num_envs is not None,
+        workers_user_supplied=vector_num_workers is not None,
     )
-    vector_batch_size = _resolve_vector_batch_size(num_envs, num_workers, settings.get("vector_batch_size"))
+    if adjusted_envs != num_envs:
+        log_fn = logger.warning if vector_num_envs is not None else logger.info
+        log_fn(
+            "Auto-adjusting num_envs from %s to %s so num_workers=%s divides evenly",
+            num_envs,
+            adjusted_envs,
+            adjusted_workers,
+        )
+        num_envs = adjusted_envs
+    if adjusted_workers != num_workers:
+        log_fn = logger.warning if vector_num_workers is not None else logger.info
+        log_fn(
+            "Auto-adjusting num_workers from %s to %s to evenly divide num_envs=%s",
+            num_workers,
+            adjusted_workers,
+            num_envs,
+        )
+        num_workers = adjusted_workers
+
+    envs_per_worker = max(1, num_envs // num_workers)
+    vector_batch_size = settings.get("vector_batch_size")
+    if vector_batch_size is None:
+        vector_batch_size = num_envs
+    elif num_envs % vector_batch_size != 0:
+        logger.warning(
+            "vector_batch_size=%s does not evenly divide num_envs=%s; resetting to %s",
+            vector_batch_size,
+            num_envs,
+            num_envs,
+        )
+        vector_batch_size = num_envs
 
     base_config = {"render_mode": "ansi", "render_scale": 1}
     base_config.update(
