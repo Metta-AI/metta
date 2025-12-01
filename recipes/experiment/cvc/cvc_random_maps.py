@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import subprocess
 import time
+from datetime import datetime
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -37,6 +38,8 @@ def make_random_maps_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
+    heart_buckets: bool = False,
+    resource_buckets: bool = False,
 ) -> CurriculumConfig:
     """Create a curriculum with randomly generated maps.
 
@@ -118,22 +121,19 @@ def make_random_maps_curriculum(
     # Standard curriculum buckets
     tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500, 2000, 3000, 4000])
 
-    # BUCKETING COMMENTED OUT
+    if heart_buckets:
+        tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
+    if resource_buckets:
+        tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.0, 0.01])
+        tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0.0, 0.01])
+        tasks.add_bucket("game.agent.rewards.stats.germanium.gained", [0.0, 0.01])
+        tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.0, 0.01])
 
-    # tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
-
-    # Resource collection rewards
-    # tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
-    # tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
-    # tasks.add_bucket("game.agent.rewards.stats.germanium.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
-    # tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
-
-    # Cap resource rewards
-    # stats_max_cap = 0.5
-    # tasks.add_bucket("game.agent.rewards.stats_max.carbon.gained", [stats_max_cap])
-    # tasks.add_bucket("game.agent.rewards.stats_max.oxygen.gained", [stats_max_cap])
-    # tasks.add_bucket("game.agent.rewards.stats_max.germanium.gained", [stats_max_cap])
-    # tasks.add_bucket("game.agent.rewards.stats_max.silicon.gained", [stats_max_cap])
+        stats_max_cap = 0.5
+        tasks.add_bucket("game.agent.rewards.stats_max.carbon.gained", [stats_max_cap])
+        tasks.add_bucket("game.agent.rewards.stats_max.oxygen.gained", [stats_max_cap])
+        tasks.add_bucket("game.agent.rewards.stats_max.germanium.gained", [stats_max_cap])
+        tasks.add_bucket("game.agent.rewards.stats_max.silicon.gained", [stats_max_cap])
 
     # Configure learning progress algorithm
     if algorithm_config is None:
@@ -159,6 +159,8 @@ def train(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    heart_buckets = False,
+    resource_buckets = False,
 ) -> TrainTool:
     """Create a training tool for random maps curriculum.
 
@@ -183,7 +185,8 @@ def train(
     resolved_curriculum = curriculum or make_random_maps_curriculum(
         num_cogs=num_cogs,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        variants=variants,
+        heart_buckets=heart_buckets,
+        resource_buckets=resource_buckets,
     )
 
     trainer_cfg = TrainerConfig(
@@ -370,6 +373,8 @@ def experiment(
     heartbeat_timeout: int = 3600,
     skip_git_check: bool = True,
     additional_args: Optional[list[str]] = None,
+    heart_buckets: bool = False,
+    resource_buckets: bool = False,
 ) -> None:
     """Submit a training job on AWS with 4 GPUs.
 
@@ -389,15 +394,14 @@ def experiment(
                 run_name=random_maps_4agent
     """
     if run_name is None:
-        run_name = f"cvc_random_maps_{num_cogs}agent_{time.strftime('%Y-%m-%d_%H%M%S')}"
+        run_name = f"cvc_random_maps_{num_cogs}agent_heartbuckets_{heart_buckets}_resourcebuckets_{resource_buckets}_{time.strftime('%Y-%m-%d_%H%M%S')}"
 
     cmd = [
         "./devops/skypilot/launch.py",
         "recipes.experiment.cvc.cvc_random_maps.train",
-        f"run={run_name}",
+        f"run={run_name}-{datetime.now().strftime('%Y-%m-%d_%H%M%S')}",
         f"num_cogs={num_cogs}",
         "--gpus=4",
-        f"--heartbeat-timeout={heartbeat_timeout}",
     ]
 
     if skip_git_check:
@@ -423,3 +427,9 @@ __all__ = [
     "play_dense",
     "experiment",
 ]
+
+if __name__ == "__main__":
+    experiment(heart_buckets=False, resource_buckets=False)
+    experiment(heart_buckets=True, resource_buckets=False)
+    experiment(heart_buckets=True, resource_buckets=True)
+    experiment(heart_buckets=False, resource_buckets=True)
