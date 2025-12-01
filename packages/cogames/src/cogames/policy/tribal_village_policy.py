@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Optional, Union
+from typing import Any, Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -63,9 +63,7 @@ class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
         MultiAgentPolicy.__init__(self, policy_env_info)
         AgentPolicy.__init__(self, policy_env_info)
 
-        self._net = pufferlib.models.Default(
-            policy_env_info.as_shim_env(), hidden_size=hidden_size
-        )  # type: ignore[arg-type]
+        self._net = pufferlib.models.Default(policy_env_info.as_shim_env(), hidden_size=hidden_size)  # type: ignore[arg-type]
         if device is not None:
             self._net = self._net.to(torch.device(device))
 
