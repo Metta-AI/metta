@@ -132,7 +132,9 @@ class FlattenVecEnv:
 
 
 def _resolve_worker_counts(
-) -> tuple[int, int]:
+    *,
+    vector_num_envs: Optional[int],
+    vector_num_workers: Optional[int],
 ) -> tuple[int, int]:
     try:
         cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
