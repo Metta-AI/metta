@@ -537,9 +537,9 @@ def train_cmd(
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
     num_workers: Optional[int] = typer.Option(
-        8,
+        None,
         "--num-workers",
-        help="Number of worker processes (default 8; auto-adjusts to CPU cores if lower)",
+        help="Number of worker processes (defaults to number of CPU cores)",
         min=1,
     ),
     parallel_envs: Optional[int] = typer.Option(

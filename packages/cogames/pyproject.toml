@@ -12,7 +12,6 @@ dependencies = [
   "mettagrid",
   "packaging>=24.0.0",
   "pufferlib-core",
-  "tribal-village",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
   "einops>=0.8.0",
@@ -24,6 +23,9 @@ dependencies = [
   "httpx>=0.28.1",
 ]
 dynamic = ["version"]
+
+[project.optional-dependencies]
+tribal = ["tribal-village"]
 
 [project.scripts]
 cogames = "cogames.main:app"
