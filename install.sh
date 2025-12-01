@@ -61,18 +61,17 @@ echo "Welcome to Metta!"
 
 # Install uv if not present
 if ! check_cmd uv; then
-  echo "Installing uv..."
-
-  # Ensure common bin directories are in PATH before installing
+  # Detect uv binaries that exist but aren't on PATH
   for dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
-    if [ -d "$dir" ]; then
-      case ":$PATH:" in
-        *":$dir:"*) ;; # Already in PATH
-        *) export PATH="$dir:$PATH" ;;
-      esac
+    if [ -x "$dir/uv" ]; then
+      echo "uv found at $dir but it is not in your PATH."
+      echo "Add this to your shell profile and re-run ./install.sh:"
+      echo "  export PATH=\"$dir:\$PATH\""
+      exit 1
     fi
   done
 
+  echo "Installing uv..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
 
   # Source env files if they exist (uv installer creates these)
