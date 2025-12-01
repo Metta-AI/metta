@@ -128,7 +128,7 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
     def clean_grid(self, grid: MapGrid, assemblers=True):
         grid[grid == "agent.agent"] = "empty"
         if self.config.remove_assemblers:
-            grid[grid == "assembler"] = "empty"
+            grid[grid == "altar"] = "empty"
 
         # Prepare agent labels
         if isinstance(self.config.agents, int):
