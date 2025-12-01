@@ -190,7 +190,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             group_id=team_id,
             group_name=group_name,
             freeze_duration=agent_props["freeze_duration"],
-            action_failure_penalty=agent_props["action_failure_penalty"],
             inventory_config=inventory_config,
             stat_rewards=stat_rewards,
             stat_reward_max=stat_reward_max,
@@ -434,9 +433,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
-
-    # Add resource_loss_prob
-    game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
 
     # Add inventory regeneration interval
     game_cpp_params["inventory_regen_interval"] = game_config.inventory_regen_interval

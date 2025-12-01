@@ -185,6 +185,47 @@ def submit_missions_with_navigation_with_variants():
         variants="all",
     )
 
+def submit_s3_successful_missions_experiment():
+    """Submit curriculum experiment with only missions where S3 policies got reward, all variants."""
+    print("\n" + "=" * 80)
+    print("Submitting S3 Successful Missions Curriculum Experiment")
+    print("=" * 80)
+
+    # Missions where S3 policies got reward > 0 (from evaluation results)
+    # Based on evaluation results showing environments where S3 policies succeeded
+    S3_SUCCESSFUL_MISSIONS = [
+        "diagnostic_chest_deposit_near",
+        "diagnostic_chest_navigation3",
+        "diagnostic_extract_missing_oxygen",
+        "diagnostic_extract_missing_silicon",
+        "easy_hearts",
+        "easy_hearts_hello_world",
+        "easy_hearts_training",
+        "easy_hearts_training_facility",
+        "easy_medium_hearts",
+        "easy_mode",
+        "easy_small_hearts",
+        "go_together",
+        "repair",
+        "single_use_swarm_easy",
+        "vibe_check",
+    ]
+
+    print(f"\nSubmitting: All variants on {len(S3_SUCCESSFUL_MISSIONS)} missions where S3 policies got reward")
+    print("Missions:")
+    for i, mission in enumerate(S3_SUCCESSFUL_MISSIONS, 1):
+        print(f"  {i}. {mission}")
+
+    mission_variant_curriculum.experiment(
+        base_missions=S3_SUCCESSFUL_MISSIONS,
+        run_name="variants_curriculum_s3_successful_missions_all_variants",
+        skip_git_check=True,
+        variants="all",  # Curriculum over all variants
+    )
+
+    print("\n✓ S3 successful missions curriculum experiment submitted!")
+
+
 if __name__ == "__main__":
     # submit_variants_experiments()
     # submit_full_curriculum_experiment()

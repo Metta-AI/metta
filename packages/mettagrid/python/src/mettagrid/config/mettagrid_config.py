@@ -60,7 +60,6 @@ class AgentConfig(Config):
         description="Resource limits for this agent",
     )
     rewards: AgentRewards = Field(default_factory=AgentRewards)
-    action_failure_penalty: float = Field(default=0, ge=0)
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
@@ -394,7 +393,7 @@ class GameConfig(Config):
     vibe_names: list[str] = Field(default_factory=list)
     num_agents: int = Field(ge=1, default=24)
     # max_steps = zero means "no limit"
-    max_steps: int = Field(ge=0, default=1000)
+    max_steps: int = Field(ge=0, default=10000)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = Field(default=False)
     obs: ObsConfig = Field(default_factory=ObsConfig)
@@ -407,8 +406,6 @@ class GameConfig(Config):
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
     params: Optional[Any] = None
-
-    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
 
     # Inventory regeneration interval (global check timing)
     inventory_regen_interval: int = Field(

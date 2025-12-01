@@ -68,7 +68,6 @@ class AgentConfig(GridObjectConfig):
         group_id: int = ...,
         group_name: str = ...,
         freeze_duration: int = 0,
-        action_failure_penalty: float = 0,
         resource_limits: dict[int, int] = {},
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
@@ -84,7 +83,6 @@ class AgentConfig(GridObjectConfig):
     group_id: int
     group_name: str
     freeze_duration: int
-    action_failure_penalty: float
     resource_limits: dict[int, int]
     stat_rewards: dict[str, float]  # Added this
     stat_reward_max: dict[str, float]  # Added this
@@ -178,7 +176,6 @@ class GameConfig:
         global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
-        resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
         protocol_details_obs: bool = True,
         allow_diagonals: bool = False,
@@ -196,7 +193,6 @@ class GameConfig:
     vibe_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
-    resource_loss_prob: float
     # FEATURE FLAGS
     protocol_details_obs: bool
     allow_diagonals: bool

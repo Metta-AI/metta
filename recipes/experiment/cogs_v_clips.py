@@ -37,18 +37,14 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "easy_hearts",
-    "collect_resources_classic",
-    "collect_resources_spread",
     "oxygen_bottleneck",
     "energy_starved",
-    "go_together",
-    # "machina_1.open_world",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
-    "go_together",
-    "divide_and_conquer",
-    "collect_resources_spread",
+    "distant_resources",
+    "quadrant_buildings",
+    "single_use_swarm",
 ]
 
 PROC_MAP_MISSIONS: tuple[str, ...] = (
@@ -299,10 +295,36 @@ def train(
         ),
     )
 
-    return TrainTool(
-        trainer=TrainerConfig(losses=LossesConfig()),
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=evaluator_cfg,
+    return train(
+        num_cogs=num_cogs,
+        curriculum=curriculum,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+    )
+
+
+def train_single_mission(
+    mission: str = "easy_hearts",
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+) -> TrainTool:
+    """Train on a single mission without curriculum."""
+    env = make_training_env(
+        num_cogs=num_cogs,
+        mission=mission,
+        variants=variants,
+    )
+
+    curriculum_cfg = cc.env_curriculum(env)
+
+    return train(
+        num_cogs=num_cogs,
+        curriculum=curriculum_cfg,
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
     )
 
 
@@ -335,3 +357,92 @@ def play(
     env = make_training_env(num_cogs=num_cogs, mission=mission, variants=variants)
     sim = SimulationConfig(suite="cogs_vs_clips", name=f"{mission}_{num_cogs}cogs", env=env)
     return PlayTool(sim=sim, policy_uri=policy_uri)
+
+
+def play_training_env(
+    policy_uri: Optional[str] = None,
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+) -> PlayTool:
+    """Play the default training environment."""
+    return play(
+        policy_uri=policy_uri,
+        mission="easy_hearts",
+        num_cogs=num_cogs,
+        variants=variants,
+    )
+
+
+def train_coordination(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+    mission: str | None = None,
+) -> TrainTool:
+    """Train on coordination-heavy missions or a specific target map."""
+    return train(
+        num_cogs=num_cogs,
+        base_missions=list(COORDINATION_MISSIONS),
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+        mission=mission,
+    )
+
+
+def train_fixed_maps(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+    mission: str | None = None,
+    maps_cache_size: Optional[int] = 50,
+) -> TrainTool:
+    """Train on fixed-map CoGs vs Clips missions in one curriculum."""
+    tt = train(
+        num_cogs=num_cogs,
+        base_missions=list(DEFAULT_CURRICULUM_MISSIONS),
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+        mission=mission,
+    )
+    tt.training_env.maps_cache_size = maps_cache_size
+    return tt
+
+
+def train_proc_maps(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+    mission: str | None = None,
+    maps_cache_size: Optional[int] = 50,
+) -> TrainTool:
+    """Train on procedural MachinaArena map missions."""
+    tt = train(
+        num_cogs=num_cogs,
+        base_missions=list(PROC_MAP_MISSIONS),
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+        mission=mission,
+    )
+    tt.training_env.maps_cache_size = maps_cache_size
+    return tt
+
+
+__all__ = [
+    "make_eval_suite",
+    "make_training_env",
+    "make_curriculum",
+    "train",
+    "train_single_mission",
+    "evaluate",
+    "play",
+    "play_training_env",
+    "train_coordination",
+    "train_fixed_maps",
+    "train_proc_maps",
+]
