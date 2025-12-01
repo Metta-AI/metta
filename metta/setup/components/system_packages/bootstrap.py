@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -491,6 +492,16 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
         try:
             urllib.request.urlretrieve(url, nimby_path)
             nimby_path.chmod(0o755)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                error(
+                    f"Nimby {REQUIRED_NIMBY_VERSION} does not have a binary for {os_name} {arch}. "
+                    f"Available binaries: Linux-X64, macOS-ARM64, macOS-X64. "
+                    f"For Docker builds on ARM64 Mac, use: docker build --platform=linux/amd64 ..."
+                )
+            else:
+                error(f"Failed to download Nimby (HTTP {e.code}): {e}")
+            raise RuntimeError(f"Nimby binary not available for {os_name} {arch}") from e
         except Exception as e:
             error(f"Failed to download Nimby: {e}")
             raise

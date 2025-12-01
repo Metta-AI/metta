@@ -435,8 +435,15 @@ install_nim_via_nimby() {
 
   local url="https://github.com/treeform/nimby/releases/download/${REQUIRED_NIMBY_VERSION}/nimby-${os}-${arch}"
   echo "Downloading Nimby from $url"
-  if ! curl -fsSL -o nimby "$url"; then
-    echo "Failed to download Nimby" >&2
+  http_code=$(curl -fsSL -o nimby -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+  if [ "$http_code" != "200" ]; then
+    if [ "$http_code" = "404" ]; then
+      echo "ERROR: Nimby ${REQUIRED_NIMBY_VERSION} does not have a binary for ${os} ${arch}" >&2
+      echo "ERROR: Available binaries: Linux-X64, macOS-ARM64, macOS-X64" >&2
+      echo "ERROR: For Docker builds on ARM64 Mac, use: docker build --platform=linux/amd64 ..." >&2
+    else
+      echo "ERROR: Failed to download Nimby (HTTP ${http_code})" >&2
+    fi
     return 1
   fi
 
