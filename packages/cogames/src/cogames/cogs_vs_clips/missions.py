@@ -1,11 +1,11 @@
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 from cogames.cogs_vs_clips.machina_missions_trainer import MACHINA_TRAINER_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import EASY_MODE, HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
+    BalancedCornersVariant,
     ClipHubStationsVariant,
     ClipPeriodOnVariant,
     EmptyBaseVariant,
@@ -94,6 +94,13 @@ Machina1OpenWorldMission = Mission(
     variants=[EmptyBaseVariant()],
 )
 
+Machina1BalancedCornersMission = Mission(
+    name="balanced_corners",
+    description="Collect resources and assemble HEARTs. Map has balanced corner distances for fair spawns.",
+    site=MACHINA_1,
+    variants=[EmptyBaseVariant(), BalancedCornersVariant()],
+)
+
 
 HelloWorldUnclipMission = Mission(
     name="hello_world_unclip",
@@ -126,8 +133,8 @@ MISSIONS: list[Mission] = [
     HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
+    Machina1BalancedCornersMission,
     EasyMode,
-    *EVAL_MISSIONS,
     *INTEGRATED_EVAL_MISSIONS,
     *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
     *MACHINA_TRAINER_MISSIONS,

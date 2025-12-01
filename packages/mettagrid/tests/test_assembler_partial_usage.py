@@ -15,7 +15,6 @@ class TestAssemblerPartialUsage:
         # Configure assembler with partial usage disabled
         cfg.game.objects["assembler"] = AssemblerConfig(
             name="assembler",
-            map_char="Z",
             protocols=[ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10)],
             allow_partial_usage=False,  # Disable partial usage
         )
@@ -25,7 +24,8 @@ class TestAssemblerPartialUsage:
                 ["#", "#", "#", "#"],
                 ["#", "@", "Z", "#"],
                 ["#", "#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty", "Z": "assembler"},
         )
 
         cfg.game.actions.move.enabled = True
@@ -94,7 +94,6 @@ class TestAssemblerPartialUsage:
         # Protocol: 20 iron -> 10 steel, 100 tick cooldown
         cfg.game.objects["assembler"] = AssemblerConfig(
             name="assembler",
-            map_char="Z",
             protocols=[ProtocolConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100)],
             allow_partial_usage=True,
         )
@@ -104,7 +103,8 @@ class TestAssemblerPartialUsage:
                 ["#", "#", "#", "#"],
                 ["#", "@", "Z", "#"],
                 ["#", "#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty", "Z": "assembler"},
         )
 
         cfg.game.actions.move.enabled = True

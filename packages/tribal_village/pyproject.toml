@@ -10,7 +10,16 @@ readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Metta AI", email = "info@metta.ai" }]
 requires-python = ">=3.9"
-dependencies = ["numpy>=1.20.0", "gymnasium>=0.29.0", "pufferlib>=3.0.0"]
+dependencies = [
+  "numpy>=1.20.0",
+  "gymnasium>=0.29.0",
+  "pufferlib-core>=3.0.0",
+  "typer>=0.19.2",
+  "rich>=13.7.0",
+]
+
+[project.scripts]
+tribal-village = "tribal_village_env.cli:app"
 
 [tool.setuptools]
 include-package-data = true
@@ -25,3 +34,11 @@ include = ["tribal_village_env*"]
 
 [tool.setuptools.package-data]
 tribal_village_env = ["*.so", "*.dylib", "*.dll", "libtribal_village.*"]
+
+[tool.uv]
+cache-keys = [
+  { file = "tribal_village.nim" },
+  { file = "tribal_village.nimble" },
+  { file = "src/**/*.nim" },
+  { file = "tribal_village_env/libtribal_village.*" },
+]

@@ -12,7 +12,9 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
+
+# eval_missions.py was deleted - missions moved to integrated_evals.py
+from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
@@ -34,23 +36,15 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 logger = logging.getLogger(__name__)
 
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    "extractor_hub_30",
-    "extractor_hub_50",
-    "extractor_hub_70",
-    "collect_resources_classic",
-    "collect_resources_spread",
-    "collect_far",
+    "easy_hearts",
     "oxygen_bottleneck",
     "energy_starved",
-    "divide_and_conquer",
-    "go_together",
-    "machina_1.open_world",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
-    "go_together",
-    "divide_and_conquer",
-    "collect_resources_spread",
+    "distant_resources",
+    "quadrant_buildings",
+    "single_use_swarm",
 ]
 
 PROC_MAP_MISSIONS: tuple[str, ...] = (
@@ -68,7 +62,7 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
-    f"machina_1{MAP_MISSION_DELIMITER}open_world",
+    # f"machina_1{MAP_MISSION_DELIMITER}open_world",
 )
 
 
@@ -186,7 +180,7 @@ def make_eval_suite(
 
 def make_training_env(
     num_cogs: int = 4,
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
@@ -255,6 +249,18 @@ def make_curriculum(
         num_active_tasks=1500,
         algorithm_config=algorithm_config,
     )
+
+
+# How to submit a policy trained here to the CoGames leaderboard:
+#
+# uv run cogames submit \
+#   -p class=mpt,kw.checkpoint_uri=s3://softmax-public/policies/...:v1.mpt \
+#   -n your-policy-name-for-leaderboard \
+#   --skip-validation
+#
+# For now we need to run --skip-validation because cogames validation
+# doesn't assume the leaderboard runners get to run with the `metta` repo available,
+# but in practice they do
 
 
 def train(
@@ -375,7 +381,7 @@ def train_variants(
 
 
 def train_single_mission(
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
@@ -420,7 +426,7 @@ def evaluate(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
@@ -446,7 +452,7 @@ def play_training_env(
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
-        mission="extractor_hub_30",
+        mission="easy_hearts",
         num_cogs=num_cogs,
         variants=variants,
     )
@@ -476,9 +482,10 @@ def train_fixed_maps(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
+    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Train on fixed-map CoGs vs Clips missions in one curriculum."""
-    return train(
+    tt = train(
         num_cogs=num_cogs,
         base_missions=list(DEFAULT_CURRICULUM_MISSIONS),
         variants=variants,
@@ -486,6 +493,8 @@ def train_fixed_maps(
         eval_difficulty=eval_difficulty,
         mission=mission,
     )
+    tt.training_env.maps_cache_size = maps_cache_size
+    return tt
 
 
 def train_proc_maps(
@@ -494,9 +503,10 @@ def train_proc_maps(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
+    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Train on procedural MachinaArena map missions."""
-    return train(
+    tt = train(
         num_cogs=num_cogs,
         base_missions=list(PROC_MAP_MISSIONS),
         variants=variants,
@@ -504,6 +514,8 @@ def train_proc_maps(
         eval_difficulty=eval_difficulty,
         mission=mission,
     )
+    tt.training_env.maps_cache_size = maps_cache_size
+    return tt
 
 
 __all__ = [

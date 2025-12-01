@@ -181,6 +181,7 @@ export type PublicPolicyVersionRow = {
   name: string
   version: number
   tags: Record<string, string>
+  version_count?: number
 }
 
 export type EpisodeReplay = {
@@ -265,6 +266,11 @@ export type AIQueryRequest = {
 
 export type AIQueryResponse = {
   query: string
+}
+
+export type PolicyVersionsResponse = {
+  entries: PublicPolicyVersionRow[]
+  total_count: number
 }
 
 export class Repo {
@@ -457,5 +463,31 @@ export class Repo {
 
   async queryEpisodes(request: EpisodeQueryRequest): Promise<EpisodeQueryResponse> {
     return this.apiCallWithBody<EpisodeQueryResponse>('/stats/episodes/query', request)
+  }
+
+  async getPolicies(params?: {
+    name_exact?: string
+    name_fuzzy?: string
+    limit?: number
+    offset?: number
+  }): Promise<PolicyVersionsResponse> {
+    const searchParams = new URLSearchParams()
+    if (params?.name_exact) searchParams.append('name_exact', params.name_exact)
+    if (params?.name_fuzzy) searchParams.append('name_fuzzy', params.name_fuzzy)
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<PolicyVersionsResponse>(`/stats/policies${query ? `?${query}` : ''}`)
+  }
+
+  async getVersionsForPolicy(
+    policyId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<PolicyVersionsResponse> {
+    const searchParams = new URLSearchParams()
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<PolicyVersionsResponse>(`/stats/policies/${policyId}/versions${query ? `?${query}` : ''}`)
   }
 }

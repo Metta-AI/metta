@@ -1,9 +1,6 @@
 # Metta AI
 
 <p align="center">
-  <a href="https://codecov.io/gh/Metta-AI/metta">
-    <img src="https://codecov.io/gh/Metta-AI/metta/graph/badge.svg?token=SX28I8PS3E" alt="codecov">
-  </a>
   <a href="https://github.com/Metta-AI/metta/actions/workflows/checks.yml">
     <img src="https://github.com/Metta-AI/metta/actions/workflows/checks.yml/badge.svg" alt="Tests">
   </a>

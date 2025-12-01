@@ -178,7 +178,6 @@ class GameConfig:
         global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
-        resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
         protocol_details_obs: bool = True,
         allow_diagonals: bool = False,
@@ -196,7 +195,6 @@ class GameConfig:
     vibe_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
-    resource_loss_prob: float
     # FEATURE FLAGS
     protocol_details_obs: bool
     allow_diagonals: bool
