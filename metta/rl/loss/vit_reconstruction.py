@@ -285,8 +285,9 @@ class ViTReconstructionLoss(Loss):
         loss_id = F.binary_cross_entropy_with_logits(pred_logits, target_ids, reduction="none")
 
         # Use the derived num_attribute_classes for normalization
-        num_classes = self.decoder._num_attribute_classes
-
+        # Handle both wrapped and unwrapped decoder
+        decoder_module = self.decoder.module if isinstance(self.decoder, DDP) else self.decoder
+        num_classes = decoder_module._num_attribute_classes
         mask_expanded = valid_mask.unsqueeze(-1)
         loss_id = (loss_id * mask_expanded).sum() / (mask_expanded.sum() * num_classes + 1e-6)
 
