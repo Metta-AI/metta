@@ -55,7 +55,7 @@ class TerrainFromNumpyConfig(MapBuilderConfig["TerrainFromNumpy"], WithMaxRetrie
     agents: int | dict[str, int] = Field(default=0, ge=0)
     dir: str
     file: Optional[str] = None
-    remove_altars: bool = False
+    remove_assemblers: bool = False
     seed: Optional[int] = None  # Use seed instead of Random object for picklability
 
 
@@ -127,8 +127,8 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
 
     def clean_grid(self, grid: MapGrid, assemblers=True):
         grid[grid == "agent.agent"] = "empty"
-        if self.config.remove_altars:
-            grid[grid == "altar"] = "empty"
+        if self.config.remove_assemblers:
+            grid[grid == "assembler"] = "empty"
 
         # Prepare agent labels
         if isinstance(self.config.agents, int):
@@ -156,7 +156,7 @@ class NavigationFromNumpyConfig(MapBuilderConfig["NavigationFromNumpy"], WithMax
     agents: int | dict[str, int] = Field(default=0, ge=0)
     dir: str
     file: Optional[str] = None
-    remove_altars: bool = False
+    remove_assemblers: bool = False
     seed: Optional[int] = None  # Use seed instead of Random object for picklability
 
 
@@ -222,8 +222,8 @@ class NavigationFromNumpy(MapBuilder[NavigationFromNumpyConfig]):
     def clean_grid(self, grid: MapGrid, assemblers=True):
         """Clean grid - copied from TerrainFromNumpy."""
         grid[grid == "agent.agent"] = "empty"
-        if self.config.remove_altars:
-            grid[grid == "altar"] = "empty"
+        if self.config.remove_assemblers:
+            grid[grid == "assembler"] = "empty"
 
         # Prepare agent labels
         if isinstance(self.config.agents, int):
@@ -243,6 +243,10 @@ class NavigationFromNumpy(MapBuilder[NavigationFromNumpyConfig]):
             uri = self.config.file
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
+
+        # Replace 'altar' with 'assembler' for CVC compatibility
+        # The terrain numpy files contain 'altar' but C++ only knows 'assembler'
+        grid[grid == "altar"] = "assembler"
 
         grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=False)
         num_agents = len(agent_labels)

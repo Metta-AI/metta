@@ -2,7 +2,7 @@ import { TileSet, TileSetSource } from "./TileSet";
 import { TileSetCollection } from "./TileSetCollection";
 
 export const TILE_NAMES = [
-  "altar",
+  "assembler",
   "armory",
   "factory",
   "generator",

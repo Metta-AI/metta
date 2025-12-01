@@ -618,6 +618,7 @@ def experiment(
     print(f"Launching training job: {run_name}")
     print(f"Command: {' '.join(cmd)}")
     print("=" * 50)
+    # print(cmd)
 
     subprocess.run(cmd, check=True)
     print(f"✓ Successfully launched job: {run_name}")

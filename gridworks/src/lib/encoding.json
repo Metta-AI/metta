@@ -4,7 +4,7 @@
   "@": "agent.agent",
   "p": "agent.prey",
   "P": "agent.predator",
-  "_": "altar",
+  "_": "assembler",
   "c": "converter",
   "C": "chest",
   "Z": "assembler",

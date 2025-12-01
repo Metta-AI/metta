@@ -28,6 +28,7 @@ TRAINING_VIBES = [
     Vibe("⚙️", "gear", category="gear"),
     Vibe("⭐", "assembler", category="station"),
     Vibe("📦", "chest", category="station"),
+    # Vibe("⬛", "wall", category="station"),
     Vibe("❤️", "red-heart"),
 ]
 

@@ -208,7 +208,7 @@ class NavigationDenseMission(Mission):
         if isinstance(default_instance, NavigationFromNumpy.Config):
             objects = default_instance.objects
         else:
-            objects = {"altar": 10}
+            objects = {"assembler": 10}
 
         map_builder.instance = NavigationFromNumpy.Config(
             agents=num_agents,
