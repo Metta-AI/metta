@@ -48,8 +48,6 @@ class MptArtifact:
         policy = policy.to(device)
 
         needs_env_init = hasattr(policy, "initialize_to_environment")
-        if needs_env_init:
-            policy.initialize_to_environment(policy_env_info, device)
 
         missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=strict)
         if strict and (missing or unexpected):
