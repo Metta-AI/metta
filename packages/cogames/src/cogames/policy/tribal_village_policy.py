@@ -16,16 +16,6 @@ from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
 
-class _ActionList:
-    """Lightweight ActionsConfig substitute for non-MettaGrid environments."""
-
-    def __init__(self, action_names: Sequence[str]):
-        self._action_names = list(action_names)
-
-    def actions(self) -> list[SimpleNamespace]:
-        return [SimpleNamespace(name=name) for name in self._action_names]
-
-
 @dataclass
 class TribalPolicyEnvInfo:
     """Minimal environment metadata required by MultiAgentPolicy."""
@@ -39,8 +29,23 @@ class TribalPolicyEnvInfo:
         return [f"action_{idx}" for idx in range(self.action_space.n)]
 
     @property
-    def actions(self) -> _ActionList:
-        return _ActionList(self.action_names)
+    def actions(self) -> list[SimpleNamespace]:
+        """Adapter expected by MultiAgentPolicy/PolicyEnvInterface."""
+
+        return [SimpleNamespace(name=name) for name in self.action_names]
+
+    def as_shim_env(self) -> SimpleNamespace:
+        """Shape-compatible shim used by PufferLib's default model."""
+
+        shim = SimpleNamespace(
+            single_observation_space=self.observation_space,
+            single_action_space=self.action_space,
+            observation_space=self.observation_space,
+            action_space=self.action_space,
+            num_agents=self.num_agents,
+        )
+        shim.env = shim
+        return shim
 
 
 class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
@@ -58,16 +63,9 @@ class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
         MultiAgentPolicy.__init__(self, policy_env_info)
         AgentPolicy.__init__(self, policy_env_info)
 
-        shim_env = SimpleNamespace(
-            single_observation_space=policy_env_info.observation_space,
-            single_action_space=policy_env_info.action_space,
-            observation_space=policy_env_info.observation_space,
-            action_space=policy_env_info.action_space,
-            num_agents=policy_env_info.num_agents,
-        )
-        shim_env.env = shim_env
-
-        self._net = pufferlib.models.Default(shim_env, hidden_size=hidden_size)  # type: ignore[arg-type]
+        self._net = pufferlib.models.Default(
+            policy_env_info.as_shim_env(), hidden_size=hidden_size
+        )  # type: ignore[arg-type]
         if device is not None:
             self._net = self._net.to(torch.device(device))
 
