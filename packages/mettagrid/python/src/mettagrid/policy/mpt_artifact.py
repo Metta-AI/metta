@@ -60,7 +60,8 @@ class MptArtifact:
             if saved_obs_shape and saved_obs_shape != tuple(policy_env_info.observation_space.shape):
                 raise ValueError(
                     "Observation space mismatch between checkpoint and environment. "
-                    f"Checkpoint obs_shape={saved_obs_shape}, env obs_shape={tuple(policy_env_info.observation_space.shape)}"
+                    f"Checkpoint obs_shape={saved_obs_shape}, "
+                    f"env obs_shape={tuple(policy_env_info.observation_space.shape)}"
                 )
 
         expected_num_actions = len(expected_action_names)

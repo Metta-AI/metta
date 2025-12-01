@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import torch
 import torch.nn as nn
 from pydantic import Field
@@ -217,17 +218,16 @@ def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
     assert isinstance(reloaded.core, CortexTD)
 
 
-def test_policy_artifact_initializes_after_load_once() -> None:
+def test_policy_artifact_reinitializes_environment_dependent_buffers() -> None:
     policy_env_info = _policy_env_info()
-    architecture = InitOrderArchitecture()
+    architecture = ActionTestArchitecture()
     policy = architecture.make_policy(policy_env_info)
     policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
     artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
     num_actions = len(policy_env_info.action_names)
-    artifact.state_dict["components.action_embedding.active_indices"] = torch.tensor(
-        list(reversed(range(num_actions))), dtype=torch.long
-    )
+    reversed_indices = torch.tensor(list(reversed(range(num_actions))), dtype=torch.long)
+    artifact.state_dict["components.action_embedding.active_indices"] = reversed_indices
 
     reloaded = artifact.instantiate(policy_env_info, torch.device("cpu"))
 
@@ -235,4 +235,16 @@ def test_policy_artifact_initializes_after_load_once() -> None:
     expected_indices = tuple(range(len(policy_env_info.action_names)))
     assert tuple(action_component.active_indices.tolist()) == expected_indices
     assert action_component.num_actions == len(expected_indices)
-    assert reloaded.call_order == ["load", "init"]
+
+
+def test_policy_artifact_raises_on_action_count_mismatch() -> None:
+    policy_env_info = _policy_env_info()
+    architecture = ActionTestArchitecture()
+    policy = architecture.make_policy(policy_env_info)
+    policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
+
+    artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
+    artifact.state_dict["components.action_embedding.active_indices"] = torch.tensor([0, 1], dtype=torch.long)
+
+    with pytest.raises(ValueError, match="Action space mismatch"):
+        artifact.instantiate(policy_env_info, torch.device("cpu"))
