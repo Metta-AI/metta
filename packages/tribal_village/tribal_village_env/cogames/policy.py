@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Optional, Sequence, Union
 
-import numpy as np
 import torch
 from gymnasium import spaces
 
@@ -91,7 +90,7 @@ class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
     def save_policy_data(self, policy_data_path: str) -> None:
         torch.save(self._net.state_dict(), policy_data_path)
 
-    def step(self, obs: Union[AgentObservation, np.ndarray, torch.Tensor, Sequence[Any]]) -> Action:  # type: ignore[override]
+    def step(self, obs: Union[AgentObservation, torch.Tensor, Sequence[Any]]) -> Action:  # type: ignore[override]
         if isinstance(obs, AgentObservation):
             obs_shape = self.policy_env_info.observation_space.shape
             if len(obs_shape) != 2:
@@ -100,16 +99,20 @@ class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
                     f"{obs_shape}; expected (tokens, token_dim)."
                 )
             num_tokens, token_dim = obs_shape
-            obs_array = np.full((num_tokens, token_dim), fill_value=255.0, dtype=np.float32)
+            obs_tensor = torch.full(
+                (num_tokens, token_dim),
+                fill_value=255.0,
+                device=self._device,
+                dtype=torch.float32,
+            )
             for idx, token in enumerate(obs.tokens):
                 if idx >= num_tokens:
                     break
-                raw = np.asarray(token.raw_token, dtype=np.float32)
-                obs_array[idx, : min(token_dim, raw.size)] = raw[:token_dim]
+                raw = torch.as_tensor(token.raw_token, device=self._device, dtype=obs_tensor.dtype)
+                obs_tensor[idx, : min(token_dim, raw.numel())] = raw[:token_dim]
         else:
-            obs_array = np.asarray(obs, dtype=np.float32)
+            obs_tensor = torch.as_tensor(obs, device=self._device, dtype=torch.float32)
 
-        obs_tensor = torch.as_tensor(obs_array, device=self._device, dtype=torch.float32)
         if obs_tensor.ndim == len(self.policy_env_info.observation_space.shape):
             obs_tensor = obs_tensor.unsqueeze(0)
 

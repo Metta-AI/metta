@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import platform
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 import numpy as np
 import psutil
@@ -26,15 +26,6 @@ from pufferlib.pufferlib import set_buffers
 from tribal_village_env.cogames.policy import TribalPolicyEnvInfo
 
 logger = logging.getLogger("cogames.tribal_village.train")
-
-
-def _default_env_config(
-    *,
-    max_steps: int = 1000,
-    render_scale: int = 1,
-    render_mode: Literal["ansi", "rgb_array"] = "ansi",
-) -> dict[str, Any]:
-    return {"max_steps": max_steps, "render_scale": render_scale, "render_mode": render_mode}
 
 
 class TribalEnvFactory:
