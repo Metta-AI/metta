@@ -62,7 +62,6 @@ class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
     ) -> None:
         MultiAgentPolicy.__init__(self, policy_env_info)
         AgentPolicy.__init__(self, policy_env_info)
-        self.policy_env_info = policy_env_info
 
         self._net = pufferlib.models.Default(policy_env_info.as_shim_env(), hidden_size=hidden_size)  # type: ignore[arg-type]
         if device is not None:
