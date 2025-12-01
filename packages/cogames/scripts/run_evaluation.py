@@ -56,17 +56,17 @@ _cached_policy_key = None
 
 
 def _ensure_vibe_supports_gear(env_cfg) -> None:
-        assembler = env_cfg.game.objects.get("assembler")
-        uses_gear = False
-        if assembler is not None and hasattr(assembler, "protocols"):
-            for proto in assembler.protocols:
-                if any(v == "gear" for v in getattr(proto, "vibes", [])):
-                    uses_gear = True
-                    break
-        if uses_gear:
-            change_vibe = env_cfg.game.actions.change_vibe
-            if getattr(change_vibe, "number_of_vibes", 0) < 8:
-                change_vibe.number_of_vibes = 8
+    assembler = env_cfg.game.objects.get("assembler")
+    uses_gear = False
+    if assembler is not None and hasattr(assembler, "protocols"):
+        for proto in assembler.protocols:
+            if any(v == "gear" for v in getattr(proto, "vibes", [])):
+                uses_gear = True
+                break
+    if uses_gear:
+        change_vibe = env_cfg.game.actions.change_vibe
+        if getattr(change_vibe, "number_of_vibes", 0) < 8:
+            change_vibe.number_of_vibes = 8
 
 
 @dataclass
@@ -175,7 +175,7 @@ def _run_case(
         env_config = mission.make_env()
         _ensure_vibe_supports_gear(env_config)
         if variant is None or getattr(variant, "max_steps_override", None) is None:
-                        env_config.game.max_steps = max_steps
+            env_config.game.max_steps = max_steps
 
         # For evaluation, only heart rewards should count (not resource rewards)
         if not env_config.game.agent.rewards.stats:
@@ -1080,10 +1080,10 @@ def main():
         elif agent_key in AGENT_CONFIGS:
             configs.append(AGENT_CONFIGS[agent_key])
         elif is_s3_uri(agent_key):
-                label = Path(agent_key).stem if "/" in agent_key else agent_key
+            label = Path(agent_key).stem if "/" in agent_key else agent_key
             configs.append(AgentConfig(key="custom", label=f"s3_{label}", policy_path=agent_key, data_path=None))
-            else:
-                label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
+        else:
+            label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
             configs.append(AgentConfig(key="custom", label=label, policy_path=agent_key, data_path=args.checkpoint))
 
     experiments = args.experiments if args.experiments else list(experiment_map.keys())
@@ -1094,16 +1094,16 @@ def main():
         cogs_list = args.cogs if args.cogs else [1, 2, 4]
         all_results.extend(
             run_evaluation(
-            agent_config=config,
-            experiments=experiments,
-            variants=variants,
-            cogs_list=cogs_list,
+                agent_config=config,
+                experiments=experiments,
+                variants=variants,
+                cogs_list=cogs_list,
                 experiment_map=experiment_map,
-            max_steps=args.steps,
-            seed=args.seed,
-            repeats=args.repeats,
+                max_steps=args.steps,
+                seed=args.seed,
+                repeats=args.repeats,
                 jobs=args.jobs,
-        )
+            )
         )
 
     print_summary(all_results)
