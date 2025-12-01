@@ -15,7 +15,7 @@ def test_policy_env_info_names_and_actions():
     )
 
     assert info.action_names == ["action_0", "action_1", "action_2", "action_3"]
-    actions = info.actions.actions()
+    actions = info.actions
     assert len(actions) == 4
     assert actions[0].name == "action_0"
 

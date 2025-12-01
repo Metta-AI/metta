@@ -97,14 +97,18 @@ class _FlattenVecEnv:
     def __init__(self, inner: Any):
         self.inner = inner
         self.driver_env = getattr(inner, "driver_env", None)
-        self.single_observation_space = inner.single_observation_space
-        self.single_action_space = inner.single_action_space
+        for attr in (
+            "single_observation_space",
+            "single_action_space",
+            "action_space",
+            "observation_space",
+            "atn_batch_shape",
+        ):
+            setattr(self, attr, getattr(inner, attr, None))
+
         self.agents_per_batch = getattr(inner, "agents_per_batch", getattr(inner, "num_agents", 1))
         self.num_agents = self.agents_per_batch
         self.num_envs = getattr(inner, "num_envs", getattr(inner, "num_environments", None))
-        self.action_space = inner.action_space
-        self.observation_space = inner.observation_space
-        self.atn_batch_shape = getattr(inner, "atn_batch_shape", None)
 
     def async_reset(self, seed: int = 0) -> None:
         self.inner.async_reset(seed)
@@ -125,12 +129,20 @@ class _FlattenVecEnv:
             o, r, d, t, infos, env_ids, masks = result
             ta = None
 
-        o = np.asarray(o).reshape(self.agents_per_batch, *self.single_observation_space.shape)
-        r = np.asarray(r).reshape(self.agents_per_batch)
-        d = np.asarray(d).reshape(self.agents_per_batch)
-        t = np.asarray(t).reshape(self.agents_per_batch)
-        mask = np.ones(self.agents_per_batch, dtype=bool)
-        env_ids = np.arange(self.agents_per_batch, dtype=np.int32)
+        o = np.asarray(o, copy=False).reshape(self.agents_per_batch, *self.single_observation_space.shape)
+        r = np.asarray(r, copy=False).reshape(self.agents_per_batch)
+        d = np.asarray(d, copy=False).reshape(self.agents_per_batch)
+        t = np.asarray(t, copy=False).reshape(self.agents_per_batch)
+        mask = (
+            np.asarray(masks, copy=False).reshape(self.agents_per_batch)
+            if masks is not None
+            else np.ones(self.agents_per_batch, dtype=bool)
+        )
+        env_ids = (
+            np.asarray(env_ids, copy=False).reshape(self.agents_per_batch)
+            if env_ids is not None
+            else np.arange(self.agents_per_batch, dtype=np.int32)
+        )
         infos = infos if isinstance(infos, list) else []
         return o, r, d, t, ta, infos, env_ids, mask
 
@@ -293,6 +305,12 @@ def train(
 
     effective_agents_per_batch = agents_per_batch or total_agents
     amended_batch_size = effective_agents_per_batch
+    if batch_size != amended_batch_size:
+        logger.warning(
+            "batch_size=%s overridden to %s to match agents_per_batch; larger batches not yet supported",
+            batch_size,
+            amended_batch_size,
+        )
 
     amended_minibatch_size = min(minibatch_size, amended_batch_size)
     if amended_minibatch_size != minibatch_size:
