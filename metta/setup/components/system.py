@@ -9,7 +9,6 @@ from typing_extensions import override
 from metta.common.util.collections import remove_falsey
 from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModule
-from metta.setup.components.system_packages import bootstrap
 from metta.setup.components.system_packages.installers.base import PackageInstaller
 from metta.setup.components.system_packages.installers.brew import BrewInstaller
 from metta.setup.components.system_packages.types import SystemDepsConfig
@@ -37,7 +36,7 @@ class SystemSetup(SetupModule):
     always_required = True
 
     def dependencies(self) -> list[str]:
-        return []
+        return ["bootstrap"]
 
     @property
     @override
@@ -59,11 +58,7 @@ class SystemSetup(SetupModule):
 
     @override
     def check_installed(self) -> bool:
-        # Check bootstrap deps first
-        if not bootstrap.check_bootstrap_deps():
-            return False
-
-        # Check optional deps
+        # Check optional deps from deps.yaml
         if not self._installer:
             return True
         return self._installer.check_installed(
@@ -79,10 +74,7 @@ class SystemSetup(SetupModule):
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up system dependencies...")
 
-        # Install bootstrap deps first (bazel, nimby, nim, git, g++)
-        bootstrap.install_bootstrap_deps(self.run_command, non_interactive=non_interactive)
-
-        # Then install optional deps from deps.yaml
+        # Install optional deps from deps.yaml
         if not self._installer:
             warning("""
                 No supported package manager found.
