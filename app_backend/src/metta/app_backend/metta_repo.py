@@ -130,6 +130,7 @@ class PublicPolicyVersionRow(BaseModel):
     name: str
     version: int
     tags: dict[str, str] = Field(default_factory=dict)
+    version_count: int | None = None
 
 
 class EpisodeReplay(BaseModel):
@@ -799,6 +800,107 @@ class MettaRepo:
                     (user_id,),
                 )
                 return await cur.fetchall()
+
+    async def get_policy_versions(
+        self,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
+        version: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[PublicPolicyVersionRow], int]:
+        async with self.connect() as con:
+            where_conditions: list[str] = []
+            params: list[Any] = []
+
+            if name_exact:
+                where_conditions.append("p.name = %s")
+                params.append(name_exact)
+
+            if name_fuzzy:
+                where_conditions.append("p.name ILIKE %s")
+                params.append(f"%{name_fuzzy}%")
+
+            if version is not None:
+                where_conditions.append("pv.version = %s")
+                params.append(version)
+
+            where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+
+            count_query = f"""
+                SELECT COUNT(DISTINCT pv.policy_id)
+                FROM policy_versions pv
+                JOIN policies p ON pv.policy_id = p.id
+                {where_clause}
+            """
+            count_result = await con.execute(count_query, params)
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            params.extend([limit, offset])
+
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT DISTINCT ON (pv.policy_id)
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version,
+                        pv.version AS version_count
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    {where_clause}
+                    ORDER BY pv.policy_id, pv.version DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    params,
+                )
+                rows = await cur.fetchall()
+
+            return rows, total_count
+
+    async def get_versions_for_policy(
+        self,
+        policy_id: str,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> tuple[list[PublicPolicyVersionRow], int]:
+        async with self.connect() as con:
+            count_query = """
+                SELECT COUNT(*)
+                FROM policy_versions pv
+                WHERE pv.policy_id = %s
+            """
+            count_result = await con.execute(count_query, (policy_id,))
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    WHERE pv.policy_id = %s
+                    ORDER BY pv.version DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (policy_id, limit, offset),
+                )
+                rows = await cur.fetchall()
+
+            return rows, total_count
 
     async def upsert_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> None:
         if not tags:

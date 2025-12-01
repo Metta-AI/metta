@@ -51,7 +51,7 @@ from cogames.cli.policy import (
     policy_arg_example,
     policy_arg_w_proportion_example,
 )
-from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command, validate_policy_command
+from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command, validate_policy_spec
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid.mapgen.mapgen import MapGen
@@ -219,7 +219,7 @@ def tutorial_cmd(
     play_module.play(
         console,
         env_cfg=env_cfg,
-        policy_spec=get_policy_spec(ctx, "noop"),  # Default to noop, assuming human control
+        policy_spec=get_policy_spec(ctx, "class=noop"),  # Default to noop, assuming human control
         game_name="tutorial",
         render_mode="gui",
     )
@@ -329,7 +329,7 @@ def play_cmd(
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    policy: str = typer.Option("class=noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: RenderMode = typer.Option("gui", "--render", "-r", help="Render mode"),  # noqa: B008
     seed: int = typer.Option(42, "--seed", help="Seed for the simulator and policy", min=0),
@@ -412,7 +412,7 @@ def replay_cmd(
 
     try:
         # Run nim with mettascope and replay argument
-        cmd = ["nim", "r", "-d:fidgetUseCached", str(mettascope_path), f"--replay:{replay_path}"]
+        cmd = ["nim", "r", str(mettascope_path), f"--replay:{replay_path}"]
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as exc:
         console.print(f"[red]Error running MettaScope: {exc}[/red]")
@@ -507,7 +507,7 @@ def train_cmd(
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    policy: str = typer.Option("lstm", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    policy: str = typer.Option("class=lstm", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",
@@ -816,7 +816,18 @@ def validate_policy_cmd(
         help=f"Policy specification: {policy_arg_example}",
     ),
 ) -> None:
-    validate_policy_command(ctx, policy)
+    policy_spec = get_policy_spec(ctx, policy)
+    validate_policy_spec(policy_spec)
+    console.print("[green]Policy validated successfully[/green]")
+    raise typer.Exit(0)
+
+
+def _parse_init_kwarg(value: str) -> tuple[str, str]:
+    """Parse a key=value string into a tuple."""
+    if "=" not in value:
+        raise typer.BadParameter(f"Expected key=value format, got: {value}")
+    key, _, val = value.partition("=")
+    return key.replace("-", "_"), val
 
 
 @app.command(name="submit", help="Submit a policy to CoGames competitions")
@@ -833,6 +844,12 @@ def submit_cmd(
         "--name",
         "-n",
         help="Policy name for the submission",
+    ),
+    init_kwarg: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--init-kwarg",
+        "-k",
+        help="Policy init kwargs as key=value (can be repeated)",
     ),
     include_files: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -870,6 +887,12 @@ def submit_cmd(
     The policy will be tested in an isolated environment before submission
     (unless --skip-validation is used).
     """
+    init_kwargs: dict[str, str] = {}
+    if init_kwarg:
+        for kv in init_kwarg:
+            key, val = _parse_init_kwarg(kv)
+            init_kwargs[key] = val
+
     submit_command(
         ctx=ctx,
         policy=policy,
@@ -879,6 +902,7 @@ def submit_cmd(
         server=server,
         dry_run=dry_run,
         skip_validation=skip_validation,
+        init_kwargs=init_kwargs if init_kwargs else None,
     )
 
 
