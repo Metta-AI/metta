@@ -722,7 +722,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     if (auto* assembler = dynamic_cast<Assembler*>(obj)) {
       obj_dict["cooldown_remaining"] = assembler->cooldown_remaining();
       obj_dict["cooldown_duration"] = assembler->cooldown_duration;
-      obj_dict["cooldown_progress"] = assembler->cooldown_progress();
       obj_dict["is_clipped"] = assembler->is_clipped;
       obj_dict["is_clip_immune"] = assembler->clip_immune;
       obj_dict["uses_count"] = assembler->uses_count;

@@ -265,22 +265,6 @@ public:
     return cooldown_end_timestep - *current_timestep_ptr;
   }
 
-  float cooldown_progress() const {
-    // If no cooldown is active or no timestep pointer, return 1.0 (completed)
-    if (!current_timestep_ptr || cooldown_duration == 0 || cooldown_end_timestep <= *current_timestep_ptr) {
-      return 1.0f;
-    }
-
-    // Calculate how much time has elapsed since cooldown started
-    unsigned int cooldown_start = cooldown_end_timestep - cooldown_duration;
-    if (*current_timestep_ptr <= cooldown_start) {
-      return 0.0f;  // Cooldown just started
-    }
-
-    unsigned int elapsed = *current_timestep_ptr - cooldown_start;
-    return static_cast<float>(elapsed) / static_cast<float>(cooldown_duration);
-  }
-
   // Helper function to calculate GroupVibe from a vector of glyphs
   static GroupVibe calculate_group_vibe_from_vibes(std::vector<uint8_t> vibes) {
     // Sort the glyphs to make the vibe independent of agent positions.
@@ -381,19 +365,26 @@ public:
 
   void become_unclipped();
 
-  // Scale protocol requirements based on cooldown progress (for partial usage)
-  const Protocol scale_protocol_for_partial_usage(const Protocol& original_protocol, float progress) const {
+  // Scale protocol requirements based on cooldown remaining (for partial usage)
+  // Uses integer math: elapsed = duration - remaining, then scales by (amount * elapsed) / duration
+  const Protocol scale_protocol_for_partial_usage(const Protocol& original_protocol,
+                                                  unsigned int elapsed,
+                                                  unsigned int duration) const {
     Protocol scaled_protocol;
 
-    // Scale input resources (multiply by progress and round up)
+    // Scale input resources (multiply by elapsed/duration and round up)
+    // Round up: (amount * elapsed + duration - 1) / duration
     for (const auto& [resource, amount] : original_protocol.input_resources) {
-      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::ceil(amount * progress));
+      InventoryQuantity scaled_amount =
+          static_cast<InventoryQuantity>((static_cast<unsigned int>(amount) * elapsed + duration - 1) / duration);
       scaled_protocol.input_resources[resource] = scaled_amount;
     }
 
-    // Scale output resources (multiply by progress and round down)
+    // Scale output resources (multiply by elapsed/duration and round down)
+    // Round down: (amount * elapsed) / duration
     for (const auto& [resource, amount] : original_protocol.output_resources) {
-      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::floor(amount * progress));
+      InventoryQuantity scaled_amount =
+          static_cast<InventoryQuantity>((static_cast<unsigned int>(amount) * elapsed) / duration);
       scaled_protocol.output_resources[resource] = scaled_amount;
     }
 
@@ -414,8 +405,8 @@ public:
     }
 
     // Check if on cooldown and whether partial usage is allowed
-    float progress = cooldown_progress();
-    if (progress < 1.0f && !allow_partial_usage) {
+    unsigned int remaining = cooldown_remaining();
+    if (remaining > 0 && !allow_partial_usage) {
       return false;  // On cooldown and partial usage not allowed
     }
 
@@ -425,8 +416,10 @@ public:
     }
 
     Protocol protocol_to_use = *original_protocol;
-    if (progress < 1.0f && allow_partial_usage) {
-      protocol_to_use = scale_protocol_for_partial_usage(*original_protocol, progress);
+    if (remaining > 0 && allow_partial_usage) {
+      // Calculate elapsed time: duration - remaining
+      unsigned int elapsed = cooldown_duration - remaining;
+      protocol_to_use = scale_protocol_for_partial_usage(*original_protocol, elapsed, cooldown_duration);
 
       // Prevent usage that would yield no outputs (and would only serve to burn inputs and increment uses_count)
       // Do not prevent usage if:
