@@ -268,6 +268,8 @@ class NavigationFromNumpy(MapBuilder[NavigationFromNumpyConfig]):
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
 
+        grid[grid == "altar"] = "assembler"
+
         return GameMap(grid=grid)
 
 
