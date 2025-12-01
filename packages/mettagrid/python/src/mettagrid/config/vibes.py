@@ -11,6 +11,7 @@ class Vibe:
     name: str
     category: str = "misc"
 
+
 TRAINING_VIBES = [
     Vibe("😐", "default", category="emotion"),  # neutral
     Vibe("🔋", "charger", category="resource"),  # energy / charge
@@ -25,6 +26,7 @@ TRAINING_VIBES = [
     Vibe("❤️", "heart_a", category="resource"),  # reward / health
     Vibe("💟", "heart_b", category="resource"),
     Vibe("⚙️", "gear", category="gear"),
+    Vibe("⭐", "assembler", category="station"),
     Vibe("📦", "chest", category="station"),
     Vibe("❤️", "red-heart"),
 ]

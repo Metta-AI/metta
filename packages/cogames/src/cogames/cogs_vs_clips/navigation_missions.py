@@ -7,11 +7,20 @@ so they can be used within the standard Mission/Curriculum infrastructure.
 from typing import override
 
 from cogames.cogs_vs_clips.mission import Mission
+from cogames.cogs_vs_clips.stations import (
+    CarbonExtractorConfig,
+    ChargerConfig,
+    CvCAssemblerConfig,
+    CvCChestConfig,
+    CvCWallConfig,
+    GermaniumExtractorConfig,
+    OxygenExtractorConfig,
+    SiliconExtractorConfig,
+)
+from metta.map.terrain_from_numpy import NavigationFromNumpy
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
-from metta.map.terrain_from_numpy import NavigationFromNumpy
 from recipes.experiment import navigation
 
 
@@ -20,13 +29,93 @@ def _cleanup_nav_env(env: MettaGridConfig) -> MettaGridConfig:
 
     Ensures the environment configuration satisfies CVC constraints and matches
     the standard action space (using TRAINING_VIBES) to allow joint training.
+
+    This includes adding all CVC objects and resources even if not used in navigation.
     """
     # 1. Standardize Vibe Configuration
     # Use TRAINING_VIBES (subset) to match the curriculum standard.
     env.game.vibe_names = [vibe.name for vibe in vibes.TRAINING_VIBES]
 
+    # 2. Add all CVC objects to match the object space
+    # Even though navigation doesn't use these, they must be present for observation space compatibility
+    carbon_cfg = CarbonExtractorConfig()
+    oxygen_cfg = OxygenExtractorConfig()
+    germanium_cfg = GermaniumExtractorConfig()
+    silicon_cfg = SiliconExtractorConfig()
+    charger_cfg = ChargerConfig()
+    chest_cfg = CvCChestConfig()
+    wall_cfg = CvCWallConfig()
+    assembler_cfg = CvCAssemblerConfig()
+
+    # Add all standard CVC objects
+    env.game.objects.update(
+        {
+            "wall": wall_cfg.station_cfg(),
+            "assembler": assembler_cfg.station_cfg(),
+            "chest": chest_cfg.station_cfg(),
+            "charger": charger_cfg.station_cfg(),
+            "carbon_extractor": carbon_cfg.station_cfg(),
+            "oxygen_extractor": oxygen_cfg.station_cfg(),
+            "germanium_extractor": germanium_cfg.station_cfg(),
+            "silicon_extractor": silicon_cfg.station_cfg(),
+            # Resource-specific chests
+            "chest_carbon": chest_cfg.station_cfg().model_copy(
+                update={
+                    "map_name": "chest_carbon",
+                    "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                }
+            ),
+            "chest_oxygen": chest_cfg.station_cfg().model_copy(
+                update={
+                    "map_name": "chest_oxygen",
+                    "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                }
+            ),
+            "chest_germanium": chest_cfg.station_cfg().model_copy(
+                update={
+                    "map_name": "chest_germanium",
+                    "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                }
+            ),
+            "chest_silicon": chest_cfg.station_cfg().model_copy(
+                update={
+                    "map_name": "chest_silicon",
+                    "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                }
+            ),
+            # Clipped variants
+            "clipped_carbon_extractor": carbon_cfg.station_cfg().model_copy(
+                update={"map_name": "clipped_carbon_extractor", "start_clipped": True}
+            ),
+            "clipped_oxygen_extractor": oxygen_cfg.station_cfg().model_copy(
+                update={"map_name": "clipped_oxygen_extractor", "start_clipped": True}
+            ),
+            "clipped_germanium_extractor": germanium_cfg.station_cfg().model_copy(
+                update={"map_name": "clipped_germanium_extractor", "start_clipped": True, "max_uses": 1}
+            ),
+            "clipped_silicon_extractor": silicon_cfg.station_cfg().model_copy(
+                update={"map_name": "clipped_silicon_extractor", "start_clipped": True}
+            ),
+        }
+    )
+
+    # 3. Ensure all CVC resources are defined
+    # Navigation uses 'heart' as reward, but we need all CVC resources for compatibility
+    env.game.resource_names = [
+        "energy",
+        "carbon",
+        "oxygen",
+        "germanium",
+        "silicon",
+        "heart",
+        "decoder",
+        "modulator",
+        "resonator",
+        "scrambler",
+    ]
+
     if env.game.actions:
-        # 2. Ensure Vibe Action matches
+        # 4. Ensure Vibe Action matches
         if env.game.actions.change_vibe:
             env.game.actions.change_vibe.enabled = True
             env.game.actions.change_vibe.number_of_vibes = len(vibes.TRAINING_VIBES)
@@ -35,17 +124,13 @@ def _cleanup_nav_env(env: MettaGridConfig) -> MettaGridConfig:
             if env.game.agent.initial_vibe >= len(vibes.TRAINING_VIBES):
                 env.game.agent.initial_vibe = 0
 
-        # 3. Force Enable Other Actions (Attack, Resource Mod)
-        # CVC missions typically have these enabled. We must match the action space.
-        # Even if they are useless in navigation, they must be present in the schema.
+        # 5. Force Enable Other Actions (Attack, Resource Mod)
+        # CVC missions typically have these disabled. We must match the action space.
         if env.game.actions.attack:
-            env.game.actions.attack.enabled = True
-            # Ensure target locations match CVC defaults if needed (usually 1-9)
-            if not env.game.actions.attack.target_locations:
-                 env.game.actions.attack.target_locations = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+            env.game.actions.attack.enabled = False
 
         if env.game.actions.resource_mod:
-            env.game.actions.resource_mod.enabled = True
+            env.game.actions.resource_mod.enabled = False
 
     return env
 
@@ -138,10 +223,10 @@ class NavigationDenseMission(Mission):
 NAVIGATION_EVAL_MISSIONS: list[Mission] = [
     NavigationMission(
         name=f"navigation_{eval_cfg['name']}",
-        nav_map_name=eval_cfg['name'],
-        max_steps=eval_cfg['max_steps'],
-        num_cogs=eval_cfg['num_agents'],
-        num_instances=1 # Override to 1 for compatibility
+        nav_map_name=eval_cfg["name"],
+        max_steps=eval_cfg["max_steps"],
+        num_cogs=eval_cfg["num_agents"],
+        num_instances=1,  # Override to 1 for compatibility
     )
     for eval_cfg in navigation.NAVIGATION_EVALS
 ]
@@ -160,9 +245,4 @@ for map_dir in _maps:
     # map_dir e.g. "varied_terrain/dense_large"
     # Name it "navigation_dense_large"
     short_name = map_dir.replace("varied_terrain/", "")
-    NAVIGATION_MISSIONS.append(
-        NavigationDenseMission(
-            name=f"navigation_{short_name}",
-            terrain_dir=map_dir
-        )
-    )
+    NAVIGATION_MISSIONS.append(NavigationDenseMission(name=f"navigation_{short_name}", terrain_dir=map_dir))
