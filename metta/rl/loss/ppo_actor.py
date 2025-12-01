@@ -125,6 +125,7 @@ class PPOActor(Loss):
 
         values = minibatch["values"]
         if hasattr(self.policy, "critic_quantiles"):
+            # If we are using a quantile critic in our policy
             values = values.mean(dim=-1)
 
         adv = compute_advantage(
