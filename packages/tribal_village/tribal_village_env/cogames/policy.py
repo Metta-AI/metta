@@ -10,9 +10,10 @@ import numpy as np
 import torch
 from gymnasium import spaces
 
-from mettagrid.simulator import AgentObservation
-
-from .policy_base import DefaultPufferPolicy
+import pufferlib.models  # type: ignore[import-untyped]
+import pufferlib.pytorch  # type: ignore[import-untyped]
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
+from mettagrid.simulator import Action, AgentObservation, Simulation
 
 
 @dataclass
@@ -47,7 +48,7 @@ class TribalPolicyEnvInfo:
         return shim
 
 
-class TribalVillagePufferPolicy(DefaultPufferPolicy):
+class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
     """Trainable policy using PufferLib's default model for Tribal Village."""
 
     short_names = ["tribal", "tribal_default", "tribal_puffer"]
@@ -59,20 +60,55 @@ class TribalVillagePufferPolicy(DefaultPufferPolicy):
         hidden_size: int = 256,
         device: Optional[Union[str, torch.device]] = None,
     ) -> None:
-        info_shape = policy_env_info.observation_space.shape
+        MultiAgentPolicy.__init__(self, policy_env_info)
+        AgentPolicy.__init__(self, policy_env_info)
+        self.policy_env_info = policy_env_info
 
-        def _shim(info: TribalPolicyEnvInfo) -> Any:
-            return info.as_shim_env()
+        self._net = pufferlib.models.Default(policy_env_info.as_shim_env(), hidden_size=hidden_size)  # type: ignore[arg-type]
+        if device is not None:
+            self._net = self._net.to(torch.device(device))
 
-        def _obs_adapter(obs: Union[AgentObservation, np.ndarray, Sequence[Any]]) -> np.ndarray:
-            if isinstance(obs, AgentObservation):
-                return np.zeros(info_shape, dtype=np.float32)
-            return np.asarray(obs, dtype=np.float32)
+        self._action_names = policy_env_info.action_names
+        self._num_actions = len(self._action_names)
+        self._device = next(self._net.parameters()).device
 
-        super().__init__(
-            policy_env_info=policy_env_info,
-            hidden_size=hidden_size,
-            device=device,
-            shim_factory=_shim,
-            obs_adapter=_obs_adapter,
-        )
+    def network(self) -> torch.nn.Module:  # type: ignore[override]
+        return self._net
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:  # type: ignore[override]
+        return self
+
+    def is_recurrent(self) -> bool:
+        return False
+
+    def reset(self, simulation: Optional[Simulation] = None) -> None:  # type: ignore[override]
+        return None
+
+    def load_policy_data(self, policy_data_path: str) -> None:
+        state = torch.load(policy_data_path, map_location=self._device)
+        self._net.load_state_dict(state)
+        self._net = self._net.to(self._device)
+
+    def save_policy_data(self, policy_data_path: str) -> None:
+        torch.save(self._net.state_dict(), policy_data_path)
+
+    def step(self, obs: Union[AgentObservation, np.ndarray, torch.Tensor, Sequence[Any]]) -> Action:  # type: ignore[override]
+        if isinstance(obs, AgentObservation):
+            obs_shape = self.policy_env_info.observation_space.shape
+            obs_array = np.zeros(obs_shape, dtype=np.float32)
+        else:
+            obs_array = np.asarray(obs, dtype=np.float32)
+
+        obs_tensor = torch.as_tensor(obs_array, device=self._device, dtype=torch.float32)
+        if obs_tensor.ndim == len(self.policy_env_info.observation_space.shape):
+            obs_tensor = obs_tensor.unsqueeze(0)
+
+        obs_tensor = obs_tensor * (1.0 / 255.0)
+
+        with torch.no_grad():
+            self._net.eval()
+            logits, _ = self._net.forward_eval(obs_tensor)
+            sampled, _, _ = pufferlib.pytorch.sample_logits(logits)
+
+        action_idx = int(sampled.item()) % max(1, self._num_actions)
+        return Action(name=self._action_names[action_idx])

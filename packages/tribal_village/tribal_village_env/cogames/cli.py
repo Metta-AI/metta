@@ -8,8 +8,7 @@ from typing import Literal, Optional
 import typer
 from rich.console import Console
 
-from tribal_village_env.cogames.config import TribalTrainRequest, TribalTrainSettings
-from tribal_village_env.cogames.train import train
+from tribal_village_env.cogames.train import TribalTrainRequest, TribalTrainSettings, train
 
 DEFAULTS = TribalTrainRequest()
 
