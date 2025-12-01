@@ -650,12 +650,7 @@ def train_tribal_cmd(
         help="Override vectorized environment batch size",
         min=1,
     ),
-    max_steps: int = typer.Option(
-        512,
-        "--episode-steps",
-        help="Episode length for Tribal Village",
-        min=1,
-    ),
+    max_steps: int = typer.Option(1000, "--episode-steps", help="Episode length for Tribal Village", min=1),
     render_scale: int = typer.Option(
         1,
         "--render-scale",
