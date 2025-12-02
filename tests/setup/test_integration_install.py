@@ -28,7 +28,7 @@ class TestInstallSoftmax(BaseMettaSetupTest):
         assert r_install_all.returncode == 0
 
         # Install specific components
-        r_install_some = self._run_metta_command(["install", "core", "system", "aws"])
+        r_install_some = self._run_metta_command(["install", "uv", "system", "aws"])
         assert r_install_some.returncode == 0
 
         # Force re-install

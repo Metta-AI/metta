@@ -113,8 +113,12 @@ class SimTaskExecutor(AbstractTaskExecutor):
             ContentType="text/plain",
         )
 
+    def _is_commit_sha(self, git_ref: str) -> bool:
+        """Simple heuristic: SHA-1 is 40 hex chars, SHA-256 is 64 hex chars."""
+        return (len(git_ref) == 40 or len(git_ref) == 64) and all(c in "0123456789abcdef" for c in git_ref.lower())
+
     @trace("worker.setup_checkout")
-    def _setup_versioned_checkout(self, git_hash: str) -> None:
+    def _setup_versioned_checkout(self, git_ref: str) -> None:
         try:
             logger.info(f"Setting up versioned checkout at {self._versioned_path}")
 
@@ -146,15 +150,17 @@ class SimTaskExecutor(AbstractTaskExecutor):
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to fetch repository: {result.stderr}")
 
+            full_git_ref = git_ref if self._is_commit_sha(git_ref) else f"origin/{git_ref}"
+
             # Checkout the specific commit
             result = subprocess.run(
-                ["git", "reset", "--hard", git_hash],
+                ["git", "reset", "--hard", full_git_ref],
                 cwd=self._versioned_path,
                 capture_output=True,
                 text=True,
             )
             if result.returncode != 0:
-                raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
+                raise RuntimeError(f"Failed to checkout git ref {full_git_ref}: {result.stderr}")
 
             # Clean the repository
             result = subprocess.run(
@@ -187,8 +193,9 @@ class SimTaskExecutor(AbstractTaskExecutor):
         task: EvalTaskRow,
     ) -> TaskResult:
         if not task.git_hash:
-            raise RuntimeError(f"Git hash not found for task {task.id}")
+            raise RuntimeError(f"Git reference not found for task {task.id}")
 
+        # Note: git_hash field can contain either a commit SHA or branch name
         self._setup_versioned_checkout(task.git_hash)
 
         cmd = task.command.split(" ")

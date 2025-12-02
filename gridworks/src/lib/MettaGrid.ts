@@ -1,5 +1,3 @@
-import defaultEncoding from "@/lib/encoding.json" assert { type: "json" };
-
 import { StorableMap } from "./api";
 
 export class AsciiEncoding {
@@ -19,10 +17,6 @@ export class AsciiEncoding {
 
   getCharFromName(name: string): string {
     return this.nameToChar[name] ?? "?";
-  }
-
-  static default(): AsciiEncoding {
-    return new AsciiEncoding(defaultEncoding);
   }
 }
 

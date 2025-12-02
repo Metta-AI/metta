@@ -4,7 +4,7 @@ from enum import Enum
 
 import numpy as np
 from numpy.typing import NDArray
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
 
@@ -47,6 +47,10 @@ class DistributionConfig(BaseModel):
     center2_x: float = 0.75  # Second cluster center x
     center2_y: float = 0.75  # Second cluster center y
     cluster_std: float = 0.15  # Standard deviation for each cluster
+
+    @field_serializer("type")
+    def _ser_type(self, value: DistributionType) -> str:
+        return value.value
 
 
 def _sample_positions_by_distribution(

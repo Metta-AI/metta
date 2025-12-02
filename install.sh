@@ -25,9 +25,10 @@ while [ $# -gt 0 ]; do
       echo "Usage: $0 [OPTIONS]"
       echo ""
       echo "This script:"
-      echo "  1. Installs uv and python dependencies"
-      echo "  2. Configures Metta for your profile"
-      echo "  3. Installs components"
+      echo "  1. Installs uv (if needed)"
+      echo "  2. Syncs Python dependencies"
+      echo "  3. Configures Metta for your profile"
+      echo "  4. Installs components (including bootstrap deps)"
       echo ""
       echo "Options:"
       echo "  --profile PROFILE      Set user profile (external, cloud, or softmax)"
@@ -58,15 +59,37 @@ check_cmd() {
 
 echo "Welcome to Metta!"
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-sh "$SCRIPT_DIR/devops/tools/install-system.sh"
+# Install uv if not present
+if ! check_cmd uv; then
+  # Detect uv binaries that exist but aren't on PATH
+  for dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+    if [ -x "$dir/uv" ]; then
+      echo "uv found at $dir but it is not in your PATH."
+      echo "Add this to your shell profile and re-run ./install.sh:"
+      echo "  export PATH=\"$dir:\$PATH\""
+      exit 1
+    fi
+  done
 
-for cmd in uv bazel git g++ nimby nim; do
-  if ! check_cmd "$cmd"; then
-    echo "$cmd not found. Consider running ./devops/tools/install-system.sh"
+  echo "Installing uv..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+
+  # Source env files if they exist (uv installer creates these)
+  [ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
+  [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+
+  if ! check_cmd uv; then
+    echo "Error: Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"
     exit 1
   fi
-done
+  echo "uv installed successfully"
+fi
+
+# Install bootstrap dependencies (bazel, nimby, nim, git, g++) BEFORE uv sync
+# This ensures uv sync can build packages like mettagrid that require these tools
+echo "Installing bootstrap dependencies..."
+# Use --no-sync so we don't attempt a dependency sync before Bazel/Nim/Nimby exist
+uv run --no-sync python -m metta.setup.components.system_packages.bootstrap $NON_INTERACTIVE_ADDITION
 
 uv sync
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION

@@ -38,8 +38,8 @@ generator_green = AssemblerConfig(
     protocols=[ProtocolConfig(input_resources={}, output_resources={}, cooldown=5)],
 )
 
-altar = AssemblerConfig(
-    name="altar",
+assembler = AssemblerConfig(
+    name="assembler",
     render_symbol="🎯",
     protocols=[ProtocolConfig(input_resources={}, output_resources={}, cooldown=5)],
 )

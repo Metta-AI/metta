@@ -90,7 +90,7 @@
               echo "# ROCm PyTorch already installed, skipping reinstall"
             else
               echo "# Installing ROCm PyTorch..."
-              pip install --force-reinstall --extra-index-url https://download.pytorch.org/whl/rocm6.4 torch==2.9.0+rocm6.4
+              pip install --force-reinstall --extra-index-url https://download.pytorch.org/whl/rocm6.4 torch==2.9.0+rocm6.4 pytorch-triton-rocm==3.5.0
             fi
           else
             echo "# No AMD GPU detected, using default PyTorch installation"
@@ -102,7 +102,7 @@
           echo "# Python version: $(python --version)"
           echo "# uv version: $(uv --version)"
           echo "# -------------------------------------------"
-          echo "# ./tools/run.py train arena run=my_experiment"
+          echo "# ./tools/run.py train arena run=my_experiment evaluator.evaluate_remote=false"
           echo "# ./tools/run.py play arena policy_uri=file://./train-dir/my_experiment/checkpoints/YOUR-CHECKPOINT-HERE"
           echo "# ./tools/run.py replay arena policy_uri=file://./train-dir/my_experiment/checkpoints/YOUR-CHECKPOINT-HERE"
           echo "# -------------------------------------------"

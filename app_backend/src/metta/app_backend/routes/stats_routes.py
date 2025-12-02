@@ -429,6 +429,23 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
 
+    @router.get("/policies/{policy_id}/versions")
+    @timed_route("get_versions_for_policy")
+    async def get_versions_for_policy(
+        policy_id: str,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> PolicyVersionsResponse:
+        try:
+            entries, total_count = await stats_repo.get_versions_for_policy(
+                policy_id=policy_id,
+                limit=limit,
+                offset=offset,
+            )
+            return PolicyVersionsResponse(entries=entries, total_count=total_count)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get policy versions: {str(e)}") from e
+
     @router.get("/policies/my-versions")
     @timed_route("get_my_policy_versions")
     async def get_my_policy_versions(user: UserOrToken) -> MyPolicyVersionsResponse:
