@@ -254,7 +254,17 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
 
         names, probabilities = self._resolve_building_distribution()
 
+        occupied = np.zeros((self.height, self.width), dtype=bool)
+
+        def _footprint_bounds(center_row: int, center_col: int) -> tuple[slice, slice]:
+            r0 = max(0, center_row - padding)
+            r1 = min(self.height, center_row + padding + 1)
+            c0 = max(0, center_col - padding)
+            c1 = min(self.width, center_col + padding + 1)
+            return slice(r0, r1), slice(c0, c1)
+
         def carve_and_place(center_row: int, center_col: int, name: str) -> bool:
+            r_slice, c_slice = _footprint_bounds(center_row, center_col)
             for rr in range(center_row - padding, center_row + padding + 1):
                 if rr < 0 or rr >= self.height:
                     continue
@@ -266,10 +276,12 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
                     else:
                         grid[rr, cc] = "empty"
 
+            occupied[r_slice, c_slice] = True
             return True
 
         def can_place(center_row: int, center_col: int, centers: list[tuple[int, int]]) -> bool:
-            return not any(abs(center_row - r0) <= padding and abs(center_col - c0) <= padding for r0, c0 in centers)
+            r_slice, c_slice = _footprint_bounds(center_row, center_col)
+            return not occupied[r_slice, c_slice].any()
 
         if params.target_coverage is not None:
             available_height = row_max - row_min + 1
