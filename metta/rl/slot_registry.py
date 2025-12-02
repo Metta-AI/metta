@@ -8,8 +8,8 @@ from typing import Dict, Tuple
 import torch
 
 from metta.agent.policy import Policy
-from metta.rl.slot_config import PolicySlotConfig
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.slot_config import PolicySlotConfig
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 
