@@ -127,7 +127,8 @@ Multi-discrete `[move_direction, action_type]`:
 
 ## Build
 
-- Native shared library for Python: `uv run --project packages/tribal_village python -c "from tribal_village_env.build import ensure_nim_library_current; ensure_nim_library_current()"`
+- Native shared library for Python:
+  `uv run --project packages/tribal_village python -c "from tribal_village_env.build import ensure_nim_library_current; ensure_nim_library_current()"`
 - Native desktop viewer: `nim r -d:release tribal_village.nim`
 - WebAssembly demo (requires Emscripten on PATH):\
   `nim c --app:gui --threads:off --gc:arc --exceptions:goto --os:linux --cpu:wasm32 --cc:clang --nimcache:build/web/nimcache --listCmd -d:release -d:emscripten -d:nimNoDevRandom -d:nimNoGetRandom -d:nimNoSysrand --passL:"--shell-file=scripts/shell_minimal.html" --passL:"--preload-file data" --passL:"-sUSE_GLFW=3" --passL:"-sUSE_WEBGL2=1" --passL:"-sASYNCIFY" --passL:"-sALLOW_MEMORY_GROWTH" --passL:"-sINITIAL_MEMORY=512MB" --passL:"-sFULL_ES3=1" --passL:"-sGL_ENABLE_GET_PROC_ADDRESS=1" --passL:"-sERROR_ON_UNDEFINED_SYMBOLS=0" -o:build/web/tribal_village.html tribal_village.nim`\

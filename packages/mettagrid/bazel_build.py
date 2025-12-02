@@ -2,9 +2,13 @@
 # This backend compiles the C++ extension using Bazel during package installation
 
 import os
+import platform
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
+import urllib.request
 from pathlib import Path
 
 from setuptools.build_meta import (
@@ -29,6 +33,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
 PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
+DEFAULT_NIM_VERSION = os.environ.get("METTAGRID_NIM_VERSION", "2.2.6")
+DEFAULT_NIMBY_VERSION = os.environ.get("METTAGRID_NIMBY_VERSION", "0.1.11")
 
 
 def cmd(cmd: str) -> None:
@@ -171,6 +177,49 @@ def _nim_artifacts_up_to_date() -> bool:
     return oldest_output_mtime >= latest_source_mtime
 
 
+def _ensure_nimby_and_nim() -> None:
+    """Bootstrap nimby + nim if missing (mirrors tribal_village flow)."""
+
+    nim_path = shutil.which("nim")
+    nimby_path = shutil.which("nimby")
+    if nim_path and nimby_path:
+        return
+
+    system = platform.system()
+    arch = platform.machine().lower()
+    if system == "Linux":
+        url = f"https://github.com/treeform/nimby/releases/download/{DEFAULT_NIMBY_VERSION}/nimby-Linux-X64"
+    elif system == "Darwin":
+        suffix = "ARM64" if "arm" in arch else "X64"
+        url = f"https://github.com/treeform/nimby/releases/download/{DEFAULT_NIMBY_VERSION}/nimby-macOS-{suffix}"
+    else:
+        raise RuntimeError(f"Unsupported OS for nimby bootstrap: {system}")
+
+    dst = Path.home() / ".nimby" / "nim" / "bin" / "nimby"
+    with tempfile.TemporaryDirectory() as tmp:
+        nimby_dl = Path(tmp) / "nimby"
+        urllib.request.urlretrieve(url, nimby_dl)
+        nimby_dl.chmod(nimby_dl.stat().st_mode | stat.S_IEXEC)
+        subprocess.check_call([str(nimby_dl), "use", DEFAULT_NIM_VERSION])
+
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(nimby_dl, dst)
+
+    # Ensure PATH includes nim/nimby bin dir
+    nim_bin_dir = dst.parent
+    os.environ["PATH"] = f"{nim_bin_dir}{os.pathsep}" + os.environ.get("PATH", "")
+
+    nimby_path = shutil.which("nimby")
+    if not nimby_path:
+        raise RuntimeError("Failed to provision nimby.")
+
+    if shutil.which("nim") is None:
+        subprocess.check_call([nimby_path, "use", DEFAULT_NIM_VERSION])
+
+    if shutil.which("nim") is None:
+        raise RuntimeError("Failed to provision nim via nimby.")
+
+
 def _sync_mettascope_package_data() -> None:
     """Ensure Nim artifacts are vendored inside the Python package."""
 
@@ -196,11 +245,13 @@ def _run_mettascope_build() -> None:
         _sync_mettascope_package_data()
         return
 
-    for x in ["nim", "nimby"]:
-        if shutil.which(x) is None:
-            raise RuntimeError(f"{x} not found! Install from https://github.com/treeform/nimby.")
+    _ensure_nimby_and_nim()
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
+
+    nim_cfg = METTASCOPE_DIR / "nim.cfg"
+    if nim_cfg.exists():
+        nim_cfg.unlink()
 
     cmd("nimby sync -g nimby.lock")
     cmd("nim c bindings/bindings.nim")
