@@ -421,7 +421,7 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
         result = subprocess.run(
             ["nimby", "use", REQUIRED_NIM_VERSION],
             cwd=nim_bin_dir,
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
         )
