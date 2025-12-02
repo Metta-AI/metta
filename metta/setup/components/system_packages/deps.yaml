@@ -108,5 +108,4 @@ packages:
   corepack:
     brew:
       name: corepack
-    apt:
-      name: corepack
+    # On apt systems, corepack is bundled with nodejs (not a separate package)
