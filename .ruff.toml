@@ -18,6 +18,7 @@ exclude = [
   "packages/pufferlib-core", # Exclude pufferlib-core from linting
   "*.ipynb",                 # Exclude notebooks from linting
   ".nim_runtime",            # Nim runtime generated files
+  "generated",               # Nim python generated files
 ]
 
 [lint.isort]

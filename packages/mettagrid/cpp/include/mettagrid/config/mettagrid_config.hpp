@@ -23,7 +23,6 @@ struct GlobalObsConfig {
   bool episode_completion_pct = true;
   bool last_action = true;
   bool last_reward = true;
-  bool visitation_counts = false;
   bool compass = false;
 };
 
@@ -40,12 +39,10 @@ struct GameConfig {
   std::unordered_map<std::string, ObservationType> feature_ids;
   std::unordered_map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects;
-  float resource_loss_prob = 0.0;
   std::unordered_map<int, std::string> tag_id_map;
 
   // FEATURE FLAGS
-  bool track_movement_metrics = false;
-  bool protocol_details_obs = false;
+  bool protocol_details_obs = true;
   std::unordered_map<std::string, float> reward_estimates = {};
 
   // Inventory regeneration interval (global check timing)
@@ -60,16 +57,14 @@ namespace py = pybind11;
 inline void bind_global_obs_config(py::module& m) {
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())
-      .def(py::init<bool, bool, bool, bool, bool>(),
+      .def(py::init<bool, bool, bool, bool>(),
            py::arg("episode_completion_pct") = true,
            py::arg("last_action") = true,
            py::arg("last_reward") = true,
-           py::arg("visitation_counts") = false,
            py::arg("compass") = false)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
       .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
-      .def_readwrite("visitation_counts", &GlobalObsConfig::visitation_counts)
       .def_readwrite("compass", &GlobalObsConfig::compass);
 }
 
@@ -87,11 +82,9 @@ inline void bind_game_config(py::module& m) {
                     const std::unordered_map<std::string, ObservationType>&,
                     const std::unordered_map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>>&,
-                    float,
                     const std::unordered_map<int, std::string>&,
 
                     // FEATURE FLAGS
-                    bool,
                     bool,
                     const std::unordered_map<std::string, float>&,
 
@@ -112,12 +105,10 @@ inline void bind_game_config(py::module& m) {
            py::arg("feature_ids"),
            py::arg("actions"),
            py::arg("objects"),
-           py::arg("resource_loss_prob") = 0.0f,
            py::arg("tag_id_map") = std::unordered_map<int, std::string>(),
 
            // FEATURE FLAGS
-           py::arg("track_movement_metrics"),
-           py::arg("protocol_details_obs") = false,
+           py::arg("protocol_details_obs") = true,
            py::arg("reward_estimates") = std::unordered_map<std::string, float>(),
 
            // Inventory regeneration
@@ -142,11 +133,9 @@ inline void bind_game_config(py::module& m) {
       // .def_readwrite("actions", &GameConfig::actions)
       // .def_readwrite("objects", &GameConfig::objects);
 
-      .def_readwrite("resource_loss_prob", &GameConfig::resource_loss_prob)
       .def_readwrite("tag_id_map", &GameConfig::tag_id_map)
 
       // FEATURE FLAGS
-      .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
       .def_readwrite("protocol_details_obs", &GameConfig::protocol_details_obs)
       .def_readwrite("reward_estimates", &GameConfig::reward_estimates)
 

@@ -39,8 +39,9 @@ class ProfileConfig(TypedDict):
 PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     UserType.EXTERNAL: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
+            "uv": {"enabled": True},
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "observatory-key": {"enabled": False},
@@ -55,8 +56,9 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     },
     UserType.CLOUD: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
+            "uv": {"enabled": True},
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "observatory-key": {"enabled": False},
@@ -71,8 +73,9 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     },
     UserType.SOFTMAX_DOCKER: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
+            "uv": {"enabled": True},
             "nodejs": {"enabled": False},
             "githooks": {"enabled": True},
             "observatory-key": {"enabled": False},
@@ -83,12 +86,14 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": False},
             "pr-similarity": {"enabled": False},
+            "binary-symlinks": {"enabled": True},
         }
     },
     UserType.SOFTMAX: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
+            "uv": {"enabled": True},
             "codeclip": {"enabled": True},
             "apps": {"enabled": True},
             "nodejs": {"enabled": True},
@@ -97,12 +102,13 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "aws": {"enabled": True, "expected_connection": METTA_AWS_ACCOUNT_ID},
             "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
             "skypilot": {"enabled": True, "expected_connection": METTA_SKYPILOT_URL},
-            "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
+            "tailscale": {"enabled": False, "expected_connection": "@stem.ai"},
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},
             "helm": {"enabled": True},
             "pr-similarity": {"enabled": True},
             "ide-extensions": {"enabled": True},
+            "binary-symlinks": {"enabled": True},
         }
     },
 }

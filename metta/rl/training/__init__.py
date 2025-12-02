@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from metta.rl.training.heartbeat import Heartbeat, HeartbeatConfig
     from metta.rl.training.monitor import Monitor
     from metta.rl.training.progress_logger import ProgressLogger
-    from metta.rl.training.scheduler import HyperparameterSchedulerConfig, Scheduler, SchedulerConfig
     from metta.rl.training.stats_reporter import (
         NoOpStatsReporter,
         StatsReporter,
@@ -37,7 +36,6 @@ if TYPE_CHECKING:
         TrainingEnvironmentConfig,
         VectorizedTrainingEnvironment,
     )
-    from metta.rl.training.uploader import Uploader, UploaderConfig
     from metta.rl.training.wandb_aborter import WandbAborter, WandbAborterConfig
     from metta.rl.training.wandb_logger import WandbLogger
 
@@ -55,14 +53,11 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "GradientReporterConfig": ("metta.rl.training.gradient_reporter", "GradientReporterConfig"),
     "Heartbeat": ("metta.rl.training.heartbeat", "Heartbeat"),
     "HeartbeatConfig": ("metta.rl.training.heartbeat", "HeartbeatConfig"),
-    "HyperparameterSchedulerConfig": ("metta.rl.training.scheduler", "HyperparameterSchedulerConfig"),
     "Monitor": ("metta.rl.training.monitor", "Monitor"),
     "NoOpEvaluator": ("metta.rl.training.evaluator", "NoOpEvaluator"),
     "NoOpStatsReporter": ("metta.rl.training.stats_reporter", "NoOpStatsReporter"),
     "ProgressLogger": ("metta.rl.training.progress_logger", "ProgressLogger"),
     "RolloutResult": ("metta.rl.training.core", "RolloutResult"),
-    "Scheduler": ("metta.rl.training.scheduler", "Scheduler"),
-    "SchedulerConfig": ("metta.rl.training.scheduler", "SchedulerConfig"),
     "StatsReporter": ("metta.rl.training.stats_reporter", "StatsReporter"),
     "StatsReporterConfig": ("metta.rl.training.stats_reporter", "StatsReporterConfig"),
     "StatsReporterState": ("metta.rl.training.stats_reporter", "StatsReporterState"),
@@ -73,8 +68,6 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "TrainingEnvironment": ("metta.rl.training.training_environment", "TrainingEnvironment"),
     "TrainingEnvironmentConfig": ("metta.rl.training.training_environment", "TrainingEnvironmentConfig"),
     "TrainingEnvWindow": ("metta.rl.training.component_context", "TrainingEnvWindow"),
-    "Uploader": ("metta.rl.training.uploader", "Uploader"),
-    "UploaderConfig": ("metta.rl.training.uploader", "UploaderConfig"),
     "VectorizedTrainingEnvironment": ("metta.rl.training.training_environment", "VectorizedTrainingEnvironment"),
     "WandbAborter": ("metta.rl.training.wandb_aborter", "WandbAborter"),
     "WandbAborterConfig": ("metta.rl.training.wandb_aborter", "WandbAborterConfig"),
@@ -97,14 +90,11 @@ __all__ = [
     "GradientReporterConfig",
     "Heartbeat",
     "HeartbeatConfig",
-    "HyperparameterSchedulerConfig",
     "Monitor",
     "NoOpEvaluator",
     "NoOpStatsReporter",
     "ProgressLogger",
     "RolloutResult",
-    "Scheduler",
-    "SchedulerConfig",
     "StatsReporter",
     "StatsReporterConfig",
     "StatsReporterState",
@@ -115,8 +105,6 @@ __all__ = [
     "TrainingEnvironment",
     "TrainingEnvironmentConfig",
     "TrainingEnvWindow",
-    "Uploader",
-    "UploaderConfig",
     "VectorizedTrainingEnvironment",
     "WandbAborter",
     "WandbAborterConfig",

@@ -47,7 +47,7 @@ proc tribal_village_reset_and_get_obs(
 
 proc tribal_village_step_with_pointers(
   env: pointer,
-  actions_buffer: ptr UncheckedArray[uint8],    # [60, 2] direct read
+  actions_buffer: ptr UncheckedArray[uint8],    # [MapAgents] direct read
   obs_buffer: ptr UncheckedArray[uint8],        # [60, 21, 11, 11] direct write
   rewards_buffer: ptr UncheckedArray[float32],
   terminals_buffer: ptr UncheckedArray[uint8],
@@ -59,10 +59,9 @@ proc tribal_village_step_with_pointers(
 
   try:
     # Read actions directly from buffer (no conversion)
-    var actions: array[MapAgents, array[2, uint8]]
+    var actions: array[MapAgents, uint8]
     for i in 0..<MapAgents:
-      actions[i][0] = actions_buffer[i * 2]
-      actions[i][1] = actions_buffer[i * 2 + 1]
+      actions[i] = actions_buffer[i]
 
     # Step environment
     globalEnv.step(unsafeAddr actions)
@@ -162,7 +161,7 @@ proc tribal_village_render_rgb(
               rByte = 0'u8
               gByte = 200'u8
               bByte = 200'u8
-            of Altar:
+            of assembler:
               rByte = 220'u8
               gByte = 0'u8
               bByte = 220'u8

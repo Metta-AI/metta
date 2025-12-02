@@ -16,6 +16,7 @@ packages:
     brew:
       name: node
       version: "24"
+      installed_name: node@24
     apt:
       name: nodejs
 

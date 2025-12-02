@@ -157,7 +157,7 @@ class SweepParameters:
 
     # PPO specific parameters
     PPO_CLIP_COEF = {
-        "trainer.losses.loss_configs.ppo.clip_coef": ParameterConfig(
+        "trainer.losses.ppo.clip_coef": ParameterConfig(
             min=0.05,
             max=0.3,
             distribution="uniform",
@@ -167,7 +167,7 @@ class SweepParameters:
     }
 
     PPO_ENT_COEF = {
-        "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
+        "trainer.losses.ppo.ent_coef": ParameterConfig(
             min=0.0001,
             max=0.03,
             distribution="log_normal",
@@ -177,7 +177,7 @@ class SweepParameters:
     }
 
     PPO_GAE_LAMBDA = {
-        "trainer.losses.loss_configs.ppo.gae_lambda": ParameterConfig(
+        "trainer.losses.ppo.gae_lambda": ParameterConfig(
             min=0.8,
             max=0.99,
             distribution="uniform",
@@ -187,7 +187,7 @@ class SweepParameters:
     }
 
     PPO_VF_COEF = {
-        "trainer.losses.loss_configs.ppo.vf_coef": ParameterConfig(
+        "trainer.losses.ppo.vf_coef": ParameterConfig(
             min=0.1,
             max=1.0,
             distribution="uniform",
@@ -223,6 +223,7 @@ def make_sweep(
     num_parallel_trials: int = 1,
     train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
+    cost_key: Optional[str] = None,
     # Catch all for un-exposed tool overrides.
     # See SweepTool definition for details.
     **advanced,
@@ -239,6 +240,9 @@ def make_sweep(
             num_parallel_trials: Max parallel jobs
             train_overrides: Optional overrides for training configuration
             eval_overrides: Optional overrides for evaluation configuration
+            cost_key: Optional metric path to extract cost from run summary.
+                If provided, the cost will be read from summary[cost_key].
+                If not provided, defaults to run.cost (which is 0 if not set).
             **advanced: Additional SweepTool options
 
         Protein config args:
@@ -287,6 +291,7 @@ def make_sweep(
         scheduler_type=scheduler_type,
         train_overrides=train_overrides or {},
         eval_overrides=eval_overrides or {},
+        cost_key=cost_key,
         **scheduler_config,
         **advanced,
     )

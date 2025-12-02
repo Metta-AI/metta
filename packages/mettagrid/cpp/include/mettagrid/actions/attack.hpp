@@ -24,7 +24,7 @@ struct AttackActionConfig : public ActionConfig {
   bool enabled;
 
   AttackActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources,
-                     const std::unordered_map<InventoryItem, InventoryProbability>& consumed_resources,
+                     const std::unordered_map<InventoryItem, InventoryQuantity>& consumed_resources,
                      const std::unordered_map<InventoryItem, InventoryQuantity>& defense_resources,
                      bool enabled = true)
       : ActionConfig(required_resources, consumed_resources), defense_resources(defense_resources), enabled(enabled) {}
@@ -72,9 +72,11 @@ protected:
 
     for (short distance = 1; distance <= 3; distance++) {
       for (short offset : COL_OFFSETS) {
-        // Attack always northward
-        GridLocation target_loc = _grid->relative_location(actor.location, Orientation::North, distance, offset);
-        Agent* target_agent = dynamic_cast<Agent*>(_grid->object_at(target_loc));
+        // Commented out because we no longer have orientation, and thus relative_location.
+        // But leaving the code in place since we probably want some version of attack in the future.
+        // GridLocation target_loc = _grid->relative_location(actor.location, Orientation::North, distance, offset);
+        // Agent* target_agent = dynamic_cast<Agent*>(_grid->object_at(target_loc));
+        Agent* target_agent = nullptr;
         if (target_agent) {
           last_agent = target_agent;
           if (num_skipped == arg) {
@@ -202,11 +204,11 @@ namespace py = pybind11;
 inline void bind_attack_action_config(py::module& m) {
   py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
       .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
-                    const std::unordered_map<InventoryItem, InventoryProbability>&,
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     bool>(),
            py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryProbability>(),
+           py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("defense_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("enabled") = true)
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources)

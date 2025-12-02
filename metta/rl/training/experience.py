@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Iterable, List
 
 import torch
 from tensordict import TensorDict
@@ -44,9 +44,9 @@ class Experience:
         spec = experience_spec.expand(self.segments, self.bptt_horizon).to(self.device)
         self.buffer = spec.zero()
 
-        # Episode tracking
-        self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
-        self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
+        # Row-aligned tracking (per-agent row slot id and position within row)
+        self.t_in_row = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
+        self.row_slot_ids = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
 
         # Minibatch configuration
@@ -76,6 +76,9 @@ class Experience:
 
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
+        # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per loss gate activity.
+        self._store_keys: List[Any] = list(self.buffer.keys(include_nested=True, leaves_only=True))
+
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
         """Check for duplicate keys in the experience spec."""
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
@@ -92,21 +95,25 @@ class Experience:
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
-        episode_lengths = self.ep_lengths[env_id.start].item()
-        indices = self.ep_indices[env_id]
+        t_in_row_val = self.t_in_row[env_id.start].item()
+        row_ids = self.row_slot_ids[env_id]
 
-        self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (indices, episode_lengths))
+        # Scheduler updates these keys based on the active losses for the epoch.
+        if self._store_keys:
+            self.buffer.update_at_(data_td.select(*self._store_keys), (row_ids, t_in_row_val))
+        else:
+            raise ValueError("No store keys set. set_store_keys() was likely used incorrectly.")
 
-        self.ep_lengths[env_id] += 1
+        self.t_in_row[env_id] += 1
 
-        if episode_lengths + 1 >= self.bptt_horizon:
+        if t_in_row_val + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
     def _reset_completed_episodes(self, env_id) -> None:
         """Reset episode tracking for completed episodes."""
         num_full = env_id.stop - env_id.start
-        self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
-        self.ep_lengths[env_id] = 0
+        self.row_slot_ids[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
+        self.t_in_row[env_id] = 0
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 
@@ -114,8 +121,8 @@ class Experience:
         """Reset tracking variables for a new rollout."""
         self.full_rows = 0
         self.free_idx = self.total_agents % self.segments
-        self.ep_indices = self._range_tensor % self.segments
-        self.ep_lengths.zero_()
+        self.row_slot_ids = self._range_tensor % self.segments
+        self.t_in_row.zero_()
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
@@ -142,11 +149,11 @@ class Experience:
             stats["act_log_prob"] = self.buffer["act_log_prob"].mean().item()
 
         # Add episode length stats for active episodes
-        active_episodes = self.ep_lengths > 0
+        active_episodes = self.t_in_row > 0
         if active_episodes.any():
-            stats["ep_lengths"] = self.ep_lengths[active_episodes].float().mean().item()
+            stats["t_in_row"] = self.t_in_row[active_episodes].float().mean().item()
         else:
-            stats["ep_lengths"] = 0.0
+            stats["t_in_row"] = 0.0
 
         # Add action statistics based on action space type
         if "actions" in self.buffer.keys():
@@ -161,6 +168,26 @@ class Experience:
                 stats["actions_std"] = actions.std().item()
 
         return stats
+
+    # ----------------- Dynamic store key management -----------------
+    @property
+    def store_keys(self) -> List[Any]:
+        """Return the list of keys that will be written on the next store call."""
+        return list(self._store_keys)
+
+    def set_store_keys(self, keys: Iterable[Any]) -> None:
+        """Restrict which keys are written when storing experience. Otherwise, the buffer will throw an error if it
+        looks for keys that are not in the tensor dict when calling store().
+        """
+        all_keys = set(self.buffer.keys(include_nested=True, leaves_only=True))
+        missing = [k for k in keys if k not in all_keys]
+        if missing:
+            raise KeyError(f"Attempted to set unknown experience keys: {missing}")
+        self._store_keys = list(keys)
+
+    def reset_store_keys(self) -> None:
+        """Reset store keys so that all spec keys are written on store."""
+        self._store_keys = list(self.buffer.keys(include_nested=True, leaves_only=True))
 
     def give_me_empty_md_td(self) -> TensorDict:
         return TensorDict(

@@ -96,7 +96,9 @@ def fetch_eval_data_for_policies(
         )
 
         # Build category structure
-        categories = _build_eval_categories_from_names(all_evals_to_process, evaluations)
+        categories = _build_eval_categories_from_names(
+            all_evals_to_process, evaluations
+        )
 
         return {
             "evaluations": evaluations,
@@ -186,7 +188,9 @@ def _create_policy_aware_eval_metadata(
     return evaluations
 
 
-def _build_eval_categories_from_names(eval_names: List[str], evaluations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _build_eval_categories_from_names(
+    eval_names: List[str], evaluations: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
     """Build category structure from eval names and metadata."""
     # print(
     #     f"📂 Building categories from {len(eval_names)} eval names and {len(evaluations)} evaluations"

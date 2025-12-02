@@ -24,13 +24,12 @@ This avoids double-wrapping while maintaining full PufferLib compatibility.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
-from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 from mettagrid.mettagrid_c import (
     dtype_actions,
@@ -40,10 +39,12 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation, Simulator
 from mettagrid.simulator.simulator import Buffers
-from pufferlib.pufferlib import PufferEnv
+from pufferlib.pufferlib import PufferEnv  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,8 @@ class MettaGridPufferEnv(PufferEnv):
         self._simulator = simulator
         self._current_cfg = cfg
         self._current_seed = seed
-        self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig(enabled=False)
+        self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig()
+        self._sim: Simulation | None = None
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -85,7 +87,8 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._buffers: Buffers = Buffers(
             observations=np.zeros(
-                (policy_env_info.num_agents, *policy_env_info.observation_space.shape), dtype=dtype_observations
+                (policy_env_info.num_agents, *policy_env_info.observation_space.shape),
+                dtype=dtype_observations,
             ),
             terminals=np.zeros(policy_env_info.num_agents, dtype=dtype_terminals),
             truncations=np.zeros(policy_env_info.num_agents, dtype=dtype_truncations),
@@ -100,10 +103,10 @@ class MettaGridPufferEnv(PufferEnv):
         self.single_observation_space: Box = policy_env_info.observation_space
         self.single_action_space: Discrete = policy_env_info.action_space
 
-        self._env_supervisor_policy = None
-        self._env_supervisor_agent_policies = []
+        self._env_supervisor: MultiAgentPolicy | None = None
         self._new_sim()
-        self.num_agents: int = self._sim.num_agents
+        sim = cast(Simulation, self._sim)
+        self.num_agents = sim.num_agents
 
         super().__init__(buf=buf)
 
@@ -116,27 +119,26 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = config
 
     def get_episode_rewards(self) -> np.ndarray:
-        return self._sim.episode_rewards
+        return cast(Simulation, self._sim).episode_rewards
 
     @property
     def current_simulation(self) -> Simulation:
-        return self._sim
+        return cast(Simulation, self._sim)
 
     def _new_sim(self) -> None:
-        if hasattr(self, "_sim") and self._sim is not None:
+        if self._sim is not None:
             self._sim.close()
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
-        if self._env_supervisor_cfg.enabled:
-            if self._env_supervisor_cfg.policy == "baseline":
-                self._env_supervisor_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
-                self._env_supervisor_agent_policies = [
-                    self._env_supervisor_policy.agent_policy(agent_id)
-                    for agent_id in range(self._current_cfg.game.num_agents)
-                ]
-                for agent_policy in self._env_supervisor_agent_policies:
-                    agent_policy.reset(self._sim)
+        if self._env_supervisor_cfg.policy is not None:
+            self._env_supervisor = initialize_or_load_policy(
+                PolicyEnvInterface.from_mg_cfg(self._current_cfg),
+                PolicySpec(
+                    class_path=self._env_supervisor_cfg.policy,
+                    data_path=self._env_supervisor_cfg.policy_data_path,
+                ),
+            )
 
             self._compute_supervisor_actions()
 
@@ -151,14 +153,21 @@ class MettaGridPufferEnv(PufferEnv):
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
-        assert self._sim is not None
-        if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
-            self._new_sim()
+        sim = cast(Simulation, self._sim)
 
-        self._sim.step()
+        if sim._c_sim.terminals().all() or sim._c_sim.truncations().all():
+            self._new_sim()
+            sim = cast(Simulation, self._sim)
+
+        # Gymnasium returns int64 arrays by default when sampling MultiDiscrete spaces,
+        # so coerce here to keep callers simple while preserving strict bounds checking.
+        actions_to_copy = actions if actions.dtype == dtype_actions else np.asarray(actions, dtype=dtype_actions)
+        np.copyto(self._buffers.actions, actions_to_copy, casting="safe")
+
+        sim.step()
 
         # Do this after step() so that the trainer can use it if needed
-        if self._env_supervisor_cfg.enabled:
+        if self._env_supervisor_cfg.policy is not None:
             self._compute_supervisor_actions()
 
         return (
@@ -166,26 +175,16 @@ class MettaGridPufferEnv(PufferEnv):
             self._buffers.rewards,
             self._buffers.terminals,
             self._buffers.truncations,
-            self._sim._context.get("infos", {}),
+            sim._context.get("infos", {}),
         )
 
     def _compute_supervisor_actions(self) -> None:
-        assert self._env_supervisor_cfg.enabled
-        if self._env_supervisor_cfg.policy == "noop":
-            self._buffers.teacher_actions[:] = np.ones(self._current_cfg.game.num_agents, dtype=dtype_actions)
-        else:
-            teacher_actions = np.array(
-                [
-                    self._sim.action_names.index(
-                        self._env_supervisor_agent_policies[agent_id]
-                        .step(self._sim.agents()[agent_id].observation)
-                        .name
-                    )
-                    for agent_id in range(self._current_cfg.game.num_agents)
-                ],
-                dtype=dtype_actions,
-            )
-            self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
+        if self._env_supervisor is None:
+            return
+
+        teacher_actions = self._buffers.teacher_actions
+        raw_observations = self._buffers.observations
+        self._env_supervisor.step_batch(raw_observations, teacher_actions)
 
     @property
     def observations(self) -> np.ndarray:
@@ -243,7 +242,34 @@ class MettaGridPufferEnv(PufferEnv):
     def teacher_actions(self, teacher_actions: np.ndarray) -> None:
         self._buffers.teacher_actions = teacher_actions
 
+    @property
+    def render_mode(self) -> str:
+        """PufferLib render mode - returns 'ansi' for text-based rendering."""
+        return "ansi"
+
+    def render(self) -> str:
+        """Render the current state as unicode text."""
+        from mettagrid.renderer.miniscope.buffer import MapBuffer
+        from mettagrid.renderer.miniscope.symbol import DEFAULT_SYMBOL_MAP
+
+        sim = cast(Simulation, self._sim)
+
+        symbol_map = DEFAULT_SYMBOL_MAP.copy()
+        for obj in self._current_cfg.game.objects.values():
+            if obj.render_name:
+                symbol_map[obj.render_name] = obj.render_symbol
+            symbol_map[obj.name] = obj.render_symbol
+
+        return MapBuffer(
+            symbol_map=symbol_map,
+            initial_height=sim.map_height,
+            initial_width=sim.map_width,
+        ).render_full_map(sim._c_sim.grid_objects())
+
     def close(self) -> None:
         """Close the environment."""
-        if hasattr(self, "_sim") and self._sim is not None:
-            self._sim.close()
+        if self._sim is None:
+            return
+
+        self._sim.close()
+        self._sim = None

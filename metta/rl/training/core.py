@@ -82,7 +82,7 @@ class CoreTrainingLoop:
             loss.on_rollout_start(context)
 
         # Get buffer for storing experience
-        buffer_step = self.experience.buffer[self.experience.ep_indices, self.experience.ep_lengths - 1]
+        buffer_step = self.experience.buffer[self.experience.row_slot_ids, self.experience.t_in_row - 1]
         buffer_step = buffer_step.select(*self.policy_spec.keys())
 
         total_steps = 0
@@ -115,6 +115,11 @@ class CoreTrainingLoop:
                     td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
                 td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
                 td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
+                # Row-aligned state: provide row slot id and position within row
+                row_ids = self.experience.row_slot_ids[training_env_id].to(device=target_device, dtype=torch.long)
+                t_in_row = self.experience.t_in_row[training_env_id].to(device=target_device, dtype=torch.long)
+                td["row_id"] = row_ids
+                td["t_in_row"] = t_in_row
                 self.add_last_action_to_td(td, env)
 
                 self._ensure_rollout_metadata(td)
@@ -227,13 +232,6 @@ class CoreTrainingLoop:
         training_env_id = context.training_env_id
         assert training_env_id is not None, "Training environment ID is required"
 
-        # Initialize shared loss data
-        shared_loss_mb_data = self.experience.give_me_empty_md_td()
-        for loss_name in self.losses.keys():
-            shared_loss_mb_data[loss_name] = self.experience.give_me_empty_md_td()
-
-        # Reset loss tracking
-        shared_loss_mb_data.zero_()
         self.experience.reset_importance_sampling_ratios()
 
         for loss in self.losses.values():
@@ -249,6 +247,7 @@ class CoreTrainingLoop:
 
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
+                shared_loss_mb_data = self.experience.give_me_empty_md_td()
 
                 for _loss_name, loss_obj in self.losses.items():
                     loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(

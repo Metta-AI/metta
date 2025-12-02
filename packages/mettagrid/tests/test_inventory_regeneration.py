@@ -1,4 +1,4 @@
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig, ResourceLimitsConfig
 from mettagrid.simulator import Action, Simulation
 
 
@@ -13,7 +13,8 @@ class TestInventoryRegeneration:
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
                 ["#", "#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
         # Add energy to resources and configure regeneration
@@ -104,7 +105,8 @@ class TestInventoryRegeneration:
                 ["#", "#", "#"],
                 ["#", "@", "#"],
                 ["#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
         cfg.game.resource_names = ["energy"]
@@ -129,14 +131,17 @@ class TestInventoryRegeneration:
                 ["#", "#", "#"],
                 ["#", "@", "#"],
                 ["#", "#", "#"],
-            ]
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
         cfg.game.resource_names = ["energy"]
         cfg.game.agent.inventory_regen_amounts = {"energy": 10}  # Try to add 10
         cfg.game.inventory_regen_interval = 1  # Every timestep
         cfg.game.agent.initial_inventory = {"energy": 95}
-        cfg.game.agent.resource_limits = {"energy": 100}  # Max 100 energy
+        cfg.game.agent.resource_limits = {
+            "energy": ResourceLimitsConfig(limit=100, resources=["energy"]),  # Max 100 energy
+        }
         cfg.game.actions.noop.enabled = True
 
         sim = Simulation(cfg)

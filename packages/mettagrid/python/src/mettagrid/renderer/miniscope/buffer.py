@@ -10,7 +10,6 @@ class MapBuffer:
 
     def __init__(
         self,
-        object_type_names: list[str],
         symbol_map: dict[str, str],
         initial_height: int = 0,
         initial_width: int = 0,
@@ -18,12 +17,10 @@ class MapBuffer:
         """Initialize the MapBuffer.
 
         Args:
-            object_type_names: List mapping type IDs to names
             symbol_map: Map from object type names to render symbols
             initial_height: Initial map height (0 to auto-compute)
             initial_width: Initial map width (0 to auto-compute)
         """
-        self._object_type_names = object_type_names
         self._symbol_map = symbol_map
 
         # Bounds
@@ -198,7 +195,7 @@ class MapBuffer:
                     # Use a distinctive symbol for highlighted agent
                     grid[r][c] = "⭐"
                 else:
-                    grid[r][c] = get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
+                    grid[r][c] = get_symbol_for_object(obj, self._symbol_map)
 
         # Add selection cursor if in select mode
         if self._cursor_row is not None and self._cursor_col is not None:

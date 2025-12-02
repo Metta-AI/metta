@@ -29,7 +29,6 @@
 
 // Forward declarations of existing C++ classes
 class Grid;
-class EventManager;
 class StatsTracker;
 class ActionHandler;
 class Action;
@@ -113,13 +112,7 @@ private:
   GlobalObsConfig _global_obs_config;
   GameConfig _game_config;
 
-  std::vector<ObservationType> _resource_rewards;  // Packed inventory rewards for each agent
-  std::unordered_map<unsigned int, float> _group_reward_pct;
-  std::unordered_map<unsigned int, unsigned int> _group_sizes;
-  std::vector<RewardType> _group_rewards;
-
   std::unique_ptr<Grid> _grid;
-  std::unique_ptr<EventManager> _event_manager;
 
   Actions _actions;
   std::vector<Action> _action_handlers;                              // All actions from all handlers
@@ -143,16 +136,10 @@ private:
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 
-  std::unordered_map<uint8_t, float> _feature_normalizations;
-
   ActionSuccess _action_success;
 
   std::mt19937 _rng;
   unsigned int _seed;
-
-  // Movement tracking
-  bool _track_movement_metrics;
-  float _resource_loss_prob;
 
   // Inventory regeneration
   unsigned int _inventory_regen_interval;
@@ -171,7 +158,7 @@ private:
                             ObservationCoord obs_height,
                             size_t agent_idx,
                             ActionType action);
-  void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
+  void _compute_observations(const std::vector<ActionType>& executed_actions);
   void _step();
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type);

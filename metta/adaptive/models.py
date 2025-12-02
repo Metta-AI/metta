@@ -14,7 +14,7 @@ class JobTypes(StrEnum):
 @dataclass
 class JobDefinition:
     run_id: str
-    cmd: str  # e.g., "experiments.recipes.arena.train_shaped" or "experiments.recipes.arena.evaluate"
+    cmd: str  # e.g., "recipes.experiment.arena.train_shaped" or "recipes.experiment.arena.evaluate"
     gpus: int = 1
     nodes: int = 1
     # Single source for recipe arguments (serialized as --args key=value)

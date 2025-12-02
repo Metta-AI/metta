@@ -11,7 +11,9 @@ class IdeExtensions(SetupModule):
     """Ensure required VS Code / Cursor extensions are installed."""
 
     install_once = True
-    _required_extensions: list[str] = ["emeraldwalk.runonsave"]
+    _required_extensions: dict[str, str] = {
+        "emeraldwalk.runonsave": "./metta/setup/components/extensions/RunOnSave-0.2.7.vsix"
+    }
 
     @property
     def name(self) -> str:
@@ -23,13 +25,13 @@ class IdeExtensions(SetupModule):
 
     def _find_code_command(self) -> str | None:
         term_program_to_command = {
-            "cursor": "cursor",
-            "vscode": "code",
+            "cursor": ["cursor"],
+            "vscode": ["code", "cursor"],
         }
         term_program = os.getenv("TERM_PROGRAM", "").lower()
-        cmd = term_program_to_command.get(term_program)
-        if cmd and shutil.which(cmd):
-            return cmd
+        for cmd in term_program_to_command.get(term_program, ["cursor", "code"]):
+            if shutil.which(cmd):
+                return cmd
         return None
 
     def _list_installed_extensions(self, code_cmd: str) -> set[str]:
@@ -55,9 +57,9 @@ class IdeExtensions(SetupModule):
         code_cmd = self._find_code_command()
         if not code_cmd:
             return
-        for extension in self._required_extensions:
+        for extension, install_path in self._required_extensions.items():
             info(f"Installing VS Code extension: {extension}")
-            install_cmd = [code_cmd, "--install-extension", extension]
+            install_cmd = [code_cmd, "--install-extension", install_path]
             if force:
                 install_cmd.append("--force")
             result = self.run_command(install_cmd, capture_output=True, check=False)

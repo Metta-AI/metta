@@ -1,6 +1,7 @@
 """GUI renderer using mettascope."""
 
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Optional
@@ -10,6 +11,10 @@ import numpy as np
 from mettagrid.renderer.renderer import Renderer
 from mettagrid.simulator import Action
 from mettagrid.util.grid_object_formatter import format_grid_object
+
+METTASCOPE_REPLAY_URL_PREFIX = "https://metta-ai.github.io/metta/mettascope/mettascope.html?replay="
+
+logger = logging.getLogger(__name__)
 
 
 class MettascopeRenderer(Renderer):
@@ -85,7 +90,12 @@ class MettascopeRenderer(Renderer):
         placeholder_actions = np.zeros((self._sim.num_agents, 2), dtype=np.int32)
         placeholder_rewards = np.zeros(self._sim.num_agents)
 
-        for grid_object in self._sim.grid_objects().values():
+        # To optimize, we only send walls on the first step because they don't change.
+        ignore_types = []
+        if self._sim.current_step > 0:
+            ignore_types = ["wall"]
+
+        for grid_object in self._sim.grid_objects(ignore_types=ignore_types).values():
             grid_objects.append(
                 format_grid_object(
                     grid_object,
@@ -127,13 +137,12 @@ class MettascopeRenderer(Renderer):
                 if not action_name:
                     continue
 
-                print(f"DEBUG: Setting action '{action_name}' for agent {action.agent_id}")
                 try:
                     self._sim.agent(action.agent_id).set_action(Action(name=action_name))
                 except KeyError as e:
-                    print(f"ERROR: Unknown action '{action_name}' - {e}")
+                    logger.error("Unknown action '%s' - %s", action_name, e)
                     available_actions = [a for a in self._sim.action_ids.keys() if "change_vibe" in a]
-                    print(f"Available change_vibe actions: {available_actions}")
+                    logger.error("Available change_vibe actions: %s", available_actions)
                     continue
 
 
@@ -157,7 +166,7 @@ def _resolve_nim_root() -> tuple[Optional[Path], list[Path]]:
 
     current = package_root
     for _ in range(8):
-        candidate = current / "packages" / "mettagrid" / "nim" / "mettascope"
+        candidate = current / "mettagrid" / "nim" / "mettascope"
         search_paths.append(candidate)
         if candidate.exists():
             return candidate, search_paths

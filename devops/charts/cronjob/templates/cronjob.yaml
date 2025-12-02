@@ -17,6 +17,7 @@ spec:
           labels:
             {{- include "cronjob.selectorLabels" . | nindent 12 }}
         spec:
+        
           serviceAccountName: {{ include "cronjob.serviceAccountName" . }}
           restartPolicy: {{ .Values.restartPolicy }}
           containers:

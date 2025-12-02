@@ -59,7 +59,6 @@ class WallConfig(GridObjectConfig):
     def __init__(self, type_id: int, type_name: str): ...
     type_id: int
     type_name: str
-    swappable: bool
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -69,16 +68,14 @@ class AgentConfig(GridObjectConfig):
         group_id: int = ...,
         group_name: str = ...,
         freeze_duration: int = 0,
-        action_failure_penalty: float = 0,
         resource_limits: dict[int, int] = {},
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
-        group_reward_pct: float = 0,
         initial_inventory: dict[int, int] = {},
         soul_bound_resources: list[int] | None = None,
-        shareable_resources: list[int] | None = None,
         inventory_regen_amounts: dict[int, int] | None = None,
         diversity_tracked_resources: list[int] | None = None,
+        vibe_transfers: dict[int, dict[int, int]] | None = None,
     ) -> None: ...
     type_id: int
     type_name: str
@@ -86,51 +83,44 @@ class AgentConfig(GridObjectConfig):
     group_id: int
     group_name: str
     freeze_duration: int
-    action_failure_penalty: float
     resource_limits: dict[int, int]
     stat_rewards: dict[str, float]  # Added this
     stat_reward_max: dict[str, float]  # Added this
-    group_reward_pct: float
     initial_inventory: dict[int, int]
     soul_bound_resources: list[int]
-    shareable_resources: list[int]
     inventory_regen_amounts: dict[int, int]
     diversity_tracked_resources: list[int]
+    vibe_transfers: dict[int, dict[int, int]]
 
 class ActionConfig:
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
     ) -> None: ...
     required_resources: dict[int, int]
-    consumed_resources: dict[int, float]
+    consumed_resources: dict[int, int]
 
 class Protocol:
     def __init__(self) -> None: ...
+    min_agents: int
     vibes: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     cooldown: int
 
 class ClipperConfig:
-    def __init__(
-        self,
-        unclipping_protocols: list[Protocol],
-        length_scale: float,
-        cutoff_distance: float,
-        clip_rate: float,
-    ) -> None: ...
+    def __init__(self) -> None: ...
     unclipping_protocols: list[Protocol]
-    length_scale: float
-    cutoff_distance: float
-    clip_rate: float
+    length_scale: int
+    scaled_cutoff_distance: int
+    clip_period: int
 
 class AttackActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
         defense_resources: dict[int, int] = {},
         enabled: bool = True,
     ) -> None: ...
@@ -141,23 +131,10 @@ class ChangeVibeActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
         number_of_vibes: int = ...,
     ) -> None: ...
     number_of_vibes: int
-
-class ResourceModConfig(ActionConfig):
-    def __init__(
-        self,
-        required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
-        modifies: dict[int, float] = {},
-        agent_radius: int = 0,
-        scales: bool = False,
-    ) -> None: ...
-    modifies: dict[int, float]
-    agent_radius: int
-    scales: bool
 
 class GlobalObsConfig:
     def __init__(
@@ -165,13 +142,11 @@ class GlobalObsConfig:
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
-        visitation_counts: bool = False,
         compass: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
-    visitation_counts: bool
     compass: bool
 
 class GameConfig:
@@ -188,10 +163,8 @@ class GameConfig:
         global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
-        resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
-        track_movement_metrics: bool = False,
-        protocol_details_obs: bool = False,
+        protocol_details_obs: bool = True,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
         inventory_regen_amounts: dict[int, int] | None = None,
@@ -207,9 +180,7 @@ class GameConfig:
     vibe_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
-    resource_loss_prob: float
     # FEATURE FLAGS
-    track_movement_metrics: bool
     protocol_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]

@@ -10,19 +10,19 @@ from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
+from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
 
 class CheckpointerConfig(Config):
-    """Configuration for policy checkpointing."""
-
-    epoch_interval: int = Field(default=30, ge=0)  # How often to save policy checkpoints (in epochs)
+    epoch_interval: int = Field(default=30, ge=0)
 
 
 class Checkpointer(TrainerComponent):
-    """Manages policy checkpointing with distributed awareness and URI support."""
+    """Manages policy checkpointing with distributed awareness."""
 
     def __init__(
         self,
@@ -40,95 +40,98 @@ class Checkpointer(TrainerComponent):
         self._policy_architecture: PolicyArchitecture = policy_architecture
         self._latest_policy_uri: Optional[str] = None
 
-    # ------------------------------------------------------------------
-    # Registration helpers
-    # ------------------------------------------------------------------
-    def register(self, context) -> None:  # type: ignore[override]
+    def register(self, context) -> None:
         super().register(context)
         context.latest_policy_uri_fn = self.get_latest_policy_uri
         context.latest_policy_uri_value = self.get_latest_policy_uri()
 
-    # ------------------------------------------------------------------
-    # Public helpers
-    # ------------------------------------------------------------------
     def load_or_create_policy(
         self,
-        game_rules: PolicyEnvInterface,
+        policy_env_info: PolicyEnvInterface,
         *,
         policy_uri: Optional[str] = None,
     ) -> Policy:
         """Load the latest policy checkpoint or create a new policy."""
+        candidate_uri = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
+        load_device = torch.device(self._distributed.config.device)
 
-        policy: Optional[Policy] = None
-        candidate_uri: Optional[str] = policy_uri
+        if self._distributed.is_distributed:
+            normalized_uri = None
+            if self._distributed.is_master() and candidate_uri:
+                normalized_uri = resolve_uri(candidate_uri)
+            normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
-        if candidate_uri is None:
-            candidate_uri = self._checkpoint_manager.get_latest_checkpoint()
+            if normalized_uri:
+                artifact: MptArtifact | None = None
+                if self._distributed.is_master():
+                    artifact = load_mpt(normalized_uri)
 
-        if self._distributed.is_master() and candidate_uri:
-            normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
-            try:
-                load_device = torch.device(self._distributed.config.device)
-                policy = self._checkpoint_manager.load_from_uri(normalized_uri, game_rules, load_device)
-                self._latest_policy_uri = normalized_uri
-                logger.info("Loaded policy from %s", normalized_uri)
-            except FileNotFoundError:
-                logger.warning("Policy checkpoint %s not found; training will start fresh", normalized_uri)
-            except Exception as exc:  # pragma: no cover - defensive guard
-                logger.warning("Failed to load policy from %s: %s", normalized_uri, exc)
+                state_dict = self._distributed.broadcast_from_master(
+                    {k: v.cpu() for k, v in artifact.state_dict.items()} if artifact else None
+                )
+                arch = self._distributed.broadcast_from_master(artifact.architecture if artifact else None)
+                action_count = self._distributed.broadcast_from_master(
+                    len(policy_env_info.actions.actions()) if self._distributed.is_master() else None
+                )
 
-        policy = self._distributed.broadcast_from_master(policy)
-        if policy is not None:
+                local_action_count = len(policy_env_info.actions.actions())
+                if local_action_count != action_count:
+                    raise ValueError(f"Action space mismatch: master={action_count}, rank={local_action_count}")
+
+                policy = arch.make_policy(policy_env_info).to(load_device)
+                if hasattr(policy, "initialize_to_environment"):
+                    policy.initialize_to_environment(policy_env_info, load_device)
+                missing, unexpected = policy.load_state_dict(state_dict, strict=True)
+                if missing or unexpected:
+                    raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+
+                if self._distributed.is_master():
+                    self._latest_policy_uri = normalized_uri
+                    logger.info("Loaded policy from %s", normalized_uri)
+                return policy
+
+        if candidate_uri:
+            artifact = load_mpt(candidate_uri)
+            policy = artifact.instantiate(policy_env_info, load_device)
+            self._latest_policy_uri = resolve_uri(candidate_uri)
+            logger.info("Loaded policy from %s", candidate_uri)
             return policy
 
         logger.info("Creating new policy for training run")
-        return self._policy_architecture.make_policy(game_rules)
+        return self._policy_architecture.make_policy(policy_env_info)
 
     def get_latest_policy_uri(self) -> Optional[str]:
-        """Return the most recent checkpoint URI tracked by this component."""
-        if self._latest_policy_uri:
-            return self._latest_policy_uri
-        return self._checkpoint_manager.get_latest_checkpoint()
+        return self._checkpoint_manager.get_latest_checkpoint() or self._latest_policy_uri
 
-    # ------------------------------------------------------------------
-    # Callback entry-points
-    # ------------------------------------------------------------------
-    def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
+    def on_epoch_end(self, epoch: int) -> None:
         if not self._distributed.should_checkpoint():
             return
-
         if epoch % self._config.epoch_interval != 0:
             return
-
         self._save_policy(epoch)
 
-    def on_training_complete(self) -> None:  # type: ignore[override]
+    def on_training_complete(self) -> None:
         if not self._distributed.should_checkpoint():
             return
-
         self._save_policy(self.context.epoch)
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
     def _policy_to_save(self) -> Policy:
         policy: Policy = self.context.policy
         if hasattr(policy, "module"):
-            return policy.module  # type: ignore[return-value]
+            return policy.module
         return policy
 
-    def _save_policy(self, epoch: int, *, force: bool = False) -> None:
+    def _save_policy(self, epoch: int) -> None:
         policy = self._policy_to_save()
-
-        uri = self._checkpoint_manager.save_agent(
-            policy,
-            epoch,
-            policy_architecture=self._policy_architecture,
+        uri = self._checkpoint_manager.save_policy_checkpoint(
+            state_dict=policy.state_dict(),
+            architecture=self._policy_architecture,
+            epoch=epoch,
         )
+
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
         try:
             self.context.latest_saved_policy_epoch = epoch
         except AttributeError:
             logger.debug("Component context missing latest_saved_policy_epoch attribute")
-        logger.debug("Policy checkpoint saved to %s", uri)

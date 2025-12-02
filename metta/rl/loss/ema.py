@@ -38,11 +38,7 @@ class EMAConfig(LossConfig):
 
 
 class EMA(Loss):
-    __slots__ = (
-        "target_model",
-        "ema_decay",
-        "ema_coef",
-    )
+    __slots__ = ("target_model",)
 
     def __init__(
         self,
@@ -58,8 +54,6 @@ class EMA(Loss):
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():
             param.requires_grad = False
-        self.ema_decay = self.cfg.decay
-        self.ema_coef = self.cfg.loss_coef
 
     def update_target_model(self):
         """Update target model with exponential moving average"""
@@ -67,7 +61,7 @@ class EMA(Loss):
             for target_param, online_param in zip(
                 self.target_model.parameters(), self.policy.parameters(), strict=False
             ):
-                target_param.data = self.ema_decay * target_param.data + (1 - self.ema_decay) * online_param.data
+                target_param.data = self.cfg.decay * target_param.data + (1 - self.cfg.decay) * online_param.data
 
     def run_train(
         self,
@@ -93,7 +87,7 @@ class EMA(Loss):
         shared_loss_data["EMA"]["pred"] = pred_flat.reshape(B, TT, -1)
         shared_loss_data["EMA"]["target_pred"] = target_pred_flat.reshape(B, TT, -1)
 
-        loss = F.mse_loss(pred_flat, target_pred_flat) * self.ema_coef
+        loss = F.mse_loss(pred_flat, target_pred_flat) * self.cfg.loss_coef
         self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
         return loss, shared_loss_data, False

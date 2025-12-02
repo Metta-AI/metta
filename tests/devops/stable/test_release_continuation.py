@@ -14,7 +14,7 @@ def test_resolve_version_starts_new_when_no_state(monkeypatch, tmp_path):
     """Test that resolve_version creates a new version when no state exists."""
     monkeypatch.setattr("devops.stable.state.get_repo_root", lambda: tmp_path)
 
-    from devops.stable.release_stable import resolve_version
+    from devops.stable.stable import resolve_version
 
     version = resolve_version(explicit=None, force_new=False)
     assert version.startswith("2025.")  # Should be current date
@@ -34,7 +34,7 @@ def test_resolve_version_continues_unreleased_state(monkeypatch, tmp_path):
     )
     save_state(state)
 
-    from devops.stable.release_stable import resolve_version
+    from devops.stable.stable import resolve_version
 
     version = resolve_version(explicit=None, force_new=False)
     assert version == "2025.10.09-143000"
@@ -53,7 +53,7 @@ def test_resolve_version_starts_new_when_previous_released(monkeypatch, tmp_path
     )
     save_state(state)
 
-    from devops.stable.release_stable import resolve_version
+    from devops.stable.stable import resolve_version
 
     version = resolve_version(explicit=None, force_new=False)
     assert version != "2025.10.09-143000"  # Should be a new version
@@ -64,7 +64,7 @@ def test_resolve_version_respects_explicit(monkeypatch, tmp_path):
     """Test that resolve_version uses explicit version when provided."""
     monkeypatch.setattr("devops.stable.state.get_repo_root", lambda: tmp_path)
 
-    from devops.stable.release_stable import resolve_version
+    from devops.stable.stable import resolve_version
 
     version = resolve_version(explicit="2025.01.01-1234", force_new=False)
     assert version == "2025.01.01-1234"
@@ -83,7 +83,7 @@ def test_resolve_version_respects_force_new(monkeypatch, tmp_path):
     )
     save_state(state)
 
-    from devops.stable.release_stable import resolve_version
+    from devops.stable.stable import resolve_version
 
     version = resolve_version(explicit=None, force_new=True)
     assert version != "2025.10.09-143000"  # Should be different
@@ -94,7 +94,7 @@ def test_step_prepare_tag_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
     """Test that step_prepare_tag skips when gate is already passed."""
     monkeypatch.setattr("devops.stable.state.get_repo_root", lambda: tmp_path)
 
-    from devops.stable.release_stable import step_prepare_tag
+    from devops.stable.stable import step_prepare_tag
 
     # Create state with completed prepare_tag gate
     state = ReleaseState(
@@ -124,7 +124,7 @@ def test_step_bug_check_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
     """Test that step_bug_check skips when gate is already passed."""
     monkeypatch.setattr("devops.stable.state.get_repo_root", lambda: tmp_path)
 
-    from devops.stable.release_stable import step_bug_check
+    from devops.stable.stable import step_bug_check
 
     # Create state with completed bug_check gate
     state = ReleaseState(
@@ -141,8 +141,8 @@ def test_step_bug_check_skips_when_gate_passed(monkeypatch, tmp_path, capsys):
     )
 
     # Mock RC commit verification and check_blockers
-    with patch("devops.stable.release_stable.verify_on_rc_commit", return_value="abc123"):
-        with patch("devops.stable.release_stable.check_blockers"):
+    with patch("devops.stable.stable.verify_on_rc_commit", return_value="abc123"):
+        with patch("devops.stable.stable.check_blockers"):
             step_bug_check(version="2025.10.09-143000", state=state)
 
     captured = capsys.readouterr()
@@ -153,7 +153,7 @@ def test_step_prepare_tag_marks_gate_when_complete(monkeypatch, tmp_path):
     """Test that step_prepare_tag marks the gate as passed when complete."""
     monkeypatch.setattr("devops.stable.state.get_repo_root", lambda: tmp_path)
 
-    from devops.stable.release_stable import step_prepare_tag
+    from devops.stable.stable import step_prepare_tag
 
     # Create state without gates
     state = ReleaseState(
@@ -179,7 +179,7 @@ def test_step_bug_check_marks_gate_when_complete(monkeypatch, tmp_path):
     """Test that step_bug_check marks the gate as passed when complete."""
     monkeypatch.setattr("devops.stable.state.get_repo_root", lambda: tmp_path)
 
-    from devops.stable.release_stable import step_bug_check
+    from devops.stable.stable import step_bug_check
 
     # Create state without gates
     state = ReleaseState(
@@ -189,8 +189,8 @@ def test_step_bug_check_marks_gate_when_complete(monkeypatch, tmp_path):
     )
 
     # Mock RC commit verification and check_blockers to return True (passed)
-    with patch("devops.stable.release_stable.verify_on_rc_commit", return_value="abc123"):
-        with patch("devops.stable.release_stable.check_blockers", return_value=True):
+    with patch("devops.stable.stable.verify_on_rc_commit", return_value="abc123"):
+        with patch("devops.stable.stable.check_blockers", return_value=True):
             step_bug_check(version="2025.10.09-143000", state=state)
 
     # Verify gate was added
@@ -205,19 +205,20 @@ def test_cmd_validate_runs_validation_pipeline(monkeypatch, tmp_path):
 
     from unittest.mock import MagicMock
 
-    from devops.stable.release_stable import cmd_validate
+    from devops.stable.stable import cmd_validate
 
-    # Create mock context with version and skip_commit_match
+    # Create mock context with version, skip_commit_match, and no_interactive
     mock_ctx = MagicMock()
     mock_ctx.obj = {
         "version": "2025.10.09-143000",
         "skip_commit_match": False,
+        "no_interactive": True,  # Tests should default to non-interactive
     }
 
     # Mock all the step functions
-    with patch("devops.stable.release_stable.step_prepare_tag") as mock_prepare:
-        with patch("devops.stable.release_stable.step_job_validation") as mock_job:
-            with patch("devops.stable.release_stable.step_summary") as mock_summary:
+    with patch("devops.stable.stable.step_prepare_tag") as mock_prepare:
+        with patch("devops.stable.stable.step_job_validation") as mock_job:
+            with patch("devops.stable.stable.step_summary") as mock_summary:
                 with patch("gitta.get_current_commit", return_value="abc123"):
                     cmd_validate(ctx=mock_ctx, job=None, retry=False)
 
@@ -237,19 +238,20 @@ def test_cmd_hotfix_skips_validation(monkeypatch, tmp_path):
 
     from unittest.mock import MagicMock
 
-    from devops.stable.release_stable import cmd_hotfix
+    from devops.stable.stable import cmd_hotfix
 
-    # Create mock context with version and skip_commit_match
+    # Create mock context with version, skip_commit_match, and no_interactive
     mock_ctx = MagicMock()
     mock_ctx.obj = {
         "version": "2025.10.09-143000",
         "skip_commit_match": False,
+        "no_interactive": True,  # Tests should default to non-interactive
     }
 
     # Mock all the step functions
-    with patch("devops.stable.release_stable.step_prepare_tag") as mock_prepare:
-        with patch("devops.stable.release_stable.step_job_validation") as mock_job:
-            with patch("devops.stable.release_stable.step_release") as mock_release:
+    with patch("devops.stable.stable.step_prepare_tag") as mock_prepare:
+        with patch("devops.stable.stable.step_job_validation") as mock_job:
+            with patch("devops.stable.stable.step_release") as mock_release:
                 with patch("gitta.get_current_commit", return_value="abc123"):
                     cmd_hotfix(ctx=mock_ctx)
 
@@ -260,27 +262,32 @@ def test_cmd_hotfix_skips_validation(monkeypatch, tmp_path):
 
 
 def test_cmd_release_runs_bug_check_and_release(monkeypatch, tmp_path):
-    """Test that cmd_release runs bug check then creates release."""
+    """Test that cmd_release runs full pipeline: prepare-tag -> validation -> bug check -> release."""
     monkeypatch.setattr("devops.stable.state.get_repo_root", lambda: tmp_path)
 
     from unittest.mock import MagicMock
 
-    from devops.stable.release_stable import cmd_release
+    from devops.stable.stable import cmd_release
 
-    # Create mock context with version and skip_commit_match
+    # Create mock context with version, skip_commit_match, and no_interactive
     mock_ctx = MagicMock()
     mock_ctx.obj = {
         "version": "2025.10.09-143000",
         "skip_commit_match": False,
+        "no_interactive": True,  # Tests should default to non-interactive
     }
 
-    # Mock the step functions
-    with patch("devops.stable.release_stable.step_bug_check") as mock_bug:
-        with patch("devops.stable.release_stable.step_release") as mock_release:
-            with patch("gitta.get_current_commit", return_value="abc123"):
-                cmd_release(ctx=mock_ctx)
+    # Mock all the step functions that cmd_release now calls
+    with patch("devops.stable.stable.step_prepare_tag") as mock_prepare:
+        with patch("devops.stable.stable.step_job_validation") as mock_validation:
+            with patch("devops.stable.stable.step_bug_check") as mock_bug:
+                with patch("devops.stable.stable.step_release") as mock_release:
+                    with patch("gitta.get_current_commit", return_value="abc123"):
+                        cmd_release(ctx=mock_ctx)
 
-    # Verify release pipeline: bug check then release
+    # Verify full release pipeline runs all steps
+    assert mock_prepare.called
+    assert mock_validation.called
     assert mock_bug.called
     assert mock_release.called
 
@@ -304,7 +311,7 @@ def test_continuation_skips_completed_steps(monkeypatch, tmp_path, capsys):
     state.gates.append(Gate(step="bug_check", passed=True, timestamp=datetime.now(UTC).isoformat()))
     save_state(state)
 
-    from devops.stable.release_stable import step_bug_check, step_prepare_tag
+    from devops.stable.stable import step_bug_check, step_prepare_tag
 
     # Mock git operations
     with patch("gitta.get_current_commit", return_value="abc123"):

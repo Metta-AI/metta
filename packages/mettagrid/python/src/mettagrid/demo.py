@@ -12,7 +12,7 @@ from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random import RandomMultiAgentPolicy
+from mettagrid.policy.random_agent import RandomMultiAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.rollout import Rollout
 
@@ -70,14 +70,14 @@ def main():
     # Define objects used in the map
     cfg.game.objects = {
         "wall": building.wall,
-        "altar": building.assembler_altar,
+        "assembler": building.assembler_assembler,
     }
 
     cfg.game.map_builder = RandomMapBuilder.Config(
         agents=args.agents,
         width=args.width,
         height=args.height,
-        objects={"wall": 10, "altar": 1},
+        objects={"wall": 10, "assembler": 1},
         border_width=1,
         border_object="wall",
     )

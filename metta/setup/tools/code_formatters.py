@@ -1,13 +1,24 @@
 import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Callable, Dict, Iterable, Optional, Sequence, Set
 
 import typer
 from pydantic import BaseModel
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 import gitta as git
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info, success
+
+
+@dataclass
+class FormatterResult:
+    success: bool
+    output: str = ""
+    processed_files: int = 0
 
 
 class FormatterConfig(BaseModel):
@@ -15,15 +26,16 @@ class FormatterConfig(BaseModel):
     format_cmds: tuple[tuple[str, ...], ...] = ()
     check_cmds: tuple[tuple[str, ...], ...] = ()
     extensions: tuple[str, ...] = ()
-    runner: Callable[[bool, set[str] | None], bool] | None = None
+    runner: Callable[[bool, set[str] | None], FormatterResult] | None = None
     accepts_file_args: bool = True
 
-    def run(self, fix: bool = False, files: set[str] | None = None) -> bool:
+    def run(self, fix: bool = False, files: set[str] | None = None) -> FormatterResult:
         if self.runner is not None:
             return self.runner(fix, files)
         commands = self.check_cmds if not fix else self.format_cmds
         if not commands:
-            return False
+            return FormatterResult(success=True, processed_files=len(files or []))
+        file_count = len(files or [])
         file_args = sorted(files) if files else []
         if file_args and not self.accepts_file_args:
             file_args = []
@@ -31,10 +43,20 @@ class FormatterConfig(BaseModel):
             cmd = list(base_cmd)
             if file_args:
                 cmd.extend(file_args)
-            result = subprocess.run(cmd, cwd=get_repo_root(), check=False)
+            result = subprocess.run(
+                cmd,
+                cwd=get_repo_root(),
+                check=False,
+                capture_output=True,
+                text=True,
+            )
             if result.returncode != 0:
-                return False
-        return True
+                return FormatterResult(
+                    success=False,
+                    output=result.stderr + result.stdout,
+                    processed_files=file_count,
+                )
+        return FormatterResult(success=True, processed_files=file_count)
 
 
 def _normalize_extensions(extensions: Sequence[str]) -> tuple[str, ...]:
@@ -104,34 +126,91 @@ def _collect_prettier_targets(
     return candidates
 
 
+def _format_progress_message(formatter_name: str, action: str, file_count: int, color: str) -> str:
+    return f"[{color}]{formatter_name} • {action} {file_count} file(s)[/]"
+
+
+def _make_cpp_runner() -> Callable[[bool, set[str] | None], FormatterResult]:
+    """Create a runner for C++ formatting using clang-format."""
+
+    def _runner(fix: bool, _files: set[str] | None) -> FormatterResult:
+        repo_root = get_repo_root()
+        mettagrid_dir = repo_root / "packages" / "mettagrid"
+
+        # Find all C/C++ files in the target directories
+        cpp_extensions = (".c", ".h", ".cpp", ".hpp")
+        target_dirs = ["cpp/src", "cpp/include", "tests", "benchmarks"]
+        cpp_files: list[str] = []
+
+        for target_dir in target_dirs:
+            dir_path = mettagrid_dir / target_dir
+            if not dir_path.exists():
+                continue
+            for ext in cpp_extensions:
+                cpp_files.extend(str(f) for f in dir_path.rglob(f"*{ext}"))
+
+        if not cpp_files:
+            return FormatterResult(success=True, processed_files=0)
+
+        if fix:
+            cmd = ["clang-format", "-i", "-style=file", *cpp_files]
+        else:
+            cmd = ["clang-format", "--dry-run", "--Werror", "-style=file", *cpp_files]
+
+        result = subprocess.run(
+            cmd,
+            cwd=mettagrid_dir,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            return FormatterResult(
+                success=False,
+                output=result.stderr + result.stdout,
+                processed_files=len(cpp_files),
+            )
+
+        return FormatterResult(success=True, processed_files=len(cpp_files))
+
+    return _runner
+
+
 def _make_prettier_runner(
     *,
-    formatter_name: str,
     extensions: Sequence[str],
     exclude_patterns: Sequence[str] = (),
-) -> Callable[[bool, set[str] | None], bool]:
-    def _runner(fix: bool, files: set[str] | None) -> bool:
+) -> Callable[[bool, set[str] | None], FormatterResult]:
+    def _runner(fix: bool, files: set[str] | None) -> FormatterResult:
         targets = _collect_prettier_targets(extensions, files, exclude_patterns)
 
         if not targets:
-            info(f"{formatter_name}: no matching files to process.")
-            return True
-
-        mode_arg = "--write" if fix else "--check"
-        action = "Formatting" if fix else "Checking"
-        info(f"{formatter_name}: {action.lower()} {len(targets)} files with Prettier...")
+            return FormatterResult(success=True, processed_files=0)
 
         def _chunked(items: Sequence[str], size: int) -> Iterable[Sequence[str]]:
             for start in range(0, len(items), size):
                 yield items[start : start + size]
 
+        mode_arg = "--write" if fix else "--check"
+        processed = len(targets)
         for chunk in _chunked(targets, 100):  # Prettier's default batch size is 100
             cmd = ["pnpm", "exec", "prettier", mode_arg, *chunk]
-            result = subprocess.run(cmd, cwd=get_repo_root(), check=False)
+            result = subprocess.run(
+                cmd,
+                cwd=get_repo_root(),
+                check=False,
+                capture_output=True,
+                text=True,
+            )
             if result.returncode != 0:
-                return False
+                return FormatterResult(
+                    success=False,
+                    output=result.stderr + result.stdout,
+                    processed_files=processed,
+                )
 
-        return True
+        return FormatterResult(success=True, processed_files=processed)
 
     return _runner
 
@@ -141,7 +220,7 @@ def get_formatters() -> dict[str, FormatterConfig]:
         f.name: f
         for f in [
             FormatterConfig(
-                name="Python (ruff)",
+                name="Python",
                 # --force-exclude makes these commands respect .ruffignore and ruff.toml's exclude section
                 format_cmds=(
                     ("uv", "run", "ruff", "check", "--fix", "--force-exclude"),
@@ -157,7 +236,6 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 name="JSON",
                 extensions=(".json", ".jsonc", ".code-workspace"),
                 runner=_make_prettier_runner(
-                    formatter_name="JSON",
                     extensions=(".json", ".jsonc", ".code-workspace"),
                     exclude_patterns=(
                         "/charts/",
@@ -170,7 +248,6 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 name="Markdown",
                 extensions=(".md",),
                 runner=_make_prettier_runner(
-                    formatter_name="Markdown",
                     extensions=(".md",),
                 ),
             ),
@@ -178,7 +255,6 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 name="Shell",
                 extensions=(".sh", ".bash"),
                 runner=_make_prettier_runner(
-                    formatter_name="Shell",
                     extensions=(".sh", ".bash"),
                 ),
             ),
@@ -186,7 +262,6 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 name="TOML",
                 extensions=(".toml",),
                 runner=_make_prettier_runner(
-                    formatter_name="TOML",
                     extensions=(".toml",),
                 ),
             ),
@@ -194,7 +269,6 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 name="YAML",
                 extensions=(".yaml", ".yml"),
                 runner=_make_prettier_runner(
-                    formatter_name="YAML",
                     extensions=(".yaml", ".yml"),
                     exclude_patterns=(
                         "/configs/",
@@ -206,10 +280,16 @@ def get_formatters() -> dict[str, FormatterConfig]:
             ),
             FormatterConfig(
                 name="C++",
-                format_cmds=(("make", "-C", "packages/mettagrid", "format-fix"),),
-                check_cmds=(("make", "-C", "packages/mettagrid", "format-check"),),
-                extensions=(".cpp", ".hpp", ".h"),
+                extensions=(".cpp", ".hpp", ".h", ".c"),
+                runner=_make_cpp_runner(),
                 accepts_file_args=False,
+            ),
+            FormatterConfig(
+                name="Javascript",
+                extensions=(".js", ".jsx", ".ts", ".tsx"),
+                runner=_make_prettier_runner(
+                    extensions=(".js", ".jsx", ".ts", ".tsx"),
+                ),
             ),
         ]
     }
@@ -226,6 +306,7 @@ def cmd_lint(
     files: Annotated[Optional[list[str]], typer.Argument()] = None,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Print total lint time")] = False,
 ):
     """Run linting and formatting on code files.
 
@@ -235,6 +316,8 @@ def cmd_lint(
         metta lint --staged --fix                      # Autofix staged files
         metta lint path/to/file1 path/to/file2 --fix   # Autofix specific files
     """
+    start_time = time.perf_counter()
+
     # Get available formatters
     formatters = get_formatters()
 
@@ -249,26 +332,69 @@ def cmd_lint(
                 files_by_formatter.setdefault(formatter_name, set()).add(f)
                 break
 
-    failed_formatters = []
-
     # Run formatters for each type
     if not files_by_formatter:
         info("No matching files to lint.")
+        if verbose:
+            elapsed = time.perf_counter() - start_time
+            info(f"Lint finished in {elapsed:.2f}s")
         return
 
-    formatter_order = files_by_formatter.keys()
-    for formatter_name in formatter_order:
-        formatter = formatters[formatter_name]
-        fs = files_by_formatter.get(formatter_name)
-        if fs is None or len(fs) == 0:
-            continue
-        info(f"{'Formatting' if fix else 'Checking'} {formatter.name} on {len(fs)} files...")
-        if not formatter.run(fix=fix, files=fs):
-            failed_formatters.append(formatter.name)
+    failed_formatters: list[tuple[str, str]] = []
+    columns = (
+        SpinnerColumn(style="cyan"),
+        TextColumn("{task.description}", justify="left"),
+    )
+
+    formatter_order = [name for name in formatters if name in files_by_formatter]
+    with Progress(*columns, transient=True) as progress:
+        with ThreadPoolExecutor(max_workers=len(formatter_order) or 1) as executor:
+            futures = {}
+            for formatter_name in formatter_order:
+                formatter = formatters[formatter_name]
+                fs = files_by_formatter.get(formatter_name)
+                if not fs:
+                    continue
+                action_word = "Formatting" if fix else "Checking"
+                file_count = len(fs)
+                in_progress_desc = _format_progress_message(formatter.name, action_word, file_count, "blue")
+                task_id = progress.add_task(in_progress_desc, total=None, start=True)
+                future = executor.submit(formatter.run, fix=fix, files=fs)
+                futures[future] = (formatter, task_id, file_count)
+
+            for future in as_completed(futures):
+                formatter, task_id, planned_count = futures[future]
+                try:
+                    result = future.result()
+                except Exception as exc:  # pragma: no cover - defensive guardrail
+                    result = FormatterResult(success=False, output=str(exc), processed_files=0)
+                processed = result.processed_files or planned_count
+                final_action = "Formatted" if fix else "Checked"
+                final_color = "green" if result.success else "red"
+                final_desc = _format_progress_message(formatter.name, final_action, processed, final_color)
+                progress.update(task_id, description=final_desc)
+                progress.stop_task(task_id)
+                if not result.success:
+                    failed_formatters.append((formatter.name, result.output))
 
     # Print summary
     if failed_formatters:
-        error(f"Linting/formatting failed for: {', '.join(failed_formatters)}")
+        error(f"Linting/formatting failed for: {', '.join(name for name, _ in failed_formatters)}")
+        for formatter_name, output in failed_formatters:
+            if output:
+                typer.echo(f"\n[{formatter_name} output]\n{output}\n")
         raise typer.Exit(1)
     else:
         success("All formatting complete")
+
+    if verbose:
+        elapsed = time.perf_counter() - start_time
+        info(f"Lint finished in {elapsed:.2f}s")
+
+
+def main() -> None:
+    app()
+
+
+if __name__ == "__main__":
+    main()

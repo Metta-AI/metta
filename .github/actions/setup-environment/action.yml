@@ -22,6 +22,7 @@ runs:
       run: |
         echo "${{ inputs.extra-dependencies }}" | sha256sum | cut -c1-16 > hash.txt
         echo "hash=$(cat hash.txt)" >> "$GITHUB_OUTPUT"
+        rm -f hash.txt
 
     - name: Install uv with built-in caching
       uses: astral-sh/setup-uv@v6
@@ -137,7 +138,7 @@ runs:
             # Install metta package with only the minimal dependencies needed for CLI
             # (typer, rich, pydantic, pyyaml, colorama, omegaconf, etc.)
             uv pip install -e . --no-deps
-            uv pip install typer rich pydantic pyyaml colorama omegaconf
+            uv pip install typer rich pydantic pyyaml colorama omegaconf skypilot sqlmodel
             # Install workspace packages that metta CLI imports (with their dependencies)
             uv pip install -e common
             uv pip install -e packages/gitta

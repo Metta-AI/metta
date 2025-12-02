@@ -1,5 +1,5 @@
 import
-  std/[os, json, tables],
+  std/[os, json, algorithm],
   fidget2,
   common, panels, replays
 
@@ -23,16 +23,8 @@ find "/UI/Main/**/ObjectInfo/OpenConfig":
           else:
             let objConfig = replay.mgConfig["game"]["objects"][typeName]
             objConfig.pretty
-    if not dirExists("tmp"):
-      createDir("tmp")
     let typeName = selection.typeName
-    writeFile("tmp/" & typeName & "_config.json", text)
-    when defined(windows):
-      discard execShellCmd("notepad tmp/" & typeName & "_config.json")
-    elif defined(macosx):
-      discard execShellCmd("open -a TextEdit tmp/" & typeName & "_config.json")
-    else:
-      discard execShellCmd("xdg-open tmp/" & typeName & "_config.json")
+    openTempTextFile(typeName & "_config.json", text)
 
 proc updateObjectInfo*() =
   ## Updates the object info panel to display the current selection.
@@ -74,12 +66,13 @@ proc updateObjectInfo*() =
   if selection.isAgent:
     addParam("Agent ID", $selection.agentId)
     addParam("Reward", $selection.totalReward.at)
+
     if replay.config.game.vibeNames.len > 0:
       let vibeId = selection.vibeId.at
-      if vibeId >= 0 and vibeId < replay.config.game.vibeNames.len:
-        let vibeName = replay.config.game.vibeNames[vibeId]
-        vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
-        vibeArea.show()
+      let vibeName = getVibeName(vibeId)
+
+      vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
+      vibeArea.show()
 
   if selection.cooldownRemaining.at > 0:
     addParam("Cooldown Remaining", $selection.cooldownRemaining.at)
@@ -103,11 +96,6 @@ proc updateObjectInfo*() =
     i.find("**/Amount").text = $itemAmount.count
     area.addChild(i)
 
-  proc resourceTableToSeq(table: Table[string, int]): seq[ItemAmount] =
-    ## Converts a resource table to a sequence of item amounts.
-    for name, count in table:
-      let itemId = replay.itemNames.find(name)
-      result.add(ItemAmount(itemId: itemId, count: count))
 
   proc addVibe(area: Node, vibe: string) =
     let v = item.copy()
@@ -121,28 +109,40 @@ proc updateObjectInfo*() =
     for itemAmount in selection.inventory.at:
       inventory.addResource(itemAmount)
 
-  proc addRecipe(
-    vibes: seq[string],
-    inputs: seq[ItemAmount],
-    outputs: seq[ItemAmount],
-  ) =
-    var recipeNode = recipe.copy()
-    for vibe in vibes:
-      recipeNode.find("**/Vibes").addVibe(vibe)
-    for resource in inputs:
-      recipeNode.find("**/Inputs").addResource(resource)
-    for resource in outputs:
-      recipeNode.find("**/Outputs").addResource(resource)
-    recipeArea.addChild(recipeNode)
+  proc getHeartCount(outputs: seq[ItemAmount], itemNames: seq[string]): int =
+    ## Returns total hearts produced by this protocol.
+    for output in outputs:
+      if output.itemId == 5:  # "heart" item
+        return output.count
+    return 0
 
-  for name, obj in replay.config.game.objects:
-    if name == selection.typeName:
-      for recipe in obj.recipes:
-        addRecipe(
-          recipe.pattern,
-          recipe.protocol.inputResources.resourceTableToSeq,
-          recipe.protocol.outputResources.resourceTableToSeq
-        )
+  proc addProtocol(protocol: Protocol) =
+    var protocolNode = recipe.copy()
+    for vibe in protocol.vibes:
+      protocolNode.find("**/Vibes").addVibe(vibe.getVibeName())
+    for resource in protocol.inputs:
+      protocolNode.find("**/Inputs").addResource(resource)
+    for resource in protocol.outputs:
+      protocolNode.find("**/Outputs").addResource(resource)
+    recipeArea.addChild(protocolNode)
+
+  # Sort protocols: heart-producing ones first (most hearts first), then others.
+  var sortedProtocols = selection.protocols
+  sortedProtocols.sort(proc(a, b: Protocol): int =
+    let aHearts = getHeartCount(a.outputs, replay.itemNames)
+    let bHearts = getHeartCount(b.outputs, replay.itemNames)
+
+    # non-heart recipes can go in any order after heart recipes.
+    if aHearts > 0 and bHearts == 0:
+      -1
+    elif aHearts == 0 and bHearts > 0:
+      1
+    else:
+      cmp(bHearts, aHearts)
+  )
+
+  for protocol in sortedProtocols:
+    addProtocol(protocol)
 
   x.position = vec2(0, 0)
   objectInfoPanel.node.removeChildren()

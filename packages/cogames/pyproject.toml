@@ -54,3 +54,13 @@ source = ["cogames"]
 
 [tool.uv.sources]
 mettagrid = { workspace = true }
+
+[tool.uv]
+cache-keys = [
+  { file = "src/cogames/policy/nim_agents/nim_agents.nim" },
+  { file = "src/cogames/policy/nim_agents/nim_agents.nims" },
+  { file = "src/cogames/policy/nim_agents/common.nim" },
+  { file = "src/cogames/policy/nim_agents/random_agents.nim" },
+  { file = "src/cogames/policy/nim_agents/thinky_agents.nim" },
+  { file = "src/cogames/policy/nim_agents/race_car_agents.nim" },
+]

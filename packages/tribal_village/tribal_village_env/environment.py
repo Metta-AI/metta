@@ -13,6 +13,10 @@ from gymnasium import spaces
 
 import pufferlib
 
+ACTION_VERB_COUNT = 7
+ACTION_ARGUMENT_COUNT = 8
+ACTION_SPACE_SIZE = ACTION_VERB_COUNT * ACTION_ARGUMENT_COUNT
+
 
 class TribalVillageEnv(pufferlib.PufferEnv):
     """
@@ -24,7 +28,7 @@ class TribalVillageEnv(pufferlib.PufferEnv):
 
     def __init__(self, config: Optional[Dict[str, Any]] = None, buf=None):
         self.config = config or {}
-        self.max_steps = self.config.get("max_steps", 512)
+        self.max_steps = self.config.get("max_steps", 1_000)
         self._render_mode = self.config.get("render_mode", "rgb_array")
 
         # Load the optimized Nim library - cross-platform
@@ -83,7 +87,7 @@ class TribalVillageEnv(pufferlib.PufferEnv):
             shape=(self.obs_layers, self.obs_width, self.obs_height),
             dtype=np.uint8,
         )
-        self.single_action_space = spaces.MultiDiscrete([9, 8], dtype=np.int32)
+        self.single_action_space = spaces.Discrete(ACTION_SPACE_SIZE)
         self.is_continuous = False
 
         super().__init__(buf)
@@ -100,7 +104,7 @@ class TribalVillageEnv(pufferlib.PufferEnv):
         self.rewards: np.ndarray
 
         # Only allocate actions buffer (input to environment)
-        self.actions_buffer = np.zeros((self.total_agents, 2), dtype=np.uint8)
+        self.actions_buffer = np.zeros(self.total_agents, dtype=np.uint8)
 
         # Initialize environment
         self.env_ptr = self.lib.tribal_village_create()
@@ -254,9 +258,10 @@ class TribalVillageEnv(pufferlib.PufferEnv):
         for i in range(self.num_agents):
             agent_key = f"agent_{i}"
             if agent_key in actions:
-                action = actions[agent_key]
-                self.actions_buffer[i, 0] = np.uint8(action[0])  # Convert int32 -> uint8 for Nim
-                self.actions_buffer[i, 1] = np.uint8(action[1])
+                action_value = int(np.asarray(actions[agent_key]).reshape(()))
+                if action_value < 0 or action_value >= self.single_action_space.n:
+                    action_value = 0
+                self.actions_buffer[i] = np.uint8(action_value)
 
         # Get PufferLib managed buffer pointers
         actions_ptr = self.actions_buffer.ctypes.data_as(ctypes.c_void_p)

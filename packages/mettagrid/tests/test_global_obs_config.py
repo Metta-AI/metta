@@ -25,11 +25,9 @@ def create_test_sim(global_obs_config: dict[str, bool]) -> Simulation:
         max_steps=100,
         resource_names=["item1", "item2"],
         global_obs=GlobalObsConfig(**global_obs_config),
-        agent=AgentConfig(
-            default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
-        ),
+        agent=AgentConfig(default_resource_limit=10, freeze_duration=0, rewards=AgentRewards()),
         actions=ActionsConfig(noop=NoopActionConfig(enabled=True), move=MoveActionConfig(enabled=True)),
-        objects={"wall": WallConfig(swappable=False)},
+        objects={"wall": WallConfig()},
     )
 
     game_map = [
@@ -127,11 +125,9 @@ def test_global_obs_default_values():
         max_steps=100,
         resource_names=["item1"],
         # No global_obs specified - should use defaults
-        agent=AgentConfig(
-            default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
-        ),
+        agent=AgentConfig(default_resource_limit=10, freeze_duration=0, rewards=AgentRewards()),
         actions=ActionsConfig(noop=NoopActionConfig(enabled=True)),
-        objects={"wall": WallConfig(swappable=False)},
+        objects={"wall": WallConfig()},
     )
 
     game_map = [["agent.agent"]]
@@ -161,7 +157,7 @@ def test_compass_toggle():
     enabled_sim = create_test_sim(
         {"episode_completion_pct": False, "last_action": False, "last_reward": False, "compass": True}
     )
-    compass_feature_id = enabled_sim.config.id_map().feature_id("agent:compass")
+    compass_feature_id = enabled_sim.config.game.id_map().feature_id("agent:compass")
 
     enabled_obs = enabled_sim._c_sim.observations()
     compass_counts = [

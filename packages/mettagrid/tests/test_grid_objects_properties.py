@@ -38,12 +38,12 @@ def sim_with_assembler():
             objects={
                 "wall": WallConfig(),
                 "assembler": AssemblerConfig(
+                    name="assembler",
                     protocols=[
                         ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20)
                     ],
                     max_uses=10,
                     allow_partial_usage=True,
-                    exhaustion=0.1,
                 ),
             },
             map_builder=RandomMapBuilder.Config(
@@ -189,14 +189,11 @@ class TestAssemblerProperties:
             # Check basic properties exist
             assert "cooldown_remaining" in assembler
             assert "cooldown_duration" in assembler
-            assert "cooldown_progress" in assembler
             assert "is_clipped" in assembler
             assert "is_clip_immune" in assembler
             assert "uses_count" in assembler
             assert "max_uses" in assembler
             assert "allow_partial_usage" in assembler
-            assert "exhaustion" in assembler
-            assert "cooldown_multiplier" in assembler
 
             # Check initial values
             assert assembler["cooldown_remaining"] == 0, "Should start with no cooldown"
@@ -204,8 +201,6 @@ class TestAssemblerProperties:
             assert assembler["uses_count"] == 0, "Should start with zero uses"
             assert assembler["max_uses"] == 10, "Max uses should match config"
             assert assembler["allow_partial_usage"] is True, "Should match config"
-            assert assembler["exhaustion"] == pytest.approx(0.1), "Exhaustion should match config"
-            assert assembler["cooldown_multiplier"] == pytest.approx(1.0), "Should start at 1.0"
 
     def test_assembler_current_protocol(self, sim_with_assembler):
         """Test that current protocol is exposed."""

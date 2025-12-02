@@ -63,7 +63,9 @@ def _():
     )
 
     # Comment one of these out, uncomment the other.
-    client = ScorecardClient()  # production: https://api.observatory.softmax-research.net
+    client = (
+        ScorecardClient()
+    )  # production: https://api.observatory.softmax-research.net
     # client = ScorecardClient(backend_url="http://localhost:8000")  # development
 
     print("🎯 Eval Finder Widget imported successfully!")
@@ -134,7 +136,9 @@ async def _(client):
             all_policies = policies_response.policies
 
             # Separate training runs and run-free policies
-            training_run_policies = [p for p in all_policies if p.type == "training_run"]
+            training_run_policies = [
+                p for p in all_policies if p.type == "training_run"
+            ]
             run_free_policies = [p for p in all_policies if p.type == "policy"]
 
             print(
@@ -180,7 +184,9 @@ def _(mo, run_free_policies, training_run_policies):
 
     # Policy selection UI
     policy_selector = mo.ui.multiselect(
-        options={p.name: p.id for p in (training_run_policies + run_free_policies)[:1000]},  # Limit for UI performance
+        options={
+            p.name: p.id for p in (training_run_policies + run_free_policies)[:1000]
+        },  # Limit for UI performance
         value=[],
         label="Select policies/training runs:",
         max_selections=64,
@@ -257,9 +263,7 @@ def _(
 
         print(f"📊 Loaded {len(eval_data['evaluations'])} evaluations")
 
-        data_status = (
-            f"✅ Loaded {len(eval_data['evaluations'])} evaluations for {len(policy_selector.value)} selected policies"
-        )
+        data_status = f"✅ Loaded {len(eval_data['evaluations'])} evaluations for {len(policy_selector.value)} selected policies"
 
     except Exception as e:
         print(f"⚠️ Could not fetch live data: {e}")
@@ -296,7 +300,9 @@ def _(mo, mo_eval_finder):
                 mo.md(f"**Selection:** {len(selection)} evaluations"),
                 mo.md(f"Selected: {', '.join(selection)}"),
                 mo.callout(
-                    mo.md("*This cell automatically updates when you change selections!*"),
+                    mo.md(
+                        "*This cell automatically updates when you change selections!*"
+                    ),
                     kind="success",
                 ),
             ]
@@ -348,7 +354,9 @@ async def _(
 
     # Find the names of the selected policies
     all_policies = training_run_policies + run_free_policies
-    selected_policy_names = [policy.name for policy in all_policies if policy.id in selected_policy_ids]
+    selected_policy_names = [
+        policy.name for policy in all_policies if policy.id in selected_policy_ids
+    ]
 
     # Access selected_evals from the widget's value (now properly synced with anywidget/react)
     selected_evals = mo_eval_finder.selected_evals
@@ -399,7 +407,9 @@ def _(eval_finder):
     def on_selection_changed(event):
         selected_evals = event.get("selected_evals", [])
         if selected_evals:
-            print(f"   Selected: {', '.join(selected_evals[:3])}{'...' if len(selected_evals) > 3 else ''}")
+            print(
+                f"   Selected: {', '.join(selected_evals[:3])}{'...' if len(selected_evals) > 3 else ''}"
+            )
 
     eval_finder.on_selection_changed(on_selection_changed)
 

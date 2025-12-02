@@ -568,17 +568,28 @@ uv run cogames play --mission evals.go_together --cogs 4 --difficulty standard
 
 ```bash
 # Evaluate a single agent on all missions and difficulties
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+uv run python packages/cogames/scripts/run_evaluation.py \
   --agent simple \
   --steps 1000 \
   --output eval_simple.json
 
 # Evaluate with specific difficulty filter
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+uv run python packages/cogames/scripts/run_evaluation.py \
   --agent coordinating \
   --difficulties clipped_oxygen clipped_silicon \
   --steps 1000 \
   --output eval_coordinating_clipped.json
+```
+
+### Spanning Eval Suite (Integrated Evals)
+
+```bash
+# Evaluate a policy on the integrated eval suite (spanning evals)
+uv run python packages/cogames/scripts/run_evaluation.py \
+  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
+  --mission-set integrated_evals \
+  --cogs 4 \
+  --repeats 2
 ```
 
 ### Testing Specific Scenarios
@@ -656,6 +667,43 @@ To add a new difficulty variant:
 1. Create a new `DifficultyLevel` in `difficulty_variants.py`
 2. Define overrides/multipliers for extractors, energy, and special mechanics
 3. Document in this README with challenge description and use cases
+
+---
+
+## Integrated Evals
+
+A curated set in `integrated_eval.py` balances “scorable” baselines with room to improve. It uses the procedural
+`HELLO_WORLD` site and combines shaping variants (e.g., compass, caps, reward shaping) with constraints (e.g.,
+bottlenecks, energy pressure, single-use) to avoid common zero-score failure modes.
+
+Included missions (variants shown):
+
+- oxygen_bottleneck: EmptyBase(missing=[oxygen_extractor]), ResourceBottleneck([oxygen]),
+  SingleResourceUniform(oxygen_extractor), NeutralFaced, PackRat
+- energy_starved: EmptyBase, DarkSide, NeutralFaced, PackRat
+- distant_resources: EmptyBase, Compass, DistantResources
+- quadrant_buildings: EmptyBase, QuadrantBuildings, Compass, NeutralFaced
+- single_use_swarm: EmptyBase, SingleUseSwarm, Compass, PackRat
+- vibe_check: HeartChorus, VibeCheckMin2
+
+Why these choices:
+
+- **Scorable**: Agents commonly achieve >0 reward under time limits without trivializing the task.
+- **Headroom**: Bottlenecks, distance, and single-use still require coordination and planning to approach ceiling
+  scores.
+- **Signal**: Reward shaping on vibe tasks and inventory/compass guidance produce informative learning signals.
+
+Run the set:
+
+```bash
+uv run python packages/cogames/scripts/run_evaluation.py \
+  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
+  --mission-set integrated_evals \
+  --cogs 4 \
+  --repeats 2
+```
+
+Tip: For quick CI smoke tests, restrict `--experiments` to a small subset of missions.
 
 ---
 

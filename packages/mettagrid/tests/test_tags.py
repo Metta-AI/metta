@@ -128,7 +128,7 @@ class TestTags:
         assert len(wall_locations) > 0, "Should find walls in observation"
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.id_map.feature_id("tag")
+        tag_feature_id = sim.config.game.id_map().feature_id("tag")
 
         # Check for tag features in observation (not restricted to location)
         tag_features = [token[2] for token in agent0_obs if token[1] == tag_feature_id]
@@ -148,7 +148,7 @@ class TestTags:
         expected_tag_ids = [0, 1]  # 0, 1
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.id_map.feature_id("tag")
+        tag_feature_id = sim.config.game.id_map().feature_id("tag")
 
         # Find tag features in observation
         found_tags = {token[2] for token in agent0_obs if token[1] == tag_feature_id}
@@ -191,7 +191,7 @@ class TestTags:
         agent_obs = obs[0]
 
         # Get tag feature ID from environment
-        tag_feature_id = env.id_map.feature_id("tag")
+        tag_feature_id = env.config.game.id_map().feature_id("tag")
 
         # Find wall locations from map data
         wall_locations = _positions_with_char(env, "#")
@@ -216,7 +216,7 @@ class TestTags:
         shared_tag_id = 1  # "shared_tag" should be ID 1
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.id_map.feature_id("tag")
+        tag_feature_id = sim.config.game.id_map().feature_id("tag")
 
         # Find wall and agent locations
         wall_locations = _positions_with_char(sim, "#")
@@ -268,7 +268,7 @@ class TestTags:
         agent_obs = obs[0]
 
         # Get tag feature ID from environment
-        tag_feature_id = env.id_map.feature_id("tag")
+        tag_feature_id = env.config.game.id_map().feature_id("tag")
 
         # Find wall locations from map data
         wall_locations = _positions_with_char(env, "#")
@@ -281,9 +281,6 @@ class TestTags:
 
         # Should find all 10 tags (IDs 0-9 for sorted tags)
         assert len(tag_ids_found) == 10, f"Should find all 10 tags, found {len(tag_ids_found)}"
-        # Tag IDs should be consecutive starting from 0
-        expected_ids = set(range(0, 10))
-        assert tag_ids_found == expected_ids, f"Tag IDs should be {expected_ids}, got {tag_ids_found}"
 
     def test_tag_id_mapping(self):
         """Test that tag names are consistently mapped to IDs."""
@@ -341,7 +338,9 @@ class TestTags:
         assert obs2 is not None
 
         # Get tag feature ID from environment
-        tag_feature_id = env1.config.id_map().feature_id("tag")
+        tag_feature_id = env1.config.game.id_map().feature_id("tag")
+        alpha_tag_value = env1.config.game.id_map().tag_names().index("alpha")
+        beta_tag_value = env1.config.game.id_map().tag_names().index("beta")
 
         # Extract tag IDs from both environments
         def get_wall_tag_ids(sim, obs):
@@ -361,7 +360,9 @@ class TestTags:
         assert len(tags1) == 2, f"Should have 2 tag IDs, got {len(tags1)}"
         # Tag IDs should be consecutive starting from 0
         # "alpha" < "beta" alphabetically, so alpha=0, beta=1
-        assert tags1 == {0, 1}, f"Expected tag IDs {{0, 1}}, got {tags1}"
+        assert tags1 == {alpha_tag_value, beta_tag_value}, (
+            f"Expected tag IDs {{alpha_tag_value, beta_tag_value}}, got {tags1}"
+        )
 
     def test_assembler_with_tags(self):
         """Test that assembler objects can have tags."""
@@ -373,6 +374,7 @@ class TestTags:
                 actions=ActionsConfig(noop=NoopActionConfig()),
                 objects={
                     "assembler": AssemblerConfig(
+                        name="assembler",
                         protocols=[
                             ProtocolConfig(input_resources={"wood": 1}, output_resources={"coal": 1}, cooldown=5)
                         ],
@@ -398,7 +400,7 @@ class TestTags:
         obs = sim._c_sim.observations()
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.id_map.feature_id("tag")
+        tag_feature_id = sim.config.game.id_map().feature_id("tag")
 
         assert obs is not None
 
@@ -415,9 +417,9 @@ class TestTags:
                 wall_tag_ids.add(token[2])  # token[2] contains the tag ID
 
         # Walls should have the "solid" tag present in the tag mapping
-        id_map = sim.id_map
+        id_map = sim.config.game.id_map()
         tag_values = id_map.tag_names()
-        assert any(name == "solid" for name in tag_values.values()), "Expected 'solid' in tag mapping"
+        assert "solid" in tag_values, "Expected 'solid' in tag mapping"
 
     def test_agent_with_tags(self):
         """Test that agents can have tags."""
@@ -447,7 +449,7 @@ class TestTags:
         obs = env._c_sim.observations()
 
         # Get tag feature ID from environment
-        tag_feature_id = env.id_map.feature_id("tag")
+        tag_feature_id = env.config.game.id_map().feature_id("tag")
 
         assert obs is not None
         assert len(obs) == 2  # Two agents
@@ -606,7 +608,7 @@ def test_default_agent_tags_preserved():
     assert len(obs) == 2  # Two default agents
 
     # Get tag feature ID from environment
-    tag_feature_id = env.config.id_map().feature_id("tag")
+    tag_feature_id = env.config.game.id_map().feature_id("tag")
 
     # Check both agents have the default tags
     for agent_idx in range(2):
@@ -653,11 +655,14 @@ def test_tag_mapping_in_id_map():
             objects={
                 "wall": WallConfig(tags=["solid", "blocking"]),
                 "assembler": AssemblerConfig(
+                    name="assembler",
                     protocols=[ProtocolConfig(input_resources={"wood": 1}, output_resources={"coal": 1}, cooldown=5)],
                     max_uses=10,
                     tags=["machine", "industrial"],
                 ),
             },
+            # It's weird we have both of these! But we do.
+            agent=AgentConfig(tags=["default_agent"]),
             agents=[
                 AgentConfig(tags=["player", "mobile"]),
             ],
@@ -674,7 +679,7 @@ def test_tag_mapping_in_id_map():
     )
 
     sim = Simulation(cfg)
-    id_map = sim.id_map
+    id_map = sim.config.game.id_map()
 
     # Check that tag feature exists
     tag_feature_id = id_map.feature_id("tag")
@@ -682,16 +687,16 @@ def test_tag_mapping_in_id_map():
 
     # Check tag mapping contents
     tag_values = id_map.tag_names()
-    assert isinstance(tag_values, dict), "tag values should be a dict mapping tag_id -> tag_name"
+    assert isinstance(tag_values, list), "tag values should be a list of tag names"
 
     # All unique tags sorted: ["blocking", "industrial", "machine", "mobile", "player", "solid"]
-    # IDs should be 0-5
-    expected_tags = ["blocking", "industrial", "machine", "mobile", "player", "solid"]
+    # IDs correspond to list indices (0-5)
+    expected_tags = ["blocking", "default_agent", "industrial", "machine", "mobile", "player", "solid"]
     assert len(tag_values) == len(expected_tags), f"Should have {len(expected_tags)} tags, got {len(tag_values)}"
 
-    # Verify tags are sorted alphabetically with correct IDs
+    # Verify tags are sorted alphabetically with correct IDs (indices)
     for i, expected_tag in enumerate(expected_tags):
-        assert i in tag_values, f"Tag ID {i} should be in mapping"
+        assert i < len(tag_values), f"Tag ID {i} should be in mapping"
         assert tag_values[i] == expected_tag, f"Tag ID {i} should be '{expected_tag}', got '{tag_values[i]}'"
 
 
@@ -722,7 +727,7 @@ def test_tag_mapping_empty_tags():
     )
 
     env = Simulation(cfg)
-    id_map = env.id_map
+    id_map = env.config.game.id_map()
 
     # Check that tag feature exists
     tag_feature_id = id_map.feature_id("tag")
@@ -730,5 +735,5 @@ def test_tag_mapping_empty_tags():
 
     # Now expect mapping to include the default 'wall' tag
     tag_values = id_map.tag_names()
-    assert isinstance(tag_values, dict)
-    assert any(name == "wall" for name in tag_values.values()), "Expected default 'wall' tag"
+    assert isinstance(tag_values, list)
+    assert "wall" in tag_values, f"Expected default 'wall' tag. Got {tag_values}"

@@ -87,7 +87,7 @@ class TestObservations:
         obs_half_height = basic_sim.config.game.obs.height // 2
         obs_half_width = basic_sim.config.game.obs.width // 2
         global_token_location = PackedCoordinate.pack(obs_half_height, obs_half_width)
-        compass_feature_id = basic_sim.config.id_map().feature_id("agent:compass")
+        compass_feature_id = basic_sim.config.game.id_map().feature_id("agent:compass")
         helper = ObservationHelper()
 
         # Map agent_id -> (row, col)
@@ -131,10 +131,10 @@ class TestObservations:
     def test_detailed_wall_observations(self, basic_sim):
         """Test detailed wall observations for both agents."""
         obs = basic_sim._c_sim.observations()
-        tag_feature_id = basic_sim.config.id_map().feature_id("tag")
+        tag_feature_id = basic_sim.config.game.id_map().feature_id("tag")
         # Find tag id for 'wall'
-        tag_id_map = basic_sim.config.id_map().tag_names()  # id -> name
-        wall_tag_id = next(i for i, name in tag_id_map.items() if name == "wall")
+        tag_names_list = basic_sim.config.game.id_map().tag_names()  # list of tag names, sorted alphabetically
+        wall_tag_id = next(i for i, name in enumerate(tag_names_list) if name == "wall")
         helper = ObservationHelper()
 
         # The environment creates a 4x8 grid (height=4, width=8):
@@ -260,9 +260,9 @@ class TestGlobalTokens:
     def test_initial_global_tokens(self, basic_sim):
         """Test initial global token values."""
         obs = basic_sim._c_sim.observations()
-        episode_completion_pct_feature_id = basic_sim.config.id_map().feature_id("episode_completion_pct")
-        last_action_feature_id = basic_sim.config.id_map().feature_id("last_action")
-        last_reward_feature_id = basic_sim.config.id_map().feature_id("last_reward")
+        episode_completion_pct_feature_id = basic_sim.config.game.id_map().feature_id("episode_completion_pct")
+        last_action_feature_id = basic_sim.config.game.id_map().feature_id("last_action")
+        last_reward_feature_id = basic_sim.config.game.id_map().feature_id("last_reward")
         helper = ObservationHelper()
 
         # Global tokens are at the center of the observation window
@@ -303,8 +303,8 @@ class TestGlobalTokens:
             )
         )
         env = Simulation(cfg)
-        episode_completion_pct_feature_id = env.config.id_map().feature_id("episode_completion_pct")
-        last_action_feature_id = env.config.id_map().feature_id("last_action")
+        episode_completion_pct_feature_id = env.config.game.id_map().feature_id("episode_completion_pct")
+        last_action_feature_id = env.config.game.id_map().feature_id("last_action")
         obs = env._c_sim.observations()
         helper = ObservationHelper()
 
@@ -319,7 +319,7 @@ class TestGlobalTokens:
         obs = env._c_sim.observations()
 
         # Check episode completion updated (1/10 = 10%)
-        expected_completion = int(round(0.1 * 255))
+        expected_completion = int(0.1 * 256)
         completion_values = helper.find_token_values(
             obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
         )
@@ -346,6 +346,17 @@ class TestGlobalTokens:
 
         last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id)
         assert last_action == env.action_names.index("move_south"), f"Expected move_south action, got {last_action}"
+
+        # take a bunch more steps and check episode completion.
+        for _ in range(15):
+            env.step()
+        expected_completion = 255
+        completion_values = helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
+        )
+        assert completion_values == [expected_completion], (
+            f"Expected completion {expected_completion}, got {completion_values}"
+        )
 
     def test_vibe_signaling(self):
         """Test that agents can signal using vibes and observe each other's vibes."""
@@ -382,7 +393,7 @@ class TestGlobalTokens:
             )
         )
         sim = Simulation(cfg)
-        vibe_feature_id = sim.id_map.feature_id("vibe")
+        vibe_feature_id = sim.config.game.id_map().feature_id("vibe")
 
         obs = sim._c_sim.observations()
 
@@ -488,9 +499,9 @@ class TestEdgeObservations:
             )
         )
         sim = Simulation(cfg)
-        tag_feature_id = sim.config.id_map().feature_id("tag")
-        tag_id_map = sim.config.id_map().tag_names()
-        wall_tag_id = next(i for i, name in tag_id_map.items() if name == "wall")
+        tag_feature_id = sim.config.game.id_map().feature_id("tag")
+        tag_names_list = sim.config.game.id_map().tag_names()
+        wall_tag_id = tag_names_list.index("wall")
 
         obs = sim._c_sim.observations()
 

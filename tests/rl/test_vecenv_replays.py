@@ -1,7 +1,7 @@
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, SingleTaskGenerator
 from metta.rl.vecenv import make_env_func
-from metta.sim.replay_log_writer import ReplayLogWriter
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 
 
 def test_make_env_func_creates_replay_writer(tmp_path):

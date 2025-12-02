@@ -70,9 +70,20 @@ class ContextCheckpointer(TrainerComponent):
         optimizer_state = payload.get("optimizer_state")
         context.state.optimizer_state = optimizer_state
         if optimizer_state:
+            # Defensive: skip restore if saved param groups lack keys the current optimizer expects.
+            cg, sg = context.optimizer.param_groups, optimizer_state.get("param_groups", [])
+            if cg:
+                req = set(cg[0])
+                valid = bool(sg) and not any(req - set(g) for g in sg)
+                if not valid:
+                    logger.warning("Checkpoint optimizer state missing param_group keys %s; skipping restore.", req)
+                    optimizer_state = None
+                    context.state.optimizer_state = None
+
             try:
-                context.optimizer.load_state_dict(optimizer_state)
-            except ValueError as exc:  # pragma: no cover - mismatch rare but we log it
+                if optimizer_state:
+                    context.optimizer.load_state_dict(optimizer_state)
+            except (ValueError, KeyError) as exc:  # pragma: no cover - mismatch rare but we log it
                 logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
             finally:
                 # Drop reference to the restored state to avoid retaining GPU buffers

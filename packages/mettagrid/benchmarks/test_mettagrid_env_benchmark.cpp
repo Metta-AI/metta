@@ -36,18 +36,17 @@ static std::unique_ptr<py::scoped_interpreter> g_python_guard;
 GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::vector<std::string> resource_names = {"ore", "heart"};
 
-  std::shared_ptr<ActionConfig> action_cfg =
-      std::make_shared<ActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                     std::unordered_map<InventoryItem, InventoryProbability>());
+  std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
+      std::unordered_map<InventoryItem, InventoryQuantity>(), std::unordered_map<InventoryItem, InventoryQuantity>());
 
   std::shared_ptr<AttackActionConfig> attack_cfg =
       std::make_shared<AttackActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                           std::unordered_map<InventoryItem, InventoryProbability>(),
+                                           std::unordered_map<InventoryItem, InventoryQuantity>(),
                                            std::unordered_map<InventoryItem, InventoryQuantity>());
 
   std::shared_ptr<ChangeVibeActionConfig> change_vibe_cfg =
       std::make_shared<ChangeVibeActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
-                                               std::unordered_map<InventoryItem, InventoryProbability>(),
+                                               std::unordered_map<InventoryItem, InventoryQuantity>(),
                                                4);
 
   // GameConfig expects an unordered_map for actions
@@ -57,7 +56,6 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   actions_cfg["move"] = action_cfg;
   actions_cfg["rotate"] = action_cfg;
   actions_cfg["attack"] = attack_cfg;
-  actions_cfg["swap"] = action_cfg;
   actions_cfg["change_vibe"] = change_vibe_cfg;
 
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
@@ -89,9 +87,7 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                     feature_ids,
                     actions_cfg,
                     objects_cfg,
-                    0.0f,
                     tag_id_map,
-                    false,
                     false,
                     std::unordered_map<std::string, float>(),
                     0,
@@ -136,6 +132,7 @@ py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
 
 // Utility function to generate valid random actions
 // Based on CreateBenchmarkConfig: noop=1, move=4, rotate=4, attack=1, swap=1, change_vibe=1
+// Note that rotate and swap no longer exist, so the actions taken below might be meaningless.
 // Total: 12 actions
 py::array_t<int> GenerateValidRandomActions(size_t num_agents, std::mt19937* gen) {
   const size_t num_flat_actions = 12;  // Hardcoded based on benchmark config

@@ -10,9 +10,6 @@ from pathlib import Path
 import pytest
 
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
-from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -34,7 +31,7 @@ class TestBasicPolicyEnvironment:
     def env_with_config(self, simple_env_config):
         """Create PufferMettaGridEnv from config."""
         simulator = Simulator()
-        env_supervisor_cfg = EnvSupervisorConfig(enabled=False)
+        env_supervisor_cfg = EnvSupervisorConfig()
         env = PufferMettaGridEnv(simulator, simple_env_config, env_supervisor_cfg)
         try:
             yield env
@@ -44,7 +41,7 @@ class TestBasicPolicyEnvironment:
     def test_basic_environment_creation(self, simple_env_config):
         """Test that we can create environments programmatically."""
         assert simple_env_config.game.num_agents == 2
-        assert "altar" in simple_env_config.game.objects
+        assert "assembler" in simple_env_config.game.objects
         assert simple_env_config.game.actions.move is not None
 
     def test_environment_reset_and_step(self, env_with_config):
@@ -97,7 +94,7 @@ class TestBasicPolicyEnvironment:
                 "uv",
                 "run",
                 "./tools/run.py",
-                "experiments.recipes.arena.train",
+                "recipes.experiment.arena.train",
                 f"run={run_name}",
                 "trainer.total_timesteps=100",  # Very minimal training
                 "wandb=off",
@@ -118,32 +115,9 @@ class TestBasicPolicyEnvironment:
 
         assert captured_runs, "Training command was not invoked"
         train_cmd, kwargs = captured_runs[0]
-        assert train_cmd[:4] == ["uv", "run", "./tools/run.py", "experiments.recipes.arena.train"]
+        assert train_cmd[:4] == ["uv", "run", "./tools/run.py", "recipes.experiment.arena.train"]
         assert kwargs["cwd"] == Path.cwd()
         assert kwargs["env"]["AWS_ACCESS_KEY_ID"] == "dummy_for_test"
-
-    def test_simulation_creation(self, monkeypatch):
-        """Test simulation configuration creation and instantiation."""
-
-        env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(suite="test", name="test_nav", env=env_config)
-
-        assert sim_config.name == "test_nav"
-        assert sim_config.env.game.num_agents == 2
-
-        def _small_curriculum(cls, mg_config):
-            return CurriculumConfig(
-                task_generator=SingleTaskGenerator.Config(env=mg_config),
-                num_active_tasks=1,
-                max_task_id=1,
-            )
-
-        monkeypatch.setattr(CurriculumConfig, "from_mg", classmethod(_small_curriculum))
-        simulation = Simulation.create(
-            sim_config=sim_config,
-            policy_uri=None,
-        )
-        assert simulation.full_name == "test/test_nav"
 
     def test_eval_tool_config_with_policy_uri(self):
         """Test that EvaluateTool accepts policy URIs."""
@@ -151,7 +125,7 @@ class TestBasicPolicyEnvironment:
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
 
-        eval_tool = EvaluateTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
+        eval_tool = EvaluateTool(simulations=[sim_config], policy_uris=["mock://test_policy"])
 
         assert eval_tool.simulations[0].name == "test_arena"
         assert eval_tool.policy_uris == ["mock://test_policy"]

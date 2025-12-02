@@ -43,25 +43,29 @@ class AgentRewards(Config):
     stats_max: dict[str, float] = Field(default_factory=dict)
 
 
+class ResourceLimitsConfig(Config):
+    """Resource limits configuration."""
+
+    limit: int
+    resources: list[str]
+
+
+# TODO: this should probably subclass GridObjectConfig
 class AgentConfig(Config):
     """Python agent configuration."""
 
     default_resource_limit: int = Field(default=255, ge=0)
-    resource_limits: dict[str | tuple[str, ...], int] = Field(
+    resource_limits: dict[str, ResourceLimitsConfig] = Field(
         default_factory=dict,
-        description="Resource limits - keys can be single resource names or tuples of names for shared limits",
+        description="Resource limits for this agent",
     )
-    freeze_duration: int = Field(default=10, ge=-1)
     rewards: AgentRewards = Field(default_factory=AgentRewards)
-    action_failure_penalty: float = Field(default=0, ge=0)
+    freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
-    tags: list[str] = Field(default_factory=list, description="Tags for this agent instance")
+    tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
-    )
-    shareable_resources: list[str] = Field(
-        default_factory=list, description="Resources that will be shared when we use another agent"
     )
     inventory_regen_amounts: dict[str, int] = Field(
         default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
@@ -70,7 +74,20 @@ class AgentConfig(Config):
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
     )
+    vibe_transfers: dict[str, dict[str, int]] = Field(
+        default_factory=dict, description="Maps vibe name to resource deltas for agent-to-agent sharing"
+    )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
+
+    def get_limit_for_resource(self, resource_name: str) -> int:
+        """Get the resource limit for a given resource name.
+
+        Returns the limit from resource_limits if found, otherwise returns default_resource_limit.
+        """
+        for resource_limit in self.resource_limits.values():
+            if resource_name in resource_limit.resources:
+                return resource_limit.limit
+        return self.default_resource_limit
 
 
 class ActionConfig(Config):
@@ -80,7 +97,7 @@ class ActionConfig(Config):
     enabled: bool = Field(default=True)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: dict[str, int] = Field(default_factory=dict)
-    consumed_resources: dict[str, float] = Field(default_factory=dict)
+    consumed_resources: dict[str, int] = Field(default_factory=dict)
 
     def actions(self) -> list[Action]:
         if self.enabled:
@@ -145,21 +162,6 @@ class AttackActionConfig(ActionConfig):
         return Action(name=f"attack_{location}")
 
 
-class ResourceModActionConfig(ActionConfig):
-    """Resource mod action configuration."""
-
-    action_handler: str = Field(default="resource_mod")
-    modifies: dict[str, float] = Field(default_factory=dict)
-    agent_radius: int = Field(default=0, ge=0, le=255)
-    scales: bool = Field(default=False)
-
-    def _actions(self) -> list[Action]:
-        return [self.ResourceMod()]
-
-    def ResourceMod(self) -> Action:
-        return Action(name="resource_mod")
-
-
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -171,11 +173,10 @@ class ActionsConfig(Config):
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
-    resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
     def actions(self) -> list[Action]:
         return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe, self.resource_mod]],
+            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe]],
             [],
         )
 
@@ -190,9 +191,6 @@ class GlobalObsConfig(Config):
 
     last_reward: bool = Field(default=True)
 
-    # Controls whether visitation counts are included in observations
-    visitation_counts: bool = Field(default=False)
-
     # Compass token that points toward the assembler/hub center
     compass: bool = Field(default=False)
 
@@ -205,38 +203,39 @@ class GridObjectConfig(Config):
     or observations.
     """
 
-    name: str = Field(default="", description="Canonical type_name (human-readable)")
+    name: str = Field(description="Canonical type_name (human-readable)")
     map_name: str = Field(default="", description="Stable key used by maps to select this config")
     render_name: str = Field(default="", description="Stable display-class identifier for theming")
-    map_char: str = Field(default="?", description="Character used in ASCII maps")
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
 
     @model_validator(mode="after")
     def _defaults_from_name(self) -> "GridObjectConfig":
-        # Default map_name/render_name to name when not provided
-        if not getattr(self, "map_name", None):
+        if not self.map_name:
             self.map_name = self.name
-        if not getattr(self, "render_name", None):
+        if not self.render_name:
             self.render_name = self.name
         # If no tags, inject a default kind tag so the object is visible in observations
         if not self.tags:
-            default_tag = getattr(self, "type", None)  # this is typically what you want, a Wall gets tag "wall"
-            default_tag = default_tag or self.render_name  # this is a good fallback tag
-            default_tag = default_tag or "object"  # if nothing else, be visible as an object
-            self.tags = [default_tag]
+            self.tags = [self.render_name]
         return self
 
 
 class WallConfig(GridObjectConfig):
     """Python wall/block configuration."""
 
-    type: Literal["wall"] = Field(default="wall")
-    swappable: bool = Field(default=False)
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["wall"] = "wall"
+    name: str = Field(default="wall")
 
 
 class ProtocolConfig(Config):
+    # Note that `vibes` implicitly also sets a minimum number of agents. So min_agents is useful
+    # when you want to set a minimum that's higher than the number of vibes.
+    min_agents: int = Field(default=0, ge=0, description="Number of agents required to use this protocol")
     vibes: list[str] = Field(default_factory=list)
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
@@ -246,7 +245,11 @@ class ProtocolConfig(Config):
 class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
-    type: Literal["assembler"] = Field(default="assembler")
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["assembler"] = "assembler"
+    # No default name -- we want to make sure that meaningful names are provided.
     protocols: list[ProtocolConfig] = Field(
         default_factory=list,
         description="Protocols in reverse order of priority.",
@@ -259,13 +262,6 @@ class AssemblerConfig(GridObjectConfig):
         ),
     )
     max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
-    exhaustion: float = Field(
-        default=0.0,
-        ge=0.0,
-        description=(
-            "Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) after each use (0 = no exhaustion)"
-        ),
-    )
     clip_immune: bool = Field(
         default=False, description="If true, this assembler cannot be clipped by the Clipper system"
     )
@@ -277,7 +273,11 @@ class AssemblerConfig(GridObjectConfig):
 class ChestConfig(GridObjectConfig):
     """Python chest configuration for multi-resource chests."""
 
-    type: Literal["chest"] = Field(default="chest")
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["chest"] = "chest"
+    name: str = Field(default="chest")
 
     # Vibe-based transfers: vibe -> resource -> delta
     vibe_transfers: dict[str, dict[str, int]] = Field(
@@ -295,9 +295,19 @@ class ChestConfig(GridObjectConfig):
     )
 
     # Resource limits for the chest's inventory
-    resource_limits: dict[str, int] = Field(
-        default_factory=dict, description="Maximum amount per resource (uses inventory system's built-in limits)"
+    resource_limits: dict[str, ResourceLimitsConfig] = Field(
+        default_factory=dict, description="Resource limits for this chest"
     )
+
+    def get_limit(self, resource_name: str) -> Optional[int]:
+        """Get the resource limit for a given resource name.
+
+        Returns the limit from resource_limits if found, otherwise returns None.
+        """
+        for resource_limit in self.resource_limits.values():
+            if resource_name in resource_limit.resources:
+                return resource_limit.limit
+        return None
 
 
 class ClipperConfig(Config):
@@ -306,30 +316,24 @@ class ClipperConfig(Config):
 
     The clipper system uses a spatial diffusion process where clipping spreads
     based on distance from already-clipped buildings. The length_scale parameter
-    controls the exponential decay: weight = exp(-distance / length_scale).
-
-    If length_scale is <= 0 (default 0.0), it will be automatically calculated
-    at runtime in C++ using percolation based on the actual grid size and
-    number of buildings placed. Set length_scale > 0 to use a manual value instead.
-
-    If cutoff_distance is <= 0 (default 0.0), it will be automatically set to
-    3 * length_scale at runtime. At this distance, exp(-3) ≈ 0.05, making weights
-    negligible. Set cutoff_distance > 0 to use a manual cutoff.
+    controls the exponential decay: weight ~= exp(-distance / length_scale).
     """
 
     unclipping_protocols: list[ProtocolConfig] = Field(default_factory=list)
-    length_scale: float = Field(
-        default=0.0,
-        description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
-        "If <= 0, automatically calculated using percolation at runtime.",
+    length_scale: int = Field(
+        default=0,
+        ge=0,
+        description="Controls spatial spread rate: weight ~= exp(-distance / length_scale). "
+        "If <= 0, automatically calculated at runtime based on the sparsity of the grid.",
     )
-    cutoff_distance: float = Field(
-        default=0.0,
-        ge=0.0,
-        description="Maximum distance for infection weight calculations. "
-        "If <= 0, automatically set to 3 * length_scale at runtime.",
+    scaled_cutoff_distance: int = Field(
+        default=3,
+        ge=1,
+        description="Maximum distance in units of length_scale for infection weight calculations.",
     )
-    clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    clip_period: int = Field(
+        default=0, ge=0, description="Approximate timesteps between clipping events (0 = disabled)"
+    )
 
 
 AnyGridObjectConfig = SerializeAsAny[
@@ -339,7 +343,7 @@ AnyGridObjectConfig = SerializeAsAny[
             Annotated[AssemblerConfig, Tag("assembler")],
             Annotated[ChestConfig, Tag("chest")],
         ],
-        Discriminator("type"),
+        Discriminator("pydantic_type"),
     ]
 ]
 
@@ -373,7 +377,7 @@ class GameConfig(Config):
     vibe_names: list[str] = Field(default_factory=list)
     num_agents: int = Field(ge=1, default=24)
     # max_steps = zero means "no limit"
-    max_steps: int = Field(ge=0, default=1000)
+    max_steps: int = Field(ge=0, default=10000)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = Field(default=False)
     obs: ObsConfig = Field(default_factory=ObsConfig)
@@ -387,8 +391,6 @@ class GameConfig(Config):
     # and other parts of the template can read from there.
     params: Optional[Any] = None
 
-    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
-
     # Inventory regeneration interval (global check timing)
     inventory_regen_interval: int = Field(
         default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
@@ -400,43 +402,29 @@ class GameConfig(Config):
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
 
-    # Feature Flags
-    track_movement_metrics: bool = Field(
-        default=True, description="Enable movement metrics tracking (sequential rotations)"
-    )
+    # Note that if this is False, agents won't be able to see how to unclip assemblers.
     protocol_details_obs: bool = Field(
-        default=False, description="Objects show their protocol inputs and outputs when observed"
+        default=True, description="Objects show their protocol inputs and outputs when observed"
     )
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
 
     @model_validator(mode="after")
     def _compute_feature_ids(self) -> "GameConfig":
-        self._populate_vibe_names()
-        # Note that this validation only runs once by default, so later changes by the user can cause this to no
-        # longer be true.
-        if not self.actions.change_vibe.number_of_vibes == len(self.vibe_names):
-            raise ValueError("number_of_vibes must match the number of vibe names")
+        self.actions.change_vibe.number_of_vibes = self.actions.change_vibe.number_of_vibes or len(VIBES)
+        self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
         return self
-
-    def _populate_vibe_names(self) -> None:
-        """Populate vibe_names from change_vibe action config if not already set."""
-        if not self.vibe_names:
-            num_vibes = self.actions.change_vibe.number_of_vibes
-            self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
-        # Create a minimal MettaGridConfig wrapper
-        wrapper = MettaGridConfig(game=self)
-        return IdMap(wrapper)
+        return IdMap(self)
 
 
 class EnvSupervisorConfig(Config):
     """Environment supervisor configuration."""
 
-    enabled: bool = Field(default=False)
-    policy: str = Field(default="baseline")
+    policy: Optional[str] = Field(default=None)
+    policy_data_path: Optional[str] = Field(default=None)
 
 
 class MettaGridConfig(Config):
@@ -446,14 +434,10 @@ class MettaGridConfig(Config):
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
 
-    def id_map(self) -> "IdMap":
-        """Get the observation feature ID map for this configuration."""
-        return IdMap(self)
-
-    def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
+    def with_ascii_map(self, map_data: list[list[str]], char_to_map_name: dict[str, str]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
-            char_to_map_name={o.map_char: o.map_name for o in self.game.objects.values()},
+            char_to_map_name=char_to_map_name,
         )
         return self
 
@@ -463,12 +447,10 @@ class MettaGridConfig(Config):
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
-        actions = ActionsConfig(
-            move=MoveActionConfig(),
-        )
+        actions = ActionsConfig(move=MoveActionConfig(), change_vibe=ChangeVibeActionConfig(number_of_vibes=len(VIBES)))
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(name="wall", map_char="#", render_symbol="⬛", swappable=False)
+            objects["wall"] = WallConfig(render_symbol="⬛")
         return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

@@ -33,7 +33,7 @@ class DynamicsConfig(LossConfig):
             vec_env,
             device,
             instance_name=instance_name,
-            loss_cfg=loss_config,
+            loss_config=loss_config,
         )
 
 

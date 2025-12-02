@@ -9,7 +9,7 @@ from mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig, MapGrid
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.area import Area, AreaWhere
-from mettagrid.mapgen.scene import ChildrenAction, SceneConfig, load_symbol
+from mettagrid.mapgen.scene import AnySceneConfig, ChildrenAction, SceneConfig, load_symbol
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
 from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
@@ -38,11 +38,11 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
     # Can be either a scene config or another MapBuilder config.
     # If it's a scene config, you need to set `width` and `height` explicitly.
     # If `instances` or `num_agents` are set, this configuration will be used multiple times.
-    instance: SceneConfig | AnyMapBuilderConfig | None = Field(default=None)
+    instance: AnySceneConfig | AnyMapBuilderConfig | None = Field(default=None)
 
     # Legacy fields, to be removed soon.
     instance_map: AnyMapBuilderConfig | None = Field(default=None, deprecated="Use `instance` instead")
-    root: SceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
+    root: AnySceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
 
     @model_validator(mode="before")
     @classmethod
@@ -335,6 +335,16 @@ class MapGen(MapBuilder[MapGenConfig]):
                     return self._wrap_with_instance_id(scene_config, 0)
                 return scene_config
             else:
+                # If instance_scene_factories is empty but instance is a MapBuilderConfig,
+                # prerendering should have happened. This is a fallback for edge cases.
+                if isinstance(self.config.instance, MapBuilderConfig):
+                    # Prerender on the fly as a fallback
+                    instance_map_builder = self.config.instance.create()
+                    if not isinstance(instance_map_builder, MapBuilder):
+                        raise ValueError("instance must be a MapBuilder")
+                    instance_map = instance_map_builder.build()
+                    instance_grid = instance_map.grid
+                    return CopyGrid.Config(grid=instance_grid)
                 assert isinstance(self.config.instance, SceneConfig), (
                     "Internal logic error: instance is not a scene but we don't have prebuilt instances either"
                 )
