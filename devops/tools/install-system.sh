@@ -435,7 +435,7 @@ install_nim_via_nimby() {
 
   local url="https://github.com/treeform/nimby/releases/download/${REQUIRED_NIMBY_VERSION}/nimby-${os}-${arch}"
   echo "Downloading Nimby from $url"
-  http_code=$(curl -fsSL -o nimby -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+  http_code=$(curl -fsSL -o nimby -w "%{http_code}" "$url" 2> /dev/null || echo "000")
   if [ "$http_code" != "200" ]; then
     if [ "$http_code" = "404" ]; then
       echo "ERROR: Nimby ${REQUIRED_NIMBY_VERSION} does not have a binary for ${os} ${arch}" >&2

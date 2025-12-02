@@ -40,4 +40,3 @@ class BootstrapSetup(SetupModule):
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         bootstrap_module.install_bootstrap_deps(self.run_command, non_interactive=non_interactive)
         success("Bootstrap dependencies installed")
-
