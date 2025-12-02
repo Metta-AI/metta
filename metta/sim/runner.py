@@ -83,7 +83,7 @@ def run_simulations(
                 slots=slots_cfg,
                 slot_policies=slot_policies,
                 policy_env_info=env_interface,
-                device="cpu",
+                controller_device="cpu",
                 agent_slot_map=agent_slot_tensor,
             )
             multi_agent_policies.append(controller)
