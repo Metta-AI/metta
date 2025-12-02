@@ -236,13 +236,12 @@ class CoreTrainingLoop:
         num_envs = batch_elems // num_agents
         device = td.device
 
-        if slot_ids.numel() > 1 or num_envs > 1:
-            slot_tensor = slot_ids.to(device=device).repeat(num_envs)
-            td.set("slot_id", slot_tensor)
-            if loss_profile_ids is not None:
-                td.set("loss_profile_id", loss_profile_ids.to(device=device).repeat(num_envs))
-            if trainable_mask is not None:
-                td.set("is_trainable_agent", trainable_mask.to(device=device).repeat(num_envs))
+        slot_tensor = slot_ids.to(device=device).repeat(num_envs)
+        td.set("slot_id", slot_tensor)
+        if loss_profile_ids is not None:
+            td.set("loss_profile_id", loss_profile_ids.to(device=device).repeat(num_envs))
+        if trainable_mask is not None:
+            td.set("is_trainable_agent", trainable_mask.to(device=device).repeat(num_envs))
 
     def training_phase(
         self,

@@ -276,3 +276,30 @@ def test_sliced_scripted_cloner_filters_after_sampling():
     assert shared_loss_data["indices"].data.tolist() == [0]
     assert loss.policy.forward_called
     assert loss_val.isfinite()
+
+
+def test_filtering_nontensordata_respects_tensor_device():
+    if not torch.cuda.is_available():  # pragma: no cover - depends on runner hardware
+        return
+
+    loss = _DummyLoss()
+    mb = TensorDict(
+        {
+            "actions": torch.arange(6, device="cuda").view(3, 2),
+            "loss_profile_id": torch.tensor([[1, 1], [0, 2], [1, 0]], device="cuda"),
+            "is_trainable_agent": torch.tensor([[True, True], [False, False], [False, False]], device="cuda"),
+        },
+        batch_size=[3, 2],
+    )
+    shared = TensorDict(
+        {
+            "sampled_mb": mb,
+            "indices": NonTensorData(torch.arange(3, device="cuda")),
+        },
+        batch_size=[],
+    )
+
+    filtered = loss._filter_minibatch(shared)
+
+    assert filtered["indices"].data.is_cuda
+    assert filtered["indices"].data.tolist() == [0]

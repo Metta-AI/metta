@@ -33,13 +33,14 @@ CAPTURED_CONTROLLERS = []
 
 
 class _CaptureController:
-    def __init__(self, *, slot_lookup, slots, slot_policies, policy_env_info, controller_device, agent_slot_map):
+    def __init__(self, *, slot_lookup, slots, slot_policies, policy_env_info, device=None, controller_device=None, agent_slot_map=None):
         self.kwargs = dict(
             slot_lookup=slot_lookup,
             slots=slots,
             slot_policies=slot_policies,
             policy_env_info=policy_env_info,
             controller_device=controller_device,
+            device=device,
             agent_slot_map=agent_slot_map,
         )
         CAPTURED_CONTROLLERS.append(self)
@@ -78,5 +79,4 @@ def test_runner_passes_controller_device(monkeypatch):
 
     assert CAPTURED_CONTROLLERS, "SlotControllerPolicy should have been constructed"
     kwargs = CAPTURED_CONTROLLERS[-1].kwargs
-    assert kwargs["controller_device"] == "cpu"
-    assert "device" not in kwargs
+    assert kwargs["device"] == "cpu"

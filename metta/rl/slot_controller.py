@@ -22,6 +22,7 @@ class SlotControllerPolicy(Policy):
         slot_policies: Dict[int, Policy],
         policy_env_info,
         controller_device: torch.device | str | None = None,
+        device: torch.device | str | None = None,
         agent_slot_map: torch.Tensor | None = None,
     ) -> None:
         # Use the env info from trainer policy; architecture not needed here
@@ -32,8 +33,9 @@ class SlotControllerPolicy(Policy):
         self._policy_env_info = policy_env_info
         # Prefer explicit controller device, otherwise inherit from the first policy
         inferred_device = None
-        if controller_device is not None:
-            inferred_device = torch.device(controller_device)
+        chosen_device = controller_device if controller_device is not None else device
+        if chosen_device is not None:
+            inferred_device = torch.device(chosen_device)
         else:
             first_policy = next(iter(slot_policies.values()), None)
             if first_policy is not None and hasattr(first_policy, "device"):
