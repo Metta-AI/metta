@@ -6,20 +6,30 @@ from fastapi import Depends, HTTPException, Request, status
 from metta.app_backend import config
 
 
-async def user_from_header_or_token(request: Request) -> str | None:
-    user_email = config.debug_user_email
-    if user_email:
-        return user_email
+def get_user_from_header(request: Request) -> str | None:
+    if config.debug_user_email:
+        return config.debug_user_email
 
+    user_id = request.headers.get("X-User-Id")
+    auth_secret = request.headers.get("X-Auth-Secret")
+    if user_id and auth_secret and auth_secret == config.auth_secret:
+        return user_id
+    return None
+
+
+async def get_user_from_token(request: Request) -> str | None:
     token = request.headers.get("X-Auth-Token")
-    if not token:
-        return None
+    if token:
+        return await validate_token_via_login_service(token)
+    return None
 
-    user_id = await validate_token_via_login_service(token)
-    if not user_id:
-        return None
 
-    return user_id
+async def user_from_header_or_token(request: Request) -> str | None:
+    user_id = get_user_from_header(request)
+    if user_id:
+        return user_id
+
+    return await get_user_from_token(request)
 
 
 async def user_from_header_or_token_or_raise(request: Request) -> str:
@@ -27,7 +37,7 @@ async def user_from_header_or_token_or_raise(request: Request) -> str:
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Either X-Auth-Request-Email or X-Auth-Token header required",
+            detail="Failed to authenticate",
         )
     return user_id
 
