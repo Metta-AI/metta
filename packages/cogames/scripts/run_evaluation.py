@@ -206,24 +206,27 @@ def _run_case(
         actual_max_steps = env_config.game.max_steps
         policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
 
+        fresh_each_run = _policy_requires_fresh_instance(agent_config.policy_path)
+
+        base_policy = None
+        if not fresh_each_run:
+            # Load once per case and reuse across repeats.
+            if cached_policy is not None:
+                base_policy = cached_policy
+            elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
+                base_policy = _cached_policy
+            else:
+                base_policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
+                if is_s3_uri(agent_config.policy_path):
+                    _cached_policy = base_policy
+                    _cached_policy_key = agent_config.policy_path
+
         out: List[EvalResult] = []
         for run_idx in range(runs_per_case):
-            # Re-load policy only when required (stateful Nim agents). Otherwise reuse cache, including S3.
-            fresh_each_run = _policy_requires_fresh_instance(agent_config.policy_path)
-
-            if not fresh_each_run:
-                if cached_policy is not None:
-                    policy = cached_policy
-                elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
-                    policy = _cached_policy
-                else:
-                    policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-                    if is_s3_uri(agent_config.policy_path):
-                        _cached_policy = policy
-                        _cached_policy_key = agent_config.policy_path
-            else:
+            if fresh_each_run:
                 policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-                # Do not cache stateful policies between repeats.
+            else:
+                policy = base_policy
 
             agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
