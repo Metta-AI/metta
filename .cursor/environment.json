@@ -1,7 +1,7 @@
 {
   "install": "./install.sh",
   "start": "source .venv/bin/activate",
-  "test": "metta test",
+  "test": "metta pytest",
   "lint": "metta lint --fix",
   "status": "metta status",
   "clean": "metta clean"
