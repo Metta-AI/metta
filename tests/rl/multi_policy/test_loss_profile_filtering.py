@@ -52,3 +52,19 @@ def test_loss_profile_and_trainable_filtering():
     # Expected rows: profile==1 AND trainable -> indices 1 and 4 -> 2 rows
     assert out_val.item() == 2.0
     assert shared["advantages"].shape[0] == 6  # unchanged input
+
+
+def test_npc_rows_are_filtered_when_not_trainable():
+    loss = _DummyLoss()
+    mb = TensorDict(
+        {
+            "actions": torch.arange(4),
+            "loss_profile_id": torch.tensor([1, 1, 1, 1]),
+            "is_trainable_agent": torch.tensor([True, False, False, True]),
+        },
+        batch_size=[4],
+    )
+    shared = TensorDict({"sampled_mb": mb}, batch_size=[])
+    out_val, _, _ = loss.train(shared, None, 0)
+    # Only two trainable rows should remain
+    assert out_val.item() == 2.0
