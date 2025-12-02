@@ -41,5 +41,6 @@ cache-keys = [
   { file = "tribal_village.nimble" },
   { file = "nimby.lock" },
   { file = "src/**/*.nim" },
+  { file = "tribal_village_env/**/*.py" },
   { file = "tribal_village_env/libtribal_village.*" },
 ]

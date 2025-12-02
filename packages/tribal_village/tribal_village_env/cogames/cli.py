@@ -88,6 +88,12 @@ def attach_train_command(
         except ValueError as exc:  # pragma: no cover - user input
             console.print(f"[red]Error: {exc}[/red]")
             raise typer.Exit(1) from exc
+        except Exception:
+            # Surface full stack for easier debugging instead of silent Typer exit.
+            import traceback
+
+            traceback.print_exc()
+            raise
 
         console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
