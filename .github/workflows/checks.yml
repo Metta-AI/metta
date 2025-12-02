@@ -252,7 +252,7 @@ jobs:
         uses: datadog/test-visibility-github-action@v2
         with:
           languages: python
-          api_key: ${{ secrets.DD_API_KEY }}
+          api_key: ""
 
       - name: Run Python tests and benchmarks
         shell: bash
