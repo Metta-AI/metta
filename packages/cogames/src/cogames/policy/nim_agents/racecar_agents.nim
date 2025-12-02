@@ -7,6 +7,7 @@ const
   MaxEnergy = 100
   MaxResourceInventory = 100
   MaxToolInventory = 100
+  MaxSteps = 10000
 
   PutCarbonAmount = 10
   PutOxygenAmount = 10
@@ -17,6 +18,7 @@ type
   RaceCarAgent* = ref object
     agentId*: int
 
+    steps: int
     map: Table[Location, seq[FeatureValue]]
     seen: HashSet[Location]
     cfg: Config
@@ -34,6 +36,8 @@ type
     offsets4: seq[Location]  # 4 cardinal but random for each agent
     seenAssembler: bool
     seenChest: bool
+    assemblerHome: Option[Location]
+    chestHome: Option[Location]
     exploreLocations: seq[Location]
 
   RaceCarPolicy* = ref object
@@ -128,6 +132,9 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.map = initTable[Location, seq[FeatureValue]]()
   result.seen = initHashSet[Location]()
   result.location = Location(x: 0, y: 0)
+  result.steps = 0
+  result.assemblerHome = none(Location)
+  result.chestHome = none(Location)
   result.lastActions = @[]
   # Randomize the offsets4 for each agent, so they take different directions.
   var offsets4 = Offsets4
@@ -329,6 +336,17 @@ proc step*(
       agentAction[] = action.int32
 
     updateMap(agent, visible)
+    agent.steps += 1
+
+    let assemblerNearbyNow = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+    if assemblerNearbyNow.isSome():
+      agent.seenAssembler = true
+      agent.assemblerHome = some(assemblerNearbyNow.get())
+
+    let chestNearbyNow = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+    if chestNearbyNow.isSome():
+      agent.seenChest = true
+      agent.chestHome = some(chestNearbyNow.get())
 
     let
       vibe = agent.cfg.getVibe(visible, Location(x: 0, y: 0))
@@ -342,6 +360,7 @@ proc step*(
       invModulator = agent.cfg.getInventory(visible, agent.cfg.features.invModulator)
       invResonator = agent.cfg.getInventory(visible, agent.cfg.features.invResonator)
       invScrambler = agent.cfg.getInventory(visible, agent.cfg.features.invScrambler)
+      stepsRemaining = max(0, MaxSteps - agent.steps)
 
     log &"vibe:{vibe} H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
@@ -496,6 +515,25 @@ proc step*(
           doAction(action.get().int32)
           log "going to chest to dump excess germanium"
           return
+
+    # Distance-aware late return: aim to arrive before the episode ends.
+    if agent.assemblerHome.isSome():
+      let distAsm = manhattan(agent.location, agent.assemblerHome.get())
+      let buffer = 30
+      if stepsRemaining <= distAsm + buffer:
+        if invHeart > 0:
+          let target = if agent.chestHome.isSome(): agent.chestHome.get() else: agent.assemblerHome.get()
+          let action = agent.cfg.aStar(agent.location, target, agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "late return: delivering hearts"
+            return
+        elif invCarbon + invOxygen + invGermanium + invSilicon > 0:
+          let action = agent.cfg.aStar(agent.location, agent.assemblerHome.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "late return: heading to assembler with resources"
+            return
 
     proc findAndTakeResource(
       agent: RaceCarAgent,

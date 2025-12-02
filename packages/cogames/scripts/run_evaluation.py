@@ -201,23 +201,21 @@ def _run_case(
         actual_max_steps = env_config.game.max_steps
         policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
 
-        # Use cached policy if provided, otherwise try global cache, otherwise load fresh
-        if cached_policy is not None:
-            policy = cached_policy
-        elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
-            # Reuse globally cached policy
-            policy = _cached_policy
-        else:
-            # Load fresh and cache it globally for S3 policies
-            policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-            if is_s3_uri(agent_config.policy_path):
-                _cached_policy = policy
-                _cached_policy_key = agent_config.policy_path
-
-        agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
-
         out: List[EvalResult] = []
         for run_idx in range(runs_per_case):
+            # Re-load policy each repeat to avoid state carryover between episodes (important for stateful Nim agents).
+            if cached_policy is not None and runs_per_case == 1:
+                policy = cached_policy
+            elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path and runs_per_case == 1:
+                policy = _cached_policy
+            else:
+                policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
+                if is_s3_uri(agent_config.policy_path) and runs_per_case == 1:
+                    _cached_policy = policy
+                    _cached_policy_key = agent_config.policy_path
+
+            agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
+
             run_seed = seed + run_idx
             rollout = Rollout(
                 env_config,
