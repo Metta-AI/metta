@@ -498,10 +498,7 @@ def _install_nimby(nim_bin_dir: Path) -> None:
             raise
         # Move nimby to bin directory
         nim_bin_dir.mkdir(parents=True, exist_ok=True)
-        final_nimby_path = nim_bin_dir / "nimby"
-        if final_nimby_path.exists():
-            final_nimby_path.unlink()
-        nimby_path.rename(final_nimby_path)
+        nimby_path.replace(nim_bin_dir / "nimby")
 
 
 def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> None:
