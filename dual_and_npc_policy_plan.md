@@ -95,10 +95,9 @@
 
 ## Phase 6 – Canonicalization (no legacy path)
 
-- Make bindings + agent_binding_map the only supported control surface; remove/deprecate legacy shorthands like
-  `dual_policy`.
-- Present split-loss stack as default; do not support the legacy combined PPO.
-- Defaults may still auto-create a single binding for convenience, but no legacy-specific code paths remain.
+- Bindings + agent_binding_map are the only control surface; legacy shorthands like `dual_policy` are out.
+- Split-loss stack is the default; legacy combined PPO is removed.
+- Defaults still auto-create a single binding for convenience.
 
 ## Phase 7 – Testing
 

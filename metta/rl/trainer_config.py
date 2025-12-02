@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Literal, Optional
+from typing import ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
@@ -23,14 +23,6 @@ class OptimizerConfig(Config):
     # ScheduleFree-specific parameters
     momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
     warmup_steps: int = Field(default=1000, ge=0)  # Number of warmup steps for ScheduleFree
-
-
-class InitialPolicyConfig(Config):
-    uri: str | None = None
-    type: Literal["top", "latest", "specific"] = "top"
-    range: int = Field(default=1, gt=0)
-    metric: str = "epoch"
-    filters: dict[str, Any] = Field(default_factory=dict)
 
 
 class TorchProfilerConfig(Config):
@@ -78,7 +70,6 @@ class TrainerConfig(Config):
 
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
 
-    initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
