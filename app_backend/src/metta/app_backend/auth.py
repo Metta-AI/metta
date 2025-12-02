@@ -6,13 +6,8 @@ from fastapi import Depends, HTTPException, Request, status
 from metta.app_backend import config
 
 
-def user_from_header(request: Request) -> str | None:
-    """Extract user email from request headers."""
-    return config.debug_user_email or request.headers.get("X-Auth-Request-Email")
-
-
 async def user_from_header_or_token(request: Request) -> str | None:
-    user_email = user_from_header(request)
+    user_email = config.debug_user_email
     if user_email:
         return user_email
 
@@ -35,13 +30,6 @@ async def user_from_header_or_token_or_raise(request: Request) -> str:
             detail="Either X-Auth-Request-Email or X-Auth-Token header required",
         )
     return user_id
-
-
-def user_from_email_or_raise(request: Request) -> str:
-    user_email = user_from_header(request)
-    if not user_email:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="X-Auth-Request-Email header required")
-    return user_email
 
 
 # Dependency types for use in route decorators
