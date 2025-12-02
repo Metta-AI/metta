@@ -138,6 +138,7 @@ class Trainer:
         self._context.binding_id_lookup = binding_state["binding_lookup"]
         self._context.loss_profile_lookup = binding_state["loss_profile_lookup"]
         self._context.policy_bindings = binding_state["bindings"]
+        self._assign_loss_profiles(losses, binding_state["loss_profile_lookup"])
 
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
@@ -157,6 +158,24 @@ class Trainer:
             loss.attach_context(self._context)
 
         self._prev_agent_step_for_step_callbacks: int = 0
+
+    def _assign_loss_profiles(self, losses: dict[str, Any], loss_profile_lookup: dict[str, int]) -> None:
+        """Attach resolved loss profile ids to losses based on their config names."""
+
+        if not loss_profile_lookup:
+            return
+
+        # Simple mapping: loss name matches profile name; default allow all
+        for loss_name, loss_obj in losses.items():
+            # If the loss has explicit profiles configured in config, map them; otherwise None means no filtering
+            profiles = []
+            cfg_profiles = getattr(getattr(self._cfg.losses, loss_name, None), "profiles", None)
+            if cfg_profiles:
+                for name in cfg_profiles:
+                    if name in loss_profile_lookup:
+                        profiles.append(loss_profile_lookup[name])
+            if profiles:
+                loss_obj.loss_profiles = set(profiles)
 
     @property
     def context(self) -> ComponentContext:
@@ -337,12 +356,6 @@ class Trainer:
         binding_tensor = torch.tensor(binding_ids, dtype=torch.long)
         loss_profile_tensor = torch.tensor(loss_profile_ids, dtype=torch.long)
         trainable_tensor = torch.tensor(trainable_mask, dtype=torch.bool)
-
-        if len(bindings_cfg) > 1:
-            logger.warning(
-                "Multiple policy bindings configured; Phase 0 annotates rollout with binding metadata but control "
-                "is still provided by the primary trainer policy."
-            )
 
         return {
             "bindings": bindings_cfg,

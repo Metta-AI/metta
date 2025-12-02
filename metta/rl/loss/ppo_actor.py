@@ -34,6 +34,7 @@ class PPOActorConfig(LossConfig):
     target_kl: float | None = None
 
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
+    profiles: list[str] | None = Field(default=None, description="Optional loss profiles this loss should run for.")
 
     def create(
         self,
@@ -70,6 +71,8 @@ class PPOActor(Loss):
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
         self.trainable_only = True
+        # PPO actor runs only for profiles that include ppo_actor (set in trainer init)
+        self.loss_profiles: set[int] | None = None
 
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))

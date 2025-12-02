@@ -53,6 +53,7 @@ class LossesConfig(Config):
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
         # also, the way it's setup doesn't let the experimenter give names to losses.
         loss_configs: dict[str, LossConfig] = {}
+        # Profiles are handled in Loss filtering; we still need to include losses here to construct them.
         if self.sliced_kickstarter.enabled:
             loss_configs["sliced_kickstarter"] = self.sliced_kickstarter
         if self.sliced_scripted_cloner.enabled:

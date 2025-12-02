@@ -24,6 +24,7 @@ class PPOCriticConfig(LossConfig):
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
+    profiles: list[str] | None = Field(default=None, description="Optional loss profiles this loss should run for.")
 
     # control flow for forwarding and sampling. clunky but needed if other losses want to drive (e.g. action supervised)
     sample_enabled: bool = Field(default=True)  # if true, this loss samples from buffer during training
@@ -79,6 +80,7 @@ class PPOCritic(Loss):
         self.train_forward_enabled = self.cfg.train_forward_enabled
         self.rollout_forward_enabled = self.cfg.rollout_forward_enabled
         self.trainable_only = True
+        self.loss_profiles: set[int] | None = None
 
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps

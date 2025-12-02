@@ -56,6 +56,7 @@ class PPOConfig(LossConfig):
     target_kl: float | None = None
 
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
+    profiles: list[str] | None = Field(default=None, description="Optional loss profiles this loss should run for.")
 
     prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(
         default_factory=PrioritizedExperienceReplayConfig
@@ -111,6 +112,7 @@ class PPO(Loss):
         self.last_action = None
         self.register_state_attr("anneal_beta", "burn_in_steps_iter")
         self.trainable_only = True
+        self.loss_profiles: set[int] | None = None
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
