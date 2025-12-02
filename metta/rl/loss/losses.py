@@ -6,10 +6,13 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.cmpo import CMPOConfig
+from metta.rl.loss.dynamics import DynamicsConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.muesli import MuesliModelConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
 from metta.rl.loss.ppo_critic import PPOCriticConfig
@@ -30,8 +33,11 @@ class LossesConfig(Config):
         "sliced_scripted_cloner",
         "ppo_critic",
         "quantile_ppo_critic",
+        "cmpo",
         "ppo_actor",
         "ppo",
+        "dynamics",
+        "muesli_model",
         "vit_reconstruction",
         "contrastive",
         "grpo",
@@ -47,6 +53,11 @@ class LossesConfig(Config):
 
     # our original PPO in a single file
     ppo: PPOConfig = Field(default_factory=lambda: PPOConfig(enabled=False))
+
+    # Muesli algorithm components
+    dynamics: DynamicsConfig = Field(default_factory=lambda: DynamicsConfig(enabled=False))
+    muesli_model: MuesliModelConfig = Field(default_factory=lambda: MuesliModelConfig(enabled=False))
+    cmpo: CMPOConfig = Field(default_factory=lambda: CMPOConfig(enabled=False))
 
     # other aux losses below
     contrastive: contrastive_config.ContrastiveConfig = Field(
