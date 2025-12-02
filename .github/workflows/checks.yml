@@ -248,6 +248,13 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
+      - name: Configure Datadog
+        if: needs.setup-checks.outputs.is_external != 'true'
+        uses: datadog/test-visibility-github-action@v2
+        with:
+          languages: python
+          api_key: ${{ secrets.DD_API_KEY }}
+
       - name: Run Python tests and benchmarks
         shell: bash
         run: |

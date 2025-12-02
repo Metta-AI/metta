@@ -36,10 +36,8 @@ async def test_query_episodes_by_id_includes_avg_rewards_and_replay(
         policy_metrics=[(pv_id, "reward", 10.0)],
     )
 
-    headers = {"X-Auth-Request-Email": user}
     response = isolated_test_client.post(
         "/stats/episodes/query",
-        headers=headers,
         json={"episode_ids": [str(episode_id)], "limit": 1},
     )
 

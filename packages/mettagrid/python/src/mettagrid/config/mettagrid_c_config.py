@@ -34,7 +34,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if "obs" in config_dict and "features" in config_dict["obs"]:
             config_dict["obs"] = config_dict["obs"].copy()
             config_dict["obs"].pop("features", None)
+        # Keep vibe_names in sync with number_of_vibes; favor the explicit count.
+        config_dict.pop("vibe_names", None)
+        change_vibe_cfg = config_dict.setdefault("actions", {}).setdefault("change_vibe", {})
+        change_vibe_cfg["number_of_vibes"] = change_vibe_cfg.get("number_of_vibes") or len(VIBES)
         game_config = GameConfig(**config_dict)
+
+    # Ensure runtime object has consistent vibes.
+    game_config.actions.change_vibe.number_of_vibes = game_config.actions.change_vibe.number_of_vibes or len(VIBES)
+    game_config.vibe_names = [vibe.name for vibe in VIBES[: game_config.actions.change_vibe.number_of_vibes]]
 
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
@@ -48,8 +56,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # The C++ bindings expect dense uint8 identifiers, so keep a name->id lookup.
     num_vibes = game_config.actions.change_vibe.number_of_vibes
     supported_vibes = VIBES[:num_vibes]
-    if not game_config.vibe_names:
-        game_config.vibe_names = [vibe.name for vibe in supported_vibes]
     vibe_name_to_id = {vibe.name: i for i, vibe in enumerate(supported_vibes)}
 
     objects_cpp_params = {}  # params for CppWallConfig
