@@ -104,12 +104,8 @@ class DifficultyLevel(MissionVariant):
             difficulty: DifficultyLevel to apply
         """
         # Apply max_uses (override if set, else multiply), then enforce floor of 1 if baseline > 0
-        # Note: GermaniumExtractorConfig doesn't have max_uses field (it's hardcoded to 1 in station_cfg)
         for res in RESOURCE_KEYS:
             extractor = getattr(mission, f"{res}_extractor")
-            # Skip if extractor doesn't have max_uses attribute (e.g., GermaniumExtractorConfig)
-            if not hasattr(extractor, "max_uses"):
-                continue
             override_val = getattr(self, f"{res}_max_uses_override")
             mult_val = getattr(self, f"{res}_max_uses_mult")
             if override_val is not None:

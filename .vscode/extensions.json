@@ -1,6 +1,5 @@
 {
   "recommendations": [
-    "charliermarsh.ruff",
     "streetsidesoftware.code-spell-checker",
     "ms-python.python",
     "ms-python.vscode-pylance",
@@ -13,6 +12,5 @@
     "ms-vscode.cpptools-extension-pack",
     "twxs.cmake",
     "esbenp.prettier-vscode",
-    "dbaeumer.vscode-eslint",
   ],
 }

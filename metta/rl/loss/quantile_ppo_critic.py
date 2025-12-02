@@ -2,6 +2,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from pydantic import Field
 from tensordict import NonTensorData, TensorDict
 from torch import Tensor
@@ -15,7 +16,7 @@ from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.rl.utils import prepare_policy_forward_td
 
 
-class PPOCriticConfig(LossConfig):
+class QuantilePPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
     vf_coef: float = Field(default=0.897619, ge=0)
     # Value loss clipping toggle
@@ -25,12 +26,10 @@ class PPOCriticConfig(LossConfig):
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 
-    # control flow for forwarding and sampling. clunky but needed if other losses want to drive (e.g. action supervised)
-    sample_enabled: bool = Field(default=True)  # if true, this loss samples from buffer during training
-    train_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under training
-    rollout_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under rollout
-
-    deferred_training_start_step: int | None = None  # if set, sample/train_forward enable after this step
+    # control flow for forwarding and sampling
+    sample_enabled: bool = Field(default=True)
+    train_forward_enabled: bool = Field(default=True)
+    rollout_forward_enabled: bool = Field(default=True)
 
     def create(
         self,
@@ -40,9 +39,9 @@ class PPOCriticConfig(LossConfig):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ) -> "PPOCritic":
-        """Points to the PPO class for initialization."""
-        return PPOCritic(
+    ) -> "QuantilePPOCritic":
+        """Points to the QuantilePPOCritic class for initialization."""
+        return QuantilePPOCritic(
             policy,
             trainer_cfg,
             env,
@@ -52,8 +51,8 @@ class PPOCriticConfig(LossConfig):
         )
 
 
-class PPOCritic(Loss):
-    """PPO value loss."""
+class QuantilePPOCritic(Loss):
+    """Quantile PPO value loss."""
 
     __slots__ = (
         "advantages",
@@ -62,6 +61,8 @@ class PPOCritic(Loss):
         "sample_enabled",
         "train_forward_enabled",
         "rollout_forward_enabled",
+        "num_quantiles",
+        "tau_hat",
     )
 
     def __init__(
@@ -85,28 +86,32 @@ class PPOCritic(Loss):
             self.burn_in_steps = 0
         self.burn_in_steps_iter = 0
 
+        if not hasattr(self.policy, "critic_quantiles"):
+            raise ValueError("Policy must expose 'critic_quantiles' attribute for QuantilePPOCritic")
+        self.num_quantiles = self.policy.critic_quantiles
+
+        # Pre-compute tau_hat (quantile midpoints)
+        # Shape: [1, N]
+        i = torch.arange(self.num_quantiles, device=self.device, dtype=torch.float32)
+        self.tau_hat = ((2 * i + 1) / (2 * self.num_quantiles)).view(1, -1)
+
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
         act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+        # Values are now [N] instead of scalar
+        values_spec = UnboundedContinuous(shape=torch.Size([self.num_quantiles]), dtype=torch.float32)
 
         return Composite(
             actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
-            values=scalar_f32,
+            values=values_spec,
             rewards=scalar_f32,
             dones=scalar_f32,
             truncateds=scalar_f32,
         )
 
-    def on_rollout_start(self, context: ComponentContext | None = None) -> None:
-        """Called before starting a rollout phase."""
-        super().on_rollout_start(context)
-        if self.cfg.deferred_training_start_step is not None:
-            if self._require_context(context).agent_step >= self.cfg.deferred_training_start_step:
-                self.sample_enabled = True
-                self.train_forward_enabled = True
-
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+        """Rollout step: forward policy and store experience with optional burn-in."""
         if not self.rollout_forward_enabled:
             return
 
@@ -127,18 +132,16 @@ class PPOCritic(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         # compute advantages on the first mb
         if mb_idx == 0:
-            # a hack because loss run gates can get updated between rollout and train
-            if self.cfg.deferred_training_start_step is not None:
-                if self._require_context(context).agent_step >= self.cfg.deferred_training_start_step:
-                    self.sample_enabled = True
-                    self.train_forward_enabled = True
+            # Calculate mean values for GAE
+            values_quantiles = self.replay.buffer["values"]  # [T, B, N]
+            values_mean = values_quantiles.mean(dim=-1)  # [T, B]
 
-            advantages = torch.zeros_like(self.replay.buffer["values"], device=self.device)
+            advantages = torch.zeros_like(values_mean, device=self.device)
             self.advantages = compute_advantage(
-                self.replay.buffer["values"],
+                values_mean,
                 self.replay.buffer["rewards"],
                 self.replay.buffer["dones"],
-                torch.ones_like(self.replay.buffer["values"]),
+                torch.ones_like(values_mean),
                 advantages,
                 self.cfg.gamma,
                 self.cfg.gae_lambda,
@@ -196,28 +199,48 @@ class PPOCritic(Loss):
             shared_loss_data["policy_td"] = policy_td
 
         # compute value loss
-        old_values = minibatch["values"]
-        returns = shared_loss_data["advantages"] + minibatch["values"]
-        minibatch["returns"] = returns
-        policy_td = shared_loss_data.get("policy_td", None)
-        newvalue_reshaped = None
-        if policy_td is not None:
-            newvalue = policy_td["values"]
-            newvalue_reshaped = newvalue.view(returns.shape)
+        old_values_quantiles = minibatch["values"]  # [B, N]
+        old_values_mean = old_values_quantiles.mean(dim=-1)  # [B]
 
-        if newvalue_reshaped is not None:
+        # Target return is scalar
+        returns = shared_loss_data["advantages"] + old_values_mean
+        minibatch["returns"] = returns
+
+        policy_td = shared_loss_data.get("policy_td", None)
+        newvalue = None
+        if policy_td is not None:
+            newvalue = policy_td["values"]  # [B, N]
+
+        if newvalue is not None:
+            # Quantile Regression Loss
+            # Target is 'returns' broadcasted
+            target = returns.unsqueeze(-1)  # [B, 1]
+
+            # Calculate diffs
+            # newvalue: [B, N]
+            # target: [B, 1]
+            # We want diff between target and each quantile
+            # diff = target - newvalue
+
             if self.cfg.clip_vloss:
-                v_loss_unclipped = (newvalue_reshaped - returns) ** 2
+                # Clip based on change from old_values_quantiles
                 vf_clip_coef = self.cfg.vf_clip_coef
-                v_clipped = old_values + torch.clamp(
-                    newvalue_reshaped - old_values,
+                # We clip the quantiles themselves
+                newvalue_clipped = old_values_quantiles + torch.clamp(
+                    newvalue - old_values_quantiles,
                     -vf_clip_coef,
                     vf_clip_coef,
                 )
-                v_loss_clipped = (v_clipped - returns) ** 2
-                v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+
+                # Loss with unclipped
+                loss_unclipped = self.quantile_loss(newvalue, target)
+
+                # Loss with clipped
+                loss_clipped = self.quantile_loss(newvalue_clipped, target)
+
+                v_loss = torch.max(loss_unclipped, loss_clipped).mean()
             else:
-                v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
+                v_loss = self.quantile_loss(newvalue, target).mean()
 
             # Update values in experience buffer
             update_td = TensorDict(
@@ -228,7 +251,13 @@ class PPOCritic(Loss):
             )
             self.replay.update(indices, update_td)
         else:
-            v_loss = 0.5 * ((old_values - returns) ** 2).mean()
+            # Fallback if no forward (shouldn't happen with standard PPO config)
+            # Just compute loss on old values?
+            # But we are updating the network, so we need new values.
+            # If train_forward_enabled is False, we can't compute gradients for the network?
+            # In that case, we just return 0 or loss on old values (constant).
+            # Assuming we are training, we used newvalue.
+            v_loss = self.quantile_loss(old_values_quantiles, returns.unsqueeze(-1)).mean()
 
         # Scale value loss by coefficient
         v_loss = v_loss * self.cfg.vf_coef
@@ -236,11 +265,44 @@ class PPOCritic(Loss):
 
         return v_loss, shared_loss_data, False
 
+    def quantile_loss(self, current_quantiles: Tensor, target: Tensor) -> Tensor:
+        """
+        Compute quantile regression loss.
+        current_quantiles: [B, N]
+        target: [B, 1]
+        """
+        # Huber loss on difference
+        # diff: [B, N]
+        diff = target - current_quantiles
+
+        # Huber loss (smooth L1)
+        # beta = 1.0 (standard) or maybe adjustable?
+        # PyTorch smooth_l1_loss default beta=1.0
+        huber_loss = F.smooth_l1_loss(
+            current_quantiles, target.expand_as(current_quantiles), reduction="none", beta=1.0
+        )
+
+        # Quantile weight: |tau - I(diff < 0)|
+        # tau_hat: [1, N]
+        # I(diff < 0): [B, N]
+        indicator = (diff < 0).float()
+        quantile_weight = torch.abs(self.tau_hat - indicator)
+
+        # Loss = sum over quantiles of (weight * huber_loss)
+        # We return mean over batch later, here just sum over quantiles
+        loss = (quantile_weight * huber_loss).sum(dim=-1)
+
+        return loss
+
     def on_train_phase_end(self, context: ComponentContext) -> None:
-        """Compute value-function explained variance for logging, mirroring monolithic PPO."""
+        """Compute value-function explained variance for logging."""
         with torch.no_grad():
-            y_pred = self.replay.buffer["values"].flatten()
-            y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
+            # Use mean of quantiles for explained variance
+            values_quantiles = self.replay.buffer["values"]
+            values_mean = values_quantiles.mean(dim=-1).flatten()
+
+            y_pred = values_mean
+            y_true = self.advantages.flatten() + values_mean
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
