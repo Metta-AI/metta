@@ -19,7 +19,6 @@ class UpdateEpochAutoTuner(TrainerComponent):
         self._current = config.min_update_epochs
         self._cooldown = 0
         self._epochs_here = 0
-        self._is_master = False
 
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
@@ -31,7 +30,6 @@ class UpdateEpochAutoTuner(TrainerComponent):
             logger.info("Clamping initial update_epochs from %s to %s", context.config.update_epochs, clamped)
 
         context.config.update_epochs = self._current = clamped
-        self._is_master = bool(context.distributed.is_master())
         self._epochs_here = self._cooldown = 0
 
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
@@ -49,11 +47,10 @@ class UpdateEpochAutoTuner(TrainerComponent):
 
         self._epochs_here += 1
 
-        target = self._current
-        if self._is_master:
-            target = self._decide(epoch, approx_kl, clipfrac)
+        is_master = bool(self.context.distributed.is_master())
+        target = self._decide(epoch, approx_kl, clipfrac) if is_master else self._current
 
-        decided = self._clamp(int(self.context.distributed.broadcast_from_master(target if self._is_master else None)))
+        decided = self._clamp(int(self.context.distributed.broadcast_from_master(target if is_master else None)))
         if decided != self._current:
             self._apply(decided, epoch, approx_kl, clipfrac, cooldown=False, log=logger.debug)
 
