@@ -498,18 +498,21 @@ export const Leaderboard: FC = () => {
             const policyId = entry.policy_version.id
             if (!vorState[policyId]) {
               setVorState((prev) => ({ ...prev, [policyId]: { loading: true, value: null, error: false } }))
-              repo.getValueOverReplacement(policyId).then((vor) => {
-                if (!ignore) {
-                  setVorState((prev) => ({
-                    ...prev,
-                    [policyId]: { loading: false, value: vor?.overall_vor ?? null, error: false },
-                  }))
-                }
-              }).catch(() => {
-                if (!ignore) {
-                  setVorState((prev) => ({ ...prev, [policyId]: { loading: false, value: null, error: true } }))
-                }
-              })
+              repo
+                .getValueOverReplacement(policyId)
+                .then((vor) => {
+                  if (!ignore) {
+                    setVorState((prev) => ({
+                      ...prev,
+                      [policyId]: { loading: false, value: vor?.overall_vor ?? null, error: false },
+                    }))
+                  }
+                })
+                .catch(() => {
+                  if (!ignore) {
+                    setVorState((prev) => ({ ...prev, [policyId]: { loading: false, value: null, error: true } }))
+                  }
+                })
             }
           })
         }
