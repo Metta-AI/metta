@@ -236,8 +236,13 @@ class CoreTrainingLoop:
         num_envs = batch_elems // num_agents
         device = td.device
 
-        binding_tensor = binding_ids.to(device=device).repeat(num_envs)
-        td.set("binding_id", binding_tensor)
+        if binding_ids.numel() > 1 or num_envs > 1:
+            binding_tensor = binding_ids.to(device=device).repeat(num_envs)
+            td.set("binding_id", binding_tensor)
+            if loss_profile_ids is not None:
+                td.set("loss_profile_id", loss_profile_ids.to(device=device).repeat(num_envs))
+            if trainable_mask is not None:
+                td.set("is_trainable_agent", trainable_mask.to(device=device).repeat(num_envs))
 
         if loss_profile_ids is not None:
             td.set("loss_profile_id", loss_profile_ids.to(device=device).repeat(num_envs))

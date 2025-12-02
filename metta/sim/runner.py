@@ -63,7 +63,7 @@ def run_simulations(
                 idx: registry.get(
                     b,
                     env_interface,
-                    device=env_interface.device or "cpu",  # type: ignore[arg-type]
+                    device="cpu",  # sim runs default to CPU; extend later if needed
                 )
                 for idx, b in enumerate(bindings_cfg)
             }

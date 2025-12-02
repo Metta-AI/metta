@@ -216,7 +216,16 @@ class Loss:
                 try:
                     filtered[key] = filtered[key][mask]
                 except Exception:
-                    pass
+                    # If shapes don't align, warn once to aid debugging
+                    try:
+                        import warnings
+
+                        warnings.warn(
+                            f"Loss filter could not mask key '{key}' due to shape mismatch",
+                            stacklevel=2,
+                        )
+                    except Exception:
+                        pass
 
         return filtered
 

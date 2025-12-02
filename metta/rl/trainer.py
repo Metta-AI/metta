@@ -94,7 +94,10 @@ class Trainer:
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.policy_env_info.num_agents
 
-        policy_experience_spec = self._extend_policy_experience_spec(self._policy.get_agent_experience_spec())
+        policy_experience_spec = self._extend_policy_experience_spec(
+            self._policy.get_agent_experience_spec(),
+            has_multiple_bindings=len(binding_state["bindings"]) > 1,
+        )
 
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,
@@ -351,8 +354,11 @@ class Trainer:
             "binding_policies": binding_policies,
         }
 
-    def _extend_policy_experience_spec(self, base_spec: Composite) -> Composite:
-        """Append binding/loss-profile metadata to the policy experience spec."""
+    def _extend_policy_experience_spec(self, base_spec: Composite, has_multiple_bindings: bool) -> Composite:
+        """Append binding/loss-profile metadata to the policy experience spec when needed."""
+
+        if not has_multiple_bindings:
+            return base_spec
 
         extras = {
             "binding_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
