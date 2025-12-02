@@ -121,7 +121,6 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
     """
     env = MettaGridConfig.EmptyRoom(num_agents=1)
     env.game.actions.change_vibe.number_of_vibes = len(VIBES)
-    env.game._populate_vibe_names()
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env)
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
     rollout = Rollout(env, [policy.agent_policy(0)])
