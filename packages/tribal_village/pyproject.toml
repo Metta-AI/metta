@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tribal-village"
-version = "0.1.0"
+version = "0.1.1"
 description = "Tribal Village - Multi-agent RL environment built with Nim"
 readme = "README.md"
 license = { text = "MIT" }
