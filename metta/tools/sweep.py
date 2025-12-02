@@ -24,11 +24,13 @@ from metta.tools.utils.auto_config import auto_wandb_config
 logger = logging.getLogger(__name__)
 
 
-def create_on_eval_completed_hook(metric_path: str):
+def create_on_eval_completed_hook(metric_path: str, cost_key: Optional[str] = None):
     """Create an on_eval_completed hook that extracts the specified metric.
 
     Args:
         metric_path: The path to the metric in the summary (e.g., "evaluator/eval_arena/score")
+        cost_key: Optional path to the cost metric in the summary. If provided, extracts
+            cost from summary[cost_key]. Otherwise uses run.cost (defaults to 0).
 
     Returns:
         A hook function that extracts the metric and updates the observation.
@@ -51,8 +53,19 @@ def create_on_eval_completed_hook(metric_path: str):
 
         score = summary[metric_path]
 
-        # Use the existing cost field from RunInfo (defaults to 0 if not set)
-        cost = run.cost
+        # Extract cost from summary if cost_key is provided, otherwise use run.cost
+        if cost_key is not None:
+            if cost_key not in summary:
+                error_msg = (
+                    f"[SweepTool] CRITICAL: Cost metric '{cost_key}' not found in run {run.run_id} summary. "
+                    f"Please verify your evaluation is producing the expected cost metric."
+                )
+                logger.error(error_msg, exc_info=True)
+                raise KeyError(error_msg)
+            cost = summary[cost_key]
+        else:
+            # Use the existing cost field from RunInfo (defaults to 0 if not set)
+            cost = run.cost
 
         # Update the run summary with sweep data for the optimizer
         sweep_data = {
@@ -157,6 +170,10 @@ class SweepTool(Tool):
     # Grid-search specific configuration (used when scheduler_type == GRID_SEARCH)
     grid_parameters: dict[str, Any] = {}
     grid_metric: Optional[str] = None
+
+    # Cost metric configuration
+    # If provided, extracts cost from run summary using this key instead of run.cost
+    cost_key: Optional[str] = None
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Execute the sweep."""
@@ -381,9 +398,11 @@ class SweepTool(Tool):
             if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and not metric_for_hook:
                 metric_for_hook = self.grid_metric
             logger.info(f"[SweepTool] Optimizing metric: {metric_for_hook}")
+            if self.cost_key:
+                logger.info(f"[SweepTool] Cost metric: {self.cost_key}")
 
             # Create the on_eval_completed hook with the specific metric we're optimizing
-            on_eval_completed = create_on_eval_completed_hook(metric_for_hook)
+            on_eval_completed = create_on_eval_completed_hook(metric_for_hook, cost_key=self.cost_key)
 
             # Pass on_eval_completed hook to run method for sweep-specific observation tracking
             controller.run(
