@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     libgomp1 \
+    python3 \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Bazel for mettagrid build
@@ -24,10 +26,13 @@ COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 COPY .python-version pyproject.toml uv.lock ./
 RUN uv python install
 
-# Install any missing system deps
-COPY devops/tools/install-system.sh /usr/local/bin/install-system.sh
-RUN chmod +x /usr/local/bin/install-system.sh
-RUN /usr/local/bin/install-system.sh
+# Install bootstrap dependencies (bazel, nimby, nim, git, g++) BEFORE uv sync
+# This ensures uv sync can build packages like mettagrid that require these tools
+# Copy bootstrap script to /tmp to avoid importing from metta package structure
+COPY metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py
+RUN python3 -m pip install --break-system-packages packaging && \
+    cd /tmp && \
+    python3 bootstrap.py --non-interactive
 
 COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/

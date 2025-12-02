@@ -10,9 +10,28 @@ COPY . /workspace/metta
 
 WORKDIR /workspace/metta
 
-RUN bash ./devops/tools/install-system.sh
+# install.sh will run bootstrap automatically, but we need it before uv sync
+# Since the repo is already copied, we can run bootstrap directly
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    curl \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get install -y apt-transport-https ca-certificates curl gnupg
+# Install uv if not present
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh || true
+ENV PATH="/root/.local/bin:$PATH"
+
+# Install packaging (bootstrap.py dependency) and run bootstrap
+# Copy bootstrap.py to /tmp to avoid importing from metta package structure
+RUN cp metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py && \
+    python3 -m pip install packaging && \
+    cd /tmp && \
+    python3 bootstrap.py --non-interactive
+
+RUN apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg
 RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 RUN chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 RUN echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list

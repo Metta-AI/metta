@@ -6,7 +6,25 @@ COPY . /workspace/metta
 
 WORKDIR /workspace/metta
 
-RUN bash ./devops/tools/install-system.sh
+# Install bootstrap dependencies (bazel, nimby, nim, git, g++) before uv sync
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    curl \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv if not present
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh || true
+ENV PATH="/root/.local/bin:$PATH"
+
+# Install packaging (bootstrap.py dependency) and run bootstrap
+# Copy bootstrap.py to /tmp to avoid importing from metta package structure
+RUN cp metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py && \
+    python3 -m pip install --break-system-packages packaging && \
+    cd /tmp && \
+    python3 bootstrap.py --non-interactive
 
 # Pre-build app_backend package to avoid issues during container startup
 RUN uv sync --frozen --package metta-app-backend
