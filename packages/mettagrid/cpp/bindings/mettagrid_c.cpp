@@ -325,9 +325,15 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (_global_obs_config.episode_completion_pct) {
     ObservationType episode_completion_pct = 0;
     if (max_steps > 0) {
-      episode_completion_pct = static_cast<ObservationType>(
-        (static_cast<uint32_t>(std::numeric_limits<ObservationType>::max()) + 1) * current_step / max_steps
-      );
+      if (current_step >= max_steps) {
+        // The episode should be over, so this observation shouldn't matter. But let's max our for
+        // better continuity.
+        episode_completion_pct = std::numeric_limits<ObservationType>::max();
+      } else {
+        episode_completion_pct = static_cast<ObservationType>(
+          (static_cast<uint32_t>(std::numeric_limits<ObservationType>::max()) + 1) * current_step / max_steps
+        );
+      }
     }
     global_tokens.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
   }
