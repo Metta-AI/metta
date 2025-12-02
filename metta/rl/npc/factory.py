@@ -69,7 +69,6 @@ class ScriptedPolicyAdapter(Policy):
             envs: Iterable[Any] = [SimpleNamespace(_env=env_stub, num_agents=num_agents)]
         else:
             envs = getattr(vecenv, "envs", [])
-            driver_env = getattr(vecenv, "driver_env", None)
         for env in envs:
             underlying_env = getattr(env, "_env", env)
             scripted_policy = self._policy_cls(underlying_env, **self._policy_kwargs)

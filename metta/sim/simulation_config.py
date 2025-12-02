@@ -23,12 +23,8 @@ class SimulationConfig(Config):
     # Optional NPC/scripted agent settings (used by legacy flows and dual-policy experiments)
     npc_policy_uri: str | None = Field(default=None, description="URI of the policy to use for NPC agents")
     npc_policy_class: str | None = Field(default=None, description="Import path to scripted NPC policy class")
-    npc_policy_kwargs: dict[str, Any] = Field(
-        default_factory=dict, description="Keyword args for scripted NPC policy"
-    )
-    policy_agents_pct: float = Field(
-        default=1.0, description="pct of agents to be controlled by policies", ge=0, le=1
-    )
+    npc_policy_kwargs: dict[str, Any] = Field(default_factory=dict, description="Keyword args for scripted NPC policy")
+    policy_agents_pct: float = Field(default=1.0, description="pct of agents to be controlled by policies", ge=0, le=1)
 
     # Optional episode metadata
     episode_tags: dict[str, str] | None = Field(

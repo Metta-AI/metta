@@ -73,6 +73,7 @@ class PolicyEnvInterface(BaseModel):
             assembler_protocols=assembler_protocols,
             tag_id_to_name=tag_id_to_name,
         )
+
     def to_json(self) -> str:
         """Convert PolicyEnvInterface to JSON."""
         payload = self.model_dump(mode="json", include={"num_agents", "obs_width", "obs_height", "tags"})
