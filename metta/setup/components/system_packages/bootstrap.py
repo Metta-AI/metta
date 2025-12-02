@@ -26,14 +26,19 @@ MIN_BAZEL_VERSION = "7.0.0"
 DEFAULT_BAZEL_VERSION = "latest"
 BAZELISK_VERSION = "v1.19.0"
 
-# Common install directories in order of preference
-COMMON_INSTALL_DIRS = [
+
+TARGET_INSTALL_DIRS = [
     "/usr/local/bin",
     "/usr/bin",
     "/opt/bin",
     str(Path.home() / ".local" / "bin"),
     str(Path.home() / "bin"),
+]
+# Common install directories in order of preference
+CHECK_FOR_BINARIES_DIRS = [
+    *TARGET_INSTALL_DIRS,
     str(Path.home() / ".cargo" / "bin"),
+    str(Path.home() / ".nimby" / "nim" / "bin"),
     "/opt/homebrew/bin",
 ]
 
@@ -57,9 +62,8 @@ def error(message: str) -> None:
 
 
 def get_install_dir() -> Path | None:
-    """Return first dir in COMMON_INSTALL_DIRS that is in PATH and writable."""
     path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-    for dir_str in COMMON_INSTALL_DIRS:
+    for dir_str in TARGET_INSTALL_DIRS:
         if dir_str in path_dirs:
             dir_path = Path(dir_str)
             if dir_path.exists() and (os.access(dir_path, os.W_OK) or (hasattr(os, "geteuid") and os.geteuid() == 0)):
@@ -68,9 +72,9 @@ def get_install_dir() -> Path | None:
 
 
 def ensure_paths() -> None:
-    """Add common directories to PATH if not already present."""
+    """Add target install directories to PATH if not already present."""
     path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-    for dir_str in COMMON_INSTALL_DIRS:
+    for dir_str in CHECK_FOR_BINARIES_DIRS:
         dir_path = Path(dir_str)
         if dir_path.exists() and dir_str not in path_dirs:
             os.environ["PATH"] = f"{dir_str}:{os.environ.get('PATH', '')}"
@@ -431,7 +435,7 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
         info(f"{', '.join(not_found)} not found in path after installation.")
         install_dir = get_install_dir()
         if not install_dir:
-            error(f"No dir to install it into identified. Consider adding {COMMON_INSTALL_DIRS[0]} to your PATH")
+            error(f"No dir to install it into identified. Consider adding {TARGET_INSTALL_DIRS[0]} to your PATH")
             raise RuntimeError("No dir to install it into identified")
         linked_any = False
         for tool in not_found:
