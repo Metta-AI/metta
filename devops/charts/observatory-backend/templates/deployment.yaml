@@ -26,6 +26,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.anthropic }}
                   key: api-key
+            # temporary - should be terraformed
+            - name: OBSERVATORY_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: observatory-backend-auth-key
+                  key: key
           resources:
             requests:
               memory: "1Gi"
