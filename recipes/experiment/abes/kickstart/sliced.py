@@ -111,9 +111,12 @@ def train(
 
     losses_config = LossesConfig()
     losses_config.sliced_kickstarter.enabled = True
-    # teacher was trained off vit_large_lstm. hit 7.0 at 3b steps. More stable
+
+    # losses_config.sliced_kickstarter.teacher_uri = (
+    #     "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
+    # )
     losses_config.sliced_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
+        "s3://softmax-public/policies/av.teacher.12.01.04/av.teacher.12.01.04:v600.mpt"
     )
     ks_end_step = 1_000_000_000
     losses_config.ppo_critic.sample_enabled = False
