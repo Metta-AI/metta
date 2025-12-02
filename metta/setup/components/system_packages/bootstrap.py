@@ -33,7 +33,6 @@ COMMON_INSTALL_DIRS = [
     "/opt/bin",
     str(Path.home() / ".local" / "bin"),
     str(Path.home() / "bin"),
-    str(Path.home() / ".nimby" / "nim" / "bin"),
     str(Path.home() / ".cargo" / "bin"),
     "/opt/homebrew/bin",
 ]
