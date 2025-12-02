@@ -2,13 +2,9 @@
 # This backend compiles the C++ extension using Bazel during package installation
 
 import os
-import platform
 import shutil
-import stat
 import subprocess
 import sys
-import tempfile
-import urllib.request
 from pathlib import Path
 
 from setuptools.build_meta import (
@@ -33,8 +29,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
 PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
-DEFAULT_NIM_VERSION = os.environ.get("METTAGRID_NIM_VERSION", "2.2.6")
-DEFAULT_NIMBY_VERSION = os.environ.get("METTAGRID_NIMBY_VERSION", "0.1.11")
 
 
 def cmd(cmd: str) -> None:
@@ -201,6 +195,10 @@ def _run_mettascope_build() -> None:
         print("Skipping Nim build; artifacts up to date.")
         _sync_mettascope_package_data()
         return
+
+    for x in ["nim", "nimby"]:
+        if shutil.which(x) is None:
+            raise RuntimeError(f"{x} not found! Install from https://github.com/treeform/nimby.")
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
