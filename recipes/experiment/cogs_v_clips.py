@@ -17,12 +17,16 @@ from cogames.cli.mission import find_mission, parse_variants
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
+from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
+    DiscreteRandomConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.training import EvaluatorConfig
+from metta.rl.loss.losses import LossesConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -200,9 +204,7 @@ def make_training_env(
         vibe_transfers = getattr(chest, "vibe_transfers", None) if chest is not None else None
         if isinstance(vibe_transfers, dict):
             allowed = set(allowed_vibes)
-            # Use setattr to satisfy type checker
-            new_transfers = {vibe: transfers for vibe, transfers in vibe_transfers.items() if vibe in allowed}
-            chest.vibe_transfers = new_transfers
+            chest.vibe_transfers = {vibe: transfers for vibe, transfers in vibe_transfers.items() if vibe in allowed}
 
     return env
 
@@ -271,24 +273,103 @@ def train(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
+    bc_policy_uri: Optional[str] = None,
+    bc_teacher_lead_prob: float = 1.0,
+    use_lp: bool = True,
 ) -> TrainTool:
-    """Create a training tool configuration."""
-    if curriculum is None:
-        curriculum = make_curriculum(
-            num_cogs=num_cogs,
-            missions=base_missions or ([mission] if mission else None),
+    """Create a training tool for CoGs vs Clips."""
+    training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
+    if mission is not None:
+        training_missions = [mission]
+
+    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
+    curriculum = curriculum or make_curriculum(
+        num_cogs=num_cogs,
+        missions=training_missions,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+        variants=variants,
+        algorithm_config=cur_alg,
+    )
+
+    trainer_cfg = TrainerConfig(
+        losses=LossesConfig(),
+    )
+
+    resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
+    eval_suite = make_eval_suite(
+        num_cogs=num_cogs,
+        difficulty=eval_difficulty,
+        variants=resolved_eval_variants,
+        max_evals=max_evals,
+    )
+
+    evaluator_cfg = EvaluatorConfig(
+        simulations=eval_suite,
+    )
+
+    tt = TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=evaluator_cfg,
+    )
+
+    if bc_policy_uri is not None:
+        tt.trainer.losses.supervisor.enabled = True
+        tt.trainer.losses.ppo.enabled = False
+        tt.trainer.losses.ppo_actor.enabled = False
+        tt.trainer.losses.ppo_critic.enabled = True
+        tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
+        tt.trainer.losses.ppo_critic.sample_enabled = False
+        tt.trainer.losses.ppo_critic.train_forward_enabled = False
+        tt.training_env.supervisor.policy = bc_policy_uri
+        tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+
+    return tt
+
+
+def train_variants(
+    num_cogs: int = 4,
+    base_missions: Optional[list[str]] = None,
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+) -> TrainTool:
+    """Create a training tool with curriculum tasks for all variants.
+
+    Loads all available variants and creates a curriculum task for each one,
+    merging them into a single curriculum.
+    """
+    if base_missions is None:
+        base_missions = list(DEFAULT_CURRICULUM_MISSIONS)
+
+    # Create tasks for each variant
+    all_variant_tasks = []
+    for variant in VARIANTS:
+        for mission_name in base_missions:
+            mission = _resolve_mission_template(mission_name)
+            if not variant.compat(mission):
+                continue
+            mission_env = mission.make_env()
+            mission_tasks = cc.bucketed(mission_env)
+            all_variant_tasks.append(mission_tasks)
+
+    # Merge all variant tasks
+    merged_tasks = cc.merge(all_variant_tasks)
+
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=2000,
+            max_slice_axes=4,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
-            variants=variants,
         )
 
-    eval_variants = _resolve_eval_variants(variants, eval_variants)
-    _evaluator_cfg = EvaluatorConfig(
-        simulations=make_eval_suite(
-            num_cogs=num_cogs,
-            difficulty=eval_difficulty,
-            variants=eval_variants,
-            max_evals=max_evals,
-        ),
+    curriculum = merged_tasks.to_curriculum(
+        num_active_tasks=1500,
+        algorithm_config=algorithm_config,
     )
 
     return train(
@@ -350,8 +431,16 @@ def play(
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
     """Play a single mission with a policy."""
-    env = make_training_env(num_cogs=num_cogs, mission=mission, variants=variants)
-    sim = SimulationConfig(suite="cogs_vs_clips", name=f"{mission}_{num_cogs}cogs", env=env)
+    env = make_training_env(
+        num_cogs=num_cogs,
+        mission=mission,
+        variants=variants,
+    )
+    sim = SimulationConfig(
+        suite="cogs_vs_clips",
+        name=f"{mission}_{num_cogs}cogs",
+        env=env,
+    )
     return PlayTool(sim=sim, policy_uri=policy_uri)
 
 
@@ -434,6 +523,7 @@ __all__ = [
     "make_training_env",
     "make_curriculum",
     "train",
+    "train_variants",
     "train_single_mission",
     "evaluate",
     "play",
