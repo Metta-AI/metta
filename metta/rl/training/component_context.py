@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import torch
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
@@ -97,6 +98,14 @@ class ComponentContext:
 
         self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
         self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
+
+        # Binding / loss-profile metadata
+        self.binding_id_per_agent: Optional[torch.Tensor] = None
+        self.loss_profile_id_per_agent: Optional[torch.Tensor] = None
+        self.trainable_agent_mask: Optional[torch.Tensor] = None
+        self.binding_id_lookup: Dict[str, int] = {}
+        self.loss_profile_lookup: Dict[str, int] = {}
+        self.policy_bindings: list[Any] = []
 
         self._training_env_id: slice | None = (
             self.state.training_env_window.to_slice() if self.state.training_env_window else None

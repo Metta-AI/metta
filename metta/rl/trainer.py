@@ -2,9 +2,11 @@ import importlib
 from typing import Any, Callable, Optional
 
 import torch
+from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
+from metta.rl.binding_config import LossProfileConfig, PolicyBindingConfig
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
@@ -73,11 +75,15 @@ class Trainer:
         losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
         self._policy.train()
 
+        binding_state = self._build_binding_state()
+
         batch_info = self._env.batch_info
 
         parallel_agents = getattr(self._env, "total_parallel_agents", None)
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.policy_env_info.num_agents
+
+        policy_experience_spec = self._extend_policy_experience_spec(self._policy.get_agent_experience_spec())
 
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,
@@ -85,7 +91,7 @@ class Trainer:
             bptt_horizon=self._cfg.bptt_horizon,
             minibatch_size=self._cfg.minibatch_size,
             max_minibatch_size=self._cfg.minibatch_size,
-            policy_experience_spec=self._policy.get_agent_experience_spec(),
+            policy_experience_spec=policy_experience_spec,
             losses=losses,
             device=self._device,
         )
@@ -112,6 +118,12 @@ class Trainer:
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
+        self._context.binding_id_per_agent = binding_state["binding_ids"]
+        self._context.loss_profile_id_per_agent = binding_state["loss_profile_ids"]
+        self._context.trainable_agent_mask = binding_state["trainable_mask"]
+        self._context.binding_id_lookup = binding_state["binding_lookup"]
+        self._context.loss_profile_lookup = binding_state["loss_profile_lookup"]
+        self._context.policy_bindings = binding_state["bindings"]
 
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
@@ -242,6 +254,93 @@ class Trainer:
 
         self._components.append(component)
         component.register(self._context)
+
+    # ------------------------------------------------------------------
+    # Binding setup helpers
+    # ------------------------------------------------------------------
+    def _build_binding_state(self) -> dict[str, Any]:
+        """Prepare per-agent binding and loss-profile metadata."""
+
+        bindings_cfg = list(self._cfg.policy_bindings or [])
+        # Ensure at least one binding uses the trainer-provided policy
+        has_trainer_binding = any(b.use_trainer_policy for b in bindings_cfg)
+        if not bindings_cfg or not has_trainer_binding:
+            bindings_cfg.insert(0, PolicyBindingConfig(id="main", use_trainer_policy=True, trainable=True))
+
+        trainer_binding_count = sum(1 for b in bindings_cfg if b.use_trainer_policy)
+        if trainer_binding_count > 1:
+            raise ValueError("Only one binding may set use_trainer_policy=True")
+
+        binding_lookup: dict[str, int] = {}
+        for binding in bindings_cfg:
+            if binding.id in binding_lookup:
+                raise ValueError(f"Duplicate policy binding id '{binding.id}'")
+            binding_lookup[binding.id] = len(binding_lookup)
+
+        # Loss profiles (config-only in Phase 0)
+        loss_profiles = dict(self._cfg.loss_profiles)
+        if not loss_profiles:
+            loss_profiles = {"default": LossProfileConfig(losses=[])}
+        loss_profile_lookup = {name: idx for idx, name in enumerate(loss_profiles.keys())}
+
+        default_binding_profile = next(iter(loss_profiles.keys()))
+
+        num_agents = self._env.policy_env_info.num_agents
+        agent_binding_map = self._cfg.agent_binding_map
+        if agent_binding_map is None:
+            agent_binding_map = [bindings_cfg[0].id for _ in range(num_agents)]
+        if len(agent_binding_map) != num_agents:
+            raise ValueError(
+                f"agent_binding_map must have length num_agents ({num_agents}); got {len(agent_binding_map)}"
+            )
+
+        binding_ids = []
+        loss_profile_ids = []
+        trainable_mask = []
+        for idx, binding_id_str in enumerate(agent_binding_map):
+            if binding_id_str not in binding_lookup:
+                raise ValueError(f"agent_binding_map[{idx}] references unknown binding id '{binding_id_str}'")
+            b_idx = binding_lookup[binding_id_str]
+            binding = bindings_cfg[b_idx]
+            binding_ids.append(b_idx)
+
+            profile_name = binding.loss_profile or default_binding_profile
+            if profile_name not in loss_profile_lookup:
+                # Auto-register profile if referenced but not defined
+                loss_profile_lookup[profile_name] = len(loss_profile_lookup)
+            loss_profile_ids.append(loss_profile_lookup[profile_name])
+            trainable_mask.append(bool(binding.trainable))
+
+        binding_tensor = torch.tensor(binding_ids, dtype=torch.long)
+        loss_profile_tensor = torch.tensor(loss_profile_ids, dtype=torch.long)
+        trainable_tensor = torch.tensor(trainable_mask, dtype=torch.bool)
+
+        if len(bindings_cfg) > 1:
+            logger.warning(
+                "Multiple policy bindings configured; Phase 0 annotates rollout with binding metadata but control "
+                "is still provided by the primary trainer policy."
+            )
+
+        return {
+            "bindings": bindings_cfg,
+            "binding_lookup": binding_lookup,
+            "loss_profile_lookup": loss_profile_lookup,
+            "binding_ids": binding_tensor,
+            "loss_profile_ids": loss_profile_tensor,
+            "trainable_mask": trainable_tensor,
+        }
+
+    def _extend_policy_experience_spec(self, base_spec: Composite) -> Composite:
+        """Append binding/loss-profile metadata to the policy experience spec."""
+
+        extras = {
+            "binding_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+            "loss_profile_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+            "is_trainable_agent": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool),
+        }
+        merged = dict(base_spec.items())
+        merged.update(extras)
+        return Composite(merged)
 
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
         """Invoke all registered callbacks of the specified type.

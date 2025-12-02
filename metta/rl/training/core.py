@@ -123,6 +123,7 @@ class CoreTrainingLoop:
                 self.add_last_action_to_td(td, env)
 
                 self._ensure_rollout_metadata(td)
+                self._inject_binding_metadata(td, training_env_id)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             with context.stopwatch("_rollout.inference"):
@@ -212,6 +213,36 @@ class CoreTrainingLoop:
             self._metadata_cache[key] = tensor
             return tensor
         return cached
+
+    def _inject_binding_metadata(self, td: TensorDict, training_env_id: slice) -> None:
+        """Attach binding/loss profile annotations to the rollout TensorDict."""
+
+        ctx = self.context
+        binding_ids = getattr(ctx, "binding_id_per_agent", None)
+        if binding_ids is None:
+            return
+
+        loss_profile_ids = getattr(ctx, "loss_profile_id_per_agent", None)
+        trainable_mask = getattr(ctx, "trainable_agent_mask", None)
+
+        num_agents = ctx.env.policy_env_info.num_agents
+        if num_agents <= 0:
+            return
+
+        batch_elems = td.batch_size.numel()
+        if batch_elems % num_agents != 0:
+            return
+
+        num_envs = batch_elems // num_agents
+        device = td.device
+
+        binding_tensor = binding_ids.to(device=device).repeat(num_envs)
+        td.set("binding_id", binding_tensor)
+
+        if loss_profile_ids is not None:
+            td.set("loss_profile_id", loss_profile_ids.to(device=device).repeat(num_envs))
+        if trainable_mask is not None:
+            td.set("is_trainable_agent", trainable_mask.to(device=device).repeat(num_envs))
 
     def training_phase(
         self,
