@@ -140,6 +140,19 @@ class TrainTool(Tool):
         init_logging(run_dir=checkpoint_manager.run_dir)
         record_heartbeat()
 
+        # Sync unroll_steps from trainer config to policy architecture if applicable
+        dynamics_cfg = getattr(self.trainer.losses, "dynamics", None)
+        if dynamics_cfg and dynamics_cfg.enabled and dynamics_cfg.unroll_steps > 0:
+            # Use cast to avoid type errors since PolicyArchitecture base doesn't have unroll_steps
+            policy_arch = self.policy_architecture  # type: Any
+            if hasattr(policy_arch, "unroll_steps"):
+                if policy_arch.unroll_steps != dynamics_cfg.unroll_steps:
+                    logger.info(
+                        "Syncing policy unroll_steps to %d from dynamics loss config",
+                        dynamics_cfg.unroll_steps,
+                    )
+                    policy_arch.unroll_steps = dynamics_cfg.unroll_steps
+
         checkpointer = Checkpointer(
             config=self.checkpointer,
             checkpoint_manager=checkpoint_manager,
@@ -150,6 +163,7 @@ class TrainTool(Tool):
             env.policy_env_info,
             policy_uri=self.initial_policy_uri,
         )
+        logger.info(f"Policy parameters: {policy.total_params:,}")
         trainer = self._initialize_trainer(env, policy, distributed_helper)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)

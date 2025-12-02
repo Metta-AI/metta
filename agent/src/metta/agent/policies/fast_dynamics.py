@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
     """Forward pass for the FastDynamics policy."""
-    self.network(td)
+    self.network()(td)
     self.action_probs(td, action)
 
     td["pred_input"] = torch.cat([td["core"], td["logits"]], dim=-1)
@@ -37,8 +37,6 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
 
 
 class FastDynamicsConfig(PolicyArchitecture):
-    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _latent_dim = 64
