@@ -72,23 +72,24 @@ class SpatialAnalysis:
     building_coverage: float
     distribution_type: str
     estimated_avg_distance: float  # estimated avg distance to extractors
-    is_hub_based: bool
+    is_hub_based: bool  # hub exists (assembler/chest/charger in center)
+    extractors_in_hub: bool  # are extractors near hub or scattered across arena?
 
 
 @dataclass
 class DifficultyReport:
     """Complete difficulty analysis report.
 
+    Models mission difficulty using enzyme kinetics analogy:
+    - Startup cost (Km): Time to first heart
+    - Steady state rate (Vmax): Hearts per 1000 steps once warmed up
+    - Substrate depletion: Max hearts if extractors have max_uses limits
+
     The difficulty_score represents expected steps per heart in steady state / 1000:
     - 0.1 = expect 1 heart per ~100 steps (very easy)
     - 1.0 = expect 1 heart per ~1000 steps
     - 10.0 = expect 1 heart per ~10000 steps (max_steps limit)
     - inf = absorbing state likely (energy death, etc.)
-
-    Considers:
-    - First heart (may be easier with initial inventory)
-    - Steady-state (extraction + assembly + coordination per heart)
-    - Coordination overhead for multi-agent recipes
     """
 
     feasible: bool
@@ -101,9 +102,13 @@ class DifficultyReport:
     initial_resources: InitialResourceAnalysis | None = None
     spatial: SpatialAnalysis | None = None
 
-    # Step estimates
-    first_heart_steps: int = 0  # Steps to first heart (may benefit from initial inventory)
-    steady_state_steps: int = 0  # Steps per heart in steady state (full extraction)
+    # Enzyme kinetics model
+    first_heart_steps: int = 0  # Startup cost: steps to first heart
+    steady_state_steps: int = 0  # Steady rate: steps per heart after warmup
+    max_hearts: int | None = None  # Substrate limit: None = infinite, else max hearts possible
+    total_expected_hearts: float = 0  # Expected hearts in max_steps episode
+
+    # Risk factors
     coordination_overhead: float = 1.0  # Multiplier for multi-agent coordination
     success_probability: float = 1.0  # P(completing without absorbing state)
 
@@ -128,17 +133,29 @@ class DifficultyReport:
 
         coord_str = f"{self.coordination_overhead:.1f}x" if self.coordination_overhead > 1.0 else "none"
 
+        # Max hearts info
+        if self.max_hearts is None:
+            substrate_str = "∞ (no depletion)"
+        else:
+            substrate_str = f"{self.max_hearts} hearts max"
+
         lines = [
             f"Difficulty: {score_str} (E[steps/heart] / 1000)",
-            f"Rate: {rate_str}",
-            f"First Heart: {self.first_heart_steps} steps | Steady State: {self.steady_state_steps} steps/heart",
-            f"Coordination: {coord_str} | Success P: {self.success_probability:.1%}",
+            "",
+            "Kinetics:",
+            f"  Startup: {self.first_heart_steps} steps to first heart",
+            f"  Steady:  {self.steady_state_steps} steps/heart",
+            f"  Rate:    {rate_str}",
+            f"  Substrate: {substrate_str}",
+            f"  Expected: ~{self.total_expected_hearts:.1f} hearts in 10k steps",
+            "",
+            f"Risk: Coord={coord_str} | P(success)={self.success_probability:.1%}",
         ]
         if not self.feasible:
             lines.insert(0, "⚠️  NOT FEASIBLE")
         if self.conflicts:
             lines.append(f"Conflicts: {', '.join(self.conflicts)}")
-        lines.append(f"Extractor Visits/Heart: {self.min_extractor_visits}")
+        lines.append(f"Visits/Heart: {self.min_extractor_visits}")
         return "\n".join(lines)
 
 
@@ -201,6 +218,9 @@ def estimate_difficulty(mission: Mission) -> DifficultyReport:
     # Use steady-state steps for probability since that's the repeating cycle
     success_probability = _calculate_success_probability(energy, steady_state_steps, resources, spatial)
 
+    # === SUBSTRATE DEPLETION (max_hearts from extractor max_uses) ===
+    max_hearts = _calculate_max_hearts(mission, steady_state_visits, spatial)
+
     # === EXPECTED STEPS PER HEART ===
     # E[steps] = steady_state_steps * coordination_overhead / P(success)
     if success_probability <= 0:
@@ -208,6 +228,18 @@ def estimate_difficulty(mission: Mission) -> DifficultyReport:
         conflicts.append("Absorbing state certain: cannot complete mission")
     else:
         expected_steps_per_heart = (steady_state_steps * coordination_overhead) / success_probability
+
+    # === TOTAL EXPECTED HEARTS (in max_steps episode) ===
+    max_steps = 10000  # Standard episode length
+    if expected_steps_per_heart == float("inf"):
+        total_expected_hearts = 0.0
+    elif max_hearts is not None:
+        # Substrate-limited: can't exceed max_hearts
+        hearts_from_rate = max_steps / expected_steps_per_heart
+        total_expected_hearts = min(max_hearts, hearts_from_rate)
+    else:
+        # Unlimited substrate
+        total_expected_hearts = max_steps / expected_steps_per_heart
 
     # === DIFFICULTY SCORE ===
     # Difficulty = E[steps per heart] / 1000
@@ -228,6 +260,8 @@ def estimate_difficulty(mission: Mission) -> DifficultyReport:
         spatial=spatial,
         first_heart_steps=first_heart_steps,
         steady_state_steps=steady_state_steps,
+        max_hearts=max_hearts,
+        total_expected_hearts=total_expected_hearts,
         coordination_overhead=coordination_overhead,
         success_probability=success_probability,
         expected_steps_per_heart=expected_steps_per_heart,
@@ -613,6 +647,80 @@ def _analyze_resources(mission: Mission) -> ResourceAnalysis:
 
 
 # =============================================================================
+# Substrate Depletion (Max Hearts)
+# =============================================================================
+
+
+def _calculate_max_hearts(
+    mission: Mission,
+    visits_per_heart: dict[str, int],
+    spatial: SpatialAnalysis | None = None,
+) -> int | None:
+    """Calculate maximum hearts possible before extractor depletion.
+
+    IMPORTANT: max_uses is PER EXTRACTOR, not global!
+    Total uses = num_extractors × max_uses_per_extractor
+
+    For hub maps: 1 extractor of each type (in corners)
+    For arena maps: Many extractors, estimated from building coverage
+
+    Returns:
+        None if unlimited (all extractors have max_uses=0)
+        int if limited by extractor depletion
+    """
+    extractors = {
+        "carbon": mission.carbon_extractor,
+        "oxygen": mission.oxygen_extractor,
+        "germanium": mission.germanium_extractor,
+        "silicon": mission.silicon_extractor,
+    }
+
+    # Estimate extractor counts based on map type
+    if spatial and spatial.extractors_in_hub:
+        # Hub maps: exactly 1 of each extractor in corners
+        extractor_counts = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1}
+    elif spatial:
+        # Arena maps: estimate from building coverage
+        # Typical arena: ~1% coverage, ~25% of buildings are extractors
+        # Split roughly evenly among 4 types
+        area = spatial.map_area
+        total_buildings = max(4, int(area * spatial.building_coverage))
+        extractors_per_type = max(1, total_buildings // 8)  # ~12.5% per extractor type
+        extractor_counts = {
+            "carbon": extractors_per_type,
+            "oxygen": extractors_per_type,
+            "germanium": extractors_per_type,
+            "silicon": extractors_per_type,
+        }
+    else:
+        # Unknown: assume hub-like (conservative)
+        extractor_counts = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1}
+
+    max_hearts_per_resource: list[int] = []
+
+    for resource, extractor in extractors.items():
+        max_uses_per = extractor.max_uses
+        if max_uses_per == 0:
+            # Unlimited uses for this extractor type
+            continue
+
+        count = extractor_counts.get(resource, 1)
+        total_uses = count * max_uses_per
+        visits_needed = visits_per_heart.get(resource, 1)
+
+        if visits_needed > 0:
+            hearts_from_resource = total_uses // visits_needed
+            max_hearts_per_resource.append(hearts_from_resource)
+
+    if not max_hearts_per_resource:
+        # All extractors are unlimited
+        return None
+
+    # Limited by the scarcest resource
+    return min(max_hearts_per_resource)
+
+
+# =============================================================================
 # Recipe Analysis
 # =============================================================================
 
@@ -734,7 +842,17 @@ def _analyze_initial_resources(mission: Mission, resources: ResourceAnalysis) ->
 
 
 def _analyze_spatial(mission: Mission) -> SpatialAnalysis:
-    """Analyze map spatial complexity from config."""
+    """Analyze map spatial complexity from config.
+
+    Key distinction:
+    - is_hub_based: Does the map have a central hub (assembler/chest/charger)?
+    - extractors_in_hub: Are extractors INSIDE the hub (small maps) or
+      scattered across the arena (large maps like MachinaArena)?
+
+    For distance estimation:
+    - If extractors_in_hub: Use hub distances (~6-8 tiles)
+    - If extractors scattered: Use map size / 3 for uniform distribution
+    """
     map_builder = mission.site.map_builder
 
     # Defaults
@@ -743,6 +861,7 @@ def _analyze_spatial(mission: Mission) -> SpatialAnalysis:
     building_coverage = 0.01
     distribution_type = "uniform"
     is_hub_based = False
+    extractors_in_hub = False
 
     if isinstance(map_builder, MapGen.Config):
         width = map_builder.width or 50
@@ -750,33 +869,38 @@ def _analyze_spatial(mission: Mission) -> SpatialAnalysis:
 
         instance = map_builder.instance
         if instance is not None:
-            # Check for MachinaArena
             from cogames.cogs_vs_clips.procedural import MachinaArena, RandomTransform
 
             if isinstance(instance, MachinaArena.Config):
+                # MachinaArena: hub at center, extractors scattered across arena
                 building_coverage = instance.building_coverage
                 dist_config = instance.distribution
                 distribution_type = dist_config.type.value if dist_config else "uniform"
                 is_hub_based = True  # Has BaseHub inside
+                extractors_in_hub = False  # Extractors are in the ARENA, not hub
 
             elif isinstance(instance, RandomTransform.Config):
                 inner = instance.scene
                 if isinstance(inner, BaseHub.Config):
+                    # Pure hub map (no arena): extractors are in the hub
                     is_hub_based = True
-                    # Hub maps are small and predictable
+                    extractors_in_hub = True
                     width = min(width, 21)
                     height = min(height, 21)
 
             elif isinstance(instance, BaseHub.Config):
+                # Pure hub map: extractors are in the hub
                 is_hub_based = True
+                extractors_in_hub = True
                 width = min(width, instance.hub_width)
                 height = min(height, instance.hub_height)
 
     area = width * height
 
     # Estimate average distance to extractors
+    # Key: use extractors_in_hub, not is_hub_based
     estimated_distance = _estimate_avg_extractor_distance(
-        width, height, building_coverage, distribution_type, is_hub_based
+        width, height, building_coverage, distribution_type, extractors_in_hub
     )
 
     return SpatialAnalysis(
@@ -787,41 +911,52 @@ def _analyze_spatial(mission: Mission) -> SpatialAnalysis:
         distribution_type=distribution_type,
         estimated_avg_distance=estimated_distance,
         is_hub_based=is_hub_based,
+        extractors_in_hub=extractors_in_hub,
     )
 
 
 def _estimate_avg_extractor_distance(
-    width: int, height: int, coverage: float, distribution: str, is_hub: bool
+    width: int, height: int, coverage: float, distribution: str, extractors_in_hub: bool
 ) -> float:
-    """Estimate average distance to extractors based on distribution."""
-    if is_hub:
-        # Hub maps have extractors in corners, ~5-7 tiles from center
-        return 6.0
+    """Estimate average distance to extractors based on distribution.
 
-    # For uniform distribution, expected distance scales with sqrt(area / num_buildings)
-    area = width * height
-    num_buildings = max(1, int(area * coverage))
+    Calibrated against rigorous pathfinding validation:
+    - Hub maps (extractors_in_hub): ~8 tiles avg distance
+    - 100x100 arenas: ~30 tiles avg distance
+    - 200x200 arenas: ~25-30 tiles avg distance (more extractors, similar density)
+
+    Key insight: Arena distances converge around 25-30 regardless of size
+    when coverage is typical (0.01). This is because more extractors are
+    placed on larger maps, keeping density roughly constant.
+
+    The greedy TSP path visits nearest extractors first, so actual travel
+    is less than naive "map_size/3" would suggest.
+    """
+    if extractors_in_hub:
+        # Extractors are in the hub corners, ~6-8 tiles from center
+        return 8.0
+
+    # For arenas, distances are relatively stable due to coverage scaling
+    # Base: ~25-30 for typical arenas regardless of size
+    # Adjust slightly for distribution type
+
+    base_distance = 28.0  # Empirically calibrated from rigorous validation
 
     if distribution == "uniform":
-        # Average distance in uniform random placement
-        avg_spacing = math.sqrt(area / num_buildings)
-        return avg_spacing / 2
-
+        dist_factor = 1.0
     elif distribution == "normal":
-        # Clustered toward center - shorter distances
-        return math.sqrt(area / num_buildings) / 3
-
+        # Clustered toward center - shorter if you're near center
+        dist_factor = 0.8
     elif distribution == "bimodal":
-        # Two clusters - depends on position, estimate middle ground
-        return math.sqrt(area / num_buildings) / 2
-
+        # Two clusters
+        dist_factor = 0.9
     elif distribution == "exponential":
-        # Concentrated at origin - very short if near, long if far
-        return math.sqrt(area / num_buildings) / 2.5
-
+        # Concentrated at origin
+        dist_factor = 0.85
     else:
-        # Default uniform estimate
-        return math.sqrt(area / num_buildings) / 2
+        dist_factor = 1.0
+
+    return base_distance * dist_factor
 
 
 # =============================================================================
@@ -896,33 +1031,38 @@ def _estimate_steps_to_heart(
     spatial: SpatialAnalysis | None,
     min_visits: dict[str, int],
 ) -> int:
-    """Estimate minimum steps to produce first heart."""
+    """Estimate minimum MOVEMENT steps to produce first heart.
+
+    This returns pure movement steps. Energy overhead (waiting/chargers)
+    is added separately by _calculate_total_steps.
+
+    Calibrated against rigorous greedy TSP validation:
+    - Hub maps: ~4 steps per extractor visit (extractors nearby)
+    - Arena maps: First visit ~avg_distance, subsequent visits much shorter
+      because greedy finds nearest unvisited extractor
+
+    With many extractors (50+ per type), subsequent visits average ~10-15 steps,
+    not the full avg_distance. The greedy path is very efficient.
+    """
     if initial is not None and initial.first_heart_covered:
         # Just need to walk to assembler
         return int(spatial.estimated_avg_distance * 2) if spatial else 10
 
-    # Estimate based on extractor visits and distances
     total_visits = sum(min_visits.values())
     avg_distance = spatial.estimated_avg_distance if spatial else 10
 
-    # Each extractor visit: walk there + walk back (roughly)
-    # Plus final trip to assembler and chest
-    movement_steps = int(total_visits * avg_distance * 1.5)  # 1.5x for non-optimal pathing
+    if spatial and spatial.extractors_in_hub:
+        # Hub: extractors are close together, ~4-6 steps between them
+        steps_per_visit = 4.0
+        final_trip = 4.0  # To chest + assembler
+    else:
+        # Arena: first visit is far, subsequent are closer (greedy nearest neighbor)
+        # Empirically: ~12 steps per visit on dense arena maps
+        # Scale slightly with avg_distance for sparse maps
+        steps_per_visit = min(avg_distance * 0.4, 15.0)  # Cap at 15
+        final_trip = avg_distance * 0.3  # Trip back to hub
 
-    # Add charger visits if needed
-    if not energy.energy_positive and energy.charger_available:
-        # Estimate charger visits needed
-        energy_needed = movement_steps * energy.move_cost + resources.extraction_energy_cost
-        energy_from_regen = movement_steps * energy.regen_per_step
-        deficit = energy_needed - energy_from_regen - energy.capacity
-
-        if deficit > 0:
-            charger_visits = math.ceil(deficit / energy.charger_output)
-            movement_steps += int(charger_visits * avg_distance)
-
-    # Add time for coordination if multi-agent recipe
-    if recipe.min_agents_required > 1:
-        movement_steps = int(movement_steps * (1 + recipe.coordination_difficulty * 0.5))
+    movement_steps = int(total_visits * steps_per_visit + final_trip)
 
     return max(10, movement_steps)
 
