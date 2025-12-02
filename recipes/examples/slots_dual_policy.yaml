@@ -5,9 +5,7 @@ trainer:
       trainable: true
       loss_profile: ppo_only
     - id: scripted_teacher
-      class_path: tests.rl.fake_scripted_policy.FakeScriptedAgentPolicy
-      policy_kwargs:
-        multiplier: 10
+      class_path: metta.agent.policies.npc.SimpleNPCPolicy
       trainable: false
       loss_profile: teacher_only
   agent_slot_map: ["scripted_teacher", "scripted_teacher", "main", "main"]

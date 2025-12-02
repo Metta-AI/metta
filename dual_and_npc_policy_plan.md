@@ -87,6 +87,8 @@
 - `simulation_config`/`eval_config` accept `policy_slots` + `agent_slot_map`. Runner loads slots via registry, assigns
   control per agent, and reports metrics grouped by `slot_id`.
 - Supports head-to-head or mixed scripted/NN eval without new abstractions.
+- Canonical NPC baseline: use `metta.agent.policies.npc.SimpleNPCPolicy` in a slot with `trainable=false` to stand in
+  for frozen NPC behavior.
 
 ## Phase 5 – Cogames/Scripted Integration
 

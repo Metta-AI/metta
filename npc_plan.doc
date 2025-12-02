@@ -13,9 +13,12 @@
 - Known regression: evals break when an npc_policy_uri was added to a sim; root suspicion was actions not stored/merged despite features being mapped.
 - Dehydration/resume hazard: feature space expansion between runs can break evals; needs metadata persistence/validation.
 
+## Immediate usage (clean reintroduction)
+- Canonical NPC slot policy lives at `metta.agent.policies.npc.SimpleNPCPolicy`; use via `policy_slots` with `trainable: false`.
+- Example slot entry: `{id: npc, class_path: metta.agent.policies.npc.SimpleNPCPolicy, trainable: false, loss_profile: teacher_only}`.
+
 ## Design principles
 - NPCs are just slots: keep the slot abstraction; add thin NPC affordances (aliases, defaults) rather than parallel codepaths.
-- Backward compat: accept legacy npc_policy_uri but normalize to policy_slots/agent_slot_map and emit warnings.
 - Explicit gating: default losses skip NPC rows unless a loss opts in; NPC slots are frozen unless explicitly trainable.
 - Safe resume/eval: persist environment/featurizer/action-space metadata with checkpoints and validate on load.
 
