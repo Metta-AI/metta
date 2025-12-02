@@ -21,7 +21,7 @@ class SlotControllerPolicy(Policy):
         slots: list[Any],
         slot_policies: Dict[int, Policy],
         policy_env_info,
-        device: torch.device,
+        device: torch.device | str = "cpu",
         agent_slot_map: torch.Tensor | None = None,
     ) -> None:
         # Use the env info from trainer policy; architecture not needed here
