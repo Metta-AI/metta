@@ -6,8 +6,8 @@ import logging
 
 from pydantic import Field, model_validator
 
-from mettagrid.base_config import Config
 from metta.rl.training import TrainerComponent
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
