@@ -19,7 +19,7 @@ engage in combat, and cooperate with other agents. The key dynamics include:
   harvest resources and convert them to energy at charger stations.
 - **Resource Gathering**: Agents can gather resources from generator objects scattered throughout the environment.
 - **Cooperation and Sharing**: Agents have the ability to share resources with other agents and use energy to power the
-  heart altar, which provides rewards.
+  heart assembler, which provides rewards.
 - **Combat**: Agents can attack other agents to temporarily freeze them and steal their resources. They can also use
   shields to defend against attacks.
 
@@ -35,20 +35,20 @@ and agent capabilities.
 The `Agent` object represents an individual agent in the environment. Agents can move, rotate, attack, and interact with
 other objects. Each agent has energy, resources, and shield properties that govern its abilities and interactions.
 
-### Altar
+### assembler
 
 <img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_tiny_galaxy/tg_sliced/tg_items/tg_items_heart_full.png?raw=true" width="32"/>
 
-The `Altar` object allows agents to spend energy to gain rewards. Agents can power the altar by using the `use` action
-when near it. The altar has a cooldown period between uses.
+The `assembler` object allows agents to spend energy to gain rewards. Agents can power the assembler by using the `use`
+action when near it. The assembler has a cooldown period between uses.
 
-- Using the heart altar costs `altar.use_cost energy`. So, no matter how much energy you have, you are always dumping
-  the same amount of energy in it and getting the same amount of reward.
-- After the heart altar is used, it is unable to be used for the next value in `altar.cooldown` (defaults to a single
-  delay) timesteps. The cooldown field accepts either an integer or a list of integers; when a list is provided the
-  altar cycles through those delays.
-- A single use of the heart altar gives you a single unit of reward: if
-  `target._type_id == ObjectType.AltarT: self.env._rewards[actor_id] += 1`
+- Using the heart assembler costs `assembler.use_cost energy`. So, no matter how much energy you have, you are always
+  dumping the same amount of energy in it and getting the same amount of reward.
+- After the heart assembler is used, it is unable to be used for the next value in `assembler.cooldown` (defaults to a
+  single delay) timesteps. The cooldown field accepts either an integer or a list of integers; when a list is provided
+  the assembler cycles through those delays.
+- A single use of the heart assembler gives you a single unit of reward: if
+  `target._type_id == ObjectType.assemblerT: self.env._rewards[actor_id] += 1`
 
 ### Converter
 
@@ -117,9 +117,9 @@ resources to another agent in an adjacent cell. It is currently not implemented.
 
 ### Use
 
-The `use` action allows agents to interact with objects such as altars, converters, and generators. The specific effects
-of the `use` action depend on the target object and can include converting resources to energy, powering the altar for
-rewards, or harvesting resources from generators.
+The `use` action allows agents to interact with objects such as assemblers, converters, and generators. The specific
+effects of the `use` action depend on the target object and can include converting resources to energy, powering the
+assembler for rewards, or harvesting resources from generators.
 
 ## Configuration
 
@@ -132,14 +132,15 @@ layout of the gridworld, the placement of objects, and various properties of the
    Reward value: 0.005 per unit (max 2)   - Used to create batteries and lasers
 2. Battery   - Intermediate resource created from ore at a generator. Generator turns one ore into one battery.   -
    Reward value: 0.01 per unit (max 2)   - Used to create hearts and lasers
-3. Heart / heart altar   - High value reward, requires 3 batteries to be converted into a heart at a heart altar.
+3. Heart / heart assembler   - High value reward, requires 3 batteries to be converted into a heart at a heart
+   assembler.
 4. Laser   - Weapon resource created from ore and batteries. Requires 1 ore and 2 batteries. Created at the lasery.
 
 - Consumed on use. When hitting an unarmored agent: freezes them and steals their whole inventory. When hitting an
   armoured agent, destroys their armor. **Inventory System**
 - Agents have limited inventory space (default max: 50 items)
 - Resources provide rewards just by being in inventory (up to their max reward value)
-- Resources can be stolen through attacks Objects Various buildings: Mine, Generator, Armory, Lasery, Altar, Lab,
+- Resources can be stolen through attacks Objects Various buildings: Mine, Generator, Armory, Lasery, assembler, Lab,
   Factory, Temple.
 - HP — hitpoints, the number of times something can be hit before destruction.
 - Cooldown between uses (varies by building)

@@ -11,18 +11,9 @@ from __future__ import annotations
 
 import subprocess
 import time
-from typing import Optional, Sequence
+from typing import NamedTuple, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-from cogames.cogs_vs_clips.evals.diagnostic_evals import (
-    DIAGNOSTIC_EVALS,
-)
-from cogames.cogs_vs_clips.mission import Mission
-from cogames.cogs_vs_clips.missions import (
-    HarvestMission,
-    RepairMission,
-    VibeCheckMission,
-)
 from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -36,17 +27,9 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
+from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
-
-# Missions from eval_missions where scripted agents perform well
-MISSIONS: tuple[str, ...] = (
-    "go_together",  # 55.0% success, 5.22 avg reward
-    "oxygen_bottleneck",  # 51.2% success, 3.02 avg reward
-    "collect_resources_classic",  # 50.0% success, 4.90 avg reward
-    "collect_resources_spread",  # 50.0% success, 4.45 avg reward
-    "single_use_swarm",  # 42.5% success, 0.46 avg reward
-)
 
 # Diagnostic missions where scripted agents can get reward
 DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
@@ -71,33 +54,67 @@ TRAINING_FACILITY_MISSIONS: tuple[str, ...] = (
 
 FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
     *cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS,  # Base curriculum missions
-    *MISSIONS,  # All eval missions
     # Training facility missions we currently support in this repo
     "harvest",
     "assemble",
     "vibe_check",
     "repair",
+    "oxygen_bottleneck",
+    "single_use_swarm",
     *DIAGNOSTIC_MISSIONS,  # Diagnostic missions
 )
-
-# Create mission name mapping for eval missions and training facility missions
-_MISSION_BY_NAME: dict[str, Mission] = {}
-# Add training facility missions to the mapping
-TRAINING_FACILITY_MISSION_OBJECTS = [
-    HarvestMission,
-    VibeCheckMission,
-    RepairMission,
-    # Note: 'easy_hearts' is intentionally omitted from the full curriculum
-    # for now due to its reduced vibe action space (see comment above).
-    # Note: 'assemble' is not a defined mission object - it may be resolved via make_training_env
-]
-for mission in TRAINING_FACILITY_MISSION_OBJECTS:
-    _MISSION_BY_NAME[mission.name] = mission
 
 
 def get_all_variant_names() -> list[str]:
     """Get all variant names from VARIANTS."""
     return [variant.name for variant in VARIANTS]
+
+
+class _ResolvedVariants(NamedTuple):
+    """Internal helper for normalized variant handling."""
+
+    names: list[str]
+    # True when caller requested "all" variants (string or single-item list),
+    # which we expand to the full list of variant names.
+    is_all: bool
+
+
+def _resolve_variants_arg(variants: Optional[Sequence[str] | str]) -> _ResolvedVariants:
+    """Normalize a variants argument into a list of names and an "all" flag.
+
+    Supports:
+    - None / "none" / [] -> no variants
+    - "all" / ["all"] (case-insensitive) -> expand to all variants
+    - comma-separated string -> split into names
+    - list/sequence of names -> used as-is
+    """
+    if variants is None:
+        return _ResolvedVariants(names=[], is_all=False)
+
+    # If we got a string, handle special tokens and comma-separated lists.
+    if isinstance(variants, str):
+        token = variants.strip().lower()
+        if token in {"none", ""}:
+            return _ResolvedVariants(names=[], is_all=False)
+        if token == "all":
+            return _ResolvedVariants(names=get_all_variant_names(), is_all=True)
+        names = [v.strip() for v in variants.split(",") if v.strip()]
+        return _ResolvedVariants(names=names, is_all=False)
+
+    # If we got a sequence, treat special cases like ["all"] / ["none"].
+    seq = list(variants)
+    if not seq:
+        return _ResolvedVariants(names=[], is_all=False)
+
+    if len(seq) == 1:
+        token = seq[0].strip().lower()
+        if token in {"none", ""}:
+            return _ResolvedVariants(names=[], is_all=False)
+        if token == "all":
+            return _ResolvedVariants(names=get_all_variant_names(), is_all=True)
+
+    # Otherwise, use the sequence as-is.
+    return _ResolvedVariants(names=seq, is_all=False)
 
 
 def resolve_missions(
@@ -136,7 +153,6 @@ def resolve_missions(
 
     # Mission set name -> mission name list mapping
     MISSION_SETS: dict[str, tuple[str, ...]] = {
-        "eval_missions": MISSIONS,
         "diagnostic_missions": DIAGNOSTIC_MISSIONS,
         "training_facility_missions": TRAINING_FACILITY_MISSIONS,
         "all": FULL_CURRICULUM_MISSIONS,
@@ -185,6 +201,32 @@ def _deduplicate_assembler_protocols(env: MettaGridConfig) -> None:
     assembler.protocols = deduplicated
 
 
+def _enforce_training_vibes(env: MettaGridConfig) -> None:
+    """Enforce the training set of vibes and action space consistency."""
+    training_vibe_names = [v.name for v in vibes.TRAINING_VIBES]
+    env.game.vibe_names = training_vibe_names
+
+    if env.game.actions:
+        # Configure vibe action
+        if env.game.actions.change_vibe:
+            env.game.actions.change_vibe.number_of_vibes = len(training_vibe_names)
+            # Filter initial vibe
+            if env.game.agent.initial_vibe >= len(training_vibe_names):
+                env.game.agent.initial_vibe = 0
+
+        # This ensures action space is 19 (1 noop + 4 move + 14 vibes)
+        if env.game.actions.attack:
+            env.game.actions.attack.enabled = False
+    # Prune transfers
+    allowed_vibes = set(env.game.vibe_names)
+    chest = env.game.objects.get("chest")
+    if chest:
+        vibe_transfers = getattr(chest, "vibe_transfers", None)
+        if isinstance(vibe_transfers, dict):
+            new_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
+            chest.vibe_transfers = new_transfers
+
+
 def make_curriculum(
     base_missions: Optional[list[str] | str] = None,
     num_cogs: int = 4,
@@ -217,66 +259,27 @@ def make_curriculum(
     # Resolve mission sets to actual mission names
     base_missions = resolve_missions(base_missions)
 
-    # Determine which variants to use
-    if variants is None:
-        # No variants at all - just base missions
-        variant_names = []
-    elif isinstance(variants, str) and variants.strip().lower() == "all":
-        # Special case: "all" as a string means use all variants
-        variant_names = get_all_variant_names()
-    elif isinstance(variants, list) and len(variants) == 1 and variants[0].strip().lower() == "all":
-        # Special case: ["all"] means use all variants
-        variant_names = get_all_variant_names()
-    else:
-        # Handle comma-separated string for variants or use the specified list
-        if isinstance(variants, str):
-            variant_names = [v.strip() for v in variants.split(",") if v.strip()]
-        else:
-            # Use the specified variants
-            variant_names = list(variants)
+    # Normalize variant argument once so all call sites share the same semantics.
+    resolved_variants = _resolve_variants_arg(variants)
+    variant_names = resolved_variants.names
 
     all_mission_tasks = []
 
     if variant_names:
         # Create separate tasks for each mission-variant combination
         for mission_name in base_missions:
-            mission_template = None
-
-            # Check if this is an eval mission
-            mission_template = _MISSION_BY_NAME.get(mission_name)
-
-            # Check if this is a diagnostic mission (class-based)
-            if mission_template is None and mission_name in DIAGNOSTIC_MISSIONS:
-                for mission_cls in DIAGNOSTIC_EVALS:
-                    temp_mission = mission_cls()  # type: ignore[call-arg]
-                    if temp_mission.name == mission_name:
-                        mission_template = temp_mission
-                        break
-
             # For each variant, create a separate curriculum task
             for variant_name in variant_names:
                 try:
-                    if mission_template is None:
-                        # Fall back to make_training_env for standard missions
-                        try:
-                            mission_env = cogs_v_clips.make_training_env(
-                                num_cogs=num_cogs,
-                                mission=mission_name,
-                                variants=[variant_name],
-                            )
-                        except ValueError:
-                            # Skip missions that don't exist
-                            continue
-                        # Deduplicate assembler protocols to avoid C++ config errors
-                        _deduplicate_assembler_protocols(mission_env)
-                    else:
-                        # Use the mission template directly (works for both eval and diagnostic missions)
-                        mission = cogs_v_clips._prepare_mission(
-                            mission_template,
-                            num_cogs=num_cogs,
-                            variant_names=[variant_name],
-                        )
-                        mission_env = mission.make_env()
+                    # Unified path: Always use make_training_env, which resolves via global MISSIONS registry
+                    mission_env = cogs_v_clips.make_training_env(
+                        num_cogs=num_cogs,
+                        mission=mission_name,
+                        variants=[variant_name],
+                    )
+
+                    # Enforce training vibes
+                    _enforce_training_vibes(mission_env)
 
                     # Deduplicate assembler protocols to avoid C++ config errors
                     _deduplicate_assembler_protocols(mission_env)
@@ -287,7 +290,6 @@ def make_curriculum(
                     try:
                         mission_env.label = label  # type: ignore[attr-defined]
                     except Exception:
-                        # Best-effort; if the config does not support labels, leave it as default.
                         pass
 
                     # Initialize stats rewards dict if needed (for bucket overrides to work)
@@ -321,7 +323,27 @@ def make_curriculum(
 
                     all_mission_tasks.append(mission_tasks)
                 except Exception as e:
-                    # Log the error but continue - some variant combinations may be incompatible
+                    # Skip incompatible variant combinations
+                    error_str = str(e).lower()
+                    if any(
+                        skip_phrase in error_str
+                        for skip_phrase in [
+                            "not callable",
+                            "already exists",
+                            "can only be applied",
+                            "not found",
+                            "does not exist",
+                            "incompatible",
+                            "protocol with vibes",
+                        ]
+                    ):
+                        import logging
+
+                        logging.debug(
+                            f"Skipping incompatible mission-variant combination {mission_name}+{variant_name}: {e}"
+                        )
+                        continue
+                    # For map building errors or other unexpected errors
                     import logging
 
                     logging.warning(f"Failed to create mission-variant combination {mission_name}+{variant_name}: {e}")
@@ -333,53 +355,56 @@ def make_curriculum(
     else:
         # No variants: just create tasks for base missions
         for mission_name in base_missions:
-            mission_template = None
-
-            # Check if this is an eval mission
-            mission_template = _MISSION_BY_NAME.get(mission_name)
-
-            # Check if this is a diagnostic mission (class-based)
-            if mission_template is None and mission_name in DIAGNOSTIC_MISSIONS:
-                for mission_cls in DIAGNOSTIC_EVALS:
-                    temp_mission = mission_cls()  # type: ignore[call-arg]
-                    if temp_mission.name == mission_name:
-                        mission_template = temp_mission
-                        break
-
-            if mission_template is None:
-                # Fall back to make_training_env for standard missions
-                try:
-                    mission_env = cogs_v_clips.make_training_env(
-                        num_cogs=num_cogs,
-                        mission=mission_name,
-                        variants=None,  # No variants
-                    )
-                except ValueError:
-                    # Skip missions that don't exist
-                    continue
-            else:
-                # Use the mission template directly (works for both eval and diagnostic missions)
-                mission = cogs_v_clips._prepare_mission(
-                    mission_template,
-                    num_cogs=num_cogs,
-                    variant_names=[],  # No variants
-                )
-                mission_env = mission.make_env()
-
-            # Give each environment a label so per-label rewards can be tracked in stats/W&B.
-            # Use the mission name as the label, which is stable across curriculum tasks.
             try:
-                mission_env.label = mission_name  # type: ignore[attr-defined]
-            except Exception:
-                # Best-effort; if the config does not support labels, leave it as default.
-                pass
+                # Unified path: Always use make_training_env
+                mission_env = cogs_v_clips.make_training_env(
+                    num_cogs=num_cogs,
+                    mission=mission_name,
+                    variants=None,  # No variants
+                )
 
-            # Initialize stats rewards dict if needed (for bucket overrides to work)
-            if not mission_env.game.agent.rewards.stats:
-                mission_env.game.agent.rewards.stats = {}
-            # Initialize stats_max dict if needed
-            if not mission_env.game.agent.rewards.stats_max:
-                mission_env.game.agent.rewards.stats_max = {}
+                # Enforce training vibes
+                _enforce_training_vibes(mission_env)
+
+                # Deduplicate assembler protocols
+                _deduplicate_assembler_protocols(mission_env)
+
+                # Give each environment a label
+                try:
+                    mission_env.label = mission_name  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+
+                # Initialize stats rewards dict
+                if not mission_env.game.agent.rewards.stats:
+                    mission_env.game.agent.rewards.stats = {}
+                # Initialize stats_max dict
+                if not mission_env.game.agent.rewards.stats_max:
+                    mission_env.game.agent.rewards.stats_max = {}
+            except Exception as e:
+                # Skip incompatible combinations
+                error_str = str(e).lower()
+                if any(
+                    skip_phrase in error_str
+                    for skip_phrase in [
+                        "not callable",
+                        "already exists",
+                        "can only be applied",
+                        "not found",
+                        "does not exist",
+                        "incompatible",
+                        "protocol with vibes",
+                    ]
+                ):
+                    import logging
+
+                    logging.debug(f"Skipping incompatible mission {mission_name}: {e}")
+                    continue
+                # For map building errors or other unexpected errors
+                import logging
+
+                logging.warning(f"Failed to create mission {mission_name}: {e}")
+                continue
 
             mission_tasks = cc.bucketed(mission_env)
 
@@ -451,27 +476,19 @@ def train(
     Returns:
         A TrainTool configured with the mission-variant curriculum
     """
-    # Determine stats_max_cap based on whether variants are used
-    # If variants="all" or variants is a list, use 0.5 (curriculum mode)
-    # If variants=None, use 1.0 (full curriculum mode)
-    if variants is None:
-        stats_max_cap = 1.0
-    else:
-        # Check if variants is "all"
-        if isinstance(variants, str) and variants.lower() == "all":
-            stats_max_cap = 0.5
-        elif isinstance(variants, list) and len(variants) == 1 and variants[0].lower() == "all":
-            stats_max_cap = 0.5
-        elif variants:  # Non-empty list of specific variants
-            stats_max_cap = 0.5
-        else:
-            stats_max_cap = 1.0
+    # Normalize variants once and use the result consistently everywhere.
+    resolved_variants = _resolve_variants_arg(variants)
+    has_variants = bool(resolved_variants.names)
+
+    # Determine stats_max_cap based on whether curriculum is using variants.
+    # If we have any variants, use 0.5 (curriculum mode); otherwise 1.0 (full curriculum mode).
+    stats_max_cap = 0.5 if has_variants else 1.0
 
     resolved_curriculum = curriculum or make_curriculum(
         base_missions=base_missions,
         num_cogs=num_cogs,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        variants=variants,
+        variants=resolved_variants.names,
         stats_max_cap=stats_max_cap,
     )
 
@@ -479,14 +496,11 @@ def train(
         losses=LossesConfig(),
     )
 
-    # For evaluation, convert "all" to None (evaluation doesn't use "all variants")
-    # Only use specific variants if provided, otherwise use eval_variants or None
-    eval_train_variants = None
-    is_all_variants = variants == "all" or (
-        isinstance(variants, list) and len(variants) == 1 and variants[0].lower() == "all"
-    )
-    if variants and not is_all_variants:
-        eval_train_variants = variants
+    # For evaluation, "all" is treated the same as "no explicit variant filter".
+    # Only use specific variants if provided, otherwise use eval_variants or None.
+    eval_train_variants: Optional[Sequence[str] | str] = None
+    if has_variants and not resolved_variants.is_all:
+        eval_train_variants = resolved_variants.names
     resolved_eval_variants = cogs_v_clips._resolve_eval_variants(eval_train_variants, eval_variants)
     eval_suite = cogs_v_clips.make_eval_suite(
         num_cogs=num_cogs,
@@ -561,18 +575,17 @@ def experiment(
         heartbeat_timeout: Heartbeat timeout in seconds (default: 3600).
         skip_git_check: Whether to skip git check (default: True).
         variants: Mission variants to apply. Can be:
-            - None: No variants applied (base missions only)
-            - "all": All variants applied (creates separate tasks for each mission-variant combination)
+            - None / "none": No variants applied (base missions only)
+            - "all" / ["all"]: All variants applied (creates separate tasks for each mission-variant combination)
             - A list of specific variant names
         additional_args: Additional arguments to pass to the training command.
     """
+    # Normalize variants so naming and CLI wiring are consistent with training.
+    resolved_variants = _resolve_variants_arg(variants)
+    has_variants = bool(resolved_variants.names)
+
     if run_name is None:
-        if variants == "all" or (isinstance(variants, list) and len(variants) == 1 and variants[0].lower() == "all"):
-            mode_str = "variants"
-        elif variants:
-            mode_str = "variants"
-        else:
-            mode_str = "full"
+        mode_str = "variants" if has_variants else "full"
         run_name = f"mission_variant_curriculum_{mode_str}_{time.strftime('%Y-%m-%d_%H%M%S')}"
 
     cmd = [
@@ -592,11 +605,10 @@ def experiment(
     if skip_git_check:
         cmd.append("--skip-git-check")
 
-    if variants:
-        if isinstance(variants, list):
-            variants_str = ",".join(variants)
-        else:
-            variants_str = str(variants)
+    if has_variants:
+        # Pass variants as a comma-separated string (shell-safe format)
+        variants_str = ",".join(resolved_variants.names)
+        print(f"Variants: {variants_str}")
         cmd.append(f"variants={variants_str}")
 
     if additional_args:
