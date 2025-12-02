@@ -254,27 +254,22 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
 
         names, probabilities = self._resolve_building_distribution()
 
-        # Track occupied footprint tiles to make overlap checks O(footprint)
-        occupied = np.zeros((self.height, self.width), dtype=bool)
-
-        def _footprint_bounds(center_row: int, center_col: int) -> tuple[slice, slice]:
-            r0 = max(0, center_row - padding)
-            r1 = min(self.height, center_row + padding + 1)
-            c0 = max(0, center_col - padding)
-            c1 = min(self.width, center_col + padding + 1)
-            return slice(r0, r1), slice(c0, c1)
-
         def carve_and_place(center_row: int, center_col: int, name: str) -> bool:
-            r_slice, c_slice = _footprint_bounds(center_row, center_col)
-            # Clear footprint then set center; avoids per-cell Python loops
-            grid[r_slice, c_slice] = "empty"
-            grid[center_row, center_col] = name
-            occupied[r_slice, c_slice] = True
+            for rr in range(center_row - padding, center_row + padding + 1):
+                if rr < 0 or rr >= self.height:
+                    continue
+                for cc in range(center_col - padding, center_col + padding + 1):
+                    if cc < 0 or cc >= self.width:
+                        continue
+                    if rr == center_row and cc == center_col:
+                        grid[rr, cc] = name
+                    else:
+                        grid[rr, cc] = "empty"
+
             return True
 
         def can_place(center_row: int, center_col: int, centers: list[tuple[int, int]]) -> bool:
-            r_slice, c_slice = _footprint_bounds(center_row, center_col)
-            return not occupied[r_slice, c_slice].any()
+            return not any(abs(center_row - r0) <= padding and abs(center_col - c0) <= padding for r0, c0 in centers)
 
         if params.target_coverage is not None:
             available_height = row_max - row_min + 1
@@ -288,17 +283,8 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
             if max_possible == 0:
                 return
 
-            if params.target_coverage <= 0:
-                return
-
-            footprint_side = (2 * padding) + 1
-            footprint_area = max(1, footprint_side * footprint_side)
-            desired_area = float(params.target_coverage) * interior_width * interior_height
-            desired_centers = desired_area / footprint_area
-            if desired_centers <= 0:
-                return
-
-            placement_goal = min(max_possible, max(1, int(np.ceil(desired_centers))))
+            desired = int(params.target_coverage * interior_width * interior_height)
+            placement_goal = min(max_possible, max(1, desired))
 
             placed_centers_tc: list[tuple[int, int]] = []
 
