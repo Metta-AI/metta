@@ -156,6 +156,10 @@ def _install_nim_deps(project_root: Path) -> None:
     if not lockfile.exists():
         raise RuntimeError(f"nimby.lock missing at {lockfile}")
 
+    nim_cfg = project_root / "nim.cfg"
+    if nim_cfg.exists():
+        nim_cfg.unlink()
+
     result = subprocess.run(
         [nimby, "sync", "-g", str(lockfile)],
         cwd=project_root,
