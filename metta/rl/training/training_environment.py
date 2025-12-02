@@ -135,6 +135,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         self._curriculum = Curriculum(cfg.curriculum)
         env_cfg = self._curriculum.get_task().get_env_cfg()
+        self._episode_length = env_cfg.game.max_steps if env_cfg.game.max_steps > 0 else None
         self._num_agents = env_cfg.game.num_agents
 
         self._replay_directory: Path | None = None
@@ -226,6 +227,11 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         if isinstance(vecenv_agents, int):
             return vecenv_agents
         return self._num_envs * self._num_agents
+
+    @property
+    def episode_length(self) -> int | None:
+        """Episode length (max_steps) from the current curriculum task."""
+        return self._episode_length
 
     @property
     def single_action_space(self) -> Any:

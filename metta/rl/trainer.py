@@ -70,14 +70,32 @@ class Trainer:
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
-        losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
-        self._policy.train()
 
         batch_info = self._env.batch_info
 
         parallel_agents = getattr(self._env, "total_parallel_agents", None)
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.policy_env_info.num_agents
+
+        episode_length = getattr(self._env, "episode_length", None)
+        if episode_length and episode_length > 0:
+            new_horizon = episode_length
+            new_minibatch_size = max(self._cfg.minibatch_size, new_horizon)
+            new_minibatch_size = ((new_minibatch_size + new_horizon - 1) // new_horizon) * new_horizon
+
+            min_batch_size = max(self._cfg.batch_size, parallel_agents * new_horizon, new_minibatch_size)
+            new_batch_size = ((min_batch_size + new_minibatch_size - 1) // new_minibatch_size) * new_minibatch_size
+
+            self._cfg = self._cfg.model_copy(
+                update={
+                    "bptt_horizon": new_horizon,
+                    "minibatch_size": new_minibatch_size,
+                    "batch_size": new_batch_size,
+                }
+            )
+
+        losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
+        self._policy.train()
 
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,

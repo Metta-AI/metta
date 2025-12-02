@@ -1,3 +1,4 @@
+from tkinter import TRUE
 from typing import List
 
 from cortex.stacks import build_cortex_auto_config
@@ -23,7 +24,7 @@ class ViTDefaultConfig(PolicyArchitecture):
     _actor_hidden = 256
 
     # Whether training passes cached pre-state to the Cortex core
-    pass_state_during_training: bool = False
+    pass_state_during_training: bool = TRUE
     _critic_hidden = 512
 
     components: List[ComponentConfig] = [
