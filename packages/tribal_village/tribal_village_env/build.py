@@ -28,6 +28,7 @@ def _collect_source_files(project_root: Path) -> list[Path]:
     return nim_sources + [
         project_root / "tribal_village.nim",
         project_root / "tribal_village.nimble",
+        project_root / "nimby.lock",
     ]
 
 
@@ -103,9 +104,11 @@ def ensure_nim_library_current(verbose: bool = True) -> Path:
 
 
 def _ensure_nim_toolchain() -> None:
-    """Ensure nim/nimble exist, bootstrap via nimby if missing."""
+    """Ensure nim/nimby exist, bootstrap via nimby if missing."""
 
-    if shutil.which("nim") and shutil.which("nimble"):
+    nim_path = shutil.which("nim")
+    nimby_path = shutil.which("nimby")
+    if nim_path and nimby_path:
         return
 
     system = platform.system()
@@ -130,21 +133,31 @@ def _ensure_nim_toolchain() -> None:
 
     nim_bin_dir = Path.home() / ".nimby" / "nim" / "bin"
     os.environ["PATH"] = f"{nim_bin_dir}{os.pathsep}" + os.environ.get("PATH", "")
+    nimby_path = shutil.which("nimby")
 
-    if not shutil.which("nim") or not shutil.which("nimble"):
-        raise RuntimeError("Failed to provision nim/nimble via nimby.")
+    if not nimby_path:
+        raise RuntimeError("Failed to provision nimby.")
+
+    if not shutil.which("nim"):
+        subprocess.check_call([nimby_path, "use", DEFAULT_NIM_VERSION])
+
+    if not shutil.which("nim"):
+        raise RuntimeError("Failed to provision nim via nimby.")
 
 
 def _install_nim_deps(project_root: Path) -> None:
-    """Install Nim deps via nimble."""
+    """Install Nim deps via nimby lockfile."""
 
-    nimble = shutil.which("nimble")
-    if nimble is None:
-        raise RuntimeError("nimble not found after nimby setup.")
+    nimby = shutil.which("nimby")
+    if nimby is None:
+        raise RuntimeError("nimby not found after setup.")
 
-    # Install dependencies only; this is idempotent and faster than full install.
+    lockfile = project_root / "nimby.lock"
+    if not lockfile.exists():
+        raise RuntimeError(f"nimby.lock missing at {lockfile}")
+
     result = subprocess.run(
-        [nimble, "install", "-y", "--depsOnly"],
+        [nimby, "sync", "-g", str(lockfile)],
         cwd=project_root,
         capture_output=True,
         text=True,
@@ -152,4 +165,4 @@ def _install_nim_deps(project_root: Path) -> None:
     if result.returncode != 0:
         stdout = result.stdout.strip()
         stderr = result.stderr.strip()
-        raise RuntimeError(f"nimble install failed (exit {result.returncode}). stdout: {stdout} stderr: {stderr}")
+        raise RuntimeError(f"nimby sync failed (exit {result.returncode}). stdout: {stdout} stderr: {stderr}")

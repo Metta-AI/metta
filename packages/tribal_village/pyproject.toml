@@ -39,6 +39,7 @@ tribal_village_env = ["*.so", "*.dylib", "*.dll", "libtribal_village.*"]
 cache-keys = [
   { file = "tribal_village.nim" },
   { file = "tribal_village.nimble" },
+  { file = "nimby.lock" },
   { file = "src/**/*.nim" },
   { file = "tribal_village_env/libtribal_village.*" },
 ]

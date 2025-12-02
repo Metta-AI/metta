@@ -10,13 +10,13 @@ resources while fighting off hostile tumors.
 **Setup**
 
 ```bash
-# Install Nim via nimby (installs nim + nimble)
+# Install Nim via nimby
 #   macOS ARM: nimby-macOS-ARM64
 #   macOS x64: nimby-macOS-X64
 #   Linux x64: nimby-Linux-X64
 curl -L https://github.com/treeform/nimby/releases/download/0.1.11/nimby-macOS-ARM64 -o /tmp/nimby && chmod +x /tmp/nimby
 /tmp/nimby use 2.2.6
-nimble install -y --depsOnly
+nimby sync -g nimby.lock  # install Nim deps into ~/.nimby/pkgs and write nim.cfg
 # Make the Python package importable from anywhere (editable install)
 uv pip install -e packages/tribal_village
 ```
@@ -41,7 +41,7 @@ uv run --project packages/tribal_village tribal-village play --render ansi --ste
 
 ```bash
 # Ensure the shared library is up to date
-nimble buildLib  # Builds in danger mode for maximum performance
+uv run --project packages/tribal_village python -c "from tribal_village_env.build import ensure_nim_library_current; ensure_nim_library_current()"
 # Launch a quick sanity check (works from any directory once installed)
 python -c "from tribal_village_env import TribalVillageEnv; env = TribalVillageEnv()"
 
@@ -127,9 +127,9 @@ Multi-discrete `[move_direction, action_type]`:
 
 ## Build
 
-- Native shared library for Python: `nimble buildLib`
-- Native desktop viewer: `nimble run`
-- WebAssembly demo (requires Emscripten on PATH): `nimble wasm`
+- Native shared library for Python: `uv run --project packages/tribal_village python -c "from tribal_village_env.build import ensure_nim_library_current; ensure_nim_library_current()"`
+- Native desktop viewer: `nim r -d:release tribal_village.nim`
+- WebAssembly demo (requires Emscripten on PATH): `nim c --app:gui --os:linux --cpu:wasm32 -d:release -d:emscripten -o:build/web/tribal_village.html tribal_village.nim`
   - Outputs to `build/web/tribal_village.html`; serve via `python -m http.server 8000`
 
 ### PufferLib Rendering
