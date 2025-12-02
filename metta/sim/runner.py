@@ -109,8 +109,8 @@ def run_simulations(
         per_slot_winrate = None
         if simulation.policy_slots and rollout_result.episode_returns:
             # Compute average return per slot by agent index mapping
-            agent_map = simulation.agent_slot_map or []
-            if agent_map:
+            effective_agent_map = simulation.agent_slot_map or agent_map
+            if effective_agent_map:
                 per_slot_returns = {}
                 per_slot_winrate = {}
                 # episode_returns shape: [num_episodes, num_agents]
@@ -118,8 +118,8 @@ def run_simulations(
                 wins_tensor = None
                 if rollout_result.episode_wins is not None:
                     wins_tensor = torch.tensor(rollout_result.episode_wins)
-                for slot_id in set(agent_map):
-                    idxs = [j for j, b in enumerate(agent_map) if b == slot_id]
+                for slot_id in set(effective_agent_map):
+                    idxs = [j for j, b in enumerate(effective_agent_map) if b == slot_id]
                     if idxs:
                         per_slot_returns[slot_id] = float(returns_tensor[:, idxs].mean().item())
                         if wins_tensor is not None:

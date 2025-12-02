@@ -59,7 +59,7 @@ def test_runner_passes_controller_device(monkeypatch):
     )
     monkeypatch.setattr(
         "metta.sim.runner.multi_episode_rollout",
-        lambda **_kwargs: SimpleNamespace(episode_returns=[], episode_wins=None),
+        lambda **_kwargs: SimpleNamespace(episode_returns=[[1.0, 2.0]], episode_wins=[[1, 0]]),
     )
     monkeypatch.setattr(
         "metta.sim.runner.SimulationRunResult",

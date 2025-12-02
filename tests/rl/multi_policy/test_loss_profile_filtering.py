@@ -303,3 +303,26 @@ def test_filtering_nontensordata_respects_tensor_device():
 
     assert filtered["indices"].data.is_cuda
     assert filtered["indices"].data.tolist() == [0]
+
+
+def test_attach_replay_buffer_uses_extended_spec():
+    # Build a replay spec that includes slot metadata
+    base = Composite(actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64))
+    extended = Composite(
+        base,
+        slot_id=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+        loss_profile_id=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+        is_trainable_agent=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool),
+    )
+
+    experience = type("ReplayStub", (), {})()
+    experience.buffer = type("BufferStub", (), {"spec": extended})
+
+    loss = _DummyLoss()
+    loss.attach_replay_buffer(experience)  # type: ignore[arg-type]
+
+    assert set(loss.policy_experience_spec.keys()) >= {  # type: ignore[attr-defined]
+        "slot_id",
+        "loss_profile_id",
+        "is_trainable_agent",
+    }
