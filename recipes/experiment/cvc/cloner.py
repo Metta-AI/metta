@@ -291,7 +291,7 @@ def train(
         variants=variants,
         algorithm_config=cur_alg,
     )
-
+    bc_policy_uri = "nim_thinky"
     trainer_cfg = TrainerConfig(losses=LossesConfig())
     scheduler = None
     if bc_policy_uri is not None:
