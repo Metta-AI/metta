@@ -26,7 +26,6 @@ export const TILE_NAMES = [
   "carbon_ex_dep",
   "germanium_ex_dep",
   "silicon_ex_dep",
-  "assembler",
   "chest",
   "chest_carbon",
   "chest_oxygen",
