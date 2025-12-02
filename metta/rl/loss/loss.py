@@ -106,8 +106,7 @@ class Loss:
         ctx = self._ensure_context(context)
         if not self._loss_gate_allows("train", ctx):
             return self._zero(), shared_loss_data, False
-        filtered = self._filter_minibatch(shared_loss_data)
-        return self.run_train(filtered, ctx, mb_idx)
+        return self.run_train(shared_loss_data, ctx, mb_idx)
 
     def run_train(
         self,
