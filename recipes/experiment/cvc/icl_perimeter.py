@@ -38,6 +38,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.task_generator import Span
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
@@ -236,8 +237,6 @@ def make_icl_curriculum(
     num_cogs: int = 4,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-    map_width: int = 15,
-    map_height: int = 15,
 ) -> CurriculumConfig:
     """Create ICL curriculum with perimeter maps.
 
@@ -245,8 +244,6 @@ def make_icl_curriculum(
         num_cogs: Number of agents per environment
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
-        map_width: Width of the map
-        map_height: Height of the map
 
     Returns:
         CurriculumConfig with learning progress algorithm
@@ -278,8 +275,6 @@ def make_icl_curriculum(
                 ICLPerimeterMapVariant(
                     missing_resources=missing,
                     num_agents=num_cogs,
-                    map_width=map_width,
-                    map_height=map_height,
                 ),
                 ICLInventoryVariant(missing_resources=missing),
                 ICLExtractorVariant(missing_resources=missing),
@@ -297,8 +292,10 @@ def make_icl_curriculum(
             env.label = name
 
             tasks = cc.bucketed(env)
-            tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 1.0])
+            tasks.add_bucket("game.agent.rewards.inventory.heart", [0.0, 0.1, 1.0])
             tasks.add_bucket("game.map_builder.objects.assembler", [1, 2, 3])
+            tasks.add_bucket("game.map_builder.width", [Span(12, 25)])
+            tasks.add_bucket("game.map_builder.height", [Span(12, 25)])
 
             all_mission_tasks.append(tasks)
 
@@ -323,15 +320,11 @@ def train(
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    map_width: int = 15,
-    map_height: int = 15,
 ) -> TrainTool:
     """Train on ICL perimeter curriculum."""
     curriculum = curriculum or make_icl_curriculum(
         num_cogs=num_cogs,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        map_width=map_width,
-        map_height=map_height,
     )
 
     trainer_cfg = TrainerConfig(
@@ -350,8 +343,6 @@ def train(
             ICLPerimeterMapVariant(
                 missing_resources=tuple(REQUIRED_RESOURCES),
                 num_agents=num_cogs,
-                map_width=map_width,
-                map_height=map_height,
             ),
             ICLInventoryVariant(missing_resources=tuple(REQUIRED_RESOURCES)),
             ICLExtractorVariant(missing_resources=tuple(REQUIRED_RESOURCES)),
@@ -375,8 +366,6 @@ def play(
     missing_count: int = 0,
     num_cogs: int = 4,
     policy_uri: Optional[str] = None,
-    map_width: int = 15,
-    map_height: int = 15,
 ) -> PlayTool:
     """Play a specific ICL configuration.
 
@@ -384,8 +373,6 @@ def play(
         missing_count: Number of missing resources (0-4)
         num_cogs: Number of agents
         policy_uri: Optional policy URI to load
-        map_width: Width of the map
-        map_height: Height of the map
     """
     if missing_count == 0:
         missing = ()
@@ -405,8 +392,6 @@ def play(
             ICLPerimeterMapVariant(
                 missing_resources=missing,
                 num_agents=num_cogs,
-                map_width=map_width,
-                map_height=map_height,
             ),
             ICLInventoryVariant(missing_resources=missing),
             ICLExtractorVariant(missing_resources=missing),
@@ -423,8 +408,6 @@ def play(
 def evaluate(
     policy_uris: str | Sequence[str],
     num_cogs: int = 4,
-    map_width: int = 15,
-    map_height: int = 15,
 ) -> EvaluateTool:
     """Evaluate on the hardest ICL configuration (all resources missing)."""
     eval_mission = Mission(
@@ -438,8 +421,6 @@ def evaluate(
             ICLPerimeterMapVariant(
                 missing_resources=tuple(REQUIRED_RESOURCES),
                 num_agents=num_cogs,
-                map_width=map_width,
-                map_height=map_height,
             ),
             ICLInventoryVariant(missing_resources=tuple(REQUIRED_RESOURCES)),
             ICLExtractorVariant(missing_resources=tuple(REQUIRED_RESOURCES)),
@@ -457,8 +438,6 @@ def evaluate(
 def experiment(
     run_name: Optional[str] = None,
     num_cogs: int = 4,
-    map_width: int = 15,
-    map_height: int = 15,
     heartbeat_timeout: int = 3600,
     skip_git_check: bool = True,
     additional_args: Optional[list[str]] = None,
@@ -468,8 +447,6 @@ def experiment(
     Args:
         run_name: Optional run name. If not provided, generates one with timestamp.
         num_cogs: Number of agents per environment (default: 4)
-        map_width: Width of the map (default: 15)
-        map_height: Height of the map (default: 15)
         heartbeat_timeout: Heartbeat timeout in seconds (default: 3600)
         skip_git_check: Whether to skip git check (default: True)
         additional_args: Additional arguments to pass to the training command
@@ -484,15 +461,13 @@ def experiment(
     """
     if run_name is None:
         timestamp = time.strftime("%Y-%m-%d_%H%M%S")
-        run_name = f"icl_perimeter_{num_cogs}cogs_{timestamp}"
+        run_name = f"george.icl_perimeter_{num_cogs}cogs_{timestamp}"
 
     cmd = [
         "./devops/skypilot/launch.py",
         "recipes.experiment.cvc.icl_perimeter.train",
         f"run={run_name}",
         f"num_cogs={num_cogs}",
-        f"map_width={map_width}",
-        f"map_height={map_height}",
         "--gpus=4",
         f"--heartbeat-timeout-seconds={heartbeat_timeout}",
     ]
@@ -505,12 +480,12 @@ def experiment(
 
     print(f"Launching ICL perimeter training job: {run_name}")
     print(f"  Agents: {num_cogs}")
-    print(f"  Map size: {map_width}x{map_height}")
     print(f"Command: {' '.join(cmd)}")
     print("=" * 50)
 
     subprocess.run(cmd, check=True)
     print(f"✓ Successfully launched job: {run_name}")
+
 
 if __name__ == "__main__":
     experiment()
