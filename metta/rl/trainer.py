@@ -5,7 +5,6 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
-from metta.rl.npc.factory import load_npc_policy
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
@@ -65,11 +64,6 @@ class Trainer:
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
-        self._npc_policy: Policy | None = None
-        self._student_mask_per_env: torch.Tensor | None = None
-        self._npc_mask_per_env: torch.Tensor | None = None
-        self._dual_policy_enabled: bool = False
-
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.policy_env_info, self._device)
         self._policy.train()
@@ -121,8 +115,6 @@ class Trainer:
 
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
-        self._configure_dual_policy()
-
         self.core_loop = CoreTrainingLoop(
             policy=self._policy,
             experience=self._experience,
@@ -145,88 +137,6 @@ class Trainer:
         """Return the shared trainer context."""
 
         return self._context
-
-    def _configure_dual_policy(self) -> None:
-        """Load and configure NPC policy for dual-policy training if enabled."""
-
-        dual_cfg = getattr(self._cfg, "dual_policy", None)
-        # Ensure context defaults are set even if disabled
-        self._context.dual_policy_enabled = False
-        self._context.dual_policy_training_agents_pct = 1.0
-        self._context.npc_policy = None
-        self._context.npc_policy_uri = None
-        self._context.student_mask_per_env = None
-        self._context.npc_mask_per_env = None
-
-        if not dual_cfg or not dual_cfg.enabled:
-            return
-
-        policy_env_info = self._env.policy_env_info
-        num_agents = policy_env_info.num_agents
-        if num_agents <= 1:
-            logger.warning("Dual policy requested but environment has %d agent(s); disabling.", num_agents)
-            return
-
-        if dual_cfg.training_agents_pct <= 0.0:
-            logger.warning("Dual policy training_agents_pct=0.0 produces no trainable agents; disabling.")
-            return
-        if dual_cfg.training_agents_pct >= 1.0:
-            logger.info("Dual policy training_agents_pct=1.0 -> all agents trained; NPC policy disabled.")
-            return
-
-        student_agents = int(round(num_agents * dual_cfg.training_agents_pct))
-        student_agents = max(1, min(num_agents - 1, student_agents))
-        npc_agents = num_agents - student_agents
-        if npc_agents <= 0:
-            logger.info("Dual policy configuration results in zero NPC agents after rounding; disabling NPC policy.")
-            return
-
-        try:
-            npc_policy, descriptor = load_npc_policy(
-                npc_policy_uri=getattr(dual_cfg, "npc_policy_uri", None),
-                npc_policy_class=getattr(dual_cfg, "npc_policy_class", None),
-                npc_policy_kwargs=getattr(dual_cfg, "npc_policy_kwargs", {}),
-                policy_env_info=policy_env_info,
-                device=self._device,
-                vector_env=self._env.vecenv,
-            )
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.error(
-                "Failed to load NPC policy: %s. Dual policy disabled.",
-                exc,
-                exc_info=True,
-            )
-            return
-
-        npc_policy.to(self._device)
-        npc_policy.eval()
-        for param in npc_policy.parameters():
-            param.requires_grad = False
-        npc_policy.initialize_to_environment(policy_env_info, self._device)
-
-        student_mask = torch.zeros(num_agents, dtype=torch.bool)
-        student_mask[:student_agents] = True
-        npc_mask = ~student_mask
-
-        self._npc_policy = npc_policy
-        self._npc_mask_per_env = npc_mask
-        self._student_mask_per_env = student_mask
-        self._dual_policy_enabled = True
-
-        self._context.dual_policy_enabled = True
-        self._context.dual_policy_training_agents_pct = student_agents / num_agents
-        self._context.npc_policy = npc_policy
-        self._context.npc_policy_uri = getattr(dual_cfg, "npc_policy_uri", None)
-        self._context.npc_policy_descriptor = descriptor
-        self._context.npc_mask_per_env = npc_mask
-        self._context.student_mask_per_env = student_mask
-
-        logger.info(
-            "Dual policy enabled: %d NPC / %d student agents (source=%s)",
-            npc_agents,
-            student_agents,
-            descriptor,
-        )
 
     def train(self) -> None:
         """Run the main training loop."""

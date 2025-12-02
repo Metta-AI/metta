@@ -47,27 +47,6 @@ class TorchProfilerConfig(Config):
         return self
 
 
-class DualPolicyConfig(Config):
-    enabled: bool = Field(default=False)
-    npc_policy_uri: str | None = Field(default=None)
-    npc_policy_class: str | None = Field(default=None)
-    npc_policy_kwargs: dict[str, Any] = Field(default_factory=dict)
-    training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
-
-    @model_validator(mode="after")
-    def validate_fields(self) -> "DualPolicyConfig":
-        if not self.enabled:
-            return self
-
-        if not self.npc_policy_uri and not self.npc_policy_class:
-            raise ValueError("dual_policy requires either npc_policy_uri or npc_policy_class when enabled")
-
-        if self.npc_policy_kwargs and not self.npc_policy_class:
-            raise ValueError("dual_policy.npc_policy_kwargs provided without npc_policy_class")
-
-        return self
-
-
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
     losses: LossesConfig = Field(default_factory=LossesConfig)
@@ -87,7 +66,6 @@ class TrainerConfig(Config):
     detect_anomaly: bool = Field(default=False)
 
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
-    dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
 
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)

@@ -123,37 +123,11 @@ class PPO(Loss):
             actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
             act_log_prob=scalar_f32,
             values=scalar_f32,
-            is_student_agent=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32),
         )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
-        dual_enabled = bool(getattr(context, "dual_policy_enabled", False))
-        npc_input_td: TensorDict | None = None
-
-        if dual_enabled:
-            npc_input_td = td.select(
-                *self.policy_experience_spec.keys(include_nested=True),
-                strict=False,
-            ).clone()
-
-            # Preserve rollout metadata required by recurrent policies
-            for meta_key in ("bptt", "batch", "training_env_ids"):
-                if meta_key in td.keys(include_nested=True):
-                    npc_input_td.set(meta_key, td.get(meta_key).clone())
-
         with torch.no_grad():
             self.policy.forward(td)
-
-        if dual_enabled and npc_input_td is not None:
-            self._inject_dual_policy_outputs(td, npc_input_td, context)
-        else:
-            actions_tensor = td.get("actions")
-            if not isinstance(actions_tensor, torch.Tensor):
-                raise RuntimeError("Policy must populate 'actions' tensor during rollout")
-            td.set(
-                "is_student_agent",
-                torch.ones(actions_tensor.shape, device=actions_tensor.device, dtype=torch.float32),
-            )
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
@@ -166,70 +140,6 @@ class PPO(Loss):
         self.replay.store(data_td=td, env_id=env_slice)
 
         return
-
-    def _inject_dual_policy_outputs(
-        self,
-        rollout_td: TensorDict,
-        npc_input_td: TensorDict,
-        context: ComponentContext,
-    ) -> None:
-        npc_policy = getattr(context, "npc_policy", None)
-        npc_mask_per_env = getattr(context, "npc_mask_per_env", None)
-        student_mask_per_env = getattr(context, "student_mask_per_env", None)
-
-        actions = rollout_td.get("actions")
-        if not isinstance(actions, torch.Tensor):
-            raise RuntimeError("Policy must populate 'actions' tensor during rollout")
-
-        if npc_policy is None or npc_mask_per_env is None or student_mask_per_env is None:
-            rollout_td.set(
-                "is_student_agent",
-                torch.ones(actions.shape, device=actions.device, dtype=torch.float32),
-            )
-            return
-
-        agents_per_env = npc_mask_per_env.numel()
-        if agents_per_env == 0:
-            rollout_td.set(
-                "is_student_agent",
-                torch.ones(actions.shape, device=actions.device, dtype=torch.float32),
-            )
-            return
-
-        total_agents = actions.shape[0]
-        if total_agents % agents_per_env != 0:
-            rollout_td.set(
-                "is_student_agent",
-                torch.ones(actions.shape, device=actions.device, dtype=torch.float32),
-            )
-            return
-
-        num_envs = total_agents // agents_per_env
-
-        npc_td = npc_input_td.to(device=actions.device)
-        with torch.no_grad():
-            npc_policy.forward(npc_td)
-
-        npc_mask = npc_mask_per_env.to(device=actions.device).repeat(num_envs)
-        student_mask = student_mask_per_env.to(device=actions.device).repeat(num_envs)
-        rollout_td.set("is_student_agent", student_mask.to(dtype=torch.float32))
-
-        keys_to_update = ["actions", "act_log_prob", "entropy", "values", "full_log_probs"]
-        for key in keys_to_update:
-            if not (key in npc_td.keys() and key in rollout_td.keys()):
-                continue
-
-            source = npc_td.get(key)
-            target = rollout_td.get(key)
-            if not isinstance(source, torch.Tensor) or not isinstance(target, torch.Tensor):
-                continue
-            if source.shape != target.shape:
-                continue
-
-            source = source.to(device=target.device, dtype=target.dtype)
-            updated = target.clone()
-            updated[npc_mask] = source[npc_mask]
-            rollout_td.set(key, updated)
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
@@ -349,75 +259,15 @@ class PPO(Loss):
         adv = normalize_advantage_distributed(adv, cfg.norm_adv)
         adv = prio_weights * adv
 
-        dual_cfg = getattr(self.trainer_cfg, "dual_policy", None)
-        student_mask_tensor = minibatch.get("is_student_agent")
-        use_dual_policy = bool(dual_cfg and getattr(dual_cfg, "enabled", False) and student_mask_tensor is not None)
-
-        metric_importance_ratio: Tensor
-        metric_new_logprob: Tensor
-
-        if use_dual_policy:
-            student_mask_bool = (student_mask_tensor.reshape(old_logprob.shape) > 0.5).to(dtype=torch.bool)
-
-            if torch.all(student_mask_bool):
-                use_dual_policy = False
-            else:
-                student_mask_flat = student_mask_bool.reshape(-1)
-                student_indices = torch.nonzero(student_mask_flat, as_tuple=False).squeeze(-1)
-
-                if student_indices.numel() == 0:
-                    return torch.zeros((), device=self.device, dtype=torch.float32)
-
-                old_logprob_flat = old_logprob.reshape(-1)
-                new_logprob_flat = new_logprob.reshape(-1)
-                entropy_flat = entropy.reshape(-1)
-                adv_flat = adv.reshape(-1)
-                importance_flat = importance_sampling_ratio.reshape(-1)
-                newvalue_flat = newvalue.reshape(-1)
-                returns_flat = minibatch["returns"].reshape(-1)
-                values_flat = minibatch["values"].reshape(-1)
-
-                student_old_logprob = old_logprob_flat[student_indices]
-                student_new_logprob = new_logprob_flat[student_indices]
-                student_entropy = entropy_flat[student_indices]
-                student_adv = adv_flat[student_indices]
-                student_importance = importance_flat[student_indices]
-                student_newvalue = newvalue_flat[student_indices]
-                student_returns = returns_flat[student_indices]
-                student_values = values_flat[student_indices]
-
-                student_minibatch = TensorDict(
-                    {
-                        "act_log_prob": student_old_logprob,
-                        "values": student_values,
-                        "returns": student_returns,
-                    },
-                    batch_size=[student_indices.shape[0]],
-                )
-
-                pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = self.compute_ppo_losses(
-                    student_minibatch,
-                    student_new_logprob,
-                    student_entropy,
-                    student_newvalue,
-                    student_importance,
-                    student_adv,
-                )
-
-                metric_importance_ratio = student_importance
-                metric_new_logprob = student_new_logprob
-
-        if not use_dual_policy:
-            pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = self.compute_ppo_losses(
-                minibatch,
-                new_logprob,
-                entropy,
-                newvalue,
-                importance_sampling_ratio,
-                adv,
-            )
-            metric_importance_ratio = importance_sampling_ratio
-            metric_new_logprob = new_logprob
+        # Compute losses
+        pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = self.compute_ppo_losses(
+            minibatch,
+            new_logprob,
+            entropy,
+            newvalue,
+            importance_sampling_ratio,
+            adv,
+        )
 
         loss = pg_loss - cfg.ent_coef * entropy_loss + v_loss * cfg.vf_coef
 
@@ -434,8 +284,8 @@ class PPO(Loss):
         self._track("entropy", entropy_loss)
         self._track("approx_kl", approx_kl)
         self._track("clipfrac", clipfrac)
-        self._track("importance", metric_importance_ratio.mean())
-        self._track("current_logprobs", metric_new_logprob.mean())
+        self._track("importance", importance_sampling_ratio.mean())
+        self._track("current_logprobs", new_logprob.mean())
 
         return loss
 
