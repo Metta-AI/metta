@@ -177,6 +177,12 @@ class Trainer:
             if profiles:
                 loss_obj.loss_profiles = set(profiles)
 
+    def _maybe_set_trainable(self, policy: Policy, trainable: bool) -> None:
+        """Set requires_grad according to binding.trainable."""
+
+        for param in policy.parameters():
+            param.requires_grad = trainable
+
     @property
     def context(self) -> ComponentContext:
         """Return the shared trainer context."""
@@ -311,13 +317,16 @@ class Trainer:
                 raise ValueError(f"Duplicate policy binding id '{binding.id}'")
             binding_lookup[binding.id] = len(binding_lookup)
             if binding.use_trainer_policy:
+                self._maybe_set_trainable(trainer_policy, binding.trainable)
                 binding_policies[binding_lookup[binding.id]] = trainer_policy
             else:
-                binding_policies[binding_lookup[binding.id]] = self._policy_registry.get(
+                loaded_policy = self._policy_registry.get(
                     binding,
                     self._env.policy_env_info,
                     self._device if binding.device is None else torch.device(binding.device),
                 )
+                self._maybe_set_trainable(loaded_policy, binding.trainable)
+                binding_policies[binding_lookup[binding.id]] = loaded_policy
 
         # Loss profiles (config-only in Phase 0)
         loss_profiles = dict(self._cfg.loss_profiles)

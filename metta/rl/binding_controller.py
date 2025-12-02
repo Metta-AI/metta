@@ -22,6 +22,7 @@ class BindingControllerPolicy(Policy):
         binding_policies: Dict[int, Policy],
         policy_env_info,
         device: torch.device,
+        agent_binding_map: torch.Tensor | None = None,
     ) -> None:
         # Use the env info from trainer policy; architecture not needed here
         super().__init__(policy_env_info)  # type: ignore[arg-type]
@@ -30,6 +31,7 @@ class BindingControllerPolicy(Policy):
         self._binding_policies = binding_policies
         self._policy_env_info = policy_env_info
         self._device = torch.device(device)
+        self._agent_binding_map = agent_binding_map
 
         # Register trainable sub-policies so optimizer sees their parameters
         for idx, policy in binding_policies.items():
@@ -48,9 +50,17 @@ class BindingControllerPolicy(Policy):
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
         if "binding_id" not in td.keys():
-            # Fallback: single policy scenario
-            first_policy = next(iter(self._binding_policies.values()))
-            return first_policy.forward(td, action=action)
+            if self._agent_binding_map is None:
+                # Fallback: single policy scenario
+                first_policy = next(iter(self._binding_policies.values()))
+                return first_policy.forward(td, action=action)
+            num_agents = self._agent_binding_map.numel()
+            batch = td.batch_size.numel()
+            if batch % num_agents != 0:
+                first_policy = next(iter(self._binding_policies.values()))
+                return first_policy.forward(td, action=action)
+            num_envs = batch // num_agents
+            td.set("binding_id", self._agent_binding_map.to(device=td.device).repeat(num_envs))
 
         binding_ids = td.get("binding_id")
         if not isinstance(binding_ids, torch.Tensor):

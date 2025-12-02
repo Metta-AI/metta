@@ -1,6 +1,7 @@
 import logging
 from typing import Callable, Sequence
 
+import torch
 from pydantic import BaseModel, ConfigDict, Field
 
 from metta.rl.binding_config import PolicyBindingConfig
@@ -59,6 +60,14 @@ def run_simulations(
             registry = PolicyRegistry()
             bindings_cfg = simulation.policy_bindings
             binding_lookup = {b.id: idx for idx, b in enumerate(bindings_cfg)}
+            # Build agent binding map tensor
+            num_agents = env_interface.num_agents
+            agent_map = simulation.agent_binding_map or [bindings_cfg[0].id for _ in range(num_agents)]
+            if len(agent_map) != num_agents:
+                raise ValueError(f"agent_binding_map must match num_agents ({num_agents}); got {len(agent_map)}")
+            binding_ids = [binding_lookup[a] for a in agent_map]
+            agent_binding_tensor = torch.tensor(binding_ids, dtype=torch.long)
+
             binding_policies = {
                 idx: registry.get(
                     b,
@@ -73,6 +82,7 @@ def run_simulations(
                 binding_policies=binding_policies,
                 policy_env_info=env_interface,
                 device="cpu",
+                agent_binding_map=agent_binding_tensor,
             )
             multi_agent_policies.append(controller)
         else:
