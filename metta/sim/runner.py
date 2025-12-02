@@ -99,8 +99,6 @@ def run_simulations(
             seed=seed,
             proportions=proportions,
             save_replay=replay_dir,
-            # TODO: support this if and only if we also reflect that it happened in results
-            # max_time_s=simulation.max_time_s,
             max_action_time_ms=simulation.max_action_time_ms,
         )
         on_progress(f"Finished rollout for simulation {i}")

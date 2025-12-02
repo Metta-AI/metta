@@ -215,8 +215,6 @@ class CoreTrainingLoop:
         return cached
 
     def _inject_slot_metadata(self, td: TensorDict, training_env_id: slice) -> None:
-        """Attach slot/loss profile annotations to the rollout TensorDict."""
-
         ctx = self.context
         slot_ids = getattr(ctx, "slot_id_per_agent", None)
         if slot_ids is None:
