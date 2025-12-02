@@ -127,6 +127,7 @@ class Checkpointer(TrainerComponent):
             state_dict=policy.state_dict(),
             architecture=self._policy_architecture,
             epoch=epoch,
+            policy_env_info=self.context.env.policy_env_info,
         )
 
         self._latest_policy_uri = uri
