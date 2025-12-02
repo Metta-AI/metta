@@ -30,7 +30,12 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.3.3", "pytest-benchmark>=5.1.0", "pytest-xdist>=3.8.0"]
+dev = [
+    "pytest>=8.3.3",
+    "pytest-benchmark>=5.1.0",
+    "pytest-xdist>=3.8.0",
+    "freezegun>=1.5.0",
+]
 
 [tool.bazel]
 # Bazel build configuration
