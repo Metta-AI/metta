@@ -218,9 +218,7 @@ class Loss:
         if target_profiles is not None and "loss_profile_id" in minibatch.keys():
             profile_ids = minibatch.get("loss_profile_id")
             if isinstance(profile_ids, torch.Tensor):
-                allowed = torch.zeros_like(profile_ids, dtype=torch.bool)
-                for pid in target_profiles:
-                    allowed = allowed | (profile_ids == pid)
+                allowed = torch.isin(profile_ids, torch.as_tensor(list(target_profiles), device=profile_ids.device))
                 mask = allowed if mask is None else mask & allowed
 
         if getattr(self, "trainable_only", False) and "is_trainable_agent" in minibatch.keys():
@@ -281,10 +279,9 @@ class Loss:
             try:
                 bool_mask = row_mask.cpu().tolist()
                 if len(data) == segment_count:
-                    filtered_data = [entry for entry, keep in zip(data, bool_mask) if keep]
-                    return NonTensorData(filtered_data)
+                    return NonTensorData([entry for entry, keep in zip(data, bool_mask) if keep])
             except TypeError:
-                return None
+                pass
             return None
 
         if isinstance(value, torch.Tensor):
