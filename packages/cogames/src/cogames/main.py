@@ -435,7 +435,7 @@ def replay_cmd(
 def make_mission(
     ctx: typer.Context,
     base_mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Base mission to start configuring from"),
-    num_agents: Optional[int] = typer.Option(None, "--agents", "-a", help="Number of agents", min=1),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)", min=1),
     width: Optional[int] = typer.Option(None, "--width", "-w", help="Map width", min=1),
     height: Optional[int] = typer.Option(None, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
@@ -458,8 +458,8 @@ def make_mission(
             else:
                 env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
 
-        if num_agents is not None:
-            env_cfg.game.num_agents = num_agents
+        if cogs is not None:
+            env_cfg.game.num_agents = cogs
 
         # Validate the environment configuration
 

@@ -232,6 +232,12 @@ bazel build --config=opt //:mettagrid_c
 ./build-release/benchmarks/grid_object_benchmark
 ```
 
+For a quick benchmark of MettaGrid performance on a single CPU core, use the `test_perf.sh` script:
+
+```bash
+bash test_perf.sh
+```
+
 ## Debugging C++ Code
 
 MettaGrid is written in C++ with Python bindings via pybind11. You can debug C++ code directly in VSCode/Cursor by
