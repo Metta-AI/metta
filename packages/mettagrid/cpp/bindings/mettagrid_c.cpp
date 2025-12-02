@@ -702,7 +702,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["vibe"] = agent->vibe;
       obj_dict["agent_id"] = agent->agent_id;
       obj_dict["current_stat_reward"] = agent->current_stat_reward;
-      obj_dict["prev_action_name"] = agent->prev_action_name;
       obj_dict["steps_without_motion"] = agent->steps_without_motion;
 
       // We made resource limits more complicated than this, and need to review how to expose them.

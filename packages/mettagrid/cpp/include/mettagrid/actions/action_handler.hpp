@@ -130,7 +130,6 @@ public:
     }
 
     // Update tracking for this agent
-    actor.prev_action_name = _action_name;
     actor.prev_location = actor.location;
 
     // Track success/failure
