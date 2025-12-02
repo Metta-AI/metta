@@ -173,56 +173,124 @@ class Loss:
     # Shared filtering helpers (slot aware)
     # ------------------------------------------------------------------
     def _filter_minibatch(self, shared_loss_data: TensorDict) -> TensorDict:
-        """Filter minibatch rows by loss_profile_id and trainable flag if present."""
+        """Filter minibatch rows by loss_profile_id and trainable flag if present.
+
+        Slot metadata (loss profile / trainable flags) can be recorded per timestep
+        when ``bptt_horizon > 1``. We collapse those masks to the segment dimension
+        so that row-aligned metadata (indices, priorities, advantages, etc.) keeps
+        its 2-D layout instead of being flattened by a 2-D boolean mask.
+        """
 
         if "sampled_mb" not in shared_loss_data.keys():
             return shared_loss_data
 
         mb = shared_loss_data["sampled_mb"]
+
+        slot_mask = self._build_slot_mask(mb)
+        if slot_mask is None:
+            return shared_loss_data
+
+        slot_mask = slot_mask.to(dtype=torch.bool, device=mb.device)
+        row_mask = self._collapse_mask_to_segments(slot_mask, mb.batch_size)
+
+        filtered = shared_loss_data.clone()
+        filtered["sampled_mb"] = mb[row_mask]
+
+        for key, value in list(filtered.items()):
+            if key == "sampled_mb":
+                continue
+            masked_value = self._mask_row_aligned_value(value, row_mask, mb.batch_size)
+            if masked_value is not None:
+                filtered[key] = masked_value
+
+        return filtered
+
+    def _build_slot_mask(self, minibatch: TensorDict) -> torch.Tensor | None:
+        """Construct a combined mask from loss_profile_id/trainable flags."""
+
         mask = None
 
-        # Loss profile gating
         target_profiles = getattr(self, "loss_profiles", None)
-        if target_profiles is not None and "loss_profile_id" in mb.keys():
-            profile_ids = mb.get("loss_profile_id")
+        if target_profiles is not None and "loss_profile_id" in minibatch.keys():
+            profile_ids = minibatch.get("loss_profile_id")
             if isinstance(profile_ids, torch.Tensor):
                 allowed = torch.zeros_like(profile_ids, dtype=torch.bool)
                 for pid in target_profiles:
                     allowed = allowed | (profile_ids == pid)
                 mask = allowed if mask is None else mask & allowed
 
-        # Trainable gating
-        if getattr(self, "trainable_only", False) and "is_trainable_agent" in mb.keys():
-            trainable_mask = mb.get("is_trainable_agent")
+        if getattr(self, "trainable_only", False) and "is_trainable_agent" in minibatch.keys():
+            trainable_mask = minibatch.get("is_trainable_agent")
             if isinstance(trainable_mask, torch.Tensor):
                 mask = trainable_mask if mask is None else mask & trainable_mask
 
-        if mask is None:
-            return shared_loss_data
+        return mask
 
-        if not torch.any(mask):
-            # Empty minibatch; keep shapes but zero sizes
-            shared_loss_data = shared_loss_data.clone()
-            shared_loss_data["sampled_mb"] = mb[mask]
-            return shared_loss_data
+    def _collapse_mask_to_segments(self, mask: torch.Tensor, batch_size: torch.Size) -> torch.Tensor:
+        """Reduce an arbitrary slot mask to a 1-D segment mask.
 
-        filtered = shared_loss_data.clone()
-        filtered["sampled_mb"] = mb[mask]
+        The minibatch layout is always ``[segments, bptt_horizon]``; row-aligned
+        metadata only depends on the segment dimension. A 2-D mask produced from
+        per-timestep metadata is broadcast to the minibatch shape and collapsed
+        with ``any`` so that we retain the per-segment horizon structure.
+        """
 
-        # Mirror-filter known row-aligned keys
-        row_keys = ("policy_td", "indices", "prio_weights", "advantages", "gamma", "gae_lambda")
-        for key in row_keys:
-            if key not in filtered.keys():
-                continue
-            value = filtered[key]
-            if isinstance(value, NonTensorData):
-                filtered[key] = NonTensorData(value.data[mask])
-            elif isinstance(value, torch.Tensor) and value.shape[:1] == mb.shape[:1]:
-                filtered[key] = value[mask]
-            elif hasattr(value, "batch_size") and value.batch_size.numel() == mb.batch_size.numel():
-                filtered[key] = value[mask]
+        if len(batch_size) == 0:
+            raise ValueError("Cannot filter minibatch without batch dimensions")
 
-        return filtered
+        batch_ndim = len(batch_size)
+        working_mask = mask
+
+        if working_mask.dim() > batch_ndim:
+            raise ValueError(
+                f"Slot filter mask with shape {tuple(mask.shape)} has more dimensions than minibatch {tuple(batch_size)}"
+            )
+
+        if working_mask.dim() < batch_ndim:
+            working_mask = working_mask.view(*working_mask.shape, *([1] * (batch_ndim - working_mask.dim())))
+
+        try:
+            working_mask = working_mask.expand(*batch_size)
+        except RuntimeError as exc:
+            raise ValueError(
+                f"Slot filter mask with shape {tuple(mask.shape)} is not broadcastable to minibatch {tuple(batch_size)}"
+            ) from exc
+
+        return working_mask.reshape(batch_size[0], -1).any(dim=1)
+
+    def _mask_row_aligned_value(
+        self, value: Any, row_mask: torch.Tensor, batch_size: torch.Size
+    ) -> Any | None:
+        """Apply the segment mask to row-aligned metadata if shapes match."""
+
+        segment_count = batch_size[0]
+
+        if isinstance(value, NonTensorData):
+            data = value.data
+            if hasattr(data, "shape") and getattr(data, "shape", None):
+                if data.shape[0] == segment_count:
+                    return NonTensorData(data[row_mask.cpu()])
+                return None
+            try:
+                bool_mask = row_mask.cpu().tolist()
+                if len(data) == segment_count:
+                    filtered_data = [entry for entry, keep in zip(data, bool_mask) if keep]
+                    return NonTensorData(filtered_data)
+            except TypeError:
+                return None
+            return None
+
+        if isinstance(value, torch.Tensor):
+            if value.shape[:1] == (segment_count,):
+                return value[row_mask]
+            return None
+
+        if hasattr(value, "batch_size"):
+            bs = value.batch_size
+            if len(bs) >= 1 and bs[0] == segment_count:
+                return value[row_mask]
+
+        return None
 
     # End utility helpers
 
