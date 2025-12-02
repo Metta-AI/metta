@@ -25,8 +25,8 @@ def create_env(num_agents: int = 20, map_size: int = 40, seed: int = 42):
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=num_agents,
-            max_steps=999999999,  # Infinite episode
-            obs=ObsConfig(width=3, height=3, num_tokens=100),
+            max_steps=0,
+            obs=ObsConfig(width=11, height=11, num_tokens=200),
             actions=ActionsConfig(
                 noop=NoopActionConfig(enabled=True),
                 move=MoveActionConfig(
