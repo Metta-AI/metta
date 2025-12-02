@@ -314,10 +314,6 @@ def train(
         ],
     )
 
-    # Set behavior cloning policy URI if provided
-    if bc_policy_uri is not None:
-        trainer_cfg.behavior_cloning.policy_uri = bc_policy_uri
-
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
         num_cogs=num_cogs,
