@@ -124,9 +124,6 @@ def prompt_choice(
             menu_highlight_style=("fg_cyan",),
             cycle_cursor=True,
             clear_screen=False,
-            show_shortcut_hints=False,
-            shortcut_key_highlight_style=("fg_yellow",),
-            shortcut_brackets_highlight_style=("fg_gray",),
         )
 
         menu_entry_index = terminal_menu.show()
