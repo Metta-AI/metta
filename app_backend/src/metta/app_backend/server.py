@@ -108,7 +108,11 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Frontend URLs
+        allow_origins=[
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "https://observatory.softmax-research.net",
+        ],  # Frontend URLs
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
