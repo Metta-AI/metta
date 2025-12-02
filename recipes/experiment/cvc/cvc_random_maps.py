@@ -40,6 +40,7 @@ def make_random_maps_curriculum(
     variants: Optional[Sequence[str]] = None,
     heart_buckets: bool = False,
     resource_buckets: bool = False,
+    initial_inventory_buckets: bool = False,
 ) -> CurriculumConfig:
     """Create a curriculum with randomly generated maps.
 
@@ -48,6 +49,9 @@ def make_random_maps_curriculum(
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
         variants: Optional mission variants to apply
+        heart_buckets: Enable bucketing over heart inventory rewards
+        resource_buckets: Enable bucketing over resource stat rewards
+        initial_inventory_buckets: Enable bucketing over agent's initial inventory
 
     Returns:
         A CurriculumConfig with learning progress algorithm across map sizes and object counts
@@ -135,6 +139,14 @@ def make_random_maps_curriculum(
         tasks.add_bucket("game.agent.rewards.stats_max.germanium.gained", [stats_max_cap])
         tasks.add_bucket("game.agent.rewards.stats_max.silicon.gained", [stats_max_cap])
 
+    if initial_inventory_buckets:
+        # Bucket over agent's starting inventory
+        tasks.add_bucket("game.agent.initial_inventory.carbon",[0, 20, 50, 75])
+        tasks.add_bucket("game.agent.initial_inventory.oxygen", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.initial_inventory.germanium", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.initial_inventory.silicon", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.initial_inventory.heart", [0, 1, 2])
+
     # Configure learning progress algorithm
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -161,6 +173,7 @@ def train(
     eval_difficulty: str | None = "standard",
     heart_buckets=False,
     resource_buckets=False,
+    initial_inventory_buckets=False,
 ) -> TrainTool:
     """Create a training tool for random maps curriculum.
 
@@ -171,6 +184,9 @@ def train(
         variants: Optional mission variants for training
         eval_variants: Optional mission variants for evaluation
         eval_difficulty: Difficulty level for evaluation
+        heart_buckets: Enable bucketing over heart inventory rewards
+        resource_buckets: Enable bucketing over resource stat rewards
+        initial_inventory_buckets: Enable bucketing over agent's initial inventory
 
     Returns:
         A TrainTool configured with the random maps curriculum
@@ -181,12 +197,16 @@ def train(
 
         Train with 8 agents:
             uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.train num_cogs=8
+
+        Train with initial inventory bucketing:
+            uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.train initial_inventory_buckets=True
     """
     resolved_curriculum = curriculum or make_random_maps_curriculum(
         num_cogs=num_cogs,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         heart_buckets=heart_buckets,
         resource_buckets=resource_buckets,
+        initial_inventory_buckets=initial_inventory_buckets,
     )
 
     trainer_cfg = TrainerConfig(
@@ -452,6 +472,7 @@ def experiment(
     additional_args: Optional[list[str]] = None,
     heart_buckets: bool = False,
     resource_buckets: bool = False,
+    initial_inventory_buckets: bool = False,
 ) -> None:
     """Submit a training job on AWS with 4 GPUs.
 
@@ -461,6 +482,9 @@ def experiment(
         heartbeat_timeout: Heartbeat timeout in seconds
         skip_git_check: Whether to skip git check
         additional_args: Additional arguments to pass
+        heart_buckets: Enable bucketing over heart inventory rewards
+        resource_buckets: Enable bucketing over resource stat rewards
+        initial_inventory_buckets: Enable bucketing over agent's initial inventory
 
     Examples:
         Submit training:
@@ -469,12 +493,16 @@ def experiment(
         Submit with custom name:
             uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.experiment \\
                 run_name=random_maps_4agent
+
+        Submit with initial inventory bucketing:
+            uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.experiment \\
+                initial_inventory_buckets=True
     """
     if run_name is None:
         timestamp = time.strftime("%Y-%m-%d_%H%M%S")
         run_name = (
             f"cvc_random_maps_{num_cogs}agent_heartbuckets_{heart_buckets}_"
-            f"resourcebuckets_{resource_buckets}_{timestamp}"
+            f"resourcebuckets_{resource_buckets}_invbuckets_{initial_inventory_buckets}_{timestamp}"
         )
 
     cmd = [
@@ -482,6 +510,7 @@ def experiment(
         "recipes.experiment.cvc.cvc_random_maps.train",
         f"heart_buckets={heart_buckets}",
         f"resource_buckets={resource_buckets}",
+        f"initial_inventory_buckets={initial_inventory_buckets}",
         f"run={run_name}-{datetime.now().strftime('%Y-%m-%d_%H%M%S')}",
         f"num_cogs={num_cogs}",
         "--gpus=4",
@@ -514,7 +543,7 @@ __all__ = [
 ]
 
 if __name__ == "__main__":
-    # experiment(heart_buckets=False, resource_buckets=False)
-    experiment(heart_buckets=True, resource_buckets=False)
-    experiment(heart_buckets=True, resource_buckets=True)
-    experiment(heart_buckets=False, resource_buckets=True)
+    experiment(heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True)
+    experiment(heart_buckets=True, resource_buckets=False, initial_inventory_buckets=True)
+    experiment(heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
+    experiment(heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
