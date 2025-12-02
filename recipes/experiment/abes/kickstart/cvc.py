@@ -262,7 +262,7 @@ def train(
     evaluate_local: bool = False,
     use_lp: bool = True,
     bc_policy_uri: Optional[str] = None,
-    initial_policy_uri: Optional[str] = "sliced_kickstarter",
+    initial_policy_uri: Optional[str] = None,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
