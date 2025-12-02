@@ -219,7 +219,10 @@ class SlicedScriptedCloner(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
+        shared_loss_data = self._filter_minibatch(shared_loss_data)
         minibatch, indices = sequential_sample(self.replay, mb_idx)
+        if minibatch.batch_size.numel() == 0:
+            return self._zero_tensor, shared_loss_data, False
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]

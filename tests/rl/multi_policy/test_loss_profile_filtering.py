@@ -1,8 +1,16 @@
 import torch
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.rl.loss.loss import Loss
+from metta.rl.loss.loss import Loss, LossConfig
+
+
+class _StubPolicy:
+    def __init__(self, experience_spec: Composite):
+        self._spec = experience_spec
+
+    def get_agent_experience_spec(self) -> Composite:
+        return self._spec
 
 
 class _DummyLoss(Loss):
@@ -12,13 +20,14 @@ class _DummyLoss(Loss):
             loss_profile_id=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
             is_trainable_agent=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool),
         )
+        stub_policy = _StubPolicy(base)
         super().__init__(
-            policy=None,
+            policy=stub_policy,
             trainer_cfg=None,
             env=None,
             device=torch.device("cpu"),
             instance_name="dummy",
-            loss_config=None,
+            cfg=LossConfig(),
         )  # type: ignore[arg-type]
         self.policy_experience_spec = base
         self._zero_tensor = torch.tensor(0.0)
@@ -48,9 +57,12 @@ def test_loss_profile_and_trainable_filtering():
         },
         batch_size=[],
     )
-    out_val, _, _ = loss.train(shared, None, 0)
+    out_val, filtered, _ = loss.train(shared, None, 0)
     # Expected rows: profile==1 AND trainable -> indices 1 and 4 -> 2 rows
     assert out_val.item() == 2.0
+    assert filtered["sampled_mb"].batch_size == torch.Size([2])
+    assert filtered["sampled_mb"]["actions"].tolist() == [1, 4]
+    assert filtered["advantages"].tolist() == [1.0, 4.0]
     assert shared["advantages"].shape[0] == 6  # unchanged input
 
 
@@ -68,3 +80,31 @@ def test_npc_rows_are_filtered_when_not_trainable():
     out_val, _, _ = loss.train(shared, None, 0)
     # Only two trainable rows should remain
     assert out_val.item() == 2.0
+
+
+def test_slot_mask_reduces_2d_layout_to_segments():
+    loss = _DummyLoss()
+    mb = TensorDict(
+        {
+            "actions": torch.arange(6).view(3, 2),
+            "loss_profile_id": torch.tensor([[1, 1], [0, 2], [1, 0]]),
+            "is_trainable_agent": torch.tensor([[True, True], [False, False], [False, False]]),
+        },
+        batch_size=[3, 2],
+    )
+
+    shared = TensorDict(
+        {
+            "sampled_mb": mb,
+            "advantages": torch.arange(6, dtype=torch.float32).view(3, 2),
+            "indices": NonTensorData(torch.arange(3)),
+        },
+        batch_size=[],
+    )
+
+    filtered = loss._filter_minibatch(shared)
+
+    assert filtered["sampled_mb"].batch_size == torch.Size([1, 2])
+    assert torch.equal(filtered["sampled_mb"]["actions"], torch.tensor([[0, 1]]))
+    assert torch.equal(filtered["advantages"], torch.tensor([[0.0, 1.0]]))
+    assert torch.equal(filtered["indices"].data, torch.tensor([0]))
