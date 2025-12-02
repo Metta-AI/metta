@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import tempfile
@@ -81,14 +80,11 @@ class CheckpointManager:
         state_dict: dict,
         architecture,
         epoch: int,
-        policy_env_info: PolicyEnvInterface | None = None,
     ) -> str:
         filename = checkpoint_filename(self.run_name, epoch)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         local_uri = save_mpt(self.checkpoint_dir / filename, architecture=architecture, state_dict=state_dict)
-        if policy_env_info is not None:
-            self._persist_env_metadata(policy_env_info)
 
         if self._remote_prefix:
             remote_uri = save_mpt(f"{self._remote_prefix}/{filename}", architecture=architecture, state_dict=state_dict)
@@ -166,72 +162,13 @@ class CheckpointManager:
         device: torch.device | str = "cpu",
         *,
         strict: bool = True,
-        validate_env: bool = True,
     ) -> MptPolicy:
-        """Load a policy checkpoint and optionally validate env metadata."""
+        """Load a policy checkpoint."""
 
         resolved_uri = resolve_uri(uri)
-        parsed = parse_uri(resolved_uri)
-        local_path = Path(parsed.local_path) if parsed.local_path else None
-        local_meta = CheckpointManager._load_env_metadata(local_path) if local_path else None
-        if validate_env and local_meta:
-            CheckpointManager._validate_env_metadata(local_meta, policy_env_info)
-
         artifact = load_mpt(resolved_uri)
         policy = artifact.instantiate(policy_env_info, device=device, strict=strict)
         return policy
-
-    def _persist_env_metadata(self, policy_env_info: PolicyEnvInterface) -> None:
-        """Persist minimal env metadata alongside checkpoints for resume/eval validation."""
-
-        meta = {
-            "num_agents": policy_env_info.num_agents,
-            "obs_width": policy_env_info.obs_width,
-            "obs_height": policy_env_info.obs_height,
-            "actions": [a.name for a in policy_env_info.actions.actions()],
-            "tags": policy_env_info.tags,
-        }
-        target = self.checkpoint_dir / "policy_env_info.json"
-        tmp = target.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(meta, indent=2))
-        tmp.replace(target)
-
-    @staticmethod
-    def _load_env_metadata(resolved_uri: str | Path | None) -> dict[str, Any] | None:
-        """Attempt to read env metadata colocated with the checkpoint file."""
-
-        try:
-            if resolved_uri is None:
-                return None
-            path = Path(resolved_uri)
-            meta_path = path.parent / "policy_env_info.json"
-            if meta_path.exists():
-                return json.loads(meta_path.read_text())
-        except Exception:
-            logger.debug("Failed to read env metadata near %s", resolved_uri, exc_info=True)
-        return None
-
-    @staticmethod
-    def _validate_env_metadata(meta: dict[str, Any], policy_env_info: PolicyEnvInterface) -> None:
-        """Warn if saved env metadata differs from the current environment."""
-
-        try:
-            mismatches = []
-            if meta.get("num_agents") != policy_env_info.num_agents:
-                mismatches.append(f"num_agents saved={meta.get('num_agents')} current={policy_env_info.num_agents}")
-            if meta.get("obs_width") != policy_env_info.obs_width or meta.get("obs_height") != policy_env_info.obs_height:
-                mismatches.append(
-                    f"obs_shape saved=({meta.get('obs_width')},{meta.get('obs_height')}) "
-                    f"current=({policy_env_info.obs_width},{policy_env_info.obs_height})"
-                )
-            saved_actions = meta.get("actions", [])
-            current_actions = [a.name for a in policy_env_info.actions.actions()]
-            if saved_actions != current_actions:
-                mismatches.append(f"actions saved={saved_actions} current={current_actions}")
-            if mismatches:
-                logger.warning("Environment metadata mismatch when loading policy: %s", "; ".join(mismatches))
-        except Exception:
-            logger.debug("Env metadata validation failed", exc_info=True)
 
 
 # Here temporarily for backwards-compatibility but we will move it
