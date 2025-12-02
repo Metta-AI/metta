@@ -39,4 +39,6 @@ class SimulationConfig(Config):
             env=self.env,
             num_episodes=self.num_episodes,
             episode_tags={"name": self.name, "category": self.suite},
+            policy_bindings=self.policy_bindings,
+            agent_binding_map=self.agent_binding_map,
         )
