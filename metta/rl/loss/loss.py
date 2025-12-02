@@ -106,7 +106,8 @@ class Loss:
         ctx = self._ensure_context(context)
         if not self._loss_gate_allows("train", ctx):
             return self._zero(), shared_loss_data, False
-        return self.run_train(shared_loss_data, ctx, mb_idx)
+        filtered = self._filter_minibatch(shared_loss_data)
+        return self.run_train(filtered, ctx, mb_idx)
 
     def run_train(
         self,
@@ -168,6 +169,56 @@ class Loss:
     def attach_replay_buffer(self, experience: Experience) -> None:
         """Attach the replay buffer to the loss."""
         self.replay = experience
+
+    # ------------------------------------------------------------------
+    # Shared filtering helpers (slot/binding aware)
+    # ------------------------------------------------------------------
+    def _filter_minibatch(self, shared_loss_data: TensorDict) -> TensorDict:
+        """Filter minibatch rows by loss_profile_id and trainable flag if present."""
+
+        if "sampled_mb" not in shared_loss_data.keys():
+            return shared_loss_data
+
+        mb = shared_loss_data["sampled_mb"]
+        mask = None
+
+        # Loss profile gating
+        target_profiles = getattr(self, "loss_profiles", None)
+        if target_profiles is not None and "loss_profile_id" in mb.keys():
+            profile_ids = mb.get("loss_profile_id")
+            if isinstance(profile_ids, torch.Tensor):
+                allowed = torch.zeros_like(profile_ids, dtype=torch.bool)
+                for pid in target_profiles:
+                    allowed = allowed | (profile_ids == pid)
+                mask = allowed if mask is None else mask & allowed
+
+        # Trainable gating
+        if getattr(self, "trainable_only", False) and "is_trainable_agent" in mb.keys():
+            trainable_mask = mb.get("is_trainable_agent")
+            if isinstance(trainable_mask, torch.Tensor):
+                mask = trainable_mask if mask is None else mask & trainable_mask
+
+        if mask is None:
+            return shared_loss_data
+
+        if not torch.any(mask):
+            # Empty minibatch; keep shapes but zero sizes
+            shared_loss_data = shared_loss_data.clone()
+            shared_loss_data["sampled_mb"] = mb[mask]
+            return shared_loss_data
+
+        filtered = shared_loss_data.clone()
+        filtered["sampled_mb"] = mb[mask]
+
+        # Optional mirror-filter other aligned entries
+        for key in ("policy_td", "indices", "prio_weights"):
+            if key in filtered.keys():
+                try:
+                    filtered[key] = filtered[key][mask]
+                except Exception:
+                    pass
+
+        return filtered
 
     # End utility helpers
 

@@ -69,6 +69,7 @@ class PPOActor(Loss):
         loss_config: Any,
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        self.trainable_only = True
 
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))

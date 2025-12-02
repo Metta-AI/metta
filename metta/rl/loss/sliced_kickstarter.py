@@ -81,6 +81,7 @@ class SlicedKickstarter(Loss):
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         self.student_forward = self.cfg.student_forward
+        self.loss_profiles = None  # inherit default filtering (all)
 
         base_policy_env_info = getattr(self.env, "policy_env_info", None)
         if base_policy_env_info is None:

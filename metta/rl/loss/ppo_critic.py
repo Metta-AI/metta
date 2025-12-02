@@ -78,6 +78,7 @@ class PPOCritic(Loss):
         self.sample_enabled = self.cfg.sample_enabled
         self.train_forward_enabled = self.cfg.train_forward_enabled
         self.rollout_forward_enabled = self.cfg.rollout_forward_enabled
+        self.trainable_only = True
 
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps

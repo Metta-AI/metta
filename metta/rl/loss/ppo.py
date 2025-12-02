@@ -110,6 +110,7 @@ class PPO(Loss):
         self.burn_in_steps_iter = 0
         self.last_action = None
         self.register_state_attr("anneal_beta", "burn_in_steps_iter")
+        self.trainable_only = True
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
