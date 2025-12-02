@@ -1,0 +1,32 @@
+trainer:
+  policy_bindings:
+    - id: main
+      use_trainer_policy: true
+      trainable: true
+      loss_profile: ppo_only
+    - id: scripted_teacher
+      class_path: tests.rl.fake_scripted_policy.FakeScriptedAgentPolicy
+      policy_kwargs:
+        multiplier: 10
+      trainable: false
+      loss_profile: teacher_only
+  agent_binding_map: ["scripted_teacher", "scripted_teacher", "main", "main"]
+  loss_profiles:
+    ppo_only:
+      losses: ["ppo_actor", "ppo_critic"]
+    teacher_only:
+      losses: []
+  losses:
+    ppo_actor:
+      profiles: ["ppo_only"]
+    ppo_critic:
+      profiles: ["ppo_only"]
+    ppo:
+      enabled: false
+    sliced_kickstarter:
+      enabled: false
+    sliced_scripted_cloner:
+      enabled: false
+simulation:
+  policy_bindings: null
+  agent_binding_map: null
