@@ -27,6 +27,7 @@ from metta.app_backend.value_over_replacement import (
     ScenarioAccumulator,
     ValueOverReplacementSummary,
     build_value_over_replacement_summary_from_stats,
+    compute_overall_vor_from_stats,
 )
 
 TaskStatus = Literal["unprocessed", "running", "canceled", "done", "error", "system_error"]
@@ -241,11 +242,55 @@ WHERE st.scenario_name IS NOT NULL
 """
 )
 
+# Batch version of candidate VOR query - returns policy_version_id for grouping
+_BATCH_CANDIDATE_VOR_QUERY = (
+    _SCENARIO_TAGS_CTE
+    + """
+SELECT
+    ep.policy_version_id,
+    st.candidate_count,
+    epm.value / NULLIF(ep.num_agents, 0) AS avg_reward
+FROM scenario_tags st
+JOIN episode_policies ep ON ep.episode_id = st.episode_id
+JOIN policy_versions pv ON pv.id = ep.policy_version_id
+JOIN episode_policy_metrics epm
+    ON epm.episode_internal_id = st.internal_id
+   AND epm.pv_internal_id = pv.internal_id
+WHERE st.scenario_name IS NOT NULL
+  AND st.candidate_count IS NOT NULL
+  AND st.candidate_count > 0
+  AND ep.policy_version_id = ANY(%s)
+  AND epm.metric_name = 'reward'
+  AND ep.num_agents > 0
+"""
+)
+
+
+# Simple cache for batch VOR results
+class _VorCache:
+    def __init__(self, ttl_seconds: float = 60.0) -> None:
+        self.ttl_seconds = ttl_seconds
+        self._cached_entries: list["LeaderboardPolicyEntry"] | None = None
+        self._cached_at: datetime | None = None
+
+    def get(self) -> list["LeaderboardPolicyEntry"] | None:
+        if self._cached_entries is None or self._cached_at is None:
+            return None
+        age = (datetime.now() - self._cached_at).total_seconds()
+        if age > self.ttl_seconds:
+            return None
+        return self._cached_entries
+
+    def set(self, entries: list["LeaderboardPolicyEntry"]) -> None:
+        self._cached_entries = entries
+        self._cached_at = datetime.now()
+
 
 class MettaRepo:
     def __init__(self, db_uri: str) -> None:
         self.db_uri = db_uri
         self._pool: AsyncConnectionPool | None = None
+        self._vor_cache = _VorCache(ttl_seconds=60.0)
         # Run migrations synchronously during initialization
         with Connection.connect(self.db_uri) as con:
             run_migrations(con, MIGRATIONS)
@@ -1204,6 +1249,80 @@ GROUP BY pv.id, et.key, et.value
             scenario_stats=scenario_stats,
             candidate_count_stats=candidate_count_stats,
         )
+
+    async def get_leaderboard_policies_with_vor(
+        self,
+        policy_version_tags: dict[str, str],
+        score_group_episode_tag: str,
+    ) -> list[LeaderboardPolicyEntry]:
+        """Return leaderboard entries with overall_vor computed for each policy.
+
+        Results are cached for 60 seconds.
+        """
+        cached = self._vor_cache.get()
+        if cached is not None:
+            return cached
+
+        # Get base leaderboard entries
+        entries = await self.get_leaderboard_policies(
+            policy_version_tags=policy_version_tags,
+            score_group_episode_tag=score_group_episode_tag,
+            user_id=None,
+            policy_version_id=None,
+        )
+
+        if not entries:
+            self._vor_cache.set([])
+            return []
+
+        policy_version_ids = [entry.policy_version.id for entry in entries]
+
+        # Fetch candidate data for all policies in one query
+        candidate_stats_by_policy: dict[uuid.UUID, dict[int, RunningStats]] = {
+            pv_id: defaultdict(RunningStats) for pv_id in policy_version_ids
+        }
+
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(_BATCH_CANDIDATE_VOR_QUERY, (policy_version_ids,))
+                candidate_rows = await cur.fetchall()
+
+            # Fetch replacement baseline (shared across all policies)
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(_REPLACEMENT_VOR_QUERY)
+                replacement_rows = await cur.fetchall()
+
+        # Accumulate candidate stats per policy
+        for row in candidate_rows:
+            pv_id = row.get("policy_version_id")
+            candidate_count = row.get("candidate_count")
+            avg_reward = row.get("avg_reward")
+            if pv_id is None or candidate_count is None or avg_reward is None:
+                continue
+            candidate_count = int(candidate_count)
+            reward = float(avg_reward)
+            candidate_stats_by_policy[pv_id][candidate_count].update(reward, weight=candidate_count)
+
+        # Accumulate global replacement stats
+        replacement_stats = RunningStats()
+        for row in replacement_rows:
+            avg_reward = row.get("avg_reward")
+            thinky_count = int(row.get("thinky_count") or 0)
+            ladybug_count = int(row.get("ladybug_count") or 0)
+            if avg_reward is None:
+                continue
+            replacement_weight = thinky_count + ladybug_count
+            replacement_stats.update(float(avg_reward), weight=replacement_weight)
+
+        # Compute overall_vor for each entry
+        for entry in entries:
+            pv_id = entry.policy_version.id
+            candidate_stats = candidate_stats_by_policy.get(pv_id, {})
+            if candidate_stats:
+                entry.overall_vor = compute_overall_vor_from_stats(candidate_stats, replacement_stats)
+
+        self._vor_cache.set(entries)
+        return entries
 
     async def get_episodes(
         self,

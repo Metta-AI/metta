@@ -478,6 +478,10 @@ export class Repo {
     return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2')
   }
 
+  async getPublicLeaderboardWithVor(): Promise<LeaderboardPoliciesResponse> {
+    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/vor')
+  }
+
   async getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse> {
     return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me')
   }
@@ -486,7 +490,7 @@ export class Repo {
     return this.apiCall<LeaderboardPoliciesResponse>(`/leaderboard/v2/policy/${policyVersionId}`)
   }
 
-  async getValueOverReplacement(policyVersionId: string): Promise<ValueOverReplacementSummary | null> {
+  async getValueOverReplacementDetail(policyVersionId: string): Promise<ValueOverReplacementSummary | null> {
     try {
       return await this.apiCall<ValueOverReplacementSummary>(`/leaderboard/v2/vor/${policyVersionId}`)
     } catch {

@@ -40,12 +40,6 @@ type ReplayFetchState = {
   episodesBySimulation: Record<string, EpisodeReplay[]>
 }
 
-type VorState = {
-  loading: boolean
-  value: number | null
-  error: boolean
-}
-
 const REFRESH_INTERVAL_MS = 10_000
 
 const STYLES = `
@@ -476,7 +470,6 @@ export const Leaderboard: FC = () => {
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
   const [replayState, setReplayState] = useState<Record<string, ReplayFetchState>>({})
   const [replayPreviews, setReplayPreviews] = useState<Record<string, { url: string; label: string }>>({})
-  const [vorState, setVorState] = useState<Record<string, VorState>>({})
 
   const viewConfig: ViewConfig = {
     sectionKey: 'public',
@@ -490,31 +483,10 @@ export const Leaderboard: FC = () => {
     const load = async () => {
       setPublicLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
       try {
-        const response = await repo.getPublicLeaderboard()
+        // Use the new endpoint that returns entries with VOR already computed
+        const response = await repo.getPublicLeaderboardWithVor()
         if (!ignore) {
           setPublicLeaderboard({ entries: response.entries, loading: false, error: null })
-          // Fetch VOR for each entry
-          response.entries.forEach((entry) => {
-            const policyId = entry.policy_version.id
-            if (!vorState[policyId]) {
-              setVorState((prev) => ({ ...prev, [policyId]: { loading: true, value: null, error: false } }))
-              repo
-                .getValueOverReplacement(policyId)
-                .then((vor) => {
-                  if (!ignore) {
-                    setVorState((prev) => ({
-                      ...prev,
-                      [policyId]: { loading: false, value: vor?.overall_vor ?? null, error: false },
-                    }))
-                  }
-                })
-                .catch(() => {
-                  if (!ignore) {
-                    setVorState((prev) => ({ ...prev, [policyId]: { loading: false, value: null, error: true } }))
-                  }
-                })
-            }
-          })
         }
       } catch (error: any) {
         if (!ignore) {
@@ -716,13 +688,7 @@ export const Leaderboard: FC = () => {
                     <div className="policy-meta">{formatDate(createdAt)}</div>
                   </td>
                   <td>
-                    <div className="policy-title">
-                      {vorState[policyId]?.loading
-                        ? '...'
-                        : vorState[policyId]?.error
-                          ? '—'
-                          : formatScore(vorState[policyId]?.value ?? null)}
-                    </div>
+                    <div className="policy-title">{formatScore(entry.overall_vor ?? null)}</div>
                   </td>
                 </tr>
                 {isExpanded && (
