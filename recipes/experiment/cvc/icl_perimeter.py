@@ -20,6 +20,8 @@ Curriculum progression:
 
 from __future__ import annotations
 
+import subprocess
+import time
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -450,3 +452,65 @@ def evaluate(
         simulations=[SimulationConfig(suite="icl", name="icl_hard", env=eval_env)],
         policy_uris=policy_uris,
     )
+
+
+def experiment(
+    run_name: Optional[str] = None,
+    num_cogs: int = 4,
+    map_width: int = 15,
+    map_height: int = 15,
+    heartbeat_timeout: int = 3600,
+    skip_git_check: bool = True,
+    additional_args: Optional[list[str]] = None,
+) -> None:
+    """Submit an ICL perimeter training job on AWS with 4 GPUs.
+
+    Args:
+        run_name: Optional run name. If not provided, generates one with timestamp.
+        num_cogs: Number of agents per environment (default: 4)
+        map_width: Width of the map (default: 15)
+        map_height: Height of the map (default: 15)
+        heartbeat_timeout: Heartbeat timeout in seconds (default: 3600)
+        skip_git_check: Whether to skip git check (default: True)
+        additional_args: Additional arguments to pass to the training command
+
+    Examples:
+        Submit training:
+            uv run ./tools/run.py recipes.experiment.cvc.icl_perimeter.experiment
+
+        Submit with custom name:
+            uv run ./tools/run.py recipes.experiment.cvc.icl_perimeter.experiment \\
+                run_name=icl_perimeter_test
+    """
+    if run_name is None:
+        timestamp = time.strftime("%Y-%m-%d_%H%M%S")
+        run_name = f"icl_perimeter_{num_cogs}cogs_{timestamp}"
+
+    cmd = [
+        "./devops/skypilot/launch.py",
+        "recipes.experiment.cvc.icl_perimeter.train",
+        f"run={run_name}",
+        f"num_cogs={num_cogs}",
+        f"map_width={map_width}",
+        f"map_height={map_height}",
+        "--gpus=4",
+        f"--heartbeat-timeout-seconds={heartbeat_timeout}",
+    ]
+
+    if skip_git_check:
+        cmd.append("--skip-git-check")
+
+    if additional_args:
+        cmd.extend(additional_args)
+
+    print(f"Launching ICL perimeter training job: {run_name}")
+    print(f"  Agents: {num_cogs}")
+    print(f"  Map size: {map_width}x{map_height}")
+    print(f"Command: {' '.join(cmd)}")
+    print("=" * 50)
+
+    subprocess.run(cmd, check=True)
+    print(f"✓ Successfully launched job: {run_name}")
+
+if __name__ == "__main__":
+    experiment()
