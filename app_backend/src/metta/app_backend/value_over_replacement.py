@@ -204,9 +204,10 @@ def build_value_over_replacement_summary_from_stats(
             else:
                 vor_std = math.sqrt(candidate_var_mean + replacement_var_mean)
 
-            key = str(candidate_count)
-            value_over_replacement[key] = vor_mean
-            value_over_replacement_std[key] = vor_std
+        # Add to dictionaries for all candidate_counts (including 0)
+        key = str(candidate_count)
+        value_over_replacement[key] = vor_mean
+        value_over_replacement_std[key] = vor_std
 
         if vor_mean is None or vor_std is None:
             graph_points.append(
