@@ -14,7 +14,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 
 
-class PolicyRegistry:
+class SlotRegistry:
     """Loads and caches policies described by PolicySlotConfig."""
 
     def __init__(self) -> None:
