@@ -4,7 +4,7 @@ import copy
 
 import pytest
 
-from metta.sweep.optimizer.constraints import ConstraintSpec, DivisionConstraint
+from metta.sweep.optimizer.constraints import DivisionConstraint, DivisionConstraintSpec
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 
@@ -283,7 +283,9 @@ class TestProteinOptimizer:
                     ),
                 }
             },
-            constraints=[ConstraintSpec(divisor_key="trainer.minibatch_size", dividend_key="trainer.batch_size")],
+            constraints=[
+                DivisionConstraintSpec(divisor_key="trainer.minibatch_size", dividend_key="trainer.batch_size")
+            ],
         )
 
         optimizer = ProteinOptimizer(config)
@@ -323,7 +325,9 @@ class TestProteinOptimizer:
                     ),
                 }
             },
-            constraints=[ConstraintSpec(divisor_key="trainer.minibatch_size", dividend_key="trainer.batch_size")],
+            constraints=[
+                DivisionConstraintSpec(divisor_key="trainer.minibatch_size", dividend_key="trainer.batch_size")
+            ],
         )
 
         optimizer = ProteinOptimizer(config)
@@ -353,6 +357,52 @@ class TestProteinOptimizer:
         applied = constraint.apply(copy.deepcopy(suggestion))
         assert applied["trainer"]["batch_size"] == 64  # largest multiple of 16 <= 65
         assert applied["trainer"]["minibatch_size"] == 16
+
+    def test_constraint_return_value_is_used(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Constraints that return a new dict should still be honored."""
+
+        class DummyProtein:
+            def __init__(self, *_, **__):
+                pass
+
+            def observe(self, hypers, score, cost, is_failure):
+                pass
+
+            def suggest(self, n_suggestions=1):
+                suggestion = {"trainer": {"batch_size": 32, "minibatch_size": 8}}
+                info = {}
+                return (copy.deepcopy(suggestion), info) if n_suggestions == 1 else [(suggestion, info)] * n_suggestions
+
+        class NewDictConstraint:
+            def apply(self, suggestion):
+                new = copy.deepcopy(suggestion)
+                new["marker"] = True
+                return new
+
+            def is_satisfied(self, suggestion):
+                return True
+
+        monkeypatch.setattr("metta.sweep.optimizer.protein.Protein", DummyProtein)
+
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "trainer": {
+                    "batch_size": ParameterConfig(distribution="int_uniform", min=16, max=64, mean=32, scale="auto"),
+                    "minibatch_size": ParameterConfig(
+                        distribution="int_uniform", min=4, max=32, mean=8, scale="auto"
+                    ),
+                }
+            },
+        )
+
+        optimizer = ProteinOptimizer(config)
+        optimizer.register_constraint(NewDictConstraint())
+
+        suggestion = optimizer.suggest([], n_suggestions=1)[0]
+        assert suggestion.get("marker") is True
 
     def test_failure_flag_passed_to_protein(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Ensure is_failure flows through to Protein.observe."""

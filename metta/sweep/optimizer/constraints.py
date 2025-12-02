@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+import copy
 from typing import Any, Iterable, Literal, Protocol
 
 from pydantic import Field
@@ -10,6 +12,7 @@ class Constraint(Protocol):
     """Interface for inter-parameter constraints."""
 
     def apply(self, suggestion: dict[str, Any]) -> dict[str, Any]:
+        """Return a new/updated suggestion; do not rely on in-place mutation."""
         ...
 
     def is_satisfied(self, suggestion: dict[str, Any]) -> bool:
@@ -67,9 +70,10 @@ class ConstraintAwareMixin:
     def _apply_constraints(self, suggestions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not self._constraints or not suggestions:
             return suggestions
+        constrained: list[dict[str, Any]] = []
         for suggestion in suggestions:
-            self._apply_constraints_to_suggestion(suggestion)
-        return suggestions
+            constrained.append(self._apply_constraints_to_suggestion(suggestion))
+        return constrained
 
 
 class DivisionConstraint:
@@ -95,28 +99,29 @@ class DivisionConstraint:
         return dividend_int % divisor_int == 0
 
     def apply(self, suggestion: dict[str, Any]) -> dict[str, Any]:
-        divisor = _get_nested(suggestion, self.divisor_key)
-        dividend = _get_nested(suggestion, self.dividend_key)
+        updated = copy.deepcopy(suggestion)
+        divisor = _get_nested(updated, self.divisor_key)
+        dividend = _get_nested(updated, self.dividend_key)
         if divisor is None or dividend is None:
-            return suggestion
+            return updated
         try:
             divisor_int = int(round(float(divisor)))
             dividend_int = int(round(float(dividend)))
         except (TypeError, ValueError):
-            return suggestion
+            return updated
 
         if divisor_int <= 0:
-            return suggestion
+            return updated
 
         if self.adjust_target == "dividend":
             corrected_dividend = self._largest_multiple_at_most(dividend_int, divisor_int)
             if corrected_dividend != dividend_int:
-                _set_nested(suggestion, self.dividend_key, corrected_dividend)
+                _set_nested(updated, self.dividend_key, corrected_dividend)
         else:
             corrected_divisor = self._largest_divisor_at_most(dividend_int, divisor_int)
             if corrected_divisor != divisor_int:
-                _set_nested(suggestion, self.divisor_key, corrected_divisor)
-        return suggestion
+                _set_nested(updated, self.divisor_key, corrected_divisor)
+        return updated
 
     def _largest_divisor_at_most(self, dividend: int, ceiling: int) -> int:
         upper = min(abs(dividend), ceiling)
@@ -134,10 +139,20 @@ class DivisionConstraint:
         return multiple
 
 
-class ConstraintSpec(Config):
-    """Declarative constraint config."""
+class ConstraintSpec(Config, ABC):
+    """Abstract constraint spec that can build a concrete Constraint."""
 
-    type: Literal["division"] = Field(default="division", description="Constraint type")
+    type: str = Field(description="Constraint type identifier")
+
+    @abstractmethod
+    def build(self) -> Constraint:
+        ...
+
+
+class DivisionConstraintSpec(ConstraintSpec):
+    """Declarative spec for DivisionConstraint."""
+
+    type: Literal["division"] = "division"
     divisor_key: str = Field(description="Parameter that should divide the dividend")
     dividend_key: str = Field(description="Parameter that must be divisible by the divisor")
     adjust_target: Literal["divisor", "dividend"] = Field(
@@ -145,8 +160,6 @@ class ConstraintSpec(Config):
     )
 
     def build(self) -> Constraint:
-        if self.type != "division":
-            raise ValueError(f"Unsupported constraint type: {self.type}")
         return DivisionConstraint(
             divisor_key=self.divisor_key,
             dividend_key=self.dividend_key,

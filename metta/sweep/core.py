@@ -268,13 +268,13 @@ def make_sweep(
 
     # Local imports to avoid circular dependencies
     from metta.sweep.protein_config import ProteinConfig, ProteinSettings
-    from metta.sweep.optimizer.constraints import ConstraintSpec
+    from metta.sweep.optimizer.constraints import ConstraintSpec, DivisionConstraintSpec
     from metta.tools.sweep import SweepSchedulerType, SweepTool
 
     constraint_specs: list[ConstraintSpec] = list(constraints or [])
-    default_division = ConstraintSpec(divisor_key="trainer.minibatch_size", dividend_key="trainer.batch_size")
+    default_division = DivisionConstraintSpec(divisor_key="trainer.minibatch_size", dividend_key="trainer.batch_size")
     if not any(
-        isinstance(c, ConstraintSpec)
+        isinstance(c, DivisionConstraintSpec)
         and c.divisor_key == default_division.divisor_key
         and c.dividend_key == default_division.dividend_key
         and c.adjust_target == default_division.adjust_target
