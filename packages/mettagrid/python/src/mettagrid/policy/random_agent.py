@@ -38,7 +38,7 @@ class RandomMultiAgentPolicy(MultiAgentPolicy):
         Returns:
             A RandomAgentPolicy instance
         """
-        return RandomAgentPolicy(self._policy_env_info)
+        return self._finalize_agent_policy(RandomAgentPolicy(self._policy_env_info))
 
     def agent_policies(self, num_agents: int) -> list[AgentPolicy]:
         """Get a list of AgentPolicy instances for all agents."""

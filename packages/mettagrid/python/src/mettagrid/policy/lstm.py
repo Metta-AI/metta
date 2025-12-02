@@ -7,7 +7,7 @@ import torch.nn as nn
 from einops import rearrange
 
 import pufferlib.pytorch
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
+from mettagrid.policy.policy import AgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import LSTMState, LSTMStateDict
 from mettagrid.simulator import Action as MettaGridAction
@@ -231,7 +231,7 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
             return action, new_state.detach() if new_state is not None else None
 
 
-class LSTMPolicy(MultiAgentPolicy):
+class LSTMPolicy(TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
     short_names = ["lstm"]
@@ -245,23 +245,23 @@ class LSTMPolicy(MultiAgentPolicy):
         self._agent_policy._device = self._device
 
     def network(self) -> nn.Module:
-        """Return the underlying LSTM network for training."""
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a StatefulPolicy wrapper for a specific agent."""
-        return StatefulAgentPolicy(self._agent_policy, self._policy_env_info, agent_id=agent_id)
+        return self._finalize_agent_policy(
+            StatefulAgentPolicy(self._agent_policy, self._policy_env_info, agent_id=agent_id)
+        )
 
     def is_recurrent(self) -> bool:
         return True
 
     def load_policy_data(self, checkpoint_path: str) -> None:
-        """Load LSTM network weights from file."""
         self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))
         self._net = self._net.to(self._device)
+        # Update the agent policy's reference to the network
         self._agent_policy._net = self._net
         self._agent_policy._device = self._device
 
     def save_policy_data(self, checkpoint_path: str) -> None:
-        """Save LSTM network weights to file."""
         torch.save(self._net.state_dict(), checkpoint_path)

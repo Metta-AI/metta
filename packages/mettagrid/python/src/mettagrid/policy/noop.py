@@ -31,7 +31,7 @@ class NoopPolicy(MultiAgentPolicy):
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Get an AgentPolicy instance configured with the noop action id."""
-        return NoopAgentPolicy(self._policy_env_info)
+        return self._finalize_agent_policy(NoopAgentPolicy(self._policy_env_info))
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         raw_actions[...] = self._noop_action_value

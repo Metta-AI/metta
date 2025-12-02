@@ -2,20 +2,38 @@
 
 import ctypes
 from abc import abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
+from typing import Generic, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
 import torch.nn as nn
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from mettagrid.mettagrid_c import dtype_observations
+from mettagrid.mettagrid_c import dtype_actions, dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
+
+
+@dataclass(frozen=True, slots=True)
+class PolicyDescriptor:
+    """Human-readable identity information for a policy."""
+
+    name: str
+    uri: str | None = None
+    class_path: str | None = None
+
+    def as_dict(self) -> dict[str, str]:
+        data: dict[str, str] = {"name": self.name}
+        if self.uri:
+            data["uri"] = self.uri
+        if self.class_path:
+            data["class_path"] = self.class_path
+        return data
 
 
 class AgentPolicy:
@@ -26,8 +44,11 @@ class AgentPolicy:
     This is what play.py and evaluation code use directly.
     """
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: PolicyEnvInterface, *, descriptor: PolicyDescriptor | None = None):
         self._policy_env_info = policy_env_info
+        # Defer descriptor creation until requested so subclasses that skip super().__init__
+        # (e.g., historical agent shells) still receive a descriptor when needed.
+        self._descriptor: PolicyDescriptor | None = descriptor
 
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
@@ -48,15 +69,34 @@ class AgentPolicy:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
+    def step_batch(self, _raw_observations, raw_actions) -> None:
+        """Optional fast-path for policies that consume raw buffers.
+
+        Policies that support raw NumPy pointers should override this method.
+        The default implementation raises so callers get a clear error if a
+        policy without batch support is used in a context that requires it."""
+
+        raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
+
+    @property
+    def descriptor(self) -> PolicyDescriptor:
+        descriptor: PolicyDescriptor | None = getattr(self, "_descriptor", None)
+        if descriptor is None:
+            descriptor = PolicyDescriptor(name=self.__class__.__name__)
+            self._descriptor = descriptor
+        return descriptor
+
+    def set_descriptor(self, descriptor: PolicyDescriptor) -> None:
+        self._descriptor = descriptor
+
 
 class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
-    """Unified policy interface for multi-agent systems.
+    """Abstract base class for multi-agent policies.
 
-    This class manages policy lifecycle including:
-    1. Creating per-agent policy instances (agent_policy)
-    2. Serialization/deserialization (load_policy_data/save_policy_data)
-    3. Optional: Providing network for training (network)
-    4. Optional: Batch stepping optimization (step_batch)
+    A Policy manages creating AgentPolicy instances for multiple agents.
+    This is the class users instantiate and pass to training/play functions.
+    Training uses the Policy directly, while play calls agent_policy() to
+    get per-agent instances.
 
     Subclasses can register themselves by defining:
     - short_names: list[str] = ["name1", "name2"] for one or more aliases
@@ -64,38 +104,50 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     short_names: list[str] | None = None
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, **kwargs: Any):
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        *,
+        descriptor: PolicyDescriptor | None = None,
+    ):
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
+        self._descriptor = descriptor or PolicyDescriptor(
+            name=self.__class__.__name__,
+            class_path=f"{self.__class__.__module__}.{self.__class__.__qualname__}",
+        )
 
     @abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent."""
+        """Get an AgentPolicy instance for a specific agent.
+
+        Args:
+            agent_id: The ID of the agent
+
+        Returns:
+            An AgentPolicy instance for this agent
+        """
         ...
 
     def load_policy_data(self, policy_data_path: str) -> None:
         """Load policy data from a file.
 
+        Args:
+            policy_data_path: Path to the policy data file
+
         Default implementation does nothing. Override to load weights/parameters.
-        For trainable policies, override to load torch state_dict.
         """
-        pass
+        pass  # Default: no-op for policies without learnable parameters
 
     def save_policy_data(self, policy_data_path: str) -> None:
         """Save policy data to a file.
 
+        Args:
+            policy_data_path: Path to save the policy data
+
         Default implementation does nothing. Override to save weights/parameters.
-        For trainable policies, override to save torch state_dict.
         """
-        pass
-
-    def network(self) -> Optional[nn.Module]:
-        """Get the underlying neural network for training.
-
-        Returns None if this policy is not trainable.
-        Override this method in trainable policies to return the network.
-        """
-        return None
+        pass  # Default: no-op for policies without learnable parameters
 
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
@@ -108,10 +160,22 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         """Optional fast-path for policies that consume raw buffers.
 
-        Override this method in policies that support batch stepping.
-        The default implementation raises NotImplementedError.
-        """
+        Policies that support raw NumPy pointers should override this method.
+        The default implementation raises so callers get a clear error if a
+        policy without batch support is used in a context that requires it."""
+
         raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
+
+    @property
+    def descriptor(self) -> PolicyDescriptor:
+        return self._descriptor
+
+    def set_descriptor(self, descriptor: PolicyDescriptor) -> None:
+        self._descriptor = descriptor
+
+    def _finalize_agent_policy(self, agent_policy: AgentPolicy) -> AgentPolicy:
+        agent_policy.set_descriptor(self._descriptor)
+        return agent_policy
 
 
 class NimMultiAgentPolicy(MultiAgentPolicy):
@@ -158,7 +222,7 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         return int(self._full_action_buffer[agent_id])
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return _NimAgentPolicy(self, agent_id)
+        return self._finalize_agent_policy(_NimAgentPolicy(self, agent_id))
 
     def _invoke_step_batch(
         self,
@@ -244,32 +308,36 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         self._agent_states: dict[int, StateType] = {}
         self._action_name_to_index = {name: idx for idx, name in enumerate(policy_env_info.action_names)}
         self._simulation: Simulation | None = None
-        self._state_initialized = False
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action and update hidden state."""
-        if not self._state_initialized:
-            self._initialize_state(self._simulation)
-        if hasattr(self._base_policy, "set_active_agent"):
-            self._base_policy.set_active_agent(self._agent_id)
-        state = cast(StateType, self._state)
-        action, self._state = self._base_policy.step_with_state(obs, state)
+        assert self._state is not None, "reset() must be called before step()"
+        action, self._state = self._base_policy.step_with_state(obs, self._state)
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
         return action
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
+    def reset(self) -> None:
         """Reset the hidden state to initial state."""
-        self._initialize_state(simulation)
-
-    def _initialize_state(self, simulation: Optional[Simulation]) -> None:
-        self._simulation = simulation
         self._base_policy.reset()
         self._state = self._base_policy.initial_agent_state()
         self._agent_states.clear()
-        self._state_initialized = True
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
+
+    def step_batch(self, _raw_observations, raw_actions) -> None:
+        sim = self._simulation
+        assert sim is not None, "reset() must be called before step_batch()"
+
+        for agent_idx, obs in enumerate(sim.observations()):
+            state = self._agent_states.get(agent_idx) or self._base_policy.initial_agent_state()
+            action, new_state = self._base_policy.step_with_state(obs, state)
+            self._agent_states[agent_idx] = new_state
+            assert isinstance(action, Action), "Policies must return mettagrid.simulator.Action instances"
+            raw_actions[agent_idx] = dtype_actions.type(self._action_name_to_index[action.name])
+
+        if self._agent_id is not None and self._agent_id in self._agent_states:
+            self._state = self._agent_states[self._agent_id]
 
 
 class StatefulPolicyImpl(Generic[StateType]):
@@ -305,25 +373,83 @@ class StatefulPolicyImpl(Generic[StateType]):
         """
         raise NotImplementedError
 
-    def set_active_agent(self, agent_id: Optional[int]) -> None:
-        """Optional hook for implementations that need the calling agent id."""
-        _ = agent_id
+
+class TrainablePolicy(MultiAgentPolicy):
+    """Abstract base class for trainable policies.
+
+    TrainablePolicy extends Policy and manages a neural network that can be trained.
+    It creates per-agent AgentPolicy instances that share the same network.
+    """
+
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info)
+
+    @abstractmethod
+    def network(self) -> nn.Module:
+        """Get the underlying neural network for training."""
+        ...
+
+    @abstractmethod
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        """Get an AgentPolicy instance for a specific agent.
+
+        This must be overridden by trainable policies to return
+        per-agent policy instances.
+
+        Args:
+            agent_id: The ID of the agent
+
+        Returns:
+            An AgentPolicy instance for this agent
+        """
+        ...
+
+    def load_policy_data(self, policy_data_path: str) -> None:
+        """Load network weights from file.
+
+        Default implementation loads PyTorch state dict.
+        """
+        import torch
+
+        self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu"))
+
+    def save_policy_data(self, policy_data_path: str) -> None:
+        """Save network weights to file.
+
+        Default implementation uses torch.save.
+        """
+        import torch
+
+        torch.save(self.network().state_dict(), policy_data_path)
 
 
 class PolicySpec(BaseModel):
     """Specification for a policy used during evaluation."""
 
-    class_path: str = Field(description="Local path to policy class, or shorthand")
+    # Path to policy class, or shorthand
+    policy_class_path: str
 
-    data_path: Optional[str] = Field(default=None, description="Local file path to policy weights, if applicable")
+    # Path to policy weights, if applicable
+    policy_data_path: Optional[str]
 
-    init_kwargs: dict[str, Any] = Field(default_factory=dict)
+    # Proportion of total agents to assign to this policy
+    proportion: float = 1.0
 
     @property
     def name(self) -> str:
+        """Get the name of the policy."""
         parts = [
-            self.class_path.split(".")[-1],
+            self.policy_class_path.split(".")[-1],
         ]
-        if self.data_path:
-            parts.append(Path(self.data_path).name)
+        if self.policy_data_path:
+            parts.append(Path(self.policy_data_path).name)
         return "-".join(parts)
+
+    @property
+    def descriptor(self) -> PolicyDescriptor:
+        """Return a descriptor suitable for labeling instantiated policies."""
+        return PolicyDescriptor(
+            name=self.name,
+            uri=self.policy_data_path,
+            class_path=self.policy_class_path,
+        )

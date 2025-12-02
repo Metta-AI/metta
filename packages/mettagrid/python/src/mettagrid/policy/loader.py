@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import MultiAgentPolicy, PolicyDescriptor
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
@@ -18,36 +18,32 @@ from mettagrid.util.module import load_symbol
 
 def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
-    policy_spec: PolicySpec,
+    policy_class_path: str,
+    policy_data_path: Optional[str] = None,
+    descriptor: PolicyDescriptor | None = None,
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
-    Expects PolicySpec to have local paths, shorthand or fully-specified. But should not have remote paths (e.g. s3://).
+    Args:
+        policy_env_info: PolicyEnvInterface (created from env if not provided)
+        policy_class_path: Full class path to the policy
+        policy_data_path: Optional path to policy checkpoint
 
     Returns:
         Initialized policy instance
     """
 
-    policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+    policy_class = load_symbol(policy_class_path)
 
-    try:
-        policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
-    except TypeError as e:
-        raise TypeError(
-            f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"
-        ) from e
+    policy = policy_class(policy_env_info)  # type: ignore[misc]
+    if descriptor is not None:
+        policy.set_descriptor(descriptor)
 
-    if policy_spec.data_path:
-        policy.load_policy_data(policy_spec.data_path)
+    if policy_data_path:
+        if not isinstance(policy, MultiAgentPolicy):
+            raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
 
-    if not isinstance(policy, MultiAgentPolicy):
-        if isinstance(policy, AgentPolicy):
-            raise TypeError(
-                f"Policy {policy_spec.class_path} is an AgentPolicy, but should be a MultiAgentPolicy "
-                f"(which returns AgentPolicy via `agent_policy`)"
-            )
-        raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
-
+        policy.load_policy_data(policy_data_path)
     return policy
 
 

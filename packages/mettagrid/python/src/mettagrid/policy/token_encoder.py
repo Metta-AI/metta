@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -8,21 +8,12 @@ import pufferlib.pytorch
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig
 from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
+from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action as MettaGridAction
 from mettagrid.simulator import AgentObservation as MettaGridObservation
 
 logger = logging.getLogger("mettagrid.policy.token_policy")
-
-
-def coordinates(observations: torch.Tensor, dtype: torch.dtype = torch.uint8) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Split packed observation bytes into (x, y) nibble indices as ``dtype`` tensors."""
-
-    coords_byte = observations[..., 0].to(torch.long)
-    y_coords = (coords_byte >> 4) & 0x0F
-    x_coords = coords_byte & 0x0F
-    return x_coords.to(dtype), y_coords.to(dtype)
 
 
 class TokenPolicyNet(torch.nn.Module):
@@ -82,14 +73,13 @@ class TokenPolicyNet(torch.nn.Module):
         tokens = self._flatten_tokens(observations)
 
         coords_byte = tokens[..., 0].to(torch.long)
-        x_coords, y_coords = coordinates(tokens, torch.long)
         feature_ids = tokens[..., 1].to(torch.long)
         values = tokens[..., 2].to(torch.float32)
 
         valid_mask = coords_byte != 0xFF
 
-        x_coords = torch.clamp(x_coords, min=0, max=255)
-        y_coords = torch.clamp(y_coords, min=0, max=255)
+        x_coords = torch.clamp((coords_byte >> 4) & 0x0F, min=0, max=255)
+        y_coords = torch.clamp(coords_byte & 0x0F, min=0, max=255)
         feature_ids_clamped = torch.clamp(feature_ids, min=0, max=self.feature_embed.num_embeddings - 1)
 
         token_embed = self.pos_x_embed(x_coords) + self.pos_y_embed(y_coords) + self.feature_embed(feature_ids_clamped)
@@ -144,7 +134,7 @@ class TokenAgentPolicyImpl(AgentPolicy):
             return dtype_actions.type(action)
 
 
-class TokenPolicy(MultiAgentPolicy):
+class TokenPolicy(TrainablePolicy):
     """Feed-forward token encoder baseline derived from Metta's token-based basic policy."""
 
     short_names = ["token"]
@@ -162,21 +152,18 @@ class TokenPolicy(MultiAgentPolicy):
         self._num_actions = len(actions_cfg.actions())
 
     def network(self) -> nn.Module:
-        """Return the underlying token encoder network for training."""
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return TokenAgentPolicyImpl(self._net, self._device, self._num_actions)
+        return self._finalize_agent_policy(TokenAgentPolicyImpl(self._net, self._device, self._num_actions))
 
     def is_recurrent(self) -> bool:
         return False
 
     def load_policy_data(self, checkpoint_path: str) -> None:
-        """Load token encoder network weights from file."""
         state_dict = torch.load(checkpoint_path, map_location=self._device)
         self._net.load_state_dict(state_dict)
         self._net = self._net.to(self._device)
 
     def save_policy_data(self, checkpoint_path: str) -> None:
-        """Save token encoder network weights to file."""
         torch.save(self._net.state_dict(), checkpoint_path)

@@ -438,7 +438,7 @@ class UnclippingPolicy(MultiAgentPolicy):
     It handles multiple agents, each with their own UnclippingAgent instance.
     """
 
-    short_names = ["scripted_unclipping", "unclipping", "ladybug"]
+    short_names = ["scripted_unclipping", "unclipping"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[UnclippingHyperparameters] = None):
         super().__init__(policy_env_info)
@@ -447,9 +447,11 @@ class UnclippingPolicy(MultiAgentPolicy):
 
     def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[UnclippingAgentState]:
         if agent_id not in self._agent_policies:
-            self._agent_policies[agent_id] = StatefulAgentPolicy(
-                UnclippingAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
-                self._policy_env_info,
-                agent_id=agent_id,
+            self._agent_policies[agent_id] = self._finalize_agent_policy(
+                StatefulAgentPolicy(
+                    UnclippingAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
+                    self._policy_env_info,
+                    agent_id=agent_id,
+                )
             )
         return self._agent_policies[agent_id]
