@@ -28,6 +28,7 @@ from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.supervisor import EnvSupervisorConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -291,11 +292,13 @@ def train(
         variants=variants,
         algorithm_config=cur_alg,
     )
-    bc_policy_uri = "nim_thinky"
+    bc_policy_uri = "nim_thinky"  # av delete
     trainer_cfg = TrainerConfig(losses=LossesConfig())
     scheduler = None
+    supervisor = EnvSupervisorConfig()
+
     if bc_policy_uri is not None:
-        trainer_cfg.training_env.supervisor.policy = bc_policy_uri
+        supervisor = EnvSupervisorConfig(policy=bc_policy_uri)
 
         ssc_end_step = 1_000_000_000
         trainer_cfg.losses.sliced_scripted_cloner.enabled = True
@@ -349,6 +352,7 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
         scheduler=scheduler,
+        supervisor=supervisor,
     )
 
     return tt
