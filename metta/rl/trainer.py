@@ -6,9 +6,9 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
-from metta.rl.binding_config import LossProfileConfig, PolicyBindingConfig
-from metta.rl.binding_controller import BindingControllerPolicy
-from metta.rl.policy_registry import PolicyRegistry
+from metta.rl.slot_config import LossProfileConfig, PolicySlotConfig
+from metta.rl.slot_controller import SlotControllerPolicy
+from metta.rl.slot_registry import SlotRegistry
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
@@ -67,20 +67,21 @@ class Trainer:
         self._components: list[TrainerComponent] = []
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
-        self._policy_registry = PolicyRegistry()
+        self._slot_registry = SlotRegistry()
 
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.policy_env_info, self._device)
         self._policy.train()
 
-        binding_state = self._build_binding_state(self._policy)
-        if len(binding_state["bindings"]) > 1 or not binding_state["bindings"][0].use_trainer_policy:
-            self._policy = BindingControllerPolicy(
-                binding_lookup=binding_state["binding_lookup"],
-                bindings=binding_state["bindings"],
-                binding_policies=binding_state["binding_policies"],
+        slot_state = self._build_slot_state(self._policy)
+        if len(slot_state["slots"]) > 1 or not slot_state["slots"][0].use_trainer_policy:
+            self._policy = SlotControllerPolicy(
+                slot_lookup=slot_state["slot_lookup"],
+                slots=slot_state["slots"],
+                slot_policies=slot_state["slot_policies"],
                 policy_env_info=self._env.policy_env_info,
                 device=self._device,
+                agent_slot_map=slot_state["slot_ids"],
             )
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
@@ -96,7 +97,7 @@ class Trainer:
 
         policy_experience_spec = self._extend_policy_experience_spec(
             self._policy.get_agent_experience_spec(),
-            has_multiple_bindings=len(binding_state["bindings"]) > 1,
+            has_multiple_slots=len(slot_state["slots"]) > 1,
         )
 
         self._experience = Experience.from_losses(
@@ -132,13 +133,13 @@ class Trainer:
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
-        self._context.binding_id_per_agent = binding_state["binding_ids"]
-        self._context.loss_profile_id_per_agent = binding_state["loss_profile_ids"]
-        self._context.trainable_agent_mask = binding_state["trainable_mask"]
-        self._context.binding_id_lookup = binding_state["binding_lookup"]
-        self._context.loss_profile_lookup = binding_state["loss_profile_lookup"]
-        self._context.policy_bindings = binding_state["bindings"]
-        self._assign_loss_profiles(losses, binding_state["loss_profile_lookup"])
+        self._context.slot_id_per_agent = slot_state["slot_ids"]
+        self._context.loss_profile_id_per_agent = slot_state["loss_profile_ids"]
+        self._context.trainable_agent_mask = slot_state["trainable_mask"]
+        self._context.slot_id_lookup = slot_state["slot_lookup"]
+        self._context.loss_profile_lookup = slot_state["loss_profile_lookup"]
+        self._context.policy_slots = slot_state["slots"]
+        self._assign_loss_profiles(losses, slot_state["loss_profile_lookup"])
 
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
@@ -178,7 +179,7 @@ class Trainer:
                 loss_obj.loss_profiles = set(profiles)
 
     def _set_trainable_flag(self, policy: Policy, trainable: bool) -> None:
-        """Set requires_grad according to binding.trainable."""
+        """Set requires_grad according to slot.trainable."""
 
         for param in policy.parameters():
             param.requires_grad = trainable
@@ -297,36 +298,36 @@ class Trainer:
     # ------------------------------------------------------------------
     # Binding setup helpers
     # ------------------------------------------------------------------
-    def _build_binding_state(self, trainer_policy: Policy) -> dict[str, Any]:
-        """Prepare per-agent binding and loss-profile metadata."""
+    def _build_slot_state(self, trainer_policy: Policy) -> dict[str, Any]:
+        """Prepare per-agent slot and loss-profile metadata."""
 
-        bindings_cfg = list(self._cfg.policy_bindings or [])
-        # Ensure at least one binding uses the trainer-provided policy
-        has_trainer_binding = any(b.use_trainer_policy for b in bindings_cfg)
-        if not bindings_cfg or not has_trainer_binding:
-            bindings_cfg.insert(0, PolicyBindingConfig(id="main", use_trainer_policy=True, trainable=True))
+        slots_cfg = list(self._cfg.policy_slots or [])
+        # Ensure at least one slot uses the trainer-provided policy
+        has_trainer_slot = any(b.use_trainer_policy for b in slots_cfg)
+        if not slots_cfg or not has_trainer_slot:
+            slots_cfg.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
 
-        trainer_binding_count = sum(1 for b in bindings_cfg if b.use_trainer_policy)
-        if trainer_binding_count > 1:
-            raise ValueError("Only one binding may set use_trainer_policy=True")
+        trainer_slot_count = sum(1 for b in slots_cfg if b.use_trainer_policy)
+        if trainer_slot_count > 1:
+            raise ValueError("Only one slot may set use_trainer_policy=True")
 
-        binding_lookup: dict[str, int] = {}
-        binding_policies: dict[int, Policy] = {}
-        for binding in bindings_cfg:
-            if binding.id in binding_lookup:
-                raise ValueError(f"Duplicate policy binding id '{binding.id}'")
-            binding_lookup[binding.id] = len(binding_lookup)
-            if binding.use_trainer_policy:
-                self._set_trainable_flag(trainer_policy, binding.trainable)
-                binding_policies[binding_lookup[binding.id]] = trainer_policy
+        slot_lookup: dict[str, int] = {}
+        slot_policies: dict[int, Policy] = {}
+        for slot in slots_cfg:
+            if slot.id in slot_lookup:
+                raise ValueError(f"Duplicate policy slot id '{slot.id}'")
+            slot_lookup[slot.id] = len(slot_lookup)
+            if slot.use_trainer_policy:
+                self._set_trainable_flag(trainer_policy, slot.trainable)
+                slot_policies[slot_lookup[slot.id]] = trainer_policy
             else:
-                loaded_policy = self._policy_registry.get(
-                    binding,
+                loaded_policy = self._slot_registry.get(
+                    slot,
                     self._env.policy_env_info,
-                    self._device if binding.device is None else torch.device(binding.device),
+                    self._device if slot.device is None else torch.device(slot.device),
                 )
-                self._set_trainable_flag(loaded_policy, binding.trainable)
-                binding_policies[binding_lookup[binding.id]] = loaded_policy
+                self._set_trainable_flag(loaded_policy, slot.trainable)
+                slot_policies[slot_lookup[slot.id]] = loaded_policy
 
         # Loss profiles (config-only in Phase 0)
         loss_profiles = dict(self._cfg.loss_profiles)
@@ -334,56 +335,54 @@ class Trainer:
             loss_profiles = {"default": LossProfileConfig(losses=[])}
         loss_profile_lookup = {name: idx for idx, name in enumerate(loss_profiles.keys())}
 
-        default_binding_profile = next(iter(loss_profiles.keys()))
+        default_slot_profile = next(iter(loss_profiles.keys()))
 
         num_agents = self._env.policy_env_info.num_agents
-        agent_binding_map = self._cfg.agent_binding_map
-        if agent_binding_map is None:
-            agent_binding_map = [bindings_cfg[0].id for _ in range(num_agents)]
-        if len(agent_binding_map) != num_agents:
-            raise ValueError(
-                f"agent_binding_map must have length num_agents ({num_agents}); got {len(agent_binding_map)}"
-            )
+        agent_slot_map = self._cfg.agent_slot_map
+        if agent_slot_map is None:
+            agent_slot_map = [slots_cfg[0].id for _ in range(num_agents)]
+        if len(agent_slot_map) != num_agents:
+            raise ValueError(f"agent_slot_map must have length num_agents ({num_agents}); got {len(agent_slot_map)}")
 
-        binding_ids = []
+        slot_ids = []
         loss_profile_ids = []
         trainable_mask = []
-        for idx, binding_id_str in enumerate(agent_binding_map):
-            if binding_id_str not in binding_lookup:
-                raise ValueError(f"agent_binding_map[{idx}] references unknown binding id '{binding_id_str}'")
-            b_idx = binding_lookup[binding_id_str]
-            binding = bindings_cfg[b_idx]
-            binding_ids.append(b_idx)
+        for idx, slot_id_str in enumerate(agent_slot_map):
+            if slot_id_str not in slot_lookup:
+                raise ValueError(f"agent_slot_map[{idx}] references unknown slot id '{slot_id_str}'")
+            b_idx = slot_lookup[slot_id_str]
+            slot = slots_cfg[b_idx]
+            slot_ids.append(b_idx)
 
-            profile_name = binding.loss_profile or default_binding_profile
+            profile_name = slot.loss_profile or default_slot_profile
             if profile_name not in loss_profile_lookup:
                 # Auto-register profile if referenced but not defined
                 loss_profile_lookup[profile_name] = len(loss_profile_lookup)
             loss_profile_ids.append(loss_profile_lookup[profile_name])
-            trainable_mask.append(bool(binding.trainable))
+            trainable_mask.append(bool(slot.trainable))
 
-        binding_tensor = torch.tensor(binding_ids, dtype=torch.long)
+        slot_tensor = torch.tensor(slot_ids, dtype=torch.long)
         loss_profile_tensor = torch.tensor(loss_profile_ids, dtype=torch.long)
         trainable_tensor = torch.tensor(trainable_mask, dtype=torch.bool)
 
         return {
-            "bindings": bindings_cfg,
-            "binding_lookup": binding_lookup,
+            "slots": slots_cfg,
+            "slot_lookup": slot_lookup,
             "loss_profile_lookup": loss_profile_lookup,
-            "binding_ids": binding_tensor,
+            "slot_ids": slot_tensor,
             "loss_profile_ids": loss_profile_tensor,
             "trainable_mask": trainable_tensor,
-            "binding_policies": binding_policies,
+            "slot_policies": slot_policies,
         }
 
-    def _extend_policy_experience_spec(self, base_spec: Composite, has_multiple_bindings: bool) -> Composite:
-        """Append binding/loss-profile metadata to the policy experience spec when needed."""
+    def _extend_policy_experience_spec(self, base_spec: Composite, has_multiple_slots: bool) -> Composite:
+        """Append slot/loss-profile metadata to the policy experience spec when needed."""
 
-        if not has_multiple_bindings:
+        if not has_multiple_slots:
             return base_spec
 
         extras = {
-            "binding_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+            "slot_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
             "loss_profile_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
             "is_trainable_agent": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool),
         }

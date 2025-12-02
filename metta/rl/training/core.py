@@ -123,7 +123,7 @@ class CoreTrainingLoop:
                 self.add_last_action_to_td(td, env)
 
                 self._ensure_rollout_metadata(td)
-                self._inject_binding_metadata(td, training_env_id)
+                self._inject_slot_metadata(td, training_env_id)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             with context.stopwatch("_rollout.inference"):
@@ -214,12 +214,12 @@ class CoreTrainingLoop:
             return tensor
         return cached
 
-    def _inject_binding_metadata(self, td: TensorDict, training_env_id: slice) -> None:
-        """Attach binding/loss profile annotations to the rollout TensorDict."""
+    def _inject_slot_metadata(self, td: TensorDict, training_env_id: slice) -> None:
+        """Attach slot/loss profile annotations to the rollout TensorDict."""
 
         ctx = self.context
-        binding_ids = getattr(ctx, "binding_id_per_agent", None)
-        if binding_ids is None:
+        slot_ids = getattr(ctx, "slot_id_per_agent", None)
+        if slot_ids is None:
             return
 
         loss_profile_ids = getattr(ctx, "loss_profile_id_per_agent", None)
@@ -236,18 +236,13 @@ class CoreTrainingLoop:
         num_envs = batch_elems // num_agents
         device = td.device
 
-        if binding_ids.numel() > 1 or num_envs > 1:
-            binding_tensor = binding_ids.to(device=device).repeat(num_envs)
-            td.set("binding_id", binding_tensor)
+        if slot_ids.numel() > 1 or num_envs > 1:
+            slot_tensor = slot_ids.to(device=device).repeat(num_envs)
+            td.set("slot_id", slot_tensor)
             if loss_profile_ids is not None:
                 td.set("loss_profile_id", loss_profile_ids.to(device=device).repeat(num_envs))
             if trainable_mask is not None:
                 td.set("is_trainable_agent", trainable_mask.to(device=device).repeat(num_envs))
-
-        if loss_profile_ids is not None:
-            td.set("loss_profile_id", loss_profile_ids.to(device=device).repeat(num_envs))
-        if trainable_mask is not None:
-            td.set("is_trainable_agent", trainable_mask.to(device=device).repeat(num_envs))
 
     def training_phase(
         self,

@@ -2,8 +2,8 @@ from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.rl.binding_config import LossProfileConfig, PolicyBindingConfig
 from metta.rl.loss.losses import LossesConfig
+from metta.rl.slot_config import LossProfileConfig, PolicySlotConfig
 from metta.rl.training import HeartbeatConfig
 from mettagrid.base_config import Config
 
@@ -52,12 +52,12 @@ class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
     losses: LossesConfig = Field(default_factory=LossesConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
-    policy_bindings: list[PolicyBindingConfig] | None = Field(
-        default=None, description="Optional list of policy bindings; defaults to a single trainer policy binding."
+    policy_slots: list[PolicySlotConfig] | None = Field(
+        default=None, description="Optional list of policy slots; defaults to a single trainer policy slot."
     )
-    agent_binding_map: list[str] | None = Field(
+    agent_slot_map: list[str] | None = Field(
         default=None,
-        description="Optional mapping (length=num_agents) assigning each agent index to a policy binding id.",
+        description="Optional mapping (length=num_agents) assigning each agent index to a policy slot id.",
     )
     loss_profiles: dict[str, LossProfileConfig] = Field(
         default_factory=dict, description="Optional loss profiles keyed by name."

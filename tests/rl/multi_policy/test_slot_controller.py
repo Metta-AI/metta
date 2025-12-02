@@ -3,7 +3,7 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.binding_controller import BindingControllerPolicy
+from metta.rl.slot_controller import SlotControllerPolicy
 
 
 class _StubPolicy(Policy):
@@ -43,44 +43,44 @@ class _StubPolicy(Policy):
 
 def test_binding_controller_merges_only_action_keys() -> None:
     # Two bindings, alternating agents
-    binding_lookup = {"a": 0, "b": 1}
+    slot_lookup = {"a": 0, "b": 1}
     env_info = type("EnvInfo", (), {"num_agents": 2})  # minimal stub
     policies = {
         0: _StubPolicy(env_info, action_val=1),
         1: _StubPolicy(env_info, action_val=9),
     }
-    agent_binding_map = torch.tensor([0, 1], dtype=torch.long)
-    controller = BindingControllerPolicy(
-        binding_lookup=binding_lookup,
-        bindings=[],
-        binding_policies=policies,
+    agent_slot_map = torch.tensor([0, 1], dtype=torch.long)
+    controller = SlotControllerPolicy(
+        slot_lookup=slot_lookup,
+        slots=[],
+        slot_policies=policies,
         policy_env_info=env_info,
         device="cpu",
-        agent_binding_map=agent_binding_map,
+        agent_slot_map=agent_slot_map,
     )
 
     td = TensorDict({"env_obs": torch.zeros(4, 1)}, batch_size=[4])
-    td.set("binding_id", torch.tensor([0, 1, 0, 1]))
+    td.set("slot_id", torch.tensor([0, 1, 0, 1]))
 
     out = controller.forward(td.clone())
     assert torch.equal(out["actions"], torch.tensor([1, 9, 1, 9]))
 
 
-def test_binding_controller_generates_binding_ids_from_agent_map() -> None:
-    binding_lookup = {"a": 0, "b": 1}
+def test_slot_controller_generates_slot_ids_from_agent_map() -> None:
+    slot_lookup = {"a": 0, "b": 1}
     env_info = type("EnvInfo", (), {"num_agents": 2})
     policies = {
         0: _StubPolicy(env_info, action_val=2),
         1: _StubPolicy(env_info, action_val=5),
     }
-    agent_binding_map = torch.tensor([1, 0], dtype=torch.long)
-    controller = BindingControllerPolicy(
-        binding_lookup=binding_lookup,
-        bindings=[],
-        binding_policies=policies,
+    agent_slot_map = torch.tensor([1, 0], dtype=torch.long)
+    controller = SlotControllerPolicy(
+        slot_lookup=slot_lookup,
+        slots=[],
+        slot_policies=policies,
         policy_env_info=env_info,
         device="cpu",
-        agent_binding_map=agent_binding_map,
+        agent_slot_map=agent_slot_map,
     )
 
     td = TensorDict({"env_obs": torch.zeros(4, 1)}, batch_size=[4])

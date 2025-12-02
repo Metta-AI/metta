@@ -1,4 +1,4 @@
-"""Binding-aware policy controller that routes per-agent batches to the correct policy."""
+"""Slot-aware policy controller that routes per-agent batches to the correct policy."""
 
 from __future__ import annotations
 
@@ -12,70 +12,70 @@ from torchrl.data import Composite
 from metta.agent.policy import Policy
 
 
-class BindingControllerPolicy(Policy):
-    """A thin wrapper that fans out a rollout TensorDict to per-binding policies and merges outputs."""
+class SlotControllerPolicy(Policy):
+    """A thin wrapper that fans out a rollout TensorDict to per-slot policies and merges outputs."""
 
     def __init__(
         self,
-        binding_lookup: Dict[str, int],
-        bindings: list[Any],
-        binding_policies: Dict[int, Policy],
+        slot_lookup: Dict[str, int],
+        slots: list[Any],
+        slot_policies: Dict[int, Policy],
         policy_env_info,
         device: torch.device,
-        agent_binding_map: torch.Tensor | None = None,
+        agent_slot_map: torch.Tensor | None = None,
     ) -> None:
         # Use the env info from trainer policy; architecture not needed here
         super().__init__(policy_env_info)  # type: ignore[arg-type]
-        self._binding_lookup = binding_lookup
-        self._bindings = bindings
-        self._binding_policies = binding_policies
+        self._slot_lookup = slot_lookup
+        self._slots = slots
+        self._slot_policies = slot_policies
         self._policy_env_info = policy_env_info
         self._device = torch.device(device)
-        self._agent_binding_map = agent_binding_map
+        self._agent_slot_map = agent_slot_map
 
         # Register trainable sub-policies so optimizer sees their parameters
-        for idx, policy in binding_policies.items():
+        for idx, policy in slot_policies.items():
             if isinstance(policy, nn.Module):
-                self.add_module(f"binding_{idx}", policy)
+                self.add_module(f"slot_{idx}", policy)
 
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
         # Assume all policies share the same spec; use the first one
-        first_policy = next(iter(self._binding_policies.values()))
+        first_policy = next(iter(self._slot_policies.values()))
         return first_policy.get_agent_experience_spec()
 
     def initialize_to_environment(self, policy_env_info, device: torch.device) -> None:  # noqa: D401
-        for policy in self._binding_policies.values():
+        for policy in self._slot_policies.values():
             policy.initialize_to_environment(policy_env_info, device)
         self._device = torch.device(device)
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
-        if "binding_id" not in td.keys():
-            if self._agent_binding_map is None:
+        if "slot_id" not in td.keys():
+            if self._agent_slot_map is None:
                 # Fallback: single policy scenario
-                first_policy = next(iter(self._binding_policies.values()))
+                first_policy = next(iter(self._slot_policies.values()))
                 return first_policy.forward(td, action=action)
-            num_agents = self._agent_binding_map.numel()
+            num_agents = self._agent_slot_map.numel()
             batch = td.batch_size.numel()
             if batch % num_agents != 0:
-                first_policy = next(iter(self._binding_policies.values()))
+                first_policy = next(iter(self._slot_policies.values()))
                 return first_policy.forward(td, action=action)
             num_envs = batch // num_agents
-            td.set("binding_id", self._agent_binding_map.to(device=td.device).repeat(num_envs))
+            td.set("slot_id", self._agent_slot_map.to(device=td.device).repeat(num_envs))
 
-        binding_ids = td.get("binding_id")
-        if not isinstance(binding_ids, torch.Tensor):
-            raise RuntimeError("binding_id must be a tensor")
+        slot_ids = td.get("slot_id")
+        if not isinstance(slot_ids, torch.Tensor):
+            raise RuntimeError("slot_id must be a tensor")
 
-        unique_ids: Iterable[int] = torch.unique(binding_ids).tolist()
+        unique_ids: Iterable[int] = torch.unique(slot_ids).tolist()
         for b_id in unique_ids:
-            mask = binding_ids == b_id
+            mask = slot_ids == b_id
             if not torch.any(mask):
                 continue
 
             sub_td = td[mask].clone()
-            policy = self._binding_policies.get(int(b_id))
+            policy = self._slot_policies.get(int(b_id))
             if policy is None:
-                raise RuntimeError(f"No policy registered for binding id {int(b_id)}")
+                raise RuntimeError(f"No policy registered for slot id {int(b_id)}")
 
             out_td = policy.forward(sub_td, action=None if action is None else action[mask])
 
@@ -87,7 +87,7 @@ class BindingControllerPolicy(Policy):
         return td
 
     def reset_memory(self) -> None:  # noqa: D401
-        for policy in self._binding_policies.values():
+        for policy in self._slot_policies.values():
             policy.reset_memory()
 
     @property

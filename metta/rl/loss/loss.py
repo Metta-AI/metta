@@ -171,7 +171,7 @@ class Loss:
         self.replay = experience
 
     # ------------------------------------------------------------------
-    # Shared filtering helpers (slot/binding aware)
+    # Shared filtering helpers (slot aware)
     # ------------------------------------------------------------------
     def _filter_minibatch(self, shared_loss_data: TensorDict) -> TensorDict:
         """Filter minibatch rows by loss_profile_id and trainable flag if present."""

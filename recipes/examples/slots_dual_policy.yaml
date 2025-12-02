@@ -1,5 +1,5 @@
 trainer:
-  policy_bindings:
+  policy_slots:
     - id: main
       use_trainer_policy: true
       trainable: true
@@ -10,7 +10,7 @@ trainer:
         multiplier: 10
       trainable: false
       loss_profile: teacher_only
-  agent_binding_map: ["scripted_teacher", "scripted_teacher", "main", "main"]
+  agent_slot_map: ["scripted_teacher", "scripted_teacher", "main", "main"]
   loss_profiles:
     ppo_only:
       losses: ["ppo_actor", "ppo_critic"]
@@ -28,5 +28,5 @@ trainer:
     sliced_scripted_cloner:
       enabled: false
 simulation:
-  policy_bindings: null
-  agent_binding_map: null
+  policy_slots: null
+  agent_slot_map: null

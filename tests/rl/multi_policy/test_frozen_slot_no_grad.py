@@ -2,7 +2,7 @@ import torch
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.binding_controller import BindingControllerPolicy
+from metta.rl.slot_controller import SlotControllerPolicy
 
 
 class _TrainablePolicy(Policy):
@@ -28,20 +28,20 @@ class _TrainablePolicy(Policy):
         return None
 
 
-def test_frozen_binding_requires_grad_false():
+def test_frozen_slot_requires_grad_false():
     env_info = type("EnvInfo", (), {"num_agents": 1})
     trainable = _TrainablePolicy(env_info)
     # Manually freeze
     for p in trainable.parameters():
         p.requires_grad = False
 
-    controller = BindingControllerPolicy(
-        binding_lookup={"frozen": 0},
-        bindings=[],
-        binding_policies={0: trainable},
+    controller = SlotControllerPolicy(
+        slot_lookup={"frozen": 0},
+        slots=[],
+        slot_policies={0: trainable},
         policy_env_info=env_info,
         device="cpu",
-        agent_binding_map=torch.tensor([0]),
+        agent_slot_map=torch.tensor([0]),
     )
 
     loss = controller.linear.weight.sum()

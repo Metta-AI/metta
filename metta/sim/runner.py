@@ -4,9 +4,9 @@ from typing import Callable, Sequence
 import torch
 from pydantic import BaseModel, ConfigDict, Field
 
-from metta.rl.binding_config import PolicyBindingConfig
-from metta.rl.binding_controller import BindingControllerPolicy
-from metta.rl.policy_registry import PolicyRegistry
+from metta.rl.slot_config import PolicySlotConfig
+from metta.rl.slot_controller import SlotControllerPolicy
+from metta.rl.slot_registry import SlotRegistry
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
@@ -20,8 +20,8 @@ class SimulationRunConfig(BaseModel):
     env: MettaGridConfig  # noqa: F821
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
     proportions: Sequence[float] | None = None
-    policy_bindings: Sequence[PolicyBindingConfig] | None = None
-    agent_binding_map: Sequence[str] | None = None
+    policy_slots: Sequence[PolicySlotConfig] | None = None
+    agent_slot_map: Sequence[str] | None = None
 
     max_action_time_ms: int | None = Field(
         default=10000, description="Maximum time (in ms) a policy is given to take an action"
@@ -34,7 +34,7 @@ class SimulationRunResult(BaseModel):
 
     run: SimulationRunConfig
     results: MultiEpisodeRolloutResult
-    per_binding_returns: dict[str, float] | None = None
+    per_slot_returns: dict[str, float] | None = None
 
 
 def run_simulations(
@@ -45,8 +45,8 @@ def run_simulations(
     seed: int,
     on_progress: Callable[[str], None] = lambda x: None,
 ) -> list[SimulationRunResult]:
-    if not policy_specs and not any(sim.policy_bindings for sim in simulations):
-        raise ValueError("At least one policy spec or simulation-level policy binding is required")
+    if not policy_specs and not any(sim.policy_slots for sim in simulations):
+        raise ValueError("At least one policy spec or simulation-level policy slot is required")
 
     simulation_rollouts: list[SimulationRunResult] = []
 
@@ -57,33 +57,33 @@ def run_simulations(
         multi_agent_policies: list[MultiAgentPolicy] = []
 
         # Prefer simulation-specific bindings if provided; otherwise use policy_specs
-        if simulation.policy_bindings:
-            registry = PolicyRegistry()
-            bindings_cfg = simulation.policy_bindings
-            binding_lookup = {b.id: idx for idx, b in enumerate(bindings_cfg)}
-            # Build agent binding map tensor
+        if simulation.policy_slots:
+            registry = SlotRegistry()
+            slots_cfg = simulation.policy_slots
+            slot_lookup = {b.id: idx for idx, b in enumerate(slots_cfg)}
+            # Build agent slot map tensor
             num_agents = env_interface.num_agents
-            agent_map = simulation.agent_binding_map or [bindings_cfg[0].id for _ in range(num_agents)]
+            agent_map = simulation.agent_slot_map or [slots_cfg[0].id for _ in range(num_agents)]
             if len(agent_map) != num_agents:
-                raise ValueError(f"agent_binding_map must match num_agents ({num_agents}); got {len(agent_map)}")
-            binding_ids = [binding_lookup[a] for a in agent_map]
-            agent_binding_tensor = torch.tensor(binding_ids, dtype=torch.long)
+                raise ValueError(f"agent_slot_map must match num_agents ({num_agents}); got {len(agent_map)}")
+            slot_ids = [slot_lookup[a] for a in agent_map]
+            agent_slot_tensor = torch.tensor(slot_ids, dtype=torch.long)
 
-            binding_policies = {
+            slot_policies = {
                 idx: registry.get(
                     b,
                     env_interface,
                     device="cpu",  # sim runs default to CPU; extend later if needed
                 )
-                for idx, b in enumerate(bindings_cfg)
+                for idx, b in enumerate(slots_cfg)
             }
-            controller = BindingControllerPolicy(
-                binding_lookup=binding_lookup,
-                bindings=bindings_cfg,
-                binding_policies=binding_policies,
+            controller = SlotControllerPolicy(
+                slot_lookup=slot_lookup,
+                slots=slots_cfg,
+                slot_policies=slot_policies,
                 policy_env_info=env_interface,
                 device="cpu",
-                agent_binding_map=agent_binding_tensor,
+                agent_slot_map=agent_slot_tensor,
             )
             multi_agent_policies.append(controller)
         else:
@@ -104,24 +104,24 @@ def run_simulations(
         )
         on_progress(f"Finished rollout for simulation {i}")
 
-        per_binding_returns = None
-        if simulation.policy_bindings and rollout_result.episode_returns:
-            # Compute average return per binding by agent index mapping
-            agent_map = simulation.agent_binding_map or []
+        per_slot_returns = None
+        if simulation.policy_slots and rollout_result.episode_returns:
+            # Compute average return per slot by agent index mapping
+            agent_map = simulation.agent_slot_map or []
             if agent_map:
-                per_binding_returns = {}
+                per_slot_returns = {}
                 # episode_returns shape: [num_episodes, num_agents]
                 returns_tensor = torch.tensor(rollout_result.episode_returns)
-                for binding_id in set(agent_map):
-                    idxs = [j for j, b in enumerate(agent_map) if b == binding_id]
+                for slot_id in set(agent_map):
+                    idxs = [j for j, b in enumerate(agent_map) if b == slot_id]
                     if idxs:
-                        per_binding_returns[binding_id] = float(returns_tensor[:, idxs].mean().item())
+                        per_slot_returns[slot_id] = float(returns_tensor[:, idxs].mean().item())
 
         simulation_rollouts.append(
             SimulationRunResult(
                 run=simulation,
                 results=rollout_result,
-                per_binding_returns=per_binding_returns,
+                per_slot_returns=per_slot_returns,
             )
         )
 
