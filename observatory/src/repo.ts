@@ -1,4 +1,4 @@
-import { config } from './config'
+import { getToken, initiateLogin } from './auth'
 
 export type TokenInfo = {
   id: string
@@ -283,8 +283,9 @@ export class Repo {
       headers['Content-Type'] = contentType
     }
 
-    if (config.authToken) {
-      headers['X-Auth-Token'] = config.authToken
+    const token = getToken()
+    if (token) {
+      headers['X-Auth-Token'] = token
     }
 
     return headers
@@ -295,6 +296,11 @@ export class Repo {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
+      if (response.status === 401) {
+        // Unauthorized - redirect to login
+        initiateLogin()
+        throw new Error('Unauthorized - redirecting to login')
+      }
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
     return response.json()
@@ -307,6 +313,11 @@ export class Repo {
       body: JSON.stringify(body),
     })
     if (!response.ok) {
+      if (response.status === 401) {
+        // Unauthorized - redirect to login
+        initiateLogin()
+        throw new Error('Unauthorized - redirecting to login')
+      }
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
     return response.json()
@@ -319,6 +330,11 @@ export class Repo {
       body: JSON.stringify(body),
     })
     if (!response.ok) {
+      if (response.status === 401) {
+        // Unauthorized - redirect to login
+        initiateLogin()
+        throw new Error('Unauthorized - redirecting to login')
+      }
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
     return response.json()
@@ -330,6 +346,11 @@ export class Repo {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
+      if (response.status === 401) {
+        // Unauthorized - redirect to login
+        initiateLogin()
+        throw new Error('Unauthorized - redirecting to login')
+      }
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
   }

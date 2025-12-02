@@ -1,6 +1,9 @@
+import { useEffect } from 'react'
 import { Route, Routes } from 'react-router-dom'
 
 import { AppProvider } from './AppContext'
+import { hasToken, initiateLogin } from './auth'
+import { AuthCallback } from './AuthCallback'
 import { EpisodeDetailPage } from './EpisodeDetailPage'
 import { EvalTasks } from './EvalTasks/index'
 import { Leaderboard } from './Leaderboard'
@@ -11,6 +14,16 @@ import { SQLQuery } from './SQLQuery'
 import { TopMenu } from './TopMenu'
 
 function App() {
+  useEffect(() => {
+    // Check if we have a token on app initialization
+    if (!hasToken()) {
+      // Don't redirect if we're on the callback page
+      if (!window.location.pathname.startsWith('/auth/callback')) {
+        initiateLogin()
+      }
+    }
+  }, [])
+
   return (
     <AppProvider>
       <div>
@@ -18,6 +31,7 @@ function App() {
 
         <div>
           <Routes>
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/" element={<PoliciesPage />} />
             <Route path="/policies" element={<PoliciesPage />} />
             <Route path="/policies/:policyId" element={<PolicyPage />} />
