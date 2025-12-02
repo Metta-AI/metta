@@ -1,8 +1,8 @@
 import torch
 from tensordict import TensorDict
+from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.rl.loss.loss import Loss
-from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 
 class _DummyLoss(Loss):
@@ -12,7 +12,14 @@ class _DummyLoss(Loss):
             loss_profile_id=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
             is_trainable_agent=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool),
         )
-        super().__init__(policy=None, trainer_cfg=None, env=None, device=torch.device("cpu"), instance_name="dummy", loss_config=None)  # type: ignore[arg-type]
+        super().__init__(
+            policy=None,
+            trainer_cfg=None,
+            env=None,
+            device=torch.device("cpu"),
+            instance_name="dummy",
+            loss_config=None,
+        )  # type: ignore[arg-type]
         self.policy_experience_spec = base
         self._zero_tensor = torch.tensor(0.0)
         self.loss_profiles = {1}

@@ -1,9 +1,9 @@
 import torch
 from tensordict import TensorDict
-
-from metta.rl.binding_controller import BindingControllerPolicy
-from metta.agent.policy import Policy
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+
+from metta.agent.policy import Policy
+from metta.rl.binding_controller import BindingControllerPolicy
 
 
 class _StubPolicy(Policy):
