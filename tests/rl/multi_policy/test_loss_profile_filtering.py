@@ -1,11 +1,14 @@
-import torch
+from collections import defaultdict
 from types import SimpleNamespace
 
+import torch
 from tensordict import NonTensorData, TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPO, PPOConfig
+from metta.rl.loss.sliced_kickstarter import SlicedKickstarter
+from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedCloner
 
 
 class _StubPolicy:
@@ -173,3 +176,121 @@ def test_ppo_skips_empty_filtered_minibatch():
     assert shared_loss_data["sampled_mb"].batch_size[0] == 0
     assert shared_loss_data["indices"].data.numel() == 0
     assert not ppo.stub_policy.forward_called
+
+
+class _StubStudentPolicy:
+    def __init__(self, num_actions: int = 3):
+        self.num_actions = num_actions
+        self.forward_called = False
+
+    def reset_memory(self) -> None:
+        return None
+
+    def forward(self, td, *, action=None):
+        self.forward_called = True
+        batch = td.batch_size.numel()
+        td["logits"] = torch.zeros(batch, self.num_actions)
+        td["values"] = torch.zeros(batch)
+        td["full_log_probs"] = torch.zeros(batch, self.num_actions)
+        return td
+
+
+def _stub_replay_from_minibatch(minibatch: TensorDict):
+    return SimpleNamespace(
+        minibatch_segments=minibatch.batch_size[0],
+        segments=minibatch.batch_size[0],
+        num_minibatches=1,
+        device=minibatch.device,
+        buffer=minibatch,
+    )
+
+
+class _TestSlicedKickstarter(SlicedKickstarter):
+    """Subclass with __dict__ to simplify testing without running heavy __init__."""
+
+    __slots__ = ("__dict__",)
+
+
+class _TestSlicedScriptedCloner(SlicedScriptedCloner):
+    """Subclass with __dict__ to simplify testing without running heavy __init__."""
+
+    __slots__ = ("__dict__",)
+
+
+def test_sliced_kickstarter_filters_after_sampling():
+    minibatch = TensorDict(
+        {
+            "actions": torch.tensor([[0], [1]]),
+            "teacher_logits": torch.zeros(2, 1, 3),
+            "teacher_values": torch.zeros(2, 1),
+            "stud_mask": torch.tensor([[True], [False]]),
+            "teacher_mask": torch.tensor([[False], [True]]),
+            "ppo_mask": torch.tensor([[True], [True]]),
+            "loss_profile_id": torch.tensor([[1], [0]]),
+            "is_trainable_agent": torch.ones(2, 1, dtype=torch.bool),
+        },
+        batch_size=[2, 1],
+    )
+
+    loss = object.__new__(_TestSlicedKickstarter)
+    loss.device = torch.device("cpu")
+    loss._zero_tensor = torch.tensor(0.0)
+    loss.loss_tracker = defaultdict(list)
+    loss.cfg = SimpleNamespace(
+        action_loss_coef=1.0,
+        value_loss_coef=1.0,
+        temperature=1.0,
+        teacher_led_proportion=0.0,
+        student_led_proportion=0.0,
+        student_forward=True,
+    )
+    loss.policy_experience_spec = Composite(actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64))
+    loss.policy = _StubStudentPolicy()
+    loss.replay = _stub_replay_from_minibatch(minibatch)
+    loss.loss_profiles = {1}
+
+    loss_val, shared_loss_data, stop = loss.run_train(TensorDict({}, batch_size=[]), context=None, mb_idx=0)
+
+    assert not stop
+    assert shared_loss_data["sampled_mb"].batch_size[0] == 1  # profile 0 row removed
+    assert shared_loss_data["indices"].data.tolist() == [0]
+    assert loss.policy.forward_called
+    assert loss_val.isfinite()
+
+
+def test_sliced_scripted_cloner_filters_after_sampling():
+    minibatch = TensorDict(
+        {
+            "actions": torch.tensor([[0], [1]]),
+            "teacher_actions": torch.tensor([[1], [2]]),
+            "stud_mask": torch.tensor([[True], [False]]),
+            "teacher_mask": torch.tensor([[False], [True]]),
+            "ppo_mask": torch.tensor([[True], [True]]),
+            "loss_profile_id": torch.tensor([[1], [0]]),
+            "is_trainable_agent": torch.ones(2, 1, dtype=torch.bool),
+        },
+        batch_size=[2, 1],
+    )
+
+    loss = object.__new__(_TestSlicedScriptedCloner)
+    loss.device = torch.device("cpu")
+    loss._zero_tensor = torch.tensor(0.0)
+    loss.loss_tracker = defaultdict(list)
+    loss.cfg = SimpleNamespace(
+        action_loss_coef=1.0,
+        teacher_led_proportion=0.0,
+        student_led_proportion=0.0,
+        student_forward=True,
+    )
+    loss.policy_experience_spec = Composite(actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64))
+    loss.policy = _StubStudentPolicy()
+    loss.replay = _stub_replay_from_minibatch(minibatch)
+    loss.loss_profiles = {1}
+
+    loss_val, shared_loss_data, stop = loss.run_train(TensorDict({}, batch_size=[]), context=None, mb_idx=0)
+
+    assert not stop
+    assert shared_loss_data["sampled_mb"].batch_size[0] == 1  # filtered to profile 1 rows
+    assert shared_loss_data["indices"].data.tolist() == [0]
+    assert loss.policy.forward_called
+    assert loss_val.isfinite()
