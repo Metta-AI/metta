@@ -159,8 +159,8 @@ def train(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
-    heart_buckets = False,
-    resource_buckets = False,
+    heart_buckets=False,
+    resource_buckets=False,
 ) -> TrainTool:
     """Create a training tool for random maps curriculum.
 
@@ -367,6 +367,83 @@ def play_dense(
     return PlayTool(sim=sim, policy_uri=policy_uri)
 
 
+def replay_curriculum(
+    policy_uri: str,
+    num_cogs: int = 20,
+    room_size: int = 80,
+    num_assemblers: int = 10,
+    num_chargers: int = 10,
+    num_chests: int = 10,
+    num_extractors: int = 10,
+    max_steps: int = 2000,
+) -> PlayTool:
+    """Replay a trained policy on a random map from the curriculum.
+
+    Args:
+        policy_uri: URI to the policy (S3 or local file)
+        num_cogs: Number of agents
+        room_size: Map width and height (creates square map)
+        num_assemblers: Number of assemblers
+        num_chargers: Number of chargers
+        num_chests: Number of chests
+        num_extractors: Number of extractors for each resource type
+        max_steps: Maximum episode steps
+
+    Returns:
+        A PlayTool configured for curriculum replay
+
+    Examples:
+        Replay from S3:
+            uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.replay_curriculum \\
+                policy_uri=s3://softmax-public/policies/cvc_random_maps_20agent_heartbuckets_True_resourcebuckets_False
+
+        Replay from local checkpoint:
+            uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.replay_curriculum \\
+                policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
+    """
+    mission = Mission(
+        name="random_maps_replay",
+        description=f"Replay on random map {room_size}x{room_size}",
+        site=HELLO_WORLD,
+        num_cogs=num_cogs,
+    )
+
+    env = mission.make_env()
+
+    # Use only first 13 vibes from TRAINING_VIBES (same as training curriculum)
+    env.game.vibe_names = [v.name for v in vibes_module.VIBES[:13]]
+    if env.game.actions.change_vibe:
+        env.game.actions.change_vibe.number_of_vibes = 13
+
+    env.game.map_builder = MapGen.Config(
+        width=room_size,
+        height=room_size,
+        border_width=5,
+        instance=Random.Config(
+            agents=num_cogs,
+            objects={
+                "assembler": num_assemblers,
+                "charger": num_chargers,
+                "chest": num_chests,
+                "carbon_extractor": num_extractors,
+                "oxygen_extractor": num_extractors,
+                "germanium_extractor": num_extractors,
+                "silicon_extractor": num_extractors,
+            },
+            too_many_is_ok=True,
+        ),
+    )
+
+    env.game.max_steps = max_steps
+
+    sim = SimulationConfig(
+        suite="random_maps",
+        name=f"replay_{room_size}x{room_size}_{num_cogs}cogs",
+        env=env,
+    )
+    return PlayTool(sim=sim, policy_uri=policy_uri)
+
+
 def experiment(
     run_name: Optional[str] = None,
     num_cogs: int = 20,
@@ -394,11 +471,17 @@ def experiment(
                 run_name=random_maps_4agent
     """
     if run_name is None:
-        run_name = f"cvc_random_maps_{num_cogs}agent_heartbuckets_{heart_buckets}_resourcebuckets_{resource_buckets}_{time.strftime('%Y-%m-%d_%H%M%S')}"
+        timestamp = time.strftime("%Y-%m-%d_%H%M%S")
+        run_name = (
+            f"cvc_random_maps_{num_cogs}agent_heartbuckets_{heart_buckets}_"
+            f"resourcebuckets_{resource_buckets}_{timestamp}"
+        )
 
     cmd = [
         "./devops/skypilot/launch.py",
         "recipes.experiment.cvc.cvc_random_maps.train",
+        f"heart_buckets={heart_buckets}",
+        f"resource_buckets={resource_buckets}",
         f"run={run_name}-{datetime.now().strftime('%Y-%m-%d_%H%M%S')}",
         f"num_cogs={num_cogs}",
         "--gpus=4",
@@ -426,11 +509,12 @@ __all__ = [
     "evaluate",
     "play_sparse",
     "play_dense",
+    "replay_curriculum",
     "experiment",
 ]
 
 if __name__ == "__main__":
-    experiment(heart_buckets=False, resource_buckets=False)
+    # experiment(heart_buckets=False, resource_buckets=False)
     experiment(heart_buckets=True, resource_buckets=False)
     experiment(heart_buckets=True, resource_buckets=True)
     experiment(heart_buckets=False, resource_buckets=True)
