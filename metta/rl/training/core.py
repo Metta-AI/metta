@@ -227,11 +227,13 @@ class CoreTrainingLoop:
 
         num_agents = ctx.env.policy_env_info.num_agents
         if num_agents <= 0:
-            return
+            raise RuntimeError("policy_env_info.num_agents must be positive for slot metadata injection")
 
         batch_elems = td.batch_size.numel()
         if batch_elems % num_agents != 0:
-            return
+            raise RuntimeError(
+                f"Batch elements ({batch_elems}) must be divisible by num_agents ({num_agents}) for slot metadata"
+            )
 
         num_envs = batch_elems // num_agents
         device = td.device
