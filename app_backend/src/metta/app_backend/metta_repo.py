@@ -170,6 +170,7 @@ class LeaderboardPolicyEntry(BaseModel):
     policy_version: PublicPolicyVersionRow
     scores: dict[str, float]
     avg_score: float | None = None
+    overall_vor: float | None = None  # Value Over Replacement (fetched separately)
     replays: dict[str, list[EpisodeReplay]] = Field(default_factory=dict)
     score_episode_ids: dict[str, uuid.UUID | None] = Field(default_factory=dict)
 
@@ -1171,11 +1172,14 @@ GROUP BY pv.id, et.key, et.value
             )
 
             if is_candidate:
-                entry.candidate_stats.update(reward)
-                candidate_count_stats[candidate_count].update(reward)
+                # Weight by number of candidate agents
+                entry.candidate_stats.update(reward, weight=candidate_count)
+                candidate_count_stats[candidate_count].update(reward, weight=candidate_count)
             else:
-                entry.replacement_stats.update(reward)
-                candidate_count_stats[0].update(reward)
+                # Weight by number of replacement agents (thinky + ladybug)
+                replacement_weight = thinky_count + ladybug_count
+                entry.replacement_stats.update(reward, weight=replacement_weight)
+                candidate_count_stats[0].update(reward, weight=replacement_weight)
 
         async with self.connect() as con:
             async with con.cursor(row_factory=dict_row) as cur:

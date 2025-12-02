@@ -8,21 +8,28 @@ from pydantic import BaseModel, Field
 
 
 class RunningStats:
-    """Incrementally track running mean/variance statistics."""
+    """Incrementally track weighted running mean/variance statistics.
+
+    Uses West's online algorithm for weighted variance.
+    When weight=1 (default), behaves like standard Welford's algorithm.
+    """
 
     def __init__(self) -> None:
-        self.count = 0
+        self.count = 0  # Number of samples (episodes)
+        self.total_weight = 0.0  # Sum of weights (total agents)
         self._mean = 0.0
         self._m2 = 0.0
         self._min = math.inf
         self._max = -math.inf
 
-    def update(self, value: float) -> None:
+    def update(self, value: float, weight: int = 1) -> None:
+        """Update stats with a new value and optional weight (e.g., agent count)."""
         self.count += 1
+        self.total_weight += weight
         delta = value - self._mean
-        self._mean += delta / self.count
+        self._mean += (weight / self.total_weight) * delta
         delta2 = value - self._mean
-        self._m2 += delta * delta2
+        self._m2 += weight * delta * delta2
         if self.count == 1:
             self._min = value
             self._max = value
@@ -32,20 +39,21 @@ class RunningStats:
 
     @property
     def mean(self) -> float | None:
-        return None if self.count == 0 else self._mean
+        return None if self.total_weight == 0 else self._mean
 
     @property
     def variance(self) -> float | None:
-        if self.count == 0:
+        if self.total_weight == 0:
             return None
         if self.count == 1:
             return 0.0
-        return self._m2 / (self.count - 1)
+        # Bessel's correction for weighted variance
+        return self._m2 / (self.total_weight - (self.total_weight / self.count))
 
     @property
     def std_dev(self) -> float | None:
         variance = self.variance
-        return None if variance is None else math.sqrt(variance)
+        return None if variance is None else math.sqrt(max(0, variance))
 
     @property
     def min(self) -> float | None:
@@ -87,7 +95,8 @@ class CandidateCountSummary(BaseModel):
     std_dev: float | None
     min_value: float | None
     max_value: float | None
-    samples: int
+    samples: int  # Number of episodes
+    total_agents: int  # Total agent weight (for weighted average)
 
 
 class GraphPoint(BaseModel):
@@ -106,12 +115,16 @@ class ValueOverReplacementSummary(BaseModel):
     value_over_replacement: dict[str, float | None]
     value_over_replacement_std: dict[str, float | None] = Field(default_factory=dict)
     graph_points: list[GraphPoint]
+    # Overall VOR with global normalization (single number for policy comparison)
+    overall_vor: float | None = None
+    overall_vor_std: float | None = None
+    total_candidate_agents: int = 0
 
 
 def _variance_of_mean(summary: CandidateCountSummary | None) -> float | None:
-    if summary is None or summary.samples <= 0 or summary.variance is None:
+    if summary is None or summary.total_agents <= 0 or summary.variance is None:
         return None
-    return summary.variance / summary.samples
+    return summary.variance / summary.total_agents
 
 
 def build_value_over_replacement_summary_from_stats(
@@ -152,6 +165,7 @@ def build_value_over_replacement_summary_from_stats(
                 min_value=stats.min,
                 max_value=stats.max,
                 samples=stats.count,
+                total_agents=int(stats.total_weight),
             )
         )
 
@@ -215,6 +229,37 @@ def build_value_over_replacement_summary_from_stats(
                 )
             )
 
+    # Compute overall VOR with global normalization
+    # Sum weighted rewards across ALL candidate_count levels, divide by total agents
+    total_candidate_agents = sum(s.total_agents for s in candidate_count_summaries if s.candidate_count > 0)
+    total_candidate_weighted_sum = sum(
+        (s.mean or 0) * s.total_agents
+        for s in candidate_count_summaries
+        if s.candidate_count > 0 and s.mean is not None
+    )
+
+    if total_candidate_agents > 0 and replacement_mean is not None:
+        overall_candidate_avg = total_candidate_weighted_sum / total_candidate_agents
+        overall_vor = overall_candidate_avg - replacement_mean
+
+        # Approximate overall std using pooled variance
+        if replacement_var_mean is not None:
+            total_candidate_var = sum(
+                (s.variance or 0) * s.total_agents
+                for s in candidate_count_summaries
+                if s.candidate_count > 0 and s.variance is not None
+            )
+            if total_candidate_agents > 0:
+                pooled_candidate_var = total_candidate_var / total_candidate_agents
+                overall_vor_std = math.sqrt(pooled_candidate_var / total_candidate_agents + replacement_var_mean)
+            else:
+                overall_vor_std = None
+        else:
+            overall_vor_std = None
+    else:
+        overall_vor = None
+        overall_vor_std = None
+
     return ValueOverReplacementSummary(
         policy_version_id=policy_version_id,
         scenario_summaries=scenario_summaries,
@@ -223,4 +268,7 @@ def build_value_over_replacement_summary_from_stats(
         value_over_replacement=value_over_replacement,
         value_over_replacement_std=value_over_replacement_std,
         graph_points=graph_points,
+        overall_vor=overall_vor,
+        overall_vor_std=overall_vor_std,
+        total_candidate_agents=total_candidate_agents,
     )

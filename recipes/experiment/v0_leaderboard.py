@@ -116,13 +116,20 @@ def _generate_replacement_scenarios(num_cogs: int) -> list[LeaderboardScenario]:
     """Generate baseline replacement scenarios (candidate_count = 0).
 
     Returns:
-        Scenarios for thinky_self_play, ladybug_self_play, and thinky_ladybug_dual.
+        All combinations of thinky and ladybug agents (no candidate).
     """
-    return [
-        LeaderboardScenario(0, num_cogs, 0, "thinky_self_play"),
-        LeaderboardScenario(0, num_cogs // 2, num_cogs // 2, "thinky_ladybug_dual"),
-        LeaderboardScenario(0, 0, num_cogs, "ladybug_self_play"),
-    ]
+    scenarios: list[LeaderboardScenario] = []
+    for thinky_count in range(num_cogs, -1, -1):  # From num_cogs down to 0
+        ladybug_count = num_cogs - thinky_count
+        scenarios.append(
+            LeaderboardScenario(
+                candidate_count=0,
+                thinky_count=thinky_count,
+                ladybug_count=ladybug_count,
+                scenario_kind=_scenario_kind(0, thinky_count, ladybug_count),
+            )
+        )
+    return scenarios
 
 
 def _generate_scenarios(num_cogs: int, include_replacement: bool = True) -> list[LeaderboardScenario]:
@@ -279,6 +286,59 @@ def evaluate(
         stats_server_uri=api_url,
     )
 
+    tool.system.seed = seed
+    return tool
+
+
+# ./tools/run.py recipes.experiment.v0_leaderboard.evaluate_baselines
+def evaluate_baselines(
+    stats_server_uri: str | None = None,
+    seed: int = 50,
+    scenarios: list[str] | None = None,
+) -> MultiPolicyVersionEvalTool:
+    """Run replacement baseline scenarios (thinky/ladybug combinations).
+
+    This populates the baseline data needed for VOR calculation without running candidate scenarios.
+
+    Args:
+        stats_server_uri: Stats server URI
+        seed: Random seed for map generation
+        scenarios: Optional list of scenario names to run (e.g., ["machina1-c0-t3-l1"]).
+                   If None, runs all replacement scenarios.
+    """
+    if (api_url := stats_server_uri or auto_stats_server_uri()) is None:
+        raise ValueError("stats_server_uri is required")
+
+    mission = Machina1OpenWorldMission.model_copy(deep=True)
+    mission.num_cogs = NUM_COGS
+    map_builder = getattr(mission.site, "map_builder", None)
+    if map_builder is not None and hasattr(map_builder, "seed"):
+        map_builder.seed = seed
+    env_config = mission.make_env()
+
+    replacement_scenarios = _generate_replacement_scenarios(NUM_COGS)
+    if scenarios:
+        replacement_scenarios = [s for s in replacement_scenarios if s.sim_name in scenarios]
+
+    # Proportions for [thinky, ladybug] only (no candidate)
+    sim_configs = [
+        SimulationRunConfig(
+            env=env_config,
+            num_episodes=1,
+            proportions=[float(scenario.thinky_count), float(scenario.ladybug_count)],
+            episode_tags=scenario.episode_tags(),
+        )
+        for scenario in replacement_scenarios
+    ]
+
+    tool = MultiPolicyVersionEvalTool(
+        result_file_path=f"leaderboard_baselines_{seed}.json",
+        simulations=sim_configs,
+        policy_version_ids=[THINKY_UUID, LADYBUG_UUID],
+        primary_policy_version_id=THINKY_UUID,
+        verbose=True,
+        stats_server_uri=api_url,
+    )
     tool.system.seed = seed
     return tool
 

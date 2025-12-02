@@ -1,11 +1,12 @@
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.leaderboard_constants import COGAMES_SUBMITTED_PV_KEY, LEADERBOARD_SIM_NAME_EPISODE_KEY
 from metta.app_backend.metta_repo import LeaderboardPolicyEntry, MettaRepo
+from metta.app_backend.value_over_replacement import ValueOverReplacementSummary
 
 
 class LeaderboardPoliciesResponse(BaseModel):
@@ -50,5 +51,15 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
                 policy_version_id=uuid.UUID(policy_version_id),
             )
         )
+
+    @router.get("/v2/vor/{policy_version_id}")
+    async def get_value_over_replacement(policy_version_id: str, user: UserOrToken) -> ValueOverReplacementSummary:
+        """Get Value Over Replacement summary for a policy version."""
+        try:
+            return await metta_repo.get_value_over_replacement_summary(
+                policy_version_id=uuid.UUID(policy_version_id),
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from None
 
     return router
