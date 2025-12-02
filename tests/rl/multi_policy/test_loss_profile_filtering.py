@@ -41,7 +41,14 @@ def test_loss_profile_and_trainable_filtering():
         },
         batch_size=[6],
     )
-    shared = TensorDict({"sampled_mb": mb}, batch_size=[])
+    shared = TensorDict(
+        {
+            "sampled_mb": mb,
+            "advantages": torch.arange(6, dtype=torch.float32),
+        },
+        batch_size=[],
+    )
     out_val, _, _ = loss.train(shared, None, 0)
     # Expected rows: profile==1 AND trainable -> indices 1 and 4 -> 2 rows
     assert out_val.item() == 2.0
+    assert shared["advantages"].shape[0] == 6  # unchanged input

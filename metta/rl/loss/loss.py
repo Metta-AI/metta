@@ -210,10 +210,17 @@ class Loss:
         filtered = shared_loss_data.clone()
         filtered["sampled_mb"] = mb[mask]
 
-        # Optional mirror-filter other aligned entries; assume shapes align in dev.
-        for key in ("policy_td", "indices", "prio_weights"):
-            if key in filtered.keys():
-                filtered[key] = filtered[key][mask]
+        # Mirror-filter other row-aligned entries based on mask size heuristics.
+        for key, value in list(filtered.items()):
+            if key == "sampled_mb":
+                continue
+            try:
+                if hasattr(value, "batch_size") and value.batch_size.numel() == mb.batch_size.numel():
+                    filtered[key] = value[mask]
+                elif isinstance(value, torch.Tensor) and value.shape[:1] == mb.shape[:1]:
+                    filtered[key] = value[mask]
+            except Exception:
+                pass
 
         return filtered
 
