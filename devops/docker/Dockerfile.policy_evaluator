@@ -39,6 +39,9 @@ RUN chmod 644 /etc/apt/sources.list.d/kubernetes.list
 RUN apt-get update
 RUN apt-get install -y kubectl
 
+# Install packaging in uv environment for install.sh's bootstrap step
+RUN uv pip install packaging
+
 RUN bash install.sh --profile softmax-docker --non-interactive
 
 # Pre-build all packages to avoid OOM during container startup
