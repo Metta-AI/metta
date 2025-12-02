@@ -88,8 +88,9 @@ class FlattenVecEnv:
 
     def recv(self):
         result = self.inner.recv()
-        if len(result) == 8:
-            o, r, d, t, ta, infos, env_ids, masks = result
+        n = len(result)
+        if n >= 8:
+            o, r, d, t, ta, infos, env_ids, masks = result[:8]
         else:
             o, r, d, t, infos, env_ids, masks = result
             ta = None
