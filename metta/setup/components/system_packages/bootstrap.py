@@ -456,7 +456,6 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
         and current_nimby_version
         and version_ge(current_nimby_version, REQUIRED_NIMBY_VERSION)
     ):
-        link_nim_bins(nim_bin_dir)
         return
 
     if current_nim_version:
