@@ -197,7 +197,7 @@ when isMainModule:
 
   startFidget(
     figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
-    windowTitle = "MettaScope V2",
+    windowTitle = "MettaScope",
     entryFrame = "UI/Main",
     windowStyle = DecoratedResizable,
     dataDir = dataDir
