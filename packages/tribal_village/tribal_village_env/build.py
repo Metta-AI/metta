@@ -43,22 +43,18 @@ def _build_library(project_root: Path) -> Path:
     _ensure_nim_toolchain()
     _install_nim_deps(project_root)
 
-    build_script = project_root / "build_lib.sh"
-    if build_script.exists():
-        result = subprocess.run(["bash", str(build_script)], cwd=project_root, capture_output=True, text=True)
-    else:
-        ext = Path(_target_library_name()).suffix
-        cmd = [
-            "nim",
-            "c",
-            "--app:lib",
-            "--mm:arc",
-            "--opt:speed",
-            "-d:danger",
-            f"--out:libtribal_village{ext}",
-            "src/tribal_village_interface.nim",
-        ]
-        result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True)
+    ext = Path(_target_library_name()).suffix
+    cmd = [
+        "nim",
+        "c",
+        "--app:lib",
+        "--mm:arc",
+        "--opt:speed",
+        "-d:danger",
+        f"--out:libtribal_village{ext}",
+        "src/tribal_village_interface.nim",
+    ]
+    result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True)
 
     if result.returncode != 0:
         stdout = result.stdout.strip()
