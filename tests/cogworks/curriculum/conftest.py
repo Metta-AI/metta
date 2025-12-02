@@ -77,7 +77,7 @@ def production_navigation_curriculum(navigation_env):
             maps.append(f"varied_terrain/{terrain}_{size}")
 
     dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(3, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance.objects.assembler", [Span(3, 50)])
 
     # Sparse tasks
     sparse_env = navigation_env.model_copy()
@@ -85,7 +85,7 @@ def production_navigation_curriculum(navigation_env):
     sparse_tasks = cc.bucketed(sparse_env)
     sparse_tasks.add_bucket("game.map_builder.width", [Span(60, 120)])
     sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 10)])
+    sparse_tasks.add_bucket("game.map_builder.objects.assembler", [Span(1, 10)])
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
     return nav_tasks.to_curriculum()
