@@ -22,7 +22,7 @@ ENV PATH="/root/.local/bin:$PATH"
 # Install packaging (bootstrap.py dependency) and run bootstrap
 # Copy bootstrap.py to /tmp to avoid importing from metta package structure
 RUN cp metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py && \
-    python3 -m pip install --break-system-packages packaging && \
+    python3 -m pip install packaging && \
     cd /tmp && \
     python3 bootstrap.py --non-interactive
 
