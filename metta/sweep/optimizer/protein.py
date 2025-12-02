@@ -70,7 +70,7 @@ class ProteinOptimizer(ConstraintAwareMixin):
                 hypers=encoded,
                 score=obs.get("score", 0.0),
                 cost=obs.get("cost", 0.0),
-                is_failure=False,  # We don't track failures currently
+                is_failure=bool(obs.get("is_failure", False)),
             )
 
         logger.info(f"Loaded {len(observations)} observations into Protein optimizer")

@@ -320,14 +320,27 @@ class AsyncCappedOptimizingScheduler:
     def _collect_observations(self, runs: list[RunInfo]) -> list[dict[str, Any]]:
         obs: list[dict[str, Any]] = []
         for run in runs:
-            if run.status != JobStatus.COMPLETED:
-                continue
             summary = run.summary if isinstance(run.summary, dict) else {}
-            if not summary:
+            suggestion = summary.get("sweep/suggestion", {}) if summary else {}
+
+            # Treat early FAILED/STALE (no training) as configuration failures
+            if run.status in (JobStatus.FAILED, JobStatus.STALE) and not run.has_started_training:
+                if suggestion:
+                    cost_val = summary.get("sweep/cost") if summary else None
+                    obs.append(
+                        {
+                            "score": 0.0,
+                            "cost": float(cost_val) if cost_val is not None else 60.0,
+                            "suggestion": dict(suggestion) if isinstance(suggestion, dict) else {},
+                            "is_failure": True,
+                        }
+                    )
+                continue
+
+            if run.status != JobStatus.COMPLETED or not summary:
                 continue
             score = summary.get("sweep/score")
             cost = summary.get("sweep/cost")
-            suggestion = summary.get("sweep/suggestion", {})
             if score is not None:
                 try:
                     obs.append(
@@ -335,6 +348,7 @@ class AsyncCappedOptimizingScheduler:
                             "score": float(score),
                             "cost": float(cost) if cost is not None else 0.0,
                             "suggestion": dict(suggestion) if isinstance(suggestion, dict) else {},
+                            "is_failure": False,
                         }
                     )
                 except Exception:

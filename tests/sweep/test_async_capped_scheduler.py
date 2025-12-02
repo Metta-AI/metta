@@ -170,3 +170,34 @@ class TestAsyncCappedOptimizingScheduler:
         assert captured.get("num_obs") == 3
         assert len(jobs) == 1
         assert jobs[0].type == JobTypes.LAUNCH_TRAINING
+
+    def test_failure_observation_recorded_for_early_failure(self):
+        """Runs that fail before training produce failure observations."""
+        config = AsyncCappedSchedulerConfig(
+            max_trials=5,
+            recipe_module="test.module",
+            train_entrypoint="train",
+            eval_entrypoint="evaluate",
+            experiment_id="test_async",
+            protein_config=_basic_protein_config(),
+            max_concurrent_evals=1,
+        )
+        scheduler = AsyncCappedOptimizingScheduler(config)
+
+        now = datetime.now(timezone.utc)
+        failed = RunInfo(
+            run_id="fail_1",
+            has_started_training=False,
+            has_completed_training=False,
+            has_started_eval=False,
+            has_been_evaluated=False,
+            has_failed=True,
+            created_at=now,
+            last_updated_at=now,
+            summary={"sweep/suggestion": {"lr": 0.002}},
+        )
+
+        observations = scheduler._collect_observations([failed])
+        assert len(observations) == 1
+        assert observations[0]["is_failure"] is True
+        assert observations[0]["suggestion"] == {"lr": 0.002}

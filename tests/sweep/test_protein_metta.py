@@ -353,3 +353,42 @@ class TestProteinOptimizer:
         applied = constraint.apply(copy.deepcopy(suggestion))
         assert applied["trainer"]["batch_size"] == 64  # largest multiple of 16 <= 65
         assert applied["trainer"]["minibatch_size"] == 16
+
+    def test_failure_flag_passed_to_protein(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Ensure is_failure flows through to Protein.observe."""
+
+        observed_flags: list[bool] = []
+
+        class DummyProtein:
+            def __init__(self, *_, **__):
+                pass
+
+            def observe(self, hypers, score, cost, is_failure):
+                observed_flags.append(is_failure)
+
+            def suggest(self, n_suggestions=1):
+                suggestion = {"trainer": {"batch_size": 64, "minibatch_size": 16}}
+                info = {}
+                return (suggestion, info) if n_suggestions == 1 else [(suggestion, info)] * n_suggestions
+
+        monkeypatch.setattr("metta.sweep.optimizer.protein.Protein", DummyProtein)
+
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "trainer": {
+                    "batch_size": ParameterConfig(distribution="int_uniform", min=32, max=128, mean=64, scale="auto"),
+                    "minibatch_size": ParameterConfig(
+                        distribution="int_uniform", min=8, max=64, mean=32, scale="auto"
+                    ),
+                }
+            },
+        )
+
+        optimizer = ProteinOptimizer(config)
+        observations = [{"score": 0.0, "cost": 0.0, "suggestion": {"trainer": {"batch_size": 64}}, "is_failure": True}]
+        optimizer.suggest(observations, n_suggestions=1)
+
+        assert observed_flags == [True]
