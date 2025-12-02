@@ -206,10 +206,8 @@ async def test_query_episodes_filters_by_primary_and_tag(
         ],
     )
 
-    headers = {"X-Auth-Request-Email": user}
     response = isolated_test_client.post(
         "/stats/episodes/query",
-        headers=headers,
         json={
             "primary_policy_version_ids": [str(policy_version_id)],
             "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},
@@ -227,7 +225,6 @@ async def test_query_episodes_filters_by_primary_and_tag(
     # Offset should work even when limit is None
     offset_response = isolated_test_client.post(
         "/stats/episodes/query",
-        headers=headers,
         json={
             "primary_policy_version_ids": [str(policy_version_id)],
             "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},
