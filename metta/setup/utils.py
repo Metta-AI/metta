@@ -115,7 +115,7 @@ def prompt_choice(
         # Display header
         header(prompt)
 
-        # Create menu with both arrow key and number shortcut support
+        # Create menu
         terminal_menu = TerminalMenu(
             menu_entries,
             cursor_index=cursor_index,
