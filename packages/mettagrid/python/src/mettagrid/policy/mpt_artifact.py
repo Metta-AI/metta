@@ -47,12 +47,12 @@ class MptArtifact:
         policy = self.architecture.make_policy(policy_env_info)
         policy = policy.to(device)
 
-        if hasattr(policy, "initialize_to_environment"):
-            policy.initialize_to_environment(policy_env_info, device)
-
         missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=strict)
         if strict and (missing or unexpected):
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+
+        if hasattr(policy, "initialize_to_environment"):
+            policy.initialize_to_environment(policy_env_info, device)
 
         return policy
 

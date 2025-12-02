@@ -7,6 +7,7 @@ import torch.nn as nn
 from pydantic import Field
 from tensordict import TensorDict
 
+from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.components.cortex import CortexTD
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -44,6 +45,38 @@ class DummyPolicy(Policy):
     @property
     def device(self) -> torch.device:
         return next(self.parameters()).device
+
+    def reset_memory(self) -> None:
+        return None
+
+
+class ActionTestArchitecture(PolicyArchitecture):
+    class_path: str = "tests.rl.test_policy_artifact.ActionTestPolicy"
+    action_probs_config: DummyActionComponentConfig = Field(default_factory=DummyActionComponentConfig)
+
+
+class ActionTestPolicy(Policy):
+    def __init__(self, policy_env_info: PolicyEnvInterface | None, _: PolicyArchitecture | None = None):
+        if policy_env_info is None:
+            from mettagrid.config import MettaGridConfig
+
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
+        # Use a large embedding table to accommodate the full action set (includes all vibes).
+        config = ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=4, num_embeddings=196)
+        self.components = nn.ModuleDict({"action_embedding": ActionEmbedding(config)})
+        self._device = torch.device("cpu")
+
+    def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:
+        return td
+
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
+        self._device = torch.device(device)
+        self.components["action_embedding"].initialize_to_environment(policy_env_info, self._device)
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
 
     def reset_memory(self) -> None:
         return None
@@ -146,3 +179,18 @@ def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
 
     assert hasattr(reloaded, "core")
     assert isinstance(reloaded.core, CortexTD)
+
+
+def test_policy_artifact_reinitializes_environment_dependent_buffers() -> None:
+    policy_env_info = _policy_env_info()
+    architecture = ActionTestArchitecture()
+    # Save state before env init so env-derived buffers are empty in the checkpoint.
+    policy = architecture.make_policy(policy_env_info)
+    artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
+
+    reloaded = artifact.instantiate(policy_env_info, torch.device("cpu"), strict=False)
+
+    action_component = reloaded.components["action_embedding"]
+    expected_indices = tuple(range(len(policy_env_info.action_names)))
+    assert tuple(action_component.active_indices.tolist()) == expected_indices
+    assert action_component.num_actions == len(expected_indices)

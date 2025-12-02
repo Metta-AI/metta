@@ -16,7 +16,7 @@ class MazeConfigMapBuilderConfig(MapBuilderConfig):
 
 class MazePrimMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
     EMPTY, WALL = "empty", "wall"
-    START, END = "agent.agent", "altar"
+    START, END = "agent.agent", "assembler"
     DIRECTIONS = [(2, 0), (-2, 0), (0, 2), (0, -2)]
 
     def __init__(self, config: MazeConfigMapBuilderConfig):
@@ -61,7 +61,7 @@ class MazePrimMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
 # Maze generation using Randomized Kruskal's algorithm
 class MazeKruskalMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
     EMPTY, WALL = "empty", "wall"
-    START, END = "agent.agent", "altar"
+    START, END = "agent.agent", "assembler"
 
     def __init__(self, config: MazeConfigMapBuilderConfig):
         super().__init__(config)
