@@ -35,6 +35,7 @@ class SimulationRunResult(BaseModel):
     run: SimulationRunConfig
     results: MultiEpisodeRolloutResult
     per_slot_returns: dict[str, float] | None = None
+    per_slot_winrate: dict[str, float] | None = None
 
 
 def run_simulations(
@@ -105,23 +106,31 @@ def run_simulations(
         on_progress(f"Finished rollout for simulation {i}")
 
         per_slot_returns = None
+        per_slot_winrate = None
         if simulation.policy_slots and rollout_result.episode_returns:
             # Compute average return per slot by agent index mapping
             agent_map = simulation.agent_slot_map or []
             if agent_map:
                 per_slot_returns = {}
+                per_slot_winrate = {}
                 # episode_returns shape: [num_episodes, num_agents]
                 returns_tensor = torch.tensor(rollout_result.episode_returns)
+                wins_tensor = None
+                if rollout_result.episode_wins is not None:
+                    wins_tensor = torch.tensor(rollout_result.episode_wins)
                 for slot_id in set(agent_map):
                     idxs = [j for j, b in enumerate(agent_map) if b == slot_id]
                     if idxs:
                         per_slot_returns[slot_id] = float(returns_tensor[:, idxs].mean().item())
+                        if wins_tensor is not None:
+                            per_slot_winrate[slot_id] = float(wins_tensor[:, idxs].float().mean().item())
 
         simulation_rollouts.append(
             SimulationRunResult(
                 run=simulation,
                 results=rollout_result,
                 per_slot_returns=per_slot_returns,
+                per_slot_winrate=per_slot_winrate,
             )
         )
 
