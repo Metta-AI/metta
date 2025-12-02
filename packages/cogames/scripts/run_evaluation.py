@@ -1042,7 +1042,9 @@ def main():
     parser.add_argument("--experiments", nargs="*", default=None, help="Experiments to run")
     parser.add_argument("--variants", nargs="*", default=None, help="Variants to apply")
     parser.add_argument("--cogs", nargs="*", type=int, default=None, help="Agent counts to test")
-    parser.add_argument("--steps", type=int, default=1000, help="Max steps per episode")
+    # Episodes on main now default to 10k steps; reflect that here so ad‑hoc
+    # evaluations match live settings unless explicitly overridden.
+    parser.add_argument("--steps", type=int, default=10000, help="Max steps per episode")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--output", type=str, default=None, help="Output JSON file for results")
     parser.add_argument("--plot-dir", type=str, default="eval_plots", help="Directory to save plots")

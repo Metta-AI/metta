@@ -214,7 +214,9 @@ proc generateSpiral*(count: int): seq[Location] =
         inc stepSize
   return result
 
-const spiral* = generateSpiral(1000)
+# The spiral is only used for exploratory walk ordering.  Keep it long enough
+# to cover the extended 10k-step episodes now used in main.
+const spiral* = generateSpiral(10000)
 
 proc `$`*(recipe: RecipeInfo): string =
   ## Stringify the recipe.
