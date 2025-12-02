@@ -29,9 +29,14 @@ COPY devops/tools/install-system.sh /usr/local/bin/install-system.sh
 RUN chmod +x /usr/local/bin/install-system.sh
 RUN /usr/local/bin/install-system.sh
 
-COPY . .
+COPY packages/mettagrid/pyproject.toml packages/mettagrid/
+COPY app_backend/pyproject.toml app_backend/
+COPY common/pyproject.toml common/
+COPY agent/pyproject.toml agent/
 
-RUN uv sync --frozen
+RUN uv sync --no-install-workspace --frozen
+
+COPY . .
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/workspace/metta/.venv"
