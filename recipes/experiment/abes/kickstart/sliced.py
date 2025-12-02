@@ -115,9 +115,6 @@ def train(
     losses_config.sliced_kickstarter.teacher_uri = (
         "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
     )
-    # losses_config.sliced_kickstarter.teacher_uri = (
-    #     "s3://softmax-public/policies/av.teacher.12.01.03/av.teacher.12.01.03:v100.mpt"
-    # )
     ks_end_step = 1_000_000_000
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
