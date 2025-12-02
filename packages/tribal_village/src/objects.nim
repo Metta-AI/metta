@@ -4,7 +4,7 @@ export terrain.Structure
 
 
 type
-  
+
   DefenseItem* = enum
     NoDefense = 0
     Lantern = 1
@@ -36,38 +36,38 @@ type
     of ClayOven:
       wheatCostOven*: int
       outputFood*: FoodItem
-  
+
 
 
 const
   HouseSize* = 5
-  
+
   WeavingLoomCooldown* = 15
   WeavingLoomWheatCost* = 1
   WeavingLoomSize* = 3
-  
+
   ArmoryCooldown* = 20
   ArmoryOreCost* = 1
   ArmorySize* = 4
-  
+
   LanternTintRadius* = 2  # Lantern spreads tint in 5x5 area (radius 2)
   ArmorDefenseValue* = 5  # Armor provides strong protection
-  
+
   ClayOvenCooldown* = 10
   ClayOvenWheatCost* = 1
   ClayOvenSize* = 3
-  
+
   ForgeWoodCost* = 1  # Wood needed to craft a spear
   ForgeCooldown* = 5  # Cooldown after crafting
   SpearRange* = 2     # Attack range with spear (Manhattan distance)
-  
+
   TumorAttackDamage* = 2
   TumorSpeed* = 1
   TumorVisionRange* = 15  # Even further vision for plague-wave expansion
   TumorWanderPriority* = 3  # How many wander steps before checking for targets
-  TumorAltarSearchRange* = 12  # Extended range for aggressive altar hunting
+  TumorassemblerSearchRange* = 12  # Extended range for aggressive assembler hunting
   TumorAgentChaseRange* = 10  # Will chase agents within this range
-  
+
 
 proc createHouse*(): Structure =
   result.width = 5
@@ -75,11 +75,11 @@ proc createHouse*(): Structure =
   result.centerPos = ivec2(2, 2)
   result.needsBuffer = false
   result.bufferSize = 0
-  
+
   result.layout = @[
     @['A', '#', '.', '#', 'F'],  # Top row with Armory (top-left), Forge (top-right)
     @['#', ' ', ' ', ' ', '#'],  # Second row
-    @['.', ' ', 'a', ' ', '.'],  # Middle row with altar and E/W entrances
+    @['.', ' ', 'a', ' ', '.'],  # Middle row with assembler and E/W entrances
     @['#', ' ', ' ', ' ', '#'],  # Fourth row
     @['C', '#', '.', '#', 'W']   # Bottom row with Clay Oven (bottom-left), Weaving Loom (bottom-right)
   ]
@@ -87,7 +87,7 @@ proc createHouse*(): Structure =
 proc createProductionBuilding*(kind: ProductionBuildingKind): ProductionBuilding =
   result = ProductionBuilding(kind: kind)
   result.cooldown = 0
-  
+
   case kind
   of WeavingLoom:
     result.width = WeavingLoomSize

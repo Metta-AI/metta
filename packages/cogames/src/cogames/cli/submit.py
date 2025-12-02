@@ -16,6 +16,7 @@ from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
 from cogames.cli.policy import PolicySpec, get_policy_spec
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.vibes import VIBES
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
@@ -119,6 +120,8 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
     Loads the policy and runs a single step on a mock environment.
     """
     env = MettaGridConfig.EmptyRoom(num_agents=1)
+    env.game.actions.change_vibe.number_of_vibes = len(VIBES)
+    env.game._populate_vibe_names()
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env)
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
     rollout = Rollout(env, [policy.agent_policy(0)])

@@ -17,6 +17,7 @@ class StatsTracker(SimulatorEventHandler):
         self._episode_end_ts = None
         self._label_completions = {"completed_tasks": [], "completion_rates": {}}
         self._per_label_rewards = {}
+        self._per_label_chest_deposits = {}  # Track chest deposits per label
 
     def on_episode_start(self) -> None:
         super().on_episode_start()
@@ -63,6 +64,11 @@ class StatsTracker(SimulatorEventHandler):
             infos["label_completions"] = self._label_completions["completion_rates"]
         self._per_label_rewards[config.label] = mean_reward
         infos["per_label_rewards"] = self._per_label_rewards
+
+        # Track chest deposits per label (for per-mission analysis)
+        chest_deposited = stats["game"].get("chest.heart.deposited", 0.0)
+        self._per_label_chest_deposits[config.label] = chest_deposited
+        infos["per_label_chest_deposits"] = self._per_label_chest_deposits
 
         # Add attributes
         attributes: Dict[str, Any] = {
