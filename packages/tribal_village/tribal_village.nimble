@@ -1,4 +1,4 @@
-version     = "0.1.1"
+version     = "0.1.2"
 author      = "Metta Team"
 description = "High-performance tribal-village environment for multi-agent RL"
 license     = "MIT"
