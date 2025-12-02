@@ -400,6 +400,7 @@ proc getToolCraftInputs(agent: RaceCarAgent, tool: string): Table[string, int] =
   else:
     discard
 
+
 proc step*(
   agent: RaceCarAgent,
   numAgents: int,
@@ -409,6 +410,7 @@ proc step*(
   numActions: int,
   agentAction: ptr int32
 ) {.measure.} =
+
   try:
 
     let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
