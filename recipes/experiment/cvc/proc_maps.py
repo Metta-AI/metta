@@ -10,8 +10,7 @@ from metta.sweep.core import make_sweep
 from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
-from recipes.experiment.cogs_v_clips import evaluate
-from recipes.experiment.cogs_v_clips import play
+from recipes.experiment.cogs_v_clips import evaluate, play
 from recipes.experiment.cogs_v_clips import train_proc_maps as train
 
 
