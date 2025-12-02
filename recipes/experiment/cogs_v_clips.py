@@ -457,6 +457,7 @@ def play_training_env(
         variants=variants,
     )
 
+
 def train_coordination(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
@@ -531,4 +532,3 @@ __all__ = [
     "train_fixed_maps",
     "train_proc_maps",
 ]
-
