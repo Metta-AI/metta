@@ -105,12 +105,6 @@ Example action names:
 - **Description**: Attack a target to freeze (stun) them.
 - **Note**: Currently inoperable and needs to be refactored to work.
 
-### Resource Mod Action
-
-- **Name**: `resource_mod`
-- **Description**: Modify resources in a radius around the agent.
-- **Note**: Developed with the idea of agents sharing stress with each other. Has not been tested outside of unit tests.
-
 ## Policy Action Emission
 
 Policies should subclass `MultiAgentPolicy`. For training, where batch processing is most important, the `step_batch`

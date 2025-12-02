@@ -89,6 +89,15 @@ class HyperUpdateRule(Config):
     def _apply_progress(self, *, obj: object, epoch: int, agent_step: int) -> None:
         if self.start_value is None or self.end_value is None:
             return
+
+        # Check if current step/epoch is within the rule's range
+        if self.start_agent_step is not None and self.end_agent_step is not None:
+            if not (self.start_agent_step <= agent_step < self.end_agent_step):
+                return
+        elif self.start_epoch is not None and self.end_epoch is not None:
+            if not (self.start_epoch <= epoch < self.end_epoch):
+                return
+
         fn = ANNEALERS[self.style]
         value = fn(self._progress(epoch=epoch, agent_step=agent_step), float(self.start_value), float(self.end_value))
         _set_attr_path(obj, self.attr_path, float(value))
@@ -312,9 +321,16 @@ class LossScheduler(TrainerComponent):
             # Apply updates to the loss config object
             rule.apply(obj=loss.cfg, ctx=self.context)
 
-        # 3) For the upcoming rollout phase, restrict which experience keys
+        # 3) If the train phase is gated to false, restrict which experience keys
         #    must be present based on which losses are active for rollout.
-        if phase == "rollout":
+        #    Check if any loss has train phase disabled (gated to False)
+        train_disabled = False
+        for loss_name in self.context.losses.keys():
+            entry = gates.get(loss_name)
+            if entry and entry.get("train") is False:
+                train_disabled = True
+                break
+        if train_disabled:
             self._update_experience_store_keys_for_rollout()
 
     # ----------------- Trainer callbacks -----------------

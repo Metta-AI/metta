@@ -13,7 +13,7 @@ def main():
     mg_config.game.num_agents = 24
 
     mg_config.game.map_builder = RandomMapBuilder.Config(
-        agents=24, width=10, height=10, objects={"wall": 10, "altar": 1}, border_width=1, border_object="wall"
+        agents=24, width=10, height=10, objects={"wall": 10, "assembler": 1}, border_width=1, border_object="wall"
     )
 
     mg_config.game.actions = ActionsConfig(
