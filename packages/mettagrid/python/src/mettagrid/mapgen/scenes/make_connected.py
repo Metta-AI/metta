@@ -11,8 +11,8 @@ DIRECTIONS = ((-1, 0), (0, 1), (1, 0), (0, -1))
 STRUCTURE_4_CONNECTED = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
 
 # Cost ratio for wall vs empty. Higher = prefer corridors more aggressively.
-# With ratio 10, walking 10 empty cells equals digging through 1 wall.
-WALL_COST_RATIO = 10
+# Lowering from 10 -> 6 keeps a strong corridor bias but reduces search work.
+WALL_COST_RATIO = 6
 
 logger = logging.getLogger(__name__)
 
@@ -80,19 +80,30 @@ class MakeConnected(Scene[MakeConnectedConfig]):
         # Compute weighted distances from largest component
         distances, predecessors = self._weighted_distances(labels == largest_id, empty, height, width)
 
+        component_slices = ndimage.find_objects(labels)
+
         # Connect each non-largest component
         logger.debug(f"Connecting {num} components")
         for component_id in range(1, num + 1):
             if component_id == largest_id:
                 continue
 
-            # Get cells of this component
-            comp_ys, comp_xs = np.where(labels == component_id)
+            comp_slice = component_slices[component_id - 1]
+            if comp_slice is None:
+                continue
 
-            # Find the cell with minimum weighted distance to largest component
-            comp_distances = distances[comp_ys, comp_xs]
-            min_idx = int(np.argmin(comp_distances))
-            start_y, start_x = int(comp_ys[min_idx]), int(comp_xs[min_idx])
+            label_view = labels[comp_slice]
+            mask = label_view == component_id
+            if not mask.any():
+                continue
+
+            dist_view = distances[comp_slice]
+            flat_indices = np.flatnonzero(mask)
+            view_flat = dist_view.ravel()
+            best_flat_idx = int(flat_indices[np.argmin(view_flat[flat_indices])])
+            local_y, local_x = divmod(best_flat_idx, dist_view.shape[1])
+            start_y = comp_slice[0].start + local_y
+            start_x = comp_slice[1].start + local_x
 
             # Trace path back and only dig through walls
             self._dig_path(start_y, start_x, predecessors, empty)
