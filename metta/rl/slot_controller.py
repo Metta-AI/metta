@@ -21,7 +21,7 @@ class SlotControllerPolicy(Policy):
         slots: list[Any],
         slot_policies: Dict[int, Policy],
         policy_env_info,
-        controller_device: torch.device,
+        controller_device: torch.device | str | None = None,
         agent_slot_map: torch.Tensor | None = None,
     ) -> None:
         # Use the env info from trainer policy; architecture not needed here
@@ -30,7 +30,15 @@ class SlotControllerPolicy(Policy):
         self._slots = slots
         self._slot_policies = slot_policies
         self._policy_env_info = policy_env_info
-        self._device = torch.device(controller_device)
+        # Prefer explicit controller device, otherwise inherit from the first policy
+        inferred_device = None
+        if controller_device is not None:
+            inferred_device = torch.device(controller_device)
+        else:
+            first_policy = next(iter(slot_policies.values()), None)
+            if first_policy is not None and hasattr(first_policy, "device"):
+                inferred_device = torch.device(first_policy.device)
+        self._device = inferred_device or torch.device("cpu")
         self._agent_slot_map = agent_slot_map
 
         # Register trainable sub-policies so optimizer sees their parameters

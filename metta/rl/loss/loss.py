@@ -269,7 +269,10 @@ class Loss:
             data = value.data
             if hasattr(data, "shape") and getattr(data, "shape", None):
                 if data.shape[0] == segment_count:
-                    return NonTensorData(data[row_mask.cpu()])
+                    mask = row_mask
+                    if hasattr(data, "device") and mask.device != data.device:
+                        mask = mask.to(device=data.device)
+                    return NonTensorData(data[mask])
                 return None
             try:
                 bool_mask = row_mask.cpu().tolist()
