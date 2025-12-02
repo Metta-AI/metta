@@ -1,16 +1,28 @@
 import torch
+from types import SimpleNamespace
+
 from tensordict import NonTensorData, TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.ppo import PPO, PPOConfig
 
 
 class _StubPolicy:
     def __init__(self, experience_spec: Composite):
         self._spec = experience_spec
+        self.forward_called = False
+        self.burn_in_steps = 0
 
     def get_agent_experience_spec(self) -> Composite:
         return self._spec
+
+    def reset_memory(self) -> None:
+        return None
+
+    def forward(self, td, *, action=None):  # pragma: no cover - should not be hit in empty-mb test
+        self.forward_called = True
+        raise RuntimeError("policy.forward should not be called for empty minibatches")
 
 
 class _DummyLoss(Loss):
@@ -108,3 +120,56 @@ def test_slot_mask_reduces_2d_layout_to_segments():
     assert torch.equal(filtered["sampled_mb"]["actions"], torch.tensor([[0, 1]]))
     assert torch.equal(filtered["advantages"], torch.tensor([[0.0, 1.0]]))
     assert torch.equal(filtered["indices"].data, torch.tensor([0]))
+
+
+class _PPOForTest(PPO):
+    def __init__(self):
+        spec = Composite(
+            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+            loss_profile_id=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+            is_trainable_agent=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool),
+        )
+        policy = _StubPolicy(spec)
+        cfg = PPOConfig()
+        trainer_cfg = SimpleNamespace()
+        super().__init__(
+            policy=policy,
+            trainer_cfg=trainer_cfg,
+            env=None,  # not used in this test
+            device=torch.device("cpu"),
+            instance_name="ppo",
+            loss_config=cfg,
+        )
+        self.loss_profiles = {1}
+        self._stub_minibatch = TensorDict(
+            {
+                "actions": torch.zeros((2, 1), dtype=torch.int64),
+                "loss_profile_id": torch.zeros((2, 1), dtype=torch.int64),
+                "is_trainable_agent": torch.ones((2, 1), dtype=torch.bool),
+            },
+            batch_size=[2, 1],
+        )
+        self._stub_indices = torch.arange(2)
+        self._stub_prio = torch.ones((2, 1))
+
+    @property
+    def stub_policy(self) -> _StubPolicy:
+        return self.policy  # type: ignore[return-value]
+
+    def _sample_minibatch(self, advantages, prio_alpha, prio_beta, mb_idx):
+        return self._stub_minibatch.clone(), self._stub_indices.clone(), self._stub_prio.clone()
+
+    def _process_minibatch_update(self, minibatch, policy_td, indices, prio_weights):  # pragma: no cover
+        raise RuntimeError("_process_minibatch_update should not run for empty minibatches")
+
+
+def test_ppo_skips_empty_filtered_minibatch():
+    ppo = _PPOForTest()
+
+    loss_val, shared_loss_data, stop = ppo.run_train(TensorDict({}, batch_size=[]), context=None, mb_idx=1)
+
+    assert loss_val.item() == 0.0
+    assert not stop
+    assert shared_loss_data["sampled_mb"].batch_size[0] == 0
+    assert shared_loss_data["indices"].data.numel() == 0
+    assert not ppo.stub_policy.forward_called

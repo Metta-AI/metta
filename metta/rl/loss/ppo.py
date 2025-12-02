@@ -180,6 +180,12 @@ class PPO(Loss):
             indices = indices.data
         prio_weights = shared_loss_data["prio_weights"]
 
+        if minibatch.batch_size.numel() == 0:  # early exit if filtering removed all rows
+            shared_loss_data["sampled_mb"] = minibatch
+            shared_loss_data["indices"] = NonTensorData(indices)
+            shared_loss_data["prio_weights"] = prio_weights
+            return self._zero(), shared_loss_data, stop_update_epoch
+
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
         shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
 
