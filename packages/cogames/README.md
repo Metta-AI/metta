@@ -36,8 +36,8 @@ policy plays with other policies in the pool through running multi-policy, multi
 
 ## Quick Start
 
-Let's walk through playing an easy mission in Cogs vs. Clips, then training a simple starter policy. `easy_mode` uses
-three variants to simplify training:
+Let's install cogames and walk through playing an easy mission in Cogs vs. Clips. Then, we'll train a simple starter
+policy. `easy_mode` uses three variants to simplify training:
 
 - `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
   energy)
@@ -96,6 +96,13 @@ cogames leaderboard
 # Show version info for the installed tooling stack
 cogames version
 ```
+
+## Tutorial
+
+### `cogames tutorial`
+
+Play through our tutorial to get familiar with the game! Follow the instructions given in the terminal, while you use
+the GUI to accomplish your first training mission.
 
 ## Play, Train, and Eval
 

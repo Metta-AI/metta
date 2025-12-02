@@ -10,13 +10,13 @@ resources while fighting off hostile tumors.
 **Setup**
 
 ```bash
-# Install Nim via nimby (installs nim + nimble)
+# Install Nim via nimby
 #   macOS ARM: nimby-macOS-ARM64
 #   macOS x64: nimby-macOS-X64
 #   Linux x64: nimby-Linux-X64
 curl -L https://github.com/treeform/nimby/releases/download/0.1.11/nimby-macOS-ARM64 -o /tmp/nimby && chmod +x /tmp/nimby
 /tmp/nimby use 2.2.6
-nimble install -y --depsOnly
+nimby sync -g nimby.lock  # install Nim deps into ~/.nimby/pkgs and write nim.cfg
 # Make the Python package importable from anywhere (editable install)
 uv pip install -e packages/tribal_village
 ```
@@ -41,7 +41,7 @@ uv run --project packages/tribal_village tribal-village play --render ansi --ste
 
 ```bash
 # Ensure the shared library is up to date
-nimble buildLib  # Builds in danger mode for maximum performance
+uv run --project packages/tribal_village python -c "from tribal_village_env.build import ensure_nim_library_current; ensure_nim_library_current()"
 # Launch a quick sanity check (works from any directory once installed)
 python -c "from tribal_village_env import TribalVillageEnv; env = TribalVillageEnv()"
 
@@ -127,9 +127,11 @@ Multi-discrete `[move_direction, action_type]`:
 
 ## Build
 
-- Native shared library for Python: `nimble buildLib`
-- Native desktop viewer: `nimble run`
-- WebAssembly demo (requires Emscripten on PATH): `nimble wasm`
+- Native shared library for Python:
+  `uv run --project packages/tribal_village python -c "from tribal_village_env.build import ensure_nim_library_current; ensure_nim_library_current()"`
+- Native desktop viewer: `nim r -d:release tribal_village.nim`
+- WebAssembly demo (requires Emscripten on PATH):\
+  `nim c --app:gui --threads:off --gc:arc --exceptions:goto --os:linux --cpu:wasm32 --cc:clang --nimcache:build/web/nimcache --listCmd -d:release -d:emscripten -d:nimNoDevRandom -d:nimNoGetRandom -d:nimNoSysrand --passL:"--shell-file=scripts/shell_minimal.html" --passL:"--preload-file data" --passL:"-sUSE_GLFW=3" --passL:"-sUSE_WEBGL2=1" --passL:"-sASYNCIFY" --passL:"-sALLOW_MEMORY_GROWTH" --passL:"-sINITIAL_MEMORY=512MB" --passL:"-sFULL_ES3=1" --passL:"-sGL_ENABLE_GET_PROC_ADDRESS=1" --passL:"-sERROR_ON_UNDEFINED_SYMBOLS=0" -o:build/web/tribal_village.html tribal_village.nim`\
   - Outputs to `build/web/tribal_village.html`; serve via `python -m http.server 8000`
 
 ### PufferLib Rendering
@@ -142,7 +144,7 @@ Multi-discrete `[move_direction, action_type]`:
 
 **Core**: `tribal_village.nim` (main), `src/environment.nim` (simulation), `src/ai.nim` (built-in agents) **Rendering**:
 `src/renderer.nim`, `src/ui.nim`, `src/controls.nim` **Integration**: `src/tribal_village_interface.nim` (C interface),
-`tribal_village_env/` (Python wrapper) **Build**: `build_lib.sh`, `tribal_village.nimble`
+`tribal_village_env/` (Python wrapper) **Build**: `nimby.lock`, `tribal_village.nimble`
 
 ## Dependencies
 

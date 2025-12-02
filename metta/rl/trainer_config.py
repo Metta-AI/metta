@@ -4,6 +4,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.training import HeartbeatConfig
+from metta.rl.training.update_epochs_tuner import UpdateEpochAutoTunerConfig
 from mettagrid.base_config import Config
 
 
@@ -45,30 +46,6 @@ class TorchProfilerConfig(Config):
         if self.enabled:
             assert self.profile_dir, "profile_dir must be set"
         return self
-
-
-class UpdateEpochAutoTunerConfig(Config):
-    """Configuration for automatically tuning update epochs."""
-
-    min_update_epochs: int = Field(default=1, ge=1)
-    max_update_epochs: int = Field(default=8, ge=1)
-    step_size: int = Field(default=1, ge=1)
-    evaluation_epochs: int = Field(default=0, ge=0)
-    warmup_epochs: int = Field(default=2, ge=0)
-    cooldown_epochs: int = Field(default=2, ge=0)
-    target_kl: float = Field(default=0.015, ge=0.0)
-    kl_tolerance: float = Field(default=0.3, ge=0.0)
-    max_clipfrac: float = Field(default=0.3, ge=0.0, le=1.0)
-
-    @model_validator(mode="after")
-    def validate_bounds(self) -> "UpdateEpochAutoTunerConfig":
-        if self.max_update_epochs < self.min_update_epochs:
-            raise ValueError("max_update_epochs must be >= min_update_epochs")
-        return self
-
-    @property
-    def enabled(self) -> bool:
-        return self.evaluation_epochs > 0
 
 
 class TrainerConfig(Config):
