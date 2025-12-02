@@ -407,18 +407,22 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
     if nimby_up_to_date and nim_up_to_date:
         return
 
-    nim_bin_dir = Path.home() / ".nimby" / "nim" / "bin"
+    install_dir = get_install_dir()
+    if not install_dir:
+        error(f"No dir to install it into identified. Consider adding {TARGET_INSTALL_DIRS[0]} to your PATH")
+        raise RuntimeError("No dir to install it into identified")
+    target_nimby_path = install_dir / "nimby"
 
     # 3. Install nimby if missing or out of date
     if not nimby_up_to_date:
-        info(f"Nimby is {'out of date' if current_nimby_version else 'not found'}. Installing...")
-        _install_nimby(nim_bin_dir)
+        info(f"Nimby is {'out of date' if current_nimby_version else 'not found'}. Installing at {target_nimby_path}")
+        _install_nimby(target_nimby_path)
 
     # 4. Install nim if missing or out of date
     if not nim_up_to_date:
         info(f"Nim is {'out of date' if current_nim_version else 'not found'}. Installing...")
         result = subprocess.run(
-            [str(nim_bin_dir / "nimby"), "use", REQUIRED_NIM_VERSION],
+            [str(target_nimby_path), "use", REQUIRED_NIM_VERSION],
             check=False,
             capture_output=True,
             text=True,
@@ -426,41 +430,21 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
         if result.returncode != 0:
             error(f"Failed to install Nim version {REQUIRED_NIM_VERSION}: {result.stderr}")
             raise RuntimeError("Nim installation failed")
-
-    # If not found in path after installation, symlink into a writable directory in PATH
-    not_found = [p for p in ["nim", "nimby"] if not shutil.which(p)]
-    if not_found:
-        info(f"{', '.join(not_found)} not found in path after installation.")
-        install_dir = get_install_dir()
-        if not install_dir:
-            error(f"No dir to install it into identified. Consider adding {TARGET_INSTALL_DIRS[0]} to your PATH")
-            raise RuntimeError("No dir to install it into identified")
-        linked_any = False
-        for tool in not_found:
-            src = nim_bin_dir / tool
-            dest = install_dir / tool
-
-            if src.exists() and src.is_file() and os.access(src, os.X_OK):
-                if dest.is_symlink():
-                    try:
-                        current_target = dest.readlink()
-                        if current_target == src:
-                            continue
-                    except Exception:
-                        pass
-                try:
-                    if dest.exists():
-                        dest.unlink()
-                    dest.symlink_to(src)
-                    linked_any = True
-                except Exception as e:
-                    warning(f"Failed to link {tool}: {e}")
-
-        if linked_any:
-            info(f"Linked {', '.join(not_found)} into {install_dir}")
+        # This is where nimby use installs
+        target_nim_path = Path.home() / ".nimby" / "nim" / "bin" / "nim"
+        if not target_nim_path.exists():
+            error(f"Nim not found in {target_nim_path}")
+            raise RuntimeError(f"Nim not found in {target_nim_path}")
+        if not shutil.which("nim"):
+            error(f"Nim at {target_nim_path} not found in PATH after installation. Symlinking into {install_dir}")
+            dest = install_dir / "nim"
+            if dest.exists():
+                dest.unlink()
+            dest.symlink_to(target_nim_path)
+            info(f"Linked Nim to {dest}")
 
 
-def _install_nimby(nim_bin_dir: Path) -> None:
+def _install_nimby(target_nimby_path: Path) -> None:
     # Download and install nimby
     machine = platform.machine()
     if platform.system() == "Linux":
@@ -480,11 +464,12 @@ def _install_nimby(nim_bin_dir: Path) -> None:
         raise RuntimeError(f"Unsupported architecture: {machine}")
 
     url = f"https://github.com/treeform/nimby/releases/download/{REQUIRED_NIMBY_VERSION}/nimby-{os_name}-{arch}"
-    info(f"Downloading Nimby from {url}")
-    nim_bin_dir.mkdir(parents=True, exist_ok=True)
-    nimby_path = nim_bin_dir / "nimby"
+    info(f"Downloading Nimby from {url} to {target_nimby_path}")
+    target_nimby_path.parent.mkdir(parents=True, exist_ok=True)
+    if target_nimby_path.exists() or target_nimby_path.is_symlink():
+        target_nimby_path.unlink()
     try:
-        urllib.request.urlretrieve(url, nimby_path)
+        urllib.request.urlretrieve(url, str(target_nimby_path))
     except urllib.error.HTTPError as e:
         if e.code == 404:
             error(
@@ -496,7 +481,8 @@ def _install_nimby(nim_bin_dir: Path) -> None:
     except Exception as e:
         error(f"Failed to download Nimby: {e}")
         raise
-    nimby_path.chmod(0o755)
+    target_nimby_path.chmod(0o755)
+    info(f"Nimby installed to {target_nimby_path}")
 
 
 def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> None:
