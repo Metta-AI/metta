@@ -1,5 +1,3 @@
-import math
-
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AssemblerConfig,
@@ -36,7 +34,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if "obs" in config_dict and "features" in config_dict["obs"]:
             config_dict["obs"] = config_dict["obs"].copy()
             config_dict["obs"].pop("features", None)
+        # Keep vibe_names in sync with number_of_vibes; favor the explicit count.
+        config_dict.pop("vibe_names", None)
+        change_vibe_cfg = config_dict.setdefault("actions", {}).setdefault("change_vibe", {})
+        change_vibe_cfg["number_of_vibes"] = change_vibe_cfg.get("number_of_vibes") or len(VIBES)
         game_config = GameConfig(**config_dict)
+
+    # Ensure runtime object has consistent vibes.
+    game_config.actions.change_vibe.number_of_vibes = game_config.actions.change_vibe.number_of_vibes or len(VIBES)
+    game_config.vibe_names = [vibe.name for vibe in VIBES[: game_config.actions.change_vibe.number_of_vibes]]
 
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
@@ -50,8 +56,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # The C++ bindings expect dense uint8 identifiers, so keep a name->id lookup.
     num_vibes = game_config.actions.change_vibe.number_of_vibes
     supported_vibes = VIBES[:num_vibes]
-    if not game_config.vibe_names:
-        game_config.vibe_names = [vibe.name for vibe in supported_vibes]
     vibe_name_to_id = {vibe.name: i for i, vibe in enumerate(supported_vibes)}
 
     objects_cpp_params = {}  # params for CppWallConfig
@@ -373,13 +377,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 f"Either add these resources to resource_names or disable the action."
             )
 
-        consumed_resources = {resource_name_to_id[k]: float(v) for k, v in action_config.consumed_resources.items()}
+        consumed_resources = {resource_name_to_id[k]: int(v) for k, v in action_config.consumed_resources.items()}
 
         required_source = action_config.required_resources
         if not required_source:
-            required_source = {k: math.ceil(v) for k, v in action_config.consumed_resources.items()}
+            required_source = action_config.consumed_resources
 
-        required_resources = {resource_name_to_id[k]: int(math.ceil(v)) for k, v in required_source.items()}
+        required_resources = {resource_name_to_id[k]: int(v) for k, v in required_source.items()}
 
         return {
             "consumed_resources": consumed_resources,

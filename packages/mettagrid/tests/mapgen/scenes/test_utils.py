@@ -8,7 +8,7 @@ def assert_grid(scene, ascii_grid: str, char_to_name: dict[str, str] | None = No
     # Default char_to_name mapping for common ASCII characters
     default_char_to_name = {
         "#": "wall",
-        "_": "altar",
+        "_": "assembler",
         ".": "empty",
         "@": "agent.agent",
         "n": "npc",

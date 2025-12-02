@@ -47,19 +47,6 @@ class TestEvalTaskOrchestratorIntegration:
         # Replace httpx client with TestClientAdapter
         client._http_client = TestClientAdapter(test_client)  # type: ignore
 
-        # Override the adapter's request method to add X-Auth-Request-Email header
-        original_request = client._http_client.request
-
-        def request_with_auth(method, url, **kwargs):
-            # Merge headers from kwargs with our auth header
-            existing_headers = kwargs.get("headers", {})
-            # Add X-Auth-Request-Email to existing headers
-            merged_headers = {**existing_headers, "X-Auth-Request-Email": "test_user@example.com"}
-            kwargs["headers"] = merged_headers
-            return original_request(method, url, **kwargs)
-
-        client._http_client.request = request_with_auth
-
         return client
 
     def create_success_worker(self, worker_name: str, eval_task_client: EvalTaskClient) -> EvalTaskWorker:
