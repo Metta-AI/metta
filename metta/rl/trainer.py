@@ -169,8 +169,12 @@ class Trainer:
         # Simple mapping: loss name matches profile name; default allow all
         for loss_name, loss_obj in losses.items():
             # If the loss has explicit profiles configured in config, map them; otherwise None means no filtering
-            profiles = []
-            cfg_profiles = getattr(getattr(self._cfg.losses, loss_name, None), "profiles", None)
+            profiles: list[int] = []
+            cfg_attr = getattr(self._cfg.losses, loss_name, None)
+            # Backward-compatible aliasing: action_supervisor loss config lives at losses.supervisor
+            if cfg_attr is None and loss_name == "action_supervisor":
+                cfg_attr = getattr(self._cfg.losses, "supervisor", None)
+            cfg_profiles = getattr(cfg_attr, "profiles", None)
             if cfg_profiles:
                 for name in cfg_profiles:
                     if name in loss_profile_lookup:
