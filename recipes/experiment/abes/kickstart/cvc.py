@@ -50,17 +50,37 @@ COORDINATION_MISSIONS: list[str] = [
 ]
 
 PROC_MAP_MISSIONS: tuple[str, ...] = tuple(
-    f"hello_world{MAP_MISSION_DELIMITER}{mission}"
-    for mission in (
-        "open_world",
-        "hello_world_unclip",
-        "oxygen_bottleneck",
-        "energy_starved",
-        "distant_resources",
-        "quadrant_buildings",
-        "single_use_swarm",
-        "vibe_check",
-        "easy_hearts",
+    list(
+        {
+            f"hello_world{MAP_MISSION_DELIMITER}{mission}"
+            for mission in (
+                "open_world",
+                "hello_world_unclip",
+                "oxygen_bottleneck",
+                "energy_starved",
+                "distant_resources",
+                "quadrant_buildings",
+                "single_use_swarm",
+                "vibe_check",
+                "easy_hearts",
+            )
+        }
+        | {
+            f"training_facility{MAP_MISSION_DELIMITER}{mission}"
+            for mission in (
+                "harvest",
+                "vibe_check",
+                "repair",
+                "easy_hearts_training_facility",
+            )
+        }
+        | {
+            f"machina_1{MAP_MISSION_DELIMITER}{mission}"
+            for mission in (
+                "open_world",
+                "balanced_corners",
+            )
+        }
     )
 )
 
