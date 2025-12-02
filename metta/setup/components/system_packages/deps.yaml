@@ -104,3 +104,9 @@ packages:
     brew:
       name: amazon-efs-utils
       tap: aws/aws
+
+  corepack:
+    brew:
+      name: corepack
+    apt:
+      name: corepack
