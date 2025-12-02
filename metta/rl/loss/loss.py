@@ -219,6 +219,8 @@ class Loss:
                     filtered[key] = value[mask]
                 elif isinstance(value, torch.Tensor) and value.shape[:1] == mb.shape[:1]:
                     filtered[key] = value[mask]
+                elif key == "indices":
+                    filtered[key] = value[mask]
             except Exception:
                 pass
 

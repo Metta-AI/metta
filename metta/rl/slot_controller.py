@@ -20,8 +20,9 @@ class SlotControllerPolicy(Policy):
         slot_lookup: Dict[str, int],
         slots: list[Any],
         slot_policies: Dict[int, Policy],
+        slot_devices: Dict[int, torch.device],
         policy_env_info,
-        device: torch.device,
+        controller_device: torch.device,
         agent_slot_map: torch.Tensor | None = None,
     ) -> None:
         # Use the env info from trainer policy; architecture not needed here
@@ -30,8 +31,9 @@ class SlotControllerPolicy(Policy):
         self._slots = slots
         self._slot_policies = slot_policies
         self._policy_env_info = policy_env_info
-        self._device = torch.device(device)
+        self._device = torch.device(controller_device)
         self._agent_slot_map = agent_slot_map
+        self._slot_devices = {k: torch.device(v) for k, v in slot_devices.items()}
 
         # Register trainable sub-policies so optimizer sees their parameters
         for idx, policy in slot_policies.items():
@@ -44,8 +46,9 @@ class SlotControllerPolicy(Policy):
         return first_policy.get_agent_experience_spec()
 
     def initialize_to_environment(self, policy_env_info, device: torch.device) -> None:  # noqa: D401
-        for policy in self._slot_policies.values():
-            policy.initialize_to_environment(policy_env_info, device)
+        for idx, policy in self._slot_policies.items():
+            target_device = self._slot_devices.get(idx, device)
+            policy.initialize_to_environment(policy_env_info, target_device)
         self._device = torch.device(device)
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
@@ -77,7 +80,10 @@ class SlotControllerPolicy(Policy):
             if policy is None:
                 raise RuntimeError(f"No policy registered for slot id {int(b_id)}")
 
-            out_td = policy.forward(sub_td, action=None if action is None else action[mask])
+            target_device = self._slot_devices.get(int(b_id), self._device)
+            sub_td = sub_td.to(device=target_device)
+            out_td = policy.forward(sub_td, action=None if action is None else action[mask].to(device=target_device))
+            out_td = out_td.to(device=td.device)
 
             # Merge only action/logprob/value-related keys to avoid overwriting metadata
             for key in ("actions", "act_log_prob", "entropy", "values", "full_log_probs", "logits"):

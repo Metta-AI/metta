@@ -79,8 +79,9 @@ class Trainer:
                 slot_lookup=slot_state["slot_lookup"],
                 slots=slot_state["slots"],
                 slot_policies=slot_state["slot_policies"],
+                slot_devices=slot_state["slot_devices"],
                 policy_env_info=self._env.policy_env_info,
-                device=self._device,
+                controller_device=self._device,
                 agent_slot_map=slot_state["slot_ids"],
             )
 
@@ -313,6 +314,7 @@ class Trainer:
 
         slot_lookup: dict[str, int] = {}
         slot_policies: dict[int, Policy] = {}
+        slot_devices: dict[int, torch.device] = {}
         for slot in slots_cfg:
             if slot.id in slot_lookup:
                 raise ValueError(f"Duplicate policy slot id '{slot.id}'")
@@ -320,6 +322,7 @@ class Trainer:
             if slot.use_trainer_policy:
                 self._set_trainable_flag(trainer_policy, slot.trainable)
                 slot_policies[slot_lookup[slot.id]] = trainer_policy
+                slot_devices[slot_lookup[slot.id]] = self._device
             else:
                 loaded_policy = self._slot_registry.get(
                     slot,
@@ -328,6 +331,7 @@ class Trainer:
                 )
                 self._set_trainable_flag(loaded_policy, slot.trainable)
                 slot_policies[slot_lookup[slot.id]] = loaded_policy
+                slot_devices[slot_lookup[slot.id]] = self._device if slot.device is None else torch.device(slot.device)
 
         # Loss profiles (config-only in Phase 0)
         loss_profiles = dict(self._cfg.loss_profiles)
@@ -373,6 +377,7 @@ class Trainer:
             "loss_profile_ids": loss_profile_tensor,
             "trainable_mask": trainable_tensor,
             "slot_policies": slot_policies,
+            "slot_devices": slot_devices,
         }
 
     def _extend_policy_experience_spec(self, base_spec: Composite, has_multiple_slots: bool) -> Composite:
