@@ -7,6 +7,8 @@ from torchrl.data import Composite, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.binding_config import LossProfileConfig, PolicyBindingConfig
+from metta.rl.binding_controller import BindingControllerPolicy
+from metta.rl.policy_registry import PolicyRegistry
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
@@ -65,17 +67,26 @@ class Trainer:
         self._components: list[TrainerComponent] = []
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
+        self._policy_registry = PolicyRegistry()
 
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.policy_env_info, self._device)
         self._policy.train()
 
+        binding_state = self._build_binding_state(self._policy)
+        if len(binding_state["bindings"]) > 1 or not binding_state["bindings"][0].use_trainer_policy:
+            self._policy = BindingControllerPolicy(
+                binding_lookup=binding_state["binding_lookup"],
+                bindings=binding_state["bindings"],
+                binding_policies=binding_state["binding_policies"],
+                policy_env_info=self._env.policy_env_info,
+                device=self._device,
+            )
+
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
         losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
         self._policy.train()
-
-        binding_state = self._build_binding_state()
 
         batch_info = self._env.batch_info
 
@@ -258,7 +269,7 @@ class Trainer:
     # ------------------------------------------------------------------
     # Binding setup helpers
     # ------------------------------------------------------------------
-    def _build_binding_state(self) -> dict[str, Any]:
+    def _build_binding_state(self, trainer_policy: Policy) -> dict[str, Any]:
         """Prepare per-agent binding and loss-profile metadata."""
 
         bindings_cfg = list(self._cfg.policy_bindings or [])
@@ -272,10 +283,19 @@ class Trainer:
             raise ValueError("Only one binding may set use_trainer_policy=True")
 
         binding_lookup: dict[str, int] = {}
+        binding_policies: dict[int, Policy] = {}
         for binding in bindings_cfg:
             if binding.id in binding_lookup:
                 raise ValueError(f"Duplicate policy binding id '{binding.id}'")
             binding_lookup[binding.id] = len(binding_lookup)
+            if binding.use_trainer_policy:
+                binding_policies[binding_lookup[binding.id]] = trainer_policy
+            else:
+                binding_policies[binding_lookup[binding.id]] = self._policy_registry.get(
+                    binding,
+                    self._env.policy_env_info,
+                    self._device if binding.device is None else torch.device(binding.device),
+                )
 
         # Loss profiles (config-only in Phase 0)
         loss_profiles = dict(self._cfg.loss_profiles)
@@ -328,6 +348,7 @@ class Trainer:
             "binding_ids": binding_tensor,
             "loss_profile_ids": loss_profile_tensor,
             "trainable_mask": trainable_tensor,
+            "binding_policies": binding_policies,
         }
 
     def _extend_policy_experience_spec(self, base_spec: Composite) -> Composite:
