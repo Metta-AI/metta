@@ -104,44 +104,40 @@ def ensure_nim_library_current(verbose: bool = True) -> Path:
 
 
 def _ensure_nim_toolchain() -> None:
-    """Ensure nim/nimby exist, bootstrap via nimby if missing."""
+    """Ensure nimby is available and installs the requested Nim version."""
 
-    nim_path = shutil.which("nim")
     nimby_path = shutil.which("nimby")
-    if nim_path and nimby_path:
-        return
 
     system = platform.system()
     arch = platform.machine().lower()
-    if system == "Linux":
-        url = f"https://github.com/treeform/nimby/releases/download/{DEFAULT_NIMBY_VERSION}/nimby-Linux-X64"
-    elif system == "Darwin":
-        suffix = "ARM64" if "arm" in arch else "X64"
-        url = f"https://github.com/treeform/nimby/releases/download/{DEFAULT_NIMBY_VERSION}/nimby-macOS-{suffix}"
-    else:
-        raise RuntimeError(f"Unsupported OS for nimby bootstrap: {system}")
+    if nimby_path is None:
+        if system == "Linux":
+            url = f"https://github.com/treeform/nimby/releases/download/{DEFAULT_NIMBY_VERSION}/nimby-Linux-X64"
+        elif system == "Darwin":
+            suffix = "ARM64" if "arm" in arch else "X64"
+            url = f"https://github.com/treeform/nimby/releases/download/{DEFAULT_NIMBY_VERSION}/nimby-macOS-{suffix}"
+        else:
+            raise RuntimeError(f"Unsupported OS for nimby bootstrap: {system}")
 
-    dst = Path.home() / ".nimby" / "nim" / "bin" / "nimby"
-    with tempfile.TemporaryDirectory() as tmp:
-        nimby_path = Path(tmp) / "nimby"
-        urllib.request.urlretrieve(url, nimby_path)
-        nimby_path.chmod(nimby_path.stat().st_mode | stat.S_IEXEC)
-        subprocess.check_call([str(nimby_path), "use", DEFAULT_NIM_VERSION])
+        dst = Path.home() / ".nimby" / "nim" / "bin" / "nimby"
+        with tempfile.TemporaryDirectory() as tmp:
+            nimby_dl = Path(tmp) / "nimby"
+            urllib.request.urlretrieve(url, nimby_dl)
+            nimby_dl.chmod(nimby_dl.stat().st_mode | stat.S_IEXEC)
+            subprocess.check_call([str(nimby_dl), "use", DEFAULT_NIM_VERSION])
 
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(nimby_path, dst)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(nimby_dl, dst)
+
+        nimby_path = str(dst)
 
     nim_bin_dir = Path.home() / ".nimby" / "nim" / "bin"
     os.environ["PATH"] = f"{nim_bin_dir}{os.pathsep}" + os.environ.get("PATH", "")
-    nimby_path = shutil.which("nimby")
 
-    if not nimby_path:
-        raise RuntimeError("Failed to provision nimby.")
-
-    if not shutil.which("nim"):
+    if shutil.which("nim") is None:
         subprocess.check_call([nimby_path, "use", DEFAULT_NIM_VERSION])
 
-    if not shutil.which("nim"):
+    if shutil.which("nim") is None:
         raise RuntimeError("Failed to provision nim via nimby.")
 
 

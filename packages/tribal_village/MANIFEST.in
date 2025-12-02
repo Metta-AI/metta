@@ -10,5 +10,4 @@ recursive-include tribal_village_env libtribal_village.*
 recursive-include src *.nim
 recursive-include data *
 include tribal_village.nimble
-include config.nims
 include nimby.lock
