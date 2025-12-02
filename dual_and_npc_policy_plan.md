@@ -93,11 +93,12 @@
 - Scripted policies load via `class_path` through the registry. Puffer teacher actions map to a teacher binding; no
   special slot code.
 
-## Phase 6 – Backward Compatibility & Migration
+## Phase 6 – Canonicalization (no legacy path)
 
-- Auto-synthesize default binding/map when absent. `dual_policy` shorthand (if kept) expands to two bindings + map; mark
-  deprecated.
-- No legacy PPO path; feature-flag loss-profile filtering during rollout.
+- Make bindings + agent_binding_map the only supported control surface; remove/deprecate legacy shorthands like
+  `dual_policy`.
+- Present split-loss stack as default; do not support the legacy combined PPO.
+- Defaults may still auto-create a single binding for convenience, but no legacy-specific code paths remain.
 
 ## Phase 7 – Testing
 
