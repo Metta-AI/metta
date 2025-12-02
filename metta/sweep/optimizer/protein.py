@@ -11,17 +11,19 @@ from typing import Any, Dict, Tuple
 
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.sweep.core import CategoricalParameterConfig, ParameterConfig
+from metta.sweep.optimizer.constraints import ConstraintAwareMixin
 from metta.sweep.protein import Protein
 from metta.sweep.protein_config import ProteinConfig
 
 logger = logging.getLogger(__name__)
 
 
-class ProteinOptimizer:
+class ProteinOptimizer(ConstraintAwareMixin):
     """Adapter for Protein optimizer."""
 
     def __init__(self, config: ProteinConfig):
         """Initialize with Protein configuration."""
+        super().__init__()
         self.config = config
         # Categorical mapping: flat_key -> (value_to_index, index_to_value)
         self._categorical_maps: dict[str, Tuple[Dict[Any, int], Dict[int, Any]]] = {}
@@ -31,6 +33,9 @@ class ProteinOptimizer:
         # Only support Bayesian optimization
         if config.method != "bayes":
             raise ValueError(f"Unsupported optimization method: {config.method}. Only 'bayes' is supported.")
+
+        if config.constraints:
+            self.register_constraints([spec.build() for spec in config.constraints])
 
     def suggest(self, observations: list[dict[str, Any]], n_suggestions: int = 1) -> list[dict[str, Any]]:
         """Generate hyperparameter suggestions."""
@@ -104,7 +109,7 @@ class ProteinOptimizer:
                 suggestions.append(clean_numpy_types(decoded))
                 logger.debug(f"Generated suggestion with info: {info}")
 
-        return suggestions
+        return self._apply_constraints(suggestions)
 
     # --- Internal helpers ---
     def _build_numeric_protein_dict_and_maps(self) -> dict:

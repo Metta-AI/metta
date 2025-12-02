@@ -10,6 +10,7 @@ from typing import Any, Dict, Literal
 from pydantic import Field
 
 from metta.sweep.core import ParameterConfig
+from metta.sweep.optimizer.constraints import ConstraintSpec
 from mettagrid.base_config import Config
 
 
@@ -48,6 +49,9 @@ class ProteinConfig(Config):
 
     # Parameters to optimize - nested dict structure
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Nested dict of parameters to optimize")
+
+    # Optional inter-parameter constraints
+    constraints: list[ConstraintSpec] = Field(default_factory=list, description="Inter-parameter constraints")
 
     # Protein algorithm settings
     settings: ProteinSettings = Field(

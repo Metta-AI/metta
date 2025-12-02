@@ -1,7 +1,10 @@
 """Tests for ProteinOptimizer class."""
 
+import copy
+
 import pytest
 
+from metta.sweep.optimizer.constraints import ConstraintSpec, DivisionConstraint
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 
@@ -248,3 +251,105 @@ class TestProteinOptimizer:
         # Should handle gracefully
         suggestions = optimizer.suggest(observations, n_suggestions=1)
         assert len(suggestions) == 1
+
+    def test_division_constraint_applied(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Division constraint clamps divisor to a valid factor."""
+
+        class DummyProtein:
+            def __init__(self, *_, **__):
+                pass
+
+            def observe(self, hypers, score, cost, is_failure):
+                pass
+
+            def suggest(self, n_suggestions=1):
+                base = {"trainer": {"batch_size": 64, "minibatch_size": 20}}
+                info = {}
+                if n_suggestions == 1:
+                    return copy.deepcopy(base), info
+                return [(copy.deepcopy(base), info) for _ in range(n_suggestions)]
+
+        monkeypatch.setattr("metta.sweep.optimizer.protein.Protein", DummyProtein)
+
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "trainer": {
+                    "batch_size": ParameterConfig(distribution="int_uniform", min=32, max=128, mean=64, scale="auto"),
+                    "minibatch_size": ParameterConfig(
+                        distribution="int_uniform", min=8, max=64, mean=32, scale="auto"
+                    ),
+                }
+            },
+            constraints=[ConstraintSpec(divisor_key="trainer.minibatch_size", dividend_key="trainer.batch_size")],
+        )
+
+        optimizer = ProteinOptimizer(config)
+        suggestion = optimizer.suggest([], n_suggestions=1)[0]
+
+        assert suggestion["trainer"]["batch_size"] == 64
+        assert suggestion["trainer"]["minibatch_size"] == 16  # Largest divisor <= 20
+
+    def test_constraints_apply_to_multiple_suggestions(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Constraints are enforced for batched suggestion requests."""
+
+        class DummyProtein:
+            def __init__(self, *_, **__):
+                pass
+
+            def observe(self, hypers, score, cost, is_failure):
+                pass
+
+            def suggest(self, n_suggestions=1):
+                base = {"trainer": {"batch_size": 90, "minibatch_size": 17}}
+                info = {}
+                if n_suggestions == 1:
+                    return copy.deepcopy(base), info
+                return [(copy.deepcopy(base), info) for _ in range(n_suggestions)]
+
+        monkeypatch.setattr("metta.sweep.optimizer.protein.Protein", DummyProtein)
+
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "trainer": {
+                    "batch_size": ParameterConfig(distribution="int_uniform", min=32, max=128, mean=64, scale="auto"),
+                    "minibatch_size": ParameterConfig(
+                        distribution="int_uniform", min=8, max=64, mean=32, scale="auto"
+                    ),
+                }
+            },
+            constraints=[ConstraintSpec(divisor_key="trainer.minibatch_size", dividend_key="trainer.batch_size")],
+        )
+
+        optimizer = ProteinOptimizer(config)
+        suggestions = optimizer.suggest([], n_suggestions=3)
+
+        assert len(suggestions) == 3
+        assert all(s["trainer"]["batch_size"] == 90 for s in suggestions)
+        assert all(s["trainer"]["minibatch_size"] == 15 for s in suggestions)
+        assert suggestions[0] is not suggestions[1]
+
+    def test_division_constraint_noop_when_missing_keys(self) -> None:
+        """Division constraint is vacuously satisfied when keys are absent."""
+        constraint = DivisionConstraint(divisor_key="trainer.minibatch_size", dividend_key="trainer.batch_size")
+        suggestion = {"trainer": {"batch_size": 64}}
+        applied = constraint.apply(copy.deepcopy(suggestion))
+        assert applied == suggestion
+        assert constraint.is_satisfied(suggestion)
+
+    def test_division_constraint_adjusts_dividend(self) -> None:
+        """Constraint can adjust dividend instead of divisor."""
+        constraint = DivisionConstraint(
+            divisor_key="trainer.minibatch_size",
+            dividend_key="trainer.batch_size",
+            adjust_target="dividend",
+        )
+        suggestion = {"trainer": {"batch_size": 65, "minibatch_size": 16}}
+        applied = constraint.apply(copy.deepcopy(suggestion))
+        assert applied["trainer"]["batch_size"] == 64  # largest multiple of 16 <= 65
+        assert applied["trainer"]["minibatch_size"] == 16
