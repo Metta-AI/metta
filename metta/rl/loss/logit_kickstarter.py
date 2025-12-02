@@ -13,6 +13,7 @@ from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
@@ -98,6 +99,8 @@ class LogitKickstarter(Loss):
         # obs encoder also understands the extra feature.
         teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
         self.teacher_policy = initialize_or_load_policy(self.extended_policy_env_info, teacher_spec)
+        if isinstance(self.teacher_policy, MptPolicy):
+            self.teacher_policy = self.teacher_policy._policy
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
