@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import multiprocessing
-import platform
 import os
+import platform
 from typing import Any, Optional
 
 import numpy as np
