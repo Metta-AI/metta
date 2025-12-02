@@ -62,7 +62,8 @@ class ActionTestPolicy(Policy):
 
             policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
         super().__init__(policy_env_info)
-        config = ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=4)
+        # Use a large embedding table to accommodate the full action set (includes all vibes).
+        config = ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=4, num_embeddings=196)
         self.components = nn.ModuleDict({"action_embedding": ActionEmbedding(config)})
         self._device = torch.device("cpu")
 
