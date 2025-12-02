@@ -144,7 +144,7 @@ Multi-discrete `[move_direction, action_type]`:
 
 **Core**: `tribal_village.nim` (main), `src/environment.nim` (simulation), `src/ai.nim` (built-in agents) **Rendering**:
 `src/renderer.nim`, `src/ui.nim`, `src/controls.nim` **Integration**: `src/tribal_village_interface.nim` (C interface),
-`tribal_village_env/` (Python wrapper) **Build**: `build_lib.sh`, `tribal_village.nimble`
+`tribal_village_env/` (Python wrapper) **Build**: `build_lib.sh`, `nimby.lock`, `tribal_village.nimble`
 
 ## Dependencies
 

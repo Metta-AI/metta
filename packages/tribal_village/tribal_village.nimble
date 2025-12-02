@@ -21,21 +21,21 @@ proc ensureDir(path: string) =
   else:
     exec "mkdir -p " & quoteShell(path)
 
-task buildLib, "Build shared library for PufferLib":
-  echo "Building Tribal Village shared library (ultra-fast direct buffers)..."
-
+task buildLib, "Build shared library for PufferLib (nimby-friendly)":
+  echo "Building Tribal Village shared library..."
   let ext = when defined(windows): "dll"
             elif defined(macosx): "dylib"
             else: "so"
-
   exec "nim c --app:lib --mm:arc --opt:speed -d:danger --out:libtribal_village." & ext & " src/tribal_village_interface.nim"
-  echo "Built libtribal_village." & ext & " with ultra-fast direct buffers"
+  echo "Built libtribal_village." & ext
 
 task run, "Run the tribal village game":
   exec "nim c -r tribal_village.nim"
 
 task lib, "Build shared library for PufferLib (alias for buildLib)":
-  exec "nimble buildLib"
+  exec "nim c --app:lib --mm:arc --opt:speed -d:danger --out:libtribal_village." &
+    (when defined(windows): "dll" elif defined(macosx): "dylib" else: "so") &
+    " src/tribal_village_interface.nim"
 
 task wasm, "Build Tribal Village WASM demo":
   let
@@ -109,7 +109,9 @@ task wasm, "Build Tribal Village WASM demo":
   exec cmdParts.join(" ")
 
 before install:
-  exec "nimble buildLib"
+  exec "nim c --app:lib --mm:arc --opt:speed -d:danger --out:libtribal_village." &
+    (when defined(windows): "dll" elif defined(macosx): "dylib" else: "so") &
+    " src/tribal_village_interface.nim"
 
 after install:
   echo "Tribal Village installation complete with shared library built!"
