@@ -25,6 +25,7 @@ type
     tags*: seq[string]
     obsFeatures*: seq[ConfigFeature]
     assemblerProtocols*: seq[AssemblerProtocol]
+    maxSteps*: int  ## optional; may be 0 if not provided
 
   Config* = object
     config*: PolicyConfig

@@ -3,6 +3,7 @@
 Total tests: 60, Failures: 31
 
 ## Failing experiments
+
 - diagnostic_extract_missing_oxygen: 1 fail
 - diagnostic_extract_missing_germanium: 1 fail
 - diagnostic_extract_missing_silicon: 1 fail
@@ -36,6 +37,7 @@ Total tests: 60, Failures: 31
 - navigation_cylinder-world_small: 1 fail
 
 ## Details
+
 - **diagnostic_agile**: rewards [0.0]
 - **diagnostic_agile_hard**: rewards [0.0]
 - **diagnostic_charge_up_hard**: rewards [0.0]

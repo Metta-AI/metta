@@ -14,6 +14,7 @@ bindings_dir = os.path.join(current_dir, "bindings/generated")
 if bindings_dir not in sys.path:
     sys.path.append(bindings_dir)
 
+
 # --------------------------------------------------------------------------- #
 # Auto-rebuild Nim bindings when stale or missing.
 # This keeps RaceCar/Thinky in sync after Nim edits without manual install.sh.

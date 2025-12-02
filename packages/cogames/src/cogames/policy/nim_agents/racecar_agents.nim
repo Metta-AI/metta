@@ -18,6 +18,7 @@ type
   RaceCarAgent* = ref object
     agentId*: int
 
+    maxSteps: int
     steps: int
     map: Table[Location, seq[FeatureValue]]
     seen: HashSet[Location]
@@ -128,6 +129,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
 
   var config = parseConfig(environmentConfig)
   result = RaceCarAgent(agentId: agentId, cfg: config)
+  result.maxSteps = if config.config.maxSteps > 0: config.config.maxSteps else: MaxSteps
   result.random = initRand(agentId)
   result.map = initTable[Location, seq[FeatureValue]]()
   result.seen = initHashSet[Location]()
@@ -360,7 +362,13 @@ proc step*(
       invModulator = agent.cfg.getInventory(visible, agent.cfg.features.invModulator)
       invResonator = agent.cfg.getInventory(visible, agent.cfg.features.invResonator)
       invScrambler = agent.cfg.getInventory(visible, agent.cfg.features.invScrambler)
-      stepsRemaining = max(0, MaxSteps - agent.steps)
+      completionPct = agent.cfg.getInventory(visible, agent.cfg.features.episodeCompletionPct)
+
+    var stepsRemaining = max(0, agent.maxSteps - agent.steps)
+    if completionPct > 0 and completionPct < 100:
+      # Estimate total steps from observed completion percentage.
+      let estTotal = int((agent.steps * 100) div completionPct)
+      stepsRemaining = max(0, estTotal - agent.steps)
 
     log &"vibe:{vibe} H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
