@@ -1,3 +1,8 @@
+"""Arena recipe with shaped rewards - STABLE
+This recipe is automatically validated in CI and release processes.
+"""
+
+from pathlib import Path
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -9,15 +14,9 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.loss.ppo import PPOConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import (
-    CheckpointerConfig,
-    EvaluatorConfig,
-    TrainingEnvironmentConfig,
-)
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -26,6 +25,7 @@ from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
@@ -105,41 +105,35 @@ def train(
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
-
-    loss_config = LossesConfig(
-        ppo=PPOConfig(enabled=True),  # PPO is enabled by default, but explicit here
-        kickstarter=KickstarterConfig(
-            enabled=True,
-            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt",
-            teacher_lead_prob=0.5,
-        ),
+    losses_config = LossesConfig()
+    losses_config.logit_kickstarter.enabled = True
+    losses_config.logit_kickstarter.teacher_uri = (
+        "s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt"
     )
-
-    trainer_cfg = TrainerConfig(
-        losses=loss_config,
-    )
+    # losses_config.ppo_critic.sample_enabled = False
+    # losses_config.ppo_critic.train_forward_enabled = False
+    trainer_cfg = TrainerConfig(losses=losses_config)
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
-    # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
-            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_step=1_000_000_000),
+            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=1_000_000_000),
             LossRunGate(
-                loss_instance_name="kickstarter",
+                loss_instance_name="logit_kickstarter",
                 phase="rollout",
                 end_at_step=1_000_000_000,
             ),
             LossRunGate(
-                loss_instance_name="kickstarter",
+                loss_instance_name="logit_kickstarter",
                 phase="train",
                 end_at_step=1_000_000_000,
             ),
         ],
         rules=[
             HyperUpdateRule(
-                loss_instance_name="kickstarter",
+                loss_instance_name="logit_kickstarter",
                 attr_path="action_loss_coef",
                 mode="progress",
                 style="linear",
@@ -149,7 +143,7 @@ def train(
                 end_agent_step=1_000_000_000,
             ),
             HyperUpdateRule(
-                loss_instance_name="kickstarter",
+                loss_instance_name="logit_kickstarter",
                 attr_path="value_loss_coef",
                 mode="progress",
                 style="linear",
@@ -157,16 +151,6 @@ def train(
                 end_value=0.0,
                 start_agent_step=500_000_000,
                 end_agent_step=1_000_000_000,
-            ),
-            HyperUpdateRule(
-                loss_instance_name="kickstarter",
-                attr_path="teacher_lead_prob",
-                mode="progress",
-                style="linear",
-                start_value=1.0,
-                end_value=0.0,
-                start_agent_step=30_000_000,
-                end_agent_step=500_000_000,
             ),
         ],
     )
@@ -178,13 +162,25 @@ def train(
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
         scheduler=scheduler,
-        checkpointer=CheckpointerConfig(epoch_interval=24),
     )
 
 
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
     """Evaluate policies on arena simulations."""
     return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
+
+
+def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
+    """Evaluate the latest policy on arena simulations."""
+    checkpoints = dir_path.glob("*.mpt")
+    policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
+    if not policy_uri:
+        raise ValueError(f"No policies found in {dir_path}")
+    policy_uri = policy_uri[-1]
+    sim = mettagrid(num_agents=6)
+    return EvaluateTool(
+        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
+    )
 
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:
@@ -219,14 +215,14 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
             suite="sweep",
             name="basic",
             env=basic_env,
-            num_episodes=10,  # 10 episodes for statistical reliability
+            num_episodes=1,  # Using 1 episode for evaluation
             max_time_s=240,  # 4 minutes max per simulation
         ),
         SimulationConfig(
             suite="sweep",
             name="combat",
             env=combat_env,
-            num_episodes=10,
+            num_episodes=1,
             max_time_s=240,
         ),
     ]
@@ -235,6 +231,10 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         simulations=simulations,
         policy_uris=[policy_uri],
     )
+
+
+def evaluate_stub(*args, **kwargs) -> StubTool:
+    return StubTool()
 
 
 def sweep(sweep_name: str) -> SweepTool:
@@ -288,14 +288,14 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.experiment.arena_basic_easy_shaped",
+        recipe="recipes.prod.arena_basic_easy_shaped",
         train_entrypoint="train",
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
         # training and scoring will lead to key conflicts that will lock the sweep.
-        eval_entrypoint="evaluate_in_sweep",
+        eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
-        objective="evaluator/eval_sweep/score",
+        objective="experience/rewards",
         parameters=parameters,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
