@@ -90,9 +90,10 @@ class FlattenVecEnv:
     def recv(self):
         result = self.inner.recv()
         if len(result) == 8:
-            o, r, d, t, _ta, infos, env_ids, masks = result
+            o, r, d, t, ta, infos, env_ids, masks = result
         else:
             o, r, d, t, infos, env_ids, masks = result
+            ta = None
 
         o = np.asarray(o, copy=False).reshape(self.agents_per_batch, *self.single_observation_space.shape)
         r = np.asarray(r, copy=False).reshape(self.agents_per_batch)
@@ -109,7 +110,7 @@ class FlattenVecEnv:
             else np.arange(self.agents_per_batch, dtype=np.int32)
         )
         infos = infos if isinstance(infos, list) else []
-        return o, r, d, t, infos, env_ids, mask
+        return o, r, d, t, ta, infos, env_ids, mask
 
     def close(self):
         if hasattr(self.inner, "close"):
