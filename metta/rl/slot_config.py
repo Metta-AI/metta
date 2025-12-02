@@ -22,7 +22,6 @@ class PolicySlotConfig(Config):
     policy_kwargs: Dict[str, Any] = Field(default_factory=dict)
     trainable: bool = Field(default=True, description="Whether gradients should flow for this slot")
     loss_profile: Optional[str] = Field(default=None, description="Optional loss profile name for this slot")
-    device: Optional[str] = Field(default=None, description="Optional device override for this slot")
     use_trainer_policy: bool = Field(
         default=False,
         description="If True, reuse the trainer-provided policy instance instead of loading a new one.",
