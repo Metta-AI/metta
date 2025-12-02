@@ -210,22 +210,10 @@ class Loss:
         filtered = shared_loss_data.clone()
         filtered["sampled_mb"] = mb[mask]
 
-        # Optional mirror-filter other aligned entries
+        # Optional mirror-filter other aligned entries; assume shapes align in dev.
         for key in ("policy_td", "indices", "prio_weights"):
             if key in filtered.keys():
-                try:
-                    filtered[key] = filtered[key][mask]
-                except Exception:
-                    # If shapes don't align, warn once to aid debugging
-                    try:
-                        import warnings
-
-                        warnings.warn(
-                            f"Loss filter could not mask key '{key}' due to shape mismatch",
-                            stacklevel=2,
-                        )
-                    except Exception:
-                        pass
+                filtered[key] = filtered[key][mask]
 
         return filtered
 
