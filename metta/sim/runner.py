@@ -34,6 +34,7 @@ class SimulationRunResult(BaseModel):
 
     run: SimulationRunConfig
     results: MultiEpisodeRolloutResult
+    per_binding_returns: dict[str, float] | None = None
 
 
 def run_simulations(
@@ -103,10 +104,24 @@ def run_simulations(
         )
         on_progress(f"Finished rollout for simulation {i}")
 
+        per_binding_returns = None
+        if simulation.policy_bindings and rollout_result.episode_returns:
+            # Compute average return per binding by agent index mapping
+            agent_map = simulation.agent_binding_map or []
+            if agent_map:
+                per_binding_returns = {}
+                # episode_returns shape: [num_episodes, num_agents]
+                returns_tensor = torch.tensor(rollout_result.episode_returns)
+                for binding_id in set(agent_map):
+                    idxs = [j for j, b in enumerate(agent_map) if b == binding_id]
+                    if idxs:
+                        per_binding_returns[binding_id] = float(returns_tensor[:, idxs].mean().item())
+
         simulation_rollouts.append(
             SimulationRunResult(
                 run=simulation,
                 results=rollout_result,
+                per_binding_returns=per_binding_returns,
             )
         )
 
