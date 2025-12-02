@@ -12,7 +12,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -419,8 +418,7 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
     if not nim_up_to_date:
         info(f"Nim is {'out of date' if current_nim_version else 'not found'}. Installing...")
         result = subprocess.run(
-            ["nimby", "use", REQUIRED_NIM_VERSION],
-            cwd=nim_bin_dir,
+            [str(nim_bin_dir / "nimby"), "use", REQUIRED_NIM_VERSION],
             check=False,
             capture_output=True,
             text=True,
@@ -483,25 +481,22 @@ def _install_nimby(nim_bin_dir: Path) -> None:
 
     url = f"https://github.com/treeform/nimby/releases/download/{REQUIRED_NIMBY_VERSION}/nimby-{os_name}-{arch}"
     info(f"Downloading Nimby from {url}")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        nimby_path = Path(tmpdir) / "nimby"
-        try:
-            urllib.request.urlretrieve(url, nimby_path)
-            nimby_path.chmod(0o755)
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                error(
-                    f"Nimby {REQUIRED_NIMBY_VERSION} does not have a binary for {os_name} {arch}. "
-                    f"Available binaries: Linux-X64, macOS-ARM64, macOS-X64. "
-                    f"For Docker builds on ARM64 Mac, use: docker build --platform=linux/amd64 ..."
-                )
-            raise RuntimeError(f"Nimby binary not available for {os_name} {arch}") from e
-        except Exception as e:
-            error(f"Failed to download Nimby: {e}")
-            raise
-        # Move nimby to bin directory
-        nim_bin_dir.mkdir(parents=True, exist_ok=True)
-        nimby_path.replace(nim_bin_dir / "nimby")
+    nim_bin_dir.mkdir(parents=True, exist_ok=True)
+    nimby_path = nim_bin_dir / "nimby"
+    try:
+        urllib.request.urlretrieve(url, nimby_path)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            error(
+                f"Nimby {REQUIRED_NIMBY_VERSION} does not have a binary for {os_name} {arch}. "
+                f"Available binaries: Linux-X64, macOS-ARM64, macOS-X64. "
+                f"For Docker builds on ARM64 Mac, use: docker build --platform=linux/amd64 ..."
+            )
+        raise RuntimeError(f"Nimby binary not available for {os_name} {arch}") from e
+    except Exception as e:
+        error(f"Failed to download Nimby: {e}")
+        raise
+    nimby_path.chmod(0o755)
 
 
 def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> None:
