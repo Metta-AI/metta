@@ -177,6 +177,11 @@ def _run_case(
 ) -> List[EvalResult]:
     global _cached_policy, _cached_policy_key
 
+    def _policy_requires_fresh_instance(path: str) -> bool:
+        # Nim agents keep internal per-episode state that is not reset between runs.
+        # Reload them each repeat to avoid cross-episode contamination.
+        return "cogames.policy.nim_agents" in path
+
     mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
     if variant:
         mission_variants.insert(0, variant)
@@ -203,16 +208,22 @@ def _run_case(
 
         out: List[EvalResult] = []
         for run_idx in range(runs_per_case):
-            # Re-load policy each repeat to avoid state carryover between episodes (important for stateful Nim agents).
-            if cached_policy is not None and runs_per_case == 1:
-                policy = cached_policy
-            elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path and runs_per_case == 1:
-                policy = _cached_policy
+            # Re-load policy only when required (stateful Nim agents). Otherwise reuse cache, including S3.
+            fresh_each_run = _policy_requires_fresh_instance(agent_config.policy_path)
+
+            if not fresh_each_run:
+                if cached_policy is not None:
+                    policy = cached_policy
+                elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
+                    policy = _cached_policy
+                else:
+                    policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
+                    if is_s3_uri(agent_config.policy_path):
+                        _cached_policy = policy
+                        _cached_policy_key = agent_config.policy_path
             else:
                 policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-                if is_s3_uri(agent_config.policy_path) and runs_per_case == 1:
-                    _cached_policy = policy
-                    _cached_policy_key = agent_config.policy_path
+                # Do not cache stateful policies between repeats.
 
             agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
