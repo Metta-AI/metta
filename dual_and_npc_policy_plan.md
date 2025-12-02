@@ -20,19 +20,23 @@
 - Backward-compatible defaults (single student slot).
 
 ### Work items
-- **Config surface**: Add `trainer_cfg.agent_slots: list[AgentSlotConfig]`. Fields: `name`, `policy_uri|class_path`, `policy_kwargs`, `role` (`student|teacher|npc|eval_only`), `trainable: bool`, `priority` (tie-break), optional `device`. Validation: at least one slot marked trainable in training; unique names; exactly `num_agents` covered by masks at runtime.
+- **Config surface**: Add `trainer_cfg.agent_slots: list[AgentSlotConfig]`. Fields: `name`, `policy_uri|class_path`, `policy_kwargs`, `role` (`student|teacher|npc|eval_only`), `trainable: bool`, `priority` (tie-break), optional `device`. Validation: at least one slot marked trainable in training; unique names; exactly `num_agents` covered by masks at runtime. Add optional `loss_profile` ref (see below) so slots can opt into specific loss stacks (e.g., kickstarter vs PPO).
 - **Shorthand**: Keep `dual_policy.enabled` as an expander that produces two slots (`student`, `npc`) to ease migration; marked deprecated once slots are stable.
 - **AgentRegistry**: Single entry point to instantiate scripted (class path) or neural (URI checkpoint) policies. Caches per descriptor; provides `get(slot_config, policy_env_info, device) -> Policy`. Ensures `initialize_to_environment` is called.
 - **Slot masks**: Define per-env-agent boolean masks keyed by slot name; stored in `ComponentContext` for rollout/losses. Default builds one mask covering all agents for the lone student slot.
-- **Experience spec extensions**: Add `slot_name` (int/string index) and `is_trainable_agent` flags so losses can filter minibatches without legacy PPO.
-- **Env metadata**: Extend or companion to `PolicyEnvInterface` to expose `num_agents` and allow a mapping `agent_idx -> slot_name`. Keep old code paths working by defaulting to single-student mapping.
-- **Backward compatibility**: If `agent_slots` absent, auto-create a single `student` slot using the existing policy. Losses continue to work.
+- **Experience spec extensions**: Add `slot_name` (int/string index) and `is_trainable_agent` flags so losses can filter minibatches without legacy PPO. Add optional `loss_profile_id` for slots so sliced losses can select the correct subset without bespoke masks.
+- **Env metadata**: Extend or companion to `PolicyEnvInterface` to expose `num_agents` and allow a mapping `agent_idx -> slot_name`. Keep old code paths working by defaulting to single-student mapping. Ensure env/recipe can set per-env-agent slot assignment (enables slot-based kickstarting: some agents use teacher-supervised loss, others pure PPO).
+- **Backward compatibility**: If `agent_slots` absent, auto-create a single `student` slot using the existing policy. Losses continue to work. If `loss_profile` not set, default to PPO-compatible profile.
 - **Docs**: Brief README snippet and sample config showing two slots (student + scripted teacher).
 
 ### Acceptance criteria
 - Running training with no new config behaves exactly as today.
-- Enabling `agent_slots` with two slots (one trainable, one scripted) completes rollout; TD carries `slot_name` and `is_trainable_agent`; replay stores them.
+- Enabling `agent_slots` with two slots (one trainable, one scripted) completes rollout; TD carries `slot_name`, `loss_profile_id`, and `is_trainable_agent`; replay stores them.
 - No reliance on legacy monolithic PPO.
+
+### Slot-aware losses groundwork
+- Define `LossProfile` config mapping a name → set of losses to run for agents in that profile (e.g., `ppo_only`, `kickstarter_supervised`). Phase 0 only introduces config wiring and tagging in TD; actual selective execution can land in Phase 1 but the data must be present now.
+- Teach sliced/kickstarter paths to read `loss_profile_id` when present, falling back to masks if absent. This keeps #4107 behavior viable when we switch to slots.
 
 ## Phase 1 – Training Pipeline (summary)
 - Rollout forwards each slot policy, merges actions by masks, sets metadata for losses.
