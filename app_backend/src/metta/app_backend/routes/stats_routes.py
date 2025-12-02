@@ -123,15 +123,6 @@ class PoliciesResponse(BaseModel):
     policies: list[PolicyListItem]
 
 
-class PoliciesSearchRequest(BaseModel):
-    search: Optional[str] = None
-    policy_type: Optional[str] = None
-    tags: Optional[list[str]] = None
-    user_id: Optional[str] = None
-    limit: int = 100
-    offset: int = 0
-
-
 class EvalsRequest(BaseModel):
     training_run_ids: list[str] = Field(default_factory=list)
     run_free_policy_ids: list[str] = Field(default_factory=list)
@@ -414,6 +405,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/policies")
     @timed_http_handler
     async def get_policies(
+        # Parameters for versions mode (default, backward compatible)
         name_exact: Optional[str] = None,
         name_fuzzy: Optional[str] = None,
         limit: int = 50,
@@ -436,17 +428,47 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         policy_version_ids: Optional[list[str]] = Query(default=None),
         limit: int = 50,
         offset: int = 0,
-    ) -> PolicyVersionsResponse:
-        pv_uuids = [uuid.UUID(pv_id) for pv_id in policy_version_ids] if policy_version_ids else None
-        entries, total_count = await stats_repo.get_policy_versions(
-            name_exact=name_exact,
-            name_fuzzy=name_fuzzy,
-            version=version,
-            policy_version_ids=pv_uuids,
-            limit=limit,
-            offset=offset,
-        )
-        return PolicyVersionsResponse(entries=entries, total_count=total_count)
+        # Parameters for policies mode
+        format: Literal["versions", "policies"] = "versions",
+        search: Optional[str] = None,
+        policy_type: Optional[str] = None,
+        tags: Optional[list[str]] = Query(default=None),
+        user_id: Optional[str] = None,
+    ) -> PolicyVersionsResponse | PoliciesResponse:
+        """Get policies or policy versions. Default returns versions; use format=policies for filtered policies."""
+        # Determine mode: policies mode if format=policies OR any new filter is provided
+        use_policies_mode = format == "policies" or policy_type is not None or tags is not None or user_id is not None
+
+        if use_policies_mode:
+            # Use search_policies() - supports all the new filters
+            search_term = search or name_fuzzy  # search takes precedence over name_fuzzy
+            try:
+                policies_data = await stats_repo.search_policies(
+                    search=search_term,
+                    policy_type=policy_type,
+                    tags=tags,
+                    user_id=user_id,
+                    limit=limit,
+                    offset=offset,
+                )
+                policies = [PolicyListItem(**p) for p in policies_data]
+                return PoliciesResponse(policies=policies)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
+        else:
+            pv_uuids = [uuid.UUID(pv_id) for pv_id in policy_version_ids] if policy_version_ids else None
+            try:
+                entries, total_count = await stats_repo.get_policy_versions(
+                    name_exact=name_exact,
+                    name_fuzzy=name_fuzzy,
+                    version=version,
+                    policy_version_ids=pv_uuids,
+                    limit=limit,
+                    offset=offset,
+                )
+                return PolicyVersionsResponse(entries=entries, total_count=total_count)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
 
     @router.get("/policies/{policy_id}/versions")
     @timed_http_handler
@@ -479,33 +501,6 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             offset=request.offset,
         )
         return EpisodeQueryResponse(episodes=episodes)
-
-    @router.get("/policies/list", response_model=PoliciesResponse)
-    @timed_route("get_all_policies")
-    async def get_all_policies(user: UserOrToken) -> PoliciesResponse:
-        try:
-            policies_data = await stats_repo.get_all_policies()
-            policies = [PolicyListItem(**p) for p in policies_data]
-            return PoliciesResponse(policies=policies)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
-
-    @router.post("/policies/search", response_model=PoliciesResponse)
-    @timed_route("search_policies")
-    async def search_policies(request: PoliciesSearchRequest, user: UserOrToken) -> PoliciesResponse:
-        try:
-            policies_data = await stats_repo.search_policies(
-                search=request.search,
-                policy_type=request.policy_type,
-                tags=request.tags,
-                user_id=request.user_id,
-                limit=request.limit,
-                offset=request.offset,
-            )
-            policies = [PolicyListItem(**p) for p in policies_data]
-            return PoliciesResponse(policies=policies)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to search policies: {str(e)}") from e
 
     @router.post("/evals", response_model=EvalsResponse)
     @timed_route("get_eval_names")

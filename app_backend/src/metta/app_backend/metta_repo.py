@@ -1301,37 +1301,6 @@ ORDER BY e.created_at DESC
             row.avg_rewards = {uuid.UUID(str(key)): value for key, value in row.avg_rewards.items()}
         return list(rows)
 
-    async def get_all_policies(self) -> list[dict[str, Any]]:
-        """Get all policies and training runs."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=dict_row) as cur:
-                await cur.execute(
-                    """
-                    SELECT
-                        p.id::text AS id,
-                        p.name,
-                        CASE
-                            WHEN EXISTS (SELECT 1 FROM policy_versions WHERE policy_id = p.id)
-                            THEN 'policy'
-                            ELSE 'training_run'
-                        END AS type,
-                        p.created_at,
-                        p.user_id,
-                        COALESCE(p.attributes, '{}'::jsonb) AS attributes,
-                        COALESCE(
-                            (SELECT jsonb_object_agg(key, value)
-                             FROM policy_version_tags pvt
-                             JOIN policy_versions pv ON pv.id = pvt.policy_version_id
-                             WHERE pv.policy_id = p.id),
-                            '{}'::jsonb
-                        ) AS tags
-                    FROM policies p
-                    ORDER BY p.created_at DESC
-                    """
-                )
-                rows = await cur.fetchall()
-                return [dict(row) for row in rows]
-
     async def search_policies(
         self,
         search: Optional[str] = None,
