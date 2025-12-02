@@ -39,8 +39,9 @@ class ProfileConfig(TypedDict):
 PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     UserType.EXTERNAL: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
+            "uv": {"enabled": True},
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "observatory-key": {"enabled": False},
@@ -55,8 +56,9 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     },
     UserType.CLOUD: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
+            "uv": {"enabled": True},
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "observatory-key": {"enabled": False},
@@ -71,8 +73,9 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     },
     UserType.SOFTMAX_DOCKER: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
+            "uv": {"enabled": True},
             "nodejs": {"enabled": False},
             "githooks": {"enabled": True},
             "observatory-key": {"enabled": False},
@@ -88,8 +91,9 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     },
     UserType.SOFTMAX: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
+            "uv": {"enabled": True},
             "codeclip": {"enabled": True},
             "apps": {"enabled": True},
             "nodejs": {"enabled": True},
