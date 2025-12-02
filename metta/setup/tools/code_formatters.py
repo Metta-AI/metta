@@ -130,6 +130,53 @@ def _format_progress_message(formatter_name: str, action: str, file_count: int, 
     return f"[{color}]{formatter_name} • {action} {file_count} file(s)[/]"
 
 
+def _make_cpp_runner() -> Callable[[bool, set[str] | None], FormatterResult]:
+    """Create a runner for C++ formatting using clang-format."""
+
+    def _runner(fix: bool, _files: set[str] | None) -> FormatterResult:
+        repo_root = get_repo_root()
+        mettagrid_dir = repo_root / "packages" / "mettagrid"
+
+        # Find all C/C++ files in the target directories
+        cpp_extensions = (".c", ".h", ".cpp", ".hpp")
+        target_dirs = ["cpp/src", "cpp/include", "tests", "benchmarks"]
+        cpp_files: list[str] = []
+
+        for target_dir in target_dirs:
+            dir_path = mettagrid_dir / target_dir
+            if not dir_path.exists():
+                continue
+            for ext in cpp_extensions:
+                cpp_files.extend(str(f) for f in dir_path.rglob(f"*{ext}"))
+
+        if not cpp_files:
+            return FormatterResult(success=True, processed_files=0)
+
+        if fix:
+            cmd = ["clang-format", "-i", "-style=file", *cpp_files]
+        else:
+            cmd = ["clang-format", "--dry-run", "--Werror", "-style=file", *cpp_files]
+
+        result = subprocess.run(
+            cmd,
+            cwd=mettagrid_dir,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            return FormatterResult(
+                success=False,
+                output=result.stderr + result.stdout,
+                processed_files=len(cpp_files),
+            )
+
+        return FormatterResult(success=True, processed_files=len(cpp_files))
+
+    return _runner
+
+
 def _make_prettier_runner(
     *,
     extensions: Sequence[str],
@@ -233,9 +280,8 @@ def get_formatters() -> dict[str, FormatterConfig]:
             ),
             FormatterConfig(
                 name="C++",
-                format_cmds=(("make", "-C", "packages/mettagrid", "format-fix"),),
-                check_cmds=(("make", "-C", "packages/mettagrid", "format-check"),),
-                extensions=(".cpp", ".hpp", ".h"),
+                extensions=(".cpp", ".hpp", ".h", ".c"),
+                runner=_make_cpp_runner(),
                 accepts_file_args=False,
             ),
             FormatterConfig(
