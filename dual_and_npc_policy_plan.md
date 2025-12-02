@@ -3,56 +3,69 @@
 ## Goals
 - Make multiple agent policies first-class for training and evaluation (scripted + neural).
 - Support dual-policy (two neural nets) for training and evaluation without legacy PPO.
-- Keep split-loss stack (ppo_actor/ppo_critic, sliced losses) and integrate masks cleanly.
+- Keep split-loss stack (ppo_actor/ppo_critic, sliced losses) and integrate masking cleanly.
+- Use the leanest model: binding table + agent-binding map; no extra slot hierarchy.
 
 ## Milestones
-1. AgentSlot config + registry + slot masks in rollout/experience (no dual training yet).
-2. Loss masking in split PPO + sliced losses using `is_trainable_agent`/slot masks.
+1. Binding schema + agent-binding map + TD annotations + registry (no dual training yet).
+2. Loss filtering via `loss_profile_id`/`is_trainable` in split PPO and sliced losses.
 3. End-to-end dual-policy training with frozen NPC neural policy.
-4. Dual-policy evaluation with per-slot metrics (scripted + neural mixes).
+4. Dual-policy evaluation with per-binding metrics (scripted + neural mixes).
 5. Optional co-training mode (two trainable nets) + optimizer scheduling.
 
-## Phase 0 – Foundations & API Shape (detailed)
+## Phase 0 – Foundations & API Shape (detailed, lean variant)
 ### Outputs
-- `AgentSlotConfig` schema and validation.
-- `AgentRegistry` service for loading/caching policies (URI or class path).
-- Policy/env metadata carries per-agent slot mapping.
-- Backward-compatible defaults (single student slot).
+- `PolicyBinding` schema and validation.
+- `agent_binding_map` support in trainer/eval/simulation configs.
+- `PolicyRegistry` for loading/caching policies (URI or class path).
+- TD/experience annotations: `binding_id`, `loss_profile_id`, `is_trainable_agent`.
+- Backward-compatible defaults (single binding mapped to all agents).
 
 ### Work items
-- **Config surface**: Add `trainer_cfg.agent_slots: list[AgentSlotConfig]`. Fields: `name`, `policy_uri|class_path`, `policy_kwargs`, `role` (`student|teacher|npc|eval_only`), `trainable: bool`, `priority` (tie-break), optional `device`. Validation: at least one slot marked trainable in training; unique names; exactly `num_agents` covered by masks at runtime. Add optional `loss_profile` ref (see below) so slots can opt into specific loss stacks (e.g., kickstarter vs PPO).
-- **Shorthand**: Keep `dual_policy.enabled` as an expander that produces two slots (`student`, `npc`) to ease migration; marked deprecated once slots are stable.
-- **AgentRegistry**: Single entry point to instantiate scripted (class path) or neural (URI checkpoint) policies. Caches per descriptor; provides `get(slot_config, policy_env_info, device) -> Policy`. Ensures `initialize_to_environment` is called.
-- **Slot masks**: Define per-env-agent boolean masks keyed by slot name; stored in `ComponentContext` for rollout/losses. Default builds one mask covering all agents for the lone student slot.
-- **Experience spec extensions**: Add `slot_name` (int/string index) and `is_trainable_agent` flags so losses can filter minibatches without legacy PPO. Add optional `loss_profile_id` for slots so sliced losses can select the correct subset without bespoke masks.
-- **Env metadata**: Extend or companion to `PolicyEnvInterface` to expose `num_agents` and allow a mapping `agent_idx -> slot_name`. Keep old code paths working by defaulting to single-student mapping. Ensure env/recipe can set per-env-agent slot assignment (enables slot-based kickstarting: some agents use teacher-supervised loss, others pure PPO).
-- **Backward compatibility**: If `agent_slots` absent, auto-create a single `student` slot using the existing policy. Losses continue to work. If `loss_profile` not set, default to PPO-compatible profile.
-- **Docs**: Brief README snippet and sample config showing two slots (student + scripted teacher).
+- **Config surface**: Add `trainer_cfg.policy_bindings: list[PolicyBinding]`. Fields: `id`, `policy_uri|class_path`, `policy_kwargs`, `trainable: bool`, optional `loss_profile`, optional `device`. Validation: unique ids; at least one trainable binding for training; bindings referenced by the map must exist.
+- **Agent-binding map**: Add `trainer_cfg.agent_binding_map: list[str|int]` of length `num_agents` (or per-env override) mapping each agent index to a binding id. Default: all agents → first binding. This single map replaces “slots” and enables kickstarter slicing by assigning some agents to a teacher binding.
+- **Loss profiles (config only)**: Introduce `loss_profiles` map: name → set of losses to run. Phase 0 only tags rows with `loss_profile_id`; execution gating comes in Phase 2.
+- **Registry**: `PolicyRegistry.get(binding, policy_env_info, device) -> Policy` loads scripted (class path) or NN (URI). Caches by descriptor; calls `initialize_to_environment`.
+- **TD annotations**: During rollout, set per-row `binding_id`, `loss_profile_id`, `is_trainable_agent`. Add these to experience spec.
+- **Multi-agent forward**: Use existing `Policy`/`MultiAgentPolicy` orchestration: group rows by binding_id, forward each policy once, merge actions/logprobs back.
+- **Env metadata**: Allow providing `agent_binding_map` via simulation/recipe; default infer single binding. Ensure compatibility with mettagrid Puffer env agent counts.
+- **Backward compatibility**: If `policy_bindings` absent, synthesize one binding (`main`) pointing to the configured policy; map all agents to it; losses behave unchanged.
+- **Docs**: Short example config: two bindings (student trainable, teacher scripted), binding map `[teacher, teacher, student, student]`.
 
 ### Acceptance criteria
-- Running training with no new config behaves exactly as today.
-- Enabling `agent_slots` with two slots (one trainable, one scripted) completes rollout; TD carries `slot_name`, `loss_profile_id`, and `is_trainable_agent`; replay stores them.
+- Training without new config is unchanged.
+- With two bindings (one scripted, one trainable) and a binding map, rollout completes; TD/replay contain `binding_id`, `loss_profile_id`, `is_trainable_agent`.
 - No reliance on legacy monolithic PPO.
 
-### Slot-aware losses groundwork
-- Define `LossProfile` config mapping a name → set of losses to run for agents in that profile (e.g., `ppo_only`, `kickstarter_supervised`). Phase 0 only introduces config wiring and tagging in TD; actual selective execution can land in Phase 1 but the data must be present now.
-- Teach sliced/kickstarter paths to read `loss_profile_id` when present, falling back to masks if absent. This keeps #4107 behavior viable when we switch to slots.
+### Loss groundwork
+- Carry `loss_profile_id` in TD so sliced/kickstarter can later select rows without bespoke masks. For now, defaults map all rows to a single profile.
 
-## Phase 1 – Training Pipeline (summary)
-- Rollout forwards each slot policy, merges actions by masks, sets metadata for losses.
-- Loss specs include slot/trainable flags; sliced losses AND their masks with trainable mask.
+## Phase 1 – Training Pipeline (updated)
+- Rollout: multi-binding forward + TD annotations; cached masks per binding from `agent_binding_map`.
+- Replay spec includes binding/loss profile flags.
+- Loss base adds a shared filter: minibatch rows restricted by `loss_profile_id` and `is_trainable_agent` when the loss is trainable-only.
 
-## Phase 2 – Evaluation Pipeline (summary)
-- Eval config accepts slots; runner loads per-slot checkpoints/scripted classes; metrics per slot.
+## Phase 2 – Loss Execution & Masking
+- Implement the shared filter in loss base; opt-in per loss (split PPO, sliced_kickstarter, sliced_scripted_cloner, etc.).
+- Loss profiles: wire config so each profile declares which losses run; rows with a profile skip losses not in their profile.
+- Preserve #4107 behavior: kickstarter slices remain possible by choosing maps where some agents map to teacher binding with a profile that includes supervised loss, others to PPO-only.
 
-## Phase 3 – Dual-Policy Details (summary)
-- Frozen NPC NN or co-training; masks decide gradient flow; optional alternating optim steps.
+## Phase 3 – Dual-Policy Training
+- Two bindings pointing to two NN checkpoints; binding map assigns agents. One binding may be `trainable=False` (frozen NPC) or both trainable (co-training). Gradients flow only from rows where `is_trainable_agent=True`.
+- Optional alternate optimizer steps per binding (config knob).
 
-## Phase 4 – Scripted/Cogames Integration (summary)
-- Scripted policies load via `class_path` through registry; mettagrid Puffer teachers map to a slot.
+## Phase 4 – Evaluation & Simulation
+- `simulation_config`/`eval_config` accept `policy_bindings` + `agent_binding_map`. Runner loads bindings via registry, assigns control per agent, and reports metrics grouped by `binding_id`.
+- Supports head-to-head or mixed scripted/NN eval without new abstractions.
 
-## Phase 5 – Backward Compatibility & Migration (summary)
-- Auto-expand legacy knobs; deprecate legacy PPO; feature-flag loss masking initially.
+## Phase 5 – Cogames/Scripted Integration
+- Scripted policies load via `class_path` through the registry. Puffer teacher actions map to a teacher binding; no special slot code.
 
-## Phase 6 – Testing (summary)
-- Unit (registry, masks), integration (dual rollout), E2E recipe with eval vs scripted opponent.
+## Phase 6 – Backward Compatibility & Migration
+- Auto-synthesize default binding/map when absent. `dual_policy` shorthand (if kept) expands to two bindings + map; mark deprecated.
+- No legacy PPO path; feature-flag loss-profile filtering during rollout.
+
+## Phase 7 – Testing
+- Unit: registry loads, binding-map validation, TD annotation shapes, loss filtering logic.
+- Integration: rollout with two bindings (scripted + trainable) verifying action merge and masks; kickstarter-style map.
+- E2E: recipe training with binding map + eval vs scripted; CI on CPU.
