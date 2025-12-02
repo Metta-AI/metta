@@ -49,9 +49,7 @@ class SlotControllerPolicy(Policy):
                 self.add_module(f"slot_{idx}", policy)
 
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
-        # Assume all policies share the same spec; use the first one
-        first_policy = next(iter(self._slot_policies.values()))
-        return first_policy.get_agent_experience_spec()
+        return next(iter(self._slot_policies.values())).get_agent_experience_spec()
 
     def initialize_to_environment(self, policy_env_info, device: torch.device) -> None:  # noqa: D401
         for policy in self._slot_policies.values():
