@@ -5,6 +5,7 @@ from pydantic import ConfigDict, Field, model_validator
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.slot_config import LossProfileConfig, PolicySlotConfig
 from metta.rl.training import HeartbeatConfig
+from metta.rl.training.update_epochs_tuner import UpdateEpochAutoTunerConfig
 from mettagrid.base_config import Config
 
 
@@ -80,6 +81,7 @@ class TrainerConfig(Config):
 
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
+    update_epochs_autotune: UpdateEpochAutoTunerConfig = Field(default_factory=UpdateEpochAutoTunerConfig)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
@@ -93,4 +95,10 @@ class TrainerConfig(Config):
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
+        auto_cfg = self.update_epochs_autotune
+        if auto_cfg.enabled:
+            if self.update_epochs < auto_cfg.min_update_epochs or self.update_epochs > auto_cfg.max_update_epochs:
+                raise ValueError(
+                    "update_epochs must be within [min_update_epochs, max_update_epochs] when autotune is enabled"
+                )
         return self

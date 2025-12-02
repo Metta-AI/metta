@@ -168,6 +168,18 @@ class PPO(Loss):
             mb_idx=mb_idx,
         )
 
+        shared_loss_data = self._filter_minibatch(
+            TensorDict(
+                {"sampled_mb": minibatch, "indices": NonTensorData(indices), "prio_weights": prio_weights},
+                batch_size=[],
+            )
+        )
+        minibatch = shared_loss_data["sampled_mb"]
+        indices = shared_loss_data["indices"]
+        if isinstance(indices, NonTensorData):
+            indices = indices.data
+        prio_weights = shared_loss_data["prio_weights"]
+
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
         shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
 

@@ -162,9 +162,8 @@ class PPOCritic(Loss):
                 prio_beta0=self.cfg.prio_beta0,
                 advantages=self.advantages,
             )
-            # mb data should have been computed with policy under torch.no_grad()
             shared_loss_data["sampled_mb"] = minibatch
-            shared_loss_data["indices"] = NonTensorData(indices)  # this may break compile if we ever use it again
+            shared_loss_data["indices"] = NonTensorData(indices)
             shared_loss_data["prio_weights"] = prio_weights
         else:
             minibatch = shared_loss_data["sampled_mb"]
@@ -173,15 +172,20 @@ class PPOCritic(Loss):
                 indices = indices.data
 
             if "prio_weights" not in shared_loss_data:
-                # just in case ppo_actor runs after this and is expecting
                 shared_loss_data["prio_weights"] = torch.ones(
                     (minibatch.shape[0], minibatch.shape[1]),
                     device=self.device,
                     dtype=torch.float32,
                 )
 
+        shared_loss_data = self._filter_minibatch(shared_loss_data)
+        minibatch = shared_loss_data["sampled_mb"]
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
+        indices = shared_loss_data["indices"]
+        if isinstance(indices, NonTensorData):
+            indices = indices.data
+        prio_weights = shared_loss_data["prio_weights"]
 
         shared_loss_data["advantages"] = self.advantages[indices]
         # Share gamma/lambda with other losses (e.g. actor) to ensure consistency

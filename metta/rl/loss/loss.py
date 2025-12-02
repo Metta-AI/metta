@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Mapping
 
 import torch
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
@@ -106,8 +106,7 @@ class Loss:
         ctx = self._ensure_context(context)
         if not self._loss_gate_allows("train", ctx):
             return self._zero(), shared_loss_data, False
-        filtered = self._filter_minibatch(shared_loss_data)
-        return self.run_train(filtered, ctx, mb_idx)
+        return self.run_train(shared_loss_data, ctx, mb_idx)
 
     def run_train(
         self,
@@ -210,19 +209,18 @@ class Loss:
         filtered = shared_loss_data.clone()
         filtered["sampled_mb"] = mb[mask]
 
-        # Mirror-filter other row-aligned entries based on mask size heuristics.
-        for key, value in list(filtered.items()):
-            if key == "sampled_mb":
+        # Mirror-filter known row-aligned keys
+        row_keys = ("policy_td", "indices", "prio_weights", "advantages", "gamma", "gae_lambda")
+        for key in row_keys:
+            if key not in filtered.keys():
                 continue
-            try:
-                if hasattr(value, "batch_size") and value.batch_size.numel() == mb.batch_size.numel():
-                    filtered[key] = value[mask]
-                elif isinstance(value, torch.Tensor) and value.shape[:1] == mb.shape[:1]:
-                    filtered[key] = value[mask]
-                elif key == "indices":
-                    filtered[key] = value[mask]
-            except Exception:
-                pass
+            value = filtered[key]
+            if isinstance(value, NonTensorData):
+                filtered[key] = NonTensorData(value.data[mask])
+            elif isinstance(value, torch.Tensor) and value.shape[:1] == mb.shape[:1]:
+                filtered[key] = value[mask]
+            elif hasattr(value, "batch_size") and value.batch_size.numel() == mb.batch_size.numel():
+                filtered[key] = value[mask]
 
         return filtered
 
