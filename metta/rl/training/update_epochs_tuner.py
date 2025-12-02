@@ -17,10 +17,10 @@ class UpdateEpochAutoTuner(TrainerComponent):
     def __init__(self, config: UpdateEpochAutoTunerConfig):
         super().__init__(epoch_interval=1)
         self._cfg = config
-        self._current_update_epochs: int = config.min_update_epochs
-        self._cooldown_counter: int = 0
-        self._epochs_at_current: int = 0
-        self._is_master: bool = False
+        self._current_update_epochs = config.min_update_epochs
+        self._cooldown_counter = 0
+        self._epochs_at_current = 0
+        self._is_master = False
 
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
@@ -28,22 +28,15 @@ class UpdateEpochAutoTuner(TrainerComponent):
             logger.debug("UpdateEpochAutoTuner registered but disabled; no action will be taken.")
             return
 
-        current = int(getattr(context.config, "update_epochs", self._cfg.min_update_epochs))
-        clamped = self._clamp(current)
-        if clamped != current:
-            logger.info(
-                "Clamping initial update_epochs from %s to %s to satisfy autotune bounds",
-                current,
-                clamped,
-            )
-        context.config.update_epochs = clamped
-        self._current_update_epochs = clamped
+        clamped = self._clamp(int(getattr(context.config, "update_epochs", self._cfg.min_update_epochs)))
+        if clamped != context.config.update_epochs:
+            logger.info("Clamping initial update_epochs from %s to %s", context.config.update_epochs, clamped)
+        context.config.update_epochs = self._current_update_epochs = clamped
         self._is_master = bool(context.distributed.is_master())
-        self._epochs_at_current = 0
-        self._cooldown_counter = 0
+        self._epochs_at_current = self._cooldown_counter = 0
 
         logger.info(
-            "UpdateEpochAutoTuner enabled (min=%s max=%s step=%s) starting at update_epochs=%s",
+            "UpdateEpochAutoTuner enabled (min=%s max=%s step=%s start=%s)",
             self._cfg.min_update_epochs,
             self._cfg.max_update_epochs,
             self._cfg.step_size,
@@ -65,11 +58,17 @@ class UpdateEpochAutoTuner(TrainerComponent):
         if self._is_master:
             target_value = self._evaluate_master(epoch=epoch, approx_kl=approx_kl, clipfrac=clipfrac)
 
-        decided_value = ctx.distributed.broadcast_from_master(target_value if self._is_master else None)
-        decided_value = self._clamp(int(decided_value))
-
+        decided_value = self._clamp(int(ctx.distributed.broadcast_from_master(target_value if self._is_master else None)))
         if decided_value != self._current_update_epochs:
-            self._handle_external_switch(decided_value, epoch, approx_kl, clipfrac)
+            self._set_value(
+                decided_value,
+                epoch=epoch,
+                approx_kl=approx_kl,
+                clipfrac=clipfrac,
+                set_cooldown=False,
+                log_fn=logger.debug,
+                prefix="Replica adopting",
+            )
 
         ctx.config.update_epochs = decided_value
 
@@ -83,19 +82,24 @@ class UpdateEpochAutoTuner(TrainerComponent):
 
         candidate = self._suggest_adjustment(approx_kl=approx_kl, clipfrac=clipfrac)
         if candidate != self._current_update_epochs:
-            self._switch_to(candidate, epoch, approx_kl=approx_kl, clipfrac=clipfrac)
+            self._set_value(
+                candidate,
+                epoch=epoch,
+                approx_kl=approx_kl,
+                clipfrac=clipfrac,
+                set_cooldown=True,
+                log_fn=logger.info,
+                prefix="Auto-tuning",
+            )
 
         return self._current_update_epochs
 
     def _collect_metrics(self) -> Optional[Tuple[float, float]]:
-        stats = getattr(self.context, "latest_losses_stats", None)
-        if not stats:
+        if not (stats := getattr(self.context, "latest_losses_stats", None)):
             return None
         approx_kl = float(stats.get("approx_kl", 0.0))
         clipfrac = float(stats.get("clipfrac", 0.0))
-        if approx_kl <= 0.0 and clipfrac <= 0.0:
-            return None
-        return approx_kl, clipfrac
+        return None if approx_kl <= 0.0 and clipfrac <= 0.0 else (approx_kl, clipfrac)
 
     def _suggest_adjustment(self, *, approx_kl: float, clipfrac: float) -> int:
         current = self._current_update_epochs
@@ -111,27 +115,26 @@ class UpdateEpochAutoTuner(TrainerComponent):
 
         return current
 
-    def _switch_to(self, new_value: int, epoch: int, *, approx_kl: float, clipfrac: float) -> None:
+    def _set_value(
+        self,
+        new_value: int,
+        *,
+        epoch: int,
+        approx_kl: float,
+        clipfrac: float,
+        set_cooldown: bool,
+        log_fn,
+        prefix: str,
+    ) -> None:
         previous = self._current_update_epochs
         self._current_update_epochs = new_value
         self._epochs_at_current = 0
-        self._cooldown_counter = self._cfg.cooldown_epochs
+        if set_cooldown:
+            self._cooldown_counter = self._cfg.cooldown_epochs
 
-        logger.info(
-            "Auto-tuning update_epochs from %s to %s at epoch %s (approx_kl=%.4f clipfrac=%.3f)",
-            previous,
-            new_value,
-            epoch,
-            approx_kl,
-            clipfrac,
-        )
-
-    def _handle_external_switch(self, new_value: int, epoch: int, approx_kl: float, clipfrac: float) -> None:
-        previous = self._current_update_epochs
-        self._current_update_epochs = new_value
-        self._epochs_at_current = 0
-        logger.debug(
-            "Replica adopting update_epochs change from %s to %s at epoch %s (approx_kl=%.4f clipfrac=%.3f)",
+        log_fn(
+            "%s update_epochs from %s to %s at epoch %s (approx_kl=%.4f clipfrac=%.3f)",
+            prefix,
             previous,
             new_value,
             epoch,
