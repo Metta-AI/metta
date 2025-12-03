@@ -61,6 +61,8 @@ class SlotControllerPolicy(Policy):
             if self._agent_slot_map is None:
                 raise RuntimeError("slot_id missing and no agent_slot_map provided for slot-aware policy routing")
             num_agents = self._agent_slot_map.numel()
+            if num_agents == 0:
+                raise RuntimeError("agent_slot_map cannot be empty for slot-aware policy routing")
             batch = td.batch_size.numel()
             if batch % num_agents != 0:
                 raise RuntimeError(
