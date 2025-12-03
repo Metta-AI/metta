@@ -2504,6 +2504,12 @@ dev = [
     { name = "pytest-benchmark" },
     { name = "pytest-xdist" },
 ]
+testing = [
+    { name = "freezegun" },
+    { name = "pytest" },
+    { name = "pytest-benchmark" },
+    { name = "pytest-xdist" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2518,6 +2524,12 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "freezegun", specifier = ">=1.5.0" },
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-benchmark", specifier = ">=5.1.0" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+]
+testing = [
     { name = "freezegun", specifier = ">=1.5.0" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
