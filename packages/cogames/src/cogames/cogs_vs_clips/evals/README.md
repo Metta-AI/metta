@@ -1,214 +1,275 @@
-# CoGames Evaluation Environments
+# CoGames Evaluation Missions
 
-This directory contains evaluation missions for testing CoGames agents.
+This directory contains two types of evaluation missions for testing CoGames agents:
 
-**Contents:**
-
-- [Diagnostic Missions](#diagnostic-missions) - Focused skill tests for specific mechanics
-- [Integrated Eval Missions](#integrated-eval-missions) - Procedural missions for training/evaluation
-- [Usage Examples](#usage-examples) - How to run missions
+1. **Diagnostic Missions** - Fixed-map missions testing specific skills in controlled environments
+2. **Integrated Eval Missions** - Procedural missions combining multiple challenges for curriculum training
 
 ---
 
 ## Diagnostic Missions
 
-Diagnostic missions are defined in `diagnostic_evals.py` and are playable via
-`cogames play --mission evals.diagnostic_*`. Each mission tests a specific skill or mechanic in a controlled
-environment.
+**Location:** `diagnostic_evals.py`
+**Access:** `cogames play --mission evals.diagnostic_*`
+**Map Type:** Fixed ASCII maps (deterministic layouts)
+
+Diagnostic missions test specific skills in isolation with controlled, repeatable environments.
 
 ### Available Diagnostic Missions
 
-See `diagnostic_evals.py` for the complete list. Key missions include:
+#### Navigation & Delivery
 
-**Navigation & Delivery:**
-
-- `diagnostic_chest_navigation1/2/3` - Navigate to chest and deposit hearts
+- `diagnostic_chest_navigation1/2/3` - Navigate to chest and deposit hearts (varying difficulty)
 - `diagnostic_chest_near` - Chest nearby, test deposit mechanics
 - `diagnostic_chest_search` - Find chest through exploration
+- `diagnostic_chest_deposit_near/search` - Combined navigation and deposit tests
 
-**Resource Extraction:**
+#### Resource Extraction
 
-- `diagnostic_extract_missing_carbon/oxygen/germanium/silicon` - Extract specific missing resources
+- `diagnostic_extract_missing_carbon` - Extract carbon when it's missing from inventory
+- `diagnostic_extract_missing_oxygen` - Extract oxygen when it's missing
+- `diagnostic_extract_missing_germanium` - Extract germanium when it's missing
+- `diagnostic_extract_missing_silicon` - Extract silicon when it's missing
 
-**Assembly:**
+#### Assembly
 
 - `diagnostic_assembler_near` - Assemble hearts at nearby assembler
 - `diagnostic_assembler_search` - Find assembler and craft hearts
 
-**Energy Management:**
+#### Energy Management
 
-- `diagnostic_charge_up` - Test charging mechanics
+- `diagnostic_charge_up` - Test charging mechanics and energy management
 
-**Unclipping:**
+#### Unclipping
 
-- `diagnostic_unclip_craft` - Craft unclip items
+- `diagnostic_unclip_craft` - Craft unclip items to restore clipped extractors
 - `diagnostic_unclip_preseed` - Unclip with pre-seeded inventory
 
-**Complex Scenarios:**
+#### Complex Scenarios
 
 - `diagnostic_radial` - Radial resource layout with chorus assembly
 - `diagnostic_agile` - Test agility and quick decision-making
 - `diagnostic_memory` - Test memory and state tracking
 
-**Hard Versions:** Most diagnostics have `_hard` variants (e.g., `diagnostic_chest_navigation1_hard`)
+#### Hard Variants
 
----
+Most diagnostic missions have `_hard` variants with increased difficulty (e.g., `diagnostic_chest_navigation1_hard`,
+`diagnostic_radial_hard`).
 
-## Usage Examples
-
-### Playing a Diagnostic Mission
+### Playing Diagnostic Missions
 
 ```bash
-# Basic diagnostic mission
+# Basic diagnostic
 uv run cogames play --mission evals.diagnostic_chest_navigation1 --cogs 1
 
-# Diagnostic mission with multiple agents
+# Multi-agent
 uv run cogames play --mission evals.diagnostic_extract_missing_oxygen --cogs 2
 
-# Hard version of diagnostic
-uv run cogames play --mission evals.diagnostic_chest_navigation1_hard --cogs 1
+# Hard variant
+uv run cogames play --mission evals.diagnostic_radial_hard --cogs 1
 
-# Unclipping diagnostic
-uv run cogames play --mission evals.diagnostic_unclip_craft --cogs 1
+# With policy
+uv run cogames play --mission evals.diagnostic_unclip_craft -p scripted_baseline --cogs 1
 ```
-
-### Note on Integrated Eval Missions
-
-The integrated eval missions (oxygen_bottleneck, energy_starved, etc.) are **not directly playable** via `cogames play`.
-They are used programmatically in training and evaluation scripts. To test similar scenarios, use the diagnostic
-missions or the training_facility/hello_world sites with appropriate variants.
-
-### Evaluation Script Usage
-
-```bash
-# Evaluate a single agent on all missions and difficulties
-uv run python packages/cogames/scripts/run_evaluation.py \
-  --agent simple \
-  --steps 1000 \
-  --output eval_simple.json
-
-# Evaluate with specific difficulty filter
-uv run python packages/cogames/scripts/run_evaluation.py \
-  --agent coordinating \
-  --difficulties clipped_oxygen clipped_silicon \
-  --steps 1000 \
-  --output eval_coordinating_clipped.json
-```
-
-### Spanning Eval Suite (Integrated Evals)
-
-```bash
-# Evaluate a policy on the integrated eval suite (spanning evals)
-uv run python packages/cogames/scripts/run_evaluation.py \
-  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
-  --mission-set integrated_evals \
-  --cogs 4 \
-  --repeats 2
-```
-
-### Testing Specific Scenarios
-
-```bash
-# Test chest navigation
-uv run cogames play --mission evals.diagnostic_chest_navigation1 --cogs 1
-
-# Test resource extraction
-uv run cogames play --mission evals.diagnostic_extract_missing_carbon --cogs 1
-
-# Test unclipping mechanics
-uv run cogames play --mission evals.diagnostic_unclip_craft --cogs 1
-
-# Test assembly
-uv run cogames play --mission evals.diagnostic_assembler_search --cogs 1
-
-# Test with scripted policy
-uv run cogames play --mission evals.diagnostic_radial -p scripted_baseline --cogs 2
-
-# Test hard version
-uv run cogames play --mission evals.diagnostic_radial_hard -p scripted_baseline --cogs 2
-```
-
----
-
-## Design Principles
-
-### Missions
-
-1. **Focused challenges**: Each mission tests specific skills (exploration, coordination, bottlenecks)
-2. **Scalable**: Missions work across different agent counts (with recommended ranges)
-3. **Observable**: Agents can learn strategies through observation and trial
-4. **Balanced baselines**: Default configurations are solvable but challenging
-
-### Difficulty Variants
-
-1. **Composable**: Any difficulty can be applied to any mission
-2. **Skill-specific**: Each variant tests specific capabilities (scarcity, speed, unclipping)
-3. **Progressive**: Clear difficulty progression from story_mode → standard → hard → brutal
-4. **Specialized challenges**: Unique constraints (single_use, clipping) test specific algorithms
-
-### Evaluation Philosophy
-
-1. **No arbitrary thresholds**: Missions are winnable through observation and adaptation
-2. **Deterministic mechanics**: Clipping is the only stochastic element (except clipping_chaos)
-3. **Multiple solution paths**: Missions don't prescribe a single correct strategy
-4. **Failure modes are informative**: Logs/traces should reveal why an agent failed
-
----
-
-## Common Failure Modes
-
-| Failure Mode            | Likely Cause                     | Test With                                 |
-| ----------------------- | -------------------------------- | ----------------------------------------- |
-| Timeout (0 hearts)      | Exploration inefficiency         | ExtractorHub100, CollectFar               |
-| Low hearts (< expected) | Resource scarcity, poor routing  | hard, brutal difficulties                 |
-| Zero hearts (energy)    | Energy management failure        | energy_crisis, EnergyStarved              |
-| Zero hearts (clipping)  | Unclipping logic failure         | Any clipped\_\* difficulty                |
-| Coordination failure    | Multi-agent collision/contention | GoTogether, SingleUseSwarm with 4+ agents |
-| Bottleneck failure      | Resource prioritization failure  | OxygenBottleneck, clipped_oxygen          |
-
----
-
-## Contributing New Missions
-
-To add a new evaluation mission:
-
-1. Create a new class in `eval_missions.py` inheriting from `_EvalMissionBase`
-2. Define `name`, `description`, and `map_name`
-3. Set efficiency, max_uses, and energy_regen parameters
-4. Add to `EVAL_MISSIONS` list at bottom of file
-5. Test across all difficulty variants to verify solvability
-6. Document in this README with challenge description and recommended agent counts
-
-To add a new difficulty variant:
-
-1. Create a new `DifficultyLevel` in `difficulty_variants.py`
-2. Define overrides/multipliers for extractors, energy, and special mechanics
-3. Document in this README with challenge description and use cases
 
 ---
 
 ## Integrated Eval Missions
 
-Defined in `integrated_evals.py`, these missions use procedural generation with the `HELLO_WORLD` site and mission
-variants. They are **not directly playable** via `cogames play` but are used programmatically in training and evaluation
-scripts.
+**Location:** `integrated_evals.py`
+**Access:** `cogames play --mission hello_world.*`
+**Map Type:** Procedural generation (MachinaArena)
 
-### Available Integrated Missions:
+Integrated eval missions use procedural generation and combine multiple mission variants to create diverse training
+scenarios. They use 50×50 to 150×150 procedural maps with randomized building placements.
 
-- **oxygen_bottleneck** - Oxygen is the limiting resource
-- **energy_starved** - Low energy regen and weak chargers
-- **distant_resources** - Resources scattered far from base
-- **quadrant_buildings** - Buildings placed in four quadrants
-- **single_use_swarm** - All extractors are single-use
-- **vibe_check** - Vibe-based coordination challenges
-- **easy_hearts** - Simplified heart crafting
+### Available Integrated Missions
 
-These missions are used in evaluation scripts with the `run_evaluation.py` tool.
+#### oxygen_bottleneck
+
+**Challenge:** Oxygen is the limiting resource; agents must prioritize oxygen extraction.
+
+**Variants Applied:**
+
+- EmptyBase (missing oxygen_extractor initially)
+- ResourceBottleneck (oxygen)
+- SingleResourceUniform (oxygen_extractor)
+- PackRat (increased inventory capacity)
+
+```bash
+uv run cogames play --mission hello_world.oxygen_bottleneck --cogs 2
+```
+
+#### energy_starved
+
+**Challenge:** Low energy regen and weak chargers require careful energy management.
+
+**Variants Applied:**
+
+- EmptyBase
+- DarkSide (reduced energy regen)
+- PackRat
+
+```bash
+uv run cogames play --mission hello_world.energy_starved --cogs 2
+```
+
+#### distant_resources
+
+**Challenge:** Resources scattered far from base; requires efficient routing.
+
+**Variants Applied:**
+
+- EmptyBase
+- DistantResources
+
+```bash
+uv run cogames play --mission hello_world.distant_resources --cogs 4
+```
+
+#### quadrant_buildings
+
+**Challenge:** Buildings placed in four quadrants; requires region partitioning.
+
+**Variants Applied:**
+
+- EmptyBase
+- QuadrantBuildings
+
+```bash
+uv run cogames play --mission hello_world.quadrant_buildings --cogs 4
+```
+
+#### single_use_swarm
+
+**Challenge:** All extractors are single-use; agents must fan out and coordinate.
+
+**Variants Applied:**
+
+- EmptyBase
+- SingleUseSwarm
+- PackRat
+
+```bash
+uv run cogames play --mission hello_world.single_use_swarm --cogs 4
+```
+
+#### vibe_check
+
+**Challenge:** Vibe-based coordination and chorus assembly.
+
+**Variants Applied:**
+
+- EmptyBase
+- HeartChorus
+- VibeCheckMin2
+
+```bash
+uv run cogames play --mission hello_world.vibe_check --cogs 4
+```
+
+#### easy_hearts
+
+**Challenge:** Simplified heart crafting with generous parameters.
+
+**Variants Applied:**
+
+- LonelyHeart
+- HeartChorus
+- PackRat
+
+```bash
+uv run cogames play --mission hello_world.easy_hearts --cogs 2
+```
+
+### Playing Integrated Missions with Additional Variants
+
+You can apply additional variants on top of the mission's built-in variants:
+
+```bash
+# Add compass variant
+uv run cogames play --mission hello_world.oxygen_bottleneck --cogs 2 --variant compass
+
+# Add multiple variants
+uv run cogames play --mission hello_world.energy_starved --cogs 2 --variant compass --variant small_50
+
+# With policy
+uv run cogames play --mission hello_world.single_use_swarm --cogs 4 -p scripted_baseline
+```
+
+---
+
+## Programmatic Evaluation
+
+### Using run_evaluation.py
+
+For systematic evaluation across multiple missions and configurations:
+
+```bash
+# Evaluate on integrated eval suite
+uv run python packages/cogames/scripts/run_evaluation.py \
+  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
+  --mission-set integrated_evals \
+  --cogs 4 \
+  --repeats 2
+
+# Evaluate specific agent
+uv run python packages/cogames/scripts/run_evaluation.py \
+  --agent simple \
+  --steps 1000 \
+  --output eval_simple.json
+```
+
+### Using in Curriculum Training
+
+Both diagnostic and integrated missions can be used in curriculum training via `mission_variant_curriculum.py`:
+
+```python
+from recipes.experiment.cvc import mission_variant_curriculum
+
+# Train on diagnostic missions
+mission_variant_curriculum.train(
+    base_missions=["diagnostic_missions"],
+    num_cogs=4,
+    variants="all"
+)
+
+# Train on specific integrated missions
+mission_variant_curriculum.train(
+    base_missions=["oxygen_bottleneck", "energy_starved"],
+    num_cogs=4,
+    variants=["compass", "pack_rat"]
+)
+```
+
+---
+
+## Design Philosophy
+
+### Diagnostic Missions
+
+- **Focused**: Each tests a specific skill in isolation
+- **Deterministic**: Fixed maps ensure reproducible results
+- **Minimal**: Small maps, simple layouts, clear objectives
+- **Scalable**: Work well with 1-4 agents
+
+### Integrated Missions
+
+- **Comprehensive**: Combine multiple challenges and variants
+- **Procedural**: Different map each run for generalization
+- **Challenging**: Require coordination and strategic planning
+- **Scalable**: Work well with 2-8 agents
+
+### Evaluation Best Practices
+
+1. Use diagnostic missions to identify specific skill deficits
+2. Use integrated missions to evaluate overall performance
+3. Run multiple seeds to account for procedural variation
+4. Compare against scripted baselines for context
 
 ---
 
 **Last Updated:** December 3, 2025
 
 **Diagnostic Missions:** 30+ (various skills and hard variants)
-
-**Integrated Missions:** 7 (procedural, used in training/evaluation)
+**Integrated Missions:** 7 (procedural, with built-in variants)
