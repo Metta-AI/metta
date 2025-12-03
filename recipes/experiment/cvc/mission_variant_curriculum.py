@@ -52,8 +52,20 @@ TRAINING_FACILITY_MISSIONS: tuple[str, ...] = (
     "signs_and_portents",
 )
 
+# Procedural generation missions (using MachinaArena)
+PROC_GEN_MISSIONS: tuple[str, ...] = (
+    "hello_world.open_world",
+    "machina_1.open_world",
+    "machina_1.balanced_corners",
+    "hello_world_unclip",
+)
+
 FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
-    *cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS,  # Base curriculum missions
+    *cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS,  # Base curriculum missions (includes machina_1.open_world)
+    # Additional procedural generation missions
+    "hello_world.open_world",
+    "machina_1.balanced_corners",
+    "hello_world_unclip",
     # Training facility missions we currently support in this repo
     "harvest",
     "assemble",
@@ -125,7 +137,7 @@ def resolve_missions(
     Args:
         missions: Can be:
             - None: Returns FULL_CURRICULUM_MISSIONS
-            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A mission set name: "diagnostic_missions", "training_facility_missions", "proc_gen_missions", "all"
             - A comma-separated string of mission names or set names
             - A list of mission names or set names
 
@@ -133,12 +145,12 @@ def resolve_missions(
         List of mission name strings
 
     Examples:
-        >>> resolve_missions("eval_missions")
-        ['go_together', 'oxygen_bottleneck', ...]
-        >>> resolve_missions(["eval_missions", "diagnostic_missions"])
-        ['go_together', ..., 'diagnostic_assemble_seeded_near', ...]
-        >>> resolve_missions("extractor_hub_30,extractor_hub_50")
-        ['extractor_hub_30', 'extractor_hub_50']
+        >>> resolve_missions("proc_gen_missions")
+        ['hello_world.open_world', 'machina_1.open_world', ...]
+        >>> resolve_missions(["proc_gen_missions", "diagnostic_missions"])
+        ['hello_world.open_world', ..., 'diagnostic_assemble_seeded_near', ...]
+        >>> resolve_missions("harvest,oxygen_bottleneck")
+        ['harvest', 'oxygen_bottleneck']
     """
     # Handle None - default to all missions
     if missions is None:
@@ -155,6 +167,7 @@ def resolve_missions(
     MISSION_SETS: dict[str, tuple[str, ...]] = {
         "diagnostic_missions": DIAGNOSTIC_MISSIONS,
         "training_facility_missions": TRAINING_FACILITY_MISSIONS,
+        "proc_gen_missions": PROC_GEN_MISSIONS,
         "all": FULL_CURRICULUM_MISSIONS,
     }
 
@@ -240,9 +253,9 @@ def make_curriculum(
     Args:
         base_missions: Mission names to include. Can be:
             - None: Uses FULL_CURRICULUM_MISSIONS
-            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
-            - A comma-separated string of mission names or set names (e.g., "eval_missions,diagnostic_missions")
-            - A list of mission names or set names (e.g., ["eval_missions", "extractor_hub_30"])
+            - A mission set name: "diagnostic_missions", "training_facility_missions", "proc_gen_missions", "all"
+            - A comma-separated string of mission names or set names (e.g., "proc_gen_missions,diagnostic_missions")
+            - A list of mission names or set names (e.g., ["proc_gen_missions", "harvest"])
         num_cogs: Number of agents per mission
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
@@ -460,7 +473,7 @@ def train(
     Args:
         base_missions: Mission names to include. Can be:
             - None: Uses FULL_CURRICULUM_MISSIONS
-            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A mission set name: "diagnostic_missions", "training_facility_missions", "proc_gen_missions", "all"
             - A comma-separated string of mission names or set names
             - A list of mission names or set names
         num_cogs: Number of agents per mission
@@ -568,7 +581,7 @@ def experiment(
     Args:
         base_missions: Optional mission names to include. Can be:
             - None: Uses FULL_CURRICULUM_MISSIONS
-            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A mission set name: "diagnostic_missions", "training_facility_missions", "proc_gen_missions", "all"
             - A list of mission names or set names
         run_name: Optional run name. If not provided, generates one with timestamp.
         num_cogs: Number of agents per mission (default: 4).
@@ -631,4 +644,5 @@ __all__ = [
     "FULL_CURRICULUM_MISSIONS",
     "DIAGNOSTIC_MISSIONS",
     "TRAINING_FACILITY_MISSIONS",
+    "PROC_GEN_MISSIONS",
 ]

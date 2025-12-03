@@ -200,6 +200,43 @@ def submit_missions_with_navigation_with_variants():
     )
 
 
+def submit_proc_gen_experiments():
+    """Submit procedural generation missions experiments."""
+    date = time.strftime(".%m%d")
+
+    # Proc gen missions only (no variants)
+    mission_variant_curriculum.experiment(
+        base_missions=["proc_gen_missions"],
+        run_name=f"procgen_base{date}",
+        skip_git_check=True,
+        variants=None,
+    )
+
+    # Proc gen missions with all variants
+    mission_variant_curriculum.experiment(
+        base_missions=["proc_gen_missions"],
+        run_name=f"procgen_all{date}",
+        skip_git_check=True,
+        variants="all",
+    )
+
+    # Proc gen + diagnostics (no variants)
+    mission_variant_curriculum.experiment(
+        base_missions=["proc_gen_missions", "diagnostic_missions"],
+        run_name=f"procgen_diag_base{date}",
+        skip_git_check=True,
+        variants=None,
+    )
+
+    # Proc gen + diagnostics with all variants
+    mission_variant_curriculum.experiment(
+        base_missions=["proc_gen_missions", "diagnostic_missions"],
+        run_name=f"procgen_diag_all{date}",
+        skip_git_check=True,
+        variants="all",
+    )
+
+
 if __name__ == "__main__":
     submit_single_mission_experiments()
     submit_all_missions_no_variants()
