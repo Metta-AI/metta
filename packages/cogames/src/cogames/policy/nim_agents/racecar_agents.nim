@@ -129,7 +129,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
 
   var config = parseConfig(environmentConfig)
   result = RaceCarAgent(agentId: agentId, cfg: config)
-  result.maxSteps = if config.config.maxSteps > 0: config.config.maxSteps else: MaxSteps
+  result.maxSteps = MaxSteps
   result.random = initRand(agentId)
   result.map = initTable[Location, seq[FeatureValue]]()
   result.seen = initHashSet[Location]()
