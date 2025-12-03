@@ -50,6 +50,11 @@ from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+# Cache for loaded policies to avoid reloading for each case (used in sequential mode)
+_cached_policy = None
+_cached_policy_key = None
+
+
 def _ensure_vibe_supports_gear(env_cfg) -> None:
     assembler = env_cfg.game.objects.get("assembler")
     uses_gear = False
@@ -170,39 +175,49 @@ def _run_case(
     agent_config: AgentConfig,
     cached_policy=None,  # Optional pre-loaded policy to reuse
 ) -> List[EvalResult]:
-    def _policy_requires_fresh_instance(policy) -> bool:
-        # Always reload per run to avoid any cross-episode state or cache ambiguity.
-        return True
+    global _cached_policy, _cached_policy_key
 
     mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
     if variant:
         mission_variants.insert(0, variant)
     try:
+        mission = base_mission.with_variants(mission_variants)
+        env_config = mission.make_env()
+        _ensure_vibe_supports_gear(env_config)
+        if variant is None or getattr(variant, "max_steps_override", None) is None:
+            env_config.game.max_steps = max_steps
+
+        # For evaluation, only heart rewards should count (not resource rewards)
+        if not env_config.game.agent.rewards.stats:
+            env_config.game.agent.rewards.stats = {}
+        resource_stats = ["carbon.gained", "oxygen.gained", "germanium.gained", "silicon.gained"]
+        for resource_stat in resource_stats:
+            env_config.game.agent.rewards.stats[resource_stat] = 0.0
+        if not env_config.game.agent.rewards.stats_max:
+            env_config.game.agent.rewards.stats_max = {}
+        for resource_stat in resource_stats:
+            env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
+
+        actual_max_steps = env_config.game.max_steps
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+
+        # Use cached policy if provided, otherwise try global cache, otherwise load fresh
+        if cached_policy is not None:
+            policy = cached_policy
+        elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
+            # Reuse globally cached policy
+            policy = _cached_policy
+        else:
+            # Load fresh and cache it globally for S3 policies
+            policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
+            if is_s3_uri(agent_config.policy_path):
+                _cached_policy = policy
+                _cached_policy_key = agent_config.policy_path
+
+        agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
+
         out: List[EvalResult] = []
         for run_idx in range(runs_per_case):
-            mission = base_mission.with_variants(mission_variants)
-            env_config = mission.make_env()
-            _ensure_vibe_supports_gear(env_config)
-            if variant is None or getattr(variant, "max_steps_override", None) is None:
-                env_config.game.max_steps = max_steps
-
-            if not env_config.game.agent.rewards.stats:
-                env_config.game.agent.rewards.stats = {}
-            for resource_stat in resource_stats:
-                env_config.game.agent.rewards.stats[resource_stat] = 0.0
-            if not env_config.game.agent.rewards.stats_max:
-                env_config.game.agent.rewards.stats_max = {}
-            for resource_stat in resource_stats:
-                env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
-
-            actual_max_steps = env_config.game.max_steps
-            policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-
-            # Always load fresh each run to avoid state leakage and keep logic simple.
-            policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-
-            agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
-
             run_seed = seed + run_idx
             rollout = Rollout(
                 env_config,
@@ -1027,8 +1042,7 @@ def main():
     parser.add_argument("--experiments", nargs="*", default=None, help="Experiments to run")
     parser.add_argument("--variants", nargs="*", default=None, help="Variants to apply")
     parser.add_argument("--cogs", nargs="*", type=int, default=None, help="Agent counts to test")
-    # Episodes on main now default to 10k steps; reflect that here so ad‑hoc
-    parser.add_argument("--steps", type=int, default=10000, help="Max steps per episode")
+    parser.add_argument("--steps", type=int, default=1000, help="Max steps per episode")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--output", type=str, default=None, help="Output JSON file for results")
     parser.add_argument("--plot-dir", type=str, default="eval_plots", help="Directory to save plots")
