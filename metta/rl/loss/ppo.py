@@ -105,9 +105,7 @@ class PPO(Loss):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.anneal_beta = 0.0
-        self.burn_in_steps = 0
-        if hasattr(self.policy, "burn_in_steps"):
-            self.burn_in_steps = self.policy.burn_in_steps
+        self.burn_in_steps = getattr(self.policy, "burn_in_steps", 0)
         self.burn_in_steps_iter = 0
         self.last_action = None
         self.register_state_attr("anneal_beta", "burn_in_steps_iter")

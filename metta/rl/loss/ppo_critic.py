@@ -81,10 +81,7 @@ class PPOCritic(Loss):
         self.trainable_only = True
         self.loss_profiles: set[int] | None = None
 
-        if hasattr(self.policy, "burn_in_steps"):
-            self.burn_in_steps = self.policy.burn_in_steps
-        else:
-            self.burn_in_steps = 0
+        self.burn_in_steps = getattr(self.policy, "burn_in_steps", 0)
         self.burn_in_steps_iter = 0
 
     def get_experience_spec(self) -> Composite:

@@ -326,11 +326,7 @@ class Trainer:
                 self._set_trainable_flag(trainer_policy, slot.trainable)
                 slot_policies[slot_lookup[slot.id]] = trainer_policy
             else:
-                loaded_policy = self._slot_registry.get(
-                    slot,
-                    self._env.policy_env_info,
-                    self._device,
-                )
+                loaded_policy = self._slot_registry.get(slot, self._env.policy_env_info, self._device)
                 self._set_trainable_flag(loaded_policy, slot.trainable)
                 slot_policies[slot_lookup[slot.id]] = loaded_policy
 
