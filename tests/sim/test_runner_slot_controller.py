@@ -1,9 +1,8 @@
 from types import SimpleNamespace
 
-from mettagrid import MettaGridConfig
-
 from metta.rl.slot_config import PolicySlotConfig
 from metta.sim.runner import SimulationRunConfig, run_simulations
+from mettagrid import MettaGridConfig
 
 
 class _DummyPolicy:

@@ -247,7 +247,8 @@ class Loss:
 
         if working_mask.dim() > batch_ndim:
             raise ValueError(
-                f"Slot filter mask with shape {tuple(mask.shape)} has more dimensions than minibatch {tuple(batch_size)}"
+                "Slot filter mask with shape "
+                f"{tuple(mask.shape)} has more dimensions than minibatch {tuple(batch_size)}"
             )
 
         if working_mask.dim() < batch_ndim:

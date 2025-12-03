@@ -83,7 +83,14 @@ def test_slot_metadata_injected_and_repeated_by_envs():
 
     optimizer = torch.optim.SGD(policy.parameters(), lr=0.1)
     context = _StubContext(env_info, slot_ids=torch.tensor([0, 1], dtype=torch.long), profile_ids=torch.tensor([5, 6]))
-    loop = CoreTrainingLoop(policy=policy, experience=experience, losses=losses, optimizer=optimizer, device=device, context=context)
+    loop = CoreTrainingLoop(
+        policy=policy,
+        experience=experience,
+        losses=losses,
+        optimizer=optimizer,
+        device=device,
+        context=context,
+    )
 
     td = TensorDict({"env_obs": torch.zeros(4, 1)}, batch_size=[4])
     loop._inject_slot_metadata(td, slice(0, 2))
