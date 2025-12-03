@@ -1,9 +1,6 @@
 import importlib
 import os
-import subprocess
 import sys
-import time
-from pathlib import Path
 from typing import Sequence
 
 from mettagrid.policy.policy import NimMultiAgentPolicy
@@ -13,46 +10,6 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 bindings_dir = os.path.join(current_dir, "bindings/generated")
 if bindings_dir not in sys.path:
     sys.path.append(bindings_dir)
-
-
-def _maybe_rebuild_nim_bindings() -> None:
-    """Rebuild Nim bindings if any Nim source is newer than the generated lib."""
-    if os.environ.get("COGAMES_SKIP_NIM_REBUILD"):
-        return
-
-    root = Path(current_dir)
-    lib_candidates = list((root / "bindings" / "generated").glob("libnim_agents.*"))
-    if not lib_candidates:
-        needs_build = True
-    else:
-        lib_mtime = max(p.stat().st_mtime for p in lib_candidates)
-        # Track all Nim sources that affect the bindings.
-        nim_sources = list(root.glob("*.nim")) + list(root.glob("*.nims")) + list(root.glob("*.cfg"))
-        src_mtime = max(p.stat().st_mtime for p in nim_sources)
-        needs_build = src_mtime > lib_mtime + 0.5  # small tolerance
-
-    if not needs_build:
-        return
-
-    install_sh = root / "install.sh"
-    if not install_sh.exists():
-        # Nothing we can do; fall through.
-        return
-    try:
-        subprocess.run(
-            ["bash", "-lc", f"cd '{root}' && chmod +x install.sh && ./install.sh"],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        # Small sleep to avoid tight loops on repeated imports.
-        time.sleep(0.05)
-    except Exception:
-        # If build fails, keep going; the import will raise later.
-        pass
-
-
-_maybe_rebuild_nim_bindings()
 
 na = importlib.import_module("nim_agents")
 
@@ -88,10 +45,7 @@ class RandomAgentsMultiPolicy(NimMultiAgentPolicy):
 
 
 class RaceCarAgentsMultiPolicy(NimMultiAgentPolicy):
-    short_names = [
-        "nim_race_car",
-        "racecar",
-    ]
+    short_names = ["nim_race_car"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
         super().__init__(
