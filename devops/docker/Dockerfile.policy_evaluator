@@ -10,8 +10,6 @@ COPY . /workspace/metta
 
 WORKDIR /workspace/metta
 
-# install.sh will run bootstrap automatically, but we need it before uv sync
-# Since the repo is already copied, we can run bootstrap directly
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -20,32 +18,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv if not present
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh || true
-ENV PATH="/root/.local/bin:$PATH"
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
+RUN uv --version
 
-# Install packaging (bootstrap.py dependency) and run bootstrap
-# Copy bootstrap.py to /tmp to avoid importing from metta package structure
-RUN cp metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py && \
-    python3 -m pip install packaging && \
-    cd /tmp && \
-    python3 bootstrap.py --non-interactive
+RUN bash install.sh --profile softmax-docker --non-interactive
 
-RUN apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
 RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 RUN chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 RUN echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
 RUN chmod 644 /etc/apt/sources.list.d/kubernetes.list
-RUN apt-get update
-RUN apt-get install -y kubectl
+RUN apt-get update && apt-get install -y kubectl && rm -rf /var/lib/apt/lists/*
 
-# Install packaging in uv environment for install.sh's bootstrap step
-# uv run --no-sync creates an isolated env, so we modify install.sh to include packaging
-RUN sed -i 's|uv run --no-sync python -m metta.setup.components.system_packages.bootstrap|uv run --no-sync --with packaging python -m metta.setup.components.system_packages.bootstrap|' install.sh
-
-RUN bash install.sh --profile softmax-docker --non-interactive
-
-# Pre-build all packages to avoid OOM during container startup
 RUN uv sync --all-extras --frozen && \
     uv run python -c "import metta.app_backend.eval_task_orchestrator" && \
     uv run python -c "import metta.app_backend.eval_task_worker"
