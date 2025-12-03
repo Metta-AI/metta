@@ -93,6 +93,10 @@ class IdMap:
         features.append(ObservationFeatureSpec(id=feature_id, normalization=100.0, name="last_reward"))
         feature_id += 1
 
+        # Goal feature (for indicating rewarding resources)
+        features.append(ObservationFeatureSpec(id=feature_id, normalization=100.0, name="goal"))
+        feature_id += 1
+
         # Agent-specific features
         features.append(ObservationFeatureSpec(id=feature_id, normalization=255.0, name="vibe"))
         feature_id += 1
