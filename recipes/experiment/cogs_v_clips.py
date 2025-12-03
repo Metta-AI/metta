@@ -235,19 +235,12 @@ def make_curriculum(
 
         # Create tasks for each variant set
         for variant_set in variant_sets:
-            if variant_set is None:
-                # Baseline mission (no variants)
-                variant_names = None
-            else:
-                # Skip incompatible sets (any variant incompatible => skip)
-                compat = all(
-                    any(v.name == name and v.compat(mission_template) for v in VARIANTS) for name in variant_set
-                )
-                if not compat:
-                    continue
-                variant_names = variant_set
+            if variant_set is not None and not all(
+                any(v.name == name and v.compat(mission_template) for v in VARIANTS) for name in variant_set
+            ):
+                continue
 
-            mission_env = make_training_env(num_cogs=num_cogs, mission=mission_name, variants=variant_names)
+            mission_env = make_training_env(num_cogs=num_cogs, mission=mission_name, variants=variant_set or None)
             mission_env.game.global_obs.goal_obs = True
             mission_tasks = cc.bucketed(mission_env)
 

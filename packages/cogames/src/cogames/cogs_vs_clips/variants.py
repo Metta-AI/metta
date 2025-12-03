@@ -297,9 +297,7 @@ class CogToolsOnlyVariant(MissionVariant):
 
         # Rewrite all gear recipes to use only the ["gear"] vibe, keep order intact.
         assembler_cfg.protocols = [
-            p.model_copy(update={"vibes": ["gear"]})
-            if any(k in p.output_resources for k in gear_outputs)
-            else p
+            p.model_copy(update={"vibes": ["gear"]}) if any(k in p.output_resources for k in gear_outputs) else p
             for p in assembler_cfg.protocols
         ]
 
