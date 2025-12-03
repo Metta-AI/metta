@@ -86,8 +86,8 @@ class LossesConfig(Config):
 
         samplers = [
             self.ppo.enabled,
-            self.ppo_critic.enabled,
-            self.quantile_ppo_critic.enabled,
+            self.ppo_critic.enabled and self.ppo_critic.sample_enabled,
+            self.quantile_ppo_critic.enabled and self.quantile_ppo_critic.sample_enabled,
             self.grpo.enabled,
             self.sliced_kickstarter.enabled,
             self.sliced_scripted_cloner.enabled,
@@ -106,7 +106,7 @@ class LossesConfig(Config):
         if any(consumers) and not any(samplers):
             raise ValueError(
                 "Loss config invalid: a loss needs sampled_mb but no sampler is enabled. "
-                "Enable one of (ppo, ppo_critic, quantile_ppo_critic, grpo, "
+                "Enable one of (ppo, ppo_critic.sample_enabled, quantile_ppo_critic.sample_enabled, grpo, "
                 "sliced_kickstarter, sliced_scripted_cloner, action_supervisor.sample_enabled=True) "
                 "or disable the consumer losses."
             )
