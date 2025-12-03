@@ -12,7 +12,8 @@ from datetime import datetime
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-from cogames.cogs_vs_clips.mission import Mission
+from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
+from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
 from cogames.cogs_vs_clips.sites import HELLO_WORLD
 from cogames.cogs_vs_clips.variants import TrainingVariant
 from metta.cogworks.curriculum.curriculum import (
@@ -165,13 +166,63 @@ def make_random_maps_curriculum(
     )
 
 
+def make_training_eval_suite(
+    num_cogs: int = 20,
+    max_evals: Optional[int] = 9,
+) -> list[SimulationConfig]:
+    """Create evaluation suite with TrainingVariant applied.
+
+    This ensures eval environments have the same action space (18 actions)
+    as training environments, allowing policy checkpoints to be loaded.
+
+    Args:
+        num_cogs: Number of agents per evaluation
+        max_evals: Maximum number of eval simulations (None for all)
+
+    Returns:
+        List of SimulationConfig with TrainingVariant applied
+    """
+    simulations: list[SimulationConfig] = []
+
+    for mission_template in EVAL_MISSIONS:
+        # Skip multi-agent only missions for single agent
+        if num_cogs == 1 and mission_template.name in {"go_together", "single_use_swarm"}:
+            continue
+
+        # Create mission with TrainingVariant for matching action space
+        mission = mission_template.with_variants(
+            [
+                NumCogsVariant(num_cogs=num_cogs),
+                TrainingVariant(),
+            ]
+        )
+
+        env_cfg = mission.make_env()
+
+        # Apply the same vibe restrictions as training
+        env_cfg.game.vibe_names = [v.name for v in vibes_module.VIBES[:13]]
+        if env_cfg.game.actions.change_vibe:
+            env_cfg.game.actions.change_vibe.number_of_vibes = 13
+        if env_cfg.game.actions.attack:
+            env_cfg.game.actions.attack.enabled = False
+
+        sim = SimulationConfig(
+            suite="cogs_vs_clips",
+            name=f"{mission_template.name}_{num_cogs}cogs",
+            env=env_cfg,
+        )
+        simulations.append(sim)
+
+        if max_evals is not None and len(simulations) >= max_evals:
+            break
+
+    return simulations
+
+
 def train(
     num_cogs: int = 20,
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
     heart_buckets=False,
     resource_buckets=False,
     initial_inventory_buckets=False,
@@ -182,9 +233,6 @@ def train(
         num_cogs: Number of agents per environment
         curriculum: Optional curriculum configuration
         enable_detailed_slice_logging: Enable detailed logging
-        variants: Optional mission variants for training
-        eval_variants: Optional mission variants for evaluation
-        eval_difficulty: Difficulty level for evaluation
         heart_buckets: Enable bucketing over heart inventory rewards
         resource_buckets: Enable bucketing over resource stat rewards
         initial_inventory_buckets: Enable bucketing over agent's initial inventory
@@ -214,13 +262,8 @@ def train(
         losses=LossesConfig(),
     )
 
-    # Use standard CVC eval suite
-    resolved_eval_variants = cogs_v_clips._resolve_eval_variants(variants, eval_variants)
-    eval_suite = cogs_v_clips.make_eval_suite(
-        num_cogs=num_cogs,
-        difficulty=eval_difficulty,
-        variants=resolved_eval_variants,
-    )
+    # Use custom eval suite with TrainingVariant applied (matching 18-action space)
+    eval_suite = make_training_eval_suite(num_cogs=num_cogs)
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
