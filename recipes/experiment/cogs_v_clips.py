@@ -485,7 +485,7 @@ def train_variants(
         )
 
     curriculum = merged_tasks.to_curriculum(
-        num_active_tasks=1500,
+        num_active_tasks=5,
         algorithm_config=algorithm_config,
     )
 
