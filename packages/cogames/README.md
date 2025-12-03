@@ -305,12 +305,6 @@ cogames submit -p class=stateless,data=train_dir/model.pt -n my_policy
 - `--include-files`: Can be specified multiple times, such as --include-files file1.py --include-files dir1/
 - `--dry-run`: Validates the policy works for submission without uploading it
 
-**For Nim agents** (thinky, racecar, ladybug), include the nim_agents directory:
-
-```bash
-cogames submit -p racecar -n "my-racecar-v1" -f packages/cogames/src/cogames/policy/nim_agents
-```
-
 When a new policy is submitted, it is queued up for evals with other policies, both randomly selected and designated
 policies for the Alignment League Benchmark.
 
