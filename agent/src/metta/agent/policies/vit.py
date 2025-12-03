@@ -191,9 +191,9 @@ class ViTDefaultConfig(PolicyArchitecture):
             key_prefix="vit_cortex_state",
             stack_cfg=build_cortex_auto_config(
                 d_hidden=_latent_dim,
-                num_layers=trunk_num_resnet_layers,
+                num_layers=16,  # Default to 16, can be overridden
                 pattern="A",  # Axon blocks provide residual-like connections
-                post_norm=trunk_use_layer_norm,
+                post_norm=True,
             ),
             pass_state_during_training=pass_state_during_training,
         ),
@@ -219,8 +219,16 @@ class ViTDefaultConfig(PolicyArchitecture):
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
     def make_policy(self, policy_env_info: PolicyEnvInterface) -> Policy:
-        # Note: trunk configuration (num_layers, layer_norm, scaling) is applied
-        # via the components list definition above, no runtime modification needed
+        # Apply trunk configuration dynamically to the Cortex component
+        cortex = next(c for c in self.components if isinstance(c, CortexTDConfig))
+
+        # Rebuild stack config with current parameters
+        cortex.stack_cfg = build_cortex_auto_config(
+            d_hidden=self._latent_dim,
+            num_layers=self.trunk_num_resnet_layers,
+            pattern="A",
+            post_norm=self.trunk_use_layer_norm,
+        )
 
         AgentClass = load_symbol(self.class_path)
         policy = AgentClass(policy_env_info, self)
