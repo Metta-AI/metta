@@ -3,7 +3,7 @@
 
 from pydantic import Field
 
-from metta.rl.slot_config import LossProfileConfig, PolicySlotConfig
+from metta.rl.slot import LossProfileConfig, PolicySlotConfig
 from metta.sim.runner import SimulationRunConfig
 from mettagrid import MettaGridConfig
 from mettagrid.base_config import Config

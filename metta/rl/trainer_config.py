@@ -3,7 +3,7 @@ from typing import Any, ClassVar, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.slot_config import LossProfileConfig, PolicySlotConfig
+from metta.rl.slot import LossProfileConfig, PolicySlotConfig
 from metta.rl.training import HeartbeatConfig
 from metta.rl.training.update_epochs_tuner import UpdateEpochAutoTunerConfig
 from mettagrid.base_config import Config

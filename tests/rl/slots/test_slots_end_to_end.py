@@ -6,8 +6,7 @@ from tensordict import NonTensorData, TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.slot_config import PolicySlotConfig
-from metta.rl.slot_controller import SlotControllerPolicy
+from metta.rl.slot import PolicySlotConfig, SlotControllerPolicy
 
 # ---------- Shared stubs ----------
 

@@ -6,9 +6,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
-from metta.rl.slot_config import LossProfileConfig, PolicySlotConfig
-from metta.rl.slot_controller import SlotControllerPolicy
-from metta.rl.slot_registry import SlotRegistry
+from metta.rl.slot import LossProfileConfig, PolicySlotConfig, SlotControllerPolicy, SlotRegistry
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (

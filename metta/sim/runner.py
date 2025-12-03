@@ -4,9 +4,7 @@ from typing import Callable, Sequence
 import torch
 from pydantic import BaseModel, ConfigDict, Field
 
-from metta.rl.slot_config import PolicySlotConfig
-from metta.rl.slot_controller import SlotControllerPolicy
-from metta.rl.slot_registry import SlotRegistry
+from metta.rl.slot import PolicySlotConfig, SlotControllerPolicy, SlotRegistry
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
