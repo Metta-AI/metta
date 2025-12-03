@@ -36,6 +36,7 @@ from metta.rl.training import (
     TorchProfiler,
     TrainerComponent,
     TrainingEnvironmentConfig,
+    UpdateEpochAutoTuner,
     VectorizedTrainingEnvironment,
     WandbAborter,
     WandbAborterConfig,
@@ -222,6 +223,10 @@ class TrainTool(Tool):
         heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
         if heartbeat_cfg is not None:
             components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
+
+        autotune_cfg = getattr(self.trainer, "update_epochs_autotune", None)
+        if autotune_cfg and getattr(autotune_cfg, "enabled", False):
+            components.append(UpdateEpochAutoTuner(autotune_cfg))
 
         stats_component: TrainerComponent | None = None
 

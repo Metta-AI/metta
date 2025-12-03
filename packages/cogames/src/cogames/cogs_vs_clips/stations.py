@@ -119,9 +119,9 @@ class OxygenExtractorConfig(ExtractorConfig):
         )
 
 
-# Rare regenerates slowly. More cogs increase the amount extracted.
+# Rare, single-use. More cogs increase the amount extracted.
 class GermaniumExtractorConfig(ExtractorConfig):
-    max_uses: int = Field(default=5)
+    max_uses: int = Field(default=1)
     synergy: int = 50
 
     def station_cfg(self) -> AssemblerConfig:

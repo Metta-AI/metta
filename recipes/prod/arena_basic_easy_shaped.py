@@ -111,7 +111,7 @@ def train(
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        evaluator=EvaluatorConfig(simulations=eval_simulations, evaluate_local=False, epoch_interval=300),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )

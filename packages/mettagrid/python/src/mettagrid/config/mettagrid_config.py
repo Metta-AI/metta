@@ -194,6 +194,9 @@ class GlobalObsConfig(Config):
     # Compass token that points toward the assembler/hub center
     compass: bool = Field(default=False)
 
+    # Goal tokens that indicate rewarding resources
+    goal_obs: bool = Field(default=False)
+
 
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
@@ -411,18 +414,9 @@ class GameConfig(Config):
 
     @model_validator(mode="after")
     def _compute_feature_ids(self) -> "GameConfig":
-        self._populate_vibe_names()
-        # Note that this validation only runs once by default, so later changes by the user can cause this to no
-        # longer be true.
-        if not self.actions.change_vibe.number_of_vibes == len(self.vibe_names):
-            raise ValueError("number_of_vibes must match the number of vibe names")
+        self.actions.change_vibe.number_of_vibes = self.actions.change_vibe.number_of_vibes or len(VIBES)
+        self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
         return self
-
-    def _populate_vibe_names(self) -> None:
-        """Populate vibe_names from change_vibe action config if not already set."""
-        if not self.vibe_names:
-            num_vibes = self.actions.change_vibe.number_of_vibes
-            self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
@@ -456,9 +450,7 @@ class MettaGridConfig(Config):
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
-        actions = ActionsConfig(
-            move=MoveActionConfig(),
-        )
+        actions = ActionsConfig(move=MoveActionConfig(), change_vibe=ChangeVibeActionConfig(number_of_vibes=len(VIBES)))
         objects = {}
         if border_width > 0 or with_walls:
             objects["wall"] = WallConfig(render_symbol="⬛")

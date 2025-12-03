@@ -14,9 +14,10 @@ const
   MapRoomBorder* = 0
 
   # World Objects
-  MapRoomObjectsHouses* = 12
-  MapAgentsPerHouse* = 5
-  MapRoomObjectsAgents* = MapRoomObjectsHouses * MapAgentsPerHouse  # 60 total agents
+  # Eight bases with six agents each -> 48 agents total (divisible by 12 and 16 for batching).
+  MapRoomObjectsHouses* = 8
+  MapAgentsPerHouse* = 6
+  MapRoomObjectsAgents* = MapRoomObjectsHouses * MapAgentsPerHouse  # 48 total agents
   MapRoomObjectsConverters* = 10
   MapRoomObjectsMines* = 20
   MapRoomObjectsWalls* = 30
@@ -1757,20 +1758,20 @@ proc step*(env: Environment, actions: ptr array[MapAgents, uint8]) =
     # Check if agent is dead and has a home assembler
     if env.terminated[agentId] == 1.0 and agent.homeassembler.x >= 0:
       # Find the assembler
-      var assembler: Thing = nil
+      var assemblerThing: Thing = nil
       for thing in env.things:
         if thing.kind == assembler and thing.pos == agent.homeassembler:
-          assembler = thing
+          assemblerThing = thing
           break
 
       # Respawn if assembler exists and has hearts
-      if not isNil(assembler) and assembler.hearts > 0:
+      if not isNil(assemblerThing) and assemblerThing.hearts > 0:
         # Deduct a heart from the assembler
-        assembler.hearts -= MapObjectassemblerRespawnCost
-        env.updateObservations(assemblerHeartsLayer, assembler.pos, assembler.hearts)
+        assemblerThing.hearts -= MapObjectassemblerRespawnCost
+        env.updateObservations(assemblerHeartsLayer, assemblerThing.pos, assemblerThing.hearts)
 
         # Find first empty position around assembler (no allocation)
-        let respawnPos = env.findFirstEmptyPositionAround(assembler.pos, 2)
+        let respawnPos = env.findFirstEmptyPositionAround(assemblerThing.pos, 2)
         if respawnPos.x >= 0:
           # Respawn the agent
           agent.pos = respawnPos

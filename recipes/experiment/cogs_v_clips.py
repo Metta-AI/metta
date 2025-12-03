@@ -35,6 +35,7 @@ DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "easy_hearts",
     "oxygen_bottleneck",
     "energy_starved",
+    "machina_1.open_world",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
@@ -58,7 +59,8 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
-    # f"machina_1{MAP_MISSION_DELIMITER}open_world",
+    f"machina_1{MAP_MISSION_DELIMITER}open_world",
+    f"machina_1{MAP_MISSION_DELIMITER}balanced_corners",
 )
 
 
@@ -218,18 +220,41 @@ def make_curriculum(
     if missions is None:
         missions = list(DEFAULT_CURRICULUM_MISSIONS)
 
+    # Determine which variant sets to use for bucketing
+    # None => baseline mission; [name] => single variant; [v1, v2] => combined variants
+    if variants is None:
+        variant_sets: list[list[str] | None] = [None] + [[v.name] for v in VARIANTS]
+    else:
+        variant_sets = [list(variants)]
+
     all_mission_tasks = []
     for mission_name in missions:
-        mission_env = make_training_env(
-            num_cogs=num_cogs,
-            mission=mission_name,
-            variants=variants,
-        )
-        mission_tasks = cc.bucketed(mission_env)
+        mission_template = _resolve_mission_template(mission_name)
 
-        mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
+        # Create tasks for each variant set
+        for variant_set in variant_sets:
+            if variant_set is not None and not all(
+                any(v.name == name and v.compat(mission_template) for v in VARIANTS) for name in variant_set
+            ):
+                continue
 
-        all_mission_tasks.append(mission_tasks)
+            mission_env = make_training_env(num_cogs=num_cogs, mission=mission_name, variants=variant_set or None)
+            mission_env.game.global_obs.goal_obs = True
+            mission_tasks = cc.bucketed(mission_env)
+
+            # Add buckets
+            mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
+            mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [0, 1, 5, 10])
+            mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 5, 10])
+
+            # Resource types for reward bucketing
+            resources = ["carbon", "oxygen", "germanium", "silicon"]
+
+            # Add buckets for resource collection rewards
+            for resource in resources:
+                mission_tasks.add_bucket(f"game.agent.rewards.inventory.{resource}", [0.0, 0.01, 0.1, 1])
+
+            all_mission_tasks.append(mission_tasks)
 
     merged_tasks = cc.merge(all_mission_tasks)
 
