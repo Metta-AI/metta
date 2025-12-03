@@ -18,7 +18,6 @@ from rich.console import Console
 from cogames.cli.mission import get_mission
 from cogames.play import play as play_episode
 from metta.common.util.log_config import init_mettagrid_system_environment
-from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy import PolicySpec
@@ -91,7 +90,7 @@ def env_config():
 def test_scripted_policies_work_as_supervisors(policy: PolicyUnderTest, simulator: Simulator, env_config) -> None:
     """Supervisor policies must load and generate teacher actions for training."""
 
-    env = MettaGridPufferEnv(simulator, env_config, EnvSupervisorConfig(policy=policy.reference))
+    env = MettaGridPufferEnv(simulator, env_config, supervisor_policy_spec=PolicySpec(class_path=policy.reference))
     try:
         observations, _ = env.reset(seed=123)
         assert observations.shape[0] == env_config.game.num_agents
