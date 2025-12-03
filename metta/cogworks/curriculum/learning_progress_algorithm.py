@@ -538,10 +538,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if hasattr(self, "_outcomes"):
             state.update(
                 {
-                    "outcomes": {k: v for k, v in self._outcomes.items()},
-                    "counter": self._counter,
-                    "per_task_fast": self._per_task_fast,
-                    "per_task_slow": self._per_task_slow,
+                    # Deep-copy mutable state to avoid aliasing after checkpoint is captured
+                    "outcomes": {k: list(v) for k, v in self._outcomes.items()},
+                    "counter": dict(self._counter),
+                    "per_task_fast": dict(self._per_task_fast),
+                    "per_task_slow": dict(self._per_task_slow),
                     # Legacy array fields retained for compatibility
                     "p_fast": [self._per_task_fast.get(tid, 0.0) for tid in sorted(self._outcomes.keys())],
                     "p_slow": [self._per_task_slow.get(tid, 0.0) for tid in sorted(self._outcomes.keys())],
@@ -549,7 +550,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                         float(np.mean(vals)) if vals else DEFAULT_SUCCESS_RATE
                         for _tid, vals in sorted(self._outcomes.items())
                     ],
-                    "score_cache": self._score_cache,
+                    "score_cache": dict(self._score_cache),
                     "cache_valid_tasks": list(self._cache_valid_tasks),
                 }
             )
