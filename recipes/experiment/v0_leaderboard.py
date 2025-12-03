@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass
 from typing import Sequence
 
 from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
-from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.leaderboard_constants import (
     LEADERBOARD_CANDIDATE_COUNT_KEY,
     LEADERBOARD_LADYBUG_COUNT_KEY,
@@ -15,7 +13,6 @@ from metta.app_backend.leaderboard_constants import (
     LEADERBOARD_SIM_NAME_EPISODE_KEY,
     LEADERBOARD_THINKY_COUNT_KEY,
 )
-from metta.app_backend.routes.stats_routes import EpisodeQueryRequest
 from metta.sim.runner import SimulationRunConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluatePolicyVersionTool
@@ -180,60 +177,6 @@ def simulations(
     ]
 
 
-def _verify_baseline_scenarios_exist(stats_client: StatsClient) -> None:
-    """Verify that replacement scenarios exist in the database.
-
-    Logs warnings if baseline scenarios are missing. The backend VOR calculation
-    will automatically aggregate all replacement scenarios (candidate_count=0),
-    including thinky_self_play, ladybug_self_play, and thinky_ladybug_dual.
-    """
-    try:
-        # Check if any replacement scenarios exist
-        episodes_response = stats_client.query_episodes(
-            EpisodeQueryRequest(
-                tag_filters={LEADERBOARD_CANDIDATE_COUNT_KEY: ["0"]},
-                limit=1,
-            )
-        )
-
-        if not episodes_response.episodes:
-            logger.warning(
-                "No replacement scenarios (candidate_count=0) found in database. "
-                "VOR calculation requires baseline evaluations "
-                "(thinky_self_play, ladybug_self_play, thinky_ladybug_dual)."
-            )
-            return
-
-        # Optionally log specific baseline scores for visibility
-        baseline_checks = [
-            (THINKY_UUID, "thinky_self_play", "Thinky self-play"),
-            (LADYBUG_UUID, "ladybug_self_play", "Ladybug self-play"),
-            (THINKY_UUID, "thinky_ladybug_dual", "Thinky-Ladybug dual"),
-        ]
-
-        for policy_uuid, scenario_kind, label in baseline_checks:
-            try:
-                episodes = stats_client.query_episodes(
-                    EpisodeQueryRequest(
-                        primary_policy_version_ids=[uuid.UUID(policy_uuid)],
-                        tag_filters={LEADERBOARD_SCENARIO_KIND_KEY: [scenario_kind]},
-                        limit=None,
-                    )
-                ).episodes
-
-                if episodes:
-                    policy_uuid_obj = uuid.UUID(policy_uuid)
-                    scores = [ep.avg_rewards[policy_uuid_obj] for ep in episodes if policy_uuid_obj in ep.avg_rewards]
-                    if scores:
-                        avg_score = sum(scores) / len(scores)
-                        logger.info(f"{label} baseline score: {avg_score:.4f}")
-            except Exception as e:
-                logger.debug(f"Could not fetch {label} baseline score: {e}")
-
-    except Exception as e:
-        logger.error(f"Error verifying baseline scenarios: {e}")
-
-
 # ./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_version_id=f32ca3a3-b6f0-479f-8105-27ce02b873cb
 # Or using metta:// URI:
 # ./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_uri=metta://policy/f32ca3a3-b6f0-479f-8105-27ce02b873cb
@@ -272,10 +215,6 @@ def evaluate(
 
     policy_version_ids = [policy_version_id, THINKY_UUID, LADYBUG_UUID]
     sim_configs = simulations(map_seed=seed, minimal=use_baseline_scores)
-
-    if use_baseline_scores:
-        stats_client = StatsClient.create(api_url)
-        _verify_baseline_scenarios_exist(stats_client)
 
     tool = MultiPolicyVersionEvalTool(
         result_file_path=result_file_path or f"leaderboard_eval_{policy_version_id}.json",
