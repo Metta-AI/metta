@@ -527,9 +527,9 @@ class StatsReporter(TrainerComponent):
                 if warmup_steps is not None:
                     hyperparameters["schedulefree_warmup_steps"] = warmup_steps
 
-        losses = getattr(trainer_cfg, "losses", None)
-        loss_configs = getattr(losses, "loss_configs", {}) if losses else {}
-        ppo_cfg = loss_configs.get("ppo") if isinstance(loss_configs, dict) else None
+        losses = self.context.losses if self.context else {}
+        ppo_loss = losses.get("ppo")
+        ppo_cfg = getattr(ppo_loss, "cfg", None) if ppo_loss else None
         if ppo_cfg is not None:
             for attr in (
                 "clip_coef",
