@@ -348,10 +348,9 @@ def train(
 
     tt = TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum, supervisor=supervisor),
         evaluator=evaluator_cfg,
         scheduler=scheduler,
-        supervisor=supervisor,
     )
 
     return tt
