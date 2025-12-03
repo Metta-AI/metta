@@ -77,6 +77,7 @@ def get_install_dir() -> Path | None:
                 return dir_path
     return None
 
+
 def ensure_bazel_version_file(version: str) -> None:
     """Ensure a workspace-level .bazelversion exists to pin Bazelisk."""
     try:
@@ -543,6 +544,7 @@ def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> N
 
     # Install nimby and nim
     install_nim_via_nimby(run_command, non_interactive=non_interactive)
+
 
 def main() -> None:
     """CLI entrypoint for bootstrap installation."""
