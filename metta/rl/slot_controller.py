@@ -79,8 +79,7 @@ class SlotControllerPolicy(Policy):
 
             sub_td = td[mask].clone()
             policy = self._slot_policies.get(int(b_id))
-            if policy is None:
-                raise RuntimeError(f"No policy registered for slot id {int(b_id)}")
+            assert policy is not None, f"No policy registered for slot id {int(b_id)}"
 
             out_td = policy.forward(sub_td, action=None if action is None else action[mask])
 
