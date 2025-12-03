@@ -563,6 +563,8 @@ def play(
         mission=mission,
         variants=variants,
     )
+    # Enforce TRAINING_VIBES for compatibility with trained policies
+    _enforce_training_vibes(env)
     sim = SimulationConfig(suite="cogs_vs_clips", name=f"{mission}_{num_cogs}cogs", env=env)
     return PlayTool(sim=sim, policy_uri=policy_uri)
 
