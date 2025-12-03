@@ -44,6 +44,10 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
+        # Set policy descriptors on simulation
+        policy_descriptors = [policy.policy_descriptor for policy in self._policies]
+        self._sim.set_policy_descriptors(policy_descriptors)
+
         # Reset policies and create agent policies if needed
         for policy in self._policies:
             policy.reset()

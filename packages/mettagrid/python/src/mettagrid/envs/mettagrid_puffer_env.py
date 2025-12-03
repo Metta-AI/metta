@@ -131,6 +131,13 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
+        # Set default policy descriptor for training (all agents use the same training policy)
+        from mettagrid.policy.policy import PolicyDescriptor
+
+        training_descriptor = PolicyDescriptor(name="training", is_scripted=False)
+        policy_descriptors = [training_descriptor] * self._sim.num_agents
+        self._sim.set_policy_descriptors(policy_descriptors)
+
         if self._env_supervisor_cfg.policy is not None:
             self._env_supervisor = initialize_or_load_policy(
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),

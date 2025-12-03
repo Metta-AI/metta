@@ -104,6 +104,11 @@ class StatsTracker(SimulatorEventHandler):
             v["agent_id"]: v["agent:group"] for v in grid_objects.values() if "agent_id" in v
         }
 
+        # Get agent policy IDs
+        agent_policy_ids: Dict[int, int] = {}
+        for agent_id in range(self._sim.num_agents):
+            agent_policy_ids[agent_id] = self._sim.get_agent_policy_id(agent_id)
+
         # Record episode
         self._stats_writer.record_episode(
             env_cfg_flattened,
@@ -112,6 +117,7 @@ class StatsTracker(SimulatorEventHandler):
             self._sim.current_step,
             self._sim._context.get("replay_url", None),
             self._episode_start_ts,
+            agent_policy_ids=agent_policy_ids,
         )
 
     def _add_timing_info(self) -> None:

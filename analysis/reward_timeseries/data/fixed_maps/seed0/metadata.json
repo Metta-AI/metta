@@ -1,0 +1,9 @@
+{
+  "run": "metta-research/metta/prashant.fixed.maps.seed0",
+  "recipe": "recipes.prod.cvc.fixed_maps.train",
+  "variants": [
+    "inventory_heart_tune",
+    "heart_chorus"
+  ],
+  "source_csv": "analysis/reward_timeseries/data/fixed_maps/seed0/reward_stream.csv"
+}

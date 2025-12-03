@@ -26,6 +26,7 @@ def format_agent_properties(
     env_action_success: Union[np.ndarray, list],
     rewards: np.ndarray,
     total_rewards: np.ndarray,
+    agent_policy_id: int = 0,
     decode_flat_action: Optional[Callable[[int], Tuple[int, int]]] = None,
 ) -> None:
     """Add agent-specific properties to the update object."""
@@ -58,6 +59,7 @@ def format_agent_properties(
     update_object["group_id"] = grid_object["group_id"]
     update_object["vibe_id"] = grid_object.get("vibe", 0)
     update_object["vibe"] = grid_object.get("vibe", 0)  # Alias for vibe_id
+    update_object["policy_id"] = agent_policy_id
 
 
 def format_converter_properties(grid_object: dict, update_object: dict) -> None:
@@ -100,9 +102,20 @@ def format_grid_object(
     env_action_success: Union[np.ndarray, list],
     rewards: np.ndarray,
     total_rewards: np.ndarray,
+    agent_policy_ids: Optional[dict[int, int]] = None,
     decode_flat_action: Optional[Callable[[int], Tuple[int, int]]] = None,
 ) -> dict:
-    """Format a grid object with validation for both replay recording and play streaming."""
+    """Format a grid object with validation for both replay recording and play streaming.
+
+    Args:
+        grid_object: The grid object to format
+        actions: Array of actions taken by agents
+        env_action_success: Array indicating success of each agent's action
+        rewards: Array of current step rewards
+        total_rewards: Array of cumulative rewards
+        agent_policy_ids: Optional dict mapping agent_id to policy_id
+        decode_flat_action: Optional function to decode flat action indices
+    """
     # Validate basic object properties
     assert isinstance(grid_object["id"], int), (
         f"Expected grid_object['id'] to be an integer, got {type(grid_object['id'])}"
@@ -126,6 +139,9 @@ def format_grid_object(
             f"Expected group_id to be an integer, got {type(grid_object['group_id'])}"
         )
 
+        # Get policy_id for this agent
+        policy_id = agent_policy_ids.get(agent_id, 0) if agent_policy_ids else 0
+
         update_object["is_agent"] = True
         format_agent_properties(
             grid_object,
@@ -134,6 +150,7 @@ def format_grid_object(
             env_action_success,
             rewards,
             total_rewards,
+            agent_policy_id=policy_id,
             decode_flat_action=decode_flat_action,
         )
 

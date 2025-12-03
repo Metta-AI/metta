@@ -19,6 +19,7 @@ from mettagrid.simulator.map_cache import SharedMapCache, get_shared_cache
 
 if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
+    from mettagrid.policy.policy import PolicyDescriptor
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,9 @@ class Simulation:
         self._features: dict[int, ObservationFeatureSpec] = {
             feature.id: feature for feature in self._config.game.id_map().features()
         }
+
+        # Policy descriptors for each agent (set externally)
+        self._policy_descriptors: list[PolicyDescriptor] = []
 
         self._start_episode()
 
@@ -214,6 +218,53 @@ class Simulation:
     def get_feature(self, feature_id: int) -> ObservationFeatureSpec:
         """Get a feature by its ID."""
         return self._features[feature_id]
+
+    def set_policy_descriptors(self, descriptors: list[PolicyDescriptor]) -> None:
+        """Set policy descriptors for each agent slot.
+
+        Args:
+            descriptors: List of PolicyDescriptor, one per agent
+        """
+        from mettagrid.policy.policy import PolicyDescriptor
+
+        if len(descriptors) != self.num_agents:
+            raise ValueError(f"Expected {self.num_agents} descriptors, got {len(descriptors)}")
+        self._policy_descriptors = descriptors
+
+    def get_policy_descriptors(self) -> list[PolicyDescriptor]:
+        """Get policy descriptors for all agents."""
+        return self._policy_descriptors
+
+    def get_agent_policy_id(self, agent_id: int) -> int:
+        """Get the policy ID for a specific agent.
+
+        Returns the index into the unique policies array for this agent.
+        """
+        if not self._policy_descriptors:
+            return 0  # Default if no descriptors set
+
+        # Find the unique policy index for this agent's descriptor
+        agent_descriptor = self._policy_descriptors[agent_id]
+        unique_policies = self.get_unique_policy_descriptors()
+        for idx, policy in enumerate(unique_policies):
+            if policy == agent_descriptor:
+                return idx
+        return 0  # Fallback
+
+    def get_unique_policy_descriptors(self) -> list[PolicyDescriptor]:
+        """Get unique policy descriptors (deduplicated)."""
+        if not self._policy_descriptors:
+            return []
+
+        # Deduplicate based on name and uri
+        seen = []
+        unique = []
+        for desc in self._policy_descriptors:
+            key = (desc.name, desc.uri)
+            if key not in seen:
+                seen.append(key)
+                unique.append(desc)
+        return unique
 
     @property
     def action_success(self) -> list[bool]:
