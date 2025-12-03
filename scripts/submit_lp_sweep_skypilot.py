@@ -49,7 +49,7 @@ SWEEP_DIMENSIONS: Sequence[SweepDimension] = (
 DEFAULT_RECIPE = "recipes.experiment.cvc.proc_maps.train"
 DEFAULT_VARIANTS = ["heart_chorus"]
 DEFAULT_NUM_COGS = 4
-DEFAULT_TOTAL_TIMESTEPS = 10_000_000_000  # 10B for extended learning
+DEFAULT_TOTAL_TIMESTEPS = 1_000_000_000  # 1B for meaningful learning
 DEFAULT_EPOCH_INTERVAL = 50
 
 
