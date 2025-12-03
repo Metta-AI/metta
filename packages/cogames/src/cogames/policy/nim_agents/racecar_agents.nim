@@ -347,15 +347,40 @@ proc step*(
     updateMap(agent, visible)
     agent.steps += 1
 
+    # Track base infrastructure as soon as we see it and seed exploration around it
     let assemblerNearbyNow = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
     if assemblerNearbyNow.isSome():
-      agent.seenAssembler = true
-      agent.assemblerHome = some(assemblerNearbyNow.get())
+      let asmLoc = assemblerNearbyNow.get()
+      agent.assemblerHome = some(asmLoc)
+      if not agent.seenAssembler:
+        agent.seenAssembler = true
+        let keyLocations = [
+          Location(x: -10, y: -10),
+          Location(x: -10, y: +10),
+          Location(x: +10, y: -10),
+          Location(x: +10, y: +10),
+        ]
+        for keyLocation in keyLocations:
+          let location = asmLoc + keyLocation
+          if location notin agent.exploreLocations:
+            agent.exploreLocations.add(location)
 
     let chestNearbyNow = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
     if chestNearbyNow.isSome():
-      agent.seenChest = true
-      agent.chestHome = some(chestNearbyNow.get())
+      let chestLoc = chestNearbyNow.get()
+      agent.chestHome = some(chestLoc)
+      if not agent.seenChest:
+        agent.seenChest = true
+        let keyLocations = [
+          Location(x: -3, y: 0),
+          Location(x: 0, y: +3),
+          Location(x: +3, y: 0),
+          Location(x: 0, y: -3),
+        ]
+        for keyLocation in keyLocations:
+          let location = chestLoc + keyLocation
+          if location notin agent.exploreLocations:
+            agent.exploreLocations.add(location)
 
     let
       vibe = agent.cfg.getVibe(visible, Location(x: 0, y: 0))
@@ -646,35 +671,6 @@ proc step*(
         "germanium"
       ):
         return
-
-    # Explore locations around the assembler.
-    block:
-      if not agent.seenAssembler:
-        let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
-        if assemblerNearby.isSome():
-          agent.seenAssembler = true
-          let keyLocations = [
-            Location(x: -10, y: -10),
-            Location(x: -10, y: +10),
-            Location(x: +10, y: -10),
-            Location(x: +10, y: +10),
-          ]
-          for keyLocation in keyLocations:
-            let location = assemblerNearby.get() + keyLocation
-            agent.exploreLocations.add(location)
-      if not agent.seenChest:
-        let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-        if chestNearby.isSome():
-          agent.seenChest = true
-          let keyLocations = [
-            Location(x: -3, y: 0),
-            Location(x: 0, y: +3),
-            Location(x: +3, y: 0),
-            Location(x: 0, y: -3),
-          ]
-          for keyLocation in keyLocations:
-            let location = chestNearby.get() + keyLocation
-            agent.exploreLocations.add(location)
 
     # Do Exploration.
     if agent.exploreLocations.len == 0:
