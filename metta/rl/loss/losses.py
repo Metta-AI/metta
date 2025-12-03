@@ -56,23 +56,15 @@ class LossesConfig(Config):
         env: TrainingEnvironment,
         device: torch.device,
     ) -> dict[str, Loss]:
-        # losses are run in the order they are listed here
-        configs: list[tuple[str, LossConfig]] = [
-            ("sliced_kickstarter", self.sliced_kickstarter),
-            ("sliced_scripted_cloner", self.sliced_scripted_cloner),
-            ("ppo_critic", self.ppo_critic),
-            ("quantile_ppo_critic", self.quantile_ppo_critic),
-            ("ppo_actor", self.ppo_actor),
-            ("ppo", self.ppo),
-            ("vit_reconstruction", self.vit_reconstruction),
-            ("contrastive", self.contrastive),
-            ("grpo", self.grpo),
-            ("action_supervisor", self.supervisor),
-            ("kickstarter", self.kickstarter),
-            ("logit_kickstarter", self.logit_kickstarter),
-        ]
         return {
             name: cfg.create(policy, trainer_cfg, env, device, name)
-            for name, cfg in configs
+            for name, cfg in self
             if cfg.enabled
         }
+
+    def __iter__(self):
+        """Iterate over (name, config) pairs for all loss configs."""
+        for name in self.model_fields:
+            cfg = getattr(self, name)
+            if isinstance(cfg, LossConfig):
+                yield name, cfg
