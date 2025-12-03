@@ -191,8 +191,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             # Apply the same progress smoothing used in distribution calc so the
             # bidirectional score honors the config knob.
             if self.hypers.progress_smoothing != 0.0:
-                fast = self._reweight_scalar(fast)
-                slow = self._reweight_scalar(slow)
+                fast = float(self._reweight(fast))
+                slow = float(self._reweight(slow))
 
             # Learning progress = |fast - slow|
             lp = abs(fast - slow)
@@ -576,23 +576,23 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return lp + performance_bonus
 
-    def _reweight(self, probs: np.ndarray) -> np.ndarray:
-        """Apply progress smoothing reweighting to probability values."""
-        numerator = probs * (1.0 - self.hypers.progress_smoothing)
-        denominator = probs + self.hypers.progress_smoothing * (1.0 - 2.0 * probs)
+    def _reweight(self, probs: np.ndarray | float) -> np.ndarray | float:
+        """Apply progress smoothing reweighting to probability values.
 
-        # Handle division by zero
+        Accepts either a scalar or an array and returns the same shape/type.
+        """
+        arr = np.asarray(probs, dtype=float)
+        smoothing = self.hypers.progress_smoothing
+        numerator = arr * (1.0 - smoothing)
+        denominator = arr + smoothing * (1.0 - 2.0 * arr)
+
+        # Prevent divide-by-zero or sign flips; mirror distribution behavior.
         denominator = np.where(denominator <= 0, 1.0, denominator)
         result = numerator / denominator
-        return result
 
-    def _reweight_scalar(self, prob: float) -> float:
-        """Apply progress smoothing to a single probability value."""
-        smoothing = self.hypers.progress_smoothing
-        denominator = prob + smoothing * (1.0 - 2.0 * prob)
-        if denominator <= 0:
-            return prob
-        return prob * (1.0 - smoothing) / denominator
+        if np.ndim(probs) == 0:
+            return float(result)
+        return result
 
     def _sigmoid(self, x: np.ndarray) -> np.ndarray:
         """Apply sigmoid function to array values."""
