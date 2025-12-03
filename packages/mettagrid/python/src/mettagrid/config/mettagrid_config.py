@@ -194,6 +194,9 @@ class GlobalObsConfig(Config):
     # Compass token that points toward the assembler/hub center
     compass: bool = Field(default=False)
 
+    # Goal tokens that indicate rewarding resources
+    goal_obs: bool = Field(default=False)
+
 
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
