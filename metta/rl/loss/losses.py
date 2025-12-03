@@ -49,36 +49,6 @@ class LossesConfig(Config):
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
     )
 
-    def _configs(self) -> dict[str, LossConfig]:
-        # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
-        # also, the way it's setup doesn't let the experimenter give names to losses.
-        loss_configs: dict[str, LossConfig] = {}
-        if self.sliced_kickstarter.enabled:
-            loss_configs["sliced_kickstarter"] = self.sliced_kickstarter
-        if self.sliced_scripted_cloner.enabled:
-            loss_configs["sliced_scripted_cloner"] = self.sliced_scripted_cloner
-        if self.ppo_critic.enabled:
-            loss_configs["ppo_critic"] = self.ppo_critic
-        if self.quantile_ppo_critic.enabled:
-            loss_configs["quantile_ppo_critic"] = self.quantile_ppo_critic
-        if self.ppo_actor.enabled:
-            loss_configs["ppo_actor"] = self.ppo_actor
-        if self.ppo.enabled:
-            loss_configs["ppo"] = self.ppo
-        if self.vit_reconstruction.enabled:
-            loss_configs["vit_reconstruction"] = self.vit_reconstruction
-        if self.contrastive.enabled:
-            loss_configs["contrastive"] = self.contrastive
-        if self.grpo.enabled:
-            loss_configs["grpo"] = self.grpo
-        if self.supervisor.enabled:
-            loss_configs["action_supervisor"] = self.supervisor
-        if self.kickstarter.enabled:
-            loss_configs["kickstarter"] = self.kickstarter
-        if self.logit_kickstarter.enabled:
-            loss_configs["logit_kickstarter"] = self.logit_kickstarter
-        return loss_configs
-
     def init_losses(
         self,
         policy: Policy,
@@ -86,7 +56,23 @@ class LossesConfig(Config):
         env: TrainingEnvironment,
         device: torch.device,
     ) -> dict[str, Loss]:
+        # losses are run in the order they are listed here
+        configs: list[tuple[str, LossConfig]] = [
+            ("sliced_kickstarter", self.sliced_kickstarter),
+            ("sliced_scripted_cloner", self.sliced_scripted_cloner),
+            ("ppo_critic", self.ppo_critic),
+            ("quantile_ppo_critic", self.quantile_ppo_critic),
+            ("ppo_actor", self.ppo_actor),
+            ("ppo", self.ppo),
+            ("vit_reconstruction", self.vit_reconstruction),
+            ("contrastive", self.contrastive),
+            ("grpo", self.grpo),
+            ("action_supervisor", self.supervisor),
+            ("kickstarter", self.kickstarter),
+            ("logit_kickstarter", self.logit_kickstarter),
+        ]
         return {
-            loss_name: loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
-            for loss_name, loss_config in self._configs().items()
+            name: cfg.create(policy, trainer_cfg, env, device, name, cfg)
+            for name, cfg in configs
+            if cfg.enabled
         }
