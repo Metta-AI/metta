@@ -37,32 +37,26 @@ logger = logging.getLogger(__name__)
 
 # Single canonical curriculum list (fixed + procedural)
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    # Fixed-map classics
-    "extractor_hub_30",
-    "extractor_hub_50",
-    "extractor_hub_70",
-    "collect_resources_classic",
-    "collect_resources_spread",
-    "collect_far",
-    "divide_and_conquer",
-    "go_together",
-    "easy_hearts",
-    "oxygen_bottleneck",
-    "energy_starved",
-    # Procedural map variants
-    "training_facility.harvest",
-    "training_facility.vibe_check",
-    "training_facility.repair",
-    "training_facility.easy_hearts_training_facility",
-    "hello_world.open_world",
-    "hello_world.hello_world_unclip",
+    "fixed.extractor_hub_30",
+    "fixed.extractor_hub_50",
+    "fixed.extractor_hub_70",
+    # Fixed-map classics (now listed with their canonical names)
+    "easy_mode",
+    "hello_world.easy_hearts",
     "hello_world.oxygen_bottleneck",
     "hello_world.energy_starved",
     "hello_world.distant_resources",
     "hello_world.quadrant_buildings",
     "hello_world.single_use_swarm",
     "hello_world.vibe_check",
-    "hello_world.easy_hearts",
+    # Training facility curriculum
+    "training_facility.harvest",
+    "training_facility.vibe_check",
+    "training_facility.repair",
+    "training_facility.easy_hearts_training_facility",
+    # Additional fixed/procedural maps
+    "hello_world.hello_world_unclip",
+    "hello_world.open_world",
     "hello_world.easy_hearts_hello_world",
     # Machina maps
     "machina_1.open_world",

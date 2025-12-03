@@ -6,6 +6,15 @@ from cogames.cogs_vs_clips.procedural import MachinaArena, RandomTransform
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import BaseHub
 
+# Base site for fixed extractor hub maps; individual missions override map_builder.
+FIXED = Site(
+    name="fixed",
+    description="Fixed extractor hub maps (map set per mission).",
+    map_builder=get_map("evals/extractor_hub_30x30.map"),
+    min_cogs=1,
+    max_cogs=8,
+)
+
 TRAINING_FACILITY = Site(
     name="training_facility",
     description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
@@ -65,6 +74,7 @@ EASY_MODE = Site(
 )
 
 SITES = [
+    FIXED,
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
