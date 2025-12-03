@@ -39,7 +39,7 @@ DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "easy_hearts",
     "oxygen_bottleneck",
     "energy_starved",
-    # "machina_1.open_world",
+    "machina_1.open_world",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
@@ -222,35 +222,32 @@ def make_curriculum(
     if missions is None:
         missions = list(DEFAULT_CURRICULUM_MISSIONS)
 
-    # Determine which variants to use for bucketing
-    variant_list: list[str]
+    # Determine which variant sets to use for bucketing
+    # None => baseline mission; [name] => single variant; [v1, v2] => combined variants
     if variants is None:
-        # Use all variants when variants not specified
-        variant_list = [v.name for v in VARIANTS]
+        variant_sets: list[list[str] | None] = [None] + [[v.name] for v in VARIANTS]
     else:
-        variant_list = list(variants)
+        variant_sets = [list(variants)]
 
     all_mission_tasks = []
     for mission_name in missions:
         mission_template = _resolve_mission_template(mission_name)
 
-        # Create separate tasks for each variant combination
-        for variant_name in variant_list:
-            # Check if variant is compatible with mission
-            variant_obj = None
-            for v in VARIANTS:
-                if v.name == variant_name and v.compat(mission_template):
-                    variant_obj = v
-                    break
+        # Create tasks for each variant set
+        for variant_set in variant_sets:
+            if variant_set is None:
+                # Baseline mission (no variants)
+                variant_names = None
+            else:
+                # Skip incompatible sets (any variant incompatible => skip)
+                compat = all(
+                    any(v.name == name and v.compat(mission_template) for v in VARIANTS) for name in variant_set
+                )
+                if not compat:
+                    continue
+                variant_names = variant_set
 
-            if variant_obj is None:
-                continue
-
-            mission_env = make_training_env(
-                num_cogs=num_cogs,
-                mission=mission_name,
-                variants=[variant_name],
-            )
+            mission_env = make_training_env(num_cogs=num_cogs, mission=mission_name, variants=variant_names)
             mission_env.game.global_obs.goal_obs = True
             mission_tasks = cc.bucketed(mission_env)
 

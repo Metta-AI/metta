@@ -295,20 +295,13 @@ class CogToolsOnlyVariant(MissionVariant):
         if has_gear_protocol:
             return
 
-        # Collect gear protocols and non-gear protocols separately
-        gear_protocols = []
-        other_protocols = []
-        for protocol in assembler_cfg.protocols:
-            if any(k in protocol.output_resources for k in gear_outputs):
-                gear_protocols.append(protocol)
-            else:
-                other_protocols.append(protocol)
-
-        # If we have gear protocols, make all of them require only the ["gear"] vibe
-        # and keep every recipe so all gear tools remain craftable.
-        if gear_protocols:
-            gear_protocols = [p.model_copy(update={"vibes": ["gear"]}) for p in gear_protocols]
-            assembler_cfg.protocols = other_protocols + gear_protocols
+        # Rewrite all gear recipes to use only the ["gear"] vibe, keep order intact.
+        assembler_cfg.protocols = [
+            p.model_copy(update={"vibes": ["gear"]})
+            if any(k in p.output_resources for k in gear_outputs)
+            else p
+            for p in assembler_cfg.protocols
+        ]
 
 
 class InventoryHeartTuneVariant(MissionVariant):
