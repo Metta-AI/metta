@@ -62,7 +62,6 @@ class SimTaskExecutor(AbstractTaskExecutor):
         self._backend_url = backend_url
         self._temp_dir = tempfile.mkdtemp()
         self._versioned_path = f"{self._temp_dir}/workdir"
-        self.checkout_success_file = f"{self._temp_dir}/checkout_success"
 
     def _run_cmd_from_versioned_checkout(
         self,
@@ -120,57 +119,52 @@ class SimTaskExecutor(AbstractTaskExecutor):
     @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self, git_ref: str) -> None:
         try:
-            logger.info(f"Setting up versioned checkout at {self._versioned_path}")
+            logger.info(f"Setting up versioned checkout at {self._versioned_path} for ref {git_ref}")
 
-            if not os.path.exists(self.checkout_success_file):
-                logger.info("Cloning repository for the first time")
-                if os.path.exists(self._versioned_path):
-                    shutil.rmtree(self._versioned_path)
+            if os.path.exists(self._versioned_path):
+                shutil.rmtree(self._versioned_path)
 
-                os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
+            os.makedirs(self._versioned_path, exist_ok=True)
 
-                result = subprocess.run(
-                    ["git", "clone", REPO_URL, self._versioned_path],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode != 0:
-                    raise RuntimeError(f"Failed to clone repository: {result.stderr}")
-
-                with open(self.checkout_success_file, "w") as f:
-                    f.write("Success")
-
-            # Pull the latest changes
+            # Initialize empty repo
             result = subprocess.run(
-                ["git", "fetch", "origin"],
+                ["git", "init"],
                 cwd=self._versioned_path,
                 capture_output=True,
                 text=True,
             )
             if result.returncode != 0:
-                raise RuntimeError(f"Failed to fetch repository: {result.stderr}")
+                raise RuntimeError(f"Failed to init repository: {result.stderr}")
 
-            full_git_ref = git_ref if self._is_commit_sha(git_ref) else f"origin/{git_ref}"
-
-            # Checkout the specific commit
+            # Add remote
             result = subprocess.run(
-                ["git", "reset", "--hard", full_git_ref],
+                ["git", "remote", "add", "origin", REPO_URL],
                 cwd=self._versioned_path,
                 capture_output=True,
                 text=True,
             )
             if result.returncode != 0:
-                raise RuntimeError(f"Failed to checkout git ref {full_git_ref}: {result.stderr}")
+                raise RuntimeError(f"Failed to add remote: {result.stderr}")
 
-            # Clean the repository
+            # Shallow fetch the specific ref (works for both commits and branches)
             result = subprocess.run(
-                ["git", "clean", "-df"],
+                ["git", "fetch", "--depth", "1", "origin", git_ref],
                 cwd=self._versioned_path,
                 capture_output=True,
                 text=True,
             )
             if result.returncode != 0:
-                raise RuntimeError(f"Failed to clean repository: {result.stderr}")
+                raise RuntimeError(f"Failed to fetch git ref {git_ref}: {result.stderr}")
+
+            # Checkout the fetched ref
+            result = subprocess.run(
+                ["git", "checkout", "FETCH_HEAD"],
+                cwd=self._versioned_path,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to checkout FETCH_HEAD: {result.stderr}")
 
             # Install dependencies in the versioned checkout
             logger.info("Installing dependencies in versioned checkout...")

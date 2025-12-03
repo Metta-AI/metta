@@ -144,6 +144,8 @@ class EvalTaskOrchestrator:
 
 def init_logging():
     # Configure root logger
+    root = logging.getLogger()
+    root.handlers.clear()  # Remove any existing handlers
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
