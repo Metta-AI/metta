@@ -249,7 +249,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--gpus",
         type=int,
-        default=6,
+        default=8,
         help="GPUs per job",
     )
     parser.add_argument(
