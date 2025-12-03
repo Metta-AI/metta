@@ -287,9 +287,19 @@ class CogToolsOnlyVariant(MissionVariant):
         if not isinstance(assembler_cfg, AssemblerConfig):
             raise TypeError("Expected 'assembler' to be AssemblerConfig")
         gear_outputs = {"decoder", "modulator", "scrambler", "resonator"}
-        for protocol in assembler_cfg.protocols:
-            if any(k in protocol.output_resources for k in gear_outputs):
-                protocol.vibes = ["gear"]
+
+        # Check if a protocol with ["gear"] vibe already exists
+        # If so, don't modify any protocols to avoid creating duplicates
+        has_gear_protocol = any(p.vibes == ["gear"] and p.min_agents == 0 for p in assembler_cfg.protocols)
+
+        if has_gear_protocol:
+            return
+
+        # Rewrite all gear recipes to use only the ["gear"] vibe, keep order intact.
+        assembler_cfg.protocols = [
+            p.model_copy(update={"vibes": ["gear"]}) if any(k in p.output_resources for k in gear_outputs) else p
+            for p in assembler_cfg.protocols
+        ]
 
 
 class InventoryHeartTuneVariant(MissionVariant):
