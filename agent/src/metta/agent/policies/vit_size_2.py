@@ -13,7 +13,7 @@ from metta.agent.policy import PolicyArchitecture
 
 
 class ViTSize2Config(PolicyArchitecture):
-    """Speed-optimized ViT variant with lighter token embeddings and attention stack."""
+    """Slightly larger than default ViT policy."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
