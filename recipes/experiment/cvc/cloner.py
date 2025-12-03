@@ -44,9 +44,9 @@ DEFAULT_CURRICULUM_MISSIONS: list[str] = [
 ]
 
 COORDINATION_MISSIONS: list[str] = [
-    "distant_resources",
-    "quadrant_buildings",
-    "single_use_swarm",
+    "go_together",
+    "divide_and_conquer",
+    "collect_resources_spread",
 ]
 
 PROC_MAP_MISSIONS: tuple[str, ...] = (
@@ -63,8 +63,8 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"hello_world{MAP_MISSION_DELIMITER}single_use_swarm",
     f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
-    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
-    # f"machina_1{MAP_MISSION_DELIMITER}open_world",
+    f"machina_1{MAP_MISSION_DELIMITER}open_world",
+    f"machina_1{MAP_MISSION_DELIMITER}balanced_corners",
 )
 
 

@@ -77,7 +77,39 @@ class LossesConfig(Config):
             loss_configs["kickstarter"] = self.kickstarter
         if self.logit_kickstarter.enabled:
             loss_configs["logit_kickstarter"] = self.logit_kickstarter
+
+        self._validate_sampler_dependencies()
         return loss_configs
+
+    def _validate_sampler_dependencies(self) -> None:
+        """Fail fast when a consumer loss is enabled but no sampler writes sampled_mb."""
+
+        samplers = [
+            self.ppo.enabled,
+            self.ppo_critic.enabled and self.ppo_critic.sample_enabled,
+            self.quantile_ppo_critic.enabled and self.quantile_ppo_critic.sample_enabled,
+            self.grpo.enabled,
+            self.sliced_kickstarter.enabled,
+            self.sliced_scripted_cloner.enabled,
+            self.supervisor.enabled and self.supervisor.sample_enabled,
+        ]
+
+        consumers = [
+            self.ppo_actor.enabled,
+            self.kickstarter.enabled,
+            self.logit_kickstarter.enabled,
+            self.vit_reconstruction.enabled,
+            self.contrastive.enabled,
+            self.supervisor.enabled and not self.supervisor.sample_enabled,
+        ]
+
+        if any(consumers) and not any(samplers):
+            raise ValueError(
+                "Loss config invalid: a loss needs sampled_mb but no sampler is enabled. "
+                "Enable one of (ppo, ppo_critic.sample_enabled, quantile_ppo_critic.sample_enabled, grpo, "
+                "sliced_kickstarter, sliced_scripted_cloner, action_supervisor.sample_enabled=True) "
+                "or disable the consumer losses."
+            )
 
     def init_losses(
         self,
