@@ -8,6 +8,7 @@
 #include <iostream>
 #include <numeric>
 #include <random>
+#include <string>
 #include <unordered_set>
 #include <vector>
 
@@ -345,6 +346,35 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (_global_obs_config.last_reward) {
     ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
     global_tokens.push_back({ObservationFeature::LastReward, reward_int});
+  }
+
+  // Add goal tokens for rewarding resources when enabled
+  if (_global_obs_config.goal_obs) {
+    auto& agent = _agents[agent_idx];
+    // Track which resources we've already added goal tokens for
+    std::unordered_set<std::string> added_resources;
+    // Iterate through stat_rewards to find rewarding resources
+    for (const auto& [stat_name, reward_value] : agent->stat_rewards) {
+      // Extract resource name from stat name (e.g., "carbon.amount" -> "carbon", "carbon.gained" -> "carbon")
+      size_t dot_pos = stat_name.find('.');
+      if (dot_pos != std::string::npos) {
+        std::string resource_name = stat_name.substr(0, dot_pos);
+        // Only add one goal token per resource
+        if (added_resources.find(resource_name) == added_resources.end()) {
+          // Find the resource index in resource_names
+          for (size_t i = 0; i < resource_names.size(); i++) {
+            if (resource_names[i] == resource_name) {
+              // Get the inventory feature ID for this resource
+              ObservationType inventory_feature_id = _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
+              // Add a goal token with the resource's inventory feature ID as the value
+              global_tokens.push_back({ObservationFeature::Goal, inventory_feature_id});
+              added_resources.insert(resource_name);
+              break;
+            }
+          }
+        }
+      }
+    }
   }
 
   // Global tokens are always at the center of the observation.

@@ -16,8 +16,6 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from packaging import version
-
 # Bootstrap dependency versions
 REQUIRED_NIM_VERSION = "2.2.6"
 REQUIRED_NIMBY_VERSION = "0.1.13"
@@ -107,11 +105,28 @@ def bazel_env() -> dict[str, str]:
     return env
 
 
+def _parse_version(v: str) -> tuple[int, ...]:
+    parts = []
+    for part in v.split("."):
+        digits = ""
+        for c in part:
+            if c.isdigit():
+                digits += c
+            else:
+                break
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
+
+
 def version_ge(current: str | None, required: str) -> bool:
-    """Check if current version >= required version."""
     if not current:
         return False
-    return version.parse(current) >= version.parse(required)
+    cur = _parse_version(current)
+    req = _parse_version(required)
+    max_len = max(len(cur), len(req))
+    cur = cur + (0,) * (max_len - len(cur))
+    req = req + (0,) * (max_len - len(req))
+    return cur >= req
 
 
 def check_bootstrap_deps() -> bool:

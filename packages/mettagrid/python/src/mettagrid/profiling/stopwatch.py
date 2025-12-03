@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import inspect
 import logging
@@ -81,7 +83,7 @@ def _capture_caller_info(extra_skip_frames: int = 0) -> Tuple[str, int]:
         del frame
 
 
-def with_timer(timer: "Stopwatch", name: str, log_level: int | None = None):
+def with_timer(timer: Stopwatch, name: str, log_level: int | None = None):
     """Decorator that wraps function execution in a timer context."""
 
     def decorator(func: F) -> F:
@@ -288,7 +290,7 @@ class Stopwatch:
                 display_name = name or self.GLOBAL_TIMER_NAME
                 self.logger.log(log_level, f"{display_name} took {elapsed:.3f}s")
 
-    def __call__(self, name: str | None = None, log_level: int | None = None) -> ContextManager["Stopwatch"]:
+    def __call__(self, name: str | None = None, log_level: int | None = None) -> ContextManager[Stopwatch]:
         """Make Stopwatch callable to return context manager.
 
         Args:
