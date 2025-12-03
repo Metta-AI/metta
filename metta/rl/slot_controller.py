@@ -76,8 +76,6 @@ class SlotControllerPolicy(Policy):
         unique_ids: Iterable[int] = torch.unique(slot_ids).tolist()
         for b_id in unique_ids:
             mask = slot_ids == b_id
-            if not torch.any(mask):
-                continue
 
             sub_td = td[mask].clone()
             policy = self._slot_policies.get(int(b_id))
