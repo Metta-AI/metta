@@ -50,11 +50,6 @@ from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# Cache for loaded policies to avoid reloading for each case (used in sequential mode)
-_cached_policy = None
-_cached_policy_key = None
-
-
 def _ensure_vibe_supports_gear(env_cfg) -> None:
     assembler = env_cfg.game.objects.get("assembler")
     uses_gear = False
@@ -175,53 +170,15 @@ def _run_case(
     agent_config: AgentConfig,
     cached_policy=None,  # Optional pre-loaded policy to reuse
 ) -> List[EvalResult]:
-    global _cached_policy, _cached_policy_key
-
     def _policy_requires_fresh_instance(policy) -> bool:
-        # Nim multi-agent policies keep per-episode state; reload to avoid carryover.
-        from mettagrid.policy.policy import NimMultiAgentPolicy
-        return isinstance(policy, NimMultiAgentPolicy)
+        # Always reload per run to avoid any cross-episode state or cache ambiguity.
+        return True
 
     mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
     if variant:
         mission_variants.insert(0, variant)
     try:
         out: List[EvalResult] = []
-        # Build a template env to configure the policy interface and (optionally) cache the policy.
-        mission_template = base_mission.with_variants(mission_variants)
-        env_template = mission_template.make_env()
-        _ensure_vibe_supports_gear(env_template)
-        if variant is None or getattr(variant, "max_steps_override", None) is None:
-            env_template.game.max_steps = max_steps
-
-        # Heart-only rewards.
-        if not env_template.game.agent.rewards.stats:
-            env_template.game.agent.rewards.stats = {}
-        resource_stats = ["carbon.gained", "oxygen.gained", "germanium.gained", "silicon.gained"]
-        for resource_stat in resource_stats:
-            env_template.game.agent.rewards.stats[resource_stat] = 0.0
-        if not env_template.game.agent.rewards.stats_max:
-            env_template.game.agent.rewards.stats_max = {}
-        for resource_stat in resource_stats:
-            env_template.game.agent.rewards.stats_max[resource_stat] = 0.0
-
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_template)
-
-        def _load_base_policy():
-            global _cached_policy, _cached_policy_key
-            if cached_policy is not None:
-                return cached_policy
-            if _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
-                return _cached_policy
-            policy_obj = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-            if not _policy_requires_fresh_instance(policy_obj) and is_s3_uri(agent_config.policy_path):
-                _cached_policy = policy_obj
-                _cached_policy_key = agent_config.policy_path
-            return policy_obj
-
-        base_policy = _load_base_policy()
-        fresh_each_run = _policy_requires_fresh_instance(base_policy)
-
         for run_idx in range(runs_per_case):
             mission = base_mission.with_variants(mission_variants)
             env_config = mission.make_env()
@@ -239,11 +196,10 @@ def _run_case(
                 env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
 
             actual_max_steps = env_config.game.max_steps
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
 
-            if fresh_each_run:
-                policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-            else:
-                policy = base_policy
+            # Always load fresh each run to avoid state leakage and keep logic simple.
+            policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
 
             agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 

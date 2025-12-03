@@ -129,6 +129,10 @@ proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   result.seen = initHashSet[Location]()
   result.location = Location(x: 0, y: 0)
   result.lastActions = @[]
+  result.carbonTarget = PutCarbonAmount
+  result.oxygenTarget = PutOxygenAmount
+  result.germaniumTarget = PutGermaniumAmount
+  result.siliconTarget = PutSiliconAmount
   # Randomize the offsets4 for each agent, so they take different directions.
   var offsets4 = Offsets4
   result.random.shuffle(offsets4)
