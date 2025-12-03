@@ -505,12 +505,33 @@ def train_proc_maps(
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
     maps_cache_size: Optional[int] = 50,
+    ema_timescale: float = 0.001,
+    progress_smoothing: float = 0.05,
+    exploration_bonus: float = 0.1,
 ) -> TrainTool:
     """Train on procedural MachinaArena map missions."""
+    # Create LP config with custom hyperparameters
+    lp_config = LearningProgressConfig(
+        use_bidirectional=True,
+        ema_timescale=ema_timescale,
+        progress_smoothing=progress_smoothing,
+        exploration_bonus=exploration_bonus,
+        max_memory_tasks=2000,
+        max_slice_axes=4,
+        enable_detailed_slice_logging=False,
+    )
+
+    # Create curriculum with custom LP config
+    curriculum = make_curriculum(
+        num_cogs=num_cogs,
+        missions=list(PROC_MAP_MISSIONS),
+        algorithm_config=lp_config,
+        variants=variants,
+    )
+
     tt = train(
         num_cogs=num_cogs,
-        base_missions=list(PROC_MAP_MISSIONS),
-        variants=variants,
+        curriculum=curriculum,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
         mission=mission,
