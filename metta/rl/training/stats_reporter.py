@@ -527,10 +527,8 @@ class StatsReporter(TrainerComponent):
                 if warmup_steps is not None:
                     hyperparameters["schedulefree_warmup_steps"] = warmup_steps
 
-        losses = self.context.losses if self.context else {}
-        ppo_loss = losses.get("ppo")
-        ppo_cfg = getattr(ppo_loss, "cfg", None) if ppo_loss else None
-        if ppo_cfg is not None:
+        ppo_cfg = trainer_cfg.losses.ppo
+        if ppo_cfg.enabled:
             for attr in (
                 "clip_coef",
                 "vf_clip_coef",

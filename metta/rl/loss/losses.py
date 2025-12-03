@@ -9,7 +9,7 @@ from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.loss import Loss
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
 from metta.rl.loss.ppo_critic import PPOCriticConfig
@@ -64,19 +64,6 @@ class LossesConfig(Config):
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
     )
 
-    def _configs(self) -> dict[str, LossConfig]:
-        # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
-        # also, the way it's setup doesn't let the experimenter give names to losses.
-        loss_configs = {
-            name: cfg for name, cfg in ((name, getattr(self, name)) for name in self._LOSS_ORDER) if cfg.enabled
-        }
-        self._validate_sampler_dependencies()
-        return loss_configs
-
-    @property
-    def loss_configs(self) -> dict[str, LossConfig]:
-        return self._configs()
-
     def _validate_sampler_dependencies(self) -> None:
         """Fail fast when a consumer loss is enabled but no sampler writes sampled_mb."""
 
@@ -114,12 +101,14 @@ class LossesConfig(Config):
         env: TrainingEnvironment,
         device: torch.device,
     ) -> dict[str, Loss]:
+        self._validate_sampler_dependencies()
         return {
-            loss_name: loss_cfg.create(policy, trainer_cfg, env, device, loss_name)
-            for loss_name, loss_cfg in self._configs().items()
+            name: cfg.create(policy, trainer_cfg, env, device, name)
+            for name, cfg in self
+            if cfg.enabled
         }
 
     def __iter__(self):
-        """Iterate over (name, config) pairs for all loss configs."""
+        """Iterate over (name, config) pairs for all loss configs in order."""
         for name in self._LOSS_ORDER:
             yield name, getattr(self, name)
