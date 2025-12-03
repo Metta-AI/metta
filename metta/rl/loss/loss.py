@@ -206,28 +206,16 @@ class Loss:
 
         if isinstance(value, NonTensorData):
             data = value.data
-            if hasattr(data, "shape") and getattr(data, "shape", None):
-                if data.shape[0] != rows:
-                    raise ValueError(f"Row-aligned NonTensorData expected leading dim {rows}, got {data.shape[0]}")
-                mask = row_mask.to(device=getattr(data, "device", row_mask.device))
-                return NonTensorData(data[mask])
-            bool_mask = row_mask.cpu().tolist()
-            if len(data) != rows:
-                raise ValueError(f"Row-aligned sequence expected length {rows}, got {len(data)}")
-            return NonTensorData([entry for entry, keep in zip(data, bool_mask, strict=False) if keep])
+            mask = row_mask.to(device=getattr(data, "device", row_mask.device))
+            return NonTensorData(data[mask])
 
         if isinstance(value, torch.Tensor):
-            if value.shape[:1] != (rows,):
-                raise ValueError(f"Row-aligned tensor expected leading dim {rows}, got {value.shape[0]}")
             return value[row_mask]
 
         if hasattr(value, "batch_size"):
-            bs = value.batch_size
-            if len(bs) < 1 or bs[0] != rows:
-                raise ValueError(f"Row-aligned object expected batch[0]=={rows}, got {bs}")
             return value[row_mask]
 
-        raise TypeError(f"Unsupported row-aligned value type: {type(value).__name__}")
+        return value
 
     # End utility helpers
 
