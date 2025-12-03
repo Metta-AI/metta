@@ -202,8 +202,6 @@ class Loss:
         return filtered
 
     def _apply_row_mask(self, value: Any, row_mask: torch.Tensor) -> Any:
-        rows = row_mask.numel()
-
         if isinstance(value, NonTensorData):
             data = value.data
             mask = row_mask.to(device=getattr(data, "device", row_mask.device))
