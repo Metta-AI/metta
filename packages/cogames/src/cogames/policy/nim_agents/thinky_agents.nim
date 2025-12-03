@@ -99,25 +99,25 @@ proc getActiveRecipe(agent: ThinkyAgent): RecipeInfo {.measure.} =
         result.scramblerCost = feature.value
 
       elif feature.featureId == agent.cfg.features.protocolOutputEnergy:
-        result.energyCost = feature.value
+        result.energyOutput = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputCarbon:
-        result.carbonCost = feature.value
+        result.carbonOutput = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputOxygen:
-        result.oxygenCost = feature.value
+        result.oxygenOutput = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputGermanium:
-        result.germaniumCost = feature.value
+        result.germaniumOutput = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputSilicon:
-        result.siliconCost = feature.value
+        result.siliconOutput = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputHeart:
-        result.heartCost = feature.value
+        result.heartOutput = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputDecoder:
-        result.decoderCost = feature.value
+        result.decoderOutput = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputModulator:
-        result.modulatorCost = feature.value
+        result.modulatorOutput = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputResonator:
-        result.resonatorCost = feature.value
+        result.resonatorOutput = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputScrambler:
-        result.scramblerCost = feature.value
+        result.scramblerOutput = feature.value
 
 proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   ## Create a new thinky agent, the fastest and the smartest agent.
@@ -132,8 +132,9 @@ proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   # Randomize the offsets4 for each agent, so they take different directions.
   var offsets4 = Offsets4
   result.random.shuffle(offsets4)
-  for i in 0 ..< offsets4.len:
-    offsets4[i] = offsets4[i]
+  result.offsets4 = @[]
+  for o in offsets4:
+    result.offsets4.add(o)
 
   result.exploreLocations = @[
     Location(x: -7, y: 0),
@@ -288,45 +289,41 @@ proc step*(
       # Get last action from observations, in case something else moved us.
       agent.lastActions.add(agent.cfg.getLastAction(visible))
 
-      # Stuck prevention: if last 2 actions are left, right and this is left.
-      if agent.lastActions.len >= 2 and
-        action == agent.cfg.actions.moveWest and
-        agent.lastActions[^1] == agent.cfg.actions.moveEast and
-        agent.lastActions[^2] == agent.cfg.actions.moveWest:
-        # Noop 50% of the time.
-        if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: left, right, left"
-          doAction(agent.cfg.actions.noop.int32)
-          return
-      if agent.lastActions.len >= 2 and
-        action == agent.cfg.actions.moveEast and
-        agent.lastActions[^1] == agent.cfg.actions.moveWest and
-        agent.lastActions[^2] == agent.cfg.actions.moveEast:
-        # Noop 50% of the time.
-        if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: right, left, right"
-          doAction(agent.cfg.actions.noop.int32)
-          return
-      if agent.lastActions.len >= 2 and
-        action == agent.cfg.actions.moveNorth and
-        agent.lastActions[^1] == agent.cfg.actions.moveSouth and
-        agent.lastActions[^2] == agent.cfg.actions.moveNorth:
-        # Noop 50% of the time.
-        if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: north, south, north"
-          doAction(agent.cfg.actions.noop.int32)
-          return
-      if agent.lastActions.len >= 2 and
-        action == agent.cfg.actions.moveSouth and
-        agent.lastActions[^1] == agent.cfg.actions.moveNorth and
-        agent.lastActions[^2] == agent.cfg.actions.moveSouth:
-        # Noop 50% of the time.
-        if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: south, north, south"
-          doAction(agent.cfg.actions.noop.int32)
-          return
+      proc setAction(actionToSet: int32) =
+        agentAction[] = actionToSet
 
-      agentAction[] = action.int32
+      # Stuck prevention: if last 2 actions are oscillating, sometimes noop.
+      if agent.lastActions.len >= 2:
+        if action == agent.cfg.actions.moveWest and
+          agent.lastActions[^1] == agent.cfg.actions.moveEast and
+          agent.lastActions[^2] == agent.cfg.actions.moveWest:
+          if agent.random.rand(1 .. 2) == 1:
+            log "Stuck prevention: left, right, left"
+            setAction(agent.cfg.actions.noop.int32)
+            return
+        elif action == agent.cfg.actions.moveEast and
+          agent.lastActions[^1] == agent.cfg.actions.moveWest and
+          agent.lastActions[^2] == agent.cfg.actions.moveEast:
+          if agent.random.rand(1 .. 2) == 1:
+            log "Stuck prevention: right, left, right"
+            setAction(agent.cfg.actions.noop.int32)
+            return
+        elif action == agent.cfg.actions.moveNorth and
+          agent.lastActions[^1] == agent.cfg.actions.moveSouth and
+          agent.lastActions[^2] == agent.cfg.actions.moveNorth:
+          if agent.random.rand(1 .. 2) == 1:
+            log "Stuck prevention: north, south, north"
+            setAction(agent.cfg.actions.noop.int32)
+            return
+        elif action == agent.cfg.actions.moveSouth and
+          agent.lastActions[^1] == agent.cfg.actions.moveNorth and
+          agent.lastActions[^2] == agent.cfg.actions.moveSouth:
+          if agent.random.rand(1 .. 2) == 1:
+            log "Stuck prevention: south, north, south"
+            setAction(agent.cfg.actions.noop.int32)
+            return
+
+      setAction(action.int32)
 
     updateMap(agent, visible)
 

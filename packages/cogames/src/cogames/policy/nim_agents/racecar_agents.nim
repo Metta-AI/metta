@@ -7,7 +7,7 @@ const
   MaxEnergy = 100
   MaxResourceInventory = 100
   MaxToolInventory = 100
-  MaxSteps = 10000
+  MaxStepsDefault = 10000
 
   PutCarbonAmount = 10
   PutOxygenAmount = 10
@@ -129,7 +129,16 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
 
   var config = parseConfig(environmentConfig)
   result = RaceCarAgent(agentId: agentId, cfg: config)
-  result.maxSteps = MaxSteps
+  result.maxSteps = MaxStepsDefault
+  # Try to read max_steps from the environment config; fall back to default.
+  try:
+    let env = environmentConfig.parseJson()
+    if env.hasKey("game") and env["game"].hasKey("max_steps"):
+      result.maxSteps = env["game"]["max_steps"].getInt()
+    elif env.hasKey("max_steps"):
+      result.maxSteps = env["max_steps"].getInt()
+  except CatchableError:
+    discard
   result.random = initRand(agentId)
   result.map = initTable[Location, seq[FeatureValue]]()
   result.seen = initHashSet[Location]()
