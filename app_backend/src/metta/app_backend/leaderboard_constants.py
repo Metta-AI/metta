@@ -17,3 +17,7 @@ LEADERBOARD_SCENARIO_KIND_KEY = "leaderboard-scenario-kind"
 LEADERBOARD_CANDIDATE_COUNT_KEY = "leaderboard-candidate-count"
 LEADERBOARD_THINKY_COUNT_KEY = "leaderboard-thinky-count"
 LEADERBOARD_LADYBUG_COUNT_KEY = "leaderboard-ladybug-count"
+
+
+THINKY_UUID = "674fc022-5f1f-41e5-ab9e-551fa329b723"
+LADYBUG_UUID = "5a491d05-7fb7-41a0-a250-fe476999edcd"

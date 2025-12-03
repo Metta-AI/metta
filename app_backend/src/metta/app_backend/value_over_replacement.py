@@ -63,6 +63,27 @@ class RunningStats:
     def max(self) -> float | None:
         return None if self.count == 0 else self._max
 
+    def merge(self, other: RunningStats) -> None:
+        """Merge another RunningStats into this one using parallel algorithm."""
+        if other.count == 0:
+            return
+        if self.count == 0:
+            self.count = other.count
+            self.total_weight = other.total_weight
+            self._mean = other._mean
+            self._m2 = other._m2
+            self._min = other._min
+            self._max = other._max
+            return
+        combined_weight = self.total_weight + other.total_weight
+        delta = other._mean - self._mean
+        self._mean = (self.total_weight * self._mean + other.total_weight * other._mean) / combined_weight
+        self._m2 = self._m2 + other._m2 + delta * delta * self.total_weight * other.total_weight / combined_weight
+        self._min = min(self._min, other._min)
+        self._max = max(self._max, other._max)
+        self.count += other.count
+        self.total_weight = combined_weight
+
 
 @dataclass
 class ScenarioAccumulator:

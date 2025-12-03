@@ -6,12 +6,14 @@ from typing import Sequence
 
 from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from metta.app_backend.leaderboard_constants import (
+    LADYBUG_UUID,
     LEADERBOARD_CANDIDATE_COUNT_KEY,
     LEADERBOARD_LADYBUG_COUNT_KEY,
     LEADERBOARD_SCENARIO_KEY,
     LEADERBOARD_SCENARIO_KIND_KEY,
     LEADERBOARD_SIM_NAME_EPISODE_KEY,
     LEADERBOARD_THINKY_COUNT_KEY,
+    THINKY_UUID,
 )
 from metta.sim.runner import SimulationRunConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -23,10 +25,6 @@ from metta.tools.utils.auto_config import auto_stats_server_uri
 logger = logging.getLogger(__name__)
 
 NUM_COGS = 4
-
-# Baseline policy UUIDs for VOR calculation
-THINKY_UUID = "674fc022-5f1f-41e5-ab9e-551fa329b723"
-LADYBUG_UUID = "5a491d05-7fb7-41a0-a250-fe476999edcd"
 
 
 def _episode_tags(
