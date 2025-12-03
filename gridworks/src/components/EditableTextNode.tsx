@@ -12,7 +12,6 @@ type Props = {
   text: string;
   mode: Mode;
   href?: string;
-  withSuggestions?: boolean;
   suggestions?: EditableSuggestion[];
   onChange?: (text: string) => void;
   onModeChange?: (mode: Mode) => void;
