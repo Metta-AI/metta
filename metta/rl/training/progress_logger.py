@@ -65,7 +65,7 @@ def log_rich_progress(
     progress_pct = (agent_step / total_timesteps) * 100 if total_timesteps > 0 else 0.0
     sps_display = f"{steps_per_sec:,.0f} SPS"
     epoch_time_display = _format_epoch_time(epoch_time)
-    heart_display = f"heart.g {heart_value:.3f}"
+    heart_display = f"heart.c {heart_value:.3f}"
     if heart_rate is not None:
         heart_display += f" ({heart_rate:.3f}/s)"
 
