@@ -15,7 +15,6 @@ from mettagrid.base_config import Config
 
 
 class VTraceConfig(Config):
-    # Defaults follow IMPALA (Espeholt et al., 2018)
     rho_clip: float = Field(default=1.0, gt=0)
     c_clip: float = Field(default=1.0, gt=0)
 

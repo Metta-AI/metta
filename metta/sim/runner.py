@@ -62,6 +62,7 @@ def run_simulations(
             registry = SlotRegistry()
             slots_cfg = simulation.policy_slots
             slot_lookup = {b.id: idx for idx, b in enumerate(slots_cfg)}
+            controller_device = torch.device("cpu")
             # Build agent slot map tensor
             num_agents = env_interface.num_agents
             agent_map = simulation.agent_slot_map or [slots_cfg[0].id for _ in range(num_agents)]
@@ -74,7 +75,7 @@ def run_simulations(
                 idx: registry.get(
                     b,
                     env_interface,
-                    device="cpu",  # sim runs default to CPU; extend later if needed
+                    device=controller_device,  # sim runs default to CPU; extend later if needed
                 )
                 for idx, b in enumerate(slots_cfg)
             }
@@ -83,7 +84,7 @@ def run_simulations(
                 slots=slots_cfg,
                 slot_policies=slot_policies,
                 policy_env_info=env_interface,
-                device="cpu",
+                device=controller_device,
                 agent_slot_map=agent_slot_tensor,
             )
             multi_agent_policies.append(controller)
@@ -99,8 +100,6 @@ def run_simulations(
             seed=seed,
             proportions=proportions,
             save_replay=replay_dir,
-            # TODO: support this if and only if we also reflect that it happened in results
-            # max_time_s=simulation.max_time_s,
             max_action_time_ms=simulation.max_action_time_ms,
         )
         on_progress(f"Finished rollout for simulation {i}")
@@ -109,8 +108,8 @@ def run_simulations(
         per_slot_winrate = None
         if simulation.policy_slots and rollout_result.episode_returns:
             # Compute average return per slot by agent index mapping
-            agent_map = simulation.agent_slot_map or []
-            if agent_map:
+            effective_agent_map = simulation.agent_slot_map or agent_map
+            if effective_agent_map:
                 per_slot_returns = {}
                 per_slot_winrate = {}
                 # episode_returns shape: [num_episodes, num_agents]
@@ -118,8 +117,8 @@ def run_simulations(
                 wins_tensor = None
                 if rollout_result.episode_wins is not None:
                     wins_tensor = torch.tensor(rollout_result.episode_wins)
-                for slot_id in set(agent_map):
-                    idxs = [j for j, b in enumerate(agent_map) if b == slot_id]
+                for slot_id in set(effective_agent_map):
+                    idxs = [j for j, b in enumerate(effective_agent_map) if b == slot_id]
                     if idxs:
                         per_slot_returns[slot_id] = float(returns_tensor[:, idxs].mean().item())
                         if wins_tensor is not None:

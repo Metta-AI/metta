@@ -27,12 +27,10 @@ class SlicedKickstarterConfig(LossConfig):
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
-    student_forward: bool = Field(default=True)  # probably always true for sliced_kickstarter
-
-    # remainder of the sum below is left for the PPO loss to use
+    student_forward: bool = Field(default=True)
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
-    profiles: list[str] | None = Field(default=None, description="Optional loss profiles this loss should run for.")
+    profiles: list[str] | None = Field(default=None)
 
     def create(
         self,
@@ -55,9 +53,7 @@ class SlicedKickstarterConfig(LossConfig):
 
 
 class SlicedKickstarter(Loss):
-    """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
-    value against the student's using a KL divergence and MSE loss respectively.
-    """
+    """Forward a teacher policy and distil its logits/values into the student."""
 
     __slots__ = (
         "teacher_policy",

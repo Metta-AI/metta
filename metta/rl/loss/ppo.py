@@ -18,19 +18,22 @@ from mettagrid.base_config import Config
 
 
 class PrioritizedExperienceReplayConfig(Config):
-    # Alpha=0 means uniform sampling; tuned via sweep
+    """Sampling weights and annealing for PER."""
+
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
-    # Beta baseline per Schaul et al. (2016)
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 
 
 class VTraceConfig(Config):
+    """V-trace clipping limits."""
     # Defaults follow IMPALA (Espeholt et al., 2018)
     rho_clip: float = Field(default=1.0, gt=0)
     c_clip: float = Field(default=1.0, gt=0)
 
 
 class PPOConfig(LossConfig):
+    """Primary PPO hyperparameters and optional loss profiles."""
+
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
     clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
@@ -40,13 +43,11 @@ class PPOConfig(LossConfig):
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
     # Gamma tuned for shorter effective horizon
     gamma: float = Field(default=0.977, ge=0, le=1.0)
-
     # Training parameters
     # Value clipping mirrors policy clip
     vf_clip_coef: float = Field(default=0.1, ge=0)
     # Value term weight from sweep
     vf_coef: float = Field(default=0.897619, ge=0)
-
     # Normalization and clipping
     # Advantage normalization toggle
     norm_adv: bool = True
@@ -56,8 +57,7 @@ class PPOConfig(LossConfig):
     target_kl: float | None = None
 
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
-    profiles: list[str] | None = Field(default=None, description="Optional loss profiles this loss should run for.")
-
+    profiles: list[str] | None = Field(default=None)
     prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(
         default_factory=PrioritizedExperienceReplayConfig
     )

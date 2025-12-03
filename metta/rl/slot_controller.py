@@ -39,9 +39,7 @@ class SlotControllerPolicy(Policy):
                 self.add_module(f"slot_{idx}", policy)
 
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
-        # Assume all policies share the same spec; use the first one
-        first_policy = next(iter(self._slot_policies.values()))
-        return first_policy.get_agent_experience_spec()
+        return next(iter(self._slot_policies.values())).get_agent_experience_spec()
 
     def initialize_to_environment(self, policy_env_info, device: torch.device) -> None:  # noqa: D401
         for policy in self._slot_policies.values():
@@ -51,14 +49,13 @@ class SlotControllerPolicy(Policy):
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
         if "slot_id" not in td.keys():
             if self._agent_slot_map is None:
-                # Fallback: single policy scenario
-                first_policy = next(iter(self._slot_policies.values()))
-                return first_policy.forward(td, action=action)
+                raise RuntimeError("slot_id missing and no agent_slot_map provided for slot-aware policy routing")
             num_agents = self._agent_slot_map.numel()
             batch = td.batch_size.numel()
             if batch % num_agents != 0:
-                first_policy = next(iter(self._slot_policies.values()))
-                return first_policy.forward(td, action=action)
+                raise RuntimeError(
+                    f"slot-aware routing requires batch size ({batch}) to be divisible by num_agents ({num_agents})"
+                )
             num_envs = batch // num_agents
             td.set("slot_id", self._agent_slot_map.to(device=td.device).repeat(num_envs))
 
@@ -79,10 +76,15 @@ class SlotControllerPolicy(Policy):
 
             out_td = policy.forward(sub_td, action=None if action is None else action[mask])
 
-            # Merge only action/logprob/value-related keys to avoid overwriting metadata
             for key in ("actions", "act_log_prob", "entropy", "values", "full_log_probs", "logits"):
-                if key in out_td.keys():
-                    td.set_at_(key, out_td.get(key), mask)
+                if key not in out_td.keys():
+                    continue
+                value = out_td.get(key)
+                if key not in td.keys():
+                    full_shape = td.batch_size + value.shape[1:]
+                    zeroed = value.new_zeros(full_shape)
+                    td.set(key, zeroed)
+                td.set_at_(key, value, mask)
 
         return td
 

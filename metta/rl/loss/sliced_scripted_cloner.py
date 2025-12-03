@@ -26,7 +26,7 @@ class SlicedScriptedClonerConfig(LossConfig):
     # remainder of the sum below is left for the PPO loss to use
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
-    profiles: list[str] | None = Field(default=None, description="Optional loss profiles this loss should run for.")
+    profiles: list[str] | None = Field(default=None)
 
     def create(
         self,

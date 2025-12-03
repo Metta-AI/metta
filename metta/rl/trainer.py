@@ -161,22 +161,33 @@ class Trainer:
         self._prev_agent_step_for_step_callbacks: int = 0
 
     def _assign_loss_profiles(self, losses: dict[str, Any], loss_profile_lookup: dict[str, int]) -> None:
-        """Attach resolved loss profile ids to losses based on their config names."""
+        """Attach resolved loss profile ids to losses based on config."""
 
         if not loss_profile_lookup:
             return
 
-        # Simple mapping: loss name matches profile name; default allow all
+        # Build reverse map: profile -> loss names declared in loss_profiles config
+        configured_profile_losses: dict[str, set[str]] = {}
+        for profile_name, profile_cfg in self._cfg.loss_profiles.items():
+            configured_profile_losses[profile_name] = set(getattr(profile_cfg, "losses", []))
+
         for loss_name, loss_obj in losses.items():
-            # If the loss has explicit profiles configured in config, map them; otherwise None means no filtering
-            profiles = []
-            cfg_profiles = getattr(getattr(self._cfg.losses, loss_name, None), "profiles", None)
-            if cfg_profiles:
-                for name in cfg_profiles:
-                    if name in loss_profile_lookup:
-                        profiles.append(loss_profile_lookup[name])
+            profiles: set[int] = set()
+
+            cfg_attr = getattr(self._cfg.losses, loss_name, None)
+            if cfg_attr is None and loss_name == "action_supervisor":
+                cfg_attr = getattr(self._cfg.losses, "supervisor", None)
+
+            explicit = getattr(cfg_attr, "profiles", None)
+            if explicit:
+                profiles |= {loss_profile_lookup[name] for name in explicit if name in loss_profile_lookup}
+
+            for profile_name, losses_for_profile in configured_profile_losses.items():
+                if loss_name in losses_for_profile and profile_name in loss_profile_lookup:
+                    profiles.add(loss_profile_lookup[profile_name])
+
             if profiles:
-                loss_obj.loss_profiles = set(profiles)
+                loss_obj.loss_profiles = profiles
 
     def _set_trainable_flag(self, policy: Policy, trainable: bool) -> None:
         """Set requires_grad according to slot.trainable."""
@@ -295,14 +306,8 @@ class Trainer:
         self._components.append(component)
         component.register(self._context)
 
-    # ------------------------------------------------------------------
-    # Binding setup helpers
-    # ------------------------------------------------------------------
     def _build_slot_state(self, trainer_policy: Policy) -> dict[str, Any]:
-        """Prepare per-agent slot and loss-profile metadata."""
-
         slots_cfg = list(self._cfg.policy_slots or [])
-        # Ensure at least one slot uses the trainer-provided policy
         has_trainer_slot = any(b.use_trainer_policy for b in slots_cfg)
         if not slots_cfg or not has_trainer_slot:
             slots_cfg.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
@@ -335,7 +340,7 @@ class Trainer:
             loss_profiles = {"default": LossProfileConfig(losses=[])}
         loss_profile_lookup = {name: idx for idx, name in enumerate(loss_profiles.keys())}
 
-        default_slot_profile = next(iter(loss_profiles.keys()))
+        default_slot_profile = next(iter(loss_profiles))
 
         num_agents = self._env.policy_env_info.num_agents
         agent_slot_map = self._cfg.agent_slot_map
@@ -391,38 +396,23 @@ class Trainer:
         return Composite(merged)
 
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
-        """Invoke all registered callbacks of the specified type.
-
-        Args:
-            callback_type: The type of callback to invoke
-            infos: Step information from environment (only used for STEP callback)
-        """
+        """Invoke all registered callbacks of the specified type."""
         current_step = self._context.agent_step
         previous_step = getattr(self, "_prev_agent_step_for_step_callbacks", current_step)
         current_epoch = self._context.epoch
 
         for component in self._components:
-            try:
-                if callback_type == TrainerCallback.STEP:
-                    if (
-                        component.should_handle_step(current_step=current_step, previous_step=previous_step)
-                        and infos is not None
-                    ):
-                        component.on_step(infos)
-                elif callback_type == TrainerCallback.EPOCH_END:
-                    if component.should_handle_epoch(current_epoch):
-                        component.on_epoch_end(current_epoch)
-                elif callback_type == TrainerCallback.ROLLOUT_END:
-                    component.on_rollout_end()
-                elif callback_type == TrainerCallback.TRAINING_COMPLETE:
-                    component.on_training_complete()
-                elif callback_type == TrainerCallback.FAILURE:
-                    component.on_failure()
-            except Exception as e:
-                logger.error(
-                    f"Component {component.__class__.__name__} {callback_type.value} callback failed: {e}",
-                    exc_info=True,
-                )
+            if callback_type == TrainerCallback.STEP:
+                if component.should_handle_step(current_step=current_step, previous_step=previous_step) and infos:
+                    component.on_step(infos)
+            elif callback_type == TrainerCallback.EPOCH_END and component.should_handle_epoch(current_epoch):
+                component.on_epoch_end(current_epoch)
+            elif callback_type == TrainerCallback.ROLLOUT_END:
+                component.on_rollout_end()
+            elif callback_type == TrainerCallback.TRAINING_COMPLETE:
+                component.on_training_complete()
+            elif callback_type == TrainerCallback.FAILURE:
+                component.on_failure()
 
     def restore(self) -> None:
         """Restore trainer state from checkpoints.

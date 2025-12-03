@@ -85,21 +85,15 @@ class ComponentContext:
         self.curriculum = curriculum
 
         self.timing_baseline = {"agent_step": 0, "wall_time": 0.0}
-
         self.stats_reporter: StatsReporter | None = None
         self.memory_monitor: MemoryMonitor | None = None
         self.system_monitor: SystemMonitor | None = None
         self.latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
         self.losses: Dict[str, Any] = {}
-
-        # Scheduler-related state
         self.loss_run_gates: Dict[str, Dict[str, bool]] = {}
         self.loss_scheduler: Any | None = None
-
         self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
         self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
-
-        # Slot / loss-profile metadata
         self.slot_id_per_agent: Optional[torch.Tensor] = None
         self.loss_profile_id_per_agent: Optional[torch.Tensor] = None
         self.trainable_agent_mask: Optional[torch.Tensor] = None
