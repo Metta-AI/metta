@@ -113,7 +113,7 @@ class StatsReporterConfig(Config):
     """Threshold for considering a neuron dormant based on mean absolute weight magnitude."""
     rolling_window: int = Field(default=5, ge=1, description="Number of epochs for metric rolling averages")
     default_zero_metrics: tuple[str, ...] = Field(
-        default_factory=lambda: ("env_agent/heart.created", "env_agent/heart.gained"),
+        default_factory=lambda: ("env_agent/heart.created",),
         description="Environment metrics that should be logged as 0 when missing.",
     )
 
