@@ -74,6 +74,27 @@ class SpatialAnalysis:
     estimated_avg_distance: float  # estimated avg distance to extractors
     is_hub_based: bool  # hub exists (assembler/chest/charger in center)
     extractors_in_hub: bool  # are extractors near hub or scattered across arena?
+    extractor_counts: dict[str, int] = field(default_factory=dict)  # count per type
+
+
+@dataclass
+class ExplorationAnalysis:
+    """Analysis of exploration requirements.
+
+    Models the time needed to *discover* extractors before they can be used.
+    Even an oracle needs to physically visit locations to "see" them.
+    """
+
+    vision_radius: int = 5  # How far agents can see
+    num_agents: int = 4  # Standard agent count for comparison
+
+    # Exploration estimates (in steps)
+    single_agent_discovery: int = 0  # Steps for 1 agent to discover all needed extractors
+    multi_agent_discovery: int = 0  # Steps for num_agents to discover (with parallelism)
+
+    # Coverage metrics
+    map_exploration_fraction: float = 0.0  # What fraction of map needs exploring
+    discovery_efficiency: float = 1.0  # How efficiently agents can cover the map
 
 
 @dataclass
@@ -101,6 +122,7 @@ class DifficultyReport:
     recipe: RecipeAnalysis | None = None
     initial_resources: InitialResourceAnalysis | None = None
     spatial: SpatialAnalysis | None = None
+    exploration: ExplorationAnalysis | None = None
 
     # Enzyme kinetics model
     first_heart_steps: int = 0  # Startup cost: steps to first heart
@@ -139,10 +161,17 @@ class DifficultyReport:
         else:
             substrate_str = f"{self.max_hearts} hearts max"
 
+        # Exploration info
+        if self.exploration:
+            explore_str = f"{self.exploration.multi_agent_discovery} steps ({self.exploration.num_agents} agents)"
+        else:
+            explore_str = "N/A"
+
         lines = [
             f"Difficulty: {score_str} (E[steps/heart] / 1000)",
             "",
             "Kinetics:",
+            f"  Exploration: {explore_str}",
             f"  Startup: {self.first_heart_steps} steps to first heart",
             f"  Steady:  {self.steady_state_steps} steps/heart",
             f"  Rate:    {rate_str}",
@@ -184,11 +213,13 @@ def estimate_difficulty(mission: Mission) -> DifficultyReport:
     recipe = _analyze_recipe(mission)
     initial = _analyze_initial_resources(mission, resources)
     spatial = _analyze_spatial(mission)
+    exploration = _analyze_exploration(mission, spatial, resources)
 
     # Detect hard conflicts (definitely impossible)
     conflicts.extend(_detect_conflicts(mission, energy, resources, recipe, initial))
 
-    # === FIRST HEART: May benefit from initial inventory ===
+    # === FIRST HEART: Includes exploration + extraction ===
+    # First heart requires discovering extractors before using them
     first_heart_visits = {}
     for resource, need in (initial.effective_extraction_need if initial else resources.heart_cost).items():
         output = resources.extractor_output.get(resource, 1)
@@ -197,7 +228,11 @@ def estimate_difficulty(mission: Mission) -> DifficultyReport:
     first_heart_movement = _estimate_steps_to_heart(
         mission, energy, resources, recipe, initial, spatial, first_heart_visits
     )
-    first_heart_steps = _calculate_total_steps(energy, first_heart_movement, resources)
+    first_heart_movement_steps = _calculate_total_steps(energy, first_heart_movement, resources)
+
+    # Add exploration time for first heart (agents must discover extractors)
+    exploration_steps = exploration.multi_agent_discovery if exploration else 0
+    first_heart_steps = first_heart_movement_steps + exploration_steps
 
     # === STEADY STATE: Full extraction cycle (no initial inventory benefit) ===
     steady_state_visits = {}
@@ -258,6 +293,7 @@ def estimate_difficulty(mission: Mission) -> DifficultyReport:
         recipe=recipe,
         initial_resources=initial,
         spatial=spatial,
+        exploration=exploration,
         first_heart_steps=first_heart_steps,
         steady_state_steps=steady_state_steps,
         max_hearts=max_hearts,
@@ -540,59 +576,62 @@ def _calculate_success_probability(
 
 
 def _calculate_coordination_overhead(recipe: RecipeAnalysis, mission: Mission) -> float:
-    """Calculate overhead multiplier for multi-agent coordination.
+    """Calculate coordination factor for multi-agent gathering.
 
-    Key insight: Agents naturally cycle back to assembler to deposit resources.
-    They don't need to "find each other" - they need to "happen to be there together".
-
-    With N agents independently cycling, the probability of k agents being at
-    assembler simultaneously is reasonably high for small k.
-
-    The real overhead is waiting time: if you arrive ready but others aren't there,
-    you wait (or do another extraction cycle).
+    This is actually a SPEEDUP for most multi-agent scenarios because:
+    1. N agents gather N times the resources per unit time
+    2. Parallel exploration/extraction
+    3. Some coordination overhead for multi-agent recipes
 
     Returns:
-        Multiplier >= 1.0 (1.0 = no coordination needed)
+        Factor to apply to per-heart steps.
+        < 1.0 = multi-agent speedup (more common)
+        > 1.0 = coordination overhead dominates
     """
-    if recipe.min_agents_required <= 1:
-        return 1.0
-
-    num_cogs = mission.num_cogs if mission.num_cogs is not None else mission.site.min_cogs
+    num_cogs = mission.num_cogs if mission.num_cogs is not None else STANDARD_NUM_AGENTS
     agents_required = recipe.min_agents_required
 
-    # Model: With N agents independently cycling with period T,
-    # at any moment, each agent has probability ~1/T of being at assembler.
-    # P(k agents at assembler) follows binomial distribution.
-    #
-    # But we don't need exact probability - we need expected wait time.
-    # If you arrive and need 1 more agent, expected wait is ~T/N.
-    # If you need k-1 more agents, it compounds but not linearly.
+    # === MULTI-AGENT GATHERING SPEEDUP ===
+    # With N agents independently gathering, throughput scales almost linearly.
+    # Each agent brings resources back independently.
+    # Efficiency factor accounts for contention and coordination.
 
-    # Simplified model:
-    # 2 agents: ~10% overhead (wait for partner, but they're coming soon)
-    # 3 agents: ~25% overhead (wait for 2 partners to align)
-    # 4 agents: ~50% overhead (harder to get everyone together)
+    if num_cogs <= 1:
+        # Single agent: no parallelism
+        gathering_speedup = 1.0
+    else:
+        # N agents can gather N resources in parallel
+        # ~85% efficiency due to contention (same extractors, paths)
+        gathering_efficiency = 0.85
+        gathering_speedup = num_cogs * gathering_efficiency
 
-    # Formula: overhead = 1.0 + 0.1 * (k-1)^1.5
-    # k=2: 1.1x, k=3: 1.28x, k=4: 1.52x
+    # === COORDINATION OVERHEAD (for multi-agent recipes) ===
+    if agents_required <= 1:
+        # Single agent recipe: no coordination needed
+        coordination_penalty = 1.0
+    else:
+        # Multi-agent recipe: agents must meet at assembler
+        # This is actually mild because agents cycle back naturally
 
-    base_overhead = 1.0 + 0.1 * ((agents_required - 1) ** 1.5)
+        # Formula: 1.0 + 0.05 * (k-1)^1.3
+        # k=2: 1.05x, k=3: 1.12x, k=4: 1.20x
+        coordination_penalty = 1.0 + 0.05 * ((agents_required - 1) ** 1.3)
 
-    # Vibe complexity adds some overhead (coordinating what to vibe)
-    # coordination_difficulty 0-1 maps to 1.0-1.15x
-    vibe_penalty = 1.0 + recipe.coordination_difficulty * 0.15
+        # Vibe complexity adds some overhead
+        vibe_penalty = 1.0 + recipe.coordination_difficulty * 0.1
+        coordination_penalty *= vibe_penalty
 
-    # Agent slack: more agents than needed = easier to form groups
-    # Fewer agents = must wait for specific individuals
-    if num_cogs > agents_required:
-        # Each extra agent improves odds of having enough at assembler
-        slack_bonus = 0.95 ** (num_cogs - agents_required)  # 5% easier per extra agent
-        base_overhead *= slack_bonus
-    elif num_cogs == agents_required:
-        # Exactly minimum - must get everyone, no redundancy
-        base_overhead *= 1.1
+        # Agent slack: more agents than needed = easier
+        if num_cogs > agents_required:
+            slack_bonus = 0.97 ** (num_cogs - agents_required)
+            coordination_penalty *= slack_bonus
 
-    return base_overhead * vibe_penalty
+    # === COMBINED FACTOR ===
+    # Net factor = coordination_penalty / gathering_speedup
+    # For 4 agents, single-agent recipe: 1.0 / 3.4 ≈ 0.29 (3.5x faster)
+    # For 4 agents, 4-agent recipe: 1.2 / 3.4 ≈ 0.35 (2.8x faster)
+
+    return coordination_penalty / gathering_speedup
 
 
 # =============================================================================
@@ -903,6 +942,22 @@ def _analyze_spatial(mission: Mission) -> SpatialAnalysis:
         width, height, building_coverage, distribution_type, extractors_in_hub
     )
 
+    # Estimate extractor counts
+    if extractors_in_hub:
+        # Hub maps: exactly 1 of each extractor in corners
+        extractor_counts = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1}
+    else:
+        # Arena maps: estimate from building coverage
+        # Typical: ~1% coverage, ~25% of buildings are extractors of some type
+        total_buildings = max(4, int(area * building_coverage))
+        extractors_per_type = max(1, total_buildings // 8)  # 4 extractor types + chargers
+        extractor_counts = {
+            "carbon": extractors_per_type,
+            "oxygen": extractors_per_type,
+            "germanium": extractors_per_type,
+            "silicon": extractors_per_type,
+        }
+
     return SpatialAnalysis(
         map_width=width,
         map_height=height,
@@ -912,6 +967,7 @@ def _analyze_spatial(mission: Mission) -> SpatialAnalysis:
         estimated_avg_distance=estimated_distance,
         is_hub_based=is_hub_based,
         extractors_in_hub=extractors_in_hub,
+        extractor_counts=extractor_counts,
     )
 
 
@@ -957,6 +1013,93 @@ def _estimate_avg_extractor_distance(
         dist_factor = 1.0
 
     return base_distance * dist_factor
+
+
+# =============================================================================
+# Exploration Analysis
+# =============================================================================
+
+# Standard agent count for normalized comparisons
+STANDARD_NUM_AGENTS = 4
+
+
+def _analyze_exploration(
+    mission: Mission,
+    spatial: SpatialAnalysis,
+    resources: ResourceAnalysis,
+) -> ExplorationAnalysis:
+    """Analyze exploration requirements using optimal exploration model.
+
+    Even an oracle agent must *discover* extractors before using them.
+    This models the minimum steps needed to have "seen" all required extractor types.
+
+    Uses a greedy covering approach:
+    - Agent starts at center (near assembler)
+    - Vision radius of 5 tiles
+    - Visits locations to maximize discovery
+
+    For multi-agent: exploration scales nearly linearly with agent count
+    (4 agents explore ~3.5x faster accounting for overlap).
+    """
+    vision_radius = 5
+    num_agents = STANDARD_NUM_AGENTS
+    area = spatial.map_area
+
+    # How many tiles does one agent "see" per position?
+    # Vision is a diamond of radius 5: area ≈ 2 * r^2
+    tiles_per_view = 2 * vision_radius * vision_radius  # ~50 tiles
+
+    # What fraction of map needs exploring to find all extractor types?
+    if spatial.extractors_in_hub:
+        # Hub is small, extractors are predictable in corners
+        # Need to explore ~60% of hub to find all 4 corners
+        exploration_fraction = 0.6
+    else:
+        # Arena: extractors are scattered uniformly
+        # Need to explore enough to statistically find at least 1 of each type
+        # With n extractors of each type in area A, expected search to find one: A/n
+        # For 4 types, multiply by coverage overlap factor
+
+        total_extractors = sum(spatial.extractor_counts.values())
+        if total_extractors > 0:
+            # Probability of finding all 4 types requires significant coverage
+            # Use coupon collector approximation: E[steps] ≈ n * ln(n) for n types
+            # For 4 types: ~5.5 * area_per_extractor
+            avg_extractors_per_type = total_extractors / 4
+            if avg_extractors_per_type > 0:
+                # Fraction of map to cover to expect finding 1 of each type
+                # ~2.5 / density for 4 types (coupon collector)
+                exploration_fraction = min(0.8, 2.5 / avg_extractors_per_type)
+            else:
+                exploration_fraction = 0.8
+        else:
+            exploration_fraction = 0.8
+
+    # Total tiles to explore
+    tiles_to_explore = area * exploration_fraction
+
+    # Steps for single agent to explore (each step reveals ~tiles_per_view new tiles)
+    # But adjacent moves overlap, so effective new tiles per step is less
+    # Assume ~60% efficiency due to overlap and backtracking
+    efficiency = 0.6
+    effective_tiles_per_step = tiles_per_view * efficiency
+
+    single_agent_steps = int(tiles_to_explore / max(1, effective_tiles_per_step))
+
+    # Multi-agent exploration speedup
+    # 4 agents explore ~3.5x faster (not 4x due to potential overlap in random exploration)
+    # Optimal coordination would be closer to 4x
+    multi_agent_speedup = num_agents * 0.85  # 85% efficiency per additional agent
+    multi_agent_steps = int(single_agent_steps / multi_agent_speedup)
+
+    return ExplorationAnalysis(
+        vision_radius=vision_radius,
+        num_agents=num_agents,
+        single_agent_discovery=single_agent_steps,
+        multi_agent_discovery=multi_agent_steps,
+        map_exploration_fraction=exploration_fraction,
+        discovery_efficiency=efficiency,
+    )
 
 
 # =============================================================================
