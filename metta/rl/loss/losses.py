@@ -82,43 +82,33 @@ class LossesConfig(Config):
         return loss_configs
 
     def _validate_sampler_dependencies(self) -> None:
-        """Ensure at least one sampler writes sampled_mb when consumer losses are enabled.
+        """Fail fast when a consumer loss is enabled but no sampler writes sampled_mb."""
 
-        This fails fast at config time rather than producing runtime KeyErrors during training.
-        """
+        samplers = [
+            self.ppo.enabled,
+            self.ppo_critic.enabled,
+            self.quantile_ppo_critic.enabled,
+            self.grpo.enabled,
+            self.sliced_kickstarter.enabled,
+            self.sliced_scripted_cloner.enabled,
+            self.supervisor.enabled and self.supervisor.sample_enabled,
+        ]
 
-        # Losses that write shared_loss_data["sampled_mb"] themselves
-        sampler_enabled = any(
-            [
-                self.ppo.enabled,
-                self.ppo_critic.enabled,
-                self.quantile_ppo_critic.enabled,
-                self.grpo.enabled,
-                self.sliced_kickstarter.enabled,
-                self.sliced_scripted_cloner.enabled,
-                (self.supervisor.enabled and self.supervisor.sample_enabled),
-            ]
-        )
+        consumers = [
+            self.ppo_actor.enabled,
+            self.kickstarter.enabled,
+            self.logit_kickstarter.enabled,
+            self.vit_reconstruction.enabled,
+            self.contrastive.enabled,
+            self.supervisor.enabled and not self.supervisor.sample_enabled,
+        ]
 
-        # Losses that expect sampled_mb produced by a sampler
-        consumers = any(
-            [
-                self.ppo_actor.enabled,
-                self.kickstarter.enabled,
-                self.logit_kickstarter.enabled,
-                self.vit_reconstruction.enabled,
-                self.contrastive.enabled,
-                (self.supervisor.enabled and not self.supervisor.sample_enabled),
-            ]
-        )
-
-        if consumers and not sampler_enabled:
+        if any(consumers) and not any(samplers):
             raise ValueError(
-                "Loss configuration invalid: at least one loss requires sampled minibatches "
-                "but no loss is configured to write shared_loss_data['sampled_mb']. "
-                "Enable a sampler loss (ppo, ppo_critic, quantile_ppo_critic, grpo, "
-                "sliced_kickstarter, sliced_scripted_cloner, or action_supervisor.sample_enabled=True) "
-                "or disable consumer losses that depend on sampled_mb."
+                "Loss config invalid: a loss needs sampled_mb but no sampler is enabled. "
+                "Enable one of (ppo, ppo_critic, quantile_ppo_critic, grpo, "
+                "sliced_kickstarter, sliced_scripted_cloner, action_supervisor.sample_enabled=True) "
+                "or disable the consumer losses."
             )
 
     def init_losses(
