@@ -82,7 +82,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     cvc_fixed_maps_200ep_timesteps = 200 * 524_288  # 200 epochs * default batch size
     cvc_fixed_maps_train_200ep = JobConfig(
         name=cvc_fixed_maps_200ep_name,
-        module="recipes.prod.cvc.fixed_maps.train",
+        module="recipes.experiment.cogs_v_clips.train",
         args=[
             f"run={cvc_fixed_maps_200ep_name}",
             f"trainer.total_timesteps={cvc_fixed_maps_200ep_timesteps}",
@@ -100,7 +100,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     cvc_fixed_maps_train_name = f"{prefix}.cvc_fixed_maps_multi_gpu_2b"
     cvc_fixed_maps_train_2b = JobConfig(
         name=cvc_fixed_maps_train_name,
-        module="recipes.prod.cvc.fixed_maps.train",
+        module="recipes.experiment.cogs_v_clips.train",
         args=[
             f"run={cvc_fixed_maps_train_name}",
             "trainer.total_timesteps=2000000000",
