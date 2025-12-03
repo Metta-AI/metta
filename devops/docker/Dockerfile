@@ -30,8 +30,7 @@ RUN uv python install
 # This ensures uv sync can build packages like mettagrid that require these tools
 # Copy bootstrap script to /tmp to avoid importing from metta package structure
 COPY metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py
-RUN python3 -m pip install --break-system-packages packaging && \
-    cd /tmp && \
+RUN cd /tmp && \
     python3 bootstrap.py --non-interactive
 
 COPY packages/mettagrid/pyproject.toml packages/mettagrid/
