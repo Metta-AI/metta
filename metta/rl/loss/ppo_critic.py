@@ -16,6 +16,8 @@ from metta.rl.utils import prepare_policy_forward_td
 
 
 class PPOCriticConfig(LossConfig):
+    """Value-head tuning plus optional sampling control."""
+
     vf_clip_coef: float = Field(default=0.1, ge=0)
     vf_coef: float = Field(default=0.897619, ge=0)
     clip_vloss: bool = True
@@ -24,10 +26,11 @@ class PPOCriticConfig(LossConfig):
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
     profiles: list[str] | None = Field(default=None)
-    sample_enabled: bool = Field(default=True)
-    train_forward_enabled: bool = Field(default=True)
-    rollout_forward_enabled: bool = Field(default=True)
-    deferred_training_start_step: int | None = None
+    # Control flow for forwarding and sampling; used when another loss drives training.
+    sample_enabled: bool = Field(default=True)  # sample from buffer during training
+    train_forward_enabled: bool = Field(default=True)  # forward policy during training
+    rollout_forward_enabled: bool = Field(default=True)  # forward policy during rollout
+    deferred_training_start_step: int | None = None  # enable sampling/forwarding after this step
 
     def create(
         self,

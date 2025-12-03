@@ -53,6 +53,8 @@ class SlicedKickstarterConfig(LossConfig):
 
 
 class SlicedKickstarter(Loss):
+    """Forward a teacher policy and distil its logits/values into the student."""
+
     __slots__ = (
         "teacher_policy",
         "student_forward",
