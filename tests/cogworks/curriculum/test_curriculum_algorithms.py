@@ -438,3 +438,32 @@ class TestBidirectionalLearningProgressBehavior:
             assert key in stats, f"Missing stat key: {key}"
 
         assert stats["num_tracked_tasks"] > 0, "Should track some tasks"
+
+    def test_progress_smoothing_affects_bidirectional_scores(self):
+        """Ensure progress_smoothing still influences bidirectional task scores."""
+        smoothed_config = LearningProgressConfig(
+            use_bidirectional=True,
+            progress_smoothing=0.2,
+        )
+        raw_config = LearningProgressConfig(
+            use_bidirectional=True,
+            progress_smoothing=0.0,
+        )
+
+        smoothed_algo = LearningProgressAlgorithm(num_tasks=1, hypers=smoothed_config)
+        raw_algo = LearningProgressAlgorithm(num_tasks=1, hypers=raw_config)
+
+        task_id = _register_task(smoothed_algo, 0)
+        _register_task(raw_algo, task_id)
+
+        # Seed identical EMA values and outcomes so only smoothing differs
+        for algo in (smoothed_algo, raw_algo):
+            algo._outcomes[task_id] = [0.2, 0.8]
+            algo._per_task_fast[task_id] = 0.9
+            algo._per_task_slow[task_id] = 0.3
+
+        smoothed_score = smoothed_algo.score_tasks([task_id])[task_id]
+        raw_score = raw_algo.score_tasks([task_id])[task_id]
+
+        assert smoothed_score != raw_score, "progress_smoothing should alter bidirectional scores"
+        assert smoothed_score < raw_score, "smoothing should dampen the raw bidirectional score"

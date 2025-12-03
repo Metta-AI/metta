@@ -440,7 +440,10 @@ class _UnclipBase(_DiagnosticMissionBase):
             modified_decoder = False
             for proto in assembler.protocols:
                 if proto.output_resources.get("decoder", 0) > 0:
-                    if not has_gear_protocol and not modified_decoder:
+                    if has_gear_protocol:
+                        # Preserve existing decoder recipe when a gear protocol already exists
+                        updated_protocols.append(proto)
+                    elif not modified_decoder:
                         # Only modify the first decoder protocol to avoid duplicates
                         inputs = {res: 1 for res in non_clipped}
                         updated_proto = proto.model_copy(update={"vibes": ["gear"], "input_resources": inputs})

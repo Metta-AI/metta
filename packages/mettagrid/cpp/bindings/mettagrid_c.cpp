@@ -18,7 +18,6 @@
 #include "actions/move.hpp"
 #include "actions/move_config.hpp"
 #include "actions/noop.hpp"
-#include "actions/resource_mod.hpp"
 #include "config/observation_features.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
@@ -47,7 +46,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
-      _resource_loss_prob(game_config.resource_loss_prob),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
   _rng = std::mt19937(seed);
@@ -171,7 +169,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       const AssemblerConfig* assembler_config = dynamic_cast<const AssemblerConfig*>(object_cfg);
       if (assembler_config) {
-        Assembler* assembler = new Assembler(r, c, *assembler_config);
+        Assembler* assembler = new Assembler(r, c, *assembler_config, _stats.get());
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
@@ -282,16 +280,6 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
     _action_handlers.push_back(action);
   }
   _action_handler_impl.push_back(std::move(change_vibe));
-
-  // ResourceMod
-  auto resource_mod_config = std::static_pointer_cast<const ResourceModConfig>(game_config.actions.at("resource_mod"));
-  auto resource_mod = std::make_unique<ResourceMod>(*resource_mod_config);
-  resource_mod->init(_grid.get(), &_rng);
-  if (resource_mod->priority > _max_action_priority) _max_action_priority = resource_mod->priority;
-  for (const auto& action : resource_mod->actions()) {
-    _action_handlers.push_back(action);
-  }
-  _action_handler_impl.push_back(std::move(resource_mod));
 }
 
 void MettaGrid::add_agent(Agent* agent) {
@@ -338,9 +326,15 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (_global_obs_config.episode_completion_pct) {
     ObservationType episode_completion_pct = 0;
     if (max_steps > 0) {
-      float fraction = (static_cast<float>(current_step) / static_cast<float>(max_steps));
-      episode_completion_pct =
-          static_cast<ObservationType>(std::round(fraction * std::numeric_limits<ObservationType>::max()));
+      if (current_step >= max_steps) {
+        // The episode should be over, so this observation shouldn't matter. But let's max our for
+        // better continuity.
+        episode_completion_pct = std::numeric_limits<ObservationType>::max();
+      } else {
+        episode_completion_pct = static_cast<ObservationType>(
+          (static_cast<uint32_t>(std::numeric_limits<ObservationType>::max()) + 1) * current_step / max_steps
+        );
+      }
     }
     global_tokens.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
   }
@@ -489,7 +483,6 @@ void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat
   agent->stats.incr(stat);
   agent->stats.incr(stat + "." + std::to_string(type));
   _action_success[agent_idx] = false;
-  *agent->reward -= agent->action_failure_penalty;
 }
 
 void MettaGrid::_step() {
@@ -540,29 +533,6 @@ void MettaGrid::_step() {
       _action_success[agent_idx] = success;
       if (success) {
         executed_actions[agent_idx] = action_idx;
-      }
-    }
-  }
-
-  // Handle resource loss
-  for (auto* agent : _agents) {
-    if (_resource_loss_prob > 0.0f) {
-      // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
-      // Make a real copy of the agent's inventory map to avoid iterator invalidation
-      const auto inventory_copy = agent->inventory.get();
-      for (const auto& [item, qty] : inventory_copy) {
-        if (qty > 0) {
-          float loss = _resource_loss_prob * qty;
-          InventoryDelta lost = static_cast<InventoryDelta>(std::floor(loss));
-          // With probability equal to the fractional part, lose one more
-          if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
-            lost += 1;
-          }
-
-          if (lost > 0) {
-            agent->update_inventory(item, -lost);
-          }
-        }
       }
     }
   }
@@ -761,9 +731,7 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["freeze_duration"] = agent->freeze_duration;
       obj_dict["vibe"] = agent->vibe;
       obj_dict["agent_id"] = agent->agent_id;
-      obj_dict["action_failure_penalty"] = agent->action_failure_penalty;
       obj_dict["current_stat_reward"] = agent->current_stat_reward;
-      obj_dict["prev_action_name"] = agent->prev_action_name;
       obj_dict["steps_without_motion"] = agent->steps_without_motion;
 
       // We made resource limits more complicated than this, and need to review how to expose them.
@@ -778,7 +746,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     if (auto* assembler = dynamic_cast<Assembler*>(obj)) {
       obj_dict["cooldown_remaining"] = assembler->cooldown_remaining();
       obj_dict["cooldown_duration"] = assembler->cooldown_duration;
-      obj_dict["cooldown_progress"] = assembler->cooldown_progress();
       obj_dict["is_clipped"] = assembler->is_clipped;
       obj_dict["is_clip_immune"] = assembler->clip_immune;
       obj_dict["uses_count"] = assembler->uses_count;
@@ -999,7 +966,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_attack_action_config(m);
   bind_change_vibe_action_config(m);
   bind_move_action_config(m);
-  bind_resource_mod_config(m);
   bind_global_obs_config(m);
   bind_clipper_config(m);
   bind_game_config(m);

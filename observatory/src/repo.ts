@@ -1,4 +1,4 @@
-import { config } from './config'
+import { getToken, initiateLogin } from './auth'
 
 export type TokenInfo = {
   id: string
@@ -181,6 +181,7 @@ export type PublicPolicyVersionRow = {
   name: string
   version: number
   tags: Record<string, string>
+  version_count?: number
 }
 
 export type EpisodeReplay = {
@@ -267,6 +268,11 @@ export type AIQueryResponse = {
   query: string
 }
 
+export type PolicyVersionsResponse = {
+  entries: PublicPolicyVersionRow[]
+  total_count: number
+}
+
 export class Repo {
   constructor(private baseUrl: string = 'http://localhost:8000') {}
 
@@ -277,8 +283,9 @@ export class Repo {
       headers['Content-Type'] = contentType
     }
 
-    if (config.authToken) {
-      headers['X-Auth-Token'] = config.authToken
+    const token = getToken()
+    if (token) {
+      headers['X-Auth-Token'] = token
     }
 
     return headers
@@ -289,6 +296,11 @@ export class Repo {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
+      if (response.status === 401) {
+        // Unauthorized - redirect to login
+        initiateLogin()
+        throw new Error('Unauthorized - redirecting to login')
+      }
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
     return response.json()
@@ -301,6 +313,11 @@ export class Repo {
       body: JSON.stringify(body),
     })
     if (!response.ok) {
+      if (response.status === 401) {
+        // Unauthorized - redirect to login
+        initiateLogin()
+        throw new Error('Unauthorized - redirecting to login')
+      }
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
     return response.json()
@@ -313,6 +330,11 @@ export class Repo {
       body: JSON.stringify(body),
     })
     if (!response.ok) {
+      if (response.status === 401) {
+        // Unauthorized - redirect to login
+        initiateLogin()
+        throw new Error('Unauthorized - redirecting to login')
+      }
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
     return response.json()
@@ -324,6 +346,11 @@ export class Repo {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
+      if (response.status === 401) {
+        // Unauthorized - redirect to login
+        initiateLogin()
+        throw new Error('Unauthorized - redirecting to login')
+      }
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
   }
@@ -457,5 +484,31 @@ export class Repo {
 
   async queryEpisodes(request: EpisodeQueryRequest): Promise<EpisodeQueryResponse> {
     return this.apiCallWithBody<EpisodeQueryResponse>('/stats/episodes/query', request)
+  }
+
+  async getPolicies(params?: {
+    name_exact?: string
+    name_fuzzy?: string
+    limit?: number
+    offset?: number
+  }): Promise<PolicyVersionsResponse> {
+    const searchParams = new URLSearchParams()
+    if (params?.name_exact) searchParams.append('name_exact', params.name_exact)
+    if (params?.name_fuzzy) searchParams.append('name_fuzzy', params.name_fuzzy)
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<PolicyVersionsResponse>(`/stats/policies${query ? `?${query}` : ''}`)
+  }
+
+  async getVersionsForPolicy(
+    policyId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<PolicyVersionsResponse> {
+    const searchParams = new URLSearchParams()
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<PolicyVersionsResponse>(`/stats/policies/${policyId}/versions${query ? `?${query}` : ''}`)
   }
 }

@@ -185,10 +185,19 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if task_id not in self._per_task_fast or task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
             score = self.hypers.exploration_bonus
         else:
+            fast = self._per_task_fast[task_id]
+            slow = self._per_task_slow[task_id]
+
+            # Apply the same progress smoothing used in distribution calc so the
+            # bidirectional score honors the config knob.
+            if self.hypers.progress_smoothing != 0.0:
+                fast = self._reweight_scalar(fast)
+                slow = self._reweight_scalar(slow)
+
             # Learning progress = |fast - slow|
-            lp = abs(self._per_task_fast[task_id] - self._per_task_slow[task_id])
+            lp = abs(fast - slow)
             # Small bonus for above-baseline performance
-            perf_bonus = max(self._per_task_fast[task_id], 0) * 0.1
+            perf_bonus = max(fast, 0) * 0.1
             score = lp + perf_bonus
 
         # Cache the computed score
@@ -576,6 +585,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         denominator = np.where(denominator <= 0, 1.0, denominator)
         result = numerator / denominator
         return result
+
+    def _reweight_scalar(self, prob: float) -> float:
+        """Apply progress smoothing to a single probability value."""
+        smoothing = self.hypers.progress_smoothing
+        denominator = prob + smoothing * (1.0 - 2.0 * prob)
+        if denominator <= 0:
+            return prob
+        return prob * (1.0 - smoothing) / denominator
 
     def _sigmoid(self, x: np.ndarray) -> np.ndarray:
         """Apply sigmoid function to array values."""
