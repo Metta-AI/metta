@@ -99,25 +99,25 @@ proc getActiveRecipe(agent: ThinkyAgent): RecipeInfo {.measure.} =
         result.scramblerCost = feature.value
 
       elif feature.featureId == agent.cfg.features.protocolOutputEnergy:
-        result.energyOutput = feature.value
+        result.energyCost = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputCarbon:
-        result.carbonOutput = feature.value
+        result.carbonCost = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputOxygen:
-        result.oxygenOutput = feature.value
+        result.oxygenCost = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputGermanium:
-        result.germaniumOutput = feature.value
+        result.germaniumCost = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputSilicon:
-        result.siliconOutput = feature.value
+        result.siliconCost = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputHeart:
-        result.heartOutput = feature.value
+        result.heartCost = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputDecoder:
-        result.decoderOutput = feature.value
+        result.decoderCost = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputModulator:
-        result.modulatorOutput = feature.value
+        result.modulatorCost = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputResonator:
-        result.resonatorOutput = feature.value
+        result.resonatorCost = feature.value
       elif feature.featureId == agent.cfg.features.protocolOutputScrambler:
-        result.scramblerOutput = feature.value
+        result.scramblerCost = feature.value
 
 proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   ## Create a new thinky agent, the fastest and the smartest agent.

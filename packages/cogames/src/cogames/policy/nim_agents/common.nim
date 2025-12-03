@@ -4,9 +4,6 @@ import
   fidget2/measure,
   jsony
 
-# Disable debug output (comment out to enable)
-template echo(args: varargs[string, `$`]) = discard
-
 type
   ConfigFeature* = object
     id*: int
@@ -25,7 +22,6 @@ type
     tags*: seq[string]
     obsFeatures*: seq[ConfigFeature]
     assemblerProtocols*: seq[AssemblerProtocol]
-    maxSteps*: int  ## optional; may be 0 if not provided
 
   Config* = object
     config*: PolicyConfig
@@ -215,9 +211,7 @@ proc generateSpiral*(count: int): seq[Location] =
         inc stepSize
   return result
 
-# The spiral is only used for exploratory walk ordering.  Keep it long enough
-# to cover the extended 10k-step episodes now used in main.
-const spiral* = generateSpiral(10000)
+const spiral* = generateSpiral(1000)
 
 proc `$`*(recipe: RecipeInfo): string =
   ## Stringify the recipe.
