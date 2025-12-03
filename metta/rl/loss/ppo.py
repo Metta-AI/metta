@@ -26,6 +26,7 @@ class PrioritizedExperienceReplayConfig(Config):
 
 class VTraceConfig(Config):
     """V-trace clipping limits."""
+
     # Defaults follow IMPALA (Espeholt et al., 2018)
     rho_clip: float = Field(default=1.0, gt=0)
     c_clip: float = Field(default=1.0, gt=0)
