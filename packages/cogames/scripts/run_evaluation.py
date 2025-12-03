@@ -186,45 +186,45 @@ def _run_case(
     if variant:
         mission_variants.insert(0, variant)
     try:
-        mission = base_mission.with_variants(mission_variants)
-        env_config = mission.make_env()
-        _ensure_vibe_supports_gear(env_config)
-        if variant is None or getattr(variant, "max_steps_override", None) is None:
-            env_config.game.max_steps = max_steps
-
-        # For evaluation, only heart rewards should count (not resource rewards)
-        if not env_config.game.agent.rewards.stats:
-            env_config.game.agent.rewards.stats = {}
-        resource_stats = ["carbon.gained", "oxygen.gained", "germanium.gained", "silicon.gained"]
-        for resource_stat in resource_stats:
-            env_config.game.agent.rewards.stats[resource_stat] = 0.0
-        if not env_config.game.agent.rewards.stats_max:
-            env_config.game.agent.rewards.stats_max = {}
-        for resource_stat in resource_stats:
-            env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
-
-        actual_max_steps = env_config.game.max_steps
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-
-        # Load once per case (reusing cache) unless the policy type requires per-run reload.
-        def _load_base_policy():
-            global _cached_policy, _cached_policy_key
-            if cached_policy is not None:
-                return cached_policy
-            if _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
-                return _cached_policy
-            policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-            if not _policy_requires_fresh_instance(policy) and is_s3_uri(agent_config.policy_path):
-                # Cache only non-stateful policies to avoid re-downloading.
-                _cached_policy = policy
-                _cached_policy_key = agent_config.policy_path
-            return policy
-
-        base_policy = _load_base_policy()
-        fresh_each_run = _policy_requires_fresh_instance(base_policy)
-
         out: List[EvalResult] = []
         for run_idx in range(runs_per_case):
+            mission = base_mission.with_variants(mission_variants)
+            env_config = mission.make_env()
+            _ensure_vibe_supports_gear(env_config)
+            if variant is None or getattr(variant, "max_steps_override", None) is None:
+                env_config.game.max_steps = max_steps
+
+            # For evaluation, only heart rewards should count (not resource rewards)
+            if not env_config.game.agent.rewards.stats:
+                env_config.game.agent.rewards.stats = {}
+            resource_stats = ["carbon.gained", "oxygen.gained", "germanium.gained", "silicon.gained"]
+            for resource_stat in resource_stats:
+                env_config.game.agent.rewards.stats[resource_stat] = 0.0
+            if not env_config.game.agent.rewards.stats_max:
+                env_config.game.agent.rewards.stats_max = {}
+            for resource_stat in resource_stats:
+                env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
+
+            actual_max_steps = env_config.game.max_steps
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+
+            # Load once per case (reusing cache) unless the policy type requires per-run reload.
+            def _load_base_policy():
+                global _cached_policy, _cached_policy_key
+                if cached_policy is not None:
+                    return cached_policy
+                if _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
+                    return _cached_policy
+                policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
+                if not _policy_requires_fresh_instance(policy) and is_s3_uri(agent_config.policy_path):
+                    # Cache only non-stateful policies to avoid re-downloading.
+                    _cached_policy = policy
+                    _cached_policy_key = agent_config.policy_path
+                return policy
+
+            base_policy = _load_base_policy()
+            fresh_each_run = _policy_requires_fresh_instance(base_policy)
+
             if fresh_each_run:
                 policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
             else:
