@@ -58,6 +58,16 @@ def error(message: str) -> None:
     _log("ERROR", message)
 
 
+def _safe_unlink(path: Path) -> None:
+    """Safely remove a file/symlink, logging warnings on failure."""
+    try:
+        path.unlink(missing_ok=True)
+    except PermissionError:
+        warning(f"Unable to remove {path}: permission denied")
+    except Exception as exc:
+        warning(f"Unable to remove {path}: {exc}")
+
+
 def get_install_dir() -> Path | None:
     path_dirs = os.environ.get("PATH", "").split(os.pathsep)
     for dir_str in TARGET_INSTALL_DIRS:
@@ -130,12 +140,7 @@ def version_ge(current: str | None, required: str) -> bool:
 
 
 def check_bootstrap_deps() -> bool:
-    """Check if bootstrap deps (bazel, nimby, nim, git, g++) are installed.
-    
-    This function checks using the current PATH (before any modifications)
-    to ensure we detect what the user actually has installed, not what
-    we've added to PATH.
-    """
+    """Check bootstrap deps using the current PATH (no temporary additions)."""
     # Check git
     if not shutil.which("git"):
         return False
@@ -413,27 +418,18 @@ def remove_legacy_nim_installations() -> None:
                         version = version_output.split()[-1].replace("v", "")
                         if version and not version_ge(version, REQUIRED_NIMBY_VERSION):
                             info(f"Removing old nimby version {version} from {nimby_path}")
-                            try:
-                                nimby_path.unlink(missing_ok=True)
-                            except PermissionError:
-                                info(f"Skipping removal of {nimby_path} (permission denied, may be in system directory)")
+                            _safe_unlink(nimby_path)
                             handled = True
                         elif version and version_ge(version, REQUIRED_NIMBY_VERSION):
                             handled = True
-            except Exception:
-                info(f"Removing potentially broken or old nimby from {nimby_path}")
-                try:
-                    nimby_path.unlink(missing_ok=True)
-                except PermissionError:
-                    info(f"Skipping removal of {nimby_path} (permission denied, may be in system directory)")
+            except Exception as exc:
+                info(f"Removing potentially broken or old nimby from {nimby_path}: {exc}")
+                _safe_unlink(nimby_path)
                 handled = True
 
             if not handled and (nimby_path.exists() or nimby_path.is_symlink()):
                 info(f"Removing potentially broken or old nimby from {nimby_path}")
-                try:
-                    nimby_path.unlink(missing_ok=True)
-                except PermissionError:
-                    info(f"Skipping removal of {nimby_path} (permission denied, may be in system directory)")
+                _safe_unlink(nimby_path)
 
 
 def _get_nim_version() -> str | None:
@@ -460,11 +456,7 @@ def _get_nimby_version() -> str | None:
 
 
 def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> None:
-    """Install nim via nimby.
-
-    This function checks versions BEFORE modifying PATH to ensure we detect
-    what the user actually has installed, not what we've added to PATH.
-    """
+    """Install nim via nimby, checking versions before touching PATH."""
     # Clean up legacy installations and old versions first
     remove_legacy_nim_installations()
 
