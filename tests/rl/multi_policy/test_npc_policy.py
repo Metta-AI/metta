@@ -65,9 +65,8 @@ def test_npc_policy_runs_via_slot_controller() -> None:
         slots=[],
         slot_policies={0: policy},
         policy_env_info=env,
-        device="cpu",
         agent_slot_map=agent_slot_map,
-    )
+    ).to("cpu")
 
     td = TensorDict({"env_obs": torch.zeros(4, 1)}, batch_size=[4])
     out = controller.forward(td)

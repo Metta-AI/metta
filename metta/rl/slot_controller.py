@@ -21,7 +21,6 @@ class SlotControllerPolicy(Policy):
         slots: list[Any],
         slot_policies: Dict[int, Policy],
         policy_env_info,
-        device: torch.device | str = "cpu",
         agent_slot_map: torch.Tensor | None = None,
     ) -> None:
         # Use the env info from trainer policy; architecture not needed here
@@ -30,8 +29,10 @@ class SlotControllerPolicy(Policy):
         self._slots = slots
         self._slot_policies = slot_policies
         self._policy_env_info = policy_env_info
-        self._device = torch.device(device)
-        self._agent_slot_map = agent_slot_map
+        if agent_slot_map is not None:
+            self.register_buffer("_agent_slot_map", agent_slot_map)
+        else:
+            self._agent_slot_map = None
 
         # Register trainable sub-policies so optimizer sees their parameters
         for idx, policy in slot_policies.items():
@@ -44,7 +45,6 @@ class SlotControllerPolicy(Policy):
     def initialize_to_environment(self, policy_env_info, device: torch.device) -> None:  # noqa: D401
         for policy in self._slot_policies.values():
             policy.initialize_to_environment(policy_env_info, device)
-        self._device = torch.device(device)
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
         if "slot_id" not in td.keys():
@@ -57,7 +57,10 @@ class SlotControllerPolicy(Policy):
                     f"slot-aware routing requires batch size ({batch}) to be divisible by num_agents ({num_agents})"
                 )
             num_envs = batch // num_agents
-            td.set("slot_id", self._agent_slot_map.to(device=td.device).repeat(num_envs))
+            slot_map = self._agent_slot_map
+            if slot_map.device != td.device:
+                slot_map = slot_map.to(device=td.device)
+            td.set("slot_id", slot_map.repeat(num_envs))
 
         slot_ids = td.get("slot_id")
         if not isinstance(slot_ids, torch.Tensor):
@@ -94,4 +97,8 @@ class SlotControllerPolicy(Policy):
 
     @property
     def device(self) -> torch.device:  # noqa: D401
-        return self._device
+        for param in self.parameters():
+            return param.device
+        for buffer in self.buffers():
+            return buffer.device
+        return torch.device("cpu")

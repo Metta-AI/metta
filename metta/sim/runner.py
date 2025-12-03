@@ -84,9 +84,8 @@ def run_simulations(
                 slots=slots_cfg,
                 slot_policies=slot_policies,
                 policy_env_info=env_interface,
-                device=controller_device,
                 agent_slot_map=agent_slot_tensor,
-            )
+            ).to(controller_device)
             multi_agent_policies.append(controller)
         else:
             assert policy_specs is not None

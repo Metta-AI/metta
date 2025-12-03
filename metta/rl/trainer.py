@@ -80,7 +80,6 @@ class Trainer:
                 slots=slot_state["slots"],
                 slot_policies=slot_state["slot_policies"],
                 policy_env_info=self._env.policy_env_info,
-                controller_device=self._device,
                 agent_slot_map=slot_state["slot_ids"],
             )
 

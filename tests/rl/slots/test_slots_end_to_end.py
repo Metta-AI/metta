@@ -11,6 +11,7 @@ from metta.rl.slot_controller import SlotControllerPolicy
 
 # ---------- Shared stubs ----------
 
+
 class _StubPolicy:
     def __init__(self, experience_spec: Composite):
         self._spec = experience_spec
@@ -47,6 +48,7 @@ def _env_info(num_agents: int) -> SimpleNamespace:
 
 
 # ---------- Filtering / metadata ----------
+
 
 class _DummyLoss(Loss):
     def __init__(self):
@@ -125,6 +127,7 @@ def test_loss_filtering_2d_and_cuda_indices():
 
 # ---------- Slot controller routing ----------
 
+
 def test_slot_controller_requires_slot_id_or_map():
     spec = Composite(actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64))
     policy = _StubPolicy(spec)
@@ -134,9 +137,8 @@ def test_slot_controller_requires_slot_id_or_map():
         slots=[],
         slot_policies={0: policy},
         policy_env_info=env_info,
-        controller_device="cpu",
         agent_slot_map=torch.tensor([0]),
-    )
+    ).to("cpu")
     td = TensorDict(
         {
             "actions": torch.zeros(1, dtype=torch.int64),
@@ -176,14 +178,14 @@ def test_frozen_slot_no_grad():
         slots=[],
         slot_policies={0: grad_policy, 1: frozen_policy},
         policy_env_info=env_info,
-        controller_device="cpu",
         agent_slot_map=torch.tensor([0, 1]),
-    )
+    ).to("cpu")
     controller.forward(td)
     assert frozen_policy.forward_called
 
 
 # ---------- Trainer metadata / profiles ----------
+
 
 def test_slot_metadata_injection_single_agent():
     td = TensorDict({}, batch_size=[1])
@@ -242,6 +244,7 @@ def test_profile_config_drives_loss_filtering():
 
 
 # ---------- Sim runner wiring ----------
+
 
 def test_sim_runner_uses_device_object(monkeypatch):
     from metta.sim.runner import SimulationRunConfig, run_simulations
