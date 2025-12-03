@@ -31,14 +31,6 @@ TARGET_INSTALL_DIRS = [
     str(Path.home() / ".local" / "bin"),
     str(Path.home() / "bin"),
 ]
-# Common install directories in order of preference
-CHECK_FOR_BINARIES_DIRS = [
-    *TARGET_INSTALL_DIRS,
-    str(Path.home() / ".cargo" / "bin"),
-    str(Path.home() / ".nimby" / "nim" / "bin"),
-    "/opt/homebrew/bin",
-]
-
 
 def _log(level: str, message: str) -> None:
     """Minimal logger that works before project dependencies install."""
@@ -362,22 +354,6 @@ def remove_legacy_nim_installations() -> None:
     choosenim_dir = Path.home() / ".choosenim"
     if choosenim_dir.exists():
         shutil.rmtree(choosenim_dir, ignore_errors=True)
-
-    # Remove legacy symlinks in all common bin directories
-    for bin_dir in [Path.home() / ".local" / "bin", Path("/usr/local/bin")]:
-        if not bin_dir.exists():
-            continue
-        for tool in ["nim", "nimble"]:
-            symlink = bin_dir / tool
-            if symlink.is_symlink():
-                try:
-                    target = symlink.readlink()
-                    # Remove if it points to legacy nimble or choosenim locations
-                    if ".nimble" in str(target) or ".choosenim" in str(target):
-                        info(f"Removing legacy symlink: {symlink} -> {target}")
-                        symlink.unlink()
-                except Exception:
-                    pass
 
     # Remove old nimby versions from all install directories
     for install_dir_str in TARGET_INSTALL_DIRS:
