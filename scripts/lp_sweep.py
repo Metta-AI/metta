@@ -20,7 +20,7 @@ from typing import Iterable, Sequence
 # Configuration
 # --------------------------------------------------------------------------- #
 
-DEFAULT_VARIANTS = ("heart_chorus", "lonely_heart")
+DEFAULT_VARIANTS = ("heart_chorus",)
 
 MAP_RECIPES = {
     "proc": "recipes.experiment.cvc.proc_maps.train",
