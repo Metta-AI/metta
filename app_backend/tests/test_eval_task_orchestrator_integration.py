@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
+from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator
 from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker, TaskResult
 from metta.app_backend.metta_repo import EvalTaskRow
 from metta.app_backend.routes.eval_task_routes import (
@@ -75,8 +75,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=mock_thread_manager,
             poll_interval=0.5,  # Fast polling for tests
-            worker_scaler=FixedScaler(2),
-            worker_idle_timeout_minutes=5.0,  # Short timeout for tests
+            task_timeout_minutes=5.0,  # Short timeout for tests
         )
         return orch
 
@@ -146,8 +145,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=failure_manager,
             poll_interval=0.5,
-            worker_idle_timeout_minutes=5.0,
-            worker_scaler=FixedScaler(1),
+            task_timeout_minutes=5.0,
         )
 
         # Create a test task
@@ -208,8 +206,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=success_manager,
             poll_interval=0.5,
-            worker_idle_timeout_minutes=10.0,
-            worker_scaler=FixedScaler(3),
+            task_timeout_minutes=10.0,
         )
 
         # Create multiple test tasks
@@ -306,7 +303,6 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=mock_worker_manager,
             poll_interval=0.5,
-            worker_scaler=FixedScaler(1),
         )
 
         # Should use worker manager
