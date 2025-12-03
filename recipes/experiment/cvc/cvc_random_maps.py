@@ -551,3 +551,7 @@ if __name__ == "__main__":
     experiment(heart_buckets=True, resource_buckets=False, initial_inventory_buckets=True)
     experiment(heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
     experiment(heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
+    experiment(heart_buckets=False, resource_buckets=False)
+    experiment(heart_buckets=True, resource_buckets=False)
+    experiment(heart_buckets=True, resource_buckets=True)
+    experiment(heart_buckets=False, resource_buckets=True)
