@@ -105,37 +105,28 @@ def bazel_env() -> dict[str, str]:
     return env
 
 
-def version_ge(current: str | None, required: str) -> bool:
-    """Check if current version >= required version.
+def _parse_version(v: str) -> tuple[int, ...]:
+    parts = []
+    for part in v.split("."):
+        digits = ""
+        for c in part:
+            if c.isdigit():
+                digits += c
+            else:
+                break
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
 
-    Simple semantic version comparison that handles versions like "7.0.0", "0.1.13", "2.2.6".
-    Compares version tuples numerically (e.g., (7, 0, 0) >= (7, 0, 0)).
-    """
+
+def version_ge(current: str | None, required: str) -> bool:
     if not current:
         return False
-
-    def parse_version(v: str) -> tuple[int, ...]:
-        """Parse version string into tuple of integers."""
-        parts = v.split(".")
-        result = []
-        for part in parts:
-            # Strip any non-numeric suffix (e.g., "1.2.3-beta" -> "1.2.3")
-            numeric_part = re.sub(r"[^0-9].*$", "", part)
-            if numeric_part:
-                result.append(int(numeric_part))
-            else:
-                result.append(0)
-        return tuple(result)
-
-    current_tuple = parse_version(current)
-    required_tuple = parse_version(required)
-
-    # Pad shorter tuple with zeros for comparison
-    max_len = max(len(current_tuple), len(required_tuple))
-    current_tuple = current_tuple + (0,) * (max_len - len(current_tuple))
-    required_tuple = required_tuple + (0,) * (max_len - len(required_tuple))
-
-    return current_tuple >= required_tuple
+    cur = _parse_version(current)
+    req = _parse_version(required)
+    max_len = max(len(cur), len(req))
+    cur = cur + (0,) * (max_len - len(cur))
+    req = req + (0,) * (max_len - len(req))
+    return cur >= req
 
 
 def check_bootstrap_deps() -> bool:
