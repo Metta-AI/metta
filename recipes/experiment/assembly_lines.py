@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from metta.agent.policies.puffer import PufferPolicyConfig
 from metta.agent.policies.trxl import TRXLConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -413,11 +414,13 @@ def train(
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
     if arch_type == "default":
-    policy_config = ViTDefaultConfig()
+        policy_config = ViTDefaultConfig()
     elif arch_type == "trxl":
         policy_config = TRXLConfig()
+    elif arch_type == "lstm":
+        policy_config = PufferPolicyConfig()
     else:
-        raise ValueError(f"Unknown arch_type={arch_type!r} (expected 'default' or 'trxl')")
+        raise ValueError(f"Unknown arch_type={arch_type!r} (expected 'default', 'trxl', or 'lstm')")
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
