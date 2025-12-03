@@ -116,6 +116,17 @@ class SimTaskExecutor(AbstractTaskExecutor):
         """Simple heuristic: SHA-1 is 40 hex chars, SHA-256 is 64 hex chars."""
         return (len(git_ref) == 40 or len(git_ref) == 64) and all(c in "0123456789abcdef" for c in git_ref.lower())
 
+    def _run_cmd(self, cmd: list[str], cwd: str | None = None) -> None:
+        """Run a command with output streamed to stdout. Raises on failure."""
+        env = os.environ.copy()
+        for key in ["PYTHONPATH", "UV_PROJECT", "UV_PROJECT_ENVIRONMENT"]:
+            env.pop(key, None)
+        env["DISABLE_RICH_LOGGING"] = "1"
+
+        result = subprocess.run(cmd, cwd=cwd, env=env)
+        if result.returncode != 0:
+            raise RuntimeError(f"Command failed with return code {result.returncode}: {' '.join(cmd)}")
+
     @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self, git_ref: str) -> None:
         try:
@@ -127,54 +138,20 @@ class SimTaskExecutor(AbstractTaskExecutor):
             os.makedirs(self._versioned_path, exist_ok=True)
 
             # Initialize empty repo
-            result = subprocess.run(
-                ["git", "init"],
-                cwd=self._versioned_path,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to init repository: {result.stderr}")
+            self._run_cmd(["git", "init"], cwd=self._versioned_path)
 
             # Add remote
-            result = subprocess.run(
-                ["git", "remote", "add", "origin", REPO_URL],
-                cwd=self._versioned_path,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to add remote: {result.stderr}")
+            self._run_cmd(["git", "remote", "add", "origin", REPO_URL], cwd=self._versioned_path)
 
             # Shallow fetch the specific ref (works for both commits and branches)
-            result = subprocess.run(
-                ["git", "fetch", "--depth", "1", "origin", git_ref],
-                cwd=self._versioned_path,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to fetch git ref {git_ref}: {result.stderr}")
+            self._run_cmd(["git", "fetch", "--depth", "1", "origin", git_ref], cwd=self._versioned_path)
 
             # Checkout the fetched ref
-            result = subprocess.run(
-                ["git", "checkout", "FETCH_HEAD"],
-                cwd=self._versioned_path,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to checkout FETCH_HEAD: {result.stderr}")
+            self._run_cmd(["git", "checkout", "FETCH_HEAD"], cwd=self._versioned_path)
 
             # Install dependencies in the versioned checkout
             logger.info("Installing dependencies in versioned checkout...")
-            self._run_cmd_from_versioned_checkout(
-                ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
-                capture_output=True,
-            )
-            self._run_cmd_from_versioned_checkout(
-                ["uv", "run", "metta", "install"],
-            )
+            self._run_cmd(["uv", "run", "metta", "configure", "--profile=softmax-docker"], cwd=self._versioned_path)
 
             logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
         except Exception as e:
