@@ -299,14 +299,8 @@ class Trainer:
         self._components.append(component)
         component.register(self._context)
 
-    # ------------------------------------------------------------------
-    # Binding setup helpers
-    # ------------------------------------------------------------------
     def _build_slot_state(self, trainer_policy: Policy) -> dict[str, Any]:
-        """Prepare per-agent slot and loss-profile metadata."""
-
         slots_cfg = list(self._cfg.policy_slots or [])
-        # Ensure at least one slot uses the trainer-provided policy
         has_trainer_slot = any(b.use_trainer_policy for b in slots_cfg)
         if not slots_cfg or not has_trainer_slot:
             slots_cfg.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
@@ -339,7 +333,7 @@ class Trainer:
             loss_profiles = {"default": LossProfileConfig(losses=[])}
         loss_profile_lookup = {name: idx for idx, name in enumerate(loss_profiles.keys())}
 
-        default_slot_profile = next(iter(loss_profiles.keys()))
+        default_slot_profile = next(iter(loss_profiles))
 
         num_agents = self._env.policy_env_info.num_agents
         agent_slot_map = self._cfg.agent_slot_map

@@ -25,7 +25,7 @@ class _DummyPolicy:
 
 class _DummyRegistry:
     def get(self, _slot, _env_info, device):
-        assert device == "cpu"
+        assert str(device) == "cpu"
         return _DummyPolicy()
 
 
@@ -79,4 +79,4 @@ def test_runner_passes_controller_device(monkeypatch):
 
     assert CAPTURED_CONTROLLERS, "SlotControllerPolicy should have been constructed"
     kwargs = CAPTURED_CONTROLLERS[-1].kwargs
-    assert kwargs["device"] == "cpu"
+    assert str(kwargs["device"]) == "cpu"

@@ -216,32 +216,32 @@ class CoreTrainingLoop:
 
     def _inject_slot_metadata(self, td: TensorDict, training_env_id: slice) -> None:
         ctx = self.context
-        slot_ids = getattr(ctx, "slot_id_per_agent", None)
+        slot_ids = ctx.slot_id_per_agent
         if slot_ids is None:
             return
 
-        loss_profile_ids = getattr(ctx, "loss_profile_id_per_agent", None)
-        trainable_mask = getattr(ctx, "trainable_agent_mask", None)
-
         num_agents = ctx.env.policy_env_info.num_agents
-        if num_agents <= 0:
-            raise RuntimeError("policy_env_info.num_agents must be positive for slot metadata injection")
+        if slot_ids.numel() != num_agents:
+            raise RuntimeError(f"slot_id_per_agent expected {num_agents} entries, got {slot_ids.numel()}")
 
         batch_elems = td.batch_size.numel()
-        if batch_elems % num_agents != 0:
+        if batch_elems % num_agents:
             raise RuntimeError(
                 f"Batch elements ({batch_elems}) must be divisible by num_agents ({num_agents}) for slot metadata"
             )
 
-        num_envs = batch_elems // num_agents
+        repeats = batch_elems // num_agents
         device = td.device
 
-        slot_tensor = slot_ids.to(device=device).repeat(num_envs)
-        td.set("slot_id", slot_tensor)
+        td.set("slot_id", slot_ids.to(device=device).repeat(repeats))
+
+        loss_profile_ids = ctx.loss_profile_id_per_agent
         if loss_profile_ids is not None:
-            td.set("loss_profile_id", loss_profile_ids.to(device=device).repeat(num_envs))
+            td.set("loss_profile_id", loss_profile_ids.to(device=device).repeat(repeats))
+
+        trainable_mask = ctx.trainable_agent_mask
         if trainable_mask is not None:
-            td.set("is_trainable_agent", trainable_mask.to(device=device).repeat(num_envs))
+            td.set("is_trainable_agent", trainable_mask.to(device=device).repeat(repeats))
 
     def training_phase(
         self,

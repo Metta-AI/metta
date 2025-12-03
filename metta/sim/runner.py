@@ -62,6 +62,7 @@ def run_simulations(
             registry = SlotRegistry()
             slots_cfg = simulation.policy_slots
             slot_lookup = {b.id: idx for idx, b in enumerate(slots_cfg)}
+            controller_device = torch.device("cpu")
             # Build agent slot map tensor
             num_agents = env_interface.num_agents
             agent_map = simulation.agent_slot_map or [slots_cfg[0].id for _ in range(num_agents)]
@@ -74,7 +75,7 @@ def run_simulations(
                 idx: registry.get(
                     b,
                     env_interface,
-                    device="cpu",  # sim runs default to CPU; extend later if needed
+                    device=controller_device,  # sim runs default to CPU; extend later if needed
                 )
                 for idx, b in enumerate(slots_cfg)
             }
@@ -83,7 +84,7 @@ def run_simulations(
                 slots=slots_cfg,
                 slot_policies=slot_policies,
                 policy_env_info=env_interface,
-                device="cpu",
+                device=controller_device,
                 agent_slot_map=agent_slot_tensor,
             )
             multi_agent_policies.append(controller)
