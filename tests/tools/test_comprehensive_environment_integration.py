@@ -28,7 +28,7 @@ class TestComprehensiveEnvironmentIntegration:
     @staticmethod
     def make_debug_env(name: str) -> MettaGridConfig:
         """Create debug environments programmatically using the new system."""
-        if name == "tiny_two_altars":
+        if name == "tiny_two_assemblers":
             return MettaGridConfig(
                 label=name,
                 game=GameConfig(
@@ -36,7 +36,7 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "altar": building.assembler_altar,
+                        "assembler": building.assembler_assembler,
                     },
                     actions=ActionsConfig(
                         move=MoveActionConfig(),
@@ -128,7 +128,7 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "altar": building.assembler_altar,
+                        "assembler": building.assembler_assembler,
                         "mine_red": building.assembler_mine_red,
                         "generator_red": building.assembler_generator_red,
                     },
@@ -157,7 +157,7 @@ class TestComprehensiveEnvironmentIntegration:
 
     def test_programmatic_env_creation(self):
         """Test that debug environments can be created programmatically."""
-        for env_name in ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"]:
+        for env_name in ["tiny_two_assemblers", "simple_obstacles", "resource_collection", "mixed_objects"]:
             env_config = self.make_debug_env(env_name)
             assert env_config is not None, f"Failed to create environment {env_name}"
             assert env_config.game.num_agents == 2, f"Environment {env_name} should have 2 agents"
@@ -165,7 +165,7 @@ class TestComprehensiveEnvironmentIntegration:
 
     def test_debug_env_validation(self):
         """Test that programmatically created debug environments are valid."""
-        env_config = self.make_debug_env("tiny_two_altars")
+        env_config = self.make_debug_env("tiny_two_assemblers")
 
         # Validate essential components
         assert hasattr(env_config, "game"), "Environment missing game config"
@@ -188,15 +188,15 @@ class TestComprehensiveEnvironmentIntegration:
         assert nav_env.game.num_agents == 2
 
         # Test that they have expected components
-        assert "altar" in arena_env.game.objects
-        assert "altar" in nav_env.game.objects
+        assert "assembler" in arena_env.game.objects
+        assert "assembler" in nav_env.game.objects
         assert arena_env.game.actions.move is not None
         assert nav_env.game.actions.move is not None
 
     def test_programmatic_env_with_mettagrid(self):
         """Test that programmatically created environments work with MettaGridEnv."""
 
-        cfg = self.make_debug_env("tiny_two_altars")
+        cfg = self.make_debug_env("tiny_two_assemblers")
         sim = Simulation(cfg)
 
         assert len(sim.observations()) == 2, "Observation should be for 2 agents"
@@ -204,7 +204,7 @@ class TestComprehensiveEnvironmentIntegration:
     def test_simulation_config_creation(self):
         """Test creating simulation configs from environments."""
 
-        for env_name in ["tiny_two_altars", "simple_obstacles"]:
+        for env_name in ["tiny_two_assemblers", "simple_obstacles"]:
             env_config = self.make_debug_env(env_name)
             sim_config = SimulationConfig(suite="test", name=f"sim_{env_name}", env=env_config)
 
@@ -227,7 +227,7 @@ class TestComprehensiveEnvironmentIntegration:
 
     def test_agents_count_in_environments(self):
         """Test that each debug environment has exactly 2 agents."""
-        for env_name in ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"]:
+        for env_name in ["tiny_two_assemblers", "simple_obstacles", "resource_collection", "mixed_objects"]:
             env_config = self.make_debug_env(env_name)
             assert env_config.game.num_agents == 2, (
                 f"Environment {env_name} should have exactly 2 agents, but has {env_config.game.num_agents}"
@@ -239,7 +239,7 @@ class TestComprehensiveEnvironmentIntegration:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "env_name", ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"]
+        "env_name", ["tiny_two_assemblers", "simple_obstacles", "resource_collection", "mixed_objects"]
     )
     def test_recipe_based_training_validation(self, env_name, monkeypatch, capsys):
         """Test basic training validation with the new recipe-based system."""

@@ -64,6 +64,7 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
     # f"machina_1{MAP_MISSION_DELIMITER}open_world",
+    f"machina_1{MAP_MISSION_DELIMITER}balanced_corners",
 )
 
 

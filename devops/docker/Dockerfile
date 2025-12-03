@@ -33,7 +33,6 @@ COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
-COPY experiments/pyproject.toml experiments/
 
 RUN uv sync --no-install-workspace --frozen
 
