@@ -270,8 +270,9 @@ class DifficultyLevel(MissionVariant):
             if asm is None or not isinstance(asm, AssemblerConfig):
                 return
 
-            # Check if ['gear'] protocol already exists
-            if any(p.vibes == ["gear"] for p in asm.protocols):
+            # Check if ['gear'] protocol with same min_agents already exists
+            # C++ doesn't allow duplicate protocols with same vibes and min_agents
+            if any(p.vibes == ["gear"] and p.min_agents == 0 for p in asm.protocols):
                 return  # Already added
 
             # Add the ONE generic gear protocol for this variant

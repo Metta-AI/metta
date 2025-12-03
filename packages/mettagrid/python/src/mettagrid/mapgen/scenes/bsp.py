@@ -98,8 +98,19 @@ class BSP(Scene[BSPConfig]):
             if zone1.y > zone2.y:
                 (zone1, zone2) = (zone2, zone1)
 
-            surface1 = Surface.from_zone(used_grid, zone1, "up")
-            surface2 = Surface.from_zone(used_grid, zone2, "down")
+            try:
+                surface1 = Surface.from_zone(used_grid, zone1, "up")
+                surface2 = Surface.from_zone(used_grid, zone2, "down")
+            except ValueError as e:
+                # Skip corridor connection if surfaces can't be found
+                # This can happen if a zone doesn't have a valid room
+                logger.warning(
+                    "Could not find surface for corridor connection between zones %s and %s: %s. Skipping corridor.",
+                    zone1,
+                    zone2,
+                    e,
+                )
+                continue
 
             lines = connect_surfaces(surface1, surface2)
 
