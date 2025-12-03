@@ -556,15 +556,39 @@ def play(
     mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
+    num_vibes: Optional[int] = None,
 ) -> PlayTool:
-    """Play a single mission with a policy."""
+    """Play a single mission with a policy.
+
+    Args:
+        policy_uri: URI of the policy to load
+        mission: Mission name to play
+        num_cogs: Number of agents
+        variants: Optional mission variants
+        num_vibes: Number of vibes to use. Options:
+                  - None: Use environment default (all vibes)
+                  - 13: Use first 13 vibes (for cvc_random_maps policies, 18 actions)
+                  - 16: Use TRAINING_VIBES (for base.1201 policies, 21 actions)
+    """
     env = cogs_v_clips.make_training_env(
         num_cogs=num_cogs,
         mission=mission,
         variants=variants,
     )
-    # Enforce TRAINING_VIBES for compatibility with trained policies
-    _enforce_training_vibes(env)
+
+    # Configure vibes based on policy requirements
+    if num_vibes == 16:
+        # Use TRAINING_VIBES for base.1201 policies
+        _enforce_training_vibes(env)
+    elif num_vibes == 13:
+        # Use first 13 vibes for cvc_random_maps policies
+        first_13_vibes = [v.name for v in vibes.VIBES[:13]]
+        env.game.vibe_names = first_13_vibes
+        if env.game.actions.change_vibe:
+            env.game.actions.change_vibe.number_of_vibes = 13
+        if env.game.actions.attack:
+            env.game.actions.attack.enabled = False
+
     sim = SimulationConfig(suite="cogs_vs_clips", name=f"{mission}_{num_cogs}cogs", env=env)
     return PlayTool(sim=sim, policy_uri=policy_uri)
 
