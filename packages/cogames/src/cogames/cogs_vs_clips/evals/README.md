@@ -9,9 +9,8 @@ This directory contains two types of evaluation missions for testing CoGames age
 
 ## Diagnostic Missions
 
-**Location:** `diagnostic_evals.py`
-**Access:** `cogames play --mission evals.diagnostic_*`
-**Map Type:** Fixed ASCII maps (deterministic layouts)
+**Location:** `diagnostic_evals.py` **Access:** `cogames play --mission evals.diagnostic_*` **Map Type:** Fixed ASCII
+maps (deterministic layouts)
 
 Diagnostic missions test specific skills in isolation with controlled, repeatable environments.
 
@@ -76,9 +75,8 @@ uv run cogames play --mission evals.diagnostic_unclip_craft -p scripted_baseline
 
 ## Integrated Eval Missions
 
-**Location:** `integrated_evals.py`
-**Access:** `cogames play --mission hello_world.*`
-**Map Type:** Procedural generation (MachinaArena)
+**Location:** `integrated_evals.py` **Access:** `cogames play --mission hello_world.*` **Map Type:** Procedural
+generation (MachinaArena)
 
 Integrated eval missions use procedural generation and combine multiple mission variants to create diverse training
 scenarios. They use 50×50 to 150×150 procedural maps with randomized building placements.
@@ -271,5 +269,5 @@ mission_variant_curriculum.train(
 
 **Last Updated:** December 3, 2025
 
-**Diagnostic Missions:** 30+ (various skills and hard variants)
-**Integrated Missions:** 7 (procedural, with built-in variants)
+**Diagnostic Missions:** 30+ (various skills and hard variants) **Integrated Missions:** 7 (procedural, with built-in
+variants)
