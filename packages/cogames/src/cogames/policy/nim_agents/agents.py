@@ -15,11 +15,7 @@ if bindings_dir not in sys.path:
     sys.path.append(bindings_dir)
 
 
-# --------------------------------------------------------------------------- #
-# Auto-rebuild Nim bindings when stale or missing.
-# This keeps RaceCar/Thinky in sync after Nim edits without manual install.sh.
-# --------------------------------------------------------------------------- #
-def _ensure_nim_bindings_up_to_date() -> None:
+def _maybe_rebuild_nim_bindings() -> None:
     """Rebuild Nim bindings if any Nim source is newer than the generated lib."""
     if os.environ.get("COGAMES_SKIP_NIM_REBUILD"):
         return
@@ -56,7 +52,7 @@ def _ensure_nim_bindings_up_to_date() -> None:
         pass
 
 
-_ensure_nim_bindings_up_to_date()
+_maybe_rebuild_nim_bindings()
 
 na = importlib.import_module("nim_agents")
 

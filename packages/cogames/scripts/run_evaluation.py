@@ -177,10 +177,10 @@ def _run_case(
 ) -> List[EvalResult]:
     global _cached_policy, _cached_policy_key
 
-    def _policy_requires_fresh_instance(path: str) -> bool:
-        # Nim agents keep internal per-episode state that is not reset between runs.
-        # Reload them each repeat to avoid cross-episode contamination.
-        return "cogames.policy.nim_agents" in path
+    def _policy_requires_fresh_instance(policy) -> bool:
+        # Nim multi-agent policies keep per-episode state; reload to avoid carryover.
+        from mettagrid.policy.policy import NimMultiAgentPolicy
+        return isinstance(policy, NimMultiAgentPolicy)
 
     mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
     if variant:
@@ -206,20 +206,22 @@ def _run_case(
         actual_max_steps = env_config.game.max_steps
         policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
 
-        fresh_each_run = _policy_requires_fresh_instance(agent_config.policy_path)
-
-        base_policy = None
-        if not fresh_each_run:
-            # Load once per case and reuse across repeats.
+        # Load once per case (reusing cache) unless the policy type requires per-run reload.
+        def _load_base_policy():
+            global _cached_policy, _cached_policy_key
             if cached_policy is not None:
-                base_policy = cached_policy
-            elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
-                base_policy = _cached_policy
-            else:
-                base_policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-                if is_s3_uri(agent_config.policy_path):
-                    _cached_policy = base_policy
-                    _cached_policy_key = agent_config.policy_path
+                return cached_policy
+            if _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
+                return _cached_policy
+            policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
+            if not _policy_requires_fresh_instance(policy) and is_s3_uri(agent_config.policy_path):
+                # Cache only non-stateful policies to avoid re-downloading.
+                _cached_policy = policy
+                _cached_policy_key = agent_config.policy_path
+            return policy
+
+        base_policy = _load_base_policy()
+        fresh_each_run = _policy_requires_fresh_instance(base_policy)
 
         out: List[EvalResult] = []
         for run_idx in range(runs_per_case):
@@ -1055,7 +1057,6 @@ def main():
     parser.add_argument("--variants", nargs="*", default=None, help="Variants to apply")
     parser.add_argument("--cogs", nargs="*", type=int, default=None, help="Agent counts to test")
     # Episodes on main now default to 10k steps; reflect that here so ad‑hoc
-    # evaluations match live settings unless explicitly overridden.
     parser.add_argument("--steps", type=int, default=10000, help="Max steps per episode")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--output", type=str, default=None, help="Output JSON file for results")
