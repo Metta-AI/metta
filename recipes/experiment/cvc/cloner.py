@@ -275,7 +275,6 @@ def train(
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
     bc_policy_uri: Optional[str] = None,
-    bc_teacher_lead_prob: float = 1.0,
     use_lp: bool = True,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
@@ -291,7 +290,6 @@ def train(
         variants=variants,
         algorithm_config=cur_alg,
     )
-    bc_policy_uri = "nim_thinky"  # av delete
     trainer_cfg = TrainerConfig(losses=LossesConfig())
     scheduler = None
     supervisor = EnvSupervisorConfig()
