@@ -169,34 +169,28 @@ class Loss:
     def attach_replay_buffer(self, experience: Experience) -> None:
         """Attach the replay buffer to the loss."""
         self.replay = experience
-        # Align the policy experience spec with the actual replay layout so slot metadata
-        # (slot_id/loss_profile_id/is_trainable_agent) survives the policy TD prep step.
-        if hasattr(experience, "buffer"):
-            self.policy_experience_spec = experience.buffer.spec  # type: ignore[attr-defined]
+        # Align with replay layout so slot metadata survives policy TD prep
+        self.policy_experience_spec = experience.buffer.spec  # type: ignore[attr-defined]
 
     def _filter_minibatch(self, shared_loss_data: TensorDict) -> TensorDict:
         """Filter minibatch rows by slot profile/trainable flags."""
 
         mb = shared_loss_data["sampled_mb"]
 
-        mask = None
         profiles = getattr(self, "loss_profiles", None)
-        if profiles is not None and "loss_profile_id" in mb.keys():
-            pid = mb.get("loss_profile_id")
-            if isinstance(pid, torch.Tensor):
-                mask = torch.isin(pid, torch.as_tensor(list(profiles), device=pid.device))
+        mask = None
+        if profiles is not None:
+            pid = mb["loss_profile_id"]
+            mask = torch.isin(pid, torch.as_tensor(list(profiles), device=pid.device))
 
-        if getattr(self, "trainable_only", False) and "is_trainable_agent" in mb.keys():
-            train_mask = mb.get("is_trainable_agent")
-            if isinstance(train_mask, torch.Tensor):
-                mask = train_mask if mask is None else mask & train_mask
+        if getattr(self, "trainable_only", False):
+            train_mask = mb["is_trainable_agent"]
+            mask = train_mask if mask is None else mask & train_mask
 
         if mask is None:
             return shared_loss_data
 
-        if mask.dim() == 1 and len(mb.batch_size) > 1:
-            mask = mask[:, None]
-        row_mask = mask.expand(mb.batch_size).reshape(mb.batch_size[0], -1).any(dim=1)
+        row_mask = mask if mask.dim() == 1 else mask.any(dim=-1)
 
         filtered = shared_loss_data.clone()
         filtered["sampled_mb"] = mb[row_mask]

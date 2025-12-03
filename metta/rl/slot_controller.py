@@ -63,19 +63,15 @@ class SlotControllerPolicy(Policy):
             td.set("slot_id", slot_map.repeat(num_envs))
 
         slot_ids = td.get("slot_id")
-        if not isinstance(slot_ids, torch.Tensor):
-            raise RuntimeError("slot_id must be a tensor")
+        assert isinstance(slot_ids, torch.Tensor), "slot_id must be a tensor"
 
         unique_ids: Iterable[int] = torch.unique(slot_ids).tolist()
         for b_id in unique_ids:
             mask = slot_ids == b_id
-            if not torch.any(mask):
-                continue
 
             sub_td = td[mask].clone()
             policy = self._slot_policies.get(int(b_id))
-            if policy is None:
-                raise RuntimeError(f"No policy registered for slot id {int(b_id)}")
+            assert policy is not None, f"No policy registered for slot id {int(b_id)}"
 
             out_td = policy.forward(sub_td, action=None if action is None else action[mask])
 
