@@ -1,5 +1,5 @@
 import types
-from typing import List
+from typing import List, Optional
 
 import torch
 from cortex.stacks import build_cortex_auto_config
@@ -19,7 +19,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 
 
-def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
+def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
     """Forward pass for the ViT policy with dynamics heads."""
     self.network()(td)
     self.action_probs(td, action)
@@ -162,9 +162,9 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     # Trunk configuration
     # Number of Axon layers in the trunk (default: 16 for large model)
-    trunk_num_resnet_layers: int = 1
+    core_num_resnet_layers: int = 1
     # Enable layer normalization after each trunk layer
-    trunk_use_layer_norm: bool = True
+    core_use_layer_norm: bool = True
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
@@ -191,7 +191,7 @@ class ViTDefaultConfig(PolicyArchitecture):
             key_prefix="vit_cortex_state",
             stack_cfg=build_cortex_auto_config(
                 d_hidden=_latent_dim,
-                num_layers=16,  # Default to 16, can be overridden
+                num_layers=1,  # Default to 1, can be overridden
                 pattern="A",  # Axon blocks provide residual-like connections
                 post_norm=True,
             ),
@@ -224,13 +224,16 @@ class ViTDefaultConfig(PolicyArchitecture):
 
         # Rebuild stack config with current parameters
         cortex.stack_cfg = build_cortex_auto_config(
-            d_hidden=self._latent_dim,
-            num_layers=self.trunk_num_resnet_layers,
+            d_hidden=int(self._latent_dim),
+            num_layers=self.core_num_resnet_layers,
             pattern="A",
-            post_norm=self.trunk_use_layer_norm,
+            post_norm=self.core_use_layer_norm,
         )
 
         AgentClass = load_symbol(self.class_path)
+        if not isinstance(AgentClass, type):
+            raise TypeError(f"Loaded symbol {self.class_path} is not a class")
+
         policy = AgentClass(policy_env_info, self)
         policy.num_actions = policy_env_info.action_space.n
         policy.unroll_steps = self.unroll_steps
