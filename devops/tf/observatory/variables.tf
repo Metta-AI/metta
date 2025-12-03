@@ -10,12 +10,12 @@ variable "eks_cluster_name" {
 
 variable "db_instance_class" {
   type    = string
-  default = "db.t3.micro"
+  default = "db.r6gd.2xlarge"
 }
 
 variable "db_allocated_storage" {
   type    = number
-  default = 20 # GiB
+  default = 1000 # GiB
 }
 
 variable "db_postgres_version" {
