@@ -182,7 +182,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         else:
             norm_scores = np.ones_like(norm_scores) / len(norm_scores)
 
-        return {tid: float(score) for tid, score in zip(task_ids, norm_scores)}
+        return {tid: float(score) for tid, score in zip(task_ids, norm_scores, strict=True)}
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using basic EMA variance method."""
