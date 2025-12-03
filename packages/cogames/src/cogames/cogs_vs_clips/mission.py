@@ -124,7 +124,7 @@ class Mission(Config):
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
     clip_period: int = Field(default=0)
-    cargo_capacity: int = Field(default=100)
+    cargo_capacity: int = Field(default=255)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
     inventory_regen_interval: int = Field(default=1)

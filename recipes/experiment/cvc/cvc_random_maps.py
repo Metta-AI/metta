@@ -14,6 +14,7 @@ from typing import Optional, Sequence
 import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.sites import HELLO_WORLD
+from cogames.cogs_vs_clips.variants import TrainingVariant
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -62,6 +63,7 @@ def make_random_maps_curriculum(
         description="Random procedural maps with varying dimensions and object counts",
         site=HELLO_WORLD,
         num_cogs=num_cogs,
+        variants=[TrainingVariant()],  # Apply training variant for better learnability
     )
 
     # Create base environment
@@ -114,7 +116,6 @@ def make_random_maps_curriculum(
     tasks.add_bucket("game.map_builder.instance.objects.oxygen_extractor", [Span(10, 50)])
     tasks.add_bucket("game.map_builder.instance.objects.germanium_extractor", [Span(10, 40)])
     tasks.add_bucket("game.map_builder.instance.objects.silicon_extractor", [Span(10, 50)])
-
     # Bucket over extractor max_uses (resource scarcity)
     # 0 = unlimited, higher = limited resource
     tasks.add_bucket("game.objects.carbon_extractor.max_uses", [1, 3, 8, 10, 20])
@@ -141,7 +142,7 @@ def make_random_maps_curriculum(
 
     if initial_inventory_buckets:
         # Bucket over agent's starting inventory
-        tasks.add_bucket("game.agent.initial_inventory.carbon",[0, 20, 50, 75])
+        tasks.add_bucket("game.agent.initial_inventory.carbon", [0, 20, 50, 75])
         tasks.add_bucket("game.agent.initial_inventory.oxygen", [0, 20, 50, 75])
         tasks.add_bucket("game.agent.initial_inventory.germanium", [0, 20, 50, 75])
         tasks.add_bucket("game.agent.initial_inventory.silicon", [0, 20, 50, 75])
@@ -286,6 +287,7 @@ def play_sparse(
         description=f"Sparse random map {room_size}x{room_size}",
         site=HELLO_WORLD,
         num_cogs=num_cogs,
+        variants=[TrainingVariant()],
     )
 
     env = mission.make_env()
@@ -351,6 +353,7 @@ def play_dense(
         description=f"Dense random map {room_size}x{room_size}",
         site=HELLO_WORLD,
         num_cogs=num_cogs,
+        variants=[TrainingVariant()],
     )
 
     env = mission.make_env()
@@ -426,6 +429,7 @@ def replay_curriculum(
         description=f"Replay on random map {room_size}x{room_size}",
         site=HELLO_WORLD,
         num_cogs=num_cogs,
+        variants=[TrainingVariant()],
     )
 
     env = mission.make_env()
