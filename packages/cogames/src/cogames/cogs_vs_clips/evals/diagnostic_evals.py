@@ -433,12 +433,23 @@ class _UnclipBase(_DiagnosticMissionBase):
 
         assembler = cfg.game.objects.get("assembler")
         if isinstance(assembler, AssemblerConfig):
+            # Check if a protocol with ["gear"] vibe already exists to avoid duplicates
+            has_gear_protocol = any(p.vibes == ["gear"] and p.min_agents == 0 for p in assembler.protocols)
+
             updated_protocols: list[ProtocolConfig] = []
+            modified_decoder = False
             for proto in assembler.protocols:
                 if proto.output_resources.get("decoder", 0) > 0:
-                    inputs = {res: 1 for res in non_clipped}
-                    updated_proto = proto.model_copy(update={"vibes": ["gear"], "input_resources": inputs})
-                    updated_protocols.append(updated_proto)
+                    if has_gear_protocol:
+                        # Preserve existing decoder recipe when a gear protocol already exists
+                        updated_protocols.append(proto)
+                    elif not modified_decoder:
+                        # Only modify the first decoder protocol to avoid duplicates
+                        inputs = {res: 1 for res in non_clipped}
+                        updated_proto = proto.model_copy(update={"vibes": ["gear"], "input_resources": inputs})
+                        updated_protocols.append(updated_proto)
+                        modified_decoder = True
+                    # Skip subsequent decoder protocols to avoid duplicates
                 else:
                     updated_protocols.append(proto)
             assembler.protocols = updated_protocols
