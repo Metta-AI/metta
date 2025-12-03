@@ -86,10 +86,15 @@ class SlotControllerPolicy(Policy):
 
             out_td = policy.forward(sub_td, action=None if action is None else action[mask])
 
-            # Merge only action/logprob/value-related keys to avoid overwriting metadata
             for key in ("actions", "act_log_prob", "entropy", "values", "full_log_probs", "logits"):
-                if key in out_td.keys():
-                    td.set_at_(key, out_td.get(key), mask)
+                if key not in out_td.keys():
+                    continue
+                value = out_td.get(key)
+                if key not in td.keys():
+                    full_shape = td.batch_size + value.shape[1:]
+                    zeroed = value.new_zeros(full_shape)
+                    td.set(key, zeroed)
+                td.set_at_(key, value, mask)
 
         return td
 

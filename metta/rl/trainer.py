@@ -161,26 +161,33 @@ class Trainer:
         self._prev_agent_step_for_step_callbacks: int = 0
 
     def _assign_loss_profiles(self, losses: dict[str, Any], loss_profile_lookup: dict[str, int]) -> None:
-        """Attach resolved loss profile ids to losses based on their config names."""
+        """Attach resolved loss profile ids to losses based on config."""
 
         if not loss_profile_lookup:
             return
 
-        # Simple mapping: loss name matches profile name; default allow all
+        # Build reverse map: profile -> loss names declared in loss_profiles config
+        configured_profile_losses: dict[str, set[str]] = {}
+        for profile_name, profile_cfg in self._cfg.loss_profiles.items():
+            configured_profile_losses[profile_name] = set(getattr(profile_cfg, "losses", []))
+
         for loss_name, loss_obj in losses.items():
-            # If the loss has explicit profiles configured in config, map them; otherwise None means no filtering
-            profiles: list[int] = []
+            profiles: set[int] = set()
+
             cfg_attr = getattr(self._cfg.losses, loss_name, None)
-            # Backward-compatible aliasing: action_supervisor loss config lives at losses.supervisor
             if cfg_attr is None and loss_name == "action_supervisor":
                 cfg_attr = getattr(self._cfg.losses, "supervisor", None)
-            cfg_profiles = getattr(cfg_attr, "profiles", None)
-            if cfg_profiles:
-                for name in cfg_profiles:
-                    if name in loss_profile_lookup:
-                        profiles.append(loss_profile_lookup[name])
+
+            explicit = getattr(cfg_attr, "profiles", None)
+            if explicit:
+                profiles |= {loss_profile_lookup[name] for name in explicit if name in loss_profile_lookup}
+
+            for profile_name, losses_for_profile in configured_profile_losses.items():
+                if loss_name in losses_for_profile and profile_name in loss_profile_lookup:
+                    profiles.add(loss_profile_lookup[profile_name])
+
             if profiles:
-                loss_obj.loss_profiles = set(profiles)
+                loss_obj.loss_profiles = profiles
 
     def _set_trainable_flag(self, policy: Policy, trainable: bool) -> None:
         """Set requires_grad according to slot.trainable."""

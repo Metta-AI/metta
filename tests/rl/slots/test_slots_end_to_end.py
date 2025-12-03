@@ -207,7 +207,7 @@ def test_action_supervisor_profile_alias():
 
     trainer_cfg = SimpleNamespace()
     trainer_cfg.losses = SimpleNamespace(supervisor=SimpleNamespace(profiles=["teach"]), _configs=lambda: {})
-    trainer_cfg.loss_profiles = {"teach": None}
+    trainer_cfg.loss_profiles = {"teach": SimpleNamespace(losses=["action_supervisor"])}
 
     trainer = object.__new__(Trainer)
     trainer._cfg = trainer_cfg
@@ -215,6 +215,30 @@ def test_action_supervisor_profile_alias():
     losses = {"action_supervisor": _DummyLoss()}
     trainer._assign_loss_profiles(losses, {"teach": 7})
     assert losses["action_supervisor"].loss_profiles == {7}
+
+
+def test_profile_config_drives_loss_filtering():
+    from metta.rl.trainer import Trainer
+
+    trainer_cfg = SimpleNamespace()
+    trainer_cfg.losses = SimpleNamespace(_configs=lambda: {})
+    trainer_cfg.loss_profiles = {
+        "teacher_only": SimpleNamespace(losses=["sliced_kickstarter"]),
+        "ppo_only": SimpleNamespace(losses=["ppo_actor"]),
+    }
+
+    trainer = object.__new__(Trainer)
+    trainer._cfg = trainer_cfg
+
+    losses = {
+        "sliced_kickstarter": _DummyLoss(),
+        "ppo_actor": _DummyLoss(),
+    }
+    lookup = {"teacher_only": 1, "ppo_only": 2}
+    trainer._assign_loss_profiles(losses, lookup)
+
+    assert losses["sliced_kickstarter"].loss_profiles == {1}
+    assert losses["ppo_actor"].loss_profiles == {2}
 
 
 # ---------- Sim runner wiring ----------
