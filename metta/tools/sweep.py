@@ -15,7 +15,7 @@ from metta.common.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
-from metta.sweep.core import ParameterConfig
+from metta.sweep.core import CategoricalParameterConfig, ParameterConfig, ParameterSpec
 from metta.sweep.protein_config import ProteinConfig
 from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
 from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
@@ -114,19 +114,22 @@ class SweepTool(Tool):
     sweep_name: Optional[str] = None
     sweep_dir: Optional[str] = None
 
-    # Core sweep configuration - Bayesian optimization config
+    # Search space expressed as dot-path keys -> ParameterSpec or fixed value
+    search_space: dict[str, ParameterSpec | Any] = {
+        "trainer.optimizer.learning_rate": ParameterConfig(
+            min=1e-5,
+            max=1e-3,
+            distribution="log_normal",
+            mean=1e-4,  # Geometric mean
+            scale="auto",
+        )
+    }
+
+    # Optimizer configuration (parameters populated from search_space at runtime)
     protein_config: ProteinConfig = ProteinConfig(
         metric="evaluator/eval_arena/score",
         goal="maximize",
-        parameters={
-            "trainer.optimizer.learning_rate": ParameterConfig(
-                min=1e-5,
-                max=1e-3,
-                distribution="log_normal",
-                mean=1e-4,  # Geometric mean
-                scale="auto",
-            )
-        },
+        parameters={},
     )
 
     # Scheduler configuration
@@ -156,7 +159,6 @@ class SweepTool(Tool):
     force_eval: bool = False
 
     # Override configurations
-    train_overrides: dict[str, Any] = {}  # Overrides to apply to all training jobs
     eval_overrides: dict[str, Any] = {}  # Overrides to apply to all evaluation jobs
 
     # Infrastructure configuration
@@ -181,14 +183,14 @@ class SweepTool(Tool):
         if self.local_test:
             # Local testing configuration
             self.dispatcher_type = DispatcherType.LOCAL
-            self.train_overrides["trainer.total_timesteps"] = 50000  # Quick 50k timesteps for testing
+            self.search_space["trainer.total_timesteps"] = 50000  # Quick 50k timesteps for testing
 
             # We let the batch size be set in training for the quick run
             # Use pop() to safely remove keys without raising KeyError if they don't exist
             # The keys include the full path "trainer.batch_size" not just "batch_size"
-            self.protein_config.parameters.pop("trainer.batch_size", None)
-            self.protein_config.parameters.pop("trainer.minibatch_size", None)
-            self.protein_config.parameters.pop("trainer.total_timesteps", None)
+            self.search_space.pop("trainer.batch_size", None)
+            self.search_space.pop("trainer.minibatch_size", None)
+            self.search_space.pop("trainer.total_timesteps", None)
 
         # Handle run parameter from dispatcher (ignored - only consumed to prevent unused args error)
         if "run" in args:
@@ -240,6 +242,10 @@ class SweepTool(Tool):
         logger.info(f"[SweepTool] Dispatcher type: {self.dispatcher_type}")
         logger.info(f"[SweepTool] Scheduler type: {self.scheduler_type}")
         logger.info("[SweepTool] " + "=" * 60)
+
+        # Populate optimizer parameters and fixed overrides from search_space (flat dot paths)
+        parameters, base_overrides = self._split_search_space(self.search_space)
+        self.protein_config.parameters = parameters
 
         # Check for resumption using cogweb
         resume = False
@@ -293,7 +299,6 @@ class SweepTool(Tool):
                 recipe_module=self.recipe_module,
                 train_entrypoint=self.train_entrypoint,
                 eval_entrypoint=self.eval_entrypoint,
-                train_overrides=self.train_overrides,
                 eval_overrides=self.eval_overrides,
                 stats_server_uri=self.stats_server_uri,
                 gpus=self.gpus,
@@ -301,6 +306,7 @@ class SweepTool(Tool):
                 experiment_id=self.sweep_name,
                 protein_config=self.protein_config,
                 force_eval=self.force_eval,
+                base_overrides=base_overrides,
             )
             scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
         elif self.scheduler_type == SweepSchedulerType.ASYNC_CAPPED:
@@ -309,7 +315,6 @@ class SweepTool(Tool):
                 recipe_module=self.recipe_module,
                 train_entrypoint=self.train_entrypoint,
                 eval_entrypoint=self.eval_entrypoint,
-                train_overrides=self.train_overrides,
                 eval_overrides=self.eval_overrides,
                 stats_server_uri=self.stats_server_uri,
                 gpus=self.gpus,
@@ -319,41 +324,32 @@ class SweepTool(Tool):
                 force_eval=self.force_eval,
                 max_concurrent_evals=self.max_concurrent_evals,
                 liar_strategy=self.liar_strategy,
+                base_overrides=base_overrides,
             )
             scheduler = AsyncCappedOptimizingScheduler(scheduler_config)
         else:
             # GRID_SEARCH scheduler: derive categorical parameters and enumerate
             from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
 
-            # Helper to extract categoricals from protein_config if present
+            # Helper to extract categoricals from search_space if present
             def _extract_categorical_params(params: dict) -> dict:
                 from metta.sweep.core import CategoricalParameterConfig
 
-                def recurse(obj: dict, prefix: str = "") -> dict:
-                    out: dict = {}
-                    for k, v in obj.items():
-                        full = f"{prefix}.{k}" if prefix else k
-                        if isinstance(v, CategoricalParameterConfig):
-                            out[k] = v
-                        elif isinstance(v, dict):
-                            nested = recurse(v, full)
-                            if nested:
-                                out[k] = nested
-                        elif isinstance(v, list):
-                            out[k] = v
-                        # Ignore numeric ParameterConfig for grid search
-                    return out
+                out: dict = {}
+                for k, v in params.items():
+                    if isinstance(v, CategoricalParameterConfig):
+                        out[k] = v
+                    elif isinstance(v, list):
+                        out[k] = v
+                    # Ignore numeric ParameterConfig for grid search
+                return out
 
-                return recurse(params)
-
-            # Prefer explicit grid parameters provided on the tool; otherwise extract from protein_config
-            grid_params = self.grid_parameters or _extract_categorical_params(
-                getattr(self.protein_config, "parameters", {})
-            )
+            # Prefer explicit grid parameters provided on the tool; otherwise extract from search_space
+            grid_params = self.grid_parameters or _extract_categorical_params(self.search_space)
             if not grid_params:
                 raise ValueError(
                     "GRID_SEARCH scheduler requires categorical parameters "
-                    "(provide tool.grid_parameters or set them in protein_config.parameters)"
+                    "(provide tool.grid_parameters or set them in search_space)"
                 )
 
             scheduler_config = GridSearchSchedulerConfig(
@@ -361,7 +357,6 @@ class SweepTool(Tool):
                 recipe_module=self.recipe_module,
                 train_entrypoint=self.train_entrypoint,
                 eval_entrypoint=self.eval_entrypoint,
-                train_overrides=self.train_overrides,
                 eval_overrides=self.eval_overrides,
                 stats_server_uri=self.stats_server_uri,
                 gpus=self.gpus,
@@ -369,6 +364,7 @@ class SweepTool(Tool):
                 experiment_id=self.sweep_name,
                 max_concurrent_evals=self.max_concurrent_evals,
                 parameters=grid_params,
+                base_overrides=base_overrides,
             )
             scheduler = GridSearchScheduler(scheduler_config)
 
@@ -464,3 +460,19 @@ class SweepTool(Tool):
             logger.info("[SweepTool] " + "=" * 60)
 
         return 0
+
+    def _flatten_search_space(self, space: dict[str, Any]) -> dict[str, Any]:
+        """Identity pass-through for flat dot-path search spaces."""
+        return dict(space)
+
+    def _split_search_space(self, space: dict[str, Any]) -> tuple[dict[str, ParameterSpec], dict[str, Any]]:
+        """Separate tunable parameters from fixed overrides in a flat search space."""
+        flat = self._flatten_search_space(space)
+        params: dict[str, ParameterSpec] = {}
+        overrides: dict[str, Any] = {}
+        for k, v in flat.items():
+            if isinstance(v, (ParameterConfig, CategoricalParameterConfig)):
+                params[k] = v
+            else:
+                overrides[k] = v
+        return params, overrides

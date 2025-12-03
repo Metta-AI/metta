@@ -221,7 +221,6 @@ def make_sweep(
     parameters: Union[Dict[str, ParameterSpec], List[Dict[str, ParameterSpec]]],
     max_trials: int = 10,
     num_parallel_trials: int = 1,
-    train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
     cost_key: Optional[str] = None,
     # Catch all for un-exposed tool overrides.
@@ -238,7 +237,6 @@ def make_sweep(
             eval_entrypoint: Evaluation entrypoint function
             num_trials: Number of trials
             num_parallel_trials: Max parallel jobs
-            train_overrides: Optional overrides for training configuration
             eval_overrides: Optional overrides for evaluation configuration
             cost_key: Optional metric path to extract cost from run summary.
                 If provided, the cost will be read from summary[cost_key].
@@ -270,7 +268,7 @@ def make_sweep(
     protein_config = ProteinConfig(
         metric=objective,
         goal=advanced.pop("goal", "maximize"),
-        parameters=parameters,
+        parameters={},  # populated from search_space at runtime
         settings=ProteinSettings(),
     )
 
@@ -283,13 +281,13 @@ def make_sweep(
     return SweepTool(
         sweep_name=name,
         protein_config=protein_config,
+        search_space=parameters,
         recipe_module=recipe,
         train_entrypoint=train_entrypoint,
         eval_entrypoint=eval_entrypoint,
         max_trials=max_trials,
         max_parallel_jobs=num_parallel_trials,
         scheduler_type=scheduler_type,
-        train_overrides=train_overrides or {},
         eval_overrides=eval_overrides or {},
         cost_key=cost_key,
         **scheduler_config,
@@ -306,7 +304,6 @@ def grid_search(
     parameters: Union[Dict[str, Any], List[Dict[str, Any]]],
     max_trials: int = 10,
     num_parallel_trials: int = 1,
-    train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
     # Catch all for un-exposed tool overrides.
     # See SweepTool definition for details.
@@ -326,7 +323,6 @@ def grid_search(
             eval_entrypoint: Evaluation entrypoint function
             max_trials: Maximum number of trials to schedule (cap on grid size)
             num_parallel_trials: Max parallel jobs
-            train_overrides: Optional overrides for training configuration
             eval_overrides: Optional overrides for evaluation configuration
             **advanced: Additional SweepTool options
 
@@ -365,7 +361,6 @@ def grid_search(
         max_trials=max_trials,
         max_parallel_jobs=num_parallel_trials,
         scheduler_type=scheduler_type,
-        train_overrides=train_overrides or {},
         eval_overrides=eval_overrides or {},
         grid_parameters=parameters,  # categorical choices
         grid_metric=objective,

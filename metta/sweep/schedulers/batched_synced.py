@@ -27,7 +27,7 @@ class BatchedSyncedSchedulerConfig(Config):
     recipe_module: str = "recipes.experiment.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
-    train_overrides: dict[str, Any] = Field(default_factory=dict)
+    base_overrides: dict[str, Any] = Field(default_factory=dict)
     eval_overrides: dict[str, Any] = Field(default_factory=dict)
     stats_server_uri: str | None = None
     gpus: int = 1
@@ -305,7 +305,7 @@ class BatchedSyncedOptimizingScheduler:
             trial_num = base_trial_num + i + 1
             run_id = generate_run_id(self.config.experiment_id, trial_num)
 
-            merged_overrides = dict(self.config.train_overrides)
+            merged_overrides = dict(self.config.base_overrides)
             merged_overrides.update(suggestion)
             job = create_training_job(
                 run_id=run_id,
