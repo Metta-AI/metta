@@ -58,7 +58,9 @@ class PPOConfig(LossConfig):
 
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
     profiles: list[str] | None = Field(default=None)
-    prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(default_factory=PrioritizedExperienceReplayConfig)
+    prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(
+        default_factory=PrioritizedExperienceReplayConfig
+    )
 
     def create(
         self,

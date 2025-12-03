@@ -1,19 +1,13 @@
-from collections import defaultdict
 from types import SimpleNamespace
 
-import torch
 import pytest
+import torch
 from tensordict import NonTensorData, TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.ppo import PPO, PPOConfig
-from metta.rl.loss.ppo_critic import PPOCritic, PPOCriticConfig
-from metta.rl.loss.sliced_kickstarter import SlicedKickstarter, SlicedKickstarterConfig
-from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedCloner, SlicedScriptedClonerConfig
-from metta.rl.slot_controller import SlotControllerPolicy
 from metta.rl.slot_config import PolicySlotConfig
-
+from metta.rl.slot_controller import SlotControllerPolicy
 
 # ---------- Shared stubs ----------
 
@@ -45,7 +39,11 @@ class _DummyActions:
 
 
 def _env_info(num_agents: int) -> SimpleNamespace:
-    return SimpleNamespace(actions=_DummyActions(), observation_space=SimpleNamespace(shape=(1,)), num_agents=num_agents)
+    return SimpleNamespace(
+        actions=_DummyActions(),
+        observation_space=SimpleNamespace(shape=(1,)),
+        num_agents=num_agents,
+    )
 
 
 # ---------- Filtering / metadata ----------
@@ -222,7 +220,7 @@ def test_action_supervisor_profile_alias():
 # ---------- Sim runner wiring ----------
 
 def test_sim_runner_uses_device_object(monkeypatch):
-    from metta.sim.runner import run_simulations, SimulationRunConfig
+    from metta.sim.runner import SimulationRunConfig, run_simulations
     from mettagrid import MettaGridConfig
 
     class _DummyRegistry:

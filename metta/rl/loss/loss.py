@@ -220,7 +220,7 @@ class Loss:
             bool_mask = row_mask.cpu().tolist()
             if len(data) != rows:
                 raise ValueError(f"Row-aligned sequence expected length {rows}, got {len(data)}")
-            return NonTensorData([entry for entry, keep in zip(data, bool_mask) if keep])
+            return NonTensorData([entry for entry, keep in zip(data, bool_mask, strict=False) if keep])
 
         if isinstance(value, torch.Tensor):
             if value.shape[:1] != (rows,):
