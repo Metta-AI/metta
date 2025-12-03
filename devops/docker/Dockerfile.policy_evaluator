@@ -40,7 +40,8 @@ RUN apt-get update
 RUN apt-get install -y kubectl
 
 # Install packaging in uv environment for install.sh's bootstrap step
-RUN uv pip install packaging
+# uv run --no-sync creates an isolated env, so we modify install.sh to include packaging
+RUN sed -i 's|uv run --no-sync python -m metta.setup.components.system_packages.bootstrap|uv run --no-sync --with packaging python -m metta.setup.components.system_packages.bootstrap|' install.sh
 
 RUN bash install.sh --profile softmax-docker --non-interactive
 
