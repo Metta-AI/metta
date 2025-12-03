@@ -453,7 +453,6 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "protocol_output:scrambler":
         result.features.protocolOutputScrambler = feature.id
       else:
-        # Unknown features are harmless; note once for visibility.
         echo "Unknown feature: ", feature.name
 
     for id, name in config.actions:
