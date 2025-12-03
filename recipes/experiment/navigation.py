@@ -2,6 +2,8 @@ from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+from metta.agent.policies.puffer import PufferPolicyConfig
+from metta.agent.policies.trxl import TRXLConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -9,7 +11,6 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import NavigationFromNumpy
-from metta.agent.policies.trxl import TRXLConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
@@ -185,8 +186,10 @@ def train(
 
     if arch_type == "trxl":
         kwargs["policy_architecture"] = TRXLConfig()
+    elif arch_type == "lstm":
+        kwargs["policy_architecture"] = PufferPolicyConfig()
     elif arch_type != "default":
-        raise ValueError(f"Unknown arch_type={arch_type!r} (expected 'default' or 'trxl')")
+        raise ValueError(f"Unknown arch_type={arch_type!r} (expected 'default', 'trxl', or 'lstm')")
 
     return TrainTool(**kwargs)
 

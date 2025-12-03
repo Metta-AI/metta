@@ -14,6 +14,7 @@ from typing import NamedTuple, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.variants import VARIANTS
+from metta.agent.policies.puffer import PufferPolicyConfig
 from metta.agent.policies.trxl import TRXLConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -530,8 +531,10 @@ def train(
 
     if arch_type == "trxl":
         kwargs["policy_architecture"] = TRXLConfig()
+    elif arch_type == "lstm":
+        kwargs["policy_architecture"] = PufferPolicyConfig()
     elif arch_type != "default":
-        raise ValueError(f"Unknown arch_type={arch_type!r} (expected 'default' or 'trxl')")
+        raise ValueError(f"Unknown arch_type={arch_type!r} (expected 'default', 'trxl', or 'lstm')")
 
     return TrainTool(**kwargs)
 
