@@ -6,17 +6,15 @@ import {
   EditableTextNode,
 } from "@/components/EditableTextNode";
 import { EditIcon } from "@/components/icons/EditIcon";
-import { listConfigMakers } from "@/lib/api";
+import { listConfigMakers, type MakerConfig } from "@/lib/api";
 
 type Props = {
-  title: string;
-  kind: string;
-  filteredConfigs?: EditableSuggestion[];
+  maker: MakerConfig["maker"];
 };
 
-export const ConfigViewTitle: FC<Props> = ({ title, kind }) => {
+export const ConfigViewTitle: FC<Props> = ({ maker }) => {
   const [mode, setMode] = useState<"edit" | "view">("view");
-  const [configs, setConfigs] = useState<EditableSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<EditableSuggestion[]>([]);
   const [filter, setFilter] = useState<string>("");
 
   useEffect(() => {
@@ -25,20 +23,20 @@ export const ConfigViewTitle: FC<Props> = ({ title, kind }) => {
         const cfgs = await listConfigMakers();
         if (!cfgs) return;
 
-        const paths: EditableSuggestion[] = [];
+        const allSuggestions: EditableSuggestion[] = [];
         for (const kind of Object.keys(cfgs)) {
           const cfgList = cfgs[kind as keyof typeof cfgs];
           if (!cfgList) continue;
 
           for (const cfg of cfgList) {
-            paths.push({
+            allSuggestions.push({
               text: cfg.path,
               hyperlink: `/configs/view/${encodeURIComponent(cfg.path)}`,
             });
           }
         }
 
-        setConfigs(paths);
+        setSuggestions(allSuggestions);
       } catch (error) {
         console.error("Error fetching config makers:", error);
       }
@@ -46,14 +44,14 @@ export const ConfigViewTitle: FC<Props> = ({ title, kind }) => {
     fetchConfigs();
   }, []);
 
-  const filteredConfigs = useMemo(() => {
-    if (!filter) return configs;
-    if (filter === title) return configs;
+  const filteredSuggestions = useMemo(() => {
+    if (!filter) return suggestions;
+    if (filter === maker.path) return suggestions;
 
-    return configs.filter((cfg) =>
-      cfg.text.toLowerCase().includes(filter.toLowerCase())
+    return suggestions.filter((sug) =>
+      sug.text.toLowerCase().includes(filter.toLowerCase())
     );
-  }, [configs, filter, title]);
+  }, [suggestions, filter, maker.path]);
 
   return (
     <h1 className="text-2xl font-bold">
@@ -66,16 +64,17 @@ export const ConfigViewTitle: FC<Props> = ({ title, kind }) => {
       <span>
         <div className="inline hover:underline">
           <EditableTextNode
-            text={title}
+            text={maker.path}
             mode={mode}
+            href={`cursor://file${maker.absolute_path}:${maker.line}`}
             onModeChange={(newMode) => setMode(newMode)}
             onChange={setFilter}
-            suggestions={filteredConfigs}
+            suggestions={filteredSuggestions}
           />
         </div>
       </span>
       <span className="text-xl text-gray-400"> &rarr;</span>
-      <span className="text-xl text-gray-500"> {kind}</span>
+      <span className="text-xl text-gray-500"> {maker.kind}</span>
     </h1>
   );
 };

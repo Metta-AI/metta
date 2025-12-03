@@ -17,8 +17,6 @@ export default async function ConfigViewPage({ params }: ConfigViewPage) {
     throw new Error("No config name provided");
   }
 
-  // `cursor://file${cfg.maker.absolute_path}:${cfg.maker.line}`
-
   const cfg = await getConfig(name);
 
   return (
@@ -29,7 +27,7 @@ export default async function ConfigViewPage({ params }: ConfigViewPage) {
             ← Back to config makers list
           </StyledLink>
         </div>
-        <ConfigViewTitle title={cfg.maker.path} kind={cfg.maker.kind} />
+        <ConfigViewTitle maker={cfg.maker} />
       </div>
       <div className="p-4">
         <ConfigViewScreen cfg={cfg} />

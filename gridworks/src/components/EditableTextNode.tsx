@@ -11,6 +11,7 @@ export type EditableSuggestion = {
 type Props = {
   text: string;
   mode: Mode;
+  href?: string;
   withSuggestions?: boolean;
   suggestions?: EditableSuggestion[];
   onChange?: (text: string) => void;
@@ -20,6 +21,7 @@ type Props = {
 export const EditableTextNode: FC<Props> = ({
   text,
   mode,
+  href,
   suggestions,
   onModeChange,
   onChange,
@@ -29,6 +31,11 @@ export const EditableTextNode: FC<Props> = ({
   const blurTimeoutRef = useRef<NodeJS.Timeout>(null);
 
   useEffect(() => {
+    if (mode === "view" && blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = null;
+    }
+
     if (mode === "edit" && textNodeRef.current) {
       textNodeRef.current.focus();
       // Move cursor to the end.
@@ -70,7 +77,13 @@ export const EditableTextNode: FC<Props> = ({
         onBlur={handleBlur}
         onInput={(e) => onChange?.((e.target as HTMLElement).innerText)}
       >
-        {text}
+        {mode === "view" && href ? (
+          <a href={href} className="hover:underline">
+            {text}
+          </a>
+        ) : (
+          text
+        )}
       </span>
 
       {mode === "edit" && suggestions && suggestions.length > 0 && (
