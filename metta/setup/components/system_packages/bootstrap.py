@@ -398,7 +398,7 @@ def remove_legacy_nim_installations() -> None:
             continue
         nimby_path = install_dir / "nimby"
         if nimby_path.exists() or nimby_path.is_symlink():
-            # Check version if it's a file (not a broken symlink)
+            handled = False
             try:
                 if nimby_path.is_file() and os.access(nimby_path, os.X_OK):
                     result = subprocess.run(
@@ -413,14 +413,27 @@ def remove_legacy_nim_installations() -> None:
                         version = version_output.split()[-1].replace("v", "")
                         if version and not version_ge(version, REQUIRED_NIMBY_VERSION):
                             info(f"Removing old nimby version {version} from {nimby_path}")
-                            nimby_path.unlink(missing_ok=True)
+                            try:
+                                nimby_path.unlink(missing_ok=True)
+                            except PermissionError:
+                                info(f"Skipping removal of {nimby_path} (permission denied, may be in system directory)")
+                            handled = True
                         elif version and version_ge(version, REQUIRED_NIMBY_VERSION):
-                            # Keep the correct version, but we'll still reinstall to ensure it's in the right place
-                            pass
+                            handled = True
             except Exception:
-                # If we can't check version (broken symlink, etc.), remove it
                 info(f"Removing potentially broken or old nimby from {nimby_path}")
-                nimby_path.unlink(missing_ok=True)
+                try:
+                    nimby_path.unlink(missing_ok=True)
+                except PermissionError:
+                    info(f"Skipping removal of {nimby_path} (permission denied, may be in system directory)")
+                handled = True
+
+            if not handled and (nimby_path.exists() or nimby_path.is_symlink()):
+                info(f"Removing potentially broken or old nimby from {nimby_path}")
+                try:
+                    nimby_path.unlink(missing_ok=True)
+                except PermissionError:
+                    info(f"Skipping removal of {nimby_path} (permission denied, may be in system directory)")
 
 
 def _get_nim_version() -> str | None:
