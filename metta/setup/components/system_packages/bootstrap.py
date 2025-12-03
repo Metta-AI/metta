@@ -286,7 +286,7 @@ def get_bazelisk_url() -> str:
 
 def install_bazel(run_command=None, non_interactive: bool = False) -> None:
     """Install bazel via bazelisk."""
-    ensure_paths()
+    # ensure_paths()
     ensure_bazel_version_file(DEFAULT_BAZEL_VERSION)
 
     if shutil.which("bazel"):
@@ -331,7 +331,7 @@ def install_bazel(run_command=None, non_interactive: bool = False) -> None:
         error(f"Failed to download bazelisk: {e}")
         raise
 
-    ensure_paths()
+    # ensure_paths()
 
     if not shutil.which("bazel"):
         error("Failed to install bazelisk. Please install it manually from https://github.com/bazelbuild/bazelisk")
@@ -472,7 +472,7 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
         return
 
     # Now modify PATH for installation (after we've checked versions)
-    ensure_paths()
+    # ensure_paths()
 
     install_dir = get_install_dir()
     if not install_dir:
@@ -565,7 +565,7 @@ def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> N
     # Install nimby and nim
     install_nim_via_nimby(run_command, non_interactive=non_interactive)
 
-    ensure_paths()
+    # ensure_paths()
 
 
 def main() -> None:
