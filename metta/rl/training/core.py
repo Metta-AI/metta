@@ -230,18 +230,22 @@ class CoreTrainingLoop:
                 f"Batch elements ({batch_elems}) must be divisible by num_agents ({num_agents}) for slot metadata"
             )
 
-        repeats = batch_elems // num_agents
+        num_envs = batch_elems // num_agents
         device = td.device
 
-        td.set("slot_id", slot_ids.to(device=device).repeat(repeats))
+        def _expand(meta: torch.Tensor) -> torch.Tensor:
+            meta = meta.to(device=device)
+            return meta.view(1, num_agents).expand(num_envs, num_agents)
+
+        td.set("slot_id", _expand(slot_ids))
 
         loss_profile_ids = ctx.loss_profile_id_per_agent
         if loss_profile_ids is not None:
-            td.set("loss_profile_id", loss_profile_ids.to(device=device).repeat(repeats))
+            td.set("loss_profile_id", _expand(loss_profile_ids))
 
         trainable_mask = ctx.trainable_agent_mask
         if trainable_mask is not None:
-            td.set("is_trainable_agent", trainable_mask.to(device=device).repeat(repeats))
+            td.set("is_trainable_agent", _expand(trainable_mask))
 
     def training_phase(
         self,
