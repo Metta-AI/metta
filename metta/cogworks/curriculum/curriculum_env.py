@@ -65,23 +65,10 @@ class CurriculumEnv(PufferEnv):
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
 
-        # Try to get a valid task and build the map
-        max_retries = 10
-        for attempt in range(max_retries):
-            try:
-                # Get a new task from curriculum
-                self._current_task = self._curriculum.get_task()
-                # Create the env config and build the map in try-catch
-                self._env.set_mg_config(self._current_task.get_env_cfg())
-                obs, info = self._env.reset(*args, **kwargs)
-                break
-            except Exception:
-                # If config is invalid or map building fails, request a new task
-                if attempt == max_retries - 1:
-                    # If we've exhausted retries, raise the exception
-                    raise
-                # Otherwise, try again with a new task
-                continue
+        # Get a new task from curriculum
+        self._current_task = self._curriculum.get_task()
+        self._env.set_mg_config(self._current_task.get_env_cfg())
+        obs, info = self._env.reset(*args, **kwargs)
 
         # Invalidate stats cache on reset
         self._stats_cache_valid = False
@@ -109,23 +96,8 @@ class CurriculumEnv(PufferEnv):
             self._current_task.complete(mean_reward)
             # Update the curriculum algorithm with task performance for learning progress
             self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
-
-            # Try to get a valid task and build the map
-            max_retries = 10
-            for attempt in range(max_retries):
-                try:
-                    self._current_task = self._curriculum.get_task()
-                    # Create the env config and build the map in try-catch
-                    self._env.set_mg_config(self._current_task.get_env_cfg())
-                    break
-                except Exception:
-                    # If config is invalid or map building fails, return 0 reward and request a new task
-                    if attempt == max_retries - 1:
-                        # If we've exhausted retries, set rewards to 0 and continue
-                        rewards = rewards * 0
-                        break
-                    # Otherwise, try again with a new task
-                    continue
+            self._current_task = self._curriculum.get_task()
+            self._env.set_mg_config(self._current_task.get_env_cfg())
 
             # Invalidate stats cache when task changes
             self._stats_cache_valid = False

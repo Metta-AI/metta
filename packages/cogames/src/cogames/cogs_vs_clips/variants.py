@@ -304,11 +304,11 @@ class CogToolsOnlyVariant(MissionVariant):
             else:
                 other_protocols.append(protocol)
 
-        # If we have gear protocols, modify only the first one to use ["gear"] vibe
-        # and remove the rest to avoid duplicates (they would all have ["gear"] vibe with min_agents=0)
+        # If we have gear protocols, make all of them require only the ["gear"] vibe
+        # and keep every recipe so all gear tools remain craftable.
         if gear_protocols:
-            gear_protocols[0].vibes = ["gear"]
-            assembler_cfg.protocols = other_protocols + [gear_protocols[0]]
+            gear_protocols = [p.model_copy(update={"vibes": ["gear"]}) for p in gear_protocols]
+            assembler_cfg.protocols = other_protocols + gear_protocols
 
 
 class InventoryHeartTuneVariant(MissionVariant):
