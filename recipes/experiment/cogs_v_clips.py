@@ -303,7 +303,7 @@ def train(
     bc_policy_uri: Optional[str] = None,
     bc_teacher_lead_prob: float = 1.0,
     use_lp: bool = True,
-    maps_cache_size: Optional[int] = None,
+    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
