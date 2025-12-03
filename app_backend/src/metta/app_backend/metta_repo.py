@@ -14,12 +14,10 @@ from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field, field_validator
 
 from metta.app_backend.leaderboard_constants import (
-    COGAMES_SUBMITTED_PV_KEY,
     LADYBUG_UUID,
     LEADERBOARD_CANDIDATE_COUNT_KEY,
     LEADERBOARD_LADYBUG_COUNT_KEY,
     LEADERBOARD_SCENARIO_KEY,
-    LEADERBOARD_SIM_NAME_EPISODE_KEY,
     LEADERBOARD_THINKY_COUNT_KEY,
     THINKY_UUID,
 )
@@ -1079,8 +1077,9 @@ GROUP BY pv.id, et.key, et.value
         )
         return entries
 
+    @memoize(max_age=60.0)
     async def _get_vor_stats(
-        self, policy_version_ids: list[uuid.UUID | str]
+        self, policy_version_ids: tuple[uuid.UUID | str]
     ) -> defaultdict[uuid.UUID, defaultdict[int, RunningStats]]:
         query = f"""
         SELECT
@@ -1108,7 +1107,7 @@ GROUP BY pv.id, et.key, et.value
         """
         async with self.connect() as con:
             async with con.cursor(row_factory=dict_row) as cur:
-                await cur.execute(query, (policy_version_ids,))
+                await cur.execute(query, (list(policy_version_ids),))
                 rows = await cur.fetchall()
         stats_by_policy: defaultdict[uuid.UUID, defaultdict[int, RunningStats]] = defaultdict(
             lambda: defaultdict(RunningStats)
@@ -1132,23 +1131,21 @@ GROUP BY pv.id, et.key, et.value
             stats_by_policy[row["policy_version_id"]][candidate_count].update(reward, weight=weight)
         return stats_by_policy
 
-    @memoize(max_age=60.0)
     async def get_leaderboard_policies_with_vor(
         self,
+        policy_version_tags: dict[str, str],
+        score_group_episode_tag: str,
     ) -> list[LeaderboardPolicyEntry]:
-        """Return leaderboard entries with overall_vor computed for each policy.
-
-        Results are cached for 60 seconds. Replacement stats cached for 5 minutes.
-        """
+        """Return leaderboard entries with overall_vor computed for each policy."""
         # Get base leaderboard entries
         entries = await self.get_leaderboard_policies(
-            policy_version_tags={COGAMES_SUBMITTED_PV_KEY: "true"},
-            score_group_episode_tag=LEADERBOARD_SIM_NAME_EPISODE_KEY,
+            policy_version_tags=policy_version_tags,
+            score_group_episode_tag=score_group_episode_tag,
             user_id=None,
             policy_version_id=None,
         )
-        baseline_vor_stats = await self._get_vor_stats([THINKY_UUID, LADYBUG_UUID])
-        candidate_vor_stats = await self._get_vor_stats([entry.policy_version.id for entry in entries])
+        baseline_vor_stats = await self._get_vor_stats((THINKY_UUID, LADYBUG_UUID))
+        candidate_vor_stats = await self._get_vor_stats((entry.policy_version.id for entry in entries))
 
         # Combine baseline stats (candidate_count == 0) into replacement_stats
         replacement_stats = RunningStats()

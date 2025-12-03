@@ -56,6 +56,11 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     @router.get("/v2/vor")
     async def get_leaderboard_with_vor(user: UserOrToken) -> LeaderboardPoliciesResponse:
         """Get leaderboard entries with VOR computed for each policy (cached 60s)."""
-        return LeaderboardPoliciesResponse(entries=await metta_repo.get_leaderboard_policies_with_vor())
+        return LeaderboardPoliciesResponse(
+            entries=await metta_repo.get_leaderboard_policies_with_vor(
+                policy_version_tags={COGAMES_SUBMITTED_PV_KEY: "true"},
+                score_group_episode_tag=LEADERBOARD_SIM_NAME_EPISODE_KEY,
+            )
+        )
 
     return router
