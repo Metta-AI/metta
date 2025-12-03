@@ -159,7 +159,7 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     # Trunk configuration
     # Number of Axon layers in the trunk (default: 16 for large model)
-    core_num_resnet_layers: int = 1
+    core_resnet_layers: int = 1
     # Enable layer normalization after each trunk layer
     core_use_layer_norm: bool = True
 
@@ -222,7 +222,7 @@ class ViTDefaultConfig(PolicyArchitecture):
         # Rebuild stack config with current parameters
         cortex.stack_cfg = build_cortex_auto_config(
             d_hidden=int(self._latent_dim),
-            num_layers=self.core_num_resnet_layers,
+            num_layers=self.core_resnet_layers,
             pattern="A",
             post_norm=self.core_use_layer_norm,
         )
