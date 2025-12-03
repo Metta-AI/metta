@@ -1319,12 +1319,6 @@ ORDER BY e.created_at DESC
                 where_conditions.append("p.name ILIKE %s")
                 params.append(f"%{search}%")
 
-            if policy_type:
-                if policy_type == "policy":
-                    where_conditions.append("EXISTS (SELECT 1 FROM policy_versions WHERE policy_id = p.id)")
-                elif policy_type == "training_run":
-                    where_conditions.append("NOT EXISTS (SELECT 1 FROM policy_versions WHERE policy_id = p.id)")
-
             if user_id:
                 where_conditions.append("p.user_id = %s")
                 params.append(user_id)
@@ -1342,32 +1336,53 @@ ORDER BY e.created_at DESC
                     params.append(tag)
 
             where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+
+            # Build policy_type filter condition
+            policy_type_condition = ""
+            if policy_type:
+                if policy_type == "policy":
+                    policy_type_condition = "AND has_versions = true"
+                elif policy_type == "training_run":
+                    policy_type_condition = "AND has_versions = false"
+
             params.extend([limit, offset])
 
             async with con.cursor(row_factory=dict_row) as cur:
+                # Use CTE with LEFT JOINs to avoid correlated subqueries
                 await cur.execute(
                     f"""
+                    WITH policy_data AS (
+                        SELECT
+                            p.id,
+                            p.name,
+                            p.created_at,
+                            p.user_id,
+                            COALESCE(p.attributes, '{{}}'::jsonb) AS attributes,
+                            COUNT(pv.id) > 0 AS has_versions,
+                            COALESCE(
+                                jsonb_object_agg(pvt.key, pvt.value) FILTER (WHERE pvt.key IS NOT NULL),
+                                '{{}}'::jsonb
+                            ) AS tags
+                        FROM policies p
+                        LEFT JOIN policy_versions pv ON pv.policy_id = p.id
+                        LEFT JOIN policy_version_tags pvt ON pvt.policy_version_id = pv.id
+                        {where_clause}
+                        GROUP BY p.id, p.name, p.created_at, p.user_id, p.attributes
+                    )
                     SELECT
-                        p.id::text AS id,
-                        p.name,
+                        id::text AS id,
+                        name,
                         CASE
-                            WHEN EXISTS (SELECT 1 FROM policy_versions WHERE policy_id = p.id)
-                            THEN 'policy'
+                            WHEN has_versions THEN 'policy'
                             ELSE 'training_run'
                         END AS type,
-                        p.created_at,
-                        p.user_id,
-                        COALESCE(p.attributes, '{{}}'::jsonb) AS attributes,
-                        COALESCE(
-                            (SELECT jsonb_object_agg(key, value)
-                             FROM policy_version_tags pvt
-                             JOIN policy_versions pv ON pv.id = pvt.policy_version_id
-                             WHERE pv.policy_id = p.id),
-                            '{{}}'::jsonb
-                        ) AS tags
-                    FROM policies p
-                    {where_clause}
-                    ORDER BY p.created_at DESC
+                        created_at,
+                        user_id,
+                        attributes,
+                        tags
+                    FROM policy_data
+                    WHERE 1=1 {policy_type_condition}
+                    ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                     """,
                     params,
@@ -1459,6 +1474,59 @@ ORDER BY e.created_at DESC
                 rows = await cur.fetchall()
                 return [row["metric_name"] for row in rows if row["metric_name"]]
 
+    async def get_scorecard_options(
+        self,
+        training_run_ids: list[str],
+        run_free_policy_ids: list[str],
+    ) -> dict[str, Any]:
+        """Get available evals and metrics for given policies in a single call."""
+        async with self.connect() as con:
+            policy_ids: list[uuid.UUID] = []
+            for pid in training_run_ids + run_free_policy_ids:
+                try:
+                    policy_ids.append(uuid.UUID(pid))
+                except ValueError:
+                    continue
+
+            if not policy_ids:
+                return {"eval_names": [], "metrics": []}
+
+            async with con.cursor(row_factory=dict_row) as cur:
+                # Get eval names
+                await cur.execute(
+                    """
+                    SELECT DISTINCT et.value AS eval_name
+                    FROM episode_tags et
+                    JOIN episodes e ON e.id = et.episode_id
+                    JOIN episode_policies ep ON ep.episode_id = e.id
+                    JOIN policy_versions pv ON pv.id = ep.policy_version_id
+                    WHERE pv.policy_id = ANY(%s)
+                      AND et.key = 'eval_name'
+                    ORDER BY eval_name
+                    """,
+                    (policy_ids,),
+                )
+                eval_rows = await cur.fetchall()
+                eval_names = [row["eval_name"] for row in eval_rows if row["eval_name"]]
+
+                # Get available metrics
+                await cur.execute(
+                    """
+                    SELECT DISTINCT epm.metric_name
+                    FROM episode_policy_metrics epm
+                    JOIN episodes e ON e.internal_id = epm.episode_internal_id
+                    JOIN episode_policies ep ON ep.episode_id = e.id
+                    JOIN policy_versions pv ON pv.internal_id = epm.pv_internal_id
+                    WHERE pv.policy_id = ANY(%s)
+                    ORDER BY metric_name
+                    """,
+                    (policy_ids,),
+                )
+                metric_rows = await cur.fetchall()
+                metrics = [row["metric_name"] for row in metric_rows if row["metric_name"]]
+
+            return {"eval_names": eval_names, "metrics": metrics}
+
     async def generate_scorecard(
         self,
         training_run_ids: list[str],
@@ -1483,53 +1551,37 @@ ORDER BY e.created_at DESC
                     "cells": [],
                 }
 
+            # DRY: Build base query and only vary ORDER BY clause
+            base_query = """
+                SELECT DISTINCT ON (p.name, et.value)
+                    p.name AS policy_name,
+                    et.value AS eval_name,
+                    epm.value / NULLIF(ep.num_agents, 0) AS metric_value,
+                    e.id AS episode_id
+                FROM policies p
+                JOIN policy_versions pv ON pv.policy_id = p.id
+                JOIN episode_policies ep ON ep.policy_version_id = pv.id
+                JOIN episodes e ON e.id = ep.episode_id
+                JOIN episode_tags et ON et.episode_id = e.id
+                JOIN episode_policy_metrics epm ON epm.episode_internal_id = e.internal_id
+                    AND epm.pv_internal_id = pv.internal_id
+                WHERE p.id = ANY(%s)
+                  AND et.key = 'eval_name'
+                  AND et.value = ANY(%s)
+                  AND epm.metric_name = %s
+            """
+
+            # Only ORDER BY differs between "best" and "latest"
+            if policy_selector == "best":
+                order_by = "ORDER BY p.name, et.value, epm.value / NULLIF(ep.num_agents, 0) DESC, e.created_at DESC"
+            else:
+                order_by = "ORDER BY p.name, et.value, e.created_at DESC, pv.version DESC"
+
             async with con.cursor(row_factory=dict_row) as cur:
-                if policy_selector == "best":
-                    await cur.execute(
-                        """
-                        SELECT DISTINCT ON (p.name, et.value)
-                            p.name AS policy_name,
-                            et.value AS eval_name,
-                            epm.value / NULLIF(ep.num_agents, 0) AS metric_value,
-                            e.id AS episode_id
-                        FROM policies p
-                        JOIN policy_versions pv ON pv.policy_id = p.id
-                        JOIN episode_policies ep ON ep.policy_version_id = pv.id
-                        JOIN episodes e ON e.id = ep.episode_id
-                        JOIN episode_tags et ON et.episode_id = e.id
-                        JOIN episode_policy_metrics epm ON epm.episode_internal_id = e.internal_id
-                            AND epm.pv_internal_id = pv.internal_id
-                        WHERE p.id = ANY(%s)
-                          AND et.key = 'eval_name'
-                          AND et.value = ANY(%s)
-                          AND epm.metric_name = %s
-                        ORDER BY p.name, et.value, epm.value / NULLIF(ep.num_agents, 0) DESC, e.created_at DESC
-                        """,
-                        (policy_ids, eval_names, metric),
-                    )
-                else:
-                    await cur.execute(
-                        """
-                        SELECT DISTINCT ON (p.name, et.value)
-                            p.name AS policy_name,
-                            et.value AS eval_name,
-                            epm.value / NULLIF(ep.num_agents, 0) AS metric_value,
-                            e.id AS episode_id
-                        FROM policies p
-                        JOIN policy_versions pv ON pv.policy_id = p.id
-                        JOIN episode_policies ep ON ep.policy_version_id = pv.id
-                        JOIN episodes e ON e.id = ep.episode_id
-                        JOIN episode_tags et ON et.episode_id = e.id
-                        JOIN episode_policy_metrics epm ON epm.episode_internal_id = e.internal_id
-                            AND epm.pv_internal_id = pv.internal_id
-                        WHERE p.id = ANY(%s)
-                          AND et.key = 'eval_name'
-                          AND et.value = ANY(%s)
-                          AND epm.metric_name = %s
-                        ORDER BY p.name, et.value, e.created_at DESC, pv.version DESC
-                        """,
-                        (policy_ids, eval_names, metric),
-                    )
+                await cur.execute(
+                    base_query + order_by,
+                    (policy_ids, eval_names, metric),
+                )
                 rows = await cur.fetchall()
 
             policy_names = sorted(set(row["policy_name"] for row in rows))

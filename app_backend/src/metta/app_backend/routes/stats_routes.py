@@ -123,22 +123,13 @@ class PoliciesResponse(BaseModel):
     policies: list[PolicyListItem]
 
 
-class EvalsRequest(BaseModel):
+class ScorecardOptionsRequest(BaseModel):
     training_run_ids: list[str] = Field(default_factory=list)
     run_free_policy_ids: list[str] = Field(default_factory=list)
 
 
-class EvalsResponse(BaseModel):
+class ScorecardOptionsResponse(BaseModel):
     eval_names: list[str]
-
-
-class MetricsRequest(BaseModel):
-    training_run_ids: list[str] = Field(default_factory=list)
-    run_free_policy_ids: list[str] = Field(default_factory=list)
-    eval_names: list[str] = Field(default_factory=list)
-
-
-class MetricsResponse(BaseModel):
     metrics: list[str]
 
 
@@ -502,30 +493,21 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         )
         return EpisodeQueryResponse(episodes=episodes)
 
-    @router.post("/evals", response_model=EvalsResponse)
-    @timed_route("get_eval_names")
-    async def get_eval_names(request: EvalsRequest, user: UserOrToken) -> EvalsResponse:
+    @router.post("/scorecard/options", response_model=ScorecardOptionsResponse)
+    @timed_route("get_scorecard_options")
+    async def get_scorecard_options(request: ScorecardOptionsRequest, user: UserOrToken) -> ScorecardOptionsResponse:
+        """Get available evals and metrics for given policies."""
         try:
-            eval_names = await stats_repo.get_eval_names(
+            options = await stats_repo.get_scorecard_options(
                 training_run_ids=request.training_run_ids,
                 run_free_policy_ids=request.run_free_policy_ids,
             )
-            return EvalsResponse(eval_names=eval_names)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get eval names: {str(e)}") from e
-
-    @router.post("/metrics", response_model=MetricsResponse)
-    @timed_route("get_available_metrics")
-    async def get_available_metrics(request: MetricsRequest, user: UserOrToken) -> MetricsResponse:
-        try:
-            metrics = await stats_repo.get_available_metrics(
-                training_run_ids=request.training_run_ids,
-                run_free_policy_ids=request.run_free_policy_ids,
-                eval_names=request.eval_names,
+            return ScorecardOptionsResponse(
+                eval_names=options["eval_names"],
+                metrics=options["metrics"],
             )
-            return MetricsResponse(metrics=metrics)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get available metrics: {str(e)}") from e
+            raise HTTPException(status_code=500, detail=f"Failed to get scorecard options: {str(e)}") from e
 
     @router.post("/scorecard", response_model=ScorecardResponse)
     @timed_route("generate_scorecard")
