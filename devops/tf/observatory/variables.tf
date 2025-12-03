@@ -15,6 +15,11 @@ variable "db_instance_class" {
 
 variable "db_allocated_storage" {
   type    = number
+  default = 200 # GiB
+}
+
+variable "db_max_allocated_storage" {
+  type    = number
   default = 1000 # GiB
 }
 
