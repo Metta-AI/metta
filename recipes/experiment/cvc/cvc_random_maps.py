@@ -30,9 +30,59 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config import vibes as vibes_module
+from mettagrid.config.mettagrid_config import ProtocolConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.random import Random
 from recipes.experiment import cogs_v_clips
+
+
+def _make_assembler_protocols(
+    vibes_required: list[str],
+    first_heart_cost: int = 10,
+    additional_heart_cost: int = 5,
+) -> list[ProtocolConfig]:
+    """Create assembler protocols with configurable vibe requirements.
+
+    Args:
+        vibes_required: List of vibes that activate the heart-making protocol.
+                       E.g., ["heart_a"] means only heart_a works,
+                       ["default", "heart_a"] means either works.
+        first_heart_cost: Base resource cost for 1 heart
+        additional_heart_cost: Additional cost per extra heart
+    """
+    gear = [
+        ("carbon", "decoder"),
+        ("oxygen", "modulator"),
+        ("germanium", "scrambler"),
+        ("silicon", "resonator"),
+    ]
+
+    # Heart-making protocols (1-4 hearts)
+    heart_protocols = [
+        ProtocolConfig(
+            vibes=vibes_required * (i + 1),  # Need more vibes for more hearts
+            input_resources={
+                "carbon": first_heart_cost + additional_heart_cost * i,
+                "oxygen": first_heart_cost + additional_heart_cost * i,
+                "germanium": max(1, (first_heart_cost + additional_heart_cost * i) // 5),
+                "silicon": 3 * (first_heart_cost + additional_heart_cost * i),
+            },
+            output_resources={"heart": i + 1},
+        )
+        for i in range(4)
+    ]
+
+    # Gear-making protocols
+    gear_protocols = [
+        ProtocolConfig(
+            vibes=["gear", f"{g[0]}_a"],
+            input_resources={g[0]: 1},
+            output_resources={g[1]: 1},
+        )
+        for g in gear
+    ]
+
+    return heart_protocols + gear_protocols
 
 
 def make_random_maps_curriculum(
@@ -123,6 +173,21 @@ def make_random_maps_curriculum(
     tasks.add_bucket("game.objects.oxygen_extractor.max_uses", [1, 3, 8, 10, 20])
     tasks.add_bucket("game.objects.germanium_extractor.max_uses", [1, 3, 8, 10, 20])
     tasks.add_bucket("game.objects.silicon_extractor.max_uses", [1, 3, 8, 10, 20])
+
+    # Bucket over entire assembler protocols list (different vibe requirements)
+    tasks.add_bucket(
+        "game.objects.assembler.protocols",
+        [
+            # Hard: Only heart_a vibe works
+            _make_assembler_protocols(["heart_a"]),
+            # Medium: heart_a or heart_b works
+            _make_assembler_protocols(["heart_a", "heart_b"]),
+            # Easy: default vibe also works
+            _make_assembler_protocols(["default", "heart_a", "heart_b"]),
+            # All vibes work
+            _make_assembler_protocols(["default", "heart_a", "heart_b", "carbon_a", "carbon_b", "oxygen_a", "oxygen_b", "germanium_a", "germanium_b", "silicon_a", "silicon_b"]),
+        ],
+    )
 
     # Standard curriculum buckets
     tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500, 2000, 3000, 4000])
