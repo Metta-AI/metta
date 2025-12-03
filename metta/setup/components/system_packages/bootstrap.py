@@ -77,21 +77,6 @@ def get_install_dir() -> Path | None:
                 return dir_path
     return None
 
-
-def ensure_paths() -> None:
-    """Add target install directories to PATH if not already present."""
-    path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-    for dir_str in CHECK_FOR_BINARIES_DIRS:
-        dir_path = Path(dir_str)
-        if dir_path.exists() and dir_str not in path_dirs:
-            os.environ["PATH"] = f"{dir_str}:{os.environ.get('PATH', '')}"
-
-    # Add cargo bin if it exists
-    cargo_bin = Path.home() / ".cargo" / "bin"
-    if cargo_bin.exists() and str(cargo_bin) not in path_dirs:
-        os.environ["PATH"] = f"{cargo_bin}:{os.environ.get('PATH', '')}"
-
-
 def ensure_bazel_version_file(version: str) -> None:
     """Ensure a workspace-level .bazelversion exists to pin Bazelisk."""
     try:
@@ -286,7 +271,6 @@ def get_bazelisk_url() -> str:
 
 def install_bazel(run_command=None, non_interactive: bool = False) -> None:
     """Install bazel via bazelisk."""
-    # ensure_paths()
     ensure_bazel_version_file(DEFAULT_BAZEL_VERSION)
 
     if shutil.which("bazel"):
@@ -330,8 +314,6 @@ def install_bazel(run_command=None, non_interactive: bool = False) -> None:
     except Exception as e:
         error(f"Failed to download bazelisk: {e}")
         raise
-
-    # ensure_paths()
 
     if not shutil.which("bazel"):
         error("Failed to install bazelisk. Please install it manually from https://github.com/bazelbuild/bazelisk")
@@ -472,7 +454,6 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
         return
 
     # Now modify PATH for installation (after we've checked versions)
-    # ensure_paths()
 
     install_dir = get_install_dir()
     if not install_dir:
@@ -554,8 +535,6 @@ def _install_nimby(target_nimby_path: Path) -> None:
 
 def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> None:
     """Install all bootstrap dependencies: bazel, nimby, nim, git, g++."""
-    ensure_paths()
-
     # Install git and g++ via package manager
     install_system_packages(run_command, non_interactive=non_interactive)
 
@@ -564,9 +543,6 @@ def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> N
 
     # Install nimby and nim
     install_nim_via_nimby(run_command, non_interactive=non_interactive)
-
-    # ensure_paths()
-
 
 def main() -> None:
     """CLI entrypoint for bootstrap installation."""
