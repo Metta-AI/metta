@@ -29,6 +29,11 @@ class ICLPerimeterMapBuilderConfig(PerimeterInContextMapBuilderConfig):
         [interior where agents spawn]
     """
 
+    # Reset _builder_cls to prevent MapBuilder.__init_subclass__ from creating
+    # an unpicklable local CloneConfig class when this config inherits from
+    # PerimeterInContextMapBuilderConfig (which is already bound to PerimeterInContextMapBuilder)
+    _builder_cls = None  # type: ignore[assignment]
+
     # Number of agents to place in the interior
     num_agents: int = 4
 
