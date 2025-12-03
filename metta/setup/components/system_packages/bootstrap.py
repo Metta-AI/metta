@@ -130,9 +130,12 @@ def version_ge(current: str | None, required: str) -> bool:
 
 
 def check_bootstrap_deps() -> bool:
-    """Check if bootstrap deps (bazel, nimby, nim, git, g++) are installed."""
-    ensure_paths()
-
+    """Check if bootstrap deps (bazel, nimby, nim, git, g++) are installed.
+    
+    This function checks using the current PATH (before any modifications)
+    to ensure we detect what the user actually has installed, not what
+    we've added to PATH.
+    """
     # Check git
     if not shutil.which("git"):
         return False
