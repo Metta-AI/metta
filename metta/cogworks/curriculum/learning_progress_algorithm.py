@@ -162,27 +162,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return {}
 
         # Compute raw LP scores for all tasks (with per-task cache for the raw step)
-        raw_scores = np.array([self._get_bidirectional_learning_progress_score(tid) for tid in task_ids], dtype=float)
+        raw_scores = [self._get_bidirectional_learning_progress_score(tid) for tid in task_ids]
 
-        # Standardize then sigmoid (legacy behavior) to temper outliers
-        if len(raw_scores) > 1:
-            std = np.std(raw_scores)
-            mean = np.mean(raw_scores)
-            if std > 0:
-                raw_scores = (raw_scores - mean) / std
-            else:
-                raw_scores = raw_scores - mean
-
-        norm_scores = self._sigmoid(raw_scores)
-
-        # Normalize to sum to 1 to produce sampling weights
-        total = float(np.sum(norm_scores))
-        if total > 0:
-            norm_scores = norm_scores / total
-        else:
-            norm_scores = np.ones_like(norm_scores) / len(norm_scores)
-
-        return {tid: float(score) for tid, score in zip(task_ids, norm_scores, strict=True)}
+        # Return raw scores (already exploration-bonus clamped) so smoothing effects
+        # and magnitude differences remain visible to sampling/eviction logic.
+        return {tid: float(score) for tid, score in zip(task_ids, raw_scores, strict=True)}
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using basic EMA variance method."""
@@ -249,7 +233,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             if num_samples < 10:
                 learning_progress += self.hypers.exploration_bonus * (10 - num_samples) / 10
 
-            score = max(learning_progress, self.hypers.exploration_bonus)
+            score = learning_progress
 
         # Cache the computed score
         self._score_cache[task_id] = score
@@ -261,11 +245,19 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if not task_ids:
             return None
 
-        scores = self.score_tasks(task_ids)
+        if self.hypers.use_bidirectional:
 
-        # Find task with minimum learning progress
-        min_task_id = min(task_ids, key=lambda tid: scores.get(tid, 0.0))
-        return min_task_id
+            def ev_score(tid: int) -> float:
+                vals = self._outcomes.get(tid, [])
+                if len(vals) >= 2:
+                    return float(np.std(vals))
+                return self.hypers.exploration_bonus
+
+            return min(task_ids, key=ev_score)
+
+        # Basic mode: reuse existing scores
+        scores = self.score_tasks(task_ids)
+        return min(task_ids, key=lambda tid: scores.get(tid, 0.0))
 
     def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
         """Check if a task should be evicted based on criteria."""
@@ -550,6 +542,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     "counter": self._counter,
                     "per_task_fast": self._per_task_fast,
                     "per_task_slow": self._per_task_slow,
+                    # Legacy array fields retained for compatibility
+                    "p_fast": [self._per_task_fast.get(tid, 0.0) for tid in sorted(self._outcomes.keys())],
+                    "p_slow": [self._per_task_slow.get(tid, 0.0) for tid in sorted(self._outcomes.keys())],
+                    "p_true": [
+                        float(np.mean(vals)) if vals else DEFAULT_SUCCESS_RATE
+                        for _tid, vals in sorted(self._outcomes.items())
+                    ],
                     "score_cache": self._score_cache,
                     "cache_valid_tasks": list(self._cache_valid_tasks),
                 }
@@ -571,5 +570,23 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._per_task_fast = state.get("per_task_fast", {})
             self._per_task_slow = state.get("per_task_slow", {})
 
-            self._score_cache = state["score_cache"]
-            self._cache_valid_tasks = set(state["cache_valid_tasks"])
+            # Backward compatibility: if only array fields exist, rebuild per-task dicts
+            if (not self._per_task_fast or not self._per_task_slow) and "p_fast" in state and "p_slow" in state:
+                self._per_task_fast = {}
+                self._per_task_slow = {}
+                task_ids = sorted(self._outcomes.keys())
+                p_fast = state.get("p_fast") or []
+                p_slow = state.get("p_slow") or []
+                for idx, tid in enumerate(task_ids):
+                    if idx < len(p_fast):
+                        self._per_task_fast[tid] = float(p_fast[idx])
+                    if idx < len(p_slow):
+                        self._per_task_slow[tid] = float(p_slow[idx])
+
+            # Scoring formula may differ across versions; invalidate cached scores
+            # to ensure fresh recomputation after load.
+            self._score_cache = {}
+            self._cache_valid_tasks = set()
+
+        # Invalidate stats cache after restoring state
+        self._stats_cache_valid = False
