@@ -168,10 +168,8 @@ class Loss:
     def attach_replay_buffer(self, experience: Experience) -> None:
         """Attach the replay buffer to the loss."""
         self.replay = experience
-        # Align the policy experience spec with the actual replay layout so slot metadata
-        # (slot_id/loss_profile_id/is_trainable_agent) survives the policy TD prep step.
-        if hasattr(experience, "buffer"):
-            self.policy_experience_spec = experience.buffer.spec  # type: ignore[attr-defined]
+        # Align with replay layout so slot metadata survives policy TD prep
+        self.policy_experience_spec = experience.buffer.spec  # type: ignore[attr-defined]
 
     def _filter_minibatch(self, shared_loss_data: TensorDict) -> TensorDict:
         """Filter minibatch rows by slot profile/trainable flags."""

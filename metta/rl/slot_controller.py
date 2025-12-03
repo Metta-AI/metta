@@ -70,8 +70,7 @@ class SlotControllerPolicy(Policy):
             td.set("slot_id", self._agent_slot_map.to(device=td.device).repeat(num_envs))
 
         slot_ids = td.get("slot_id")
-        if not isinstance(slot_ids, torch.Tensor):
-            raise RuntimeError("slot_id must be a tensor")
+        assert isinstance(slot_ids, torch.Tensor), "slot_id must be a tensor"
 
         unique_ids: Iterable[int] = torch.unique(slot_ids).tolist()
         for b_id in unique_ids:
