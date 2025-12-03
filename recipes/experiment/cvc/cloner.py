@@ -18,6 +18,7 @@ from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
+from metta.agent.policies.vit_size_2 import ViTSize2Config
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -26,7 +27,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
@@ -297,11 +298,14 @@ def train(
     if bc_policy_uri is not None:
         supervisor = EnvSupervisorConfig(policy=bc_policy_uri)
 
-        ssc_end_step = 25_000_000  # 1_000_000_000
+        ssc_end_step = 300_000_000  # 1_000_000_000
         trainer_cfg.losses.sliced_scripted_cloner.enabled = True
         trainer_cfg.losses.ppo_critic.sample_enabled = False
         trainer_cfg.losses.ppo_critic.train_forward_enabled = False
         trainer_cfg.losses.ppo_critic.deferred_training_start_step = ssc_end_step
+
+        # reduce entropy
+        trainer_cfg.losses.ppo_actor.ent_coef = 0.002
 
         scheduler = SchedulerConfig(
             run_gates=[
@@ -322,8 +326,8 @@ def train(
                     loss_instance_name="sliced_scripted_cloner",
                     attr_path="teacher_led_proportion",
                     mode="progress",
-                    style="cosine",
-                    start_value=0.30,
+                    style="linear",
+                    start_value=0.20,
                     end_value=0.0,
                     start_agent_step=0,
                     end_agent_step=ssc_end_step,
@@ -348,8 +352,9 @@ def train(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum, supervisor=supervisor),
         evaluator=evaluator_cfg,
-        # policy_architecture=ViTSize2Config(),
+        policy_architecture=ViTSize2Config(),
         scheduler=scheduler,
+        checkpointer=CheckpointerConfig(epoch_interval=100),
     )
 
     return tt
