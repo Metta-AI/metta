@@ -72,7 +72,7 @@ class LossesConfig(Config):
             ("logit_kickstarter", self.logit_kickstarter),
         ]
         return {
-            name: cfg.create(policy, trainer_cfg, env, device, name, cfg)
+            name: cfg.create(policy, trainer_cfg, env, device, name)
             for name, cfg in configs
             if cfg.enabled
         }

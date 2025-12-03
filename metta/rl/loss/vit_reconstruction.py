@@ -39,16 +39,8 @@ class ViTReconstructionLossConfig(LossConfig):
         env: "TrainingEnvironment",
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "ViTReconstructionLoss":
-        return ViTReconstructionLoss(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name,
-            self,
-        )
+        return ViTReconstructionLoss(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class ViTReconstructionDecoder(nn.Module):
