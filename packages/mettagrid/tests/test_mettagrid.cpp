@@ -55,6 +55,7 @@ protected:
         {"agent:frozen", 2},
         {"episode_completion_pct", 7},
         {"last_action", 8},
+        {"goal", 9},
         {"last_reward", 10},
         {"vibe", 11},
         {"agent:vibe", 12},
