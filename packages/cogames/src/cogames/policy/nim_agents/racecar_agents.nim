@@ -7,6 +7,7 @@ const
   MaxEnergy = 100
   MaxResourceInventory = 100
   MaxToolInventory = 100
+  MaxStepsDefault = 10000
 
   PutCarbonAmount = 10
   PutOxygenAmount = 10
@@ -14,11 +15,15 @@ const
   PutSiliconAmount = 25
 
 type
-  ThinkyAgent* = ref object
+  RaceCarAgent* = ref object
     agentId*: int
 
+    maxSteps: int
+    steps: int
     map: Table[Location, seq[FeatureValue]]
     seen: HashSet[Location]
+    unreachable: HashSet[Location]
+    depleted: HashSet[Location]    # extractors/chargers with remainingUses == 0
     cfg: Config
     random: Rand
     location: Location
@@ -30,14 +35,19 @@ type
     germaniumTarget: int
     siliconTarget: int
 
+    assignedVibe: Option[int]  # desired vibe for vibe-check recipes
+    needsPatternReapply: bool   # if we changed vibe away from pattern for a side-task
+
     bump: bool
     offsets4: seq[Location]  # 4 cardinal but random for each agent
     seenAssembler: bool
     seenChest: bool
+    assemblerHome: Option[Location]
+    chestHome: Option[Location]
     exploreLocations: seq[Location]
 
-  ThinkyPolicy* = ref object
-    agents*: seq[ThinkyAgent]
+  RaceCarPolicy* = ref object
+    agents*: seq[RaceCarAgent]
 
 proc log(message: string) =
   when defined(debug):
@@ -62,7 +72,7 @@ const Offsets8 = [
   Location(x: -1, y: -1),
 ]
 
-proc getActiveRecipe(agent: ThinkyAgent): RecipeInfo {.measure.} =
+proc getActiveRecipe(agent: RaceCarAgent): RecipeInfo {.measure.} =
   ## Get the recipes form the assembler protocol inputs.
   let assemblerLocation = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
   if assemblerLocation.isSome():
@@ -119,21 +129,39 @@ proc getActiveRecipe(agent: ThinkyAgent): RecipeInfo {.measure.} =
       elif feature.featureId == agent.cfg.features.protocolOutputScrambler:
         result.scramblerOutput = feature.value
 
-proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
-  ## Create a new thinky agent, the fastest and the smartest agent.
+proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
+  ## Create a new racecar agent, the fastest and the smartest agent.
 
   var config = parseConfig(environmentConfig)
-  result = ThinkyAgent(agentId: agentId, cfg: config)
+  result = RaceCarAgent(agentId: agentId, cfg: config)
+  result.maxSteps = MaxStepsDefault
+  # Try to read max_steps from the environment config; fall back to default.
+  try:
+    let env = environmentConfig.parseJson()
+    if env.hasKey("game") and env["game"].hasKey("max_steps"):
+      result.maxSteps = env["game"]["max_steps"].getInt()
+    elif env.hasKey("max_steps"):
+      result.maxSteps = env["max_steps"].getInt()
+  except CatchableError:
+    discard
   result.random = initRand(agentId)
   result.map = initTable[Location, seq[FeatureValue]]()
   result.seen = initHashSet[Location]()
+  result.unreachable = initHashSet[Location]()
+  result.depleted = initHashSet[Location]()
   result.location = Location(x: 0, y: 0)
+  result.assignedVibe = none(int)
+  result.needsPatternReapply = false
+  result.steps = 0
+  result.assemblerHome = none(Location)
+  result.chestHome = none(Location)
   result.lastActions = @[]
   # Randomize the offsets4 for each agent, so they take different directions.
   var offsets4 = Offsets4
   result.random.shuffle(offsets4)
-  for i in 0 ..< offsets4.len:
-    offsets4[i] = offsets4[i]
+  result.offsets4 = @[]
+  for o in offsets4:
+    result.offsets4.add(o)
 
   result.exploreLocations = @[
     Location(x: -7, y: 0),
@@ -143,7 +171,7 @@ proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   ]
   result.random.shuffle(result.exploreLocations)
 
-proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
+proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
   ## Update the big map with the small visible map.
 
   if agent.map.len == 0:
@@ -198,6 +226,10 @@ proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) 
       let mapLocation = Location(x: x + agent.location.x, y: y + agent.location.y)
       if visibleLocation in visible:
         agent.map[mapLocation] = visible[visibleLocation]
+        # Mark depleted sites to avoid revisits.
+        for f in visible[visibleLocation]:
+          if f.featureId == agent.cfg.features.remainingUses and f.value == 0:
+            agent.depleted.incl(mapLocation)
       else:
         agent.map[mapLocation] = @[]
       agent.seen.incl(mapLocation)
@@ -255,7 +287,7 @@ proc getNearbyExtractor*(
   return none(Location)
 
 proc step*(
-  agent: ThinkyAgent,
+  agent: RaceCarAgent,
   numAgents: int,
   numTokens: int,
   sizeToken: int,
@@ -288,47 +320,88 @@ proc step*(
       # Get last action from observations, in case something else moved us.
       agent.lastActions.add(agent.cfg.getLastAction(visible))
 
-      # Stuck prevention: if last 2 actions are left, right and this is left.
-      if agent.lastActions.len >= 2 and
-        action == agent.cfg.actions.moveWest and
-        agent.lastActions[^1] == agent.cfg.actions.moveEast and
-        agent.lastActions[^2] == agent.cfg.actions.moveWest:
-        # Noop 50% of the time.
-        if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: left, right, left"
-          doAction(agent.cfg.actions.noop.int32)
-          return
-      if agent.lastActions.len >= 2 and
-        action == agent.cfg.actions.moveEast and
-        agent.lastActions[^1] == agent.cfg.actions.moveWest and
-        agent.lastActions[^2] == agent.cfg.actions.moveEast:
-        # Noop 50% of the time.
-        if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: right, left, right"
-          doAction(agent.cfg.actions.noop.int32)
-          return
-      if agent.lastActions.len >= 2 and
-        action == agent.cfg.actions.moveNorth and
-        agent.lastActions[^1] == agent.cfg.actions.moveSouth and
-        agent.lastActions[^2] == agent.cfg.actions.moveNorth:
-        # Noop 50% of the time.
-        if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: north, south, north"
-          doAction(agent.cfg.actions.noop.int32)
-          return
-      if agent.lastActions.len >= 2 and
-        action == agent.cfg.actions.moveSouth and
-        agent.lastActions[^1] == agent.cfg.actions.moveNorth and
-        agent.lastActions[^2] == agent.cfg.actions.moveSouth:
-        # Noop 50% of the time.
-        if agent.random.rand(1 .. 2) == 1:
-          log "Stuck prevention: south, north, south"
-          doAction(agent.cfg.actions.noop.int32)
-          return
+      # Helper to set action without modifying history again.
+      proc setAction(actionToSet: int32) =
+        agentAction[] = actionToSet
 
-      agentAction[] = action.int32
+      # Stuck prevention: if last 2 actions are oscillating, sometimes noop.
+      if agent.lastActions.len >= 2:
+        if action == agent.cfg.actions.moveWest and
+          agent.lastActions[^1] == agent.cfg.actions.moveEast and
+          agent.lastActions[^2] == agent.cfg.actions.moveWest:
+          if agent.random.rand(1 .. 2) == 1:
+            log "Stuck prevention: left, right, left"
+            setAction(agent.cfg.actions.noop.int32)
+            return
+        elif action == agent.cfg.actions.moveEast and
+          agent.lastActions[^1] == agent.cfg.actions.moveWest and
+          agent.lastActions[^2] == agent.cfg.actions.moveEast:
+          if agent.random.rand(1 .. 2) == 1:
+            log "Stuck prevention: right, left, right"
+            setAction(agent.cfg.actions.noop.int32)
+            return
+        elif action == agent.cfg.actions.moveNorth and
+          agent.lastActions[^1] == agent.cfg.actions.moveSouth and
+          agent.lastActions[^2] == agent.cfg.actions.moveNorth:
+          if agent.random.rand(1 .. 2) == 1:
+            log "Stuck prevention: north, south, north"
+            setAction(agent.cfg.actions.noop.int32)
+            return
+        elif action == agent.cfg.actions.moveSouth and
+          agent.lastActions[^1] == agent.cfg.actions.moveNorth and
+          agent.lastActions[^2] == agent.cfg.actions.moveSouth:
+          if agent.random.rand(1 .. 2) == 1:
+            log "Stuck prevention: south, north, south"
+            setAction(agent.cfg.actions.noop.int32)
+            return
+
+      setAction(action.int32)
 
     updateMap(agent, visible)
+    agent.steps += 1
+
+    # Track base infrastructure as soon as we see it and seed exploration around it
+    let assemblerNearbyNow = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+    if assemblerNearbyNow.isSome():
+      let asmLoc = assemblerNearbyNow.get()
+      agent.assemblerHome = some(asmLoc)
+      if not agent.seenAssembler:
+        agent.seenAssembler = true
+        let keyLocations = [
+          Location(x: -10, y: -10),
+          Location(x: -10, y: +10),
+          Location(x: +10, y: -10),
+          Location(x: +10, y: +10),
+          Location(x: -20, y: 0),
+          Location(x: +20, y: 0),
+          Location(x: 0, y: -20),
+          Location(x: 0, y: +20),
+        ]
+        for keyLocation in keyLocations:
+          let location = asmLoc + keyLocation
+          if location notin agent.exploreLocations:
+            agent.exploreLocations.add(location)
+
+    let chestNearbyNow = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+    if chestNearbyNow.isSome():
+      let chestLoc = chestNearbyNow.get()
+      agent.chestHome = some(chestLoc)
+      if not agent.seenChest:
+        agent.seenChest = true
+        let keyLocations = [
+          Location(x: -3, y: 0),
+          Location(x: 0, y: +3),
+          Location(x: +3, y: 0),
+          Location(x: 0, y: -3),
+          Location(x: -6, y: 0),
+          Location(x: 0, y: +6),
+          Location(x: +6, y: 0),
+          Location(x: 0, y: -6),
+        ]
+        for keyLocation in keyLocations:
+          let location = chestLoc + keyLocation
+          if location notin agent.exploreLocations:
+            agent.exploreLocations.add(location)
 
     let
       vibe = agent.cfg.getVibe(visible, Location(x: 0, y: 0))
@@ -342,11 +415,24 @@ proc step*(
       invModulator = agent.cfg.getInventory(visible, agent.cfg.features.invModulator)
       invResonator = agent.cfg.getInventory(visible, agent.cfg.features.invResonator)
       invScrambler = agent.cfg.getInventory(visible, agent.cfg.features.invScrambler)
+      completionPct = agent.cfg.getInventory(visible, agent.cfg.features.episodeCompletionPct)
+
+    var stepsRemaining = max(0, agent.maxSteps - agent.steps)
+    if completionPct > 0 and completionPct < 100:
+      # Estimate total steps from observed completion percentage.
+      let estTotal = int((agent.steps * 100) div completionPct)
+      stepsRemaining = max(0, estTotal - agent.steps)
 
     log &"vibe:{vibe} H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
     let activeRecipe = agent.getActiveRecipe()
     log "active recipe: " & $activeRecipe
+
+    # If only one resource is needed, make it the sole target to avoid wasted trips.
+    var numNeeded = 0
+    for cost in [activeRecipe.carbonCost, activeRecipe.oxygenCost, activeRecipe.germaniumCost, activeRecipe.siliconCost]:
+      if cost > 0:
+        inc numNeeded
 
     if activeRecipe.pattern.len > 0:
       # Split the cost evenly across the agents.
@@ -364,6 +450,86 @@ proc step*(
       agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost)
       agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost)
 
+    if numNeeded == 1:
+      # Only keep the required resource; zero out others so we don't waste time or dump it.
+      if activeRecipe.carbonCost > 0:
+        agent.oxygenTarget = 0
+        agent.germaniumTarget = 0
+        agent.siliconTarget = 0
+      elif activeRecipe.oxygenCost > 0:
+        agent.carbonTarget = 0
+        agent.germaniumTarget = 0
+        agent.siliconTarget = 0
+      elif activeRecipe.germaniumCost > 0:
+        agent.carbonTarget = 0
+        agent.oxygenTarget = 0
+        agent.siliconTarget = 0
+      elif activeRecipe.siliconCost > 0:
+        agent.carbonTarget = 0
+        agent.oxygenTarget = 0
+        agent.germaniumTarget = 0
+
+    # Vibe-check support: assign and enforce a required vibe from the assembler pattern.
+    proc actionForVibe(cfg: Config, v: int): Option[int] =
+      if v == cfg.vibes.default: return some(cfg.actions.vibeDefault)
+      if v == cfg.vibes.charger: return some(cfg.actions.vibeCharger)
+      if v == cfg.vibes.carbonA: return some(cfg.actions.vibeCarbonA)
+      if v == cfg.vibes.carbonB: return some(cfg.actions.vibeCarbonB)
+      if v == cfg.vibes.oxygenA: return some(cfg.actions.vibeOxygenA)
+      if v == cfg.vibes.oxygenB: return some(cfg.actions.vibeOxygenB)
+      if v == cfg.vibes.germaniumA: return some(cfg.actions.vibeGermaniumA)
+      if v == cfg.vibes.germaniumB: return some(cfg.actions.vibeGermaniumB)
+      if v == cfg.vibes.siliconA: return some(cfg.actions.vibeSiliconA)
+      if v == cfg.vibes.siliconB: return some(cfg.actions.vibeSiliconB)
+      if v == cfg.vibes.heartA: return some(cfg.actions.vibeHeartA)
+      if v == cfg.vibes.heartB: return some(cfg.actions.vibeHeartB)
+      if v == cfg.vibes.gear: return some(cfg.actions.vibeGear)
+      if v == cfg.vibes.assembler: return some(cfg.actions.vibeAssembler)
+      if v == cfg.vibes.chest: return some(cfg.actions.vibeChest)
+      if v == cfg.vibes.wall: return some(cfg.actions.vibeWall)
+      return none(int)
+
+    template markPatternReapply(v: int) =
+      if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and v != agent.assignedVibe.get():
+        agent.needsPatternReapply = true
+
+    if activeRecipe.pattern.len > 0:
+      # Assign required vibe: if more agents than vibes, duplicate the first vibe to keep full coverage.
+      var haveAssigned = false
+      if agent.assignedVibe.isSome():
+        for v in activeRecipe.pattern:
+          if v == agent.assignedVibe.get():
+            haveAssigned = true
+            break
+      if not haveAssigned:
+        let idx = if agent.agentId < activeRecipe.pattern.len: agent.agentId else: 0
+        agent.assignedVibe = some(activeRecipe.pattern[idx])
+
+      proc patternSatisfied(agent: RaceCarAgent): bool =
+        # Check if all required vibes are present around the assembler location we know.
+        if agent.assemblerHome.isNone():
+          return false
+        let asmLoc = agent.assemblerHome.get()
+        var seenVibes: HashSet[int]
+        for offset in Offsets8:
+          let loc = asmLoc + offset
+          let v = agent.cfg.getVibe(agent.map, loc)
+          if v != -1:
+            seenVibes.incl(v)
+        for v in activeRecipe.pattern:
+          if v notin seenVibes:
+            return false
+        return true
+
+      let desiredVibe = agent.assignedVibe.get()
+      if not patternSatisfied(agent) and (vibe != desiredVibe or agent.needsPatternReapply):
+        let vibeAction = actionForVibe(agent.cfg, desiredVibe)
+        if vibeAction.isSome():
+          doAction(vibeAction.get().int32)
+          log "setting vibe to match assembler pattern: " & $desiredVibe
+          agent.needsPatternReapply = false
+          return
+
     # Are we running low on energy?
     if invEnergy < MaxEnergy div 4:
       let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
@@ -376,8 +542,9 @@ proc step*(
           log "going to charger"
           return
 
-    # Charge opportunistically.
-    if invEnergy < MaxEnergy - 20:
+    # Charge opportunistically, with a slightly higher margin for hard energy maps.
+    let opportunisticMargin = if stepsRemaining < 200: MaxEnergy - 30 else: MaxEnergy - 20
+    if invEnergy < opportunisticMargin:
       let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
         if manhattan(agent.location, chargerNearby.get()) < 2:
@@ -403,6 +570,7 @@ proc step*(
       let depositVibe = agent.cfg.vibes.heartB
       if depositAction != 0 and vibe != depositVibe:
         doAction(depositAction.int32)
+        markPatternReapply(depositVibe)
         return
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
@@ -414,14 +582,15 @@ proc step*(
           log "going to chest"
           return
 
-    if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
-      # We have all the resources we need, so we can build a heart.
-      log "trying to build a heart"
+      if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
+        # We have all the resources we need, so we can build a heart.
+        log "trying to build a heart"
 
-      if vibe != agent.cfg.vibes.heartA:
-        doAction(agent.cfg.actions.vibeHeartA.int32)
-        log "vibing heart for assembler"
-        return
+        if vibe != agent.cfg.vibes.heartA:
+          doAction(agent.cfg.actions.vibeHeartA.int32)
+          markPatternReapply(agent.cfg.vibes.heartA)
+          log "vibing heart for assembler"
+          return
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
       if assemblerNearby.isSome():
@@ -439,11 +608,12 @@ proc step*(
     if atMaxInventory:
       log "at max inventory"
 
-    if atMaxInventory and invCarbon > avgResource and invCarbon > agent.carbonTarget + PutCarbonAmount:
+    if atMaxInventory and invCarbon > avgResource and invCarbon > agent.carbonTarget + PutCarbonAmount and agent.carbonTarget == 0:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.carbonB:
           doAction(agent.cfg.actions.vibeCarbonB.int32)
+          markPatternReapply(agent.cfg.vibes.carbonB)
           log "vibing carbon B to dump excess carbon"
           return
         measurePush("chest nearby excess carbon")
@@ -454,11 +624,12 @@ proc step*(
           log "going to chest to dump excess carbon"
           return
 
-    if atMaxInventory and invSilicon > avgResource and invSilicon > agent.siliconTarget + PutSiliconAmount:
+    if atMaxInventory and invSilicon > avgResource and invSilicon > agent.siliconTarget + PutSiliconAmount and agent.siliconTarget == 0:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.siliconB:
           doAction(agent.cfg.actions.vibeSiliconB.int32)
+          markPatternReapply(agent.cfg.vibes.siliconB)
           log "vibing silicon B to dump excess silicon"
           return
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
@@ -467,11 +638,12 @@ proc step*(
           log "going to chest to dump excess silicon"
           return
 
-    if atMaxInventory and invOxygen > avgResource and invOxygen > agent.oxygenTarget + PutOxygenAmount:
+    if atMaxInventory and invOxygen > avgResource and invOxygen > agent.oxygenTarget + PutOxygenAmount and agent.oxygenTarget == 0:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.oxygenB:
           doAction(agent.cfg.actions.vibeOxygenB.int32)
+          markPatternReapply(agent.cfg.vibes.oxygenB)
           log "vibing oxygen B to dump excess oxygen"
           return
         measurePush("chest nearby excess oxygen")
@@ -482,11 +654,12 @@ proc step*(
           log "going to chest to dump excess oxygen"
           return
 
-    if atMaxInventory and invGermanium > avgResource and invGermanium > agent.germaniumTarget + PutGermaniumAmount:
+    if atMaxInventory and invGermanium > avgResource and invGermanium > agent.germaniumTarget + PutGermaniumAmount and agent.germaniumTarget == 0:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.germaniumB:
           doAction(agent.cfg.actions.vibeGermaniumB.int32)
+          markPatternReapply(agent.cfg.vibes.germaniumB)
           log "vibing germanium B to dump excess germanium"
           return
         measurePush("chest nearby excess germanium")
@@ -497,8 +670,27 @@ proc step*(
           log "going to chest to dump excess germanium"
           return
 
+    # Distance-aware late return: aim to arrive before the episode ends.
+    if agent.assemblerHome.isSome():
+      let distAsm = manhattan(agent.location, agent.assemblerHome.get())
+      let buffer = 30
+      if stepsRemaining <= distAsm + buffer:
+        if invHeart > 0:
+          let target = if agent.chestHome.isSome(): agent.chestHome.get() else: agent.assemblerHome.get()
+          let action = agent.cfg.aStar(agent.location, target, agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "late return: delivering hearts"
+            return
+        elif invCarbon + invOxygen + invGermanium + invSilicon > 0:
+          let action = agent.cfg.aStar(agent.location, agent.assemblerHome.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "late return: heading to assembler with resources"
+            return
+
     proc findAndTakeResource(
-      agent: ThinkyAgent,
+      agent: RaceCarAgent,
       vibe: int,
       resource: int,
       target: int,
@@ -529,14 +721,20 @@ proc step*(
 
       # Check the carbon extractor.
       let extractorNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, extractorTag)
-      if extractorNearby.isSome():
+      if extractorNearby.isSome() and extractorNearby.get() notin agent.unreachable and extractorNearby.get() notin agent.depleted:
         measurePush("extractor nearby to take " & name)
         let action = agent.cfg.aStar(agent.location, extractorNearby.get(), agent.map)
         measurePop()
         if action.isSome():
           doAction(action.get().int32)
           log "going to " & name & ", need: " & $target & " have: " & $inventory
+          markPatternReapply(vibe)
+          # If we arrive and see it depleted, mark it.
+          if extractorNearby.get() in agent.depleted:
+            agent.unreachable.incl(extractorNearby.get())
           return true
+        else:
+          agent.unreachable.incl(extractorNearby.get())
 
     # Is there carbon nearby?
     if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
@@ -593,35 +791,6 @@ proc step*(
         "germanium"
       ):
         return
-
-    # Explore locations around the assembler.
-    block:
-      if not agent.seenAssembler:
-        let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
-        if assemblerNearby.isSome():
-          agent.seenAssembler = true
-          let keyLocations = [
-            Location(x: -10, y: -10),
-            Location(x: -10, y: +10),
-            Location(x: +10, y: -10),
-            Location(x: +10, y: +10),
-          ]
-          for keyLocation in keyLocations:
-            let location = assemblerNearby.get() + keyLocation
-            agent.exploreLocations.add(location)
-      if not agent.seenChest:
-        let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-        if chestNearby.isSome():
-          agent.seenChest = true
-          let keyLocations = [
-            Location(x: -3, y: 0),
-            Location(x: 0, y: +3),
-            Location(x: +3, y: 0),
-            Location(x: 0, y: -3),
-          ]
-          for keyLocation in keyLocations:
-            let location = chestNearby.get() + keyLocation
-            agent.exploreLocations.add(location)
 
     # Do Exploration.
     if agent.exploreLocations.len == 0:
@@ -685,15 +854,15 @@ proc step*(
     echo getCurrentExceptionMsg()
     quit()
 
-proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy =
+proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
   let cfg = parseConfig(environmentConfig)
-  var agents: seq[ThinkyAgent] = @[]
+  var agents: seq[RaceCarAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:
-    agents.add(newThinkyAgent(id, environmentConfig))
-  return ThinkyPolicy(agents: agents)
+    agents.add(newRaceCarAgent(id, environmentConfig))
+  return RaceCarPolicy(agents: agents)
 
 proc stepBatch*(
-    policy: ThinkyPolicy,
+    policy: RaceCarPolicy,
     agentIds: pointer,
     numAgentIds: int,
     numAgents: int,
