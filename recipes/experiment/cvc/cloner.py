@@ -328,7 +328,7 @@ def train(
                     mode="progress",
                     style="linear",
                     start_value=0.20,
-                    end_value=0.0,
+                    end_value=0.08,
                     start_agent_step=0,
                     end_agent_step=ssc_end_step,
                 ),
