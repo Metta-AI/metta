@@ -3,8 +3,7 @@
 Setup script for tribal-village that builds the Nim shared library.
 """
 
-import shutil
-import subprocess
+from importlib import util
 from pathlib import Path
 
 from setuptools import setup
@@ -13,62 +12,26 @@ from setuptools.command.develop import develop
 from setuptools.command.install import install
 
 
+def _load_build_helpers():
+    """Load tribal_village_env.build without mutating sys.path."""
+    project_root = Path(__file__).parent
+    build_path = project_root / "tribal_village_env" / "build.py"
+    spec = util.spec_from_file_location("tribal_village_env.build", build_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load build helpers from {build_path}")
+    module = util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[attr-defined]
+    return module.ensure_nim_library_current
+
+
 class BuildNimLibrary:
     """Mixin class to build the Nim shared library."""
 
     def build_nim_library(self):
-        """Build the Nim shared library using build_lib.sh"""
-        print("Building Nim shared library...")
-
-        # Get the project root directory
-        project_root = Path(__file__).parent
-        build_script = project_root / "build_lib.sh"
-
-        # If a prebuilt library is already present, skip rebuilding.
-        prebuilt = None
-        for ext in (".so", ".dylib", ".dll"):
-            candidate = project_root / f"libtribal_village{ext}"
-            if candidate.exists():
-                prebuilt = candidate
-                break
-
-        if prebuilt is not None:
-            print(f"Using existing Nim library at {prebuilt}")
-        elif build_script.exists():
-            # Run custom build script if provided
-            result = subprocess.run(["bash", str(build_script)], cwd=project_root, capture_output=True, text=True)
-
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to build Nim library: {result.stderr}")
-        else:
-            # Fall back to Nimble build if script is absent
-            result = subprocess.run(["nimble", "buildLib"], cwd=project_root, capture_output=True, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(
-                    f"Failed to build Nim library with Nimble. stdout: {result.stdout}\nstderr: {result.stderr}"
-                )
-
-        # Copy the built library to the Python package directory
-        lib_file = prebuilt
-        if lib_file is None:
-            for ext in (".so", ".dylib", ".dll"):
-                candidate = project_root / f"libtribal_village{ext}"
-                if candidate.exists():
-                    lib_file = candidate
-                    break
-
-        if lib_file is None:
-            raise RuntimeError("Nim library was not created by build step")
-
-        package_dir = project_root / "tribal_village_env"
-        target_name = "libtribal_village.so"
-        if lib_file.suffix == ".dylib":
-            target_name = "libtribal_village.dylib"
-        elif lib_file.suffix == ".dll":
-            target_name = "libtribal_village.dll"
-
-        shutil.copy2(lib_file, package_dir / target_name)
-        print(f"Copied {lib_file} to {package_dir / target_name}")
+        """Build or refresh the Nim shared library using nimby + nim."""
+        print("Building Nim shared library via nimby...")
+        ensure_nim_library_current = _load_build_helpers()
+        ensure_nim_library_current(verbose=True)
 
 
 class CustomBuildPy(build_py, BuildNimLibrary):
