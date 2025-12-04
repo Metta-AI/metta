@@ -65,12 +65,12 @@ class RegretTracker:
     def track_task_creation(self, task_id: int) -> None:
         """Track when a task is created."""
         timestamp = time.time()
-        # Initial regret assumes no knowledge, so use optimal_value as initial regret
-        initial_regret = self.optimal_value
+        # Initialize with 0 regret - will be updated with first actual observation
+        initial_regret = 0.0
         self._task_regret[task_id] = (timestamp, 0, 0.0, initial_regret, initial_regret)
 
-        # Initialize EMAs with high initial regret
-        self._regret_ema[task_id] = (initial_regret, initial_regret, 0)
+        # Initialize EMAs with 0 - will be set to first actual regret on first update
+        self._regret_ema[task_id] = (0.0, 0.0, 0)
 
         self._task_creation_order.append((timestamp, task_id))
 
@@ -107,8 +107,12 @@ class RegretTracker:
         new_total_regret = total_regret + regret
 
         # Update EMA regret
-        alpha = min(1.0, self.regret_ema_timescale * (new_completion_count + 1))
-        new_ema_regret = (1 - alpha) * old_ema_regret + alpha * regret
+        if completion_count == 0:
+            # First observation - initialize EMA with actual value
+            new_ema_regret = regret
+        else:
+            alpha = min(1.0, self.regret_ema_timescale * new_completion_count)
+            new_ema_regret = (1 - alpha) * old_ema_regret + alpha * regret
 
         self._task_regret[task_id] = (
             creation_time,
@@ -132,6 +136,11 @@ class RegretTracker:
             return
 
         fast_ema, slow_ema, num_updates = self._regret_ema[task_id]
+
+        # First update after initialization - set both to first value
+        if num_updates == 0:
+            self._regret_ema[task_id] = (regret, regret, 1)
+            return
 
         # Fast EMA tracks recent regret changes
         fast_alpha = self.regret_ema_timescale
