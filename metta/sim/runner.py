@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Callable, Sequence
@@ -12,6 +13,29 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 
 logger = logging.getLogger(__name__)
+
+
+def _is_cuda_device(device: object | None) -> bool:
+    """Return True if the provided device description targets CUDA."""
+
+    if device is None:
+        return False
+    if isinstance(device, str):
+        return device.lower().startswith("cuda")
+    device_type = getattr(device, "type", None)
+    if isinstance(device_type, str):
+        return device_type.lower() == "cuda"
+    return False
+
+
+def _needs_spawn_context(policy_specs: Sequence[PolicySpec]) -> bool:
+    """Check whether any policy will initialize CUDA and thus require spawn workers."""
+
+    for spec in policy_specs:
+        init_kwargs = spec.init_kwargs or {}
+        if _is_cuda_device(init_kwargs.get("device")):
+            return True
+    return False
 
 
 def _run_single_simulation(
@@ -94,7 +118,7 @@ def run_simulations(
                 env_cfg=simulation.env,
                 policies=multi_agent_policies,
                 episodes=simulation.num_episodes,
-                seed=seed,
+                seed=seed + i,
                 proportions=proportions,
                 save_replay=replay_dir,
                 # TODO: support this if and only if we also reflect that it happened in results
@@ -120,7 +144,14 @@ def run_simulations(
     policy_payloads = [spec.model_dump(mode="json") for spec in policy_specs]
 
     on_progress(f"Launching {len(simulations)} eval rollouts with up to {max_workers} workers")
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+
+    mp_context = None
+    if _needs_spawn_context(policy_specs):
+        # PyTorch cannot safely reinitialize CUDA in forked workers; spawn avoids inheriting state.
+        mp_context = multiprocessing.get_context("spawn")
+        logger.debug("Using spawn multiprocessing context to isolate CUDA evaluators")
+
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_context) as executor:
         future_to_idx = {
             executor.submit(
                 _run_single_simulation,
