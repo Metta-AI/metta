@@ -32,7 +32,7 @@ class FileSchemeResolver(SchemeResolver):
         return "file"
 
     def matches_scheme(self, uri: str) -> bool:
-        return uri.startswith("file://") or "://" not in uri
+        return uri.startswith("file://")
 
     def parse(self, uri: str) -> ParsedScheme:
         if uri.startswith("file://"):
@@ -191,48 +191,52 @@ class MockSchemeResolver(SchemeResolver):
         return ParsedScheme(raw=uri, scheme=self.scheme, canonical=canonical, path=path)
 
 
-SCHEME_RESOLVERS: dict[str, str] = {
-    "file": "mettagrid.util.uri_resolvers.schemes.FileSchemeResolver",
-    "s3": "mettagrid.util.uri_resolvers.schemes.S3SchemeResolver",
-    "http": "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
-    "https": "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
-    "mock": "mettagrid.util.uri_resolvers.schemes.MockSchemeResolver",
-    "metta": "metta.rl.metta_scheme_resolver.MettaSchemeResolver",
-}
+_SCHEME_RESOLVERS: list[str] = [
+    "mettagrid.util.uri_resolvers.schemes.FileSchemeResolver",
+    "mettagrid.util.uri_resolvers.schemes.S3SchemeResolver",
+    "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
+    "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
+    "mettagrid.util.uri_resolvers.schemes.MockSchemeResolver",
+    "metta.rl.metta_scheme_resolver.MettaSchemeResolver",
+]
 
 
-def _get_resolver(uri: str) -> SchemeResolver:
+def _get_resolver(uri: str, default_scheme: str | None = "file") -> SchemeResolver | None:
     if not uri:
         raise ValueError("URI cannot be empty")
 
-    for resolver_path in SCHEME_RESOLVERS.values():
+    if default_scheme and "://" not in uri:
+        uri = f"{default_scheme}://{uri}"
+
+    for resolver_path in _SCHEME_RESOLVERS:
         resolver_class: type[SchemeResolver] | None = load_symbol(resolver_path, strict=False)  # type: ignore[assignment]
         if resolver_class and resolver_class().matches_scheme(uri):
             return resolver_class()
-
-    scheme = uri.split("://", 1)[0] if "://" in uri else None
-    raise ValueError(f"Unsupported URI scheme: {scheme}://" if scheme else f"No resolver found for URI: {uri}")
+    return None
 
 
 @overload
-def parse_uri(uri: str, allow_none: Literal[False] = ...) -> ParsedScheme: ...
+def parse_uri(uri: str, allow_none: Literal[False], **kwargs) -> ParsedScheme: ...
 @overload
-def parse_uri(uri: str, allow_none: Literal[True]) -> ParsedScheme | None: ...
+def parse_uri(uri: str, allow_none: Literal[True], **kwargs) -> ParsedScheme | None: ...
 @overload
-def parse_uri(uri: str, allow_none: bool) -> ParsedScheme | None: ...
+def parse_uri(uri: str, allow_none: bool, **kwargs) -> ParsedScheme | None: ...
 
 
-def parse_uri(uri: str, allow_none: bool = False) -> ParsedScheme | None:
-    resolver = _get_resolver(uri)
-    if resolver:
-        return resolver.parse(uri)
-    if allow_none:
-        return None
-    raise ValueError(f"Unsupported URI: {uri}")
+def parse_uri(uri: str, allow_none: bool = False, **kwargs) -> ParsedScheme | None:
+    resolver = _get_resolver(uri, **kwargs)
+    if resolver is None:
+        if allow_none:
+            return None
+        raise ValueError("Invalid URI")
+    return resolver.parse(uri)
 
 
 def resolve_uri(uri: str) -> str:
-    return _get_resolver(uri).get_path_to_policy_spec_or_mpt(uri)
+    resolver = _get_resolver(uri)
+    if not resolver:
+        raise ValueError("Unsupported URI")
+    return resolver.get_path_to_policy_spec_or_mpt(uri)
 
 
 def checkpoint_filename(run_name: str, epoch: int) -> str:
@@ -241,7 +245,7 @@ def checkpoint_filename(run_name: str, epoch: int) -> str:
 
 def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
     resolved = resolve_uri(uri)
-    parsed = parse_uri(resolved)
+    parsed = parse_uri(resolved, allow_none=False)
     info = parsed.checkpoint_info
     if not info:
         raise ValueError(f"Could not extract checkpoint metadata from {uri}")

@@ -141,18 +141,12 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
 
     if len(entries):
         first_entry = entries[0]
-        if (parsed := parse_uri(raw, allow_none=False)) and parsed.scheme in ("metta", "s3"):
+        if parse_uri(raw, allow_none=True, default_scheme=None):
             s = policy_spec_from_uri(first_entry)
             class_path = s.class_path
             init_kwargs = s.init_kwargs
             data_path = s.data_path
             entries = entries[1:]
-
-    if not entries:
-        raise ValueError(
-            "Policy specification must use comma-separated key=value pairs "
-            "(e.g., class=stateless,data=train_dir/model.pt,proportion=0.5)."
-        )
 
     for entry in entries:
         if "=" not in entry:
