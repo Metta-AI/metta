@@ -311,6 +311,7 @@ def train(
     bc_steps: Optional[int] = None,
     use_lp: bool = True,
     maps_cache_size: Optional[int] = 50,
+    stats_server_uri: Optional[str] = None,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -372,7 +373,7 @@ def train(
         if bc_policy_uri is not None:
             raise ValueError("Cannot specify both bc_policy_uri and policy_version_id")
 
-        api_url = auto_stats_server_uri()
+        api_url = stats_server_uri or auto_stats_server_uri()
         if api_url is None:
             raise ValueError("stats_server_uri is required when using policy_version_id (set STATS_SERVER_URI env var)")
 
