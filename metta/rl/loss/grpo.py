@@ -43,17 +43,8 @@ class GRPOConfig(LossConfig):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "GRPO":
-        """Points to the GRPO class for initialization."""
-        return GRPO(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return GRPO(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class GRPO(Loss):
@@ -78,9 +69,9 @@ class GRPO(Loss):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "GRPOConfig",
     ) -> None:
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.burn_in_steps = 0
         if hasattr(self.policy, "burn_in_steps"):

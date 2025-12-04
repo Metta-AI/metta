@@ -109,8 +109,10 @@ def log_training_progress(
     else:
         steps_per_sec = train_pct = rollout_pct = stats_pct = 0.0
 
-    heart_value = metrics.get("env_agent/heart.created.avg", metrics.get("env_agent/heart.created", 0.0))
-    heart_rate = metrics.get("env_agent/heart.created.rate")
+    heart_value = metrics.get(
+        "env_game/assembler.heart.created.avg", metrics.get("env_game/assembler.heart.created", 0.0)
+    )
+    heart_rate = metrics.get("env_game/assembler.heart.created.rate")
 
     if should_use_rich_console():
         log_rich_progress(
