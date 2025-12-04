@@ -109,7 +109,6 @@ def load_policy(
 ):
     device = device or torch.device("cpu")
 
-    # TODO: clean this up
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
         policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))

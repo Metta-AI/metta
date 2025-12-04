@@ -294,14 +294,13 @@ def train(
 
     if bc_policy_uri is not None:
         ssc_end_step = 300_000_000  # 1_000_000_000
-        losses = trainer_cfg.losses
-        losses.sliced_scripted_cloner.enabled = True
-        losses.ppo_critic.sample_enabled = False
-        losses.ppo_critic.train_forward_enabled = False
-        losses.ppo_critic.deferred_training_start_step = ssc_end_step
+        trainer_cfg.losses.sliced_scripted_cloner.enabled = True
+        trainer_cfg.losses.ppo_critic.sample_enabled = False
+        trainer_cfg.losses.ppo_critic.train_forward_enabled = False
+        trainer_cfg.losses.ppo_critic.deferred_training_start_step = ssc_end_step
 
         # reduce entropy
-        losses.ppo_actor.ent_coef = 0.002
+        trainer_cfg.losses.ppo_actor.ent_coef = 0.002
 
         scheduler = SchedulerConfig(
             run_gates=[
@@ -344,11 +343,9 @@ def train(
         evaluate_local=False,
     )
 
-    training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum, supervisor_policy_uri=bc_policy_uri)
-
     return TrainTool(
         trainer=trainer_cfg,
-        training_env=training_env_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum, supervisor_policy_uri=bc_policy_uri),
         evaluator=evaluator_cfg,
         policy_architecture=ViTSize2Config(),
         scheduler=scheduler,
