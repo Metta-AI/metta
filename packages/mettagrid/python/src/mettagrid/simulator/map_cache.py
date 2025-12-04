@@ -100,32 +100,6 @@ class SharedMapCache:
             _maps_per_key = maps_per_key
         self._shm_registry: dict[str, shared_memory.SharedMemory] = {}
 
-    def _untrack_shared_memory(self, shm: shared_memory.SharedMemory) -> None:
-        """Prevent multiprocessing resource tracker from unlinking our SHM blocks.
-
-        When processes attach to existing SharedMemory, they register it with the
-        resource_tracker, which will unlink it on process exit. We manage lifetime
-        explicitly, so unregister to avoid cache entries going stale.
-        """
-        if resource_tracker is None:
-            return
-        rt = getattr(resource_tracker, "_resource_tracker", None)
-        if rt is None:
-            return
-        cache = getattr(rt, "_cache", None)
-        if cache is None:
-            return
-        tracked = cache.get("shared_memory")
-        if not tracked:
-            return
-        name = shm._name
-        if name not in tracked:
-            return
-        try:
-            resource_tracker.unregister(name, "shared_memory")  # type: ignore[attr-defined]
-        except Exception:
-            pass
-
     def start(self) -> None:
         """Start the shared cache (no-op, registry is file-based)."""
         _get_registry_file()
@@ -319,27 +293,23 @@ class SharedMapCache:
         # Create new shared memory block
         # Handle case where shared memory already exists (e.g., from previous test run or process)
         try:
-            shm = shared_memory.SharedMemory(name=shm_name, create=True, size=nbytes)
+            shm = shared_memory.SharedMemory(name=shm_name, create=True, size=nbytes, track=False)
             self._shm_registry[shm_name] = shm
-            self._untrack_shared_memory(shm)
         except FileExistsError:
             # Shared memory exists but not in our registry - try to unlink it
             try:
-                existing_shm = shared_memory.SharedMemory(name=shm_name, create=False)
-                self._untrack_shared_memory(existing_shm)
+                existing_shm = shared_memory.SharedMemory(name=shm_name, create=False, track=False)
                 existing_shm.close()
                 existing_shm.unlink()
                 logger.debug(f"Unlinked existing shared memory {shm_name} before recreating")
                 # Retry creating after unlinking
-                shm = shared_memory.SharedMemory(name=shm_name, create=True, size=nbytes)
+                shm = shared_memory.SharedMemory(name=shm_name, create=True, size=nbytes, track=False)
                 self._shm_registry[shm_name] = shm
-                self._untrack_shared_memory(shm)
             except Exception:
                 # If unlink fails, try to use the existing shared memory (might be valid)
                 logger.warning(f"Could not unlink existing shared memory {shm_name}, attempting to reuse")
                 try:
-                    existing_shm = shared_memory.SharedMemory(name=shm_name, create=False)
-                    self._untrack_shared_memory(existing_shm)
+                    existing_shm = shared_memory.SharedMemory(name=shm_name, create=False, track=False)
                     # Check if size matches
                     if existing_shm.size == nbytes:
                         shm = existing_shm
@@ -349,9 +319,8 @@ class SharedMapCache:
                         # Size mismatch - force unlink and recreate
                         existing_shm.close()
                         existing_shm.unlink()
-                        shm = shared_memory.SharedMemory(name=shm_name, create=True, size=nbytes)
+                        shm = shared_memory.SharedMemory(name=shm_name, create=True, size=nbytes, track=False)
                         self._shm_registry[shm_name] = shm
-                        self._untrack_shared_memory(shm)
                         logger.debug(f"Recreated shared memory {shm_name} due to size mismatch")
                 except Exception as cleanup_err:
                     # Last resort: raise the original FileExistsError
@@ -380,9 +349,8 @@ class SharedMapCache:
         # Get or create shared memory handle
         if shm_name not in self._shm_registry:
             try:
-                shm = shared_memory.SharedMemory(name=shm_name, create=False)
+                shm = shared_memory.SharedMemory(name=shm_name, create=False, track=False)
                 self._shm_registry[shm_name] = shm
-                self._untrack_shared_memory(shm)
             except (FileNotFoundError, PermissionError, OSError):
                 # Shared memory errors should crash the process - don't catch and retry
                 # Clean up registry entry first, then re-raise
