@@ -1,5 +1,6 @@
 "use client";
-import { type FC, useEffect, useRef } from "react";
+import { type FC, useMemo } from "react";
+import Select, { type InputActionMeta, type SingleValue } from "react-select";
 
 type Mode = "edit" | "view";
 
@@ -17,6 +18,12 @@ type Props = {
   onModeChange?: (mode: Mode) => void;
 };
 
+type OptionType = {
+  value: string;
+  label: string;
+  href: string | undefined;
+};
+
 export const EditableTextNode: FC<Props> = ({
   text,
   mode,
@@ -25,90 +32,72 @@ export const EditableTextNode: FC<Props> = ({
   onModeChange,
   onChange,
 }) => {
-  const textNodeRef = useRef<HTMLSpanElement>(null);
-  const originalTextRef = useRef<string>(text);
-  const blurTimeoutRef = useRef<NodeJS.Timeout>(null);
+  const options = useMemo(() => {
+    return suggestions?.map((s) => ({
+      value: s.text,
+      label: s.text,
+      href: s.hyperlink,
+    }));
+  }, [suggestions]);
 
-  useEffect(() => {
-    if (mode === "view" && blurTimeoutRef.current) {
-      clearTimeout(blurTimeoutRef.current);
-      blurTimeoutRef.current = null;
-    }
+  const selectedOption = useMemo(() => {
+    return options?.find((option) => option.value === text);
+  }, [text, options]);
 
-    if (mode === "edit" && textNodeRef.current) {
-      textNodeRef.current.focus();
-      // Move cursor to the end.
-      const range = document.createRange();
-      range.selectNodeContents(textNodeRef.current);
-      range.collapse(false);
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      sel?.addRange(range);
-    }
-  }, [mode]);
-
-  function reset() {
-    onModeChange?.("view");
-    if (textNodeRef.current) {
-      textNodeRef.current.innerText = originalTextRef.current;
-      onChange?.(originalTextRef.current);
+  function onInputChange(inputValue: string, actionMeta: InputActionMeta) {
+    if (actionMeta.action === "input-change") {
+      onChange?.(inputValue);
     }
   }
 
-  function handleBlur() {
-    blurTimeoutRef.current = setTimeout(reset, 100);
-  }
+  function onOptionSelect(selectedOption: SingleValue<OptionType>) {
+    if (selectedOption) {
+      onChange?.(selectedOption.value);
 
-  function handleSuggestionClick() {
-    if (blurTimeoutRef.current) {
-      clearTimeout(blurTimeoutRef.current);
-      blurTimeoutRef.current = null;
+      if (selectedOption.href) {
+        window.location.href = selectedOption.href;
+      }
     }
   }
 
-  return (
-    <span className="relative inline-block">
-      <span
-        ref={textNodeRef}
-        contentEditable={mode === "edit" ? "plaintext-only" : "false"}
-        className="relative"
-        suppressContentEditableWarning={true}
-        onBlur={handleBlur}
-        onInput={(e) => onChange?.((e.target as HTMLElement).innerText)}
-      >
-        {mode === "view" && href ? (
-          <a href={href} className="hover:underline">
-            {text}
-          </a>
-        ) : (
-          text
-        )}
+  if (mode === "edit") {
+    return (
+      <span className="inline-block">
+        <Select
+          autoFocus
+          isSearchable
+          options={options}
+          styles={{
+            menu: (base) => ({
+              ...base,
+              minWidth: "450px",
+            }),
+            option: (_, props) => ({
+              fontSize: "1rem",
+              fontWeight: "normal",
+              fontFamily: "monospace",
+              padding: "3px",
+              cursor: "pointer",
+              backgroundColor: props.isFocused ? "#e5e7eb" : "white",
+            }),
+          }}
+          value={selectedOption}
+          onInputChange={onInputChange}
+          onChange={onOptionSelect}
+          onBlur={() => onModeChange?.("view")}
+          placeholder={text}
+        />
       </span>
+    );
+  }
 
-      {mode === "edit" && suggestions && suggestions.length > 0 && (
-        <div className="absolute top-10 left-0 z-10 h-64 w-fit overflow-y-scroll border border-gray-300 bg-white p-4 py-1 text-xs text-gray-600 shadow-sm">
-          {suggestions && suggestions.length > 0 ? (
-            <div className="flex flex-col">
-              {suggestions.map((s) => (
-                <a
-                  key={s.text}
-                  title={s.text}
-                  className="truncate rounded p-1 hover:bg-gray-200"
-                  href={s.hyperlink}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSuggestionClick();
-                  }}
-                >
-                  {s.text}
-                </a>
-              ))}
-            </div>
-          ) : (
-            <div>No results.</div>
-          )}
-        </div>
-      )}
-    </span>
-  );
+  if (href) {
+    return (
+      <a href={href} className="hover:underline">
+        {text}
+      </a>
+    );
+  }
+
+  return <span onClick={() => onModeChange?.("edit")}>{text}</span>;
 };
