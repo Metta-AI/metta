@@ -68,15 +68,18 @@ class SimTaskExecutor(AbstractTaskExecutor):
         cmd: list[str],
         capture_output: bool = True,
     ) -> subprocess.CompletedProcess:
-        """Run a command from the versioned checkout with a clean environment."""
+        """Run a command from the versioned checkout with a clean environment.
+
+        When capture_output=True, output is both streamed to stdout and captured for later use.
+        """
         env = os.environ.copy()
         for key in ["PYTHONPATH", "UV_PROJECT", "UV_PROJECT_ENVIRONMENT"]:
             env.pop(key, None)
         env["DISABLE_RICH_LOGGING"] = "1"
 
         if capture_output:
-            # Redirect stderr to stdout to get chronologically interspersed output (like 2>&1)
-            result = subprocess.run(
+            # Stream output to stdout while also capturing it
+            process = subprocess.Popen(
                 cmd,
                 cwd=self._workdir,
                 stdout=subprocess.PIPE,
@@ -84,15 +87,27 @@ class SimTaskExecutor(AbstractTaskExecutor):
                 text=True,
                 env=env,
             )
+
+            output_lines: list[str] = []
+            for line in process.stdout:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+                output_lines.append(line)
+
+            process.wait()
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=process.returncode,
+                stdout="".join(output_lines),
+                stderr=None,
+            )
         else:
-            result = subprocess.run(
+            return subprocess.run(
                 cmd,
                 cwd=self._workdir,
                 text=True,
                 env=env,
             )
-
-        return result
 
     def _run_setup_cmd(self, cmd: list[str]) -> None:
         result = self._run_cmd_workdir(cmd, capture_output=False)
