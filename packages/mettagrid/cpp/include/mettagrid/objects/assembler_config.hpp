@@ -17,9 +17,11 @@ struct AssemblerConfig : public GridObjectConfig {
   AssemblerConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
       : GridObjectConfig(type_id, type_name, initial_vibe),
         allow_partial_usage(false),
-        max_uses(0),             // 0 means unlimited uses
-        clip_immune(false),      // Not immune by default
-        start_clipped(false) {}  // Not clipped at start by default
+        max_uses(0),           // 0 means unlimited uses
+        clip_immune(false),    // Not immune by default
+        start_clipped(false),  // Not clipped at start by default
+        chest_radius(0),       // 0 means no chest resource usage
+        agent_cooldown(0) {}   // 0 means no per-agent cooldown
 
   // List of protocols - GroupVibe keys will be calculated from each protocol's vibes vector
   std::vector<std::shared_ptr<Protocol>> protocols;
@@ -34,6 +36,12 @@ struct AssemblerConfig : public GridObjectConfig {
 
   // Start clipped - if true, this assembler starts in a clipped state
   bool start_clipped;
+
+  // Chest radius - radius to search for chests to use resources from when crafting (0 = disabled)
+  unsigned int chest_radius;
+
+  // Per-agent cooldown - ticks before the same agent can use this assembler again (0 = disabled)
+  unsigned int agent_cooldown;
 };
 
 namespace py = pybind11;
@@ -52,6 +60,8 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("max_uses", &AssemblerConfig::max_uses)
       .def_readwrite("clip_immune", &AssemblerConfig::clip_immune)
       .def_readwrite("start_clipped", &AssemblerConfig::start_clipped)
+      .def_readwrite("chest_radius", &AssemblerConfig::chest_radius)
+      .def_readwrite("agent_cooldown", &AssemblerConfig::agent_cooldown)
       .def_readwrite("initial_vibe", &AssemblerConfig::initial_vibe);
 }
 

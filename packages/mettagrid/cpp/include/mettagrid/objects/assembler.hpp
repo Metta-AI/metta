@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -20,6 +21,7 @@
 #include "systems/observation_encoder.hpp"
 #include "systems/stats_tracker.hpp"
 
+class Chest;
 class Clipper;
 
 class Assembler : public GridObject, public Usable {
@@ -41,6 +43,9 @@ private:
 
     return positions;
   }
+
+  // Get all chests within the chest_radius
+  std::vector<Chest*> get_chests_in_radius() const;
 
   // Get surrounding agents in upper-left-to-lower-right order starting from the given agent's position
   std::vector<Agent*> get_surrounding_agents(const Agent* starting_agent) const {
@@ -89,21 +94,11 @@ private:
     return agents;
   }
 
-  // Check if agents have sufficient resources for the given protocol
-  bool static can_afford_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
-    std::unordered_map<InventoryItem, InventoryQuantity> total_resources;
-    for (Agent* agent : surrounding_agents) {
-      for (const auto& [item, amount] : agent->inventory.get()) {
-        total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
-      }
-    }
-    for (const auto& [item, required_amount] : protocol.input_resources) {
-      if (total_resources[item] < required_amount) {
-        return false;
-      }
-    }
-    return true;
-  }
+  // Check if agents and chests have sufficient resources for the given protocol
+  static bool can_afford_protocol(const Protocol& protocol,
+                                  const std::vector<Agent*>& surrounding_agents,
+                                  const std::vector<Chest*>& chests = {},
+                                  float cost_multiplier = 1.0f);
 
   // Check if surrounding agents can receive output from the given protocol
   // Returns true if either (a) the protocol has no output, or (b) the surrounding agents
@@ -167,18 +162,12 @@ private:
   }
 
 public:
-  // Consume resources from surrounding agents for the given protocol
+  // Consume resources from surrounding agents and chests for the given protocol
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
-  void static consume_resources_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
-    std::vector<HasInventory*> agents_as_inventory_havers;
-    for (Agent* agent : surrounding_agents) {
-      agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
-    }
-    for (const auto& [item, required_amount] : protocol.input_resources) {
-      InventoryDelta consumed = HasInventory::shared_update(agents_as_inventory_havers, item, -required_amount);
-      assert(consumed == -required_amount && "Expected all required resources to be consumed");
-    }
-  }
+  static void consume_resources_for_protocol(const Protocol& protocol,
+                                             const std::vector<Agent*>& surrounding_agents,
+                                             const std::vector<Chest*>& chests = {},
+                                             float cost_multiplier = 1.0f);
 
   // Protocol lookup table for protocols that depend on agents vibing- keyed by local vibe (64-bit number from sorted
   // vibes). Later, this may be switched to having string keys based on the vibes.
@@ -222,6 +211,15 @@ public:
   // Allow partial usage during cooldown
   bool allow_partial_usage;
 
+  // Chest radius - radius to search for chests to use resources from when crafting
+  unsigned int chest_radius;
+
+  // Per-agent cooldown - ticks before the same agent can use this assembler again
+  unsigned int agent_cooldown;
+
+  // Last assembly tick per agent (indexed by agent_id, 0 means never used)
+  std::vector<unsigned int> agent_last_use_tick;
+
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg, StatsTracker* stats)
       : protocols(build_protocol_map(cfg.protocols)),
         unclip_protocols(),
@@ -237,6 +235,8 @@ public:
         current_timestep_ptr(nullptr),
         obs_encoder(nullptr),
         allow_partial_usage(cfg.allow_partial_usage),
+        chest_radius(cfg.chest_radius),
+        agent_cooldown(cfg.agent_cooldown),
         clipper_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
   }
@@ -255,6 +255,11 @@ public:
   // Set observation encoder for protocol feature ID lookup
   void set_obs_encoder(const class ObservationEncoder* encoder) {
     this->obs_encoder = encoder;
+  }
+
+  // Initialize the per-agent tracking array (call after knowing num_agents)
+  void init_agent_tracking(unsigned int num_agents) {
+    agent_last_use_tick.resize(num_agents, 0);
   }
 
   // Get the remaining cooldown duration in ticks (0 when ready for use)
@@ -404,6 +409,14 @@ public:
       return false;
     }
 
+    // Check per-agent cooldown
+    if (agent_cooldown > 0 && actor.agent_id < agent_last_use_tick.size()) {
+      unsigned int last_use = agent_last_use_tick[actor.agent_id];
+      if (last_use > 0 && *current_timestep_ptr < last_use + agent_cooldown) {
+        return false;
+      }
+    }
+
     // Check if on cooldown and whether partial usage is allowed
     unsigned int remaining = cooldown_remaining();
     if (remaining > 0 && !allow_partial_usage) {
@@ -432,7 +445,12 @@ public:
     }
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
-    if (!Assembler::can_afford_protocol(protocol_to_use, surrounding_agents)) {
+    std::vector<Chest*> chests = get_chests_in_radius();
+
+    // Calculate cost multiplier from inflation/sigmoid
+    float cost_multiplier = original_protocol->get_cost_multiplier();
+
+    if (!Assembler::can_afford_protocol(protocol_to_use, surrounding_agents, chests, cost_multiplier)) {
       return false;
     }
     if (!Assembler::can_receive_output(protocol_to_use, surrounding_agents) && !is_clipped) {
@@ -440,7 +458,7 @@ public:
       return false;
     }
 
-    consume_resources_for_protocol(protocol_to_use, surrounding_agents);
+    consume_resources_for_protocol(protocol_to_use, surrounding_agents, chests, cost_multiplier);
     give_output_for_protocol(protocol_to_use, surrounding_agents);
 
     cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown);
@@ -451,16 +469,39 @@ public:
       become_unclipped();
     } else {
       uses_count++;
+      // Increment protocol activation count for inflation tracking
+      original_protocol->activation_count++;
     }
+
+    // Update per-agent last use tick
+    if (actor.agent_id < agent_last_use_tick.size()) {
+      agent_last_use_tick[actor.agent_id] = *current_timestep_ptr;
+    }
+
     return true;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  virtual std::vector<PartialObservationToken> obs_features(unsigned int observer_agent_id = UINT_MAX) const override {
     std::vector<PartialObservationToken> features;
 
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
       features.push_back({ObservationFeature::CooldownRemaining, static_cast<ObservationType>(remaining)});
+    }
+
+    // Add per-agent cooldown remaining if agent_cooldown is configured and observer is known
+    if (agent_cooldown > 0 && observer_agent_id != UINT_MAX && current_timestep_ptr &&
+        observer_agent_id < agent_last_use_tick.size()) {
+      unsigned int last_use = agent_last_use_tick[observer_agent_id];
+      unsigned int agent_cooldown_end = last_use + agent_cooldown;
+      unsigned int agent_remaining = 0;
+      if (last_use > 0 && *current_timestep_ptr < agent_cooldown_end) {
+        agent_remaining = agent_cooldown_end - *current_timestep_ptr;
+      }
+      agent_remaining = std::min(agent_remaining, 255u);  // Cap at 255 for observation
+      if (agent_remaining > 0) {
+        features.push_back({ObservationFeature::AgentCooldownRemaining, static_cast<ObservationType>(agent_remaining)});
+      }
     }
 
     // Add clipped status to observations if clipped
@@ -479,14 +520,23 @@ public:
     if (this->obs_encoder && this->obs_encoder->protocol_details_obs) {
       const Protocol* current_protocol = get_current_protocol();
       if (current_protocol) {
-        // Add protocol inputs (input:resource) - only non-zero values
-        for (const auto& [item, amount] : current_protocol->input_resources) {
-          if (amount > 0) {
-            features.push_back({obs_encoder->get_input_feature_id(item), static_cast<ObservationType>(amount)});
+        // Get cost multiplier (applies discount/inflation)
+        float cost_multiplier = current_protocol->get_cost_multiplier();
+
+        // Add protocol inputs (input:resource) with cost multiplier applied - only non-zero values
+        for (const auto& [item, base_amount] : current_protocol->input_resources) {
+          if (base_amount > 0) {
+            // Apply cost multiplier and round to nearest
+            InventoryQuantity actual_cost =
+                static_cast<InventoryQuantity>(std::round(static_cast<float>(base_amount) * cost_multiplier));
+            actual_cost = std::min(actual_cost, static_cast<InventoryQuantity>(255));  // Cap at 255 for observation
+            if (actual_cost > 0) {
+              features.push_back({obs_encoder->get_input_feature_id(item), static_cast<ObservationType>(actual_cost)});
+            }
           }
         }
 
-        // Add protocol outputs (output:resource) - only non-zero values
+        // Add protocol outputs (output:resource) - only non-zero values (outputs are not affected by cost multiplier)
         for (const auto& [item, amount] : current_protocol->output_resources) {
           if (amount > 0) {
             features.push_back({obs_encoder->get_output_feature_id(item), static_cast<ObservationType>(amount)});
@@ -508,7 +558,85 @@ public:
   }
 };
 
+#include "objects/chest.hpp"
 #include "systems/clipper.hpp"
+
+inline std::vector<Chest*> Assembler::get_chests_in_radius() const {
+  std::vector<Chest*> chests;
+  if (!grid || chest_radius == 0) return chests;
+
+  GridCoord r = location.r;
+  GridCoord c = location.c;
+  int radius = static_cast<int>(chest_radius);
+
+  for (int i = -radius; i <= radius; ++i) {
+    for (int j = -radius; j <= radius; ++j) {
+      if (i == 0 && j == 0) continue;  // skip center (assembler location)
+      int check_r = static_cast<int>(r) + i;
+      int check_c = static_cast<int>(c) + j;
+      if (check_r < 0 || check_c < 0) continue;
+      GridLocation pos = {static_cast<GridCoord>(check_r), static_cast<GridCoord>(check_c)};
+      if (!grid->is_valid_location(pos)) continue;
+
+      GridObject* obj = grid->object_at(pos);
+      if (obj) {
+        Chest* chest = dynamic_cast<Chest*>(obj);
+        if (chest) {
+          chests.push_back(chest);
+        }
+      }
+    }
+  }
+
+  return chests;
+}
+
+inline bool Assembler::can_afford_protocol(const Protocol& protocol,
+                                           const std::vector<Agent*>& surrounding_agents,
+                                           const std::vector<Chest*>& chests,
+                                           float cost_multiplier) {
+  std::unordered_map<InventoryItem, InventoryQuantity> total_resources;
+  for (Agent* agent : surrounding_agents) {
+    for (const auto& [item, amount] : agent->inventory.get()) {
+      total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
+    }
+  }
+  for (Chest* chest : chests) {
+    for (const auto& [item, amount] : chest->inventory.get()) {
+      total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
+    }
+  }
+  for (const auto& [item, base_amount] : protocol.input_resources) {
+    // Apply cost multiplier (round to nearest)
+    InventoryQuantity required_amount =
+        static_cast<InventoryQuantity>(std::round(static_cast<float>(base_amount) * cost_multiplier));
+    if (total_resources[item] < required_amount) {
+      return false;
+    }
+  }
+  return true;
+}
+
+inline void Assembler::consume_resources_for_protocol(const Protocol& protocol,
+                                                      const std::vector<Agent*>& surrounding_agents,
+                                                      const std::vector<Chest*>& chests,
+                                                      float cost_multiplier) {
+  std::vector<HasInventory*> inventory_havers;
+  for (Agent* agent : surrounding_agents) {
+    inventory_havers.push_back(static_cast<HasInventory*>(agent));
+  }
+  for (Chest* chest : chests) {
+    inventory_havers.push_back(static_cast<HasInventory*>(chest));
+  }
+  for (const auto& [item, base_amount] : protocol.input_resources) {
+    // Apply cost multiplier (round to nearest)
+    InventoryQuantity required_amount =
+        static_cast<InventoryQuantity>(std::round(static_cast<float>(base_amount) * cost_multiplier));
+    InventoryDelta consumed = HasInventory::shared_update(inventory_havers, item, -required_amount);
+    assert(consumed == -static_cast<InventoryDelta>(required_amount) &&
+           "Expected all required resources to be consumed");
+  }
+}
 
 inline void Assembler::become_unclipped() {
   is_clipped = false;

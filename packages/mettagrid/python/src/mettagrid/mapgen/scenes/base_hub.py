@@ -184,13 +184,29 @@ class BaseHub(Scene[BaseHubConfig]):
         grid[1 : h - 1, x0:x1] = "empty"
         grid[y0:y1, 1 : w - 1] = "empty"
 
-        # Place central assembler, charger, and chest after carving so they persist
+        # Place central assembler, chargers, and chest after carving so they persist
         if 1 <= cx < w - 1 and 1 <= cy < h - 1:
             grid[cy, cx] = cfg.assembler_object
 
-            charger_y = cy - 3
-            if 1 <= charger_y < h - 1:
-                grid[charger_y, cx] = cfg.charger_object
+            # Place 4 chargers around the assembler, 5 squares away (cardinal)
+            charger_distance = 5
+            charger_positions = [
+                (cx, cy - charger_distance),  # above
+                (cx, cy + charger_distance),  # below
+                (cx - charger_distance, cy),  # left
+                (cx + charger_distance, cy),  # right
+            ]
+            # Place 4 more chargers at 10 squares away (corners)
+            corner_charger_distance = 6
+            charger_positions += [
+                (cx - corner_charger_distance, cy - corner_charger_distance),  # top-left
+                (cx + corner_charger_distance, cy - corner_charger_distance),  # top-right
+                (cx - corner_charger_distance, cy + corner_charger_distance),  # bottom-left
+                (cx + corner_charger_distance, cy + corner_charger_distance),  # bottom-right
+            ]
+            for charger_x, charger_y in charger_positions:
+                if 1 <= charger_x < w - 1 and 1 <= charger_y < h - 1:
+                    grid[charger_y, charger_x] = cfg.charger_object
 
             chest_y = cy + 3
             if 1 <= chest_y < h - 1:

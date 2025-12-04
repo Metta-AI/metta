@@ -194,6 +194,7 @@ proc buildAtlas*() {.measure.} =
   bxy.addImage("selection", readImage(dataDir & "/selection.png"))
   bxy.addImage("agents/path", readImage(dataDir & "/agents/path.png"))
   bxy.addImage("agents/footprints", readImage(dataDir & "/agents/footprints.png"))
+  bxy.addImage("agents/frozen", readImage(dataDir & "/agents/frozen.png"))
   bxy.addImage("actions/thoughts_lightning", readImage(dataDir & "/actions/thoughts_lightning.png"))
   bxy.addImage("actions/icons/unknown", readImage(dataDir & "/actions/icons/unknown.png"))
   bxy.addImage("actions/arrow", readImage(dataDir & "/actions/arrow.png"))
@@ -215,6 +216,7 @@ proc buildAtlas*() {.measure.} =
         bxy.addImage(name, readImage(path))
 
   addDir(dataDir, "resources")
+  addDir(dataDir, "vibe")
 
 proc getProjectionView*(): Mat4 {.measure.} =
   ## Get the projection and view matrix.
