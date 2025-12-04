@@ -75,8 +75,7 @@ void Agent::set_inventory(const std::unordered_map<InventoryItem, InventoryQuant
   }
 }
 
-InventoryDelta Agent::update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
-  const InventoryDelta delta = this->inventory.update(item, attempted_delta);
+void Agent::on_inventory_change(InventoryItem item, InventoryDelta delta) {
   const InventoryQuantity amount = this->inventory.amount(item);
   if (delta != 0) {
     if (delta > 0) {
@@ -87,8 +86,10 @@ InventoryDelta Agent::update_inventory(InventoryItem item, InventoryDelta attemp
     this->stats.set(this->stats.resource_name(item) + ".amount", amount);
   }
   update_inventory_diversity_stats(item, amount);
+}
 
-  return delta;
+InventoryDelta Agent::update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
+  return this->inventory.update(item, attempted_delta);
 }
 
 void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
