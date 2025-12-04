@@ -40,7 +40,7 @@
       "type": "pythoncpp",
       "request": "launch",
       "pythonLaunchName": "_Python: Play Metta",
-      "cppAttachName": "_C++ Attach",
+      // "cppAttachName": "_C++ Attach",
       "preLaunchTask": "${defaultBuildTask}",
     },
     {

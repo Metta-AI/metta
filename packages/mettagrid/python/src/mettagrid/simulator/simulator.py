@@ -72,7 +72,7 @@ class Simulation:
 
         # Create C++ config
         try:
-            c_cfg = mettagrid_c_config.convert_to_cpp_game_config(game_config_dict)
+            c_cfg = mettagrid_c_config.convert_to_cpp_game_config(self._config.game)
         except Exception as e:
             logger.error(f"Error creating C++ config: {e}")
             logger.error(f"Game config: {game_config_dict}")
