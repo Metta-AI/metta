@@ -826,7 +826,10 @@ proc fitFullMap*(panel: Panel) {.measure.} =
 
 proc fitVisibleMap*(panel: Panel) {.measure.} =
   ## Set zoom and pan so the visible area (union of all agent vision ranges) fits in the panel.
-  if replay.isNil or replay.agents.len == 0:
+  if replay.isNil:
+    return
+  
+  if replay.agents.len == 0:
     fitFullMap(panel)
     return
 
