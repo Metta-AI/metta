@@ -23,6 +23,7 @@ type
     map: Table[Location, seq[FeatureValue]]
     seen: HashSet[Location]
     unreachable: HashSet[Location]
+    depleted: HashSet[Location]    # extractors/chargers with remainingUses == 0
     cfg: Config
     random: Rand
     location: Location
@@ -33,6 +34,9 @@ type
     oxygenTarget: int
     germaniumTarget: int
     siliconTarget: int
+
+    assignedVibe: Option[int]  # desired vibe for vibe-check recipes
+    needsPatternReapply: bool   # if we changed vibe away from pattern for a side-task
 
     bump: bool
     offsets4: seq[Location]  # 4 cardinal but random for each agent
@@ -144,7 +148,10 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.map = initTable[Location, seq[FeatureValue]]()
   result.seen = initHashSet[Location]()
   result.unreachable = initHashSet[Location]()
+  result.depleted = initHashSet[Location]()
   result.location = Location(x: 0, y: 0)
+  result.assignedVibe = none(int)
+  result.needsPatternReapply = false
   result.steps = 0
   result.assemblerHome = none(Location)
   result.chestHome = none(Location)
@@ -219,6 +226,10 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
       let mapLocation = Location(x: x + agent.location.x, y: y + agent.location.y)
       if visibleLocation in visible:
         agent.map[mapLocation] = visible[visibleLocation]
+        # Mark depleted sites to avoid revisits.
+        for f in visible[visibleLocation]:
+          if f.featureId == agent.cfg.features.remainingUses and f.value == 0:
+            agent.depleted.incl(mapLocation)
       else:
         agent.map[mapLocation] = @[]
       agent.seen.incl(mapLocation)
@@ -458,6 +469,63 @@ proc step*(
         agent.oxygenTarget = 0
         agent.germaniumTarget = 0
 
+    # Vibe-check support: assign and enforce a required vibe from the assembler pattern.
+    proc actionForVibe(cfg: Config, v: int): Option[int] =
+      if v == cfg.vibes.default: return some(cfg.actions.vibeDefault)
+      if v == cfg.vibes.charger: return some(cfg.actions.vibeCharger)
+      if v == cfg.vibes.carbonA: return some(cfg.actions.vibeCarbonA)
+      if v == cfg.vibes.carbonB: return some(cfg.actions.vibeCarbonB)
+      if v == cfg.vibes.oxygenA: return some(cfg.actions.vibeOxygenA)
+      if v == cfg.vibes.oxygenB: return some(cfg.actions.vibeOxygenB)
+      if v == cfg.vibes.germaniumA: return some(cfg.actions.vibeGermaniumA)
+      if v == cfg.vibes.germaniumB: return some(cfg.actions.vibeGermaniumB)
+      if v == cfg.vibes.siliconA: return some(cfg.actions.vibeSiliconA)
+      if v == cfg.vibes.siliconB: return some(cfg.actions.vibeSiliconB)
+      if v == cfg.vibes.heartA: return some(cfg.actions.vibeHeartA)
+      if v == cfg.vibes.heartB: return some(cfg.actions.vibeHeartB)
+      if v == cfg.vibes.gear: return some(cfg.actions.vibeGear)
+      if v == cfg.vibes.assembler: return some(cfg.actions.vibeAssembler)
+      if v == cfg.vibes.chest: return some(cfg.actions.vibeChest)
+      if v == cfg.vibes.wall: return some(cfg.actions.vibeWall)
+      return none(int)
+
+    if activeRecipe.pattern.len > 0:
+      # Assign required vibe: if more agents than vibes, duplicate the first vibe to keep full coverage.
+      var haveAssigned = false
+      if agent.assignedVibe.isSome():
+        for v in activeRecipe.pattern:
+          if v == agent.assignedVibe.get():
+            haveAssigned = true
+            break
+      if not haveAssigned:
+        let idx = if agent.agentId < activeRecipe.pattern.len: agent.agentId else: 0
+        agent.assignedVibe = some(activeRecipe.pattern[idx])
+
+      proc patternSatisfied(agent: RaceCarAgent): bool =
+        # Check if all required vibes are present around the assembler location we know.
+        if agent.assemblerHome.isNone():
+          return false
+        let asmLoc = agent.assemblerHome.get()
+        var seenVibes: HashSet[int]
+        for offset in Offsets8:
+          let loc = asmLoc + offset
+          let v = agent.cfg.getVibe(agent.map, loc)
+          if v != -1:
+            seenVibes.incl(v)
+        for v in activeRecipe.pattern:
+          if v notin seenVibes:
+            return false
+        return true
+
+      let desiredVibe = agent.assignedVibe.get()
+      if not patternSatisfied(agent) and (vibe != desiredVibe or agent.needsPatternReapply):
+        let vibeAction = actionForVibe(agent.cfg, desiredVibe)
+        if vibeAction.isSome():
+          doAction(vibeAction.get().int32)
+          log "setting vibe to match assembler pattern: " & $desiredVibe
+          agent.needsPatternReapply = false
+          return
+
     # Are we running low on energy?
     if invEnergy < MaxEnergy div 4:
       let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
@@ -470,8 +538,9 @@ proc step*(
           log "going to charger"
           return
 
-    # Charge opportunistically.
-    if invEnergy < MaxEnergy - 20:
+    # Charge opportunistically, with a slightly higher margin for hard energy maps.
+    let opportunisticMargin = if stepsRemaining < 200: MaxEnergy - 30 else: MaxEnergy - 20
+    if invEnergy < opportunisticMargin:
       let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
         if manhattan(agent.location, chargerNearby.get()) < 2:
@@ -497,6 +566,8 @@ proc step*(
       let depositVibe = agent.cfg.vibes.heartB
       if depositAction != 0 and vibe != depositVibe:
         doAction(depositAction.int32)
+        if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and depositVibe != agent.assignedVibe.get():
+          agent.needsPatternReapply = true
         return
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
@@ -508,14 +579,16 @@ proc step*(
           log "going to chest"
           return
 
-    if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
-      # We have all the resources we need, so we can build a heart.
-      log "trying to build a heart"
+      if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
+        # We have all the resources we need, so we can build a heart.
+        log "trying to build a heart"
 
-      if vibe != agent.cfg.vibes.heartA:
-        doAction(agent.cfg.actions.vibeHeartA.int32)
-        log "vibing heart for assembler"
-        return
+        if vibe != agent.cfg.vibes.heartA:
+          doAction(agent.cfg.actions.vibeHeartA.int32)
+          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and agent.cfg.vibes.heartA != agent.assignedVibe.get():
+            agent.needsPatternReapply = true
+          log "vibing heart for assembler"
+          return
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
       if assemblerNearby.isSome():
@@ -538,6 +611,8 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.carbonB:
           doAction(agent.cfg.actions.vibeCarbonB.int32)
+          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and agent.cfg.vibes.carbonB != agent.assignedVibe.get():
+            agent.needsPatternReapply = true
           log "vibing carbon B to dump excess carbon"
           return
         measurePush("chest nearby excess carbon")
@@ -553,6 +628,8 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.siliconB:
           doAction(agent.cfg.actions.vibeSiliconB.int32)
+          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and agent.cfg.vibes.siliconB != agent.assignedVibe.get():
+            agent.needsPatternReapply = true
           log "vibing silicon B to dump excess silicon"
           return
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
@@ -566,6 +643,8 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.oxygenB:
           doAction(agent.cfg.actions.vibeOxygenB.int32)
+          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and agent.cfg.vibes.oxygenB != agent.assignedVibe.get():
+            agent.needsPatternReapply = true
           log "vibing oxygen B to dump excess oxygen"
           return
         measurePush("chest nearby excess oxygen")
@@ -581,6 +660,8 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.germaniumB:
           doAction(agent.cfg.actions.vibeGermaniumB.int32)
+          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and agent.cfg.vibes.germaniumB != agent.assignedVibe.get():
+            agent.needsPatternReapply = true
           log "vibing germanium B to dump excess germanium"
           return
         measurePush("chest nearby excess germanium")
@@ -642,13 +723,18 @@ proc step*(
 
       # Check the carbon extractor.
       let extractorNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, extractorTag)
-      if extractorNearby.isSome() and extractorNearby.get() notin agent.unreachable:
+      if extractorNearby.isSome() and extractorNearby.get() notin agent.unreachable and extractorNearby.get() notin agent.depleted:
         measurePush("extractor nearby to take " & name)
         let action = agent.cfg.aStar(agent.location, extractorNearby.get(), agent.map)
         measurePop()
         if action.isSome():
           doAction(action.get().int32)
           log "going to " & name & ", need: " & $target & " have: " & $inventory
+          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and vibe != agent.assignedVibe.get():
+            agent.needsPatternReapply = true
+          # If we arrive and see it depleted, mark it.
+          if extractorNearby.get() in agent.depleted:
+            agent.unreachable.incl(extractorNearby.get())
           return true
         else:
           agent.unreachable.incl(extractorNearby.get())
