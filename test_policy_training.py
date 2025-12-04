@@ -21,12 +21,12 @@ def main():
     descriptors = env.current_simulation.get_policy_descriptors()
 
     assert len(descriptors) == 4, f"❌ FAIL: Expected 4 descriptors, got {len(descriptors)}"
-    print(f"✅ PASS: Environment has 4 policy descriptors (one per agent)")
+    print("✅ PASS: Environment has 4 policy descriptors (one per agent)")
 
     # Verify all are training policy
     for i, desc in enumerate(descriptors):
         assert desc.name == "training", f"❌ FAIL: Agent {i} descriptor name is '{desc.name}', expected 'training'"
-        assert desc.is_scripted is False, f"❌ FAIL: Training policy should not be scripted"
+        assert desc.is_scripted is False, "❌ FAIL: Training policy should not be scripted"
         print(f"   Agent {i}: name='{desc.name}', is_scripted={desc.is_scripted}")
 
     print("✅ PASS: All agents use 'training' policy descriptor")
@@ -34,14 +34,14 @@ def main():
     # Verify unique policies
     unique = env.current_simulation.get_unique_policy_descriptors()
     assert len(unique) == 1, f"❌ FAIL: Expected 1 unique policy, got {len(unique)}"
-    assert unique[0].name == "training", f"❌ FAIL: Unique policy should be 'training'"
-    print(f"✅ PASS: Only 1 unique 'training' policy")
+    assert unique[0].name == "training", "❌ FAIL: Unique policy should be 'training'"
+    print("✅ PASS: Only 1 unique 'training' policy")
 
     # Verify policy IDs
     for agent_id in range(4):
         policy_id = env.current_simulation.get_agent_policy_id(agent_id)
         assert policy_id == 0, f"❌ FAIL: Agent {agent_id} has policy_id {policy_id}, expected 0"
-    print(f"✅ PASS: All agents have policy_id=0")
+    print("✅ PASS: All agents have policy_id=0")
 
     env.close()
 

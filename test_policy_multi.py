@@ -2,13 +2,13 @@
 """Multi-policy test: Different policies controlling different agents."""
 
 import json
-import zlib
 import tempfile
+import zlib
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.policy.noop import NoopPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.random_agent import RandomMultiAgentPolicy
-from mettagrid.policy.noop import NoopPolicy
 from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.simulator.rollout import Rollout
 
@@ -55,16 +55,16 @@ def main():
         # Verify policies array
         policies = replay_data['policies']
         assert len(policies) == 2, f"❌ FAIL: Expected 2 policies, found {len(policies)}"
-        print(f"✅ PASS: Found 2 unique policies")
+        print("✅ PASS: Found 2 unique policies")
 
         # Verify policy names
         policy_names = {p['name'] for p in policies}
         assert 'random' in policy_names, "❌ FAIL: Missing 'random' policy"
         assert 'noop' in policy_names, "❌ FAIL: Missing 'noop' policy"
-        print(f"✅ PASS: Both 'random' and 'noop' policies present")
+        print("✅ PASS: Both 'random' and 'noop' policies present")
 
         # Create name->id mapping
-        name_to_id = {p['name']: i for i, p in enumerate(policies)}
+        {p['name']: i for i, p in enumerate(policies)}
 
         # Verify agent assignments
         print("\n🤖 Verifying agent policy assignments:")
@@ -80,10 +80,10 @@ def main():
                 print(f"   Agent {agent_id}: policy_id={policy_id} ({policy_name})")
 
         # Verify correct assignments
-        assert agent_policy_map[0] == 'random', f"❌ FAIL: Agent 0 should be 'random'"
-        assert agent_policy_map[1] == 'random', f"❌ FAIL: Agent 1 should be 'random'"
-        assert agent_policy_map[2] == 'noop', f"❌ FAIL: Agent 2 should be 'noop'"
-        assert agent_policy_map[3] == 'noop', f"❌ FAIL: Agent 3 should be 'noop'"
+        assert agent_policy_map[0] == 'random', "❌ FAIL: Agent 0 should be 'random'"
+        assert agent_policy_map[1] == 'random', "❌ FAIL: Agent 1 should be 'random'"
+        assert agent_policy_map[2] == 'noop', "❌ FAIL: Agent 2 should be 'noop'"
+        assert agent_policy_map[3] == 'noop', "❌ FAIL: Agent 3 should be 'noop'"
         print("✅ PASS: All agents assigned to correct policies")
 
         print("\n" + "=" * 60)

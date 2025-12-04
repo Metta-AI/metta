@@ -225,7 +225,6 @@ class Simulation:
         Args:
             descriptors: List of PolicyDescriptor, one per agent
         """
-        from mettagrid.policy.policy import PolicyDescriptor
 
         if len(descriptors) != self.num_agents:
             raise ValueError(f"Expected {self.num_agents} descriptors, got {len(descriptors)}")

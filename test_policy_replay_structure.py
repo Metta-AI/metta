@@ -2,8 +2,8 @@
 """Replay structure test: Verify replay format matches spec."""
 
 import json
-import zlib
 import tempfile
+import zlib
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -63,7 +63,10 @@ def main():
             assert isinstance(policy['name'], str), f"❌ FAIL: Policy {i} 'name' must be string"
             assert isinstance(policy['uri'], str), f"❌ FAIL: Policy {i} 'uri' must be string"
             assert isinstance(policy['is_scripted'], bool), f"❌ FAIL: Policy {i} 'is_scripted' must be bool"
-            print(f"   ✓ Policy {i}: name='{policy['name']}', uri='{policy['uri']}', is_scripted={policy['is_scripted']}")
+            print(
+                f"   ✓ Policy {i}: name='{policy['name']}', "
+                f"uri='{policy['uri']}', is_scripted={policy['is_scripted']}"
+            )
 
         print("✅ PASS: Policies array structure valid")
 
@@ -84,7 +87,7 @@ def main():
                 else:
                     policy_id_value = policy_id
 
-                assert isinstance(policy_id_value, int), f"❌ FAIL: policy_id must be int"
+                assert isinstance(policy_id_value, int), "❌ FAIL: policy_id must be int"
                 assert 0 <= policy_id_value < len(policies), f"❌ FAIL: policy_id {policy_id_value} out of range"
 
                 policy_name = policies[policy_id_value]['name']

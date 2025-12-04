@@ -2,9 +2,8 @@
 """Basic test: Single policy controlling all agents."""
 
 import json
-import zlib
 import tempfile
-from pathlib import Path
+import zlib
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -54,7 +53,7 @@ def main():
         # Verify policy structure
         policies = replay_data['policies']
         assert len(policies) == 1, f"❌ FAIL: Expected 1 policy, found {len(policies)}"
-        print(f"✅ PASS: Exactly 1 unique policy found")
+        print("✅ PASS: Exactly 1 unique policy found")
 
         policy = policies[0]
         assert policy['name'] == 'random', f"❌ FAIL: Expected 'random', got '{policy['name']}'"
@@ -74,7 +73,7 @@ def main():
                 agent_count += 1
 
         assert agent_count == 4, f"❌ FAIL: Expected 4 agents, found {agent_count}"
-        print(f"✅ PASS: All 4 agents have correct policy_id=0")
+        print("✅ PASS: All 4 agents have correct policy_id=0")
 
         print("\n" + "=" * 60)
         print("✅ TEST 1 PASSED: Basic Single Policy")
