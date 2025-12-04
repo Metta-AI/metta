@@ -4,7 +4,7 @@ bumpy 1.1.3 https://github.com/treeform/bumpy dc9a3d6d15680ec7f603959d65ba8ee4f1
 chroma 1.0.0 https://github.com/treeform/chroma 2381748f92e5ea16cb2403ff7e20c6dd5443a59d
 cligen 1.9.3 https://github.com/c-blake/cligen.git bb10deea8139313d2d223dd7e05ab4a4efd21528
 crunchy 0.1.11 https://github.com/guzba/crunchy 98eb6526982bb8aae8eec6e8781f4539fa19e049
-fidget2 0.1.2 https://github.com/treeform/fidget2 6358bfb10e7a1e57f2786c9cd1a0ec1df1af0b58
+fidget2 0.1.2 https://github.com/treeform/fidget2 001934071a9a97b90fbf47fefe18d27a737a0b32
 flatty 0.3.4 https://github.com/treeform/flatty 05d878b397933331966a7f80dd0c55664559201f
 genny 0.1.1 https://github.com/treeform/genny 8c69fa6fc52ee3936a528aece84e8385509a6f99
 jsony 1.1.5 https://github.com/treeform/jsony c081acd7f6af1ecadfca6ccba633a339cc6c80cd
@@ -20,3 +20,4 @@ webby 0.2.1 https://github.com/treeform/webby/ 55a2c03abbd32abf4775712c1959d975d
 windy 0.4.4 https://github.com/treeform/windy adb9a16cc99d8279dc35eea57f86d8ab27ef07db
 ws 0.5.0 https://github.com/treeform/ws cbb8f763b436669392d10baec2a45778395395cc
 zippy 0.10.16 https://github.com/guzba/zippy a99f6a7d8a8e3e0213b3cad0daf0ea974bf58e3f
+supersnappy 2.1.3 https://github.com/guzba/supersnappy ff8fe2bffefc1f4edc15deb20d921f600babb8c4
