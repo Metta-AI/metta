@@ -109,8 +109,20 @@ class SharedMapCache:
         """
         if resource_tracker is None:
             return
+        rt = getattr(resource_tracker, "_resource_tracker", None)
+        if rt is None:
+            return
+        cache = getattr(rt, "_cache", None)
+        if cache is None:
+            return
+        tracked = cache.get("shared_memory")
+        if not tracked:
+            return
+        name = shm._name
+        if name not in tracked:
+            return
         try:
-            resource_tracker.unregister(shm._name, "shared_memory")  # type: ignore[attr-defined]
+            resource_tracker.unregister(name, "shared_memory")  # type: ignore[attr-defined]
         except Exception:
             pass
 
