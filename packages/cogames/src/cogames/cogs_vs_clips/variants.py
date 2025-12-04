@@ -224,9 +224,9 @@ class HeartChorusVariant(MissionVariant):
         rewards = dict(env.game.agent.rewards.stats)
         rewards.update(
             {
-                "heart.gained": 1.0,
+                "assembler.heart.created": 1.0,
                 "chest.heart.deposited": 1.0,
-                "chest.heart.withdrawn": -2.0,
+                "chest.heart.withdrawn": -1.0,
                 "inventory.diversity.ge.2": 0.17,
                 "inventory.diversity.ge.3": 0.18,
                 "inventory.diversity.ge.4": 0.60,
@@ -312,21 +312,6 @@ class Small50Variant(MissionVariant):
             # Skip setting width/height for MapBuilderConfig instances
             return
         env.game.map_builder = map_builder.model_copy(update={"width": 50, "height": 50})
-
-
-class CogToolsOnlyVariant(MissionVariant):
-    name: str = "cog_tools_only"
-    description: str = "Gear tools (decoder/modulator/scrambler/resonator) require only the 'gear/cog' vibe."
-
-    @override
-    def modify_env(self, mission, env) -> None:
-        assembler_cfg = env.game.objects["assembler"]
-        if not isinstance(assembler_cfg, AssemblerConfig):
-            raise TypeError("Expected 'assembler' to be AssemblerConfig")
-        gear_outputs = {"decoder", "modulator", "scrambler", "resonator"}
-        for protocol in assembler_cfg.protocols:
-            if any(k in protocol.output_resources for k in gear_outputs):
-                protocol.vibes = ["gear"]
 
 
 class InventoryHeartTuneVariant(MissionVariant):
@@ -689,7 +674,6 @@ VARIANTS: list[MissionVariant] = [
     CityVariant(),
     ClipHubStationsVariant(),
     ClipPeriodOnVariant(),
-    CogToolsOnlyVariant(),
     CompassVariant(),
     CyclicalUnclipVariant(),
     DarkSideVariant(),

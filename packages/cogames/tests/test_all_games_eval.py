@@ -1,22 +1,22 @@
 """Test that 'cogames eval' works for all games."""
 
-import subprocess
-
 import pytest
+from typer.testing import CliRunner
 
 from cogames.cli.mission import get_all_missions
+from cogames.main import app
+
+runner = CliRunner()
 
 
 @pytest.mark.parametrize("mission_name", get_all_missions())
 @pytest.mark.timeout(60)
-def test_mission_eval(mission_name):
+def test_mission_eval(mission_name: str):
     """Test that 'cogames eval' works for small games with random policy."""
-    result = subprocess.run(
+    result = runner.invoke(
+        app,
         [
-            "uv",
-            "run",
-            "cogames",
-            "eval",
+            "evaluate",
             "-m",
             mission_name,
             "-p",
@@ -26,27 +26,22 @@ def test_mission_eval(mission_name):
             "--episodes",
             "1",
         ],
-        capture_output=True,
-        text=True,
-        timeout=60,
     )
 
-    if result.returncode != 0:
-        pytest.fail(f"Eval failed for mission {mission_name}: {result.stderr}")
+    if result.exit_code != 0:
+        pytest.fail(f"Eval failed for mission {mission_name}: {result.output}")
 
-    assert "Episode 1" in result.stdout or "episode" in result.stdout.lower()
+    assert "Episode 1" in result.output or "episode" in result.output.lower()
 
 
 @pytest.mark.parametrize("mission_name", [get_all_missions()[0]])
 @pytest.mark.timeout(60)
 def test_alternate_eval_format(mission_name):
     """Test that 'cogames eval' works for small games with random policy using class= format."""
-    result = subprocess.run(
+    result = runner.invoke(
+        app,
         [
-            "uv",
-            "run",
-            "cogames",
-            "eval",
+            "evaluate",
             "-m",
             mission_name,
             "-p",
@@ -54,12 +49,9 @@ def test_alternate_eval_format(mission_name):
             "--episodes",
             "1",
         ],
-        capture_output=True,
-        text=True,
-        timeout=60,
     )
 
-    if result.returncode != 0:
-        pytest.fail(f"Eval failed for mission {mission_name}: {result.stderr}")
+    if result.exit_code != 0:
+        pytest.fail(f"Eval failed for mission {mission_name}: {result.output}")
 
-    assert "Episode 1" in result.stdout or "episode" in result.stdout.lower()
+    assert "Episode 1" in result.output or "episode" in result.output.lower()

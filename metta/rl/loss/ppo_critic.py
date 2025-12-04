@@ -39,17 +39,8 @@ class PPOCriticConfig(LossConfig):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "PPOCritic":
-        """Points to the PPO class for initialization."""
-        return PPOCritic(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return PPOCritic(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class PPOCritic(Loss):
@@ -71,9 +62,9 @@ class PPOCritic(Loss):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "PPOCriticConfig",
     ):
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.sample_enabled = self.cfg.sample_enabled
         self.train_forward_enabled = self.cfg.train_forward_enabled
