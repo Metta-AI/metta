@@ -91,7 +91,7 @@ find "/UI/Main":
         thisNode.size.y
       )
       if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
-        fitFullMap(worldMapPanel)
+        fitVisibleMap(worldMapPanel)
       adjustPanelForResize(worldMapPanel)
       bxy.translate(worldMapPanel.rect.xy.vec2 * window.contentScale)
       drawWorldMap(worldMapPanel)
