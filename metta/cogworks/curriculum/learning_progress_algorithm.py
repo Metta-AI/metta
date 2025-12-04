@@ -67,19 +67,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Note: slice_analyzer is already initialized in parent class via StatsLogger
 
-        # Initialize scoring backends and bind mode-specific hooks to avoid repeated branching.
+        # Initialize scoring method (bidirectional by default)
         if hypers.use_bidirectional:
             self._init_bidirectional_scoring()
-            self._score_tasks_fn = self._score_tasks_bidirectional
-            self._lp_stats_fn = self._get_bidirectional_detailed_stats
-            self._update_task_fn = self._update_bidirectional_ema
-            self._remove_task_fn = self._remove_task_bidirectional
         else:
             self._init_basic_scoring()
-            self._score_tasks_fn = self._score_tasks_basic
-            self._lp_stats_fn = self._get_basic_detailed_stats
-            self._update_task_fn = self._update_basic_ema
-            self._remove_task_fn = self._remove_task_basic
 
         # Cache for expensive statistics computation
         self._stats_cache: Dict[str, Any] = {}
@@ -107,7 +99,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         stats = self.get_base_stats()
 
         # Always include learning progress stats (not just when detailed logging is enabled)
-        lp_stats = self._lp_stats_fn()
+        if self.hypers.use_bidirectional:
+            lp_stats = self._get_bidirectional_detailed_stats()
+        else:
+            lp_stats = self._get_basic_detailed_stats()
 
         # Add lp/ prefix to learning progress stats
         for key, value in lp_stats.items():
@@ -158,7 +153,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using the configured method (bidirectional by default)."""
-        return self._score_tasks_fn(task_ids)
+        if self.hypers.use_bidirectional:
+            return self._score_tasks_bidirectional(task_ids)
+        else:
+            return self._score_tasks_basic(task_ids)
 
     def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using bidirectional learning progress."""
@@ -294,19 +292,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _remove_task_from_scoring(self, task_id: int) -> None:
         """Remove task from scoring system."""
-        self._remove_task_fn(task_id)
-
-    def _remove_task_bidirectional(self, task_id: int) -> None:
-        self._outcomes.pop(task_id, None)
-        self._counter.pop(task_id, None)
-        self._score_cache.pop(task_id, None)
-        self._cache_valid_tasks.discard(task_id)
-        self._stale_dist = True
-
-    def _remove_task_basic(self, task_id: int) -> None:
-        self._task_emas.pop(task_id, None)
-        self._score_cache.pop(task_id, None)
-        self._cache_valid_tasks.discard(task_id)
+        if self.hypers.use_bidirectional:
+            self._outcomes.pop(task_id, None)
+            self._counter.pop(task_id, None)
+            self._score_cache.pop(task_id, None)
+            self._cache_valid_tasks.discard(task_id)
+            self._stale_dist = True
+        else:
+            self._task_emas.pop(task_id, None)
+            self._score_cache.pop(task_id, None)
+            self._cache_valid_tasks.discard(task_id)
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the appropriate scoring method."""
@@ -314,14 +309,20 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.task_tracker.update_task_performance(task_id, score)
 
         # Update scoring method
-        self._update_task_fn(task_id, score)
+        if self.hypers.use_bidirectional:
+            self._update_bidirectional_ema(task_id, score)
+        else:
+            self._update_basic_ema(task_id, score)
 
         # Invalidate stats cache
         self.invalidate_cache()
 
     def get_stats(self) -> Dict[str, float]:
         """Get learning progress statistics (compatibility method for tests)."""
-        return self._lp_stats_fn()
+        if self.hypers.use_bidirectional:
+            return self._get_bidirectional_detailed_stats()
+        else:
+            return self._get_basic_detailed_stats()
 
     def update_task_with_slice_values(self, task_id: int, score: float, slice_values: Dict[str, Any]) -> None:
         """Update task performance including slice values for analysis."""
