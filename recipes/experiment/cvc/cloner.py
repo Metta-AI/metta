@@ -299,14 +299,11 @@ def train(
     if bc_policy_uri is not None:
         supervisor = EnvSupervisorConfig(policy=bc_policy_uri)
 
-        ssc_end_step = 1_000_000_000  # need more data
+        ssc_end_step = 500_000_000
         trainer_cfg.losses.sliced_scripted_cloner.enabled = True
         trainer_cfg.losses.ppo_critic.sample_enabled = False
         trainer_cfg.losses.ppo_critic.train_forward_enabled = False
         trainer_cfg.losses.ppo_critic.deferred_training_start_step = ssc_end_step
-
-        # reduce entropy
-        trainer_cfg.losses.ppo_actor.ent_coef = 0.002
 
         scheduler = SchedulerConfig(
             run_gates=[
