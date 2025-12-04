@@ -22,6 +22,7 @@ type
     steps: int
     map: Table[Location, seq[FeatureValue]]
     seen: HashSet[Location]
+    unreachable: HashSet[Location]
     cfg: Config
     random: Rand
     location: Location
@@ -142,6 +143,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.random = initRand(agentId)
   result.map = initTable[Location, seq[FeatureValue]]()
   result.seen = initHashSet[Location]()
+  result.unreachable = initHashSet[Location]()
   result.location = Location(x: 0, y: 0)
   result.steps = 0
   result.assemblerHome = none(Location)
@@ -359,6 +361,10 @@ proc step*(
           Location(x: -10, y: +10),
           Location(x: +10, y: -10),
           Location(x: +10, y: +10),
+          Location(x: -20, y: 0),
+          Location(x: +20, y: 0),
+          Location(x: 0, y: -20),
+          Location(x: 0, y: +20),
         ]
         for keyLocation in keyLocations:
           let location = asmLoc + keyLocation
@@ -376,6 +382,10 @@ proc step*(
           Location(x: 0, y: +3),
           Location(x: +3, y: 0),
           Location(x: 0, y: -3),
+          Location(x: -6, y: 0),
+          Location(x: 0, y: +6),
+          Location(x: +6, y: 0),
+          Location(x: 0, y: -6),
         ]
         for keyLocation in keyLocations:
           let location = chestLoc + keyLocation
@@ -407,6 +417,12 @@ proc step*(
     let activeRecipe = agent.getActiveRecipe()
     log "active recipe: " & $activeRecipe
 
+    # If only one resource is needed, make it the sole target to avoid wasted trips.
+    var numNeeded = 0
+    for cost in [activeRecipe.carbonCost, activeRecipe.oxygenCost, activeRecipe.germaniumCost, activeRecipe.siliconCost]:
+      if cost > 0:
+        inc numNeeded
+
     if activeRecipe.pattern.len > 0:
       # Split the cost evenly across the agents.
       proc divUp(a, b: int): int =
@@ -422,6 +438,25 @@ proc step*(
       agent.oxygenTarget = max(agent.oxygenTarget, activeRecipe.oxygenCost)
       agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost)
       agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost)
+
+    if numNeeded == 1:
+      # Only keep the required resource; zero out others so we don't waste time or dump it.
+      if activeRecipe.carbonCost > 0:
+        agent.oxygenTarget = 0
+        agent.germaniumTarget = 0
+        agent.siliconTarget = 0
+      elif activeRecipe.oxygenCost > 0:
+        agent.carbonTarget = 0
+        agent.germaniumTarget = 0
+        agent.siliconTarget = 0
+      elif activeRecipe.germaniumCost > 0:
+        agent.carbonTarget = 0
+        agent.oxygenTarget = 0
+        agent.siliconTarget = 0
+      elif activeRecipe.siliconCost > 0:
+        agent.carbonTarget = 0
+        agent.oxygenTarget = 0
+        agent.germaniumTarget = 0
 
     # Are we running low on energy?
     if invEnergy < MaxEnergy div 4:
@@ -498,7 +533,7 @@ proc step*(
     if atMaxInventory:
       log "at max inventory"
 
-    if atMaxInventory and invCarbon > avgResource and invCarbon > agent.carbonTarget + PutCarbonAmount:
+    if atMaxInventory and invCarbon > avgResource and invCarbon > agent.carbonTarget + PutCarbonAmount and agent.carbonTarget == 0:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.carbonB:
@@ -513,7 +548,7 @@ proc step*(
           log "going to chest to dump excess carbon"
           return
 
-    if atMaxInventory and invSilicon > avgResource and invSilicon > agent.siliconTarget + PutSiliconAmount:
+    if atMaxInventory and invSilicon > avgResource and invSilicon > agent.siliconTarget + PutSiliconAmount and agent.siliconTarget == 0:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.siliconB:
@@ -526,7 +561,7 @@ proc step*(
           log "going to chest to dump excess silicon"
           return
 
-    if atMaxInventory and invOxygen > avgResource and invOxygen > agent.oxygenTarget + PutOxygenAmount:
+    if atMaxInventory and invOxygen > avgResource and invOxygen > agent.oxygenTarget + PutOxygenAmount and agent.oxygenTarget == 0:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.oxygenB:
@@ -541,7 +576,7 @@ proc step*(
           log "going to chest to dump excess oxygen"
           return
 
-    if atMaxInventory and invGermanium > avgResource and invGermanium > agent.germaniumTarget + PutGermaniumAmount:
+    if atMaxInventory and invGermanium > avgResource and invGermanium > agent.germaniumTarget + PutGermaniumAmount and agent.germaniumTarget == 0:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.germaniumB:
@@ -607,7 +642,7 @@ proc step*(
 
       # Check the carbon extractor.
       let extractorNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, extractorTag)
-      if extractorNearby.isSome():
+      if extractorNearby.isSome() and extractorNearby.get() notin agent.unreachable:
         measurePush("extractor nearby to take " & name)
         let action = agent.cfg.aStar(agent.location, extractorNearby.get(), agent.map)
         measurePop()
@@ -615,6 +650,8 @@ proc step*(
           doAction(action.get().int32)
           log "going to " & name & ", need: " & $target & " have: " & $inventory
           return true
+        else:
+          agent.unreachable.incl(extractorNearby.get())
 
     # Is there carbon nearby?
     if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
