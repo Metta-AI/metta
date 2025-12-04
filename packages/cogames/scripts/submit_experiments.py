@@ -16,6 +16,10 @@ Note: You can also use mission set names like "eval_missions", "diagnostic_missi
 
 from recipes.experiment import cogs_v_clips
 from recipes.experiment.cvc import mission_variant_curriculum
+from datetime import datetime
+
+# Get current date in MMDD format
+current_date = datetime.now().strftime("%m%d")
 
 # Default curriculum missions
 DEFAULT_MISSIONS = cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS
@@ -35,7 +39,7 @@ def submit_variants_experiments():
         safe_mission_name = mission.replace("_", "-")
         mission_variant_curriculum.experiment(
             base_missions=[mission],
-            run_name=f"variants_curriculum_{safe_mission_name}_all_variants",
+            run_name=f"variants_curriculum_{safe_mission_name}_all_variants_{current_date}",
             skip_git_check=True,
             variants="all",
         )
@@ -44,7 +48,7 @@ def submit_variants_experiments():
     print(f"\nSubmitting: All variants on all {len(DEFAULT_MISSIONS)} DEFAULT_CURRICULUM_MISSIONS")
     mission_variant_curriculum.experiment(
         base_missions=DEFAULT_MISSIONS,
-        run_name="variants_curriculum_all_default_missions_all_variants",
+        run_name=f"variants_curriculum_all_default_missions_all_variants_{current_date}",
         skip_git_check=True,
         variants="all",
     )
@@ -61,7 +65,7 @@ def submit_full_curriculum_experiment():
     print("\nSubmitting: All maps, standard variant (no variants - base missions only)")
     # No variants means standard/base missions only (this is the default)
     mission_variant_curriculum.experiment(
-        run_name="full_curriculum_all_maps_standard",
+        run_name=f"full_curriculum_all_maps_standard_{current_date}",
         skip_git_check=True,
         variants=None,  # Explicitly no variants
     )
@@ -102,7 +106,7 @@ def submit_s3_successful_missions_experiment():
 
     mission_variant_curriculum.experiment(
         base_missions=S3_SUCCESSFUL_MISSIONS,
-        run_name="variants_curriculum_s3_successful_missions_all_variants",
+        run_name=f"variants_curriculum_s3_successful_missions_all_variants_{current_date}",
         skip_git_check=True,
         variants="all",  # Curriculum over all variants
     )
@@ -111,8 +115,8 @@ def submit_s3_successful_missions_experiment():
 
 
 if __name__ == "__main__":
-    # submit_variants_experiments()
-    # submit_full_curriculum_experiment()
+    submit_variants_experiments()
+    submit_full_curriculum_experiment()
     submit_s3_successful_missions_experiment()
     print("\n" + "=" * 80)
     print("All experiments submitted successfully!")
