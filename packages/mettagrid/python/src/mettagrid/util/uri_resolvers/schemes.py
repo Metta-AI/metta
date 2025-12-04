@@ -6,8 +6,6 @@ from urllib.parse import unquote, urlparse
 
 import boto3
 
-from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.base import (
     CheckpointMetadata,
@@ -238,7 +236,10 @@ def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
 
 def policy_spec_from_uri(
     uri: str, *, device: str = "cpu", strict: bool = True, remove_downloaded_copy_on_exit: bool = False
-) -> PolicySpec:
+):
+    from mettagrid.policy.policy import PolicySpec
+    from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
+
     path_to_spec = resolve_uri(uri)
     if path_to_spec.endswith(".mpt"):
         return PolicySpec(
