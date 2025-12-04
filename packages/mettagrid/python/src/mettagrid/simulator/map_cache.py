@@ -11,6 +11,10 @@ from multiprocessing import shared_memory
 from pathlib import Path
 from typing import Any, Optional
 
+try:
+    from multiprocessing import resource_tracker
+except ImportError:  # pragma: no cover
+    resource_tracker = None
 import numpy as np
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilderConfig
@@ -290,21 +294,25 @@ class SharedMapCache:
         try:
             shm = shared_memory.SharedMemory(name=shm_name, create=True, size=nbytes)
             self._shm_registry[shm_name] = shm
+            self._untrack_shared_memory(shm)
         except FileExistsError:
             # Shared memory exists but not in our registry - try to unlink it
             try:
                 existing_shm = shared_memory.SharedMemory(name=shm_name, create=False)
+                self._untrack_shared_memory(existing_shm)
                 existing_shm.close()
                 existing_shm.unlink()
                 logger.debug(f"Unlinked existing shared memory {shm_name} before recreating")
                 # Retry creating after unlinking
                 shm = shared_memory.SharedMemory(name=shm_name, create=True, size=nbytes)
                 self._shm_registry[shm_name] = shm
+                self._untrack_shared_memory(shm)
             except Exception:
                 # If unlink fails, try to use the existing shared memory (might be valid)
                 logger.warning(f"Could not unlink existing shared memory {shm_name}, attempting to reuse")
                 try:
                     existing_shm = shared_memory.SharedMemory(name=shm_name, create=False)
+                    self._untrack_shared_memory(existing_shm)
                     # Check if size matches
                     if existing_shm.size == nbytes:
                         shm = existing_shm
@@ -316,6 +324,7 @@ class SharedMapCache:
                         existing_shm.unlink()
                         shm = shared_memory.SharedMemory(name=shm_name, create=True, size=nbytes)
                         self._shm_registry[shm_name] = shm
+                        self._untrack_shared_memory(shm)
                         logger.debug(f"Recreated shared memory {shm_name} due to size mismatch")
                 except Exception as cleanup_err:
                     # Last resort: raise the original FileExistsError
@@ -346,6 +355,7 @@ class SharedMapCache:
             try:
                 shm = shared_memory.SharedMemory(name=shm_name, create=False)
                 self._shm_registry[shm_name] = shm
+                self._untrack_shared_memory(shm)
             except (FileNotFoundError, PermissionError, OSError):
                 # Shared memory errors should crash the process - don't catch and retry
                 # Clean up registry entry first, then re-raise
@@ -431,3 +441,19 @@ def stop_shared_cache() -> None:
     if _shared_cache is not None:
         _shared_cache.stop()
         _shared_cache = None
+    def _untrack_shared_memory(self, shm: shared_memory.SharedMemory) -> None:
+        """Prevent the multiprocessing resource tracker from unlinking SHM on process exit.
+
+        On macOS (and sometimes Linux with spawned workers), each process that *attaches*
+        to an existing SharedMemory registers it with the resource tracker, which will
+        unlink the backing segment when that process exits. This causes the registry to
+        point at missing SHM blocks and forces constant rebuilds. We manage lifetime
+        ourselves, so we unregister to keep the tracker from unlinking our segments.
+        """
+        if resource_tracker is None:
+            return
+        try:
+            resource_tracker.unregister(shm._name, "shared_memory")  # type: ignore[attr-defined]
+        except Exception:
+            # Best-effort; if it fails we just fall back to default behaviour.
+            pass
