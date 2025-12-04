@@ -9,4 +9,9 @@ def run(
     stats_server_uri: str | None = None,
     seed: int = 50,
 ) -> MultiPolicyVersionEvalTool:
-    return evaluate(policy_version_id, result_file_path, stats_server_uri, seed)
+    return evaluate(
+        policy_version_id=policy_version_id,
+        result_file_path=result_file_path,
+        stats_server_uri=stats_server_uri,
+        seed=seed,
+    )
