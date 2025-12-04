@@ -68,9 +68,7 @@ class LossesConfig(Config):
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
         # also, the way it's setup doesn't let the experimenter give names to losses.
         loss_configs = {
-            name: cfg
-            for name, cfg in ((name, getattr(self, name)) for name in self._LOSS_ORDER)
-            if cfg.enabled
+            name: cfg for name, cfg in ((name, getattr(self, name)) for name in self._LOSS_ORDER) if cfg.enabled
         }
         self._validate_sampler_dependencies()
         return loss_configs
