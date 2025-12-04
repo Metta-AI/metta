@@ -263,14 +263,13 @@ def run_comparison(
     from cogames.cogs_vs_clips.mission import Mission
     from cogames.cogs_vs_clips.sites import HELLO_WORLD
     from cogames.cogs_vs_clips.variant_shuffler import COMBINABLE_VARIANTS, check_conflicts
-    from cogames.cogs_vs_clips.variants import EmptyBaseVariant
 
-    # Base mission
+    # Base mission - no hardcoded variants, let the shuffler add them
     base_mission = Mission(
         name="comparison_base",
         description="Base for comparison",
         site=HELLO_WORLD,
-        variants=[EmptyBaseVariant()],
+        variants=[],
     )
 
     # Generate random combinations

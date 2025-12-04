@@ -78,7 +78,7 @@ class SuperChargedVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.energy_regen_amount += 2
+        mission.energy_regen_amount = min(255, mission.energy_regen_amount + 2)
 
 
 class RoughTerrainVariant(MissionVariant):
@@ -118,8 +118,8 @@ class EnergizedVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.energy_capacity = max(mission.energy_capacity, 255)
-        mission.energy_regen_amount = mission.energy_capacity
+        mission.energy_capacity = 255
+        mission.energy_regen_amount = 255
 
 
 class ResourceBottleneckVariant(MissionVariant):

@@ -13,14 +13,21 @@ from typing import TYPE_CHECKING
 from cogames.cogs_vs_clips.difficulty_estimator import DifficultyReport, estimate_difficulty
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.variants import (
+    ChestHeartTuneVariant,
+    CompassVariant,
     DarkSideVariant,
     EnergizedVariant,
     HeartChorusVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
+    MinedOutVariant,
     MissionVariant,
     PackRatVariant,
     RoughTerrainVariant,
+    Small50Variant,
+    SolarFlareVariant,
+    SuperChargedVariant,
+    TinyHeartProtocolsVariant,
 )
 
 if TYPE_CHECKING:
@@ -31,20 +38,35 @@ if TYPE_CHECKING:
 COMBINABLE_VARIANTS: list[type[MissionVariant]] = [
     # Energy variants
     DarkSideVariant,  # Zero regen
-    EnergizedVariant,  # 4x energy capacity
+    EnergizedVariant,  # Max energy + full regen
+    SuperChargedVariant,  # +2 regen
     RoughTerrainVariant,  # 2x move cost
+    SolarFlareVariant,  # Weaker chargers
     # Recipe variants
     LonelyHeartVariant,  # 1 of each resource
-    HeartChorusVariant,  # Multi-agent vibes
+    HeartChorusVariant,  # Multi-agent vibes + reward shaping
+    TinyHeartProtocolsVariant,  # Low-cost heart protocols
     # Inventory variants
-    PackRatVariant,  # 2x cargo
-    InventoryHeartTuneVariant,  # Pre-filled inventory
+    PackRatVariant,  # 2x cargo/energy/heart capacity
+    InventoryHeartTuneVariant,  # Pre-filled agent inventory
+    ChestHeartTuneVariant,  # Pre-filled chest
+    # Resource variants
+    MinedOutVariant,  # Limited extractor uses
+    # Map variants
+    Small50Variant,  # 50x50 map
+    # Utility variants
+    CompassVariant,  # Compass toward assembler
 ]
 
 # Variants that conflict (can't be used together)
 CONFLICT_GROUPS = [
-    # Energy conflicts: DarkSide (zero regen) conflicts with Energized (high regen)
+    # Energy conflicts: DarkSide (zero regen) conflicts with regen boosters
     {DarkSideVariant, EnergizedVariant},
+    {DarkSideVariant, SuperChargedVariant},
+    # Energized already maxes regen, SuperCharged is redundant
+    {EnergizedVariant, SuperChargedVariant},
+    # Recipe conflicts: LonelyHeart already simplifies recipes
+    {LonelyHeartVariant, TinyHeartProtocolsVariant},
 ]
 
 
