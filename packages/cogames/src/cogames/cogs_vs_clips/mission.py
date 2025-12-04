@@ -197,7 +197,7 @@ class Mission(Config):
                     "energy": self.energy_capacity,
                 },
                 vibe_transfers={"charger": {"energy": 20}},
-                inventory_regen_amounts={"energy": self.energy_regen_amount},
+                inventory_regen_amounts={"default": {"energy": self.energy_regen_amount}},
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,

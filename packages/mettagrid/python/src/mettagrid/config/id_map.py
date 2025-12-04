@@ -119,6 +119,10 @@ class IdMap:
         features.append(ObservationFeatureSpec(id=feature_id, normalization=255.0, name="remaining_uses"))
         feature_id += 1
 
+        # Per-agent cooldown for assemblers (how long until THIS agent can use the assembler again)
+        features.append(ObservationFeatureSpec(id=feature_id, normalization=255.0, name="agent_cooldown_remaining"))
+        feature_id += 1
+
         # Inventory features (one per resource)
         for resource_name in self._config.resource_names:
             features.append(ObservationFeatureSpec(id=feature_id, normalization=100.0, name=f"inv:{resource_name}"))

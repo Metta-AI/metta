@@ -64,6 +64,7 @@ protected:
         {"cooldown_remaining", 16},
         {"clipped", 17},
         {"remaining_uses", 18},
+        {"agent_cooldown_remaining", 19},
     };
     ObservationFeature::Initialize(feature_ids);
     resource_names = create_test_resource_names();

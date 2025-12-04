@@ -53,6 +53,29 @@ class PackedCoordinate:
         """Check if packed value represents empty location."""
         ...
 
+class LimitDef:
+    """Inventory limit definition with optional modifiers."""
+
+    def __init__(
+        self,
+        resources: list[int] = [],
+        base_limit: int = 0,
+        modifiers: dict[int, int] = {},
+    ) -> None: ...
+    resources: list[int]
+    base_limit: int
+    modifiers: dict[int, int]
+
+class InventoryConfig:
+    """Inventory configuration with limits and modifiers."""
+
+    def __init__(
+        self,
+        limits: list[tuple[list[int], int]] = [],
+    ) -> None: ...
+    limits: list[tuple[list[int], int]]
+    limit_defs: list[LimitDef]
+
 class GridObjectConfig: ...
 
 class WallConfig(GridObjectConfig):
@@ -73,7 +96,7 @@ class AgentConfig(GridObjectConfig):
         stat_reward_max: dict[str, float] = {},
         initial_inventory: dict[int, int] = {},
         soul_bound_resources: list[int] | None = None,
-        inventory_regen_amounts: dict[int, int] | None = None,
+        inventory_regen_amounts: dict[int, dict[int, int]] | None = None,
         diversity_tracked_resources: list[int] | None = None,
         vibe_transfers: dict[int, dict[int, int]] | None = None,
     ) -> None: ...
@@ -88,7 +111,7 @@ class AgentConfig(GridObjectConfig):
     stat_reward_max: dict[str, float]  # Added this
     initial_inventory: dict[int, int]
     soul_bound_resources: list[int]
-    inventory_regen_amounts: dict[int, int]
+    inventory_regen_amounts: dict[int, dict[int, int]]
     diversity_tracked_resources: list[int]
     vibe_transfers: dict[int, dict[int, int]]
 
@@ -108,6 +131,9 @@ class Protocol:
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     cooldown: int
+    sigmoid: int
+    inflation: float
+    activation_count: int
 
 class ClipperConfig:
     def __init__(self) -> None: ...
@@ -122,9 +148,13 @@ class AttackActionConfig(ActionConfig):
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, int] = {},
         defense_resources: dict[int, int] = {},
+        armor_resources: dict[int, int] = {},
+        weapon_resources: dict[int, int] = {},
         enabled: bool = True,
     ) -> None: ...
     defense_resources: dict[int, int]
+    armor_resources: dict[int, int]
+    weapon_resources: dict[int, int]
     enabled: bool
 
 class ChangeVibeActionConfig(ActionConfig):
