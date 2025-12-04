@@ -24,17 +24,9 @@ class EMAConfig(LossConfig):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "EMA":
         """Create EMA loss instance."""
-        return EMA(
-            policy,
-            trainer_cfg,
-            vec_env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return EMA(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class EMA(Loss):
@@ -47,9 +39,9 @@ class EMA(Loss):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "EMAConfig",
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
 
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():

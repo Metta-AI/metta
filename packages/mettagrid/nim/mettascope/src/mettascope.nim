@@ -60,10 +60,10 @@ find "/UI/Main":
     rootArea.split = 0.30
 
     rootArea.areas[0].split(Horizontal)
-    rootArea.areas[0].split = 0.8
+    rootArea.areas[0].split = 0.7
 
     rootArea.areas[1].split(Vertical)
-    rootArea.areas[1].split = 0.50
+    rootArea.areas[1].split = 0.6
 
     objectInfoPanel = rootArea.areas[0].areas[0].addPanel(ObjectInfo, "Object")
     environmentInfoPanel = rootArea.areas[0].areas[0].addPanel(EnvironmentInfo, "Environment")
