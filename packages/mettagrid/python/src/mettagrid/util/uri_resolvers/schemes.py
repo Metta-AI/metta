@@ -250,10 +250,15 @@ def policy_spec_from_uri(
                 "strict": strict,
             },
         )
-    if path_to_spec.startswith("s3://"):
-        spec = load_policy_spec_from_s3(path_to_spec, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit)
-    else:
-        spec = load_policy_spec_from_local_dir(Path(path_to_spec))
+    try:
+        if path_to_spec.startswith("s3://"):
+            spec = load_policy_spec_from_s3(path_to_spec, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit)
+        else:
+            spec = load_policy_spec_from_local_dir(Path(path_to_spec))
+    except FileNotFoundError as exc:
+        # Surface missing policy specs as ValueError so callers (e.g., CLI parsers)
+        # can fall back to key-value parsing without treating this as a hard error.
+        raise ValueError(str(exc)) from exc
 
     # Ensure caller-requested device is honored for specs loaded from S3 or local dirs.
     if spec.init_kwargs is None:
