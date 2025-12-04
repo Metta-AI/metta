@@ -187,7 +187,7 @@ class HeartChorusVariant(MissionVariant):
         rewards = dict(env.game.agent.rewards.stats)
         rewards.update(
             {
-                "heart.created": 1.0,
+                "assembler.heart.created": 1.0,
                 "chest.heart.deposited": 1.0,
                 "chest.heart.withdrawn": -1.0,
                 "inventory.diversity.ge.2": 0.17,
