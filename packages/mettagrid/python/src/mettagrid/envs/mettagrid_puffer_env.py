@@ -361,7 +361,7 @@ class MettaGridPufferEnv(PufferEnv):
             import json
             import zipfile
 
-            from metta.common.util.file import local_copy
+            from mettagrid.util.file import local_copy
         except ImportError:
             raise ImportError(
                 f"Cannot load policy from submission archive {s3_path}: "
