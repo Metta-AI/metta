@@ -99,6 +99,15 @@ class SharedMapCache:
             _maps_per_key = maps_per_key
         self._shm_registry: dict[str, shared_memory.SharedMemory] = {}
 
+    def _untrack_shared_memory(self, shm: shared_memory.SharedMemory) -> None:
+        """Prevent multiprocessing resource_tracker from unlinking our SHM."""
+        if resource_tracker is None:
+            return
+        try:
+            resource_tracker.unregister(shm._name, "shared_memory")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
     def start(self) -> None:
         """Start the shared cache (no-op, registry is file-based)."""
         _get_registry_file()
@@ -441,19 +450,3 @@ def stop_shared_cache() -> None:
     if _shared_cache is not None:
         _shared_cache.stop()
         _shared_cache = None
-    def _untrack_shared_memory(self, shm: shared_memory.SharedMemory) -> None:
-        """Prevent the multiprocessing resource tracker from unlinking SHM on process exit.
-
-        On macOS (and sometimes Linux with spawned workers), each process that *attaches*
-        to an existing SharedMemory registers it with the resource tracker, which will
-        unlink the backing segment when that process exits. This causes the registry to
-        point at missing SHM blocks and forces constant rebuilds. We manage lifetime
-        ourselves, so we unregister to keep the tracker from unlinking our segments.
-        """
-        if resource_tracker is None:
-            return
-        try:
-            resource_tracker.unregister(shm._name, "shared_memory")  # type: ignore[attr-defined]
-        except Exception:
-            # Best-effort; if it fails we just fall back to default behaviour.
-            pass
