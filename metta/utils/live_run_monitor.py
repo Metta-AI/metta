@@ -144,9 +144,7 @@ def _get_status_color(status: "JobStatus") -> str:
         return "white"
 
 
-def make_rich_monitor_table(
-    runs: list["RunInfo"], score_metric: str = "env_game/assembler.heart.created"
-) -> Table:
+def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_game/assembler.heart.created") -> Table:
     """Create rich table for run monitoring."""
 
     # Create table
