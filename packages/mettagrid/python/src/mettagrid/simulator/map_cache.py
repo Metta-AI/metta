@@ -8,6 +8,11 @@ import os
 import random
 import tempfile
 from multiprocessing import shared_memory
+
+try:
+    from multiprocessing import resource_tracker
+except ImportError:  # pragma: no cover
+    resource_tracker = None
 from pathlib import Path
 from typing import Any, Optional
 
