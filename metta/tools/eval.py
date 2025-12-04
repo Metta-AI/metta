@@ -127,7 +127,7 @@ class EvaluateTool(Tool):
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
                 doxascope_logger=self.doxascope_logger,
-        )
+            )
         render_eval_summary(rollout_results, policy_names=[_spec_display_name(policy_spec)], verbose=self.verbose)
 
         return 0, "Done", rollout_results
