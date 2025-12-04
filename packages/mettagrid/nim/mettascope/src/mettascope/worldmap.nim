@@ -830,57 +830,43 @@ proc fitVisibleMap*(panel: Panel) {.measure.} =
     fitFullMap(panel)
     return
 
-  let
-    rectW = panel.rect.w.float32
-    rectH = panel.rect.h.float32
+  let rectSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
 
-  if rectW <= 0 or rectH <= 0:
+  if rectSize.x <= 0 or rectSize.y <= 0:
     fitFullMap(panel)
     return
 
   # Calculate the union of all agent vision areas.
   var
-    minX = float32.high
-    minY = float32.high
-    maxX = float32.low
-    maxY = float32.low
+    minPos = vec2(float32.high, float32.high)
+    maxPos = vec2(float32.low, float32.low)
 
   for agent in replay.agents:
     if agent.location.len == 0:
       continue
     let
-      pos = agent.location.at(step).xy
+      pos = agent.location.at(step).xy.vec2
       visionRadius = agent.visionSize.float32 / 2.0f
-      agentMinX = pos.x.float32 - visionRadius
-      agentMinY = pos.y.float32 - visionRadius
-      agentMaxX = pos.x.float32 + visionRadius
-      agentMaxY = pos.y.float32 + visionRadius
+      agentMin = pos - vec2(visionRadius, visionRadius)
+      agentMax = pos + vec2(visionRadius, visionRadius)
 
-    minX = min(minX, agentMinX)
-    minY = min(minY, agentMinY)
-    maxX = max(maxX, agentMaxX)
-    maxY = max(maxY, agentMaxY)
+    minPos = min(minPos, agentMin)
+    maxPos = max(maxPos, agentMax)
 
-  # Ensure we have valid bounds with reasonable size
-  if (minX > maxX or minY > maxY) or
-     (maxX - minX < 1.0f or maxY - minY < 1.0f):
+  # Ensure we have valid bounds with reasonable size, otherwise fall back to full map
+  let size = maxPos - minPos
+  if size.x < 1.0f or size.y < 1.0f:
     fitFullMap(panel)
     return
 
   let
-    visibleW = maxX - minX
-    visibleH = maxY - minY
+    visibleSize = maxPos - minPos
+    zoomScale = min(rectSize.x / visibleSize.x, rectSize.y / visibleSize.y)
+    center = (minPos + maxPos) / 2.0f
+    zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
 
-  let zoomScale = min(rectW / visibleW, rectH / visibleH)
-  panel.zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
-
-  let
-    cx = (minX + maxX) / 2.0f
-    cy = (minY + maxY) / 2.0f
-    z = panel.zoom * panel.zoom
-
-  panel.pos.x = rectW / 2.0f - cx * z
-  panel.pos.y = rectH / 2.0f - cy * z
+  panel.zoom = zoom
+  panel.pos = rectSize / 2.0f - center * (zoom * zoom)
 
 proc adjustPanelForResize*(panel: Panel) {.measure.} =
   ## Adjust pan and zoom when panel resizes to show the same portion of the map.
