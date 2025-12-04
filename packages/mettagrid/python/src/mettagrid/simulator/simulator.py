@@ -19,6 +19,7 @@ from mettagrid.simulator.map_cache import SharedMapCache, get_shared_cache
 
 if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
+    from mettagrid.policy.policy import PolicyDescriptor
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,8 @@ class Simulation:
         self._features: dict[int, ObservationFeatureSpec] = {
             feature.id: feature for feature in self._config.game.id_map().features()
         }
+
+        self._policy_descriptors: list[PolicyDescriptor] = []
 
         self._start_episode()
 
@@ -214,6 +217,36 @@ class Simulation:
     def get_feature(self, feature_id: int) -> ObservationFeatureSpec:
         """Get a feature by its ID."""
         return self._features[feature_id]
+
+    def set_policy_descriptors(self, descriptors: list[PolicyDescriptor]) -> None:
+        if len(descriptors) != self.num_agents:
+            raise ValueError(f"Expected {self.num_agents} descriptors, got {len(descriptors)}")
+        self._policy_descriptors = descriptors
+
+    def get_policy_descriptors(self) -> list[PolicyDescriptor]:
+        return self._policy_descriptors
+
+    def get_agent_policy_id(self, agent_id: int) -> int:
+        if not self._policy_descriptors:
+            return -1
+        agent_descriptor = self._policy_descriptors[agent_id]
+        unique_policies = self.get_unique_policy_descriptors()
+        for idx, policy in enumerate(unique_policies):
+            if policy.name == agent_descriptor.name and policy.uri == agent_descriptor.uri:
+                return idx
+        return -1
+
+    def get_unique_policy_descriptors(self) -> list[PolicyDescriptor]:
+        if not self._policy_descriptors:
+            return []
+        seen = []
+        unique = []
+        for descriptor in self._policy_descriptors:
+            key = (descriptor.name, descriptor.uri)
+            if key not in seen:
+                seen.append(key)
+                unique.append(descriptor)
+        return unique
 
     @property
     def action_success(self) -> list[bool]:

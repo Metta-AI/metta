@@ -18,6 +18,14 @@ from mettagrid.simulator import Action, AgentObservation, Simulation
 StateType = TypeVar("StateType")
 
 
+class PolicyDescriptor(BaseModel):
+    """Metadata describing a policy for identification in replays and stats."""
+
+    name: str = Field(description="Human-readable policy name")
+    uri: Optional[str] = Field(default=None, description="Policy URI (e.g., wandb:// or local path)")
+    is_scripted: bool = Field(default=False, description="Whether this is a scripted (non-trained) policy")
+
+
 class AgentPolicy:
     """Base class for per-agent policies.
 
@@ -26,12 +34,17 @@ class AgentPolicy:
     This is what play.py and evaluation code use directly.
     """
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: PolicyEnvInterface, policy_descriptor: Optional[PolicyDescriptor] = None):
         self._policy_env_info = policy_env_info
+        self._policy_descriptor = policy_descriptor or PolicyDescriptor(name="unknown", is_scripted=True)
 
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
         return self._policy_env_info
+
+    @property
+    def policy_descriptor(self) -> PolicyDescriptor:
+        return self._policy_descriptor
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action given an observation.
@@ -64,9 +77,19 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     short_names: list[str] | None = None
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, **kwargs: Any):
+    def __init__(self, policy_env_info: PolicyEnvInterface, policy_name: Optional[str] = None, **kwargs: Any):
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
+        if policy_name is None:
+            if self.short_names:
+                policy_name = self.short_names[0]
+            else:
+                policy_name = self.__class__.__name__
+        self._policy_descriptor = PolicyDescriptor(name=policy_name, is_scripted=True)
+
+    @property
+    def policy_descriptor(self) -> PolicyDescriptor:
+        return self._policy_descriptor
 
     @abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:
@@ -158,7 +181,7 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         return int(self._full_action_buffer[agent_id])
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return _NimAgentPolicy(self, agent_id)
+        return _NimAgentPolicy(self, agent_id, self._policy_descriptor)
 
     def _invoke_step_batch(
         self,
@@ -205,8 +228,8 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
 class _NimAgentPolicy(AgentPolicy):
     """Lightweight proxy that delegates to the shared Nim multi-policy."""
 
-    def __init__(self, parent: NimMultiAgentPolicy, agent_id: int):
-        super().__init__(parent.policy_env_info)
+    def __init__(self, parent: NimMultiAgentPolicy, agent_id: int, policy_descriptor: PolicyDescriptor):
+        super().__init__(parent.policy_env_info, policy_descriptor)
         self._parent = parent
         self._agent_id = agent_id
 
@@ -230,14 +253,17 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         base_policy: "StatefulPolicyImpl[StateType]",
         policy_env_info: PolicyEnvInterface,
         agent_id: Optional[int] = None,
+        policy_descriptor: Optional[PolicyDescriptor] = None,
     ):
         """Initialize stateful wrapper.
 
         Args:
             base_policy: The underlying stateful policy implementation
             policy_env_info: The policy environment information
+            agent_id: Optional agent ID for multi-agent scenarios
+            policy_descriptor: Optional policy descriptor for identification
         """
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, policy_descriptor)
         self._base_policy = base_policy
         self._state: Optional[StateType] = None
         self._agent_id = agent_id
