@@ -66,7 +66,7 @@ class FileSchemeResolver(SchemeResolver):
                 best = (info[1], uri)
         return best[1] if best else None
 
-    def resolve(self, uri: str) -> str:
+    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
             base_uri = uri[:-7]
             if base_uri.endswith("/"):

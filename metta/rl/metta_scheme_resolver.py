@@ -13,20 +13,15 @@ from mettagrid.util.uri_resolvers.schemes import resolve_uri
 logger = logging.getLogger(__name__)
 
 
-def _looks_like_uuid_format(s: str) -> bool:
-    """Check if string has the structural format of a UUID (8-4-4-4-12 pattern)."""
-    if len(s) != 36:
-        return False
-    return s[8] == "-" and s[13] == "-" and s[18] == "-" and s[23] == "-"
-
-
 def _is_uuid(s: str) -> bool:
     """Check if string is a valid UUID.
 
     Returns True if valid UUID, False if clearly not a UUID.
     Raises ValueError if the string looks like a UUID (correct format) but is invalid.
     """
-    if not _looks_like_uuid_format(s):
+    if len(s) != 36:
+        return False
+    if not (s[8] == "-" and s[13] == "-" and s[18] == "-" and s[23] == "-"):
         return False
 
     try:
@@ -52,19 +47,19 @@ def _parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
     return identifier, None
 
 
-class CogwebSchemeResolver(SchemeResolver):
-    """Resolves cogweb:// URIs to checkpoint URIs via the stats server.
+class MettaSchemeResolver(SchemeResolver):
+    """Resolves metta:// URIs to checkpoint URIs via the stats server.
 
     Supported formats:
-      - cogweb://policy/<uuid>              (policy version by UUID)
-      - cogweb://policy/<name>              (latest version of named policy)
-      - cogweb://policy/<name>:latest       (latest version of named policy)
-      - cogweb://policy/<name>:v<N>         (specific version N of named policy)
+      - metta://policy/<uuid>              (policy version by UUID)
+      - metta://policy/<name>              (latest version of named policy)
+      - metta://policy/<name>:latest       (latest version of named policy)
+      - metta://policy/<name>:v<N>         (specific version N of named policy)
     """
 
     @property
     def scheme(self) -> str:
-        return "cogweb"
+        return "metta"
 
     def _get_stats_client(self) -> StatsClient:
         stats_server_uri = auto_stats_server_uri()
@@ -106,37 +101,19 @@ class CogwebSchemeResolver(SchemeResolver):
 
         return policy_version
 
-    def resolve(self, uri: str) -> str:
+    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         policy_version = self._get_policy_version(uri)
-        if not policy_version.s3_path:
-            raise ValueError(f"Policy version {policy_version.id} has no s3_path")
-        return policy_version.s3_path
-
-
-class MettaSchemeResolver(CogwebSchemeResolver):
-    """Resolves metta:// URIs to checkpoint URIs via the stats server.
-
-    Supported formats:
-      - metta://policy/<uuid>              (policy version by UUID)
-      - metta://policy/<name>              (latest version of named policy)
-      - metta://policy/<name>:latest       (latest version of named policy)
-      - metta://policy/<name>:v<N>         (specific version N of named policy)
-    """
-
-    @property
-    def scheme(self) -> str:
-        return "metta"
-
-    def resolve(self, uri: str) -> str:
-        policy_version = self._get_policy_version(uri)
+        # By default we send you to the s3 path that contains the policy spec
         if policy_version.s3_path:
             logger.info(f"Metta scheme resolver: {uri} resolved to s3 policy spec: {policy_version.s3_path}")
             return policy_version.s3_path
 
-        checkpoint_uri = (policy_version.policy_spec or {}).get("init_kwargs", {}).get("checkpoint_uri")
-
-        if not checkpoint_uri:
+        # If that is missing (probably legacy policy), we send you to the mpt file, and will later assume
+        # that the class to hydrate from is MptPolicy
+        mpt_file_path = (policy_version.policy_spec or {}).get("init_kwargs", {}).get("checkpoint_uri")
+        if not mpt_file_path:
             raise ValueError(f"Data not found for policy version {policy_version.id}")
-
-        logger.info(f"Metta scheme resolver: {uri} resolved to mpt checkpoint: {checkpoint_uri}")
-        return resolve_uri(checkpoint_uri)
+        if not mpt_file_path.endswith(".mpt"):
+            raise ValueError(f"Invalid mpt file path: {mpt_file_path}")
+        logger.info(f"Metta scheme resolver: {uri} resolved to mpt checkpoint: {mpt_file_path}")
+        return resolve_uri(mpt_file_path)
