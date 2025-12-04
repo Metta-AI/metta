@@ -1395,7 +1395,10 @@ ORDER BY e.created_at DESC
         training_run_ids: list[str],
         run_free_policy_ids: list[str],
     ) -> list[str]:
-        """Get unique eval names from episodes for given policies."""
+        """Get unique eval names from episodes for given policies.
+
+        Returns identifiers in the format 'category/name' constructed from episode tags.
+        """
         async with self.connect() as con:
             policy_ids: list[uuid.UUID] = []
             for pid in training_run_ids + run_free_policy_ids:
@@ -1410,69 +1413,19 @@ ORDER BY e.created_at DESC
             async with con.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
                     """
-                    SELECT DISTINCT et.value AS eval_name
-                    FROM episode_tags et
-                    JOIN episodes e ON e.id = et.episode_id
+                    SELECT DISTINCT CONCAT(cat.value, '/', name.value) AS eval_name
+                    FROM episodes e
                     JOIN episode_policies ep ON ep.episode_id = e.id
                     JOIN policy_versions pv ON pv.id = ep.policy_version_id
+                    JOIN episode_tags cat ON cat.episode_id = e.id AND cat.key = 'category'
+                    JOIN episode_tags name ON name.episode_id = e.id AND name.key = 'name'
                     WHERE pv.policy_id = ANY(%s)
-                      AND et.key = 'eval_name'
                     ORDER BY eval_name
                     """,
                     (policy_ids,),
                 )
                 rows = await cur.fetchall()
                 return [row["eval_name"] for row in rows if row["eval_name"]]
-
-    async def get_available_metrics(
-        self,
-        training_run_ids: list[str],
-        run_free_policy_ids: list[str],
-        eval_names: list[str],
-    ) -> list[str]:
-        """Get available metrics for given policies and eval names."""
-        async with self.connect() as con:
-            policy_ids: list[uuid.UUID] = []
-            for pid in training_run_ids + run_free_policy_ids:
-                try:
-                    policy_ids.append(uuid.UUID(pid))
-                except ValueError:
-                    continue
-
-            if not policy_ids:
-                return []
-
-            where_conditions: list[str] = ["pv.policy_id = ANY(%s)"]
-            params: list[Any] = [policy_ids]
-
-            if eval_names:
-                where_conditions.append(
-                    """EXISTS (
-                        SELECT 1 FROM episode_tags et
-                        WHERE et.episode_id = e.id
-                          AND et.key = 'eval_name'
-                          AND et.value = ANY(%s)
-                    )"""
-                )
-                params.append(eval_names)
-
-            where_clause = "WHERE " + " AND ".join(where_conditions)
-
-            async with con.cursor(row_factory=dict_row) as cur:
-                await cur.execute(
-                    f"""
-                    SELECT DISTINCT epm.metric_name
-                    FROM episode_policy_metrics epm
-                    JOIN episodes e ON e.internal_id = epm.episode_internal_id
-                    JOIN episode_policies ep ON ep.episode_id = e.id
-                    JOIN policy_versions pv ON pv.internal_id = epm.pv_internal_id
-                    {where_clause}
-                    ORDER BY metric_name
-                    """,
-                    params,
-                )
-                rows = await cur.fetchall()
-                return [row["metric_name"] for row in rows if row["metric_name"]]
 
     async def get_scorecard_options(
         self,
@@ -1489,19 +1442,19 @@ ORDER BY e.created_at DESC
                     continue
 
             if not policy_ids:
-                return {"eval_names": [], "metrics": []}
+                return {"evaluation_identifiers": [], "metrics": []}
 
             async with con.cursor(row_factory=dict_row) as cur:
-                # Get eval names
+                # Get eval names (constructed from category/name tags)
                 await cur.execute(
                     """
-                    SELECT DISTINCT et.value AS eval_name
-                    FROM episode_tags et
-                    JOIN episodes e ON e.id = et.episode_id
+                    SELECT DISTINCT CONCAT(cat.value, '/', name.value) AS eval_name
+                    FROM episodes e
                     JOIN episode_policies ep ON ep.episode_id = e.id
                     JOIN policy_versions pv ON pv.id = ep.policy_version_id
+                    JOIN episode_tags cat ON cat.episode_id = e.id AND cat.key = 'category'
+                    JOIN episode_tags name ON name.episode_id = e.id AND name.key = 'name'
                     WHERE pv.policy_id = ANY(%s)
-                      AND et.key = 'eval_name'
                     ORDER BY eval_name
                     """,
                     (policy_ids,),
@@ -1525,17 +1478,17 @@ ORDER BY e.created_at DESC
                 metric_rows = await cur.fetchall()
                 metrics = [row["metric_name"] for row in metric_rows if row["metric_name"]]
 
-            return {"eval_names": eval_names, "metrics": metrics}
+            return {"evaluation_identifiers": eval_names, "metrics": metrics}
 
     async def generate_scorecard(
         self,
         training_run_ids: list[str],
         run_free_policy_ids: list[str],
-        eval_names: list[str],
+        evaluation_identifiers: list[str],
         metric: str,
         policy_selector: Literal["best", "latest"] = "best",
     ) -> dict[str, Any]:
-        """Generate scorecard data for policies and eval names."""
+        """Generate scorecard data for policies and evaluation identifiers."""
         async with self.connect() as con:
             policy_ids: list[uuid.UUID] = []
             for pid in training_run_ids + run_free_policy_ids:
@@ -1544,48 +1497,52 @@ ORDER BY e.created_at DESC
                 except ValueError:
                     continue
 
-            if not policy_ids or not eval_names:
+            if not policy_ids or not evaluation_identifiers:
                 return {
                     "policy_names": [],
-                    "eval_names": [],
+                    "evaluation_identifiers": [],
                     "cells": [],
                 }
 
             # DRY: Build base query and only vary ORDER BY clause
+            # Construct eval_name from category/name tags
             base_query = """
-                SELECT DISTINCT ON (p.name, et.value)
+                SELECT DISTINCT ON (p.name, CONCAT(cat.value, '/', name.value))
                     p.name AS policy_name,
-                    et.value AS eval_name,
+                    CONCAT(cat.value, '/', name.value) AS eval_name,
                     epm.value / NULLIF(ep.num_agents, 0) AS metric_value,
                     e.id AS episode_id
                 FROM policies p
                 JOIN policy_versions pv ON pv.policy_id = p.id
                 JOIN episode_policies ep ON ep.policy_version_id = pv.id
                 JOIN episodes e ON e.id = ep.episode_id
-                JOIN episode_tags et ON et.episode_id = e.id
+                JOIN episode_tags cat ON cat.episode_id = e.id AND cat.key = 'category'
+                JOIN episode_tags name ON name.episode_id = e.id AND name.key = 'name'
                 JOIN episode_policy_metrics epm ON epm.episode_internal_id = e.internal_id
                     AND epm.pv_internal_id = pv.internal_id
                 WHERE p.id = ANY(%s)
-                  AND et.key = 'eval_name'
-                  AND et.value = ANY(%s)
+                  AND CONCAT(cat.value, '/', name.value) = ANY(%s)
                   AND epm.metric_name = %s
             """
 
             # Only ORDER BY differs between "best" and "latest"
             if policy_selector == "best":
-                order_by = "ORDER BY p.name, et.value, epm.value / NULLIF(ep.num_agents, 0) DESC, e.created_at DESC"
+                order_by = (
+                    "ORDER BY p.name, CONCAT(cat.value, '/', name.value), "
+                    "epm.value / NULLIF(ep.num_agents, 0) DESC, e.created_at DESC"
+                )
             else:
-                order_by = "ORDER BY p.name, et.value, e.created_at DESC, pv.version DESC"
+                order_by = "ORDER BY p.name, CONCAT(cat.value, '/', name.value), e.created_at DESC, pv.version DESC"
 
             async with con.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
                     base_query + order_by,
-                    (policy_ids, eval_names, metric),
+                    (policy_ids, evaluation_identifiers, metric),
                 )
                 rows = await cur.fetchall()
 
             policy_names = sorted(set(row["policy_name"] for row in rows))
-            eval_names_sorted = sorted(eval_names)
+            evaluation_identifiers_sorted = sorted(evaluation_identifiers)
 
             cells: list[list[dict[str, Any]]] = []
             row_dict: dict[tuple[str, str], dict[str, Any]] = {}
@@ -1599,13 +1556,13 @@ ORDER BY e.created_at DESC
 
             for policy_name in policy_names:
                 row: list[dict[str, Any]] = []
-                for eval_name in eval_names_sorted:
-                    cell = row_dict.get((policy_name, eval_name), {"value": None, "episode_id": None})
+                for eval_identifier in evaluation_identifiers_sorted:
+                    cell = row_dict.get((policy_name, eval_identifier), {"value": None, "episode_id": None})
                     row.append(cell)
                 cells.append(row)
 
             return {
                 "policy_names": policy_names,
-                "eval_names": eval_names_sorted,
+                "evaluation_identifiers": evaluation_identifiers_sorted,
                 "cells": cells,
             }

@@ -124,21 +124,21 @@ class PoliciesResponse(BaseModel):
 
 
 class ScorecardOptionsRequest(BaseModel):
-    training_run_ids: list[str] = Field(default_factory=list)
+    policy_ids: list[str] = Field(default_factory=list)
     run_free_policy_ids: list[str] = Field(default_factory=list)
 
 
 class ScorecardOptionsResponse(BaseModel):
-    eval_names: list[str]
+    evaluation_identifiers: list[str]
     metrics: list[str]
 
 
 class ScorecardRequest(BaseModel):
-    training_run_ids: list[str] = Field(default_factory=list)
+    policy_ids: list[str] = Field(default_factory=list)
     run_free_policy_ids: list[str] = Field(default_factory=list)
-    eval_names: list[str]
+    evaluation_identifiers: list[str]
     metric: str
-    training_run_policy_selector: Literal["best", "latest"] = "best"
+    policy_version_selector: Literal["best", "latest"] = "best"
 
 
 class ScorecardCell(BaseModel):
@@ -148,7 +148,7 @@ class ScorecardCell(BaseModel):
 
 class ScorecardData(BaseModel):
     policy_names: list[str]
-    eval_names: list[str]
+    evaluation_identifiers: list[str]
     cells: list[list[ScorecardCell]]
 
 
@@ -499,11 +499,11 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         """Get available evals and metrics for given policies."""
         try:
             options = await stats_repo.get_scorecard_options(
-                training_run_ids=request.training_run_ids,
+                training_run_ids=request.policy_ids,
                 run_free_policy_ids=request.run_free_policy_ids,
             )
             return ScorecardOptionsResponse(
-                eval_names=options["eval_names"],
+                evaluation_identifiers=options["evaluation_identifiers"],
                 metrics=options["metrics"],
             )
         except Exception as e:
@@ -514,16 +514,16 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     async def generate_scorecard(request: ScorecardRequest, user: UserOrToken) -> ScorecardResponse:
         try:
             data_dict = await stats_repo.generate_scorecard(
-                training_run_ids=request.training_run_ids,
+                training_run_ids=request.policy_ids,
                 run_free_policy_ids=request.run_free_policy_ids,
-                eval_names=request.eval_names,
+                evaluation_identifiers=request.evaluation_identifiers,
                 metric=request.metric,
-                policy_selector=request.training_run_policy_selector,
+                policy_selector=request.policy_version_selector,
             )
             cells = [[ScorecardCell(**cell) for cell in row] for row in data_dict["cells"]]
             data = ScorecardData(
                 policy_names=data_dict["policy_names"],
-                eval_names=data_dict["eval_names"],
+                evaluation_identifiers=data_dict["evaluation_identifiers"],
                 cells=cells,
             )
             return ScorecardResponse(data=data)
