@@ -829,27 +829,32 @@ proc fitVisibleMap*(panel: Panel) {.measure.} =
   if replay.isNil or replay.agents.len == 0:
     fitFullMap(panel)
     return
-  let rectW = panel.rect.w.float32
-  let rectH = panel.rect.h.float32
+
+  let
+    rectW = panel.rect.w.float32
+    rectH = panel.rect.h.float32
+
   if rectW <= 0 or rectH <= 0:
     fitFullMap(panel)
     return
 
   # Calculate the union of all agent vision areas.
-  var minX = float32.high
-  var minY = float32.high
-  var maxX = float32.low
-  var maxY = float32.low
+  var
+    minX = float32.high
+    minY = float32.high
+    maxX = float32.low
+    maxY = float32.low
 
   for agent in replay.agents:
     if agent.location.len == 0:
       continue
-    let pos = agent.location.at(step).xy
-    let visionRadius = agent.visionSize.float32 / 2.0f
-    let agentMinX = pos.x.float32 - visionRadius
-    let agentMinY = pos.y.float32 - visionRadius
-    let agentMaxX = pos.x.float32 + visionRadius
-    let agentMaxY = pos.y.float32 + visionRadius
+    let
+      pos = agent.location.at(step).xy
+      visionRadius = agent.visionSize.float32 / 2.0f
+      agentMinX = pos.x.float32 - visionRadius
+      agentMinY = pos.y.float32 - visionRadius
+      agentMaxX = pos.x.float32 + visionRadius
+      agentMaxY = pos.y.float32 + visionRadius
 
     minX = min(minX, agentMinX)
     minY = min(minY, agentMinY)
