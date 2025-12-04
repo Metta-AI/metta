@@ -285,6 +285,60 @@ class TestEvalTaskOrchestratorIntegration:
             success_thread_manager.shutdown_all()
 
     @pytest.mark.asyncio
+    async def test_worker_killed_after_task_completes(
+        self, eval_task_client: EvalTaskClient, success_thread_manager: ThreadWorkerManager
+    ):
+        """Test that workers are killed after their task completes (idle worker cleanup)."""
+        orchestrator = EvalTaskOrchestrator(
+            task_client=eval_task_client,
+            worker_manager=success_thread_manager,
+            poll_interval=0.5,
+            task_timeout_minutes=5.0,
+        )
+
+        # Create a test task
+        test_hash = f"worker_cleanup_{uuid.uuid4().hex[:8]}"
+        task_response = eval_task_client.create_task(
+            TaskCreateRequest(
+                command="metta evaluate test",
+                git_hash=test_hash,
+                attributes={"test": "worker_cleanup"},
+            )
+        )
+        task_id = task_response.id
+
+        try:
+            # Run orchestrator cycle to spawn worker and assign task
+            await orchestrator.run_cycle()
+
+            # Worker should be alive
+            alive_workers = await success_thread_manager.discover_alive_workers()
+            assert len(alive_workers) == 1
+            worker_name = alive_workers[0].name
+
+            # Wait for task to complete
+            for _ in range(10):
+                await asyncio.sleep(1)
+                filters = TaskFilterParams(git_hash=test_hash, limit=10)
+                all_tasks = eval_task_client.get_all_tasks(filters=filters)
+                task = next((t for t in all_tasks.tasks if t.id == task_id), None)
+                if task and task.status == "done":
+                    break
+
+            assert task is not None
+            assert task.status == "done"
+
+            # Run another orchestrator cycle - should clean up the idle worker
+            await orchestrator.run_cycle()
+
+            # Worker should be killed (no longer has an assigned task)
+            alive_workers = await success_thread_manager.discover_alive_workers()
+            assert len(alive_workers) == 0, f"Expected 0 workers, found {len(alive_workers)}: {[w.name for w in alive_workers]}"
+
+        finally:
+            success_thread_manager.shutdown_all()
+
+    @pytest.mark.asyncio
     async def test_failed_task_processing(
         self, eval_task_client: EvalTaskClient, failure_thread_manager: ThreadWorkerManager
     ):
