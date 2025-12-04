@@ -824,6 +824,55 @@ proc fitFullMap*(panel: Panel) {.measure.} =
   panel.pos.x = rectW / 2.0f - cx * z
   panel.pos.y = rectH / 2.0f - cy * z
 
+proc fitVisibleMap*(panel: Panel) {.measure.} =
+  ## Set zoom and pan so the visible area (union of all agent vision ranges) fits in the panel.
+  if replay.isNil or replay.agents.len == 0:
+    return
+  let rectW = panel.rect.w.float32
+  let rectH = panel.rect.h.float32
+  if rectW <= 0 or rectH <= 0:
+    return
+
+  # Calculate the union of all agent vision areas (11x11 squares)
+  var minX = float32.high
+  var minY = float32.high
+  var maxX = float32.low
+  var maxY = float32.low
+
+  for agent in replay.agents:
+    if agent.location.len == 0:
+      continue
+    let pos = agent.location.at(step).xy
+    let visionRadius = agent.visionSize.float32 / 2.0f
+    let agentMinX = pos.x.float32 - visionRadius
+    let agentMinY = pos.y.float32 - visionRadius
+    let agentMaxX = pos.x.float32 + visionRadius
+    let agentMaxY = pos.y.float32 + visionRadius
+
+    minX = min(minX, agentMinX)
+    minY = min(minY, agentMinY)
+    maxX = max(maxX, agentMaxX)
+    maxY = max(maxY, agentMaxY)
+
+  # Ensure we have valid bounds
+  if minX > maxX or minY > maxY:
+    return
+
+  let
+    visibleW = max(0.001f, maxX - minX)
+    visibleH = max(0.001f, maxY - minY)
+
+  let zoomScale = min(rectW / visibleW, rectH / visibleH)
+  panel.zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
+
+  let
+    cx = (minX + maxX) / 2.0f
+    cy = (minY + maxY) / 2.0f
+    z = panel.zoom * panel.zoom
+
+  panel.pos.x = rectW / 2.0f - cx * z
+  panel.pos.y = rectH / 2.0f - cy * z
+
 proc adjustPanelForResize*(panel: Panel) {.measure.} =
   ## Adjust pan and zoom when panel resizes to show the same portion of the map.
   let currentSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
