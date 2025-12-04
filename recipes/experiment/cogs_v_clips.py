@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Optional, Sequence
+from typing import Literal, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
@@ -312,6 +312,7 @@ def train(
     use_lp: bool = True,
     maps_cache_size: Optional[int] = 50,
     stats_server_uri: Optional[str] = None,
+    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -410,69 +411,105 @@ def train(
     elif bc_steps is None:
         bc_steps = 99999  # Pure BC mode
 
-    if bc_policy_uri is not None:
-        tt.training_env.supervisor.policy = bc_policy_uri
-        tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
-
     # Configure BC-to-PPO annealing schedule
     # bc_steps is in millions of agent steps (e.g., bc_steps=5 means 5M steps)
     bc_steps_actual = int(bc_steps * 1_000_000)
-
     anneal_start = int(bc_steps_actual * 0.5)  # Start annealing at 50% of bc_steps
     anneal_end = bc_steps_actual  # Complete transition at bc_steps
+
+    scheduler_run_gates: list[LossRunGate] = [
+        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_steps_actual),
+        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=bc_steps_actual),
+        LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_steps_actual),
+        LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=bc_steps_actual),
+    ]
+    scheduler_rules: list[HyperUpdateRule] = []
+
     if bc_policy_uri is not None:
-        tt.trainer.losses.supervisor.enabled = True
+        tt.training_env.supervisor.policy = bc_policy_uri
+
+        # Keep PPO off until after the BC window; start with actor/critic gated
         tt.trainer.losses.ppo.enabled = False
         tt.trainer.losses.ppo_actor.enabled = True  # Enable but gate it
         tt.trainer.losses.ppo_critic.enabled = True
         tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
         tt.trainer.losses.ppo_critic.sample_enabled = False
         tt.trainer.losses.ppo_critic.train_forward_enabled = False
+        tt.trainer.losses.ppo_critic.deferred_training_start_step = bc_steps_actual
 
-    # Configure scheduler for annealing
+        if bc_mode == "sliced_cloner":
+            tt.trainer.losses.sliced_scripted_cloner.enabled = True
+            tt.trainer.losses.supervisor.enabled = False
+
+            scheduler_run_gates += [
+                LossRunGate(
+                    loss_instance_name="sliced_scripted_cloner",
+                    phase="rollout",
+                    end_at_step=bc_steps_actual,
+                ),
+                LossRunGate(
+                    loss_instance_name="sliced_scripted_cloner",
+                    phase="train",
+                    end_at_step=bc_steps_actual,
+                ),
+            ]
+
+            scheduler_rules.append(
+                HyperUpdateRule(
+                    loss_instance_name="sliced_scripted_cloner",
+                    attr_path="teacher_led_proportion",
+                    mode="progress",
+                    style="linear",
+                    start_value=0.2,
+                    end_value=0.0,
+                    start_agent_step=0,
+                    end_agent_step=bc_steps_actual,
+                )
+            )
+        else:
+            tt.trainer.losses.supervisor.enabled = True
+            tt.trainer.losses.sliced_scripted_cloner.enabled = False
+            tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+
+            scheduler_run_gates += [
+                LossRunGate(
+                    loss_instance_name="action_supervisor",
+                    phase="rollout",
+                    end_at_step=bc_steps_actual,
+                ),
+                LossRunGate(
+                    loss_instance_name="action_supervisor",
+                    phase="train",
+                    end_at_step=bc_steps_actual,
+                ),
+            ]
+
+            scheduler_rules += [
+                HyperUpdateRule(
+                    loss_instance_name="action_supervisor",
+                    attr_path="action_loss_coef",
+                    mode="progress",
+                    style="linear",
+                    start_value=1.0,
+                    end_value=0.0,
+                    start_agent_step=anneal_start,
+                    end_agent_step=anneal_end,
+                ),
+                HyperUpdateRule(
+                    loss_instance_name="action_supervisor",
+                    attr_path="teacher_lead_prob",
+                    mode="progress",
+                    style="linear",
+                    start_value=bc_teacher_lead_prob,
+                    end_value=0.0,
+                    start_agent_step=anneal_start,
+                    end_agent_step=anneal_end,
+                ),
+            ]
+
     scheduler = SchedulerConfig(
-        run_gates=[
-            # Enable PPO rollout and training at the end of BC phase
-            LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_steps_actual),
-            LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=bc_steps_actual),
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_steps_actual),
-            LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=bc_steps_actual),
-            # Disable supervisor rollout and training at the end of BC phase
-            LossRunGate(
-                loss_instance_name="action_supervisor",
-                phase="rollout",
-                end_at_step=bc_steps_actual,
-            ),
-            LossRunGate(
-                loss_instance_name="action_supervisor",
-                phase="train",
-                end_at_step=bc_steps_actual,
-            ),
-        ],
-        rules=[
-            # Anneal supervisor action_loss_coef from 1.0 to 0.0
-            HyperUpdateRule(
-                loss_instance_name="action_supervisor",
-                attr_path="action_loss_coef",
-                mode="progress",
-                style="linear",
-                start_value=1.0,
-                end_value=0.0,
-                start_agent_step=anneal_start,
-                end_agent_step=anneal_end,
-            ),
-            # Optionally anneal teacher_lead_prob if it was set > 0
-            HyperUpdateRule(
-                loss_instance_name="action_supervisor",
-                attr_path="teacher_lead_prob",
-                mode="progress",
-                style="linear",
-                start_value=bc_teacher_lead_prob,
-                end_value=0.0,
-                start_agent_step=anneal_start,
-                end_agent_step=anneal_end,
-            ),
-        ],
+        run_gates=scheduler_run_gates,
+        rules=scheduler_rules,
     )
     tt.scheduler = scheduler
 
