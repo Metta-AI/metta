@@ -551,6 +551,53 @@ def evaluate(
     )
 
 
+def _get_policy_action_space(policy_uri: str) -> Optional[int]:
+    """Detect the action space size from a policy checkpoint."""
+    if not policy_uri or not policy_uri.startswith("s3://"):
+        return None
+
+    try:
+        from mettagrid.policy.mpt_artifact import load_mpt
+        artifact = load_mpt(policy_uri)
+
+        # Look for actor head weight to determine action space
+        for key, tensor in artifact.state_dict.items():
+            if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
+                return tensor.shape[0]
+        return None
+    except Exception:
+        return None
+
+
+def _configure_env_for_action_space(env, num_actions: int) -> None:
+    """Configure environment vibes to match a specific action space."""
+    # Action space = noop (1) + move (4) + change_vibe (N)
+    num_vibes = num_actions - 5
+
+    if num_vibes <= 0:
+        return
+
+    # Select the appropriate vibe set
+    if num_vibes == 16:
+        vibe_names = [v.name for v in vibes.TRAINING_VIBES]
+    elif num_vibes == 13:
+        vibe_names = [v.name for v in vibes.VIBES[:13]]
+    elif num_vibes <= len(vibes.VIBES):
+        vibe_names = [v.name for v in vibes.VIBES[:num_vibes]]
+    else:
+        vibe_names = [v.name for v in vibes.VIBES]
+
+    env.game.vibe_names = vibe_names
+
+    if env.game.actions:
+        if env.game.actions.change_vibe:
+            env.game.actions.change_vibe.number_of_vibes = len(vibe_names)
+            if env.game.agent.initial_vibe >= len(vibe_names):
+                env.game.agent.initial_vibe = 0
+        if env.game.actions.attack:
+            env.game.actions.attack.enabled = False
+
+
 def play(
     policy_uri: Optional[str] = None,
     mission: str = "easy_hearts",
@@ -565,10 +612,8 @@ def play(
         mission: Mission name to play
         num_cogs: Number of agents
         variants: Optional mission variants
-        num_vibes: Number of vibes to use. Options:
-                  - None: Use environment default (all vibes)
-                  - 13: Use first 13 vibes (for cvc_random_maps policies, 18 actions)
-                  - 16: Use TRAINING_VIBES (for base.1201 policies, 21 actions)
+        num_vibes: Number of vibes to use. If None, auto-detects from policy checkpoint.
+                  Can be set manually: 13 for cvc_random_maps, 16 for base.1201 policies.
     """
     env = cogs_v_clips.make_training_env(
         num_cogs=num_cogs,
@@ -576,18 +621,14 @@ def play(
         variants=variants,
     )
 
-    # Configure vibes based on policy requirements
-    if num_vibes == 16:
-        # Use TRAINING_VIBES for base.1201 policies
-        _enforce_training_vibes(env)
-    elif num_vibes == 13:
-        # Use first 13 vibes for cvc_random_maps policies
-        first_13_vibes = [v.name for v in vibes.VIBES[:13]]
-        env.game.vibe_names = first_13_vibes
-        if env.game.actions.change_vibe:
-            env.game.actions.change_vibe.number_of_vibes = 13
-        if env.game.actions.attack:
-            env.game.actions.attack.enabled = False
+    # Auto-detect action space from policy if not specified
+    if num_vibes is None and policy_uri:
+        detected_actions = _get_policy_action_space(policy_uri)
+        if detected_actions is not None:
+            _configure_env_for_action_space(env, detected_actions)
+    elif num_vibes is not None:
+        # Manual override
+        _configure_env_for_action_space(env, num_vibes + 5)  # Convert vibes to actions
 
     sim = SimulationConfig(suite="cogs_vs_clips", name=f"{mission}_{num_cogs}cogs", env=env)
     return PlayTool(sim=sim, policy_uri=policy_uri)
