@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iostream>
+#include <unordered_set>
 
 #include "config/observation_features.hpp"
 #include "systems/observation_encoder.hpp"
@@ -27,11 +29,11 @@ Agent::Agent(GridCoord r,
       prev_location(r, c),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
+      damage_config(config.damage_config),
       resource_names(resource_names),
       diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
-      tracked_resource_diversity(0),
-      vibe_transfers(config.vibe_transfers) {
+      tracked_resource_diversity(0) {
   for (InventoryItem item : config.diversity_tracked_resources) {
     const size_t index = static_cast<size_t>(item);
     if (index < diversity_tracked_mask.size()) {
@@ -39,7 +41,7 @@ Agent::Agent(GridCoord r,
     }
   }
 
-  populate_initial_inventory(config.initial_inventory);
+  populate_initial_inventory(config.initial_inventory, config.inventory_deps);
   GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
 }
 
@@ -47,8 +49,25 @@ void Agent::init(RewardType* reward_ptr) {
   this->reward = reward_ptr;
 }
 
-void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory) {
+void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory,
+                                       const std::vector<InventoryItem>& inventory_deps) {
+  // First, add items from inventory_deps in the specified order.
+  // User specifies order to ensure modifiers are added before items that depend on them.
+  // Example: ["gear", "battery"] ensures gear is added first (modifies battery limit),
+  // then battery (modifies energy limit), then everything else.
+  std::unordered_set<InventoryItem> added;
+
+  for (const InventoryItem& item : inventory_deps) {
+    auto it = initial_inventory.find(item);
+    if (it != initial_inventory.end()) {
+      this->inventory.update(item, it->second);
+      added.insert(item);
+    }
+  }
+
+  // Then add remaining items (not in inventory_deps)
   for (const auto& [item, amount] : initial_inventory) {
+    if (added.count(item)) continue;
     this->inventory.update(item, amount);
   }
 }
@@ -115,35 +134,55 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
   }
 }
 
-bool Agent::onUse(Agent& actor, ActionArg arg) {
-  // Look up transfers for the actor's vibe
-  auto vibe_it = actor.vibe_transfers.find(actor.vibe);
-  if (vibe_it == actor.vibe_transfers.end()) {
-    return false;  // No transfers configured for this vibe
+bool Agent::check_and_apply_damage(std::mt19937& rng) {
+  if (!damage_config.enabled()) {
+    return false;
   }
 
-  // Transfer each configured resource
-  bool any_transfer_occurred = false;
-  const auto& resource_deltas = vibe_it->second;
-  for (const auto& [resource, amount] : resource_deltas) {
-    if (amount > 0) {
-      // Transfer from actor to receiver (this)
-      InventoryQuantity actor_amount = actor.inventory.amount(resource);
-      InventoryQuantity share_attempted_amount = std::min(static_cast<InventoryQuantity>(amount), actor_amount);
-      if (share_attempted_amount > 0) {
-        InventoryDelta successful_share_amount = this->inventory.update(resource, share_attempted_amount);
-        actor.inventory.update(resource, -successful_share_amount);
-        if (successful_share_amount > 0) {
-          any_transfer_occurred = true;
-        }
-      }
+  // Check if all threshold inventory items are at or above their threshold values
+  for (const auto& [item, threshold_value] : damage_config.threshold) {
+    InventoryQuantity amount = this->inventory.amount(item);
+    if (amount < static_cast<InventoryQuantity>(threshold_value)) {
+      return false;  // Not all thresholds met
     }
   }
 
-  return any_transfer_occurred;
+  // Find which resources from the damage map the agent has above their minimum
+  std::vector<InventoryItem> available_resources;
+  for (const auto& [item, minimum] : damage_config.resources) {
+    InventoryQuantity amount = this->inventory.amount(item);
+    if (amount > static_cast<InventoryQuantity>(minimum)) {
+      available_resources.push_back(item);
+    }
+  }
+
+  // If no resources available to remove, just subtract thresholds
+  if (!available_resources.empty()) {
+    // Shuffle available resources to ensure random selection
+    std::shuffle(available_resources.begin(), available_resources.end(), rng);
+    // Remove the first item after shuffle
+    InventoryItem item_to_remove = available_resources[0];
+    this->inventory.update(item_to_remove, -1);
+    this->stats.incr("damage.items_lost");
+  }
+
+  // Subtract threshold values from inventory
+  for (const auto& [item, threshold_value] : damage_config.threshold) {
+    this->inventory.update(item, -static_cast<InventoryDelta>(threshold_value));
+  }
+
+  this->stats.incr("damage.triggered");
+  return true;
 }
 
-std::vector<PartialObservationToken> Agent::obs_features() const {
+bool Agent::onUse(Agent& /*actor*/, ActionArg /*arg*/) {
+  // Agent-to-agent transfers are handled by the Transfer action handler
+  // called from Move when vibe_specific_action_overrides is configured
+  return false;
+}
+
+std::vector<PartialObservationToken> Agent::obs_features(unsigned int observer_agent_id) const {
+  (void)observer_agent_id;  // Unused for agents
   if (!this->obs_encoder) {
     throw std::runtime_error("Observation encoder not set for agent");
   }
