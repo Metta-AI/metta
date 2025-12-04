@@ -1,0 +1,762 @@
+id=3517)    Building cogames @ file:///workspace/metta/packages/cogames
+(setup pid=3517)    Building cortexcore @ file:///workspace/metta/packages/cortex
+(setup pid=3517)    Building gitta @ file:///workspace/metta/packages/gitta
+(setup pid=3517)    Building metta-agent @ file:///workspace/metta/agent
+(setup pid=3517)    Building metta-app-backend @ file:///workspace/metta/app_backend
+(setup pid=3517)    Building metta-common @ file:///workspace/metta/common
+(setup pid=3517)    Building pufferlib-core @ file:///workspace/metta/packages/pufferlib-core
+(setup pid=3517)    Building softmax @ file:///workspace/metta/softmax
+(setup pid=3517)    Building mettagrid @ file:///workspace/metta/packages/mettagrid
+(setup pid=3517)       Built codebot @ file:///workspace/metta/packages/codebot
+(setup pid=3517)       Built softmax @ file:///workspace/metta/softmax
+(setup pid=3517)       Built metta-agent @ file:///workspace/metta/agent
+(setup pid=3517)       Built gitta @ file:///workspace/metta/packages/gitta
+(setup pid=3517)       Built metta-app-backend @ file:///workspace/metta/app_backend
+(setup pid=3517)       Built wandb-dashboard-mcp @ file:///workspace/metta/mcp_servers/wandb_dashboard
+(setup pid=3517)       Built metta-common @ file:///workspace/metta/common
+(setup pid=3517)       Built cogames @ file:///workspace/metta/packages/cogames
+(setup pid=3517)       Built metta @ file:///workspace/metta
+(setup pid=3517)       Built metta-pr-similarity-mcp @ file:///workspace/metta/mcp_servers/pr_similarity
+(setup pid=3517)       Built cortexcore @ file:///workspace/metta/packages/cortex
+2025-12-03 21:59:34,899	INFO worker.py:1544 -- Connecting to existing Ray cluster at address: 172.31.43.248:6380...
+2025-12-03 21:59:34,907	INFO worker.py:1719 -- Connected to Ray cluster. View the dashboard at 127.0.0.1:8266
+(setup pid=3517) [SETUP] Fetching latest from origin...
+(setup pid=3517) From https://github.com/Metta-AI/metta
+(setup pid=3517)  * branch                  ce097676ce338ddc4515df3cc039fad74ab11733 -> FETCH_HEAD
+(setup pid=3517) HEAD is now at ce097676ce TRXL + LSTM commit
+(setup pid=3517) D	.vscode/PythonImportHelper-v2-Completion.json
+(setup pid=3517) [SETUP] Checked out: ce097676ce338ddc4515df3cc039fad74ab11733
+(setup pid=3517) [SETUP] Installing system dependencies...
+(setup pid=3517) Welcome to Metta!
+(setup pid=3517) Found Nim 2.2.6 but require >= 2.2.6. Installing via Nimby...
+(setup pid=3517) Downloading Nimby from https://github.com/treeform/nimby/releases/download/0.1.13/nimby-Linux-X64
+(setup pid=3517) Copied /root/.nimby/nim-2.2.6 to /root/.nimby/nim
+(setup pid=3517) Resolved 330 packages in 7ms
+(setup pid=3517)    Building metta @ file:///workspace/metta
+(setup pid=3517)    Building metta-pr-similarity-mcp @ file:///workspace/metta/mcp_servers/pr_similarity
+(setup pid=3517)    Building wandb-dashboard-mcp @ file:///workspace/metta/mcp_servers/wandb_dashboard
+(setup pid=3517)    Building codebot @ file:///workspace/metta/packages/codebot
+(setup pid=3517)    Building cogames @ file:///workspace/metta/packages/cogames
+(setup pid=3517)    Building cortexcore @ file:///workspace/metta/packages/cortex
+(setup pid=3517)    Building gitta @ file:///workspace/metta/packages/gitta
+(setup pid=3517)    Building metta-agent @ file:///workspace/metta/agent
+(setup pid=3517)    Building metta-app-backend @ file:///workspace/metta/app_backend
+(setup pid=3517)    Building metta-common @ file:///workspace/metta/common
+(setup pid=3517)    Building pufferlib-core @ file:///workspace/metta/packages/pufferlib-core
+(setup pid=3517)    Building softmax @ file:///workspace/metta/softmax
+(setup pid=3517)    Building mettagrid @ file:///workspace/metta/packages/mettagrid
+(setup pid=3517)       Built codebot @ file:///workspace/metta/packages/codebot
+(setup pid=3517)       Built softmax @ file:///workspace/metta/softmax
+(setup pid=3517)       Built metta-agent @ file:///workspace/metta/agent
+(setup pid=3517)       Built gitta @ file:///workspace/metta/packages/gitta
+(setup pid=3517)       Built metta-app-backend @ file:///workspace/metta/app_backend
+(setup pid=3517)       Built wandb-dashboard-mcp @ file:///workspace/metta/mcp_servers/wandb_dashboard
+(setup pid=3517)       Built metta-common @ file:///workspace/metta/common
+(setup pid=3517)       Built cogames @ file:///workspace/metta/packages/cogames
+(setup pid=3517)       Built metta @ file:///workspace/metta
+(setup pid=3517)       Built metta-pr-similarity-mcp @ file:///workspace/metta/mcp_servers/pr_similarity
+(setup pid=3517)       Built cortexcore @ file:///workspace/metta/packages/cortex
+(setup pid=3517)       Built mettagrid @ file:///workspace/metta/packages/mettagrid
+(setup pid=3517)       Built pufferlib-core @ file:///workspace/metta/packages/puf
+ferlib-core
+(setup pid=3517) Prepared 13 packages in 3m 06s
+(setup pid=3517) Uninstalled 13 packages in 8ms
+(setup pid=3517) Installed 13 packages in 7ms
+(setup pid=3517)  ~ codebot==0.1.0 (from file:///workspace/metta/packages/codebot)
+(setup pid=3517)  - cogames==0.0.post1.dev1+ga53e3b6.d20251203 (from file:///workspace/metta/packages/cogames)
+(setup pid=3517)  + cogames==0.3.35.post1.dev17+gce097676ce.d20251203 (from file:///workspace/metta/packages/cogames)
+(setup pid=3517)  ~ cortexcore==0.1.5 (from file:///workspace/metta/packages/cortex)
+(setup pid=3517)  ~ gitta==0.2.0 (from file:///workspace/metta/packages/gitta)
+(setup pid=3517)  ~ metta==0.1 (from file:///workspace/metta)
+(setup pid=3517)  ~ metta-agent==0.1.0 (from file:///workspace/metta/agent)
+(setup pid=3517)  ~ metta-app-backend==0.1.0 (from file:///workspace/metta/app_backend)
+(setup pid=3517)  ~ metta-common==0.1.0 (from file:///workspace/metta/common)
+(setup pid=3517)  ~ metta-pr-similarity-mcp==0.1.0 (from file:///workspace/metta/mcp_servers/pr_similarity)
+(setup pid=3517)  - mettagrid==0.0.post1.dev1+ga53e3b6.d20251203 (from file:///workspace/metta/packages/mettagrid)
+(setup pid=3517)  + mettagrid==0.2.0.40.post1.dev17+gce097676ce.d20251203 (from file:///workspace/metta/packages/mettagrid)
+(setup pid=3517)  - pufferlib-core==0.0.post1.dev1+ga53e3b6.d20251203 (from file:///workspace/metta/packages/pufferlib-core)
+(setup pid=3517)  + pufferlib-core==3.0.15.post1.dev631+gce097676ce.d20251203 (from file:///workspace/metta/packages/pufferlib-core)
+(setup pid=3517)  ~ softmax==0.0.1 (from file:///workspace/metta/softmax)
+(setup pid=3517)  ~ wandb-dashboard-mcp==0.1.0 (from file:///workspace/metta/mcp_servers/wandb_dashboard)
+(setup pid=3517)    Building codebot @ file:///workspace/metta/packages/codebot
+(setup pid=3517)    Building gitta @ file:///workspace/metta/packages/gitta
+(setup pid=3517)    Building softmax @ file:///workspace/metta/softmax
+(setup pid=3517)    Building cortexcore @ file:///workspace/metta/packages/cortex
+(setup pid=3517)       Built gitta @ file:///workspace/metta/packages/gitta
+(setup pid=3517)       Built softmax @ file:///workspace/metta/softmax
+(setup pid=3517)       Built codebot @ file:///workspace/metta/packages/codebot
+(setup pid=3517)       Built cortexcore @ file:///workspace/metta/packages/cortex
+(setup pid=3517) Uninstalled 4 packages in 2ms
+(setup pid=3517) Installed 4 packages in 1ms
+(setup pid=3517) Removing packages/mettagrid/bazel-mettagrid...
+(setup pid=3517) Removing packages/mettagrid/bazel-out...
+(setup pid=3517) Removing packages/mettagrid/bazel-testlogs...
+(setup pid=3517) Removing packages/mettagrid/bazel-bin...
+(setup pid=3517) Removing packages/mettagrid/.bazel_output...
+(setup pid=3517) Removing: .venv/lib/python3.12/site-packages/wandb_core.libs
+(setup pid=3517) Removing: .venv/lib/python3.12/site-packages/marimo/_static/files
+(setup pid=3517) Removing: .venv/lib/python3.12/site-packages/marimo/_smoke_tests
+(setup pid=3517) Removing: .venv/lib/python3.12/site-packages/wandb.libs
+(setup pid=3517) Removed 9 directories
+(setup pid=3517) Configured as softmax-docker user.
+(setup pid=3517) Installing 5 components...
+(setup pid=3517)  Core Python dependencies and virtual environment
+(setup pid=3517) Resolved 330 packages in 7ms
+(setup pid=3517) Audited 326 packages in 7ms
+(setup pid=3517) Core dependencies installed
+(setup pid=3517)
+(setup pid=3517)  System dependencies
+(setup pid=3517) -> Already installed, skipping (use --force to reinstall)
+(setup pid=3517)  Binaries for metta and cogames CLIs
+(setup pid=3517) Created symlink: /root/.local/bin/metta → /workspace/m
+etta/metta/setup/installer/bin/metta
+(setup pid=3517) metta command is now available
+(setup pid=3517) Created symlink: /root/.local/bin/cogames → /workspace/metta/metta/setup/installer/bin/cogames
+(setup pid=3517) cogames command is now available
+(setup pid=3517)
+(setup pid=3517)  Weights & Biases experiment tracking
+(setup pid=3517) -> Already installed, skipping (use --force to reinstall)
+(setup pid=3517)  AWS configuration and credentials
+(setup pid=3517) -> Already installed, skipping (use --force to reinstall)
+(setup pid=3517) \nSetup complete!\n
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [CONFIG] Run Configuration:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - NODE_RANK: 0
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - IS_MASTER: true
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - TOTAL_NODES: 1
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - METTA_RUN_ID: cvc_lstm_test_v2_2025-12-03_135406
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - SKYPILOT_TASK_ID: sky-managed-2025-12-03-21-54-27-209394_cvc_lstm_test_v2_2025-12-03_135406_9246-0
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - HEARTBEAT_TIMEOUT: 3600
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - MAX_RUNTIME_HOURS: 'NOT SET'
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - METTA_MODULE_PATH: recipes.experiment.cvc.mission_variant_curriculum.train
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - METTA_ARGS: arch_type=lstm system.seed=0 run=cvc_lstm_test_v2_2025-12-03_135406
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [RUN] Collecting skypilot latency...
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:25.996] [0]  INFO     SkyPilot queue latency: 538.8 s (task: sky-managed-2025-12-03-21-54-27-209394_cvc_lstm_test_v2_2025-12-03_135406_9246-0) [job_latency.py:67]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:27.247] [0]  INFO     Opened append-only W&B session for metta-research/metta/cvc_lstm_test_v2_2025-12-03_135406 [context.py:237]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:27.249] [0]  INFO     ✅ Added 5 items to wandb summary [utils.py:58]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:27.249] [0]  INFO     Logged metrics to W&B run: cvc_lstm_test_v2_2025-12-03_135406 [job_latency.py:100]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [RUN] Collecting instance cost...
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) INFO:__main__:Instance Type: g6.12xlarge
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) INFO:__main__:Spot Instance: False
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) INFO:__main__:Region: us-east-1
+(c
+vc_lstm_test_v2_2025-12-03_135406, pid=3517) INFO:__main__:Total Hourly Cost for 1 node(s): $4.6016 ($4.6016/hr per instance)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) INFO:__main__:Set METTA_HOURLY_COST=4.6016
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) 4.6016
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [RUN] METTA_HOURLY_COST set to: 4.6016
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) VIRTUAL_ENV: /workspace/metta/.venv
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Which python: /workspace/metta/.venv/bin/python
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Python executable: /workspace/metta/.venv/bin/python
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Configuring runtime environment...
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Persisting env vars into: /root/.metta_env_path
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) ============= RESTART INFO =============
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   METTA_RUN_ID: cvc_lstm_test_v2_2025-12-03_135406
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   RESTART_COUNT: 0
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   ACCUMULATED_RUNTIME: 0s (0m)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   METADATA_DIR: /mnt/s3/train_dir/.job_metadata/cvc_lstm_test_v2_2025-12-03_135406
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) ========================================
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Warning: /root/.metta_env_path already exists, appending new content
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Creating/updating job secrets...
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Found OBSERVATORY_TOKEN and providing to create_job_secrets.py - Observatory features should be available!
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Configured as softmax-docker user.
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) ~/.metta/config.yaml already exists
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Token saved for https://api.observatory.softmax-research.net
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Runtime environment configuration completed
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [CONFIG] Run Configuration:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - WRAPPER_PID: 8645
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - NODE_RANK: 0
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - IS_MASTER: true
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - TOTAL_NODES: 1
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - METTA_RUN_ID: cvc_lstm_test_v2_2025-12-03_135406
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - SKYPILOT_TASK_ID: sky-managed-2025-12-03-21-54-27-209394_cvc_lstm_test_v2_2025-12-03_135406_9246-0
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - HEARTBEAT_TIMEOUT: 3600
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - MAX_RUNTIME_HOURS: 'NOT SET'
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - ACCUMULATED_RUNTIME: 0
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - RESTART_COUNT: 0
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - TEST_JOB_RESTART: false
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - TEST_NCCL: false
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - JOB_METADATA_DIR: /mnt/s3/train_dir/.job_metadata/cvc_lstm_test_v2_2025-12-03_135406
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)      ↳ TERMINATION_REASON_FILE: /mnt/s3/train_dir/.job_metadata/cvc_lstm_test_v2_2025-12-03_135406/termination_reason
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)      ↳ CLUSTER_STOP_FILE: /mnt/s3/train_dir/.job_metadata/cvc_lstm_test_v2_2025-12-03_135406/cluster_stop
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)      ↳ HEARTBEAT_FILE: /mnt/s3/train_dir/.job_metadata/cvc_lstm_test_v2_2025-12-03_135406/heartbeat_file
+(cvc_lstm_test_v2_2025-12-03_
+135406, pid=3517)      ↳ ACCUMULATED_RUNTIME_FILE: /mnt/s3/train_dir/.job_metadata/cvc_lstm_test_v2_2025-12-03_135406/accumulated_runtime
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [RUN] Discord notifications are disabled (no webhook URL)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [RUN] GitHub status reporting is disabled (missing required credentials)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [SKIP] Skipping NCCL test (TEST_NCCL=false)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [INFO] Starting process (node rank: 0)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [INFO] Running command: ./devops/run.sh recipes.experiment.cvc.mission_variant_curriculum.train arch_type=lstm system.seed=0 run=cvc_lstm_test_v2_2025-12-03_135406
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [CONFIG] Training configuration:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - GPUs: 4
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - Nodes: 1
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - Master address: 172.31.43.248
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - Master port: 29501
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - Node index: 0
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   - Arguments: recipes.experiment.cvc.mission_variant_curriculum.train arch_type=lstm system.seed=0 run=cvc_lstm_test_v2_2025-12-03_135406
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [INFO] Starting training...
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [INFO] Started process with PID: 8784, PGID: 8784
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [INFO] Started heartbeat monitor
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [INFO] Started cluster-stop monitor
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [INFO] Cluster-stop monitor started; checking every 15s
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [INFO] Heartbeat monitor started!
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)      ↳ heartbeat file: /mnt/s3/train_dir/.job_metadata/cvc_lstm_test_v2_2025-12-03_135406/heartbeat_file
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)      ↳ heartbeat timeout: 3600 seconds
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)      ↳ start time: 1764799417
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [INFO] Checking every 30 seconds
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [INFO] Initial heartbeat written with start time: 1764799417
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.838] [0-1]  INFO     Loading tool: recipes.experiment.cvc.mission_variant_curriculum.train [run_tool.py:55]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.872] [0-2]  INFO     Loading tool: recipes.experiment.cvc.mission_variant_curriculum.train [run_tool.py:55]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.924] [0-1]  INFO     Running tool... [run_tool.py:55]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.924] [0-1]  WARNING  evaluator.epoch_interval (100) is not a multiple of checkpointer.epoch_interval (30). Adjusting checkpointer.epoch_interval to 100 to ensure checkpoints occur during evaluations. [train.py:105]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.924] [0-1]  WARNING  Local policy evaluation can be inefficient - consider switching to remote evaluation! [train.py:116]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.924] [0-1]  INFO     Enabled PyTorch CUDA optimizations [distributed_helper.py:63]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.924] [0-1]  INFO     world_size: 4 rank: 1 [distributed_helper.py:77]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.938] [0-3]  INFO     Loading tool: recipes.experiment.cvc.mission_variant_curriculum.train [run_tool.py:55]
+(cvc_lstm_test_v2_2025-12-
+03_135406, pid=3517) [22:03:51.939] [0-0]  INFO     Loading tool: recipes.experiment.cvc.mission_variant_curriculum.train [run_tool.py:55]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.958] [0-2]  INFO     Running tool... [run_tool.py:55]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.958] [0-2]  WARNING  evaluator.epoch_interval (100) is not a multiple of checkpointer.epoch_interval (30). Adjusting checkpointer.epoch_interval to 100 to ensure checkpoints occur during evaluations. [train.py:105]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.959] [0-2]  WARNING  Local policy evaluation can be inefficient - consider switching to remote evaluation! [train.py:116]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.959] [0-2]  INFO     Enabled PyTorch CUDA optimizations [distributed_helper.py:63]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:51.959] [0-2]  INFO     world_size: 4 rank: 2 [distributed_helper.py:77]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.028] [0-3]  INFO     Running tool... [run_tool.py:55]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.028] [0-3]  WARNING  evaluator.epoch_interval (100) is not a multiple of checkpointer.epoch_interval (30). Adjusting checkpointer.epoch_interval to 100 to ensure checkpoints occur during evaluations. [train.py:105]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.028] [0-3]  WARNING  Local policy evaluation can be inefficient - consider switching to remote evaluation! [train.py:116]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.028] [0-3]  INFO     Enabled PyTorch CUDA optimizations [distributed_helper.py:63]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.028] [0-3]  INFO     world_size: 4 rank: 3 [distributed_helper.py:77]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.030] [0-0]  INFO     Running tool... [run_tool.py:55]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.030] [0-0]  WARNING  evaluator.epoch_interval (100) is not a multiple of checkpointer.epoch_interval (30). Adjusting checkpointer.epoch_interval to 100 to ensure checkpoints occur during evaluations. [train.py:105]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.030] [0-0]  WARNING  Local policy evaluation can be inefficient - consider switching to remote evaluation! [train.py:116]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.030] [0-0]  INFO     Enabled PyTorch CUDA optimizations [distributed_helper.py:63]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.030] [0-0]  INFO     world_size: 4 rank: 0 [distributed_helper.py:77]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.355] [0-1]  INFO     Initialized distributed training on cuda:1 (rank 1/4) [distributed_helper.py:97]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.376] [0-2]  INFO     Initialized distributed training on cuda:2 (rank 2/4) [distributed_helper.py:97]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.390] [0-0]  INFO     Initialized distributed training on cuda:0 (rank 0/4) [distributed_helper.py:97]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:03:52.395] [0-3]  INFO     Initialized distributed training on cuda:3 (rank 3/4) [distributed_helper.py:97]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:33.832] [0-1]  INFO     Found credentials in shared credentials file: ~/.aws/credentials [credentials.py:1364]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:33.878] [0-0]  INFO     Found credentials in shared credentials file: ~/.aws/credentials [credentials.py:1364]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:33.921] [0-1]  INFO     Policies will sync to s3://softmax-public/policies/cvc_lstm_test_v2_2025-12-03_135406 [checkpoint_manager.py:51]
+(cvc_lstm_test_v2_2025-12-03_135406, p
+id=3517) [22:04:33.950] [0-0]  INFO     Policies will sync to s3://softmax-public/policies/cvc_lstm_test_v2_2025-12-03_135406 [checkpoint_manager.py:51]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:33.957] [0-2]  INFO     Found credentials in shared credentials file: ~/.aws/credentials [credentials.py:1364]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.031] [0-2]  INFO     Policies will sync to s3://softmax-public/policies/cvc_lstm_test_v2_2025-12-03_135406 [checkpoint_manager.py:51]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.066] [0-3]  INFO     Found credentials in shared credentials file: ~/.aws/credentials [credentials.py:1364]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.168] [0-3]  INFO     Policies will sync to s3://softmax-public/policies/cvc_lstm_test_v2_2025-12-03_135406 [checkpoint_manager.py:51]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.586] [0-0]  INFO     Creating new policy for training run [checkpointer.py:100]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.594] [0-0]  ERROR    Tool invocation failed
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/common/src/metta/common/tool/run_tool.py", line 735, in main
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     result = tool_cfg.invoke(func_args_for_invoke)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/metta/tools/train.py", line 142, in invoke
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     policy = checkpointer.load_or_create_policy(
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/metta/rl/training/checkpointer.py", line 101, in load_or_create_policy
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     return self._policy_architecture.make_policy(policy_env_info)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/agent/src/metta/agent/policy.py", line 53, in make_policy
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     return AgentClass(policy_env_info, self)  # type: ignore[misc]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/agent/src/metta/agent/policies/puffer.py", line 50, in __init__
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)                                                  ^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1964, in __getattr__
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     raise AttributeError(
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) AttributeError: 'PufferPolicy' object has no attribute 'out_width' [run_tool.py:71]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.614] [0-3]  INFO     Creating new policy for training run [checkpointer.py:100]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.614] [0-2]  INFO     Creating new policy for training run [checkpointer.py:100]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.614] [0-1]  INFO     Creating new policy for training run [checkpointer.py:100]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.626] [0-2]  ERROR    Tool invocation failed
+(cvc_lstm_test_v2_20
+25-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/common/src/metta/common/tool/run_tool.py", line 735, in main
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     result = tool_cfg.invoke(func_args_for_invoke)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/metta/tools/train.py", line 142, in invoke
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     policy = checkpointer.load_or_create_policy(
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/metta/rl/training/checkpointer.py", line 101, in load_or_create_policy
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     return self._policy_architecture.make_policy(policy_env_info)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/agent/src/metta/agent/policy.py", line 53, in make_policy
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     return AgentClass(policy_env_info, self)  # type: ignore[misc]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/agent/src/metta/agent/policies/puffer.py", line 50, in __init__
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)                                                  ^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1964, in __getattr__
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     raise AttributeError(
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) AttributeError: 'PufferPolicy' object has no attribute 'out_width' [run_tool.py:71]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.626] [0-1]  ERROR    Tool invocation failed
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/common/src/metta/common/tool/run_tool.py", line 735, in main
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     result = tool_cfg.invoke(func_args_for_invoke)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/metta/tools/train.py", line 142, in invoke
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     policy = checkpointer.load_or_create_policy(
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/metta/rl/training/checkpointer.py", line 101, in load_or_create_policy
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     return self._policy_architecture.make_policy(policy_env_info)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/agent/src/metta/agent/policy.py", line 53, in make_policy
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     return AgentClass(policy_env_info, self)  # type: ignore[misc]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/agent/src/metta/agent/policies/puffer.py", li
+ne 50, in __init__
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)                                                  ^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1964, in __getattr__
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     raise AttributeError(
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) AttributeError: 'PufferPolicy' object has no attribute 'out_width' [run_tool.py:71]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [22:04:34.626] [0-3]  ERROR    Tool invocation failed
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/common/src/metta/common/tool/run_tool.py", line 735, in main
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     result = tool_cfg.invoke(func_args_for_invoke)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/metta/tools/train.py", line 142, in invoke
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     policy = checkpointer.load_or_create_policy(
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/metta/rl/training/checkpointer.py", line 101, in load_or_create_policy
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     return self._policy_architecture.make_policy(policy_env_info)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/agent/src/metta/agent/policy.py", line 53, in make_policy
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     return AgentClass(policy_env_info, self)  # type: ignore[misc]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/agent/src/metta/agent/policies/puffer.py", line 50, in __init__
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)                                                  ^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1964, in __getattr__
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     raise AttributeError(
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) AttributeError: 'PufferPolicy' object has no attribute 'out_width' [run_tool.py:71]
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-5:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+
+[36m(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-5:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-3:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/
+uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-3:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-4:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/
+connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-1:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-2:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=35
+17)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-4:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-3:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_te
+st_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-1:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-2:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpytho
+n-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-4:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-4:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py",
+line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-5:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-1:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)
+   self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-2:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-2:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=
+3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-3:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-5:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/li
+b/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-1:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-6:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_
+lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-6:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-6:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+[3
+6m(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Process Process-6:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self.run()
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/process.py", line 108, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._target(*self._args, **self._kwargs)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/packages/pufferlib-core/src/pufferlib/vector.py", line 249, in _worker_process
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     send_pipe.send(infos)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 206, in send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send_bytes(_ForkingPickler.dumps(obj))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 427, in _send_bytes
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     self._send(header + buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/root/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/python3.12/multiprocessing/connection.py", line 384, in _send
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     n = write(self._handle, buf)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)         ^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) BrokenPipeError: [Errno 32] Broken pipe
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [rank0]:[W1203 22:04:47.956723020 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) W1203 22:04:48.424000 8791 .venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/api.py:908] Sending process 8832 closing signal SIGTERM
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) W1203 22:04:48.424000 8791 .venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/api.py:908] Sending process 8833 closing signal SIGTERM
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) W1203 22:04:48.425000 8791 .venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/api.py:908] Sending process 8834 closing signal SIGTERM
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) E1203 22:04:48.840000 8791 .venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 0 (pid: 8831) of binary: /workspace/metta/.venv/bin/python
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Traceback (most recent call last):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/.venv/bin/torchrun", line 10, in
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     sys.exit(main())
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)              ^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/.venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     return f(*args, **kwargs)
+(c
+vc_lstm_test_v2_2025-12-03_135406, pid=3517)            ^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/.venv/lib/python3.12/site-packages/torch/distributed/run.py", line 936, in main
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     run(args)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/.venv/lib/python3.12/site-packages/torch/distributed/run.py", line 927, in run
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     elastic_launch(
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/.venv/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 156, in __call__
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     return launch_agent(self._config, self._entrypoint, list(args))
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   File "/workspace/metta/.venv/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)     raise ChildFailedError(
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) torch.distributed.elastic.multiprocessing.errors.ChildFailedError:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) ============================================================
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) tools/run.py FAILED
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) ------------------------------------------------------------
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Failures:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) ------------------------------------------------------------
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) Root Cause (first observed failure):
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517) [0]:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   time      : 2025-12-03_22:04:48
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   host      : ip-172-31-43-248.ec2.internal
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   rank      : 0 (local_rank: 0)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   exitcode  : 1 (pid: 8831)
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   error_file:
+(cvc_lstm_test_v2_2025-12-03_135406, pid=3517)   traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
