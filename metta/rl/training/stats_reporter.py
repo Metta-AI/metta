@@ -113,7 +113,7 @@ class StatsReporterConfig(Config):
     """Threshold for considering a neuron dormant based on mean absolute weight magnitude."""
     rolling_window: int = Field(default=5, ge=1, description="Number of epochs for metric rolling averages")
     default_zero_metrics: tuple[str, ...] = Field(
-        default_factory=lambda: ("env_agent/heart.gained",),
+        default_factory=lambda: ("env_agent/heart.created",),
         description="Environment metrics that should be logged as 0 when missing.",
     )
 
@@ -330,7 +330,7 @@ class StatsReporter(TrainerComponent):
             trainer_config=trainer_cfg,
         )
 
-        # Ensure certain env metrics always exist (e.g., env_agent/heart.gained) so rolling
+        # Ensure certain env metrics always exist (e.g., env_agent/heart.created) so rolling
         # averages and wandb logs see zeros instead of missing keys.
         env_stats = processed.setdefault("environment_stats", {})
         if isinstance(env_stats, dict):
@@ -527,8 +527,10 @@ class StatsReporter(TrainerComponent):
                 if warmup_steps is not None:
                     hyperparameters["schedulefree_warmup_steps"] = warmup_steps
 
-        ppo_cfg = trainer_cfg.losses.ppo
-        if ppo_cfg.enabled:
+        losses = getattr(trainer_cfg, "losses", None)
+        loss_configs = getattr(losses, "loss_configs", {}) if losses else {}
+        ppo_cfg = loss_configs.get("ppo") if isinstance(loss_configs, dict) else None
+        if ppo_cfg is not None:
             for attr in (
                 "clip_coef",
                 "vf_clip_coef",

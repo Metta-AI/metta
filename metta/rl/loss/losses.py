@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 from pydantic import Field
@@ -25,6 +25,21 @@ if TYPE_CHECKING:
 
 
 class LossesConfig(Config):
+    _LOSS_ORDER: ClassVar[tuple[str, ...]] = (
+        "sliced_kickstarter",
+        "sliced_scripted_cloner",
+        "ppo_critic",
+        "quantile_ppo_critic",
+        "ppo_actor",
+        "ppo",
+        "vit_reconstruction",
+        "contrastive",
+        "grpo",
+        "supervisor",
+        "kickstarter",
+        "logit_kickstarter",
+    )
+
     # ENABLED BY DEFAULT: PPO split into two terms for flexibility, simplicity, and separation of concerns
     ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=True))
     ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=True))
@@ -49,6 +64,51 @@ class LossesConfig(Config):
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
     )
 
+    def _configs(self) -> dict[str, LossConfig]:
+        # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
+        # also, the way it's setup doesn't let the experimenter give names to losses.
+        loss_configs = {
+            name: cfg
+            for name, cfg in ((name, getattr(self, name)) for name in self._LOSS_ORDER)
+            if cfg.enabled
+        }
+        self._validate_sampler_dependencies()
+        return loss_configs
+
+    @property
+    def loss_configs(self) -> dict[str, LossConfig]:
+        return self._configs()
+
+    def _validate_sampler_dependencies(self) -> None:
+        """Fail fast when a consumer loss is enabled but no sampler writes sampled_mb."""
+
+        samplers = [
+            self.ppo.enabled,
+            self.ppo_critic.enabled and self.ppo_critic.sample_enabled,
+            self.quantile_ppo_critic.enabled and self.quantile_ppo_critic.sample_enabled,
+            self.grpo.enabled,
+            self.sliced_kickstarter.enabled,
+            self.sliced_scripted_cloner.enabled,
+            self.supervisor.enabled and self.supervisor.sample_enabled,
+        ]
+
+        consumers = [
+            self.ppo_actor.enabled,
+            self.kickstarter.enabled,
+            self.logit_kickstarter.enabled,
+            self.vit_reconstruction.enabled,
+            self.contrastive.enabled,
+            self.supervisor.enabled and not self.supervisor.sample_enabled,
+        ]
+
+        if any(consumers) and not any(samplers):
+            raise ValueError(
+                "Loss config invalid: a loss needs sampled_mb but no sampler is enabled. "
+                "Enable one of (ppo, ppo_critic.sample_enabled, quantile_ppo_critic.sample_enabled, grpo, "
+                "sliced_kickstarter, sliced_scripted_cloner, action_supervisor.sample_enabled=True) "
+                "or disable the consumer losses."
+            )
+
     def init_losses(
         self,
         policy: Policy,
@@ -56,11 +116,12 @@ class LossesConfig(Config):
         env: TrainingEnvironment,
         device: torch.device,
     ) -> dict[str, Loss]:
-        return {name: cfg.create(policy, trainer_cfg, env, device, name) for name, cfg in self if cfg.enabled}
+        return {
+            loss_name: loss_cfg.create(policy, trainer_cfg, env, device, loss_name)
+            for loss_name, loss_cfg in self._configs().items()
+        }
 
     def __iter__(self):
         """Iterate over (name, config) pairs for all loss configs."""
-        for name in self.model_fields:
-            cfg = getattr(self, name)
-            if isinstance(cfg, LossConfig):
-                yield name, cfg
+        for name in self._LOSS_ORDER:
+            yield name, getattr(self, name)
