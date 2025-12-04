@@ -104,6 +104,33 @@ def _interactive_prediction_config(args: argparse.Namespace) -> Optional[argpars
 def handle_collect_command(args: argparse.Namespace):
     """Handles the 'collect' command."""
     print("\n--- Collect Doxascope Data ---")
+
+    # Environment selection
+    environments = {
+        "1": ("arena", "Original arena environment (basic resource collection and combat)"),
+        "2": ("cvc_easy_mode", "Cogs vs Clips easy_mode (cooperative heart crafting - ALB benchmark)"),
+    }
+
+    print("\n  Select environment for data collection:")
+    for key, (name, desc) in environments.items():
+        print(f"    [{key}] {name:<15} - {desc}")
+
+    while True:
+        try:
+            env_choice = input("\n  -> Enter environment number (default: 1): ")
+            if not env_choice:
+                env_choice = "1"
+            if env_choice in environments:
+                environment = environments[env_choice][0]
+                break
+            else:
+                print(f"  !! Invalid choice. Please enter a number 1-{len(environments)}.")
+        except (KeyboardInterrupt, EOFError):
+            print("\nCollection cancelled.")
+            return
+
+    print(f"\n  Selected environment: {environment}")
+
     policy_uri = input("  -> Enter the policy URI to evaluate: ")
     if not policy_uri:
         print("No policy URI provided. Aborting collection.")
@@ -128,7 +155,10 @@ def handle_collect_command(args: argparse.Namespace):
             print("\nCollection cancelled.")
             return
 
-    command_str = f"uv run ./tools/run.py doxascope.evaluate policy_uri={policy_uri} num_simulations={num_simulations}"
+    command_str = (
+        f"uv run ./tools/run.py doxascope.evaluate "
+        f"policy_uri={policy_uri} num_simulations={num_simulations} environment={environment}"
+    )
 
     print("\nHanding off to evaluation tool...")
     print(f"  Command: {command_str}\n")
