@@ -827,13 +827,15 @@ proc fitFullMap*(panel: Panel) {.measure.} =
 proc fitVisibleMap*(panel: Panel) {.measure.} =
   ## Set zoom and pan so the visible area (union of all agent vision ranges) fits in the panel.
   if replay.isNil or replay.agents.len == 0:
+    fitFullMap(panel)
     return
   let rectW = panel.rect.w.float32
   let rectH = panel.rect.h.float32
   if rectW <= 0 or rectH <= 0:
+    fitFullMap(panel)
     return
 
-  # Calculate the union of all agent vision areas (11x11 squares)
+  # Calculate the union of all agent vision areas.
   var minX = float32.high
   var minY = float32.high
   var maxX = float32.low
@@ -854,8 +856,9 @@ proc fitVisibleMap*(panel: Panel) {.measure.} =
     maxX = max(maxX, agentMaxX)
     maxY = max(maxY, agentMaxY)
 
-  # Ensure we have valid bounds
+  # Ensure we have valid bounds, otherwise fall back to full map
   if minX > maxX or minY > maxY:
+    fitFullMap(panel)
     return
 
   let
