@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -496,6 +497,7 @@ public:
     } else {
       uses_count++;
     }
+
     return true;
   }
 

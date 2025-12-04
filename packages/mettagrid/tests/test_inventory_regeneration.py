@@ -19,7 +19,7 @@ class TestInventoryRegeneration:
 
         # Add energy to resources and configure regeneration
         cfg.game.resource_names = ["energy", "heart", "battery_blue"]
-        cfg.game.agent.inventory_regen_amounts = {"energy": 5}  # Regenerate 5 energy
+        cfg.game.agent.inventory_regen_amounts = {"default": {"energy": 5}}  # Regenerate 5 energy
         cfg.game.inventory_regen_interval = 3  # Every 3 timesteps
         cfg.game.agent.initial_inventory = {"energy": 10}  # Start with 10 energy
         cfg.game.actions.noop.enabled = True
@@ -110,7 +110,7 @@ class TestInventoryRegeneration:
         )
 
         cfg.game.resource_names = ["energy"]
-        cfg.game.agent.inventory_regen_amounts = {"energy": 5}
+        cfg.game.agent.inventory_regen_amounts = {"default": {"energy": 5}}
         cfg.game.inventory_regen_interval = 0  # Disabled
         cfg.game.agent.initial_inventory = {"energy": 10}
         cfg.game.actions.noop.enabled = True
@@ -136,7 +136,7 @@ class TestInventoryRegeneration:
         )
 
         cfg.game.resource_names = ["energy"]
-        cfg.game.agent.inventory_regen_amounts = {"energy": 10}  # Try to add 10
+        cfg.game.agent.inventory_regen_amounts = {"default": {"energy": 10}}  # Try to add 10
         cfg.game.inventory_regen_interval = 1  # Every timestep
         cfg.game.agent.initial_inventory = {"energy": 95}
         cfg.game.agent.resource_limits = {
