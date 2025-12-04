@@ -1,6 +1,6 @@
 import
   genny, fidget2/measure,
-  random_agents, thinky_agents, race_car_agents, ladybug_agent
+  random_agents, thinky_agents, racecar_agents, ladybug_agent
 
 
 proc ctrlCHandler() {.noconv.} =
