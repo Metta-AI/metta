@@ -89,7 +89,7 @@ class TestRegretTracker:
         rng = random.Random(random_seed)
 
         # Create more tasks than memory limit
-        for i in range(10):
+        for _ in range(10):
             task_id = rng.randint(0, 100000)
             tracker.track_task_creation(task_id)
             tracker.update_task_performance(task_id, 0.5)

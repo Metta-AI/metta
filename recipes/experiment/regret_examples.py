@@ -16,7 +16,6 @@ import mettagrid.builder.envs as eb
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.prioritized_regret_algorithm import PrioritizedRegretConfig
