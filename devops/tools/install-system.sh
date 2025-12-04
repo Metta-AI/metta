@@ -340,46 +340,7 @@ get_bazel_version() {
   return 0
 }
 
-remove_legacy_nim_installations() {
-  if check_cmd brew && brew list --versions nim > /dev/null 2>&1; then
-    echo "Removing legacy Homebrew Nim installation..."
-    if ! brew uninstall --force nim > /dev/null 2>&1; then
-      echo "Warning: Failed to uninstall Homebrew Nim; please remove it manually." >&2
-    fi
-  fi
-
-  if [ -d "$HOME/.nimble/bin" ]; then
-    echo "Removing legacy Nimble binaries at $HOME/.nimble/bin..."
-    rm -rf "$HOME/.nimble/bin"
-  fi
-
-  if [ -d "$HOME/.choosenim" ]; then
-    echo "Removing legacy choosenim directory at $HOME/.choosenim..."
-    rm -rf "$HOME/.choosenim"
-  fi
-
-  if [ -L "$HOME/.local/bin/nim" ]; then
-    local target
-    target=$(readlink "$HOME/.local/bin/nim")
-    if [ -n "$target" ] && printf "%s" "$target" | grep -q ".nimble"; then
-      echo "Removing legacy symlink $HOME/.local/bin/nim -> $target..."
-      rm -f "$HOME/.local/bin/nim"
-    fi
-  fi
-
-  if [ -L "$HOME/.local/bin/nimble" ]; then
-    local target
-    target=$(readlink "$HOME/.local/bin/nimble")
-    if [ -n "$target" ] && printf "%s" "$target" | grep -q ".nimble"; then
-      echo "Removing legacy symlink $HOME/.local/bin/nimble -> $target..."
-      rm -f "$HOME/.local/bin/nimble"
-    fi
-  fi
-}
-
 ensure_nim_via_nimby() {
-  remove_legacy_nim_installations
-  ensure_paths
 
   local current_version=""
   if check_cmd nim; then
