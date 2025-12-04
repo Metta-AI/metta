@@ -56,11 +56,7 @@ class LossesConfig(Config):
         env: TrainingEnvironment,
         device: torch.device,
     ) -> dict[str, Loss]:
-        return {
-            name: cfg.create(policy, trainer_cfg, env, device, name)
-            for name, cfg in self
-            if cfg.enabled
-        }
+        return {name: cfg.create(policy, trainer_cfg, env, device, name) for name, cfg in self if cfg.enabled}
 
     def __iter__(self):
         """Iterate over (name, config) pairs for all loss configs."""
