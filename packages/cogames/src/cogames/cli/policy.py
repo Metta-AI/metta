@@ -11,7 +11,7 @@ from rich.table import Table
 from cogames.cli.base import console
 from mettagrid.policy.loader import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
@@ -134,18 +134,17 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         raise ValueError("Policy specification cannot be empty.")
 
     try:
-        resolved = resolve_uri(raw)
-        if resolved.endswith(".mpt"):
-            base_spec = policy_spec_from_uri(raw)
-            return PolicySpecWithProportion(
-                class_path=base_spec.class_path,
-                init_kwargs=base_spec.init_kwargs,
-                proportion=1.0,
-            )
+        base_spec = policy_spec_from_uri(raw, device="cpu")
     except ValueError:
         pass
     except Exception as e:
         raise ValueError(f"Failed to resolve URI '{raw}': {e}") from e
+    else:
+        return PolicySpecWithProportion(
+            class_path=base_spec.class_path,
+            init_kwargs=base_spec.init_kwargs,
+            proportion=1.0,
+        )
 
     entries = [part.strip() for part in raw.split(",") if part.strip()]
     if not entries:

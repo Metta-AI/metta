@@ -6,6 +6,8 @@ from urllib.parse import unquote, urlparse
 
 import boto3
 
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.base import (
     CheckpointMetadata,
@@ -218,7 +220,7 @@ def parse_uri(uri: str) -> ParsedScheme:
 
 
 def resolve_uri(uri: str) -> str:
-    return _get_resolver(uri).resolve(uri)
+    return _get_resolver(uri).get_path_to_policy_spec_or_mpt(uri)
 
 
 def checkpoint_filename(run_name: str, epoch: int) -> str:
@@ -234,15 +236,19 @@ def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
     return CheckpointMetadata(run_name=info[0], epoch=info[1], uri=resolved)
 
 
-def policy_spec_from_uri(uri: str, *, device: str = "cpu", strict: bool = True):
-    from mettagrid.policy.policy import PolicySpec
-
-    normalized_uri = resolve_uri(uri)
-    return PolicySpec(
-        class_path="mettagrid.policy.mpt_policy.MptPolicy",
-        init_kwargs={
-            "checkpoint_uri": normalized_uri,
-            "device": device,
-            "strict": strict,
-        },
-    )
+def policy_spec_from_uri(
+    uri: str, *, device: str = "cpu", strict: bool = True, remove_downloaded_copy_on_exit: bool = False
+) -> PolicySpec:
+    path_to_spec = resolve_uri(uri)
+    if path_to_spec.endswith(".mpt"):
+        return PolicySpec(
+            class_path="mettagrid.policy.mpt_policy.MptPolicy",
+            init_kwargs={
+                "checkpoint_uri": path_to_spec,
+                "device": device,
+                "strict": strict,
+            },
+        )
+    if path_to_spec.startswith("s3://"):
+        return load_policy_spec_from_s3(path_to_spec, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit)
+    return load_policy_spec_from_local_dir(Path(path_to_spec))

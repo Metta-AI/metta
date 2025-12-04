@@ -6,9 +6,8 @@ from pathlib import Path
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
-from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
 from metta.tools.utils.auto_config import auto_stats_server_uri
-from mettagrid.util.uri_resolvers.base import ParsedScheme, SchemeResolver, _extract_run_and_epoch
+from mettagrid.util.uri_resolvers.base import SchemeResolver, _extract_run_and_epoch
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -53,29 +52,19 @@ def _parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
     return identifier, None
 
 
-class MettaSchemeResolver(SchemeResolver):
-    """Resolves metta:// URIs to checkpoint URIs via the stats server.
+class CogwebSchemeResolver(SchemeResolver):
+    """Resolves cogweb:// URIs to checkpoint URIs via the stats server.
 
     Supported formats:
-      - metta://policy/<uuid>              (policy version by UUID)
-      - metta://policy/<name>              (latest version of named policy)
-      - metta://policy/<name>:latest       (latest version of named policy)
-      - metta://policy/<name>:v<N>         (specific version N of named policy)
+      - cogweb://policy/<uuid>              (policy version by UUID)
+      - cogweb://policy/<name>              (latest version of named policy)
+      - cogweb://policy/<name>:latest       (latest version of named policy)
+      - cogweb://policy/<name>:v<N>         (specific version N of named policy)
     """
 
     @property
     def scheme(self) -> str:
-        return "metta"
-
-    def parse(self, uri: str) -> ParsedScheme:
-        if not uri.startswith("metta://"):
-            raise ValueError(f"Expected metta:// URI, got: {uri}")
-
-        path = uri[len("metta://") :]
-        if not path:
-            raise ValueError(f"Invalid metta:// URI: {uri}")
-
-        return ParsedScheme(raw=uri, scheme="metta", canonical=uri, path=path)
+        return "cogweb"
 
     def _get_stats_client(self) -> StatsClient:
         stats_server_uri = auto_stats_server_uri()
@@ -93,7 +82,7 @@ class MettaSchemeResolver(SchemeResolver):
         entry = response.entries[0]
         return stats_client.get_policy_version(entry.id)
 
-    def resolve(self, uri: str) -> str:
+    def _get_policy_version(self, uri: str) -> PolicyVersionWithName:
         parsed = self.parse(uri)
         path = parsed.path
         if not path:
@@ -115,18 +104,39 @@ class MettaSchemeResolver(SchemeResolver):
             name, version = _parse_policy_identifier(policy_identifier)
             policy_version = self._resolve_policy_version_by_name(stats_client, name, version)
 
-        checkpoint_uri: str | None = None
-        if policy_version.s3_path:
-            with policy_spec_from_s3_submission(policy_version.s3_path) as policy_spec:
-                checkpoint_uri = policy_spec.init_kwargs.get("checkpoint_uri")
+        return policy_version
 
-        # This is for backwards compatibility; we should remove it when
-        # we remove the policy_spec column from the policy_version table.
-        if not checkpoint_uri and policy_version.policy_spec:
-            checkpoint_uri = policy_version.policy_spec.get("init_kwargs", {}).get("checkpoint_uri")
+    def resolve(self, uri: str) -> str:
+        policy_version = self._get_policy_version(uri)
+        if not policy_version.s3_path:
+            raise ValueError(f"Policy version {policy_version.id} has no s3_path")
+        return policy_version.s3_path
+
+
+class MettaSchemeResolver(CogwebSchemeResolver):
+    """Resolves metta:// URIs to checkpoint URIs via the stats server.
+
+    Supported formats:
+      - metta://policy/<uuid>              (policy version by UUID)
+      - metta://policy/<name>              (latest version of named policy)
+      - metta://policy/<name>:latest       (latest version of named policy)
+      - metta://policy/<name>:v<N>         (specific version N of named policy)
+    """
+
+    @property
+    def scheme(self) -> str:
+        return "metta"
+
+    def resolve(self, uri: str) -> str:
+        policy_version = self._get_policy_version(uri)
+        if policy_version.s3_path:
+            logger.info(f"Metta scheme resolver: {uri} resolved to s3 policy spec: {policy_version.s3_path}")
+            return policy_version.s3_path
+
+        checkpoint_uri = (policy_version.policy_spec or {}).get("init_kwargs", {}).get("checkpoint_uri")
 
         if not checkpoint_uri:
-            raise ValueError(f"Policy version {policy_version.id} has no checkpoint_uri in policy_spec or s3_path")
+            raise ValueError(f"Data not found for policy version {policy_version.id}")
 
         logger.info(f"Metta scheme resolver: {uri} resolved to mpt checkpoint: {checkpoint_uri}")
         return resolve_uri(checkpoint_uri)

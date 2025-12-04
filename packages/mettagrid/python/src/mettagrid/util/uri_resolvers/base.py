@@ -57,12 +57,23 @@ class SchemeResolver(ABC):
     def scheme(self) -> str:
         pass
 
+    @property
+    def _expected_prefix(self) -> str:
+        return f"{self.scheme}://"
+
     def matches_scheme(self, uri: str) -> bool:
-        return uri.startswith(f"{self.scheme}://")
+        return uri.startswith(self._expected_prefix)
 
-    @abstractmethod
     def parse(self, uri: str) -> ParsedScheme:
-        pass
+        if not uri.startswith(self._expected_prefix):
+            raise ValueError(f"Expected {self._expected_prefix} URI, got: {uri}")
 
-    def resolve(self, uri: str) -> str:
+        path = uri[len(self._expected_prefix) :]
+        if not path:
+            raise ValueError(f"Invalid {self._expected_prefix} URI: {uri}")
+
+        return ParsedScheme(raw=uri, scheme=self.scheme, canonical=uri, path=path)
+
+    # Path to the policy-spec.json file, in s3 or otherwise
+    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         return self.parse(uri).canonical

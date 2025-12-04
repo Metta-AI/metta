@@ -32,6 +32,8 @@ from typing import Dict, List, Optional
 
 import matplotlib
 
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,7 +47,6 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -108,6 +109,7 @@ def load_policy(
 ):
     device = device or torch.device("cpu")
 
+    # TODO: clean this up
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
         policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
