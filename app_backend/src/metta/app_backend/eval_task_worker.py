@@ -61,9 +61,9 @@ class SimTaskExecutor(AbstractTaskExecutor):
     def __init__(self, backend_url: str) -> None:
         self._backend_url = backend_url
         self._temp_dir = tempfile.mkdtemp()
-        self._versioned_path = f"{self._temp_dir}/workdir"
+        self._workdir = f"{self._temp_dir}/workdir"
 
-    def _run_cmd_from_versioned_checkout(
+    def _run_cmd_workdir(
         self,
         cmd: list[str],
         capture_output: bool = True,
@@ -78,7 +78,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             # Redirect stderr to stdout to get chronologically interspersed output (like 2>&1)
             result = subprocess.run(
                 cmd,
-                cwd=self._versioned_path,
+                cwd=self._workdir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -87,12 +87,17 @@ class SimTaskExecutor(AbstractTaskExecutor):
         else:
             result = subprocess.run(
                 cmd,
-                cwd=self._versioned_path,
+                cwd=self._workdir,
                 text=True,
                 env=env,
             )
 
         return result
+
+    def _run_setup_cmd(self, cmd: list[str]) -> None:
+        result = self._run_cmd_workdir(cmd, capture_output=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"Command failed with return code {result.returncode}: {' '.join(cmd)}")
 
     def _log_path(self, job_id: str) -> str:
         return f"jobs/{job_id}/output.log"
@@ -116,44 +121,33 @@ class SimTaskExecutor(AbstractTaskExecutor):
         """Simple heuristic: SHA-1 is 40 hex chars, SHA-256 is 64 hex chars."""
         return (len(git_ref) == 40 or len(git_ref) == 64) and all(c in "0123456789abcdef" for c in git_ref.lower())
 
-    def _run_cmd(self, cmd: list[str], cwd: str | None = None) -> None:
-        """Run a command with output streamed to stdout. Raises on failure."""
-        env = os.environ.copy()
-        for key in ["PYTHONPATH", "UV_PROJECT", "UV_PROJECT_ENVIRONMENT"]:
-            env.pop(key, None)
-        env["DISABLE_RICH_LOGGING"] = "1"
-
-        result = subprocess.run(cmd, cwd=cwd, env=env)
-        if result.returncode != 0:
-            raise RuntimeError(f"Command failed with return code {result.returncode}: {' '.join(cmd)}")
-
     @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self, git_ref: str) -> None:
         try:
-            logger.info(f"Setting up versioned checkout at {self._versioned_path} for ref {git_ref}")
+            logger.info(f"Setting up versioned checkout at {self._workdir} for ref {git_ref}")
 
-            if os.path.exists(self._versioned_path):
-                shutil.rmtree(self._versioned_path)
+            if os.path.exists(self._workdir):
+                shutil.rmtree(self._workdir)
 
-            os.makedirs(self._versioned_path, exist_ok=True)
+            os.makedirs(self._workdir, exist_ok=True)
 
             # Initialize empty repo
-            self._run_cmd(["git", "init"], cwd=self._versioned_path)
+            self._run_setup_cmd(["git", "init"])
 
             # Add remote
-            self._run_cmd(["git", "remote", "add", "origin", REPO_URL], cwd=self._versioned_path)
+            self._run_setup_cmd(["git", "remote", "add", "origin", REPO_URL])
 
             # Shallow fetch the specific ref (works for both commits and branches)
-            self._run_cmd(["git", "fetch", "--depth", "1", "origin", git_ref], cwd=self._versioned_path)
+            self._run_setup_cmd(["git", "fetch", "--depth", "1", "origin", git_ref])
 
             # Checkout the fetched ref
-            self._run_cmd(["git", "checkout", "FETCH_HEAD"], cwd=self._versioned_path)
+            self._run_setup_cmd(["git", "checkout", "FETCH_HEAD"])
 
             # Install dependencies in the versioned checkout
             logger.info("Installing dependencies in versioned checkout...")
-            self._run_cmd(["uv", "run", "metta", "configure", "--profile=softmax-docker"], cwd=self._versioned_path)
+            self._run_setup_cmd(["uv", "run", "metta", "configure", "--profile=softmax-docker"])
 
-            logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
+            logger.info(f"Successfully set up versioned checkout at {self._workdir}")
         except Exception as e:
             logger.error(f"Failed to set up versioned checkout: {e}", exc_info=True)
             raise
@@ -183,7 +177,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
                     logger.info(f"Added task_data_path {os.path.abspath(local_path)} to command")
                     logger.info(f"Running command: {' '.join(cmd)}")
 
-                    result = self._run_cmd_from_versioned_checkout(cmd)
+                    result = self._run_cmd_workdir(cmd)
 
                     self._upload_logs_to_s3(str(task.id), result)
 
@@ -199,7 +193,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             # No data file to download, run command directly
             logger.info(f"Running command: {' '.join(cmd)}")
 
-            result = self._run_cmd_from_versioned_checkout(cmd)
+            result = self._run_cmd_workdir(cmd)
 
             self._upload_logs_to_s3(str(task.id), result)
 
