@@ -832,10 +832,6 @@ proc fitVisibleMap*(panel: Panel) {.measure.} =
 
   let rectSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
 
-  if rectSize.x <= 0 or rectSize.y <= 0:
-    fitFullMap(panel)
-    return
-
   # Calculate the union of all agent vision areas.
   var
     minPos = vec2(float32.high, float32.high)
