@@ -33,7 +33,7 @@ def _reporter(existing_heart: float | None = None) -> StatsReporter:
     )
 
     if existing_heart is not None:
-        reporter._state.rollout_stats["agent/heart.gained"] = [existing_heart]
+        reporter._state.rollout_stats["agent/heart.created"] = [existing_heart]
 
     return reporter
 
@@ -56,4 +56,4 @@ def test_heart_metric_zero_fill_and_preserve(existing: float | None, expected: f
         optimizer=reporter.context.optimizer,
     )
 
-    assert payload["env_agent/heart.gained"] == expected
+    assert payload["env_agent/heart.created"] == expected
