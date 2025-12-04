@@ -232,7 +232,24 @@ if __name__ == "__main__":
             # Synchronize review subtasks based on PR state
             if pr.is_open:
                 # PR is open - sync subtasks for requested reviewers
-                asana_task.synchronize_review_subtasks(pr.requested_reviewers, mapping.github_login_to_asana_email)
+                asana_task.synchronize_review_subtasks(
+                    pr.requested_reviewers,
+                    mapping.github_login_to_asana_email,
+                    pr_number,
+                    pr.author,
+                    pr.title,
+                    github_url,
+                )
+
+                # Mark review subtasks as complete for reviewers who have submitted reviews
+                # but are NOT currently in requested_reviewers (i.e., not re-requested)
+                for review in review_comments:
+                    reviewer_login = review.get("user")
+                    if reviewer_login and reviewer_login not in pr.requested_reviewers:
+                        asana_task.complete_review_subtask_for_reviewer(
+                            reviewer_login,
+                            mapping.github_login_to_asana_email,
+                        )
             else:
                 # PR is closed or merged - close all review subtasks
                 asana_task.close_all_review_subtasks()

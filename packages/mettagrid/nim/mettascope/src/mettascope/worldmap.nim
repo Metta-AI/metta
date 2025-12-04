@@ -183,10 +183,31 @@ proc updateVisibilityMap*(visibilityMap: TileMap) {.measure.} =
 
 proc buildAtlas*() {.measure.} =
   ## Build the atlas.
-  for path in walkDirRec(dataDir):
-    if path.endsWith(".png") and "fidget" notin path:
-      let name = path.replace(dataDir & "/", "").replace(".png", "")
-      bxy.addImage(name, readImage(path))
+  bxy.addImage("minimapPip", readImage(dataDir & "/minimapPip.png"))
+  bxy.addImage("selection", readImage(dataDir & "/selection.png"))
+  bxy.addImage("agents/path", readImage(dataDir & "/agents/path.png"))
+  bxy.addImage("agents/footprints", readImage(dataDir & "/agents/footprints.png"))
+  bxy.addImage("actions/thoughts_lightning", readImage(dataDir & "/actions/thoughts_lightning.png"))
+  bxy.addImage("actions/icons/unknown", readImage(dataDir & "/actions/icons/unknown.png"))
+  bxy.addImage("actions/arrow", readImage(dataDir & "/actions/arrow.png"))
+  bxy.addImage("actions/thoughts", readImage(dataDir & "/actions/thoughts.png"))
+
+  bxy.addImage("minimap/agent", readImage(dataDir & "/minimap/agent.png"))
+  bxy.addImage("minimap/assembler", readImage(dataDir & "/minimap/assembler.png"))
+  bxy.addImage("minimap/carbon_extractor", readImage(dataDir & "/minimap/carbon_extractor.png"))
+  bxy.addImage("minimap/charger", readImage(dataDir & "/minimap/charger.png"))
+  bxy.addImage("minimap/germanium_extractor", readImage(dataDir & "/minimap/germanium_extractor.png"))
+  bxy.addImage("minimap/silicon_extractor", readImage(dataDir & "/minimap/silicon_extractor.png"))
+  bxy.addImage("minimap/oxygen_extractor", readImage(dataDir & "/minimap/oxygen_extractor.png"))
+  bxy.addImage("minimap/chest", readImage(dataDir & "/minimap/chest.png"))
+
+  proc addDir(rootDir: string, dir: string) =
+    for path in walkDirRec(rootDir / dir):
+      if path.endsWith(".png") and "fidget" notin path:
+        let name = path.replace(rootDir & "/", "").replace(".png", "")
+        bxy.addImage(name, readImage(path))
+
+  addDir(dataDir, "resources")
 
 proc getProjectionView*(): Mat4 {.measure.} =
   ## Get the projection and view matrix.
@@ -319,7 +340,11 @@ proc drawObjects*() {.measure.} =
         pos * TILE_SIZE
       )
     else:
-      let spriteName = replay.typeImages.getOrDefault(thing.typeName, "objects/unknown")
+      let spriteName =
+        if "objects/" & thing.typeName in px:
+          "objects/" & thing.typeName
+        else:
+          "objects/unknown"
       if thing.isClipped.at:
         px.drawSprite(
           spriteName & ".clipped",
@@ -705,34 +730,36 @@ proc drawWorldMini*() {.measure.} =
 
   drawTerrain()
 
+  # Overlays
+  if settings.showVisualRange:
+    drawVisualRanges()
+  elif settings.showFogOfWar:
+    drawFogOfWar()
+
   # Agents
   let scale = 3.0
   bxy.saveTransform()
   bxy.scale(vec2(scale, scale))
 
   for obj in replay.objects:
-    if obj.typeName != agentTypeName:
-      continue
-
-    let loc = obj.location.at(step).xy
-    bxy.drawImage(
-      "minimapPip",
-      rect(
+    let pipName = "minimap/" & obj.typeName
+    if pipName in bxy:
+      let loc = obj.location.at(step).xy
+      let rect = rect(
         (loc.x.float32) / scale - 0.5,
         (loc.y.float32) / scale - 0.5,
         1,
         1
-      ),
-      color(1, 1, 1, 1)
-    )
+      )
+      bxy.drawImage(
+        pipName,
+        rect,
+        color(1, 1, 1, 1)
+      )
 
   bxy.restoreTransform()
 
-  # Overlays
-  if settings.showVisualRange:
-    drawVisualRanges()
-  elif settings.showFogOfWar:
-    drawFogOfWar()
+
 
 proc centerAt*(panel: Panel, entity: Entity) {.measure.} =
   ## Center the map on the given entity.
@@ -759,7 +786,7 @@ proc drawWorldMain*() {.measure.} =
   bxy.exitRawOpenGLMode()
   measurePop()
 
-  drawActions()
+  #drawActions()
   drawAgentDecorations()
   drawSelection()
   drawPlannedPath()

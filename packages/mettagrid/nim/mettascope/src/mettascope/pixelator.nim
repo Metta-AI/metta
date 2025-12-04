@@ -196,6 +196,10 @@ proc drawSprite*(
   ## Draws a sprite at the given position.
   px.drawSprite(name, pos.x.uint16, pos.y.uint16)
 
+proc contains*(px: Pixelator, name: string): bool =
+  ## Checks if the given sprite is in the atlas.
+  name in px.atlas.entries
+
 proc clear*(px: Pixelator) =
   ## Clears the current instance queue.
   px.instanceData.setLen(0)

@@ -36,8 +36,7 @@ from metta.rl.training import (
     TorchProfiler,
     TrainerComponent,
     TrainingEnvironmentConfig,
-    Uploader,
-    UploaderConfig,
+    UpdateEpochAutoTuner,
     VectorizedTrainingEnvironment,
     WandbAborter,
     WandbAborterConfig,
@@ -61,7 +60,6 @@ class TrainTool(Tool):
     training_env: TrainingEnvironmentConfig
     policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
     initial_policy_uri: Optional[str] = None
-    uploader: UploaderConfig = Field(default_factory=UploaderConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     gradient_reporter: GradientReporterConfig = Field(default_factory=GradientReporterConfig)
 
@@ -127,16 +125,25 @@ class TrainTool(Tool):
 
         self._configure_torch_backends()
 
-        checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
-
-        # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
-        if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
-            raise ValueError("without a remote prefix we cannot use remote evaluation")
+        checkpoint_manager = CheckpointManager(
+            run=self.run or "default",
+            system_cfg=self.system,
+            require_remote_enabled=self.evaluator.evaluate_remote,
+        )
 
         init_logging(run_dir=checkpoint_manager.run_dir)
         record_heartbeat()
 
-        policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
+        checkpointer = Checkpointer(
+            config=self.checkpointer,
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
+            policy_architecture=self.policy_architecture,
+        )
+        policy = checkpointer.load_or_create_policy(
+            env.policy_env_info,
+            policy_uri=self.initial_policy_uri,
+        )
         trainer = self._initialize_trainer(env, policy, distributed_helper)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
@@ -151,7 +158,7 @@ class TrainTool(Tool):
                     distributed_helper=distributed_helper,
                     checkpoint_manager=checkpoint_manager,
                     stats_client=stats_client,
-                    policy_checkpointer=policy_checkpointer,
+                    policy_checkpointer=checkpointer,
                     run_name=self.run,
                     wandb_run=wandb_run,
                 )
@@ -179,24 +186,6 @@ class TrainTool(Tool):
             if sdpa_stack is not None:
                 sdpa_stack.close()
                 self._sdpa_context_stack = None
-
-    def _load_or_create_policy(
-        self,
-        checkpoint_manager: CheckpointManager,
-        distributed_helper: DistributedHelper,
-        env: VectorizedTrainingEnvironment,
-    ) -> tuple[Checkpointer, Policy]:
-        policy_checkpointer = Checkpointer(
-            config=self.checkpointer,
-            checkpoint_manager=checkpoint_manager,
-            distributed_helper=distributed_helper,
-            policy_architecture=self.policy_architecture,
-        )
-        policy = policy_checkpointer.load_or_create_policy(
-            env.policy_env_info,
-            policy_uri=self.initial_policy_uri,
-        )
-        return policy_checkpointer, policy
 
     def _initialize_trainer(
         self,
@@ -235,6 +224,10 @@ class TrainTool(Tool):
         if heartbeat_cfg is not None:
             components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
 
+        autotune_cfg = getattr(self.trainer, "update_epochs_autotune", None)
+        if autotune_cfg and getattr(autotune_cfg, "enabled", False):
+            components.append(UpdateEpochAutoTuner(autotune_cfg))
+
         stats_component: TrainerComponent | None = None
 
         if distributed_helper.is_master():
@@ -262,15 +255,6 @@ class TrainTool(Tool):
                     seed=self.system.seed,
                     run_name=run_name,
                     stats_client=stats_client,
-                    wandb_run=wandb_run,
-                )
-            )
-
-            components.append(
-                Uploader(
-                    config=self.uploader,
-                    checkpoint_manager=checkpoint_manager,
-                    distributed_helper=distributed_helper,
                     wandb_run=wandb_run,
                 )
             )
@@ -390,7 +374,6 @@ class TrainTool(Tool):
             self.training_env.forward_pass_minibatch_target_size, 4
         )
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
-        self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
 
     def _apply_sandbox_config(self) -> None:
@@ -420,6 +403,3 @@ class TrainTool(Tool):
         ]
         # Clear any additional simulations - only run the quick training validation
         self.evaluator.simulations = []
-
-        # Upload checkpoints more frequently in sandbox mode
-        self.uploader.epoch_interval = 1

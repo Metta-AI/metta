@@ -1,5 +1,3 @@
-import math
-
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AssemblerConfig,
@@ -21,7 +19,6 @@ from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
-from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
@@ -37,7 +34,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if "obs" in config_dict and "features" in config_dict["obs"]:
             config_dict["obs"] = config_dict["obs"].copy()
             config_dict["obs"].pop("features", None)
+        # Keep vibe_names in sync with number_of_vibes; favor the explicit count.
+        config_dict.pop("vibe_names", None)
+        change_vibe_cfg = config_dict.setdefault("actions", {}).setdefault("change_vibe", {})
+        change_vibe_cfg["number_of_vibes"] = change_vibe_cfg.get("number_of_vibes") or len(VIBES)
         game_config = GameConfig(**config_dict)
+
+    # Ensure runtime object has consistent vibes.
+    game_config.actions.change_vibe.number_of_vibes = game_config.actions.change_vibe.number_of_vibes or len(VIBES)
+    game_config.vibe_names = [vibe.name for vibe in VIBES[: game_config.actions.change_vibe.number_of_vibes]]
 
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
@@ -51,8 +56,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # The C++ bindings expect dense uint8 identifiers, so keep a name->id lookup.
     num_vibes = game_config.actions.change_vibe.number_of_vibes
     supported_vibes = VIBES[:num_vibes]
-    if not game_config.vibe_names:
-        game_config.vibe_names = [vibe.name for vibe in supported_vibes]
     vibe_name_to_id = {vibe.name: i for i, vibe in enumerate(supported_vibes)}
 
     objects_cpp_params = {}  # params for CppWallConfig
@@ -190,7 +193,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             group_id=team_id,
             group_name=group_name,
             freeze_duration=agent_props["freeze_duration"],
-            action_failure_penalty=agent_props["action_failure_penalty"],
             inventory_config=inventory_config,
             stat_rewards=stat_rewards,
             stat_reward_max=stat_reward_max,
@@ -238,8 +240,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                         f"already exists in {object_type}"
                     )
                 seen_vibes_and_min_agents.append((vibe_ids, protocol_config.min_agents))
-                input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
-                output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
+                # Ensure keys and values are explicitly Python ints for C++ binding
+                # Build dict item-by-item to ensure pybind11 recognizes it as dict[int, int]
+                input_res = {}
+                for k, v in protocol_config.input_resources.items():
+                    key = int(resource_name_to_id[k])
+                    val = int(v)
+                    input_res[key] = val
+                output_res = {}
+                for k, v in protocol_config.output_resources.items():
+                    key = int(resource_name_to_id[k])
+                    val = int(v)
+                    output_res[key] = val
                 cpp_protocol = CppProtocol()
                 cpp_protocol.min_agents = protocol_config.min_agents
                 cpp_protocol.vibes = vibe_ids
@@ -335,6 +347,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         last_action=global_obs_config.last_action,
         last_reward=global_obs_config.last_reward,
         compass=global_obs_config.compass,
+        goal_obs=global_obs_config.goal_obs,
     )
     game_cpp_params["global_obs"] = global_obs_cpp
 
@@ -365,13 +378,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 f"Either add these resources to resource_names or disable the action."
             )
 
-        consumed_resources = {resource_name_to_id[k]: float(v) for k, v in action_config.consumed_resources.items()}
+        consumed_resources = {resource_name_to_id[k]: int(v) for k, v in action_config.consumed_resources.items()}
 
         required_source = action_config.required_resources
         if not required_source:
-            required_source = {k: math.ceil(v) for k, v in action_config.consumed_resources.items()}
+            required_source = action_config.consumed_resources
 
-        required_resources = {resource_name_to_id[k]: int(math.ceil(v)) for k, v in required_source.items()}
+        required_resources = {resource_name_to_id[k]: int(v) for k, v in required_source.items()}
 
         return {
             "consumed_resources": consumed_resources,
@@ -405,28 +418,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     )
     actions_cpp_params["change_vibe"] = CppChangeVibeActionConfig(**action_params)
 
-    # Process resource_mod - always add to map (required by C++)
-    action_params = process_action_config("resource_mod", actions_config.resource_mod)
-    if actions_config.resource_mod.enabled:
-        modifies_dict = actions_config.resource_mod.modifies
-        unknown_modifies = set(modifies_dict.keys()) - set(resource_name_to_id.keys())
-        if unknown_modifies:
-            unknown_list = sorted(unknown_modifies)
-            raise ValueError(f"Unknown resource names in modifies for action 'resource_mod': {unknown_list}")
-        action_params["modifies"] = {resource_name_to_id[k]: float(v) for k, v in modifies_dict.items()}
-        action_params["agent_radius"] = actions_config.resource_mod.agent_radius
-        action_params["scales"] = actions_config.resource_mod.scales
-    else:
-        action_params["modifies"] = {}
-        action_params["agent_radius"] = 0
-        action_params["scales"] = False
-    actions_cpp_params["resource_mod"] = CppResourceModConfig(**action_params)
-
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
-
-    # Add resource_loss_prob
-    game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
 
     # Add inventory regeneration interval
     game_cpp_params["inventory_regen_interval"] = game_config.inventory_regen_interval
@@ -439,12 +432,20 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_protocol = CppProtocol()
             cpp_protocol.min_agents = protocol_config.min_agents
             cpp_protocol.vibes = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
-            cpp_protocol.input_resources = {
-                resource_name_to_id[k]: v for k, v in protocol_config.input_resources.items()
-            }
-            cpp_protocol.output_resources = {
-                resource_name_to_id[k]: v for k, v in protocol_config.output_resources.items()
-            }
+            # Ensure keys and values are explicitly Python ints for C++ binding
+            # Build dict item-by-item to ensure pybind11 recognizes it as dict[int, int]
+            input_res = {}
+            for k, v in protocol_config.input_resources.items():
+                key = int(resource_name_to_id[k])
+                val = int(v)
+                input_res[key] = val
+            cpp_protocol.input_resources = input_res
+            output_res = {}
+            for k, v in protocol_config.output_resources.items():
+                key = int(resource_name_to_id[k])
+                val = int(v)
+                output_res[key] = val
+            cpp_protocol.output_resources = output_res
             cpp_protocol.cooldown = protocol_config.cooldown
             clipper_protocols.append(cpp_protocol)
         clipper_config = CppClipperConfig()

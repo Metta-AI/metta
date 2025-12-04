@@ -23,8 +23,8 @@ docker_client = docker_client_fixture()
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_debug_user_email():
-    """Mock debug_user_email for all tests to prevent local env interference."""
-    with mock.patch("metta.app_backend.config.debug_user_email", None):
+    """Set debug_user_email for all tests to bypass authentication."""
+    with mock.patch("metta.app_backend.config.debug_user_email", "test@example.com"):
         yield
 
 
@@ -80,33 +80,21 @@ def test_client(test_app: FastAPI) -> TestClient:
 
 @pytest.fixture(scope="class")
 def test_user_headers() -> Dict[str, str]:
-    """Headers for authenticated requests."""
-    return {"X-Auth-Request-Email": "test_user@example.com"}
+    """Headers for authenticated requests (empty since auth is via debug_user_email)."""
+    return {}
 
 
 @pytest.fixture(scope="class")
 def auth_headers() -> Dict[str, str]:
-    """Authentication headers for requests (alias for test_user_headers)."""
-    return {"X-Auth-Request-Email": "test@example.com"}
+    """Authentication headers for requests (empty since auth is via debug_user_email)."""
+    return {}
 
 
 @pytest.fixture(scope="class")
 def stats_client(test_client: TestClient) -> StatsClient:
     """Create a stats client for testing."""
-    # Create stats client with a dummy token (auth will use X-Auth-Request-Email header instead)
-    client = create_test_stats_client(test_client, machine_token="dummy_token")
-    # Override the request method to add X-Auth-Request-Email header
-    original_request = client._http_client.request
-    client._test_user_email = "test_user@example.com"
-
-    def request_with_auth(method: str, url: str, **kwargs):
-        headers = kwargs.get("headers", {})
-        headers["X-Auth-Request-Email"] = getattr(client, "_test_user_email", "test_user@example.com")
-        kwargs["headers"] = headers
-        return original_request(method, url, **kwargs)
-
-    client._http_client.request = request_with_auth
-    return client
+    # Auth is handled via debug_user_email, no need for headers
+    return create_test_stats_client(test_client, machine_token="dummy_token")
 
 
 # Isolated fixtures for function-scoped testing
@@ -138,17 +126,5 @@ def isolated_test_client(isolated_test_app: FastAPI) -> TestClient:
 @pytest.fixture(scope="function")
 def isolated_stats_client(isolated_test_client: TestClient) -> StatsClient:
     """Create a stats client with isolated database for testing."""
-    # Create stats client with a dummy token (auth will use X-Auth-Request-Email header instead)
-    client = create_test_stats_client(isolated_test_client, machine_token="dummy_token")
-    # Override the request method to add X-Auth-Request-Email header
-    original_request = client._http_client.request
-    client._test_user_email = "test_user@example.com"
-
-    def request_with_auth(method: str, url: str, **kwargs):
-        headers = kwargs.get("headers", {})
-        headers["X-Auth-Request-Email"] = getattr(client, "_test_user_email", "test_user@example.com")
-        kwargs["headers"] = headers
-        return original_request(method, url, **kwargs)
-
-    client._http_client.request = request_with_auth
-    return client
+    # Auth is handled via debug_user_email, no need for headers
+    return create_test_stats_client(isolated_test_client, machine_token="dummy_token")

@@ -85,7 +85,7 @@ const groupedConfigMakersSchema = z.record(
   z.array(configMakerSchema).optional()
 );
 
-type GroupedConfigMakers = z.infer<typeof groupedConfigMakersSchema>;
+export type GroupedConfigMakers = z.infer<typeof groupedConfigMakersSchema>;
 
 export async function listConfigMakers(): Promise<GroupedConfigMakers> {
   return await fetchApi(`${API_URL}/configs`, groupedConfigMakersSchema);
@@ -121,4 +121,10 @@ export async function getRepoRoot(): Promise<string> {
   return parsed.repo_root;
 }
 
+export async function getMettagridEncoding(): Promise<Record<string, string>> {
+  const response = await fetch(`${API_URL}/mettagrid-encoding`);
+  const data = await response.json();
+  const parsed = z.record(z.string(), z.string()).parse(data);
+  return parsed;
+}
 export { getJsonSchemas } from "./schemas";

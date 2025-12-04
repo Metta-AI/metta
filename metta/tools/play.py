@@ -14,7 +14,6 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
-from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -23,6 +22,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.random_agent import RandomMultiAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
