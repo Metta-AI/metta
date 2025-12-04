@@ -137,8 +137,7 @@ class TestPrioritizedRegretAlgorithm:
 
         # Task 3 (high regret) should have highest score
         assert scores[task3_id] > scores[task2_id], (
-            f"High regret task should score higher. "
-            f"High regret: {scores[task3_id]}, Medium regret: {scores[task2_id]}"
+            f"High regret task should score higher. High regret: {scores[task3_id]}, Medium regret: {scores[task2_id]}"
         )
         assert scores[task2_id] > scores[task1_id], (
             f"Medium regret task should score higher than low regret. "
@@ -169,9 +168,7 @@ class TestPrioritizedRegretAlgorithm:
         eviction_recommendation = algorithm.recommend_eviction(task_ids)
 
         # Should recommend task 1 (lowest regret, nearly solved)
-        assert eviction_recommendation == task1_id, (
-            f"Should evict low-regret task, got task {eviction_recommendation}"
-        )
+        assert eviction_recommendation == task1_id, f"Should evict low-regret task, got task {eviction_recommendation}"
 
     def test_prioritized_regret_exploration_bonus(self, random_seed, prioritized_regret_config):
         """Test that new tasks get exploration bonus."""
@@ -466,4 +463,3 @@ class TestRegretAlgorithmsComparison:
             f"Improving task should score higher than stable task. "
             f"Improving: {scores[task1_id]}, Stable: {scores[task2_id]}"
         )
-

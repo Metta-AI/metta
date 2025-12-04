@@ -326,4 +326,3 @@ def compare_curricula(enable_detailed_slice_logging: bool = False) -> dict[str, 
             policy_architecture=policy_config,
         ),
     }
-

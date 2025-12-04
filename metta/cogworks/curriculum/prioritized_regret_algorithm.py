@@ -282,4 +282,3 @@ class PrioritizedRegretAlgorithm(CurriculumAlgorithm):
         self._score_cache = state.get("score_cache", {})
         self._cache_valid_tasks = set(state.get("cache_valid_tasks", []))
         self._stats_cache_valid = False
-

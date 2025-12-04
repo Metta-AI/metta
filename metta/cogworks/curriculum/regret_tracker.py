@@ -346,4 +346,3 @@ class RegretTracker:
         # Restore cache state
         self._cached_mean_regret = state["cached_mean_regret"]
         self._cache_valid = state["cache_valid"]
-

@@ -218,16 +218,16 @@ class RegretLearningProgressAlgorithm(CurriculumAlgorithm):
             # Update EMAs
             if self._r_fast is not None and self._r_slow is not None:
                 # Fast EMA
-                self._r_fast[self._update_mask] = (
-                    mean_regrets[self._update_mask] * self.hypers.regret_ema_timescale
-                    + self._r_fast[self._update_mask] * (1.0 - self.hypers.regret_ema_timescale)
+                self._r_fast[self._update_mask] = mean_regrets[
+                    self._update_mask
+                ] * self.hypers.regret_ema_timescale + self._r_fast[self._update_mask] * (
+                    1.0 - self.hypers.regret_ema_timescale
                 )
                 # Slow EMA (5x slower)
                 slow_timescale = self.hypers.regret_ema_timescale * 0.2
-                self._r_slow[self._update_mask] = (
-                    mean_regrets[self._update_mask] * slow_timescale
-                    + self._r_slow[self._update_mask] * (1.0 - slow_timescale)
-                )
+                self._r_slow[self._update_mask] = mean_regrets[self._update_mask] * slow_timescale + self._r_slow[
+                    self._update_mask
+                ] * (1.0 - slow_timescale)
 
         self._stale_dist = True
 
@@ -537,4 +537,3 @@ class RegretLearningProgressAlgorithm(CurriculumAlgorithm):
             self._cache_valid_tasks = set(state.get("cache_valid_tasks", []))
 
         self._stats_cache_valid = False
-
