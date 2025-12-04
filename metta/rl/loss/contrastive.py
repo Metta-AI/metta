@@ -32,9 +32,9 @@ class ContrastiveLoss(Loss):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: Any,
     ):
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
 
         self.temperature = self.cfg.temperature
         self.contrastive_coef = self.cfg.contrastive_coef

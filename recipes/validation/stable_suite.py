@@ -37,10 +37,10 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         timeout_s=7200,
         remote=RemoteConfig(gpus=1, nodes=1),
         is_training_job=True,
-        metrics_to_track=["overview/sps", "env_agent/heart.created"],
+        metrics_to_track=["overview/sps", "env_game/assembler.heart.created"],
         acceptance_criteria=[
             AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000),
-            AcceptanceCriterion(metric="env_agent/heart.created", operator=">", threshold=0.1),
+            AcceptanceCriterion(metric="env_game/assembler.heart.created", operator=">", threshold=0.1),
         ],
     )
 
@@ -56,10 +56,10 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         timeout_s=172800,
         remote=RemoteConfig(gpus=4, nodes=4),
         is_training_job=True,
-        metrics_to_track=["overview/sps", "env_agent/heart.created"],
+        metrics_to_track=["overview/sps", "env_game/assembler.heart.created"],
         acceptance_criteria=[
             AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=80000),
-            AcceptanceCriterion(metric="env_agent/heart.created", operator=">", threshold=1.0),
+            AcceptanceCriterion(metric="env_game/assembler.heart.created", operator=">", threshold=1.0),
         ],
     )
 
