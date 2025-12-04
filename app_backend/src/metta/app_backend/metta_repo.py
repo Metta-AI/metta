@@ -1079,7 +1079,7 @@ GROUP BY pv.id, et.key, et.value
 
     @memoize(max_age=60.0)
     async def _get_vor_stats(
-        self, policy_version_ids: tuple[uuid.UUID | str]
+        self, policy_version_ids: tuple[uuid.UUID | str, ...]
     ) -> defaultdict[uuid.UUID, defaultdict[int, RunningStats]]:
         query = f"""
         SELECT
@@ -1145,7 +1145,7 @@ GROUP BY pv.id, et.key, et.value
             policy_version_id=None,
         )
         baseline_vor_stats = await self._get_vor_stats((THINKY_UUID, LADYBUG_UUID))
-        candidate_vor_stats = await self._get_vor_stats((entry.policy_version.id for entry in entries))
+        candidate_vor_stats = await self._get_vor_stats(tuple(entry.policy_version.id for entry in entries))
 
         # Combine baseline stats (candidate_count == 0) into replacement_stats
         replacement_stats = RunningStats()
