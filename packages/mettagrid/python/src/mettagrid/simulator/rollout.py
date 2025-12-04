@@ -44,18 +44,16 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
+        # Set policy descriptors on simulation
+        policy_descriptors = [policy.policy_descriptor for policy in self._policies]
+        self._sim.set_policy_descriptors(policy_descriptors)
+
         # Reset policies and create agent policies if needed
         for policy in self._policies:
             policy.reset()
 
-        self._step_count = 0
-        logging.info(f"Set up rollout with {len(self._policies)} policies")
-
     def step(self) -> None:
         """Execute one step of the rollout."""
-        if self._step_count % 100 == 0:
-            logger.debug(f"Step {self._step_count}")
-
         for i in range(len(self._policies)):
             start_time = time.time()
             action = self._policies[i].step(self._agents[i].observation)
@@ -72,7 +70,6 @@ class Rollout:
             self._renderer.render()
 
         self._sim.step()
-        self._step_count += 1
 
     def run_until_done(self) -> None:
         """Run the rollout until completion or early exit."""

@@ -26,6 +26,7 @@ class StatsWriter(ABC):
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
+        agent_policy_ids: Dict[int, int] | None = None,
     ) -> int:
         """Record episode statistics.
 
@@ -36,6 +37,7 @@ class StatsWriter(ABC):
             step_count: Number of steps in the episode
             replay_url: Optional URL to the episode replay
             created_at: When the episode was created
+            agent_policy_ids: Optional mapping of agent_id to policy_id
 
         Returns:
             The episode ID
@@ -62,6 +64,7 @@ class NoopStatsWriter(StatsWriter):
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
+        agent_policy_ids: Dict[int, int] | None = None,
     ) -> int:
         return 0
 

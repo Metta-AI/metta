@@ -10,8 +10,8 @@ from mettagrid.simulator import Action, AgentObservation
 class RandomAgentPolicy(AgentPolicy):
     """Per-agent random policy."""
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
+    def __init__(self, policy_env_info: PolicyEnvInterface, policy_descriptor=None):
+        super().__init__(policy_env_info, policy_descriptor)
 
     def step(self, obs: AgentObservation) -> Action:
         return random.choice(self.policy_env_info.actions.actions())
@@ -38,7 +38,7 @@ class RandomMultiAgentPolicy(MultiAgentPolicy):
         Returns:
             A RandomAgentPolicy instance
         """
-        return RandomAgentPolicy(self._policy_env_info)
+        return RandomAgentPolicy(self._policy_env_info, self._policy_descriptor)
 
     def agent_policies(self, num_agents: int) -> list[AgentPolicy]:
         """Get a list of AgentPolicy instances for all agents."""

@@ -31,6 +31,10 @@ These are the constants that are stored at the top of the replay.
 - `max_steps` - The maximum number of steps in the replay.
 - `map_size` - The size of the map. No object may move outside of the map bounds.
 - `file_name` - The name of the replay file. This helps identify the replay when processing multiple files.
+- `policies` - Array of policy descriptors that identify which policies control agents. Each policy has:
+  - `name` - Human-readable policy name
+  - `uri` - Optional policy URI (e.g., wandb:// path or local path)
+  - `is_scripted` - Boolean indicating if this is a scripted (non-trained) policy
 
 ```json
 {
@@ -39,6 +43,10 @@ These are the constants that are stored at the top of the replay.
   "max_steps": 1000,
   "map_size": [62, 62],
   "file_name": "example_replay.json.z",
+  "policies": [
+    {"name": "random", "uri": "", "is_scripted": true},
+    {"name": "trained_policy", "uri": "wandb://entity/project/run_id", "is_scripted": false}
+  ],
   ...
 }
 ```
@@ -148,6 +156,7 @@ Here are the keys supported for both agents and objects:
 Agent specific keys:
 
 - `agent_id` - The id of the agent.
+- `policy_id` - Index into the `policies` array indicating which policy controls this agent.
 - `action_id` - The action of the agent that references the `action_names` array.
 - `action_parameter` - Single value for the action. If `action_names[action_id] == "rotate"` and
   `action_parameter == 3`, this means move to the right. The implementation does not need to know this as it can be

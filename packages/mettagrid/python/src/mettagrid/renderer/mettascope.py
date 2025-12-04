@@ -95,6 +95,11 @@ class MettascopeRenderer(Renderer):
         if self._sim.current_step > 0:
             ignore_types = ["wall"]
 
+        # Build agent_policy_ids mapping
+        agent_policy_ids = {}
+        for agent_id in range(self._sim.num_agents):
+            agent_policy_ids[agent_id] = self._sim.get_agent_policy_id(agent_id)
+
         for grid_object in self._sim.grid_objects(ignore_types=ignore_types).values():
             grid_objects.append(
                 format_grid_object(
@@ -103,6 +108,7 @@ class MettascopeRenderer(Renderer):
                     self._sim.action_success,
                     placeholder_rewards,
                     total_rewards,
+                    agent_policy_ids=agent_policy_ids,
                 )
             )
 

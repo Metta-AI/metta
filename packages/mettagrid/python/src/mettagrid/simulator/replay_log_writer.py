@@ -112,6 +112,12 @@ class EpisodeReplay:
     def log_step(self, current_step: int, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
         self.total_rewards += rewards
+
+        # Build agent_policy_ids mapping
+        agent_policy_ids = {}
+        for agent_id in range(self.sim.num_agents):
+            agent_policy_ids[agent_id] = self.sim.get_agent_policy_id(agent_id)
+
         for i, grid_object in enumerate(self.sim.grid_objects().values()):
             if len(self.objects) <= i:
                 self.objects.append({})
@@ -122,6 +128,7 @@ class EpisodeReplay:
                 self.sim.action_success,
                 rewards,
                 self.total_rewards,
+                agent_policy_ids=agent_policy_ids,
             )
 
             self._seq_key_merge(self.objects[i], self.step, update_object)
@@ -154,6 +161,18 @@ class EpisodeReplay:
     def get_replay_data(self):
         """Gets full replay as a tree of plain python dictionaries."""
         self.replay_data["max_steps"] = self.step
+
+        # Build policies array from unique policy descriptors (done here so descriptors are set)
+        policies_data = []
+        unique_policies = self.sim.get_unique_policy_descriptors()
+        for policy in unique_policies:
+            policies_data.append({
+                "name": policy.name,
+                "uri": policy.uri or "",
+                "is_scripted": policy.is_scripted,
+            })
+        self.replay_data["policies"] = policies_data
+
         # Trim value changes to make them more compact.
         for grid_object in self.objects:
             for key, changes in list(grid_object.items()):
