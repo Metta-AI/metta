@@ -61,7 +61,7 @@ class SlicedScriptedCloner(Loss):
         instance_name: str,
         cfg: "SlicedScriptedClonerConfig",
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
 
         base_policy_env_info = getattr(self.env, "policy_env_info", None)
         if base_policy_env_info is None:
