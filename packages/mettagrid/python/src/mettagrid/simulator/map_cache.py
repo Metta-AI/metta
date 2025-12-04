@@ -8,12 +8,8 @@ import os
 import random
 import tempfile
 
-# Disable multiprocessing resource tracker for SHM before importing shared_memory
 os.environ.setdefault("MP_NO_RESOURCE_TRACKER", "1")
 from multiprocessing import shared_memory
-
-os.environ.setdefault("MP_NO_RESOURCE_TRACKER", "1")
-
 from pathlib import Path
 from typing import Any, Optional
 
