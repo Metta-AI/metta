@@ -39,6 +39,11 @@ class EvaluatorConfig(Config):
     evaluate_local: bool = True
     evaluate_remote: bool = False
     num_training_tasks: int = 2
+    parallel_evals: int = Field(
+        default=9,
+        description="Max number of simulations to run in parallel during eval; set to 1 to keep sequential",
+        ge=1,
+    )
     simulations: list[SimulationConfig] = Field(default_factory=list)
     training_replay_envs: list[SimulationConfig] = Field(
         default_factory=list,
@@ -236,6 +241,7 @@ class Evaluator(TrainerComponent):
                 simulations=[sim.to_simulation_run_config() for sim in sims],
                 replay_dir=self._replay_dir,
                 seed=self._seed,
+                max_workers=self._config.parallel_evals,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
                 on_progress=on_progress,
