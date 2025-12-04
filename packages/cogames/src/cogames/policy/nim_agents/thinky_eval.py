@@ -19,7 +19,7 @@ AGENT_PATH = "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy"
 
 # Defaults (keep simple)
 NUM_COGS = 4
-MAX_STEPS = 1000
+MAX_STEPS = 10000
 SEED = 42
 
 # Add/modify your evals here over time

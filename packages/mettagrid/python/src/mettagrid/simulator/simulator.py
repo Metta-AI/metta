@@ -103,7 +103,6 @@ class Simulation:
             feature.id: feature for feature in self._config.game.id_map().features()
         }
 
-        # Policy descriptors for each agent (set externally)
         self._policy_descriptors: list[PolicyDescriptor] = []
 
         self._start_episode()
@@ -222,8 +221,6 @@ class Simulation:
     def set_policy_descriptors(self, descriptors: list[PolicyDescriptor]) -> None:
         """Set policy descriptors for each agent slot.
 
-        Args:
-            descriptors: List of PolicyDescriptor, one per agent
         """
 
         if len(descriptors) != self.num_agents:
@@ -231,31 +228,21 @@ class Simulation:
         self._policy_descriptors = descriptors
 
     def get_policy_descriptors(self) -> list[PolicyDescriptor]:
-        """Get policy descriptors for all agents."""
         return self._policy_descriptors
 
     def get_agent_policy_id(self, agent_id: int) -> int:
-        """Get the policy ID for a specific agent.
-
-        Returns the index into the unique policies array for this agent.
-        """
         if not self._policy_descriptors:
-            return 0  # Default if no descriptors set
-
-        # Find the unique policy index for this agent's descriptor
+            return -1
         agent_descriptor = self._policy_descriptors[agent_id]
         unique_policies = self.get_unique_policy_descriptors()
         for idx, policy in enumerate(unique_policies):
             if policy == agent_descriptor:
                 return idx
-        return 0  # Fallback
+        return -1
 
     def get_unique_policy_descriptors(self) -> list[PolicyDescriptor]:
-        """Get unique policy descriptors (deduplicated)."""
         if not self._policy_descriptors:
             return []
-
-        # Deduplicate based on name and uri
         seen = []
         unique = []
         for desc in self._policy_descriptors:

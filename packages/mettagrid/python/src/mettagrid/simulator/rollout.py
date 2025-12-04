@@ -44,11 +44,14 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
-        # Set policy descriptors on simulation
-        policy_descriptors = [policy.policy_descriptor for policy in self._policies]
+        from mettagrid.policy.policy import PolicyDescriptor
+
+        policy_descriptors = [
+            getattr(policy, "policy_descriptor", PolicyDescriptor(name="unknown", is_scripted=True))
+            for policy in self._policies
+        ]
         self._sim.set_policy_descriptors(policy_descriptors)
 
-        # Reset policies and create agent policies if needed
         for policy in self._policies:
             policy.reset()
 
