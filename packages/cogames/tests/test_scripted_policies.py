@@ -45,11 +45,11 @@ def _nim_bindings_available() -> bool:
 
 
 POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
-    PolicyUnderTest("nim_thinky", requires_nim=True, supports_supervisor=True),
+    PolicyUnderTest("thinky", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("nim_random", requires_nim=True, supports_supervisor=True),
-    PolicyUnderTest("nim_race_car", requires_nim=True, supports_supervisor=True),
+    PolicyUnderTest("race_car", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("scripted_baseline"),
-    PolicyUnderTest("scripted_unclipping"),
+    PolicyUnderTest("ladybug"),
     PolicyUnderTest("scripted_starter"),
     PolicyUnderTest(
         "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",

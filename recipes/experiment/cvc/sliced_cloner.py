@@ -12,12 +12,11 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
-
-# eval_missions.py was deleted - missions moved to integrated_evals.py
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
+from metta.agent.policies.vit_size_2 import ViTSize2Config
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -26,41 +25,20 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
-# Single canonical curriculum list (fixed + procedural)
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    "fixed_30.extractor_hub",
-    "fixed_50.extractor_hub",
-    "fixed_70.extractor_hub",
-    # Fixed-map classics (now listed with their canonical names)
-    "easy_mode",
-    "hello_world.easy_hearts",
-    "hello_world.oxygen_bottleneck",
-    "hello_world.energy_starved",
-    "hello_world.distant_resources",
-    "hello_world.quadrant_buildings",
-    "hello_world.single_use_swarm",
-    "hello_world.vibe_check",
-    # Training facility curriculum
-    "training_facility.harvest",
-    "training_facility.vibe_check",
-    "training_facility.repair",
-    "training_facility.easy_hearts_training_facility",
-    # Additional fixed/procedural maps
-    "hello_world.hello_world_unclip",
-    "hello_world.open_world",
-    "hello_world.easy_hearts_hello_world",
-    # Machina maps
-    "machina_1.open_world",
-    "machina_1.balanced_corners",
+    "easy_hearts",
+    "oxygen_bottleneck",
+    "energy_starved",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
@@ -68,6 +46,25 @@ COORDINATION_MISSIONS: list[str] = [
     "quadrant_buildings",
     "single_use_swarm",
 ]
+
+PROC_MAP_MISSIONS: tuple[str, ...] = (
+    f"training_facility{MAP_MISSION_DELIMITER}harvest",
+    f"training_facility{MAP_MISSION_DELIMITER}vibe_check",
+    f"training_facility{MAP_MISSION_DELIMITER}repair",
+    f"training_facility{MAP_MISSION_DELIMITER}easy_hearts_training_facility",
+    f"hello_world{MAP_MISSION_DELIMITER}open_world",
+    f"hello_world{MAP_MISSION_DELIMITER}hello_world_unclip",
+    f"hello_world{MAP_MISSION_DELIMITER}oxygen_bottleneck",
+    f"hello_world{MAP_MISSION_DELIMITER}energy_starved",
+    f"hello_world{MAP_MISSION_DELIMITER}distant_resources",
+    f"hello_world{MAP_MISSION_DELIMITER}quadrant_buildings",
+    f"hello_world{MAP_MISSION_DELIMITER}single_use_swarm",
+    f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
+    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
+    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
+    f"machina_1{MAP_MISSION_DELIMITER}open_world",
+    f"machina_1{MAP_MISSION_DELIMITER}balanced_corners",
+)
 
 
 def _normalize_variant_names(
@@ -301,9 +298,7 @@ def train(
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
     bc_policy_uri: Optional[str] = None,
-    bc_teacher_lead_prob: float = 1.0,
     use_lp: bool = True,
-    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -318,26 +313,46 @@ def train(
         variants=variants,
         algorithm_config=cur_alg,
     )
+    trainer_cfg = TrainerConfig(losses=LossesConfig())
+    scheduler = None
+    supervisor = EnvSupervisorConfig()
 
-    trainer_cfg = TrainerConfig(
-        losses=LossesConfig(),
-    )
-    # Inline CVC defaults from the latest sweep (Dec 2025)
-    trainer_cfg.total_timesteps = 936_831_488
-    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
-    trainer_cfg.optimizer.eps = 5.0833278919526e-07
+    if bc_policy_uri is not None:
+        supervisor = EnvSupervisorConfig(policy=bc_policy_uri)
 
-    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
-    trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
+        ssc_end_step = 500_000_000
+        trainer_cfg.losses.sliced_scripted_cloner.enabled = True
+        trainer_cfg.losses.ppo_critic.sample_enabled = False
+        trainer_cfg.losses.ppo_critic.train_forward_enabled = False
+        trainer_cfg.losses.ppo_critic.deferred_training_start_step = ssc_end_step
 
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
-
-    trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
-
-    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
+        scheduler = SchedulerConfig(
+            run_gates=[
+                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=ssc_end_step),
+                LossRunGate(
+                    loss_instance_name="sliced_scripted_cloner",
+                    phase="rollout",
+                    end_at_step=ssc_end_step,
+                ),
+                LossRunGate(
+                    loss_instance_name="sliced_scripted_cloner",
+                    phase="train",
+                    end_at_step=ssc_end_step,
+                ),
+            ],
+            rules=[
+                HyperUpdateRule(
+                    loss_instance_name="sliced_scripted_cloner",
+                    attr_path="teacher_led_proportion",
+                    mode="progress",
+                    style="linear",
+                    start_value=0.20,
+                    end_value=0.0,
+                    start_agent_step=0,
+                    end_agent_step=ssc_end_step,
+                ),
+            ],
+        )
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
@@ -349,27 +364,17 @@ def train(
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
+        evaluate_local=False,
     )
 
     tt = TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum, supervisor=supervisor),
         evaluator=evaluator_cfg,
+        policy_architecture=ViTSize2Config(),
+        scheduler=scheduler,
+        checkpointer=CheckpointerConfig(epoch_interval=100),
     )
-
-    if maps_cache_size is not None:
-        tt.training_env.maps_cache_size = maps_cache_size
-
-    if bc_policy_uri is not None:
-        tt.trainer.losses.supervisor.enabled = True
-        tt.trainer.losses.ppo.enabled = False
-        tt.trainer.losses.ppo_actor.enabled = False
-        tt.trainer.losses.ppo_critic.enabled = True
-        tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
-        tt.trainer.losses.ppo_critic.sample_enabled = False
-        tt.trainer.losses.ppo_critic.train_forward_enabled = False
-        tt.training_env.supervisor.policy = bc_policy_uri
-        tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
 
     return tt
 
@@ -530,8 +535,8 @@ __all__ = [
     "train",
     "train_variants",
     "train_single_mission",
-    "train_coordination",
     "evaluate",
     "play",
     "play_training_env",
+    "train_coordination",
 ]

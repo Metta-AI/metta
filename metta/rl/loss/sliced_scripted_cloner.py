@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
 import torch
 from pydantic import Field
 from tensordict import NonTensorData, TensorDict
@@ -21,12 +20,10 @@ if TYPE_CHECKING:
 
 class SlicedScriptedClonerConfig(LossConfig):
     action_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
-    student_forward: bool = Field(default=True)  # Always true for this loss
 
     # remainder of the sum below is left for the PPO loss to use
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
-    profiles: list[str] | None = Field(default=None)
 
     def create(
         self,
@@ -35,17 +32,9 @@ class SlicedScriptedClonerConfig(LossConfig):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "SlicedScriptedCloner":
         """Create SlicedScriptedCloner loss instance."""
-        return SlicedScriptedCloner(
-            policy,
-            trainer_cfg,
-            vec_env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return SlicedScriptedCloner(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class SlicedScriptedCloner(Loss):
@@ -54,7 +43,6 @@ class SlicedScriptedCloner(Loss):
     """
 
     __slots__ = (
-        "student_forward",
         "rollout_batch_size",
         "extended_policy_env_info",
         "student_feature_id",
@@ -71,11 +59,9 @@ class SlicedScriptedCloner(Loss):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any = None,
+        cfg: "SlicedScriptedClonerConfig",
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
-        self.student_forward = self.cfg.student_forward
-        self.loss_profiles = None  # inherit default filtering (all)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
 
         base_policy_env_info = getattr(self.env, "policy_env_info", None)
         if base_policy_env_info is None:
@@ -90,9 +76,7 @@ class SlicedScriptedCloner(Loss):
             self.policy.initialize_to_environment(self.extended_policy_env_info, self.device)
 
     def get_experience_spec(self) -> Composite:
-        act_space = self.env.single_action_space
-        act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
-        teacher_actions = UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype)
+        teacher_actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long)
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
 
         return Composite(
@@ -124,7 +108,7 @@ class SlicedScriptedCloner(Loss):
         self.replay.store(data_td=td, env_id=env_slice)
 
         if self.teacher_mask.any():
-            td["actions"][self.teacher_mask] = td["teacher_actions"][self.teacher_mask]
+            td["actions"][self.teacher_mask] = td["teacher_actions"].to(td["actions"].dtype)[self.teacher_mask]
 
     def _build_extended_policy_env_info(self, policy_env_info: PolicyEnvInterface) -> PolicyEnvInterface:
         """Create a PolicyEnvInterface that includes extra features for KS tokens.
@@ -232,7 +216,7 @@ class SlicedScriptedCloner(Loss):
 
         if minibatch.batch_size.numel() == 0:
             return self._zero_tensor, shared_loss_data, False
-        # slice - minus teacher led minus student led
+
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
         train_ppo_mask = minibatch["ppo_mask"][:, 0]

@@ -70,17 +70,9 @@ class PPOConfig(LossConfig):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "PPO":
         """Points to the PPO class for initialization."""
-        return PPO(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return PPO(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class PPO(Loss):
@@ -101,9 +93,9 @@ class PPO(Loss):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "PPOConfig",
     ):
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.anneal_beta = 0.0
         self.burn_in_steps = getattr(self.policy, "burn_in_steps", 0)

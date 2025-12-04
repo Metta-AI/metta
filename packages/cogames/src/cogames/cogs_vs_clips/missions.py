@@ -3,7 +3,15 @@ from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGR
 from cogames.cogs_vs_clips.machina_missions_trainer import MACHINA_TRAINER_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.sites import EASY_MODE, HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
+from cogames.cogs_vs_clips.sites import (
+    EASY_MODE,
+    FIXED_30,
+    FIXED_50,
+    FIXED_70,
+    HELLO_WORLD,
+    MACHINA_1,
+    TRAINING_FACILITY,
+)
 from cogames.cogs_vs_clips.variants import (
     BalancedCornersVariant,
     ClipHubStationsVariant,
@@ -123,8 +131,33 @@ EasyMode = Mission(
     ],
 )
 
+# Fixed extractor hub benchmarks (one mission per site)
+ExtractorHub30 = Mission(
+    name="extractor_hub",
+    description="Fixed-map extractor hub benchmark (30x30).",
+    site=FIXED_30,
+    variants=[],
+)
+
+ExtractorHub50 = Mission(
+    name="extractor_hub",
+    description="Fixed-map extractor hub benchmark (50x50).",
+    site=FIXED_50,
+    variants=[],
+)
+
+ExtractorHub70 = Mission(
+    name="extractor_hub",
+    description="Fixed-map extractor hub benchmark (70x70).",
+    site=FIXED_70,
+    variants=[],
+)
+
 
 MISSIONS: list[Mission] = [
+    ExtractorHub30,
+    ExtractorHub50,
+    ExtractorHub70,
     HarvestMission,
     VibeCheckMission,
     RepairMission,

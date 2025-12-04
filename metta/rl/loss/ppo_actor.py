@@ -15,6 +15,7 @@ from mettagrid.base_config import Config
 
 
 class VTraceConfig(Config):
+    # Defaults follow IMPALA (Espeholt et al., 2018)
     rho_clip: float = Field(default=1.0, gt=0)
     c_clip: float = Field(default=1.0, gt=0)
 
@@ -33,7 +34,6 @@ class PPOActorConfig(LossConfig):
     target_kl: float | None = None
 
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
-    profiles: list[str] | None = Field(default=None, description="Optional loss profiles this loss should run for.")
 
     def create(
         self,
@@ -42,16 +42,8 @@ class PPOActorConfig(LossConfig):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "PPOActor":
-        return PPOActor(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return PPOActor(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class PPOActor(Loss):
@@ -66,12 +58,9 @@ class PPOActor(Loss):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "PPOActorConfig",
     ):
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
-        self.trainable_only = True
-        # PPO actor runs only for profiles that include ppo_actor (set in trainer init)
-        self.loss_profiles: set[int] | None = None
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
 
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))
