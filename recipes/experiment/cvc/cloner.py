@@ -560,6 +560,4 @@ __all__ = [
     "play",
     "play_training_env",
     "train_coordination",
-    "train_fixed_maps",
-    "train_proc_maps",
 ]
