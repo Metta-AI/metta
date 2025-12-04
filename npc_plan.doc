@@ -1,0 +1,65 @@
+# NPC Integration Plan (Metta)
+
+## Context and goals
+- Re-incorporate Krishna’s NPC work (URI-driven NPC policies) into the new slot-based multi-policy framework.
+- Eliminate regressions seen when NPC policies are evaluated (feature/action mapping, dehydration/resume mismatches).
+- Make NPC participation first-class across training, evaluation, and research experiments (e.g., helper policies that boost NPC reward).
+
+## Current state (audit)
+- Slots and agent_slot_map exist for multi-policy training/eval; loss filtering now respects loss_profile_id and trainable masks.
+- SlotRegistry loads policies from URI or class_path and calls initialize_to_environment; SlotController merges only action/logprob/value keys.
+- Simulation runner supports policy_slots/agent_slot_map and reports per-slot metrics.
+- Dual & NPC plan exists but NPC-specific plumbing (npc_policy_uri alias, featurizer/action compatibility, eval regression fix) is not reintroduced.
+- Known regression: evals break when an npc_policy_uri was added to a sim; root suspicion was actions not stored/merged despite features being mapped.
+- Dehydration/resume hazard: feature space expansion between runs can break evals; needs metadata persistence/validation.
+
+## Immediate usage (clean reintroduction)
+- Canonical NPC slot policy lives at `metta.agent.policies.npc.SimpleNPCPolicy`; use via `policy_slots` with `trainable: false`.
+- Example slot entry: `{id: npc, class_path: metta.agent.policies.npc.SimpleNPCPolicy, trainable: false, loss_profile: teacher_only}`.
+
+## Design principles
+- NPCs are just slots: keep the slot abstraction; add thin NPC affordances (aliases, defaults) rather than parallel codepaths.
+- Explicit gating: default losses skip NPC rows unless a loss opts in; NPC slots are frozen unless explicitly trainable.
+- Safe resume/eval: persist environment/featurizer/action-space metadata with checkpoints and validate on load.
+
+## Workstreams and deliverables
+1) Surfacing and compatibility
+   - Add config shim: npc_policy_uri → synthetic PolicySlot(id="npc", policy_uri=..., trainable=False, loss_profile=nontrainable).
+   - Normalize sim/eval configs the same way; emit deprecation warnings.
+   - Document the canonical NPC slot template (loss_profile that excludes PPO losses; device override optional).
+
+2) Rollout and storage correctness
+   - Ensure SlotController + _inject_slot_metadata always set slot_id/loss_profile_id/is_trainable_agent, even in eval-only paths.
+   - Add guard so NPC actions/logprobs/values are merged back into TD; regression test for “features mapped but actions missing.”
+   - Verify initialize_to_environment is invoked for all NPC slots (scripted or URI) before forward.
+
+3) Loss filtering and NPC-aware objectives
+   - Enforce trainable_only + loss_profile gating so NPC rows are skipped by default PPO losses.
+   - Add optional NPC-specific supervised/BC loss profile (e.g., npc_bc) for scripted/URI NPCs when desired.
+   - Wire losses to honor cfg.losses.*.profiles with loss_profile_lookup mapping.
+
+4) Dehydration/resume resilience
+   - Persist env/featurizer/action-space metadata in checkpoints; on load, validate against current env or warn/fail fast.
+   - Add a resume-eval test: train to checkpoint A, resume with expanded feature space, run eval with NPC slot, expect no crash.
+
+5) Evaluation and metrics
+   - Extend per-slot metrics to label NPC vs non-NPC; fail fast if agent_slot_map references missing slots.
+   - Add eval fixture: frozen NPC URI slot + student slot; multi-episode rollout; verify per-slot returns/winrate and action wiring.
+
+6) Research hook: “help a URI NPC get more reward”
+   - Recipe surface: target_npc_slot_id + auxiliary reward/BC loss scoped to that NPC’s trajectories.
+   - Log NPC reward delta and helper policy metrics; optional curriculum knob (start neutral, then assist).
+
+7) Testing
+   - Unit: SlotRegistry loads NPC slot; SlotController merges NPC actions; loss filtering drops NPC rows unless opted in.
+   - Integration: rollout with student (trainable) + NPC (frozen URI) verifying TD annotations and replay shapes.
+   - Resume/dehydration regression; eval simulation with NPC slot and scripted teacher.
+
+8) Docs/migration
+   - Update docs/slots_overview.md with NPC slot example and loss profile guidance.
+   - Add short migration note: npc_policy_uri → policy_slots + agent_slot_map; how to set loss profiles and devices for NPCs.
+
+## Risks and mitigations
+- Hidden feature/action mismatches across env versions: mitigate with checkpointed metadata and validation on load.
+- Backward-compat shims masking errors: keep warnings loud and add tests to cover legacy alias.
+- Performance overhead from extra slots on CPU eval: allow device override per slot; default NPCs to CPU only when cheap.

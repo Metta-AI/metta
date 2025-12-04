@@ -1,0 +1,30 @@
+trainer:
+  policy_slots:
+    - id: student
+      use_trainer_policy: true
+      trainable: true
+      loss_profile: ppo_only
+    - id: npc
+      class_path: metta.agent.policies.npc.SimpleNPCPolicy
+      trainable: false
+      loss_profile: npc_only
+  agent_slot_map: ["npc", "student"]
+  loss_profiles:
+    ppo_only:
+      losses: ["ppo_actor", "ppo_critic"]
+    npc_only:
+      losses: []
+  losses:
+    ppo_actor:
+      profiles: ["ppo_only"]
+    ppo_critic:
+      profiles: ["ppo_only"]
+    ppo:
+      enabled: false
+    sliced_kickstarter:
+      enabled: false
+    sliced_scripted_cloner:
+      enabled: false
+simulation:
+  policy_slots: null
+  agent_slot_map: null

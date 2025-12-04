@@ -1,0 +1,10 @@
+simulation:
+  policy_slots:
+    - id: student
+      policy_uri: file://./train_dir/latest_student/checkpoints
+    - id: npc
+      class_path: metta.agent.policies.npc.SimpleNPCPolicy
+      trainable: false
+      loss_profile: npc_only
+  agent_slot_map: ["npc", "student"]
+  loss_profiles: {}

@@ -18,19 +18,23 @@ from mettagrid.base_config import Config
 
 
 class PrioritizedExperienceReplayConfig(Config):
-    # Alpha=0 means uniform sampling; tuned via sweep
+    """Sampling weights and annealing for PER."""
+
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
-    # Beta baseline per Schaul et al. (2016)
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 
 
 class VTraceConfig(Config):
+    """V-trace clipping limits."""
+
     # Defaults follow IMPALA (Espeholt et al., 2018)
     rho_clip: float = Field(default=1.0, gt=0)
     c_clip: float = Field(default=1.0, gt=0)
 
 
 class PPOConfig(LossConfig):
+    """Primary PPO hyperparameters and optional loss profiles."""
+
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
     clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
@@ -40,13 +44,11 @@ class PPOConfig(LossConfig):
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
     # Gamma tuned for shorter effective horizon
     gamma: float = Field(default=0.977, ge=0, le=1.0)
-
     # Training parameters
     # Value clipping mirrors policy clip
     vf_clip_coef: float = Field(default=0.1, ge=0)
     # Value term weight from sweep
     vf_coef: float = Field(default=0.897619, ge=0)
-
     # Normalization and clipping
     # Advantage normalization toggle
     norm_adv: bool = True
@@ -56,7 +58,7 @@ class PPOConfig(LossConfig):
     target_kl: float | None = None
 
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
-
+    profiles: list[str] | None = Field(default=None)
     prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(
         default_factory=PrioritizedExperienceReplayConfig
     )
@@ -104,12 +106,12 @@ class PPO(Loss):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.anneal_beta = 0.0
-        self.burn_in_steps = 0
-        if hasattr(self.policy, "burn_in_steps"):
-            self.burn_in_steps = self.policy.burn_in_steps
+        self.burn_in_steps = getattr(self.policy, "burn_in_steps", 0)
         self.burn_in_steps_iter = 0
         self.last_action = None
         self.register_state_attr("anneal_beta", "burn_in_steps_iter")
+        self.trainable_only = True
+        self.loss_profiles: set[int] | None = None
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
@@ -164,6 +166,24 @@ class PPO(Loss):
             prio_beta=self.anneal_beta,
             mb_idx=mb_idx,
         )
+
+        shared_loss_data = self._filter_minibatch(
+            TensorDict(
+                {"sampled_mb": minibatch, "indices": NonTensorData(indices), "prio_weights": prio_weights},
+                batch_size=[],
+            )
+        )
+        minibatch = shared_loss_data["sampled_mb"]
+        indices = shared_loss_data["indices"]
+        if isinstance(indices, NonTensorData):
+            indices = indices.data
+        prio_weights = shared_loss_data["prio_weights"]
+
+        if minibatch.batch_size.numel() == 0:  # early exit if filtering removed all rows
+            shared_loss_data["sampled_mb"] = minibatch
+            shared_loss_data["indices"] = NonTensorData(indices)
+            shared_loss_data["prio_weights"] = prio_weights
+            return self._zero(), shared_loss_data, stop_update_epoch
 
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
         shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
