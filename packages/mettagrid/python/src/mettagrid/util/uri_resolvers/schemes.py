@@ -251,5 +251,12 @@ def policy_spec_from_uri(
             },
         )
     if path_to_spec.startswith("s3://"):
-        return load_policy_spec_from_s3(path_to_spec, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit)
-    return load_policy_spec_from_local_dir(Path(path_to_spec))
+        spec = load_policy_spec_from_s3(path_to_spec, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit)
+    else:
+        spec = load_policy_spec_from_local_dir(Path(path_to_spec))
+
+    # Ensure caller-requested device is honored for specs loaded from S3 or local dirs.
+    if spec.init_kwargs is None:
+        spec.init_kwargs = {}
+    spec.init_kwargs["device"] = device
+    return spec
