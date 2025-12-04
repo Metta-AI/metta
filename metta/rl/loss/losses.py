@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 from pydantic import Field
@@ -25,6 +25,21 @@ if TYPE_CHECKING:
 
 
 class LossesConfig(Config):
+    _LOSS_ORDER: ClassVar[tuple[str, ...]] = (
+        "sliced_kickstarter",
+        "sliced_scripted_cloner",
+        "ppo_critic",
+        "quantile_ppo_critic",
+        "ppo_actor",
+        "ppo",
+        "vit_reconstruction",
+        "contrastive",
+        "grpo",
+        "supervisor",
+        "kickstarter",
+        "logit_kickstarter",
+    )
+
     # ENABLED BY DEFAULT: PPO split into two terms for flexibility, simplicity, and separation of concerns
     ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=True))
     ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=True))
@@ -52,34 +67,15 @@ class LossesConfig(Config):
     def _configs(self) -> dict[str, LossConfig]:
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
         # also, the way it's setup doesn't let the experimenter give names to losses.
-        loss_configs: dict[str, LossConfig] = {}
-        if self.sliced_kickstarter.enabled:
-            loss_configs["sliced_kickstarter"] = self.sliced_kickstarter
-        if self.sliced_scripted_cloner.enabled:
-            loss_configs["sliced_scripted_cloner"] = self.sliced_scripted_cloner
-        if self.ppo_critic.enabled:
-            loss_configs["ppo_critic"] = self.ppo_critic
-        if self.quantile_ppo_critic.enabled:
-            loss_configs["quantile_ppo_critic"] = self.quantile_ppo_critic
-        if self.ppo_actor.enabled:
-            loss_configs["ppo_actor"] = self.ppo_actor
-        if self.ppo.enabled:
-            loss_configs["ppo"] = self.ppo
-        if self.vit_reconstruction.enabled:
-            loss_configs["vit_reconstruction"] = self.vit_reconstruction
-        if self.contrastive.enabled:
-            loss_configs["contrastive"] = self.contrastive
-        if self.grpo.enabled:
-            loss_configs["grpo"] = self.grpo
-        if self.supervisor.enabled:
-            loss_configs["action_supervisor"] = self.supervisor
-        if self.kickstarter.enabled:
-            loss_configs["kickstarter"] = self.kickstarter
-        if self.logit_kickstarter.enabled:
-            loss_configs["logit_kickstarter"] = self.logit_kickstarter
-
+        loss_configs = {
+            name: cfg for name, cfg in ((name, getattr(self, name)) for name in self._LOSS_ORDER) if cfg.enabled
+        }
         self._validate_sampler_dependencies()
         return loss_configs
+
+    @property
+    def loss_configs(self) -> dict[str, LossConfig]:
+        return self._configs()
 
     def _validate_sampler_dependencies(self) -> None:
         """Fail fast when a consumer loss is enabled but no sampler writes sampled_mb."""
@@ -119,6 +115,11 @@ class LossesConfig(Config):
         device: torch.device,
     ) -> dict[str, Loss]:
         return {
-            loss_name: loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
-            for loss_name, loss_config in self._configs().items()
+            loss_name: loss_cfg.create(policy, trainer_cfg, env, device, loss_name)
+            for loss_name, loss_cfg in self._configs().items()
         }
+
+    def __iter__(self):
+        """Iterate over (name, config) pairs for all loss configs."""
+        for name in self._LOSS_ORDER:
+            yield name, getattr(self, name)

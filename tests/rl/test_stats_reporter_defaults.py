@@ -22,7 +22,10 @@ def _reporter(existing_heart: float | None = None) -> StatsReporter:
     )
 
     reporter._context = SimpleNamespace(  # type: ignore[attr-defined, assignment]
-        config=SimpleNamespace(optimizer=SimpleNamespace(learning_rate=0.0, type="adam")),
+        config=SimpleNamespace(
+            optimizer=SimpleNamespace(learning_rate=0.0, type="adam"),
+            losses=SimpleNamespace(ppo=SimpleNamespace(enabled=False)),
+        ),
         stopwatch=timer,
         experience=SimpleNamespace(stats=lambda: {}),
         policy=None,
@@ -33,7 +36,7 @@ def _reporter(existing_heart: float | None = None) -> StatsReporter:
     )
 
     if existing_heart is not None:
-        reporter._state.rollout_stats["agent/heart.created"] = [existing_heart]
+        reporter._state.rollout_stats["game/assembler.heart.created"] = [existing_heart]
 
     return reporter
 
@@ -56,4 +59,4 @@ def test_heart_metric_zero_fill_and_preserve(existing: float | None, expected: f
         optimizer=reporter.context.optimizer,
     )
 
-    assert payload["env_agent/heart.created"] == expected
+    assert payload["env_game/assembler.heart.created"] == expected
