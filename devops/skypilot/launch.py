@@ -121,7 +121,7 @@ def main(
             "--hb",
             help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
         ),
-    ] = 3600,
+    ] = 300,
     max_runtime_hours: Annotated[
         Optional[float],
         typer.Option(
