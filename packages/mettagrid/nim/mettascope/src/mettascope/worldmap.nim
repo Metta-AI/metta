@@ -376,7 +376,8 @@ proc drawVisualRanges*(alpha = 0.5) {.measure.} =
 
   let
     currentSelectionId = if selection != nil: selection.id else: -1
-needsRebuild = visibilityMapStep != step or visibilityMapLockFocus != settings.lockFocus or (settings.lockFocus and visibilityMapSelectionId != currentSelectionId)
+    needsRebuild = visibilityMapStep != step or visibilityMapLockFocus != settings.lockFocus or
+      (settings.lockFocus and visibilityMapSelectionId != currentSelectionId)
 
   if needsRebuild:
     visibilityMapStep = step
