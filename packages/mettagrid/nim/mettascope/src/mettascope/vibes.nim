@@ -69,11 +69,11 @@ proc updateVibePanel*() =
       row = rowTemplate.copy()
       panel.addChild(row)
     let button = buttonTemplate.copy()
-    if playMode == Historical:
-        # Gray out the vibes for historical mode.
-        button.opacity = 0.4
     var path = "../../vibe" / vibe
     button.find("**/Icon").fills[0].imageRef = path
+    if playMode == Historical:
+      # Gray out the vibes for historical mode.
+      button.find("**/Icon").fills[0].opacity = 0.4
     row.addChild(button)
   vibePanel.node.removeChildren()
   vibePanel.node.addChild(panel)
