@@ -164,8 +164,8 @@ class RegretLearningProgressAlgorithm(CurriculumAlgorithm):
         if self._task_dist is None or self._stale_dist:
             self._calculate_regret_task_distribution()
 
-        # Find task index
-        task_indices = list(self._regret_outcomes.keys())
+        # Find task index - must use sorted order to match _update_regret_progress
+        task_indices = sorted(self._regret_outcomes.keys())
         if task_id in task_indices and self._task_dist is not None:
             task_idx = task_indices.index(task_id)
             if task_idx < len(self._task_dist):
