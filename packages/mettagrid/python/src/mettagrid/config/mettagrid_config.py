@@ -313,6 +313,59 @@ class ChestConfig(GridObjectConfig):
         return None
 
 
+class MeleeCombatConfig(Config):
+    """Vibe-based melee combat system configuration.
+
+    Melee combat allows agents to attack other agents by moving into their cell
+    while in a specific attack vibe and holding a required attack item.
+
+    Attack requirements:
+        - Attacker must be in `attack_vibe` (default: "swords")
+        - Attacker must have at least 1 of `attack_item` (default: "laser")
+
+    Defense requirements (both required to block):
+        - Defender must be in `defense_vibe` (default: "shield")
+        - Defender must have at least 1 of `defense_item` (default: "armor")
+
+    On successful unblocked attack:
+        - Attacker's `attack_item` is consumed (if attack_consumes_item=True)
+        - Target is frozen for `agent.freeze_duration` ticks
+        - All non-soul-bound resources are transferred from target to attacker
+
+    When enabled, validation ensures:
+        - attack_vibe and defense_vibe exist in vibe names
+        - attack_item and defense_item exist in resource_names
+        - All agents have freeze_duration > 0
+
+    """
+
+    enabled: bool = Field(default=False, description="Whether melee combat is enabled")
+    attack_vibe: str = Field(
+        default="swords",
+        description="Vibe name required to initiate attack. Must exist in configured vibes.",
+    )
+    defense_vibe: str = Field(
+        default="shield",
+        description="Vibe name required to block attack. Must exist in configured vibes.",
+    )
+    attack_item: str = Field(
+        default="laser",
+        description="Resource name required to attack. Must exist in resource_names.",
+    )
+    defense_item: str = Field(
+        default="armor",
+        description="Resource name required to defend. Must exist in resource_names.",
+    )
+    attack_consumes_item: bool = Field(
+        default=True,
+        description="Whether successful attack consumes the attack item from attacker inventory.",
+    )
+    defense_consumes_item: bool = Field(
+        default=False,
+        description="Whether successful defense consumes the defense item from defender inventory.",
+    )
+
+
 class ClipperConfig(Config):
     """
     Global clipper that probabilistically clips assemblers each tick.
@@ -401,6 +454,9 @@ class GameConfig(Config):
 
     # Global clipper system
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
+
+    # Melee combat system
+    melee_combat: MeleeCombatConfig = Field(default_factory=MeleeCombatConfig, description="Melee combat configuration")
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))

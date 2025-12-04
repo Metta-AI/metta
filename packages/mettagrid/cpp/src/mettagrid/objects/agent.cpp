@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 
+#include "config/mettagrid_config.hpp"
 #include "config/observation_features.hpp"
 #include "systems/observation_encoder.hpp"
 
@@ -10,7 +11,8 @@ Agent::Agent(GridCoord r,
              GridCoord c,
              const AgentConfig& config,
              const std::vector<std::string>* resource_names,
-             const std::unordered_map<std::string, ObservationType>* feature_ids)
+             const std::unordered_map<std::string, ObservationType>* feature_ids,
+             const MeleeCombatConfig* melee_combat_config)
     : GridObject(),
       HasInventory(config.inventory_config, resource_names, feature_ids),
       group(config.group_id),
@@ -32,6 +34,10 @@ Agent::Agent(GridCoord r,
       tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_diversity(0),
       vibe_transfers(config.vibe_transfers) {
+  if (melee_combat_config != nullptr) {
+    melee_combat = *melee_combat_config;
+  }
+
   for (InventoryItem item : config.diversity_tracked_resources) {
     const size_t index = static_cast<size_t>(item);
     if (index < diversity_tracked_mask.size()) {
@@ -120,7 +126,14 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
 }
 
 bool Agent::onUse(Agent& actor, ActionArg arg) {
-  // Look up transfers for the actor's vibe
+  // Check for melee combat
+  if (actor.melee_combat.enabled && actor.melee_combat.attack_vibe_id >= 0 &&
+      actor.vibe == static_cast<ObservationType>(actor.melee_combat.attack_vibe_id) &&
+      actor.melee_combat.attack_item_id >= 0) {
+    return handle_melee_combat(actor);
+  }
+
+  // Vibe-based resource transfer
   auto vibe_it = actor.vibe_transfers.find(actor.vibe);
   if (vibe_it == actor.vibe_transfers.end()) {
     return false;  // No transfers configured for this vibe
@@ -145,6 +158,111 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
   }
 
   return any_transfer_occurred;
+}
+
+// Melee combat: attacker (in attack vibe with attack item) can freeze target and steal resources.
+//
+// Design notes on item consumption:
+// - Attack item is consumed even when hitting an already-frozen target
+// - This is intentional: it creates strategic depth by punishing wasteful attacks
+// - Players should avoid attacking frozen targets to conserve ammo
+// - The "wasted_on_frozen" stat tracks this for analytics
+//
+// Flow:
+// 1. Check attacker has attack item -> fail if not (no consumption, return false)
+// 2. Check target can defend -> blocked if so (return defense_consumes_item)
+// 3. Consume attack item (attack committed at this point)
+// 4. Freeze target and steal resources (only if not already frozen, return true)
+bool Agent::handle_melee_combat(Agent& actor) {
+  InventoryItem attack_item = static_cast<InventoryItem>(actor.melee_combat.attack_item_id);
+  if (actor.inventory.amount(attack_item) < 1) {
+    return false;  // No ammo - attack fails without consuming anything
+  }
+
+  // Defense check: target must have BOTH correct vibe AND defense item.
+  // - If target has correct vibe but no item: defense fails
+  // - If target has item but wrong vibe: defense fails (vibe checked first)
+  // - Only when both conditions are met does defense succeed
+  bool target_can_defend = false;
+  if (melee_combat.defense_vibe_id >= 0 && this->vibe == static_cast<ObservationType>(melee_combat.defense_vibe_id) &&
+      melee_combat.defense_item_id >= 0) {
+    InventoryItem defense_item = static_cast<InventoryItem>(melee_combat.defense_item_id);
+    if (this->inventory.amount(defense_item) >= 1) {
+      target_can_defend = true;
+      if (melee_combat.defense_consumes_item) {
+        this->update_inventory(defense_item, -1);
+      }
+    }
+  }
+
+  if (target_can_defend) {
+    log_melee_attack(actor, true);
+    // Return true if defense item was consumed (state changed), false otherwise.
+    // This matches the pattern in Chest/Assembler: return true iff state changed.
+    return melee_combat.defense_consumes_item;
+  }
+
+  // Attack succeeds - consume ammo (even if target already frozen)
+  if (actor.melee_combat.attack_consumes_item) {
+    actor.update_inventory(attack_item, -1);
+  }
+
+  bool was_already_frozen = this->frozen > 0;
+  this->frozen = this->freeze_duration;
+
+  if (!was_already_frozen) {
+    steal_resources(actor);
+  } else {
+    // Ammo was consumed but no resources stolen - track for analytics
+    actor.stats.incr("action.melee." + actor.group_name + ".wasted_on_frozen");
+  }
+
+  log_melee_attack(actor, false);
+  return true;
+}
+
+void Agent::steal_resources(Agent& actor) {
+  // Create snapshot to avoid iterator invalidation
+  std::vector<std::pair<InventoryItem, InventoryQuantity>> snapshot;
+  snapshot.reserve(this->inventory.get().size());
+  for (const auto& [item, amount] : this->inventory.get()) {
+    snapshot.emplace_back(item, amount);
+  }
+
+  // Transfer resources (excluding soul-bound resources)
+  for (const auto& [item, amount] : snapshot) {
+    if (std::find(this->soul_bound_resources.begin(), this->soul_bound_resources.end(), item) !=
+        this->soul_bound_resources.end()) {
+      continue;
+    }
+
+    InventoryDelta stolen = actor.update_inventory(item, amount);
+    this->update_inventory(item, -stolen);
+
+    if (stolen > 0) {
+      const std::string item_name = actor.stats.resource_name(item);
+      const std::string stat_name =
+          "action.melee." + actor.group_name + ".steals." + item_name + ".from." + this->group_name;
+      actor.stats.add(stat_name, stolen);
+    }
+  }
+}
+
+void Agent::log_melee_attack(Agent& actor, bool blocked) {
+  const std::string& actor_group = actor.group_name;
+  const std::string& target_group = this->group_name;
+  bool same_team = (actor_group == target_group);
+
+  if (blocked) {
+    actor.stats.incr("action.melee." + actor_group + ".blocked_by." + target_group);
+  } else {
+    if (same_team) {
+      actor.stats.incr("action.melee." + actor_group + ".friendly_fire");
+    } else {
+      actor.stats.incr("action.melee." + actor_group + ".hit." + target_group);
+      this->stats.incr("action.melee." + target_group + ".hit_by." + actor_group);
+    }
+  }
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {

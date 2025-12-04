@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "config/melee_combat_config.hpp"
 #include "core/types.hpp"
 #include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
@@ -21,6 +22,10 @@ public:
   ObservationType group;
   short frozen;
   short freeze_duration;
+
+  // Melee combat settings (check melee_combat.enabled before use)
+  MeleeCombatConfig melee_combat;
+
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
   // however, this should not be relied on for correctness.
@@ -44,7 +49,8 @@ public:
         GridCoord c,
         const AgentConfig& config,
         const std::vector<std::string>* resource_names,
-        const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr);
+        const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr,
+        const MeleeCombatConfig* melee_combat = nullptr);
 
   void init(RewardType* reward_ptr);
 
@@ -69,6 +75,10 @@ public:
 private:
   const ObservationEncoder* obs_encoder = nullptr;
   const std::vector<std::string>* resource_names = nullptr;
+
+  bool handle_melee_combat(Agent& actor);
+  void steal_resources(Agent& actor);
+  void log_melee_attack(Agent& actor, bool blocked);
   void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
   std::vector<char> diversity_tracked_mask;
   std::vector<char> tracked_resource_presence;

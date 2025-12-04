@@ -4,6 +4,7 @@ from mettagrid.config.mettagrid_config import (
     ChestConfig,
     ClipperConfig,
     GameConfig,
+    MeleeCombatConfig,
     WallConfig,
 )
 from mettagrid.config.vibes import VIBES
@@ -17,6 +18,7 @@ from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
+from mettagrid.mettagrid_c import MeleeCombatConfig as CppMeleeCombatConfig
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
@@ -454,6 +456,40 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         clipper_config.scaled_cutoff_distance = clipper.scaled_cutoff_distance
         clipper_config.clip_period = clipper.clip_period
         game_cpp_params["clipper"] = clipper_config
+
+    # Add melee combat configuration
+    melee_combat: MeleeCombatConfig = game_config.melee_combat
+    cpp_melee_combat = CppMeleeCombatConfig()
+    cpp_melee_combat.enabled = melee_combat.enabled
+    cpp_melee_combat.attack_consumes_item = melee_combat.attack_consumes_item
+    cpp_melee_combat.defense_consumes_item = melee_combat.defense_consumes_item
+
+    if melee_combat.enabled:
+        # Validate and convert vibe names to IDs
+        if melee_combat.attack_vibe not in vibe_name_to_id:
+            raise ValueError(f"Melee combat attack_vibe '{melee_combat.attack_vibe}' not found in vibe_names")
+        if melee_combat.defense_vibe not in vibe_name_to_id:
+            raise ValueError(f"Melee combat defense_vibe '{melee_combat.defense_vibe}' not found in vibe_names")
+        cpp_melee_combat.attack_vibe_id = vibe_name_to_id[melee_combat.attack_vibe]
+        cpp_melee_combat.defense_vibe_id = vibe_name_to_id[melee_combat.defense_vibe]
+
+        # Validate and convert resource names to IDs
+        if melee_combat.attack_item not in resource_name_to_id:
+            raise ValueError(f"Melee combat attack_item '{melee_combat.attack_item}' not found in resource_names")
+        if melee_combat.defense_item not in resource_name_to_id:
+            raise ValueError(f"Melee combat defense_item '{melee_combat.defense_item}' not found in resource_names")
+        cpp_melee_combat.attack_item_id = resource_name_to_id[melee_combat.attack_item]
+        cpp_melee_combat.defense_item_id = resource_name_to_id[melee_combat.defense_item]
+
+        # Validate freeze_duration for all agents when melee combat is enabled
+        for agent_idx, agent_config in enumerate(game_config.agents):
+            if agent_config.freeze_duration <= 0:
+                raise ValueError(
+                    f"Melee combat requires freeze_duration > 0, but agent {agent_idx} "
+                    f"(team {agent_config.team_id}) has freeze_duration={agent_config.freeze_duration}"
+                )
+
+    game_cpp_params["melee_combat"] = cpp_melee_combat
 
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name
