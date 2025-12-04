@@ -182,9 +182,20 @@ class MapBuilder(ABC, Generic[ConfigT]):
 
         if Config._builder_cls:
             # Already bound to another MapBuilder class, so we need to clone it
-            class CloneConfig(Config):
-                pass
-
+            # Create at module level for pickling compatibility
+            unique_name = f"{cls.__name__}Config"
+            CloneConfig = type(
+                unique_name,
+                (Config,),
+                {
+                    "__module__": Config.__module__,
+                    "__qualname__": f"{Config.__qualname__}.{unique_name}",
+                }
+            )
+            # Store in module namespace so pickle can find it
+            import sys
+            module = sys.modules[Config.__module__]
+            setattr(module, unique_name, CloneConfig)
             Config = CloneConfig
 
         Config._builder_cls = cls

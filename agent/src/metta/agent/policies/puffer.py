@@ -40,6 +40,9 @@ class PufferPolicy(Policy):
         self.is_continuous = False
         self.action_space = policy_env_info.action_space
 
+        self.out_width = policy_env_info.obs_width
+        self.out_height = policy_env_info.obs_height
+
         self.num_layers = 24
         hidden_size = 512
         cnn_channels = 128
