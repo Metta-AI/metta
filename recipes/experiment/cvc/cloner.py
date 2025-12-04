@@ -299,7 +299,7 @@ def train(
     if bc_policy_uri is not None:
         supervisor = EnvSupervisorConfig(policy=bc_policy_uri)
 
-        ssc_end_step = 25_000_000  # 1_000_000_000
+        ssc_end_step = 500_000_000  # need more data
         trainer_cfg.losses.sliced_scripted_cloner.enabled = True
         trainer_cfg.losses.ppo_critic.sample_enabled = False
         trainer_cfg.losses.ppo_critic.train_forward_enabled = False
