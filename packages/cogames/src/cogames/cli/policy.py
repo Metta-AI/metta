@@ -141,7 +141,7 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
 
     if len(entries):
         first_entry = entries[0]
-        if parse_uri(raw, allow_none=True, default_scheme=None):
+        if parse_uri(first_entry, allow_none=True, default_scheme=None):
             s = policy_spec_from_uri(first_entry)
             class_path = s.class_path
             init_kwargs = s.init_kwargs
