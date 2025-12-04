@@ -189,7 +189,12 @@ class Loss:
         if mask is None:
             return shared_loss_data
 
-        row_mask = mask if mask.dim() == 1 else mask.any(dim=-1)
+        if mask.dim() == 1:
+            row_mask = mask
+        else:
+            # collapse all trailing dims; keep per-segment structure intact
+            reduce_dims = tuple(range(1, mask.dim()))
+            row_mask = mask.any(dim=reduce_dims)
 
         filtered = shared_loss_data.clone()
         filtered["sampled_mb"] = mb[row_mask]
