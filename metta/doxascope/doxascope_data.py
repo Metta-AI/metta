@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from mettagrid.simulator.interface import SimulatorEventHandler
 import torch
+
+from mettagrid.simulator.interface import SimulatorEventHandler
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +133,9 @@ class DoxascopeLogger:
 
         if hasattr(self, "object_type_names"):
             new_logger.object_type_names = self.object_type_names
+
+        if self.resource_names is not None:
+            new_logger.resource_names = self.resource_names
 
         return new_logger
 
@@ -288,12 +292,11 @@ class DoxascopeLogger:
         # Track unique policies we've seen and warn about them once
         seen_policy_types = set()
 
-        # On first timestep, log which policies are being used by which agents
+        # On first timestep, check for multiple CortexTD policies
         if self.timestep == 1:
-            policy_info = []
             cortex_policies = set()  # Track unique CortexTD policies
 
-            for agent_idx, agent_policy in enumerate(policies):
+            for _, agent_policy in enumerate(policies):
                 # Extract the underlying policy for this agent
                 underlying_policy = None
                 if hasattr(agent_policy, "_policy"):
@@ -308,28 +311,22 @@ class DoxascopeLogger:
                     underlying_policy = agent_policy._parent
 
                 if underlying_policy:
-                    policy_name = type(underlying_policy).__name__
                     has_cortex = self._find_cortex_component(underlying_policy) is not None
-                    policy_info.append(f"Agent {agent_idx}: {policy_name} (CortexTD: {has_cortex})")
 
                     # Track unique policies with CortexTD
                     if has_cortex:
                         cortex_policies.add(id(underlying_policy))
-                else:
-                    policy_info.append(f"Agent {agent_idx}: Unknown policy")
-
-            logger.info("Doxascope found agent policies:\n  " + "\n  ".join(policy_info))
 
             # Warn if multiple different CortexTD policies detected
             if len(cortex_policies) > 1:
                 logger.warning(
-                    "\n" + "="*80 + "\n"
+                    "\n" + "=" * 80 + "\n"
                     "WARNING: Multiple different CortexTD policies detected!\n"
                     f"Found {len(cortex_policies)} unique policies with CortexTD components.\n"
                     "Doxascope will log data from all agents into a SINGLE file.\n"
                     "This will mix data from different policies, making training incorrect.\n"
                     "TODO: Implement per-policy logging (separate files per policy).\n"
-                    "="*80
+                    "=" * 80
                 )
 
         # Extract memory for each agent individually
@@ -372,7 +369,7 @@ class DoxascopeLogger:
                         "Could not extract underlying policy from agent %d with type %s "
                         "(expected _policy, _base_policy, or _parent attribute)",
                         agent_id,
-                        policy_type
+                        policy_type,
                     )
                     seen_policy_types.add(policy_type)
                 continue
@@ -385,7 +382,7 @@ class DoxascopeLogger:
                     logger.info(
                         "No CortexTD component found in policy for agent %d (type: %s) - skipping",
                         agent_id,
-                        policy_type.__name__
+                        policy_type.__name__,
                     )
                     seen_policy_types.add(policy_type)
                 continue
@@ -580,6 +577,10 @@ class DoxascopeEventHandler(SimulatorEventHandler):
             return
         env_grid_objects = self._sim.grid_objects()
         policies = self._sim._context.get("policies", [])
+
+        # Set resource_names on first step if not already configured
+        if self._logger.resource_names is None:
+            self._logger.resource_names = self._sim.resource_names
 
         self._logger.log_timestep(
             policies=policies,
