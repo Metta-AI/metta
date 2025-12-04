@@ -11,7 +11,7 @@ def test_acceptance_criteria_in_job_config():
         args=["run=test"],
         acceptance_criteria=[
             AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000),
-            AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.5),
+            AcceptanceCriterion(metric="env_agent/heart.created", operator=">", threshold=0.5),
         ],
     )
 
@@ -29,6 +29,6 @@ def test_acceptance_criteria_in_job_config():
     # Verify second criterion
     criterion2 = job_config.acceptance_criteria[1]
     assert isinstance(criterion2, AcceptanceCriterion)
-    assert criterion2.metric == "env_agent/heart.gained"
+    assert criterion2.metric == "env_agent/heart.created"
     assert criterion2.operator == ">"
     assert criterion2.threshold == 0.5
