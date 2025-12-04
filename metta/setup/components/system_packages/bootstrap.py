@@ -32,6 +32,7 @@ TARGET_INSTALL_DIRS = [
     str(Path.home() / "bin"),
 ]
 
+
 def _log(level: str, message: str) -> None:
     """Minimal logger that works before project dependencies install."""
     stream = sys.stderr if level == "ERROR" else sys.stdout
@@ -333,64 +334,6 @@ def install_bazel(run_command=None, non_interactive: bool = False) -> None:
         raise
 
 
-def remove_legacy_nim_installations() -> None:
-    """Remove legacy Nim installations and old nimby versions."""
-    # Remove Homebrew nim if installed
-    if shutil.which("brew"):
-        try:
-            result = subprocess.run(["brew", "list", "--versions", "nim"], check=False, capture_output=True, text=True)
-            if result.returncode == 0:
-                info("Removing legacy Homebrew Nim installation...")
-                subprocess.run(["brew", "uninstall", "--force", "nim"], check=False, capture_output=True)
-        except Exception:
-            pass
-
-    # Remove legacy nimble bin directory
-    nimble_bin = Path.home() / ".nimble" / "bin"
-    if nimble_bin.exists():
-        shutil.rmtree(nimble_bin, ignore_errors=True)
-
-    # Remove legacy choosenim directory
-    choosenim_dir = Path.home() / ".choosenim"
-    if choosenim_dir.exists():
-        shutil.rmtree(choosenim_dir, ignore_errors=True)
-
-    # Remove old nimby versions from all install directories
-    for install_dir_str in TARGET_INSTALL_DIRS:
-        install_dir = Path(install_dir_str)
-        if not install_dir.exists():
-            continue
-        nimby_path = install_dir / "nimby"
-        if nimby_path.exists() or nimby_path.is_symlink():
-            handled = False
-            try:
-                if nimby_path.is_file() and os.access(nimby_path, os.X_OK):
-                    result = subprocess.run(
-                        [str(nimby_path), "--version"],
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    if result.returncode == 0:
-                        version_output = result.stdout.strip()
-                        version = version_output.split()[-1].replace("v", "")
-                        if version and not version_ge(version, REQUIRED_NIMBY_VERSION):
-                            info(f"Removing old nimby version {version} from {nimby_path}")
-                            _safe_unlink(nimby_path)
-                            handled = True
-                        elif version and version_ge(version, REQUIRED_NIMBY_VERSION):
-                            handled = True
-            except Exception as exc:
-                info(f"Removing potentially broken or old nimby from {nimby_path}: {exc}")
-                _safe_unlink(nimby_path)
-                handled = True
-
-            if not handled and (nimby_path.exists() or nimby_path.is_symlink()):
-                info(f"Removing potentially broken or old nimby from {nimby_path}")
-                _safe_unlink(nimby_path)
-
-
 def _get_nim_version() -> str | None:
     """Get the current Nim version from the system PATH."""
     if shutil.which("nim"):
@@ -416,9 +359,6 @@ def _get_nimby_version() -> str | None:
 
 def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> None:
     """Install nim via nimby, checking versions before touching PATH."""
-    # Clean up legacy installations and old versions first
-    remove_legacy_nim_installations()
-
     # Check versions using current PATH (before we modify it)
     # This ensures we check what the user actually has, not what we've added to PATH
     current_nim_version = _get_nim_version()
@@ -429,8 +369,6 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
     # If both are up to date, exit early
     if nimby_up_to_date and nim_up_to_date:
         return
-
-    # Now modify PATH for installation (after we've checked versions)
 
     install_dir = get_install_dir()
     if not install_dir:
