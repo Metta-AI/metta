@@ -314,7 +314,6 @@ class TestEvalTaskOrchestratorIntegration:
             # Worker should be alive
             alive_workers = await success_thread_manager.discover_alive_workers()
             assert len(alive_workers) == 1
-            worker_name = alive_workers[0].name
 
             # Wait for task to complete
             for _ in range(10):
@@ -333,7 +332,7 @@ class TestEvalTaskOrchestratorIntegration:
 
             # Worker should be killed (no longer has an assigned task)
             alive_workers = await success_thread_manager.discover_alive_workers()
-            assert len(alive_workers) == 0, f"Expected 0 workers, found {len(alive_workers)}: {[w.name for w in alive_workers]}"
+            assert len(alive_workers) == 0, f"Expected 0 workers, found {len(alive_workers)}"
 
         finally:
             success_thread_manager.shutdown_all()
