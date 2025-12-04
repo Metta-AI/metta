@@ -856,14 +856,15 @@ proc fitVisibleMap*(panel: Panel) {.measure.} =
     maxX = max(maxX, agentMaxX)
     maxY = max(maxY, agentMaxY)
 
-  # Ensure we have valid bounds, otherwise fall back to full map
-  if minX > maxX or minY > maxY:
+  # Ensure we have valid bounds with reasonable size
+  if (minX > maxX or minY > maxY) or
+     (maxX - minX < 1.0f or maxY - minY < 1.0f):
     fitFullMap(panel)
     return
 
   let
-    visibleW = max(0.001f, maxX - minX)
-    visibleH = max(0.001f, maxY - minY)
+    visibleW = maxX - minX
+    visibleH = maxY - minY
 
   let zoomScale = min(rectW / visibleW, rectH / visibleH)
   panel.zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
