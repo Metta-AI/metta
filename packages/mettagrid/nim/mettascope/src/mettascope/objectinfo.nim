@@ -1,5 +1,5 @@
 import
-  std/[os, json, algorithm],
+  std/[os, json, algorithm, tables],
   fidget2,
   common, panels, replays
 
@@ -97,10 +97,14 @@ proc updateObjectInfo*() =
     area.addChild(i)
 
 
-  proc addVibe(area: Node, vibe: string) =
+  proc addVibe(area: Node, vibe: string, count: int = 1) =
     let v = item.copy()
     v.find("**/Image").fills[0].imageRef = "../../vibe" / vibe
-    v.find("**/Amount").text = ""
+    v.find("**/Amount").text =
+      if count > 1:
+        $count
+      else:
+        ""
     area.addChild(v)
 
   if selection.inventory.at.len == 0:
@@ -118,8 +122,12 @@ proc updateObjectInfo*() =
 
   proc addProtocol(protocol: Protocol) =
     var protocolNode = recipe.copy()
+    # Count the vibes.
+    var vibeCounts: Table[int, int]
     for vibe in protocol.vibes:
-      protocolNode.find("**/Vibes").addVibe(vibe.getVibeName())
+      vibeCounts[vibe] = vibeCounts.getOrDefault(vibe, 0) + 1
+    for vibe, count in vibeCounts:
+      protocolNode.find("**/Vibes").addVibe(vibe.getVibeName(), count)
     for resource in protocol.inputs:
       protocolNode.find("**/Inputs").addResource(resource)
     for resource in protocol.outputs:

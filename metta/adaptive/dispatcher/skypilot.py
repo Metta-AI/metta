@@ -33,7 +33,7 @@ class SkypilotDispatcher(Dispatcher):
         cmd_parts = [
             SKYPILOT_LAUNCH_PATH,
             "--no-spot",
-            "--heartbeat-timeout=10000",
+            "--heartbeat-timeout-seconds=10000",
         ]
 
         if job.gpus and job.gpus > 0:

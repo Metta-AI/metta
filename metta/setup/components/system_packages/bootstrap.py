@@ -12,7 +12,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -24,16 +23,13 @@ MIN_BAZEL_VERSION = "7.0.0"
 DEFAULT_BAZEL_VERSION = "latest"
 BAZELISK_VERSION = "v1.19.0"
 
-# Common install directories in order of preference
-COMMON_INSTALL_DIRS = [
+
+TARGET_INSTALL_DIRS = [
     "/usr/local/bin",
     "/usr/bin",
     "/opt/bin",
     str(Path.home() / ".local" / "bin"),
     str(Path.home() / "bin"),
-    str(Path.home() / ".nimby" / "nim" / "bin"),
-    str(Path.home() / ".cargo" / "bin"),
-    "/opt/homebrew/bin",
 ]
 
 
@@ -55,29 +51,24 @@ def error(message: str) -> None:
     _log("ERROR", message)
 
 
+def _safe_unlink(path: Path) -> None:
+    """Safely remove a file/symlink, logging warnings on failure."""
+    try:
+        path.unlink(missing_ok=True)
+    except PermissionError:
+        warning(f"Unable to remove {path}: permission denied")
+    except Exception as exc:
+        warning(f"Unable to remove {path}: {exc}")
+
+
 def get_install_dir() -> Path | None:
-    """Return first dir in COMMON_INSTALL_DIRS that is in PATH and writable."""
     path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-    for dir_str in COMMON_INSTALL_DIRS:
+    for dir_str in TARGET_INSTALL_DIRS:
         if dir_str in path_dirs:
             dir_path = Path(dir_str)
             if dir_path.exists() and (os.access(dir_path, os.W_OK) or (hasattr(os, "geteuid") and os.geteuid() == 0)):
                 return dir_path
     return None
-
-
-def ensure_paths() -> None:
-    """Add common directories to PATH if not already present."""
-    path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-    for dir_str in COMMON_INSTALL_DIRS:
-        dir_path = Path(dir_str)
-        if dir_path.exists() and dir_str not in path_dirs:
-            os.environ["PATH"] = f"{dir_str}:{os.environ.get('PATH', '')}"
-
-    # Add cargo bin if it exists
-    cargo_bin = Path.home() / ".cargo" / "bin"
-    if cargo_bin.exists() and str(cargo_bin) not in path_dirs:
-        os.environ["PATH"] = f"{cargo_bin}:{os.environ.get('PATH', '')}"
 
 
 def ensure_bazel_version_file(version: str) -> None:
@@ -103,39 +94,32 @@ def bazel_env() -> dict[str, str]:
     return env
 
 
-def version_ge(current: str, required: str) -> bool:
-    """Check if current version >= required version."""
-    try:
-        from packaging import version
+def _parse_version(v: str) -> tuple[int, ...]:
+    parts = []
+    for part in v.split("."):
+        digits = ""
+        for c in part:
+            if c.isdigit():
+                digits += c
+            else:
+                break
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
 
-        return version.parse(current) >= version.parse(required)
-    except Exception:
-        # Fallback: numeric segment compare (handles X.Y.Z)
-        current_parts = current.split(".")
-        required_parts = required.split(".")
 
-        max_len = max(len(current_parts), len(required_parts))
-        current_parts.extend(["0"] * (max_len - len(current_parts)))
-        required_parts.extend(["0"] * (max_len - len(required_parts)))
-
-        # Explicit length check for clarity (though they should match after padding)
-        if len(current_parts) != len(required_parts):
-            raise ValueError("Mismatched lengths: current_parts and required_parts must have the same length") from None
-
-        for c, r in zip(current_parts, required_parts, strict=False):
-            c_int = int(c) if c.isdigit() else 0
-            r_int = int(r) if r.isdigit() else 0
-            if c_int > r_int:
-                return True
-            if c_int < r_int:
-                return False
-        return True
+def version_ge(current: str | None, required: str) -> bool:
+    if not current:
+        return False
+    cur = _parse_version(current)
+    req = _parse_version(required)
+    max_len = max(len(cur), len(req))
+    cur = cur + (0,) * (max_len - len(cur))
+    req = req + (0,) * (max_len - len(req))
+    return cur >= req
 
 
 def check_bootstrap_deps() -> bool:
-    """Check if bootstrap deps (bazel, nimby, nim, git, g++) are installed."""
-    ensure_paths()
-
+    """Check bootstrap deps using the current PATH (no temporary additions)."""
     # Check git
     if not shutil.which("git"):
         return False
@@ -281,7 +265,6 @@ def get_bazelisk_url() -> str:
 
 def install_bazel(run_command=None, non_interactive: bool = False) -> None:
     """Install bazel via bazelisk."""
-    ensure_paths()
     ensure_bazel_version_file(DEFAULT_BAZEL_VERSION)
 
     if shutil.which("bazel"):
@@ -326,8 +309,6 @@ def install_bazel(run_command=None, non_interactive: bool = False) -> None:
         error(f"Failed to download bazelisk: {e}")
         raise
 
-    ensure_paths()
-
     if not shutil.which("bazel"):
         error("Failed to install bazelisk. Please install it manually from https://github.com/bazelbuild/bazelisk")
         raise RuntimeError("Bazel installation failed")
@@ -353,128 +334,89 @@ def install_bazel(run_command=None, non_interactive: bool = False) -> None:
         raise
 
 
-def remove_legacy_nim_installations() -> None:
-    """Remove legacy Nim installations."""
-    if shutil.which("brew"):
-        try:
-            result = subprocess.run(["brew", "list", "--versions", "nim"], check=False, capture_output=True, text=True)
-            if result.returncode == 0:
-                info("Removing legacy Homebrew Nim installation...")
-                subprocess.run(["brew", "uninstall", "--force", "nim"], check=False, capture_output=True)
-        except Exception:
-            pass
-
-    # Remove legacy nimble bin directory
-    nimble_bin = Path.home() / ".nimble" / "bin"
-    if nimble_bin.exists():
-        shutil.rmtree(nimble_bin, ignore_errors=True)
-
-    # Remove legacy choosenim directory
-    choosenim_dir = Path.home() / ".choosenim"
-    if choosenim_dir.exists():
-        shutil.rmtree(choosenim_dir, ignore_errors=True)
-
-    # Remove legacy symlinks
-    local_bin = Path.home() / ".local" / "bin"
-    for tool in ["nim", "nimble"]:
-        symlink = local_bin / tool
-        if symlink.is_symlink():
-            try:
-                target = symlink.readlink()
-                if ".nimble" in str(target):
-                    symlink.unlink()
-            except Exception:
-                pass
-
-
-def link_nim_bins(src_dir: Path) -> None:
-    """Link nim and nimby binaries to install directory."""
-    if not src_dir.exists():
-        return
-
-    install_dir = get_install_dir()
-    if not install_dir:
-        info(f'Nim is installed in {src_dir}. Add it to your PATH (e.g. export PATH="{src_dir}:$PATH").')
-        return
-
-    install_dir.mkdir(parents=True, exist_ok=True)
-
-    linked_any = False
-    for tool in ["nim", "nimby"]:
-        src = src_dir / tool
-        dest = install_dir / tool
-
-        if src.exists() and src.is_file() and os.access(src, os.X_OK):
-            if dest.is_symlink():
-                try:
-                    current_target = dest.readlink()
-                    if current_target == src:
-                        continue
-                except Exception:
-                    pass
-            try:
-                if dest.exists():
-                    dest.unlink()
-                dest.symlink_to(src)
-                linked_any = True
-            except Exception as e:
-                warning(f"Failed to link {tool}: {e}")
-
-    if linked_any:
-        info(f"Linked Nim binaries into {install_dir}. Ensure this directory is in your PATH.")
-
-
-def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> None:
-    """Install nim via nimby."""
-    remove_legacy_nim_installations()
-    ensure_paths()
-
-    # Check current versions
-    current_nim_version = ""
+def _get_nim_version() -> str | None:
+    """Get the current Nim version from the system PATH."""
     if shutil.which("nim"):
         try:
             result = subprocess.run(["nim", "--version"], check=True, capture_output=True, text=True)
             version_line = result.stdout.split("\n")[0]
-            current_nim_version = version_line.split()[3] if len(version_line.split()) > 3 else ""
+            return version_line.split()[3] if len(version_line.split()) > 3 else ""
         except (subprocess.CalledProcessError, IndexError):
-            pass
+            return None
+    return None
 
-    current_nimby_version = ""
+
+def _get_nimby_version() -> str | None:
+    """Get the current Nimby version from the system PATH."""
     if shutil.which("nimby"):
         try:
             result = subprocess.run(["nimby", "--version"], check=True, capture_output=True, text=True)
-            current_nimby_version = result.stdout.strip().split()[-1].replace("v", "")
+            return result.stdout.strip().split()[-1].replace("v", "")
         except (subprocess.CalledProcessError, IndexError):
-            pass
+            return None
+    return None
 
-    nim_bin_dir = Path.home() / ".nimby" / "nim" / "bin"
 
-    # Check if already installed with correct versions
-    if (
-        current_nim_version
-        and version_ge(current_nim_version, REQUIRED_NIM_VERSION)
-        and current_nimby_version
-        and version_ge(current_nimby_version, REQUIRED_NIMBY_VERSION)
-    ):
-        link_nim_bins(nim_bin_dir)
+def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> None:
+    """Install nim via nimby, checking versions before touching PATH."""
+    # Check versions using current PATH (before we modify it)
+    # This ensures we check what the user actually has, not what we've added to PATH
+    current_nim_version = _get_nim_version()
+    nim_up_to_date = version_ge(current_nim_version, REQUIRED_NIM_VERSION)
+    current_nimby_version = _get_nimby_version()
+    nimby_up_to_date = version_ge(current_nimby_version, REQUIRED_NIMBY_VERSION)
+
+    # If both are up to date, exit early
+    if nimby_up_to_date and nim_up_to_date:
         return
 
-    if current_nim_version:
-        info(f"Found Nim {current_nim_version} but require >= {REQUIRED_NIM_VERSION}. Installing via Nimby...")
-    else:
-        info("Nim not found. Installing via Nimby...")
+    install_dir = get_install_dir()
+    if not install_dir:
+        error(f"No dir to install it into identified. Consider adding {TARGET_INSTALL_DIRS[0]} to your PATH")
+        raise RuntimeError("No dir to install it into identified")
+    target_nimby_path = install_dir / "nimby"
 
+    # 3. Install nimby if missing or out of date
+    if not nimby_up_to_date:
+        info(f"Nimby is {'out of date' if current_nimby_version else 'not found'}. Installing at {target_nimby_path}")
+        _install_nimby(target_nimby_path)
+
+    # 4. Install nim if missing or out of date
+    if not nim_up_to_date:
+        info(f"Nim is {'out of date' if current_nim_version else 'not found'}. Installing...")
+        result = subprocess.run(
+            [str(target_nimby_path), "use", REQUIRED_NIM_VERSION],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            error(f"Failed to install Nim version {REQUIRED_NIM_VERSION}: {result.stderr}")
+            raise RuntimeError("Nim installation failed")
+        # This is where nimby use installs
+        target_nim_path = Path.home() / ".nimby" / "nim" / "bin" / "nim"
+        if not target_nim_path.exists():
+            error(f"Nim not found in {target_nim_path}")
+            raise RuntimeError(f"Nim not found in {target_nim_path}")
+        if not shutil.which("nim"):
+            error(f"Nim at {target_nim_path} not found in PATH after installation. Symlinking into {install_dir}")
+            dest = install_dir / "nim"
+            if dest.exists():
+                dest.unlink()
+            dest.symlink_to(target_nim_path)
+            info(f"Linked Nim to {dest}")
+
+
+def _install_nimby(target_nimby_path: Path) -> None:
     # Download and install nimby
-    system = platform.system()
     machine = platform.machine()
-
-    if system == "Linux":
+    if platform.system() == "Linux":
         os_name = "Linux"
-    elif system == "Darwin":
+    elif platform.system() == "Darwin":
         os_name = "macOS"
     else:
-        error(f"Unsupported OS: {system}")
-        raise RuntimeError(f"Unsupported OS: {system}")
+        error(f"Unsupported OS: {platform.system()}")
+        raise RuntimeError(f"Unsupported OS: {platform.system()}")
 
     if machine in ("x86_64", "amd64"):
         arch = "X64"
@@ -485,72 +427,29 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
         raise RuntimeError(f"Unsupported architecture: {machine}")
 
     url = f"https://github.com/treeform/nimby/releases/download/{REQUIRED_NIMBY_VERSION}/nimby-{os_name}-{arch}"
-    info(f"Downloading Nimby from {url}")
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        nimby_path = Path(tmpdir) / "nimby"
-        try:
-            urllib.request.urlretrieve(url, nimby_path)
-            nimby_path.chmod(0o755)
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                error(
-                    f"Nimby {REQUIRED_NIMBY_VERSION} does not have a binary for {os_name} {arch}. "
-                    f"Available binaries: Linux-X64, macOS-ARM64, macOS-X64. "
-                    f"For Docker builds on ARM64 Mac, use: docker build --platform=linux/amd64 ..."
-                )
-            else:
-                error(f"Failed to download Nimby (HTTP {e.code}): {e}")
-            raise RuntimeError(f"Nimby binary not available for {os_name} {arch}") from e
-        except Exception as e:
-            error(f"Failed to download Nimby: {e}")
-            raise
-
-        # Move nimby to bin directory
-        nim_bin_dir.mkdir(parents=True, exist_ok=True)
-        final_nimby_path = nim_bin_dir / "nimby"
-        if final_nimby_path.exists():
-            final_nimby_path.unlink()
-        nimby_path.rename(final_nimby_path)
-
-        # Verify nimby installation
-        if not final_nimby_path.exists() or not os.access(final_nimby_path, os.X_OK):
-            error("Failed to install nimby: binary not found or not executable")
-            raise RuntimeError("Nimby installation failed")
-
-        try:
-            verify_result = subprocess.run(
-                [str(final_nimby_path), "--version"],
-                check=True,
-                capture_output=True,
-                text=True,
+    info(f"Downloading Nimby from {url} to {target_nimby_path}")
+    target_nimby_path.parent.mkdir(parents=True, exist_ok=True)
+    if target_nimby_path.exists() or target_nimby_path.is_symlink():
+        target_nimby_path.unlink()
+    try:
+        urllib.request.urlretrieve(url, str(target_nimby_path))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            error(
+                f"Nimby {REQUIRED_NIMBY_VERSION} does not have a binary for {os_name} {arch}. "
+                f"Available binaries: Linux-X64, macOS-ARM64, macOS-X64. "
+                f"For Docker builds on ARM64 Mac, use: docker build --platform=linux/amd64 ..."
             )
-            installed_nimby_version = verify_result.stdout.strip().split()[-1].replace("v", "")
-            info(f"Successfully installed nimby version {installed_nimby_version}")
-        except subprocess.CalledProcessError as e:
-            error(f"Failed to verify nimby installation: {e}")
-            raise RuntimeError("Nimby installation verification failed") from e
-
-        # Run nimby to install nim
-        info(f"Installing Nim version {REQUIRED_NIM_VERSION}...")
-        result = subprocess.run(
-            [str(final_nimby_path), "use", REQUIRED_NIM_VERSION],
-            cwd=tmpdir,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            error(f"Failed to install Nim version {REQUIRED_NIM_VERSION}: {result.stderr}")
-            raise RuntimeError("Nim installation failed")
-
-    link_nim_bins(nim_bin_dir)
+        raise RuntimeError(f"Nimby binary not available for {os_name} {arch}") from e
+    except Exception as e:
+        error(f"Failed to download Nimby: {e}")
+        raise
+    target_nimby_path.chmod(0o755)
+    info(f"Nimby installed to {target_nimby_path}")
 
 
 def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> None:
     """Install all bootstrap dependencies: bazel, nimby, nim, git, g++."""
-    ensure_paths()
-
     # Install git and g++ via package manager
     install_system_packages(run_command, non_interactive=non_interactive)
 
@@ -559,8 +458,6 @@ def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> N
 
     # Install nimby and nim
     install_nim_via_nimby(run_command, non_interactive=non_interactive)
-
-    ensure_paths()
 
 
 def main() -> None:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tribal-village"
-version = "0.1.0"
+version = "0.1.2"
 description = "Tribal Village - Multi-agent RL environment built with Nim"
 readme = "README.md"
 license = { text = "MIT" }
@@ -39,6 +39,8 @@ tribal_village_env = ["*.so", "*.dylib", "*.dll", "libtribal_village.*"]
 cache-keys = [
   { file = "tribal_village.nim" },
   { file = "tribal_village.nimble" },
+  { file = "nimby.lock" },
   { file = "src/**/*.nim" },
+  { file = "tribal_village_env/**/*.py" },
   { file = "tribal_village_env/libtribal_village.*" },
 ]
