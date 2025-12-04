@@ -12,10 +12,10 @@ from recipes.experiment import v0_leaderboard as leaderboard
 
 
 def test_generate_scenarios_covers_all_partitions() -> None:
-    """Verify _generate_scenarios produces the expected 13 partitions for 4 cogs."""
+    """Verify _generate_scenarios produces the expected 15 partitions for 4 cogs."""
     scenarios = leaderboard._generate_scenarios(leaderboard.NUM_COGS)
 
-    assert len(scenarios) == 13  # expected partitions for 4-player mix
+    assert len(scenarios) == 15  # C(4+3-1, 3-1) = 15 ways to distribute 4 agents among 3 types
 
     for scenario in scenarios:
         assert scenario.candidate_count + scenario.thinky_count + scenario.ladybug_count == leaderboard.NUM_COGS, (
@@ -60,8 +60,8 @@ def test_simulations_minimal_excludes_replacement_scenarios() -> None:
     full_configs = leaderboard.simulations(num_episodes=1, map_seed=42, minimal=False)
     minimal_configs = leaderboard.simulations(num_episodes=1, map_seed=42, minimal=True)
 
-    # minimal should have fewer configs (excludes 3 replacement scenarios)
-    assert len(minimal_configs) == len(full_configs) - 3
+    # minimal should have fewer configs (excludes 5 replacement scenarios where c=0)
+    assert len(minimal_configs) == len(full_configs) - 5
 
     # All minimal configs should have candidate_count > 0
     for config in minimal_configs:
