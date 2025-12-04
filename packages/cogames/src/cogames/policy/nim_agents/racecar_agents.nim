@@ -489,6 +489,10 @@ proc step*(
       if v == cfg.vibes.wall: return some(cfg.actions.vibeWall)
       return none(int)
 
+    template markPatternReapply(v: int) =
+      if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and v != agent.assignedVibe.get():
+        agent.needsPatternReapply = true
+
     if activeRecipe.pattern.len > 0:
       # Assign required vibe: if more agents than vibes, duplicate the first vibe to keep full coverage.
       var haveAssigned = false
@@ -566,8 +570,7 @@ proc step*(
       let depositVibe = agent.cfg.vibes.heartB
       if depositAction != 0 and vibe != depositVibe:
         doAction(depositAction.int32)
-        if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and depositVibe != agent.assignedVibe.get():
-          agent.needsPatternReapply = true
+        markPatternReapply(depositVibe)
         return
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
@@ -585,8 +588,7 @@ proc step*(
 
         if vibe != agent.cfg.vibes.heartA:
           doAction(agent.cfg.actions.vibeHeartA.int32)
-          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and agent.cfg.vibes.heartA != agent.assignedVibe.get():
-            agent.needsPatternReapply = true
+          markPatternReapply(agent.cfg.vibes.heartA)
           log "vibing heart for assembler"
           return
 
@@ -611,8 +613,7 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.carbonB:
           doAction(agent.cfg.actions.vibeCarbonB.int32)
-          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and agent.cfg.vibes.carbonB != agent.assignedVibe.get():
-            agent.needsPatternReapply = true
+          markPatternReapply(agent.cfg.vibes.carbonB)
           log "vibing carbon B to dump excess carbon"
           return
         measurePush("chest nearby excess carbon")
@@ -628,8 +629,7 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.siliconB:
           doAction(agent.cfg.actions.vibeSiliconB.int32)
-          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and agent.cfg.vibes.siliconB != agent.assignedVibe.get():
-            agent.needsPatternReapply = true
+          markPatternReapply(agent.cfg.vibes.siliconB)
           log "vibing silicon B to dump excess silicon"
           return
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
@@ -643,8 +643,7 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.oxygenB:
           doAction(agent.cfg.actions.vibeOxygenB.int32)
-          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and agent.cfg.vibes.oxygenB != agent.assignedVibe.get():
-            agent.needsPatternReapply = true
+          markPatternReapply(agent.cfg.vibes.oxygenB)
           log "vibing oxygen B to dump excess oxygen"
           return
         measurePush("chest nearby excess oxygen")
@@ -660,8 +659,7 @@ proc step*(
       if chestNearby.isSome():
         if vibe != agent.cfg.vibes.germaniumB:
           doAction(agent.cfg.actions.vibeGermaniumB.int32)
-          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and agent.cfg.vibes.germaniumB != agent.assignedVibe.get():
-            agent.needsPatternReapply = true
+          markPatternReapply(agent.cfg.vibes.germaniumB)
           log "vibing germanium B to dump excess germanium"
           return
         measurePush("chest nearby excess germanium")
@@ -730,8 +728,7 @@ proc step*(
         if action.isSome():
           doAction(action.get().int32)
           log "going to " & name & ", need: " & $target & " have: " & $inventory
-          if activeRecipe.pattern.len > 0 and agent.assignedVibe.isSome() and vibe != agent.assignedVibe.get():
-            agent.needsPatternReapply = true
+          markPatternReapply(vibe)
           # If we arrive and see it depleted, mark it.
           if extractorNearby.get() in agent.depleted:
             agent.unreachable.incl(extractorNearby.get())
