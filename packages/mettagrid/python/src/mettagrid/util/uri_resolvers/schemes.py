@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Literal, overload
 from urllib.parse import unquote, urlparse
 
 import boto3
@@ -213,8 +214,21 @@ def _get_resolver(uri: str) -> SchemeResolver:
     raise ValueError(f"Unsupported URI scheme: {scheme}://" if scheme else f"No resolver found for URI: {uri}")
 
 
-def parse_uri(uri: str) -> ParsedScheme:
-    return _get_resolver(uri).parse(uri)
+@overload
+def parse_uri(uri: str, allow_none: Literal[False] = ...) -> ParsedScheme: ...
+@overload
+def parse_uri(uri: str, allow_none: Literal[True]) -> ParsedScheme | None: ...
+@overload
+def parse_uri(uri: str, allow_none: bool) -> ParsedScheme | None: ...
+
+
+def parse_uri(uri: str, allow_none: bool = False) -> ParsedScheme | None:
+    resolver = _get_resolver(uri)
+    if resolver:
+        return resolver.parse(uri)
+    if allow_none:
+        return None
+    raise ValueError(f"Unsupported URI: {uri}")
 
 
 def resolve_uri(uri: str) -> str:

@@ -11,7 +11,7 @@ from rich.table import Table
 from cogames.cli.base import console
 from mettagrid.policy.loader import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri
 
 RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
@@ -126,37 +126,33 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     """Parse a policy CLI option into its components.
 
     Supports two formats:
-    - URI: metta://policy/xxx, s3://bucket/path, file:///path, or bare .mpt paths
     - Key-value: class=CLS[,data=PATH][,proportion=1.0][,kw.x=val]
+    - URI: metta://policy/xxx[,proportion=1.0]
     """
     raw = spec.strip()
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
-
-    try:
-        base_spec = policy_spec_from_uri(raw, device="cpu")
-    except ValueError:
-        pass
-    except Exception as e:
-        raise ValueError(f"Failed to resolve URI '{raw}': {e}") from e
-    else:
-        return PolicySpecWithProportion(
-            class_path=base_spec.class_path,
-            init_kwargs=base_spec.init_kwargs,
-            proportion=1.0,
-        )
-
     entries = [part.strip() for part in raw.split(",") if part.strip()]
-    if not entries:
-        raise ValueError(
-            "Policy specification must use comma-separated key=value pairs "
-            "(e.g., class=stateless,data=train_dir/model.pt,proportion=0.5)."
-        )
 
     class_path: Optional[str] = None
     data_path: Optional[str] = None
     fraction = 1.0
     init_kwargs: dict[str, str] = {}
+
+    if len(entries):
+        first_entry = entries[0]
+        if (parsed := parse_uri(raw, allow_none=False)) and parsed.scheme in ("metta", "s3"):
+            s = policy_spec_from_uri(first_entry)
+            class_path = s.class_path
+            init_kwargs = s.init_kwargs
+            data_path = s.data_path
+            entries = entries[1:]
+
+    if not entries:
+        raise ValueError(
+            "Policy specification must use comma-separated key=value pairs "
+            "(e.g., class=stateless,data=train_dir/model.pt,proportion=0.5)."
+        )
 
     for entry in entries:
         if "=" not in entry:
