@@ -13,11 +13,15 @@
 
 struct MoveActionConfig : public ActionConfig {
   std::vector<std::string> allowed_directions;
+  std::unordered_map<ObservationType, std::string> vibe_specific_action_overrides;
 
   MoveActionConfig(const std::vector<std::string>& allowed_directions = {"north", "south", "west", "east"},
                    const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources = {},
-                   const std::unordered_map<InventoryItem, InventoryQuantity>& consumed_resources = {})
-      : ActionConfig(required_resources, consumed_resources), allowed_directions(allowed_directions) {}
+                   const std::unordered_map<InventoryItem, InventoryQuantity>& consumed_resources = {},
+                   const std::unordered_map<ObservationType, std::string>& vibe_specific_action_overrides = {})
+      : ActionConfig(required_resources, consumed_resources),
+        allowed_directions(allowed_directions),
+        vibe_specific_action_overrides(vibe_specific_action_overrides) {}
 };
 
 namespace py = pybind11;
@@ -26,11 +30,14 @@ inline void bind_move_action_config(py::module& m) {
   py::class_<MoveActionConfig, ActionConfig, std::shared_ptr<MoveActionConfig>>(m, "MoveActionConfig")
       .def(py::init<const std::vector<std::string>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
-                    const std::unordered_map<InventoryItem, InventoryQuantity>&>(),
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<ObservationType, std::string>&>(),
            py::arg("allowed_directions") = std::vector<std::string>{"north", "south", "west", "east"},
            py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryQuantity>())
-      .def_readwrite("allowed_directions", &MoveActionConfig::allowed_directions);
+           py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
+           py::arg("vibe_specific_action_overrides") = std::unordered_map<ObservationType, std::string>())
+      .def_readwrite("allowed_directions", &MoveActionConfig::allowed_directions)
+      .def_readwrite("vibe_specific_action_overrides", &MoveActionConfig::vibe_specific_action_overrides);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_CONFIG_HPP_

@@ -497,7 +497,7 @@ class DiagnosticChargeUp(_DiagnosticMissionBase):
         agent = cfg.game.agent
         agent.initial_inventory = dict(agent.initial_inventory)
         agent.initial_inventory["energy"] = 60
-        agent.inventory_regen_amounts = {"energy": 0}
+        agent.inventory_regen_amounts = {"default": {"energy": 0}}
 
 
 class DiagnosticAgile(_DiagnosticMissionBase):
@@ -543,7 +543,7 @@ class DiagnosticRadial(_DiagnosticMissionBase):
         inventory = dict(agent.initial_inventory)
         inventory["energy"] = 255
         agent.initial_inventory = inventory
-        agent.inventory_regen_amounts = {"energy": 255}
+        agent.inventory_regen_amounts = {"default": {"energy": 255}}
 
 
 # ----------------------------------------------------------------------
@@ -602,7 +602,7 @@ class DiagnosticChargeUpHard(_DiagnosticMissionBase):
         agent = cfg.game.agent
         agent.initial_inventory = dict(agent.initial_inventory)
         agent.initial_inventory["energy"] = 60
-        agent.inventory_regen_amounts = {"energy": 0}
+        agent.inventory_regen_amounts = {"default": {"energy": 0}}
 
 
 class DiagnosticMemoryHard(_DiagnosticMissionBase):
@@ -692,7 +692,7 @@ class DiagnosticRadialHard(_DiagnosticMissionBase):
         inventory = dict(agent.initial_inventory)
         inventory["energy"] = 255
         agent.initial_inventory = inventory
-        agent.inventory_regen_amounts = {"energy": 255}
+        agent.inventory_regen_amounts = {"default": {"energy": 255}}
 
 
 DIAGNOSTIC_EVALS: list[type[_DiagnosticMissionBase]] = [
