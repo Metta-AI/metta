@@ -582,15 +582,15 @@ proc step*(
           log "going to chest"
           return
 
-      if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
-        # We have all the resources we need, so we can build a heart.
-        log "trying to build a heart"
+    # Build a heart when we have the full recipe.
+    if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
+      log "trying to build a heart"
 
-        if vibe != agent.cfg.vibes.heartA:
-          doAction(agent.cfg.actions.vibeHeartA.int32)
-          markPatternReapply(agent.cfg.vibes.heartA)
-          log "vibing heart for assembler"
-          return
+      if vibe != agent.cfg.vibes.heartA:
+        doAction(agent.cfg.actions.vibeHeartA.int32)
+        markPatternReapply(agent.cfg.vibes.heartA)
+        log "vibing heart for assembler"
+        return
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
       if assemblerNearby.isSome():

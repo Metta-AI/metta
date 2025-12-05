@@ -12,6 +12,8 @@ proc centerAt*(panel: Panel, entity: Entity)
 var
   terrainMap*: TileMap
   visibilityMapStep*: int = -1
+  visibilityMapSelectionId*: int = -1
+  visibilityMapLockFocus*: bool = false
   visibilityMap*: TileMap
   px*: Pixelator
   sq*: ShaderQuad
@@ -116,16 +118,21 @@ proc rebuildVisibilityMap*(visibilityMap: TileMap) {.measure.} =
       fogOfWarMap[y * width + x] = true
 
   # Walk the agents and clear the visibility map.
-  for obj in replay.objects:
+  # If lockFocus is on with an agent selected, only show that agent's vision.
+  let agentsToProcess = if settings.lockFocus and selection != nil and selection.isAgent:
+    @[selection]
+  else:
+    replay.agents
+
+  for obj in agentsToProcess:
     let center = ivec2(int32(obj.visionSize div 2), int32(obj.visionSize div 2))
-    if obj.typeName == "agent":
-      let pos = obj.location.at
-      for i in 0 ..< obj.visionSize:
-        for j in 0 ..< obj.visionSize:
-          let gridPos = pos.xy + ivec2(int32(i), int32(j)) - center
-          if gridPos.x >= 0 and gridPos.x < width and
-            gridPos.y >= 0 and gridPos.y < height:
-            fogOfWarMap[gridPos.y * width + gridPos.x] = false
+    let pos = obj.location.at
+    for i in 0 ..< obj.visionSize:
+      for j in 0 ..< obj.visionSize:
+        let gridPos = pos.xy + ivec2(int32(i), int32(j)) - center
+        if gridPos.x >= 0 and gridPos.x < width and
+          gridPos.y >= 0 and gridPos.y < height:
+          fogOfWarMap[gridPos.y * width + gridPos.x] = false
 
   # Generate the tile edges.
   for i in 0 ..< visibilityMap.indexData.len:
@@ -363,10 +370,19 @@ proc drawVisualRanges*(alpha = 0.5) {.measure.} =
 
   if visibilityMap == nil:
     visibilityMapStep = step
+    visibilityMapSelectionId = if selection != nil: selection.id else: -1
+    visibilityMapLockFocus = settings.lockFocus
     visibilityMap = generateVisibilityMap()
 
-  if visibilityMapStep != step:
+  let
+    currentSelectionId = if selection != nil: selection.id else: -1
+    needsRebuild = visibilityMapStep != step or visibilityMapLockFocus != settings.lockFocus or
+      (settings.lockFocus and visibilityMapSelectionId != currentSelectionId)
+
+  if needsRebuild:
     visibilityMapStep = step
+    visibilityMapSelectionId = currentSelectionId
+    visibilityMapLockFocus = settings.lockFocus
     visibilityMap.updateVisibilityMap()
 
   visibilityMap.draw(
@@ -823,6 +839,49 @@ proc fitFullMap*(panel: Panel) {.measure.} =
     z = panel.zoom * panel.zoom
   panel.pos.x = rectW / 2.0f - cx * z
   panel.pos.y = rectH / 2.0f - cy * z
+
+proc fitVisibleMap*(panel: Panel) {.measure.} =
+  ## Set zoom and pan so the visible area (union of all agent vision ranges) fits in the panel.
+  if replay.isNil:
+    return
+  
+  if replay.agents.len == 0:
+    fitFullMap(panel)
+    return
+
+  let rectSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
+
+  # Calculate the union of all agent vision areas.
+  var
+    minPos = vec2(float32.high, float32.high)
+    maxPos = vec2(float32.low, float32.low)
+
+  for agent in replay.agents:
+    if agent.location.len == 0:
+      continue
+    let
+      pos = agent.location.at(step).xy.vec2
+      visionRadius = agent.visionSize.float32 / 2.0f
+      agentMin = pos - vec2(visionRadius, visionRadius)
+      agentMax = pos + vec2(visionRadius, visionRadius)
+
+    minPos = min(minPos, agentMin)
+    maxPos = max(maxPos, agentMax)
+
+  # Ensure we have valid bounds with reasonable size, otherwise fall back to full map
+  let size = maxPos - minPos
+  if size.x < 1.0f or size.y < 1.0f:
+    fitFullMap(panel)
+    return
+
+  let
+    visibleSize = maxPos - minPos
+    zoomScale = min(rectSize.x / visibleSize.x, rectSize.y / visibleSize.y)
+    center = (minPos + maxPos) / 2.0f
+    zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
+
+  panel.zoom = zoom
+  panel.pos = rectSize / 2.0f - center * (zoom * zoom)
 
 proc adjustPanelForResize*(panel: Panel) {.measure.} =
   ## Adjust pan and zoom when panel resizes to show the same portion of the map.

@@ -14,9 +14,13 @@ public:
   explicit HasInventory(const InventoryConfig& inventory_config,
                         const std::vector<std::string>* resource_names = nullptr,
                         const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr)
-      : inventory(inventory_config, resource_names, feature_ids) {}
+      : inventory(inventory_config, this, resource_names, feature_ids) {}
   virtual ~HasInventory() = default;
   Inventory inventory;
+
+  // Callback method called when inventory changes
+  // Override this method in derived classes to react to inventory changes
+  virtual void on_inventory_change(InventoryItem item, InventoryDelta delta) {}
 
   // Splits the delta between the inventories. Returns the amount of delta successfully consumed.
   static InventoryDelta shared_update(std::vector<HasInventory*> inventory_havers,
@@ -34,9 +38,6 @@ public:
 
   // Whether the inventory is accessible to an agent.
   virtual bool inventory_is_accessible();
-
-  // Update the inventory for a specific item
-  virtual InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta);
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_
