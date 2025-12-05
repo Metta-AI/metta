@@ -5,7 +5,6 @@ import pytest
 
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
-    EnvSupervisorConfig,
     GameConfig,
     MettaGridConfig,
     MoveActionConfig,
@@ -15,6 +14,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator import Simulator
 
 
@@ -298,11 +298,11 @@ class TestMettaGridPufferEnvSupervisorPolicy:
     def test_mettagrid_puffer_env_supervisor_policy(self, simulator, puffer_sim_config):
         """Test that supervisor policy correctly sets teacher_actions."""
 
-        # Create supervisor config
-        supervisor_cfg = EnvSupervisorConfig(policy="noop")
+        # Create supervisor policy spec
+        supervisor_policy_spec = PolicySpec(class_path="noop")
 
         # Create environment with supervisor
-        env = MettaGridPufferEnv(simulator, puffer_sim_config, env_supervisor_cfg=supervisor_cfg)
+        env = MettaGridPufferEnv(simulator, puffer_sim_config, supervisor_policy_spec=supervisor_policy_spec)
 
         # Verify supervisor policy was initialized
         assert env._env_supervisor is not None
