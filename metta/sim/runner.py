@@ -13,7 +13,6 @@ from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult,
 
 
 def _run_single_simulation(
-    sim_idx: int,
     simulation: Any,
     policy_data: Sequence[Any],
     replay_dir: str | None,
@@ -34,7 +33,7 @@ def _run_single_simulation(
         env_cfg=sim_cfg.env,
         policies=multi_agent_policies,
         episodes=sim_cfg.num_episodes,
-        seed=seed + sim_idx,
+        seed=seed,
         proportions=sim_cfg.proportions,
         save_replay=replay_dir,
         max_action_time_ms=sim_cfg.max_action_time_ms,
@@ -74,14 +73,14 @@ def run_simulations(
         raise ValueError("At least one policy spec is required")
 
     # Sequential path for max_workers unset or 1
-    if not max_workers or max_workers <= 1:
-        simulation_rollouts: list[SimulationRunResult] = []
+    if not max_workers or max_workers <= 1 or len(simulations) <= 1:
+        sequential_rollouts: list[SimulationRunResult] = []
         for i, simulation in enumerate(simulations):
             on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
-            simulation_rollouts.append(_run_single_simulation(i, simulation, policy_specs, replay_dir, seed))
+            sequential_rollouts.append(_run_single_simulation(simulation, policy_specs, replay_dir, seed))
             on_progress(f"Finished rollout for simulation {i + 1} of {len(simulations)}")
 
-        return simulation_rollouts
+        return sequential_rollouts
 
     # Parallel path
     simulation_rollouts: list[SimulationRunResult] = [None] * len(simulations)  # type: ignore[assignment]
@@ -99,7 +98,6 @@ def run_simulations(
         future_to_idx = {
             executor.submit(
                 _run_single_simulation,
-                idx,
                 payload,
                 policy_payloads,
                 os.path.join(replay_dir, f"sim_{idx}") if replay_dir else None,
