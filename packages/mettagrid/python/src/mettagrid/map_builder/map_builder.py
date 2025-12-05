@@ -189,11 +189,12 @@ class MapBuilder(ABC, Generic[ConfigT]):
                 (Config,),
                 {
                     "__module__": Config.__module__,
-                    "__qualname__": f"{Config.__qualname__}.{unique_name}",
-                }
+                    "__qualname__": unique_name,  # Use simple qualname since class is at module level
+                },
             )
             # Store in module namespace so pickle can find it
             import sys
+
             module = sys.modules[Config.__module__]
             setattr(module, unique_name, CloneConfig)
             Config = CloneConfig
