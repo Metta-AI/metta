@@ -27,7 +27,7 @@ class PufferlibCogsPolicy(MultiAgentPolicy, AgentPolicy):
     implementation, returning itself from agent_policy().
     """
 
-    short_names = ["pufferlib", "pufferlib_cogs"]
+    short_names = ["pufferlib_cogs"]
 
     def __init__(
         self,
