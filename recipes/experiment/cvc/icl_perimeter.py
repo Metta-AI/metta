@@ -142,7 +142,8 @@ class ICLExtractorVariant(MissionVariant):
 
     name: str = "icl_extractor"
     missing_resources: tuple[str, ...] = ()
-    max_uses: int = 4  # Should match heart_multiplier in ICLInventoryVariant
+    max_uses: int = 0  # Unlimited uses
+    cooldown: int = 10  # Cooldown between uses
 
     def modify_mission(self, mission: Mission) -> None:
         if not self.missing_resources:
@@ -164,20 +165,28 @@ class ICLExtractorVariant(MissionVariant):
         # Silicon: 15 per use
 
         # Calculate efficiency to get exactly one heart's worth per use
-        # max_uses allows gathering enough for heart_multiplier hearts
+        # Extractors are unlimited with a short cooldown
         if "carbon" in self.missing_resources:
             efficiency = (per_heart["carbon"] * 100) // 2  # 2 is default output
-            mission.carbon_extractor = CarbonExtractorConfig(efficiency=min(500, efficiency), max_uses=self.max_uses)
+            mission.carbon_extractor = CarbonExtractorConfig(
+                efficiency=min(500, efficiency), max_uses=self.max_uses, cooldown=self.cooldown
+            )
 
         if "oxygen" in self.missing_resources:
-            mission.oxygen_extractor = OxygenExtractorConfig(efficiency=100, max_uses=self.max_uses)
+            mission.oxygen_extractor = OxygenExtractorConfig(
+                efficiency=100, max_uses=self.max_uses, cooldown=self.cooldown
+            )
 
         if "germanium" in self.missing_resources:
-            mission.germanium_extractor = GermaniumExtractorConfig(efficiency=100, max_uses=self.max_uses)
+            mission.germanium_extractor = GermaniumExtractorConfig(
+                efficiency=100, max_uses=self.max_uses, cooldown=self.cooldown
+            )
 
         if "silicon" in self.missing_resources:
             efficiency = (per_heart["silicon"] * 100) // 15  # 15 is default output
-            mission.silicon_extractor = SiliconExtractorConfig(efficiency=min(500, efficiency), max_uses=self.max_uses)
+            mission.silicon_extractor = SiliconExtractorConfig(
+                efficiency=min(500, efficiency), max_uses=self.max_uses, cooldown=self.cooldown
+            )
 
 
 class ICLCargoCapacityVariant(MissionVariant):
@@ -191,20 +200,70 @@ class ICLCargoCapacityVariant(MissionVariant):
 
 
 class ICLChestVariant(MissionVariant):
-    """Removes default vibe transfer from chest - agents must use specific vibes to interact."""
+    """Configures chest vibe transfers - agents can deposit hearts with any resource vibe."""
 
     name: str = "icl_chest"
 
     def modify_env(self, mission: Mission, env: MettaGridConfig) -> None:
         from mettagrid.config.mettagrid_config import ChestConfig
 
-        # Get the chest config and remove the "default" vibe transfer
+        # Get the chest config and set vibe transfers for all vibes
         chest_cfg = env.game.objects.get("chest")
-        if chest_cfg and isinstance(chest_cfg, ChestConfig):
-            # Remove default - only allow specific vibe-based transfers
-            if "default" in chest_cfg.vibe_transfers:
-                del chest_cfg.vibe_transfers["default"]
+        if not isinstance(chest_cfg, ChestConfig):
+            return
+        chest_cfg.vibe_transfers = {
+            "default": {"heart": 1},
+            "heart_a": {"heart": 1},
+            "heart_b": {"heart": 1},
+            "carbon_a": {"heart": 1},
+            "carbon_b": {"heart": 1},
+            "oxygen_a": {"heart": 1},
+            "oxygen_b": {"heart": 1},
+            "germanium_a": {"heart": 1},
+            "germanium_b": {"heart": 1},
+            "silicon_a": {"heart": 1},
+            "silicon_b": {"heart": 1},
+        }
 
+
+class ICLAssemblerVariant(MissionVariant):
+    """Configures assembler to accept multiple vibe options for heart assembly."""
+
+    name: str = "icl_assembler"
+
+    def modify_env(self, mission: Mission, env: MettaGridConfig) -> None:
+        from mettagrid.config.mettagrid_config import AssemblerConfig, ProtocolConfig
+
+        assembler_cfg = env.game.objects.get("assembler")
+        if not isinstance(assembler_cfg, AssemblerConfig):
+            return
+
+        # Get heart cost from mission
+        heart_cost = mission.assembler.first_heart_cost
+        additional_cost = mission.assembler.additional_heart_cost
+
+        # Define all vibes that can be used for heart assembly
+        heart_vibes = ["heart_a", "heart_b", "carbon_a", "carbon_b", "oxygen_a", "oxygen_b",
+                       "germanium_a", "germanium_b", "silicon_a", "silicon_b"]
+
+        # Build protocols for each vibe option and each agent count
+        new_protocols = []
+        for vibe in heart_vibes:
+            for i in range(4):  # 1-4 agents
+                new_protocols.append(
+                    ProtocolConfig(
+                        vibes=[vibe] * (i + 1),
+                        input_resources={
+                            "carbon": heart_cost + additional_cost * i,
+                            "oxygen": heart_cost + additional_cost * i,
+                            "germanium": max(1, (heart_cost + additional_cost * i) // 5),
+                            "silicon": 3 * (heart_cost + additional_cost * i),
+                        },
+                        output_resources={"heart": i + 1},
+                    )
+                )
+
+        assembler_cfg.protocols = new_protocols
 
 class ICLVibeVariant(MissionVariant):
     """Restricts action space to first N vibes."""
@@ -272,6 +331,7 @@ def make_icl_curriculum(
                 ICLCargoCapacityVariant(),
                 ICLVibeVariant(),
                 ICLChestVariant(),
+                ICLAssemblerVariant(),
                 ICLPerimeterMapVariant(
                     missing_resources=missing,
                     num_agents=num_cogs,
@@ -340,6 +400,7 @@ def train(
             ICLCargoCapacityVariant(),
             ICLVibeVariant(),
             ICLChestVariant(),
+            ICLAssemblerVariant(),
             ICLPerimeterMapVariant(
                 missing_resources=tuple(REQUIRED_RESOURCES),
                 num_agents=num_cogs,
@@ -389,6 +450,7 @@ def play(
             ICLCargoCapacityVariant(),
             ICLVibeVariant(),
             ICLChestVariant(),
+            ICLAssemblerVariant(),
             ICLPerimeterMapVariant(
                 missing_resources=missing,
                 num_agents=num_cogs,
@@ -418,6 +480,7 @@ def evaluate(
             ICLCargoCapacityVariant(),
             ICLVibeVariant(),
             ICLChestVariant(),
+            ICLAssemblerVariant(),
             ICLPerimeterMapVariant(
                 missing_resources=tuple(REQUIRED_RESOURCES),
                 num_agents=num_cogs,
