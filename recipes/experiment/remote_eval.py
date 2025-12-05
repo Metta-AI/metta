@@ -15,7 +15,6 @@ class ExecuteRemoteEvalTool(ToolWithResult):
     replay_dir: str = Field(default_factory=auto_replay_dir)
     result_file_path: str
 
-    group: str | None = None
     stats_server_uri: str | None = None
     push_metrics_to_wandb: bool = True
 
@@ -28,7 +27,6 @@ class ExecuteRemoteEvalTool(ToolWithResult):
             simulations=self.simulations,
             policy_uris=[policy_uri],
             replay_dir=self.replay_dir,
-            group=self.group,
             stats_server_uri=self.stats_server_uri,
             push_metrics_to_wandb=self.push_metrics_to_wandb,
             max_workers=3,
