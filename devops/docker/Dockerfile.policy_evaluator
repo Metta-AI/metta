@@ -10,19 +10,31 @@ COPY . /workspace/metta
 
 WORKDIR /workspace/metta
 
-RUN bash ./devops/tools/install-system.sh
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    build-essential \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get install -y apt-transport-https ca-certificates curl gnupg
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
+
+COPY .python-version pyproject.toml uv.lock ./
+RUN uv python install
+
+RUN bash install.sh --profile softmax-docker --non-interactive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
 RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 RUN chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 RUN echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
 RUN chmod 644 /etc/apt/sources.list.d/kubernetes.list
-RUN apt-get update
-RUN apt-get install -y kubectl
+RUN apt-get update && apt-get install -y kubectl && rm -rf /var/lib/apt/lists/*
 
-RUN bash install.sh --profile softmax-docker --non-interactive
-
-# Pre-build all packages to avoid OOM during container startup
 RUN uv sync --all-extras --frozen && \
     uv run python -c "import metta.app_backend.eval_task_orchestrator" && \
     uv run python -c "import metta.app_backend.eval_task_worker"

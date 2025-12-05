@@ -24,17 +24,9 @@ class DynamicsConfig(LossConfig):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "Dynamics":
         """Create Dynamics loss instance."""
-        return Dynamics(
-            policy,
-            trainer_cfg,
-            vec_env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return Dynamics(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class Dynamics(Loss):

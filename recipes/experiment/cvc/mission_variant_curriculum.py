@@ -145,12 +145,12 @@ def resolve_missions(
         List of mission name strings
 
     Examples:
-        >>> resolve_missions("proc_gen_missions")
-        ['hello_world.open_world', 'machina_1.open_world', ...]
-        >>> resolve_missions(["proc_gen_missions", "diagnostic_missions"])
-        ['hello_world.open_world', ..., 'diagnostic_assemble_seeded_near', ...]
-        >>> resolve_missions("harvest,oxygen_bottleneck")
-        ['harvest', 'oxygen_bottleneck']
+        >>> resolve_missions("eval_missions")
+        ['go_together', 'oxygen_bottleneck', ...]
+        >>> resolve_missions(["eval_missions", "diagnostic_missions"])
+        ['go_together', ..., 'diagnostic_assemble_seeded_near', ...]
+        >>> resolve_missions("energy_starved,oxygen_bottleneck")
+        ['energy_starved', 'oxygen_bottleneck']
     """
     # Handle None - default to all missions
     if missions is None:
@@ -253,9 +253,9 @@ def make_curriculum(
     Args:
         base_missions: Mission names to include. Can be:
             - None: Uses FULL_CURRICULUM_MISSIONS
-            - A mission set name: "diagnostic_missions", "training_facility_missions", "proc_gen_missions", "all"
-            - A comma-separated string of mission names or set names (e.g., "proc_gen_missions,diagnostic_missions")
-            - A list of mission names or set names (e.g., ["proc_gen_missions", "harvest"])
+            - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
+            - A comma-separated string of mission names or set names (e.g., "eval_missions,diagnostic_missions")
+            - A list of mission names or set names (e.g., ["eval_missions", "energy_starved"])
         num_cogs: Number of agents per mission
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration

@@ -60,10 +60,13 @@ export const TasksTable: FC<{
   repo: Repo
   setError: (error: string) => void
   ref?: Ref<TasksTableHandle>
-}> = ({ repo, setError, ref }) => {
+  initialFilters?: TaskFilters
+  hideFilters?: boolean
+  title?: string
+}> = ({ repo, setError, ref, initialFilters, hideFilters, title }) => {
   const [tasksResponse, setTasksResponse] = useState<PaginatedEvalTasksResponse | undefined>()
   const currentPage = tasksResponse?.page || 1
-  const [filters, setFilters] = useState<TaskFilters>({})
+  const [filters, setFilters] = useState<TaskFilters>(initialFilters || {})
   const isInitialMount = useRef(true)
 
   // Load tasks
@@ -112,7 +115,9 @@ export const TasksTable: FC<{
 
   return (
     <div>
-      <h2 className="mb-5">All Tasks ({tasksResponse.total_count})</h2>
+      <h2 className="mb-5">
+        {title || 'All Tasks'} ({tasksResponse.total_count})
+      </h2>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse table-fixed">
           <thead className="border-b border-b-gray-300 bg-gray-100">
@@ -126,41 +131,43 @@ export const TasksTable: FC<{
               <TH>Created</TH>
               <TH>Logs</TH>
             </tr>
-            <tr>
-              <THFilter />
-              <THFilter>
-                <FilterInput
-                  value={filters.command || ''}
-                  onChange={(value) => setFilters({ ...filters, command: value })}
-                />
-              </THFilter>
-              <THFilter>
-                <StatusDropdown
-                  value={filters.status || ''}
-                  onChange={(value) => setFilters({ ...filters, status: value })}
-                />
-              </THFilter>
-              <THFilter>
-                <FilterInput
-                  value={filters.user_id || ''}
-                  onChange={(value) => setFilters({ ...filters, user_id: value })}
-                />
-              </THFilter>
-              <THFilter>
-                <FilterInput
-                  value={filters.assignee || ''}
-                  onChange={(value) => setFilters({ ...filters, assignee: value })}
-                />
-              </THFilter>
-              <THFilter />
-              <THFilter>
-                <FilterInput
-                  value={filters.created_at || ''}
-                  onChange={(value) => setFilters({ ...filters, created_at: value })}
-                />
-              </THFilter>
-              <th />
-            </tr>
+            {!hideFilters && (
+              <tr>
+                <THFilter />
+                <THFilter>
+                  <FilterInput
+                    value={filters.command || ''}
+                    onChange={(value) => setFilters({ ...filters, command: value })}
+                  />
+                </THFilter>
+                <THFilter>
+                  <StatusDropdown
+                    value={filters.status || ''}
+                    onChange={(value) => setFilters({ ...filters, status: value })}
+                  />
+                </THFilter>
+                <THFilter>
+                  <FilterInput
+                    value={filters.user_id || ''}
+                    onChange={(value) => setFilters({ ...filters, user_id: value })}
+                  />
+                </THFilter>
+                <THFilter>
+                  <FilterInput
+                    value={filters.assignee || ''}
+                    onChange={(value) => setFilters({ ...filters, assignee: value })}
+                  />
+                </THFilter>
+                <THFilter />
+                <THFilter>
+                  <FilterInput
+                    value={filters.created_at || ''}
+                    onChange={(value) => setFilters({ ...filters, created_at: value })}
+                  />
+                </THFilter>
+                <th />
+              </tr>
+            )}
           </thead>
           <tbody>
             {tasksResponse.tasks.map((task) => (

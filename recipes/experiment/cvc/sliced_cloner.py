@@ -7,46 +7,44 @@ recipes should import from here and extend via custom defaults, similar to how
 
 from __future__ import annotations
 
+import logging
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
+from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
+from metta.agent.policies.vit_size_2 import ViTSize2Config
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
+    DiscreteRandomConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    "extractor_hub_30",
-    "extractor_hub_50",
-    "extractor_hub_70",
-    "collect_resources_classic",
-    "collect_resources_spread",
-    "collect_far",
+    "easy_hearts",
     "oxygen_bottleneck",
     "energy_starved",
-    "divide_and_conquer",
-    "go_together",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
-    "go_together",
-    "divide_and_conquer",
-    "collect_resources_spread",
+    "distant_resources",
+    "quadrant_buildings",
+    "single_use_swarm",
 ]
 
 PROC_MAP_MISSIONS: tuple[str, ...] = (
@@ -63,6 +61,7 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"hello_world{MAP_MISSION_DELIMITER}single_use_swarm",
     f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
     f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
+    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
     f"machina_1{MAP_MISSION_DELIMITER}open_world",
     f"machina_1{MAP_MISSION_DELIMITER}balanced_corners",
 )
@@ -128,6 +127,7 @@ def make_eval_suite(
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
     variants: Optional[Sequence[str]] = None,
+    max_evals: Optional[int] = None,
 ) -> list[SimulationConfig]:
     """Create a suite of evaluation simulations from CoGames missions.
 
@@ -172,12 +172,16 @@ def make_eval_suite(
         )
         simulations.append(sim)
 
+    if max_evals is not None:
+        logger.info(f"Limiting evaluations to {max_evals} (got {len(simulations)})")
+        simulations = simulations[:max_evals]
+
     return simulations
 
 
 def make_training_env(
     num_cogs: int = 4,
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
@@ -212,28 +216,50 @@ def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
-    use_lp: bool = True,
 ) -> CurriculumConfig:
     """Create a curriculum for CoGs vs Clips training."""
     if missions is None:
         missions = list(DEFAULT_CURRICULUM_MISSIONS)
 
+    # Determine which variant sets to use for bucketing
+    # None => baseline mission; [name] => single variant; [v1, v2] => combined variants
+    if variants is None:
+        variant_sets: list[list[str] | None] = [None] + [[v.name] for v in VARIANTS]
+    else:
+        variant_sets = [list(variants)]
+
     all_mission_tasks = []
     for mission_name in missions:
-        mission_env = make_training_env(
-            num_cogs=num_cogs,
-            mission=mission_name,
-            variants=variants,
-        )
-        mission_tasks = cc.bucketed(mission_env)
+        mission_template = _resolve_mission_template(mission_name)
 
-        mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
+        # Create tasks for each variant set
+        for variant_set in variant_sets:
+            if variant_set is not None and not all(
+                any(v.name == name and v.compat(mission_template) for v in VARIANTS) for name in variant_set
+            ):
+                continue
 
-        all_mission_tasks.append(mission_tasks)
+            mission_env = make_training_env(num_cogs=num_cogs, mission=mission_name, variants=variant_set or None)
+            mission_env.game.global_obs.goal_obs = True
+            mission_tasks = cc.bucketed(mission_env)
+
+            # Add buckets
+            mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
+            mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [0, 1, 5, 10])
+            mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 5, 10])
+
+            # Resource types for reward bucketing
+            resources = ["carbon", "oxygen", "germanium", "silicon"]
+
+            # Add buckets for resource collection rewards
+            for resource in resources:
+                mission_tasks.add_bucket(f"game.agent.rewards.inventory.{resource}", [0.0, 0.01, 0.1, 1])
+
+            all_mission_tasks.append(mission_tasks)
 
     merged_tasks = cc.merge(all_mission_tasks)
 
-    if algorithm_config is None and use_lp:
+    if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
             use_bidirectional=True,
             ema_timescale=0.001,
@@ -249,6 +275,18 @@ def make_curriculum(
     )
 
 
+# How to submit a policy trained here to the CoGames leaderboard:
+#
+# uv run cogames submit \
+#   -p class=mpt,kw.checkpoint_uri=s3://softmax-public/policies/...:v1.mpt \
+#   -n your-policy-name-for-leaderboard \
+#   --skip-validation
+#
+# For now we need to run --skip-validation because cogames validation
+# doesn't assume the leaderboard runners get to run with the `metta` repo available,
+# but in practice they do
+
+
 def train(
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
@@ -258,95 +296,87 @@ def train(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
-    maps_cache_size: Optional[int] = None,
-    eval_epoch_interval: int = 10,
     max_evals: Optional[int] = None,
-    evaluate_remote: bool = True,
-    evaluate_local: bool = False,
-    use_lp: bool = True,
     bc_policy_uri: Optional[str] = None,
-    initial_policy_uri: Optional[str] = "sliced_kickstarter",
+    use_lp: bool = True,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
     if mission is not None:
         training_missions = [mission]
 
+    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
     curriculum = curriculum or make_curriculum(
         num_cogs=num_cogs,
         missions=training_missions,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
-        use_lp=use_lp,
+        algorithm_config=cur_alg,
     )
+    trainer_cfg = TrainerConfig(losses=LossesConfig())
+    scheduler = None
+    supervisor = EnvSupervisorConfig()
 
-    losses_config = LossesConfig()
-    ssc_end_step = 1_000_000_000
-    losses_config.sliced_scripted_cloner.enabled = True
-    losses_config.ppo_critic.sample_enabled = False
-    losses_config.ppo_critic.train_forward_enabled = False
-    losses_config.ppo_critic.deferred_training_start_step = ssc_end_step
-
-    trainer_cfg = TrainerConfig(losses=losses_config)
-
-    scheduler = SchedulerConfig(
-        run_gates=[
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=ssc_end_step),
-            LossRunGate(
-                loss_instance_name="sliced_scripted_cloner",
-                phase="rollout",
-                end_at_step=ssc_end_step,
-            ),
-            LossRunGate(
-                loss_instance_name="sliced_scripted_cloner",
-                phase="train",
-                end_at_step=ssc_end_step,
-            ),
-        ],
-        rules=[
-            HyperUpdateRule(
-                loss_instance_name="sliced_scripted_cloner",
-                attr_path="teacher_led_proportion",
-                mode="progress",
-                style="linear",
-                start_value=0.2,
-                end_value=0.0,
-                start_agent_step=0,
-                end_agent_step=ssc_end_step,
-            ),
-        ],
-    )
-
-    # Set behavior cloning policy URI if provided
     if bc_policy_uri is not None:
-        trainer_cfg.behavior_cloning.policy_uri = bc_policy_uri
+        supervisor = EnvSupervisorConfig(policy=bc_policy_uri)
+
+        ssc_end_step = 500_000_000
+        trainer_cfg.losses.sliced_scripted_cloner.enabled = True
+        trainer_cfg.losses.ppo_critic.sample_enabled = False
+        trainer_cfg.losses.ppo_critic.train_forward_enabled = False
+        trainer_cfg.losses.ppo_critic.deferred_training_start_step = ssc_end_step
+
+        scheduler = SchedulerConfig(
+            run_gates=[
+                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=ssc_end_step),
+                LossRunGate(
+                    loss_instance_name="sliced_scripted_cloner",
+                    phase="rollout",
+                    end_at_step=ssc_end_step,
+                ),
+                LossRunGate(
+                    loss_instance_name="sliced_scripted_cloner",
+                    phase="train",
+                    end_at_step=ssc_end_step,
+                ),
+            ],
+            rules=[
+                HyperUpdateRule(
+                    loss_instance_name="sliced_scripted_cloner",
+                    attr_path="teacher_led_proportion",
+                    mode="progress",
+                    style="linear",
+                    start_value=0.20,
+                    end_value=0.0,
+                    start_agent_step=0,
+                    end_agent_step=ssc_end_step,
+                ),
+            ],
+        )
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
         num_cogs=num_cogs,
         difficulty=eval_difficulty,
         variants=resolved_eval_variants,
+        max_evals=max_evals,
     )
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
-        epoch_interval=eval_epoch_interval,
-        evaluate_remote=evaluate_remote,
-        evaluate_local=evaluate_local,
-        num_training_tasks=max_evals if max_evals is not None else 2,
+        evaluate_local=False,
     )
 
-    training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
-    if maps_cache_size is not None:
-        training_env_cfg.maps_cache_size = maps_cache_size
-
-    return TrainTool(
+    tt = TrainTool(
         trainer=trainer_cfg,
-        training_env=training_env_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum, supervisor=supervisor),
         evaluator=evaluator_cfg,
-        initial_policy_uri=initial_policy_uri,
+        policy_architecture=ViTSize2Config(),
         scheduler=scheduler,
+        checkpointer=CheckpointerConfig(epoch_interval=100),
     )
+
+    return tt
 
 
 def train_variants(
@@ -403,7 +433,7 @@ def train_variants(
 
 
 def train_single_mission(
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
@@ -448,7 +478,7 @@ def evaluate(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "extractor_hub_30",
+    mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
@@ -474,7 +504,7 @@ def play_training_env(
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
-        mission="extractor_hub_30",
+        mission="easy_hearts",
         num_cogs=num_cogs,
         variants=variants,
     )
@@ -498,42 +528,6 @@ def train_coordination(
     )
 
 
-def train_fixed_maps(
-    num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on fixed-map CoGs vs Clips missions in one curriculum."""
-    return train(
-        num_cogs=num_cogs,
-        base_missions=list(DEFAULT_CURRICULUM_MISSIONS),
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-        mission=mission,
-    )
-
-
-def train_proc_maps(
-    num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on procedural MachinaArena map missions."""
-    return train(
-        num_cogs=num_cogs,
-        base_missions=list(PROC_MAP_MISSIONS),
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-        mission=mission,
-    )
-
-
 __all__ = [
     "make_eval_suite",
     "make_training_env",
@@ -545,6 +539,4 @@ __all__ = [
     "play",
     "play_training_env",
     "train_coordination",
-    "train_fixed_maps",
-    "train_proc_maps",
 ]
