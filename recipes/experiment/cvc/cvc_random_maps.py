@@ -256,6 +256,10 @@ def make_training_eval_suite(
         if num_cogs == 1 and mission_template.name in {"go_together", "single_use_swarm"}:
             continue
 
+        # Skip distant_resources - causes eval hangs
+        if mission_template.name == "distant_resources":
+            continue
+
         # Create mission with TrainingVariant for matching action space
         mission = mission_template.with_variants(
             [
