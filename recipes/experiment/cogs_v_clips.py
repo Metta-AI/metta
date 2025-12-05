@@ -384,16 +384,13 @@ def train(
     scheduler_rules: list[HyperUpdateRule] = []
 
     if bc_policy_uri is not None:
-        # Allow shorthand policy names (no scheme, no extension, nonexistent path)
-        if "://" not in bc_policy_uri:
-            candidate = Path(bc_policy_uri)
-            if candidate.suffix == "" and not candidate.exists():
-                class_path = resolve_policy_class_path(bc_policy_uri)
-                bc_policy_spec = PolicySpec(class_path=class_path)
-                tt.training_env.supervisor_policy_uri = None
-                tt.training_env.supervisor_policy_spec = bc_policy_spec  # type: ignore[attr-defined]
-            else:
-                tt.training_env.supervisor_policy_uri = bc_policy_uri
+        # Shorthand policy name -> class path; otherwise treat as URI/path
+        candidate = Path(bc_policy_uri)
+        if "://" not in bc_policy_uri and candidate.suffix == "" and not candidate.exists():
+            tt.training_env.supervisor_policy_uri = None
+            tt.training_env.supervisor_policy_spec = PolicySpec(  # type: ignore[attr-defined]
+                class_path=resolve_policy_class_path(bc_policy_uri)
+            )
         else:
             tt.training_env.supervisor_policy_uri = bc_policy_uri
 
