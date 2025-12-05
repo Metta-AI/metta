@@ -15,26 +15,21 @@ from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult,
 logger = logging.getLogger(__name__)
 
 
-def _evaluate_simulation(
+def _run_single_simulation(
     *,
     sim_idx: int,
     simulation: "SimulationRunConfig",
     policy_specs: Sequence[PolicySpec],
     replay_dir: str | None,
     seed: int,
-    per_sim_replay_subdir: bool,
 ) -> "SimulationRunResult":
-    """Run one simulation using already materialized configs."""
-
     env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
     multi_agent_policies: list[MultiAgentPolicy] = [
         initialize_or_load_policy(env_interface, spec) for spec in policy_specs
     ]
 
-    replay_target = replay_dir
-    if replay_dir and per_sim_replay_subdir:
-        replay_target = os.path.join(replay_dir, f"sim_{sim_idx}")
-        os.makedirs(replay_target, exist_ok=True)
+    if replay_dir:
+        os.makedirs(replay_dir, exist_ok=True)
 
     rollout_result = multi_episode_rollout(
         env_cfg=simulation.env,
@@ -42,14 +37,14 @@ def _evaluate_simulation(
         episodes=simulation.num_episodes,
         seed=seed + sim_idx,
         proportions=simulation.proportions,
-        save_replay=replay_target,
+        save_replay=replay_dir,
         max_action_time_ms=simulation.max_action_time_ms,
     )
 
     return SimulationRunResult(run=simulation, results=rollout_result)
 
 
-def _run_single_simulation(
+def _run_single_simulation_from_payload(
     sim_idx: int,
     sim_payload: dict,
     policy_payloads: list[dict],
@@ -60,13 +55,15 @@ def _run_single_simulation(
 
     simulation = SimulationRunConfig.model_validate(sim_payload)
     policy_specs = [PolicySpec.model_validate(spec_payload) for spec_payload in policy_payloads]
-    return _evaluate_simulation(
+    per_sim_replay_dir = None
+    if replay_dir:
+        per_sim_replay_dir = os.path.join(replay_dir, f"sim_{sim_idx}")
+    return _run_single_simulation(
         sim_idx=sim_idx,
         simulation=simulation,
         policy_specs=policy_specs,
-        replay_dir=replay_dir,
+        replay_dir=per_sim_replay_dir,
         seed=seed,
-        per_sim_replay_subdir=True,
     )
 
 
@@ -108,13 +105,12 @@ def run_simulations(
         for i, simulation in enumerate(simulations):
             on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
             simulation_rollouts.append(
-                _evaluate_simulation(
+                _run_single_simulation(
                     sim_idx=i,
                     simulation=simulation,
                     policy_specs=materialized_specs,
                     replay_dir=replay_dir,
                     seed=seed,
-                    per_sim_replay_subdir=False,
                 )
             )
             on_progress(f"Finished rollout for simulation {i + 1} of {len(simulations)}")
@@ -136,7 +132,7 @@ def run_simulations(
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_context) as executor:
         future_to_idx = {
             executor.submit(
-                _run_single_simulation,
+                _run_single_simulation_from_payload,
                 idx,
                 payload,
                 policy_payloads,
