@@ -94,7 +94,7 @@ class EvaluateTool(Tool):
 
         if primary_policy_version and stats_client:
             policy_version_ids = [str(pv.id) for pv in policy_versions if pv]
-            if not all(policy_version_ids):
+            if not all(policy_version_ids) or len(policy_version_ids) != len(policy_uris):
                 raise ValueError("All policy URIs must specify a policy registered in the stats server")
             observatory_writer = ObservatoryWriter(
                 stats_client=stats_client,
