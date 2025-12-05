@@ -39,6 +39,11 @@ class EvaluatorConfig(Config):
     evaluate_local: bool = True
     evaluate_remote: bool = False
     num_training_tasks: int = 2
+    parallel_evals: int = Field(
+        default=9,
+        description="Max number of simulations to run in parallel during eval; set to 1 to keep sequential",
+        ge=1,
+    )
     simulations: list[SimulationConfig] = Field(default_factory=list)
     training_replay_envs: list[SimulationConfig] = Field(
         default_factory=list,
@@ -189,6 +194,7 @@ class Evaluator(TrainerComponent):
 
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
+        sim_run_configs = [sim.to_simulation_run_config() for sim in sims]
         policy_spec = policy_spec_from_uri(policy_uri, device=str(self._device))
         policy_version_id: uuid.UUID | None = None
         if self._stats_client:
@@ -202,7 +208,10 @@ class Evaluator(TrainerComponent):
         # Remote evaluation
         if self._evaluate_remote and self._stats_client and policy_version_id:
             response = evaluate_remotely(
-                policy_version_id, [sim.to_simulation_run_config() for sim in sims], self._stats_client, self._git_hash
+                policy_version_id,
+                sim_run_configs,
+                self._stats_client,
+                self._git_hash,
             )
             logger.info(f"Created remote evaluation task {response}")
 
@@ -233,9 +242,10 @@ class Evaluator(TrainerComponent):
 
             rollout_results = simulate_and_record(
                 policy_specs=[policy_spec],
-                simulations=[sim.to_simulation_run_config() for sim in sims],
+                simulations=sim_run_configs,
                 replay_dir=self._replay_dir,
                 seed=self._seed,
+                max_workers=self._config.parallel_evals,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
                 on_progress=on_progress,
