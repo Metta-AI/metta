@@ -31,7 +31,7 @@ data "aws_secretsmanager_secret" "datadog_api_key" {
   name = "datadog/api-key"
 }
 
-data "kubernetes_secret" "skypilot_db_connection" {
+resource "kubernetes_secret" "skypilot_db_connection" {
   metadata {
     name      = "skypilot-db-connection-uri"
     namespace = "skypilot"
