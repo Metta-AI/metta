@@ -13,7 +13,11 @@ from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.util.file import ParsedURI
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, parse_uri, policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import (
+    checkpoint_filename,
+    parse_uri,
+    policy_spec_from_uri,
+)
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig

@@ -304,7 +304,6 @@ TEST_F(MettaGridCppTest, AgentInventoryStatsUpdate) {
                   60.0f);  // 15 + 45 (from filling to limit)
   EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".lost"), 10.0f);
 }
-
 // Test for reward capping behavior with a lower cap to actually hit it
 TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   // Create a custom config with a lower ore reward cap that we can actually hit
