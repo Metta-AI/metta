@@ -1,17 +1,12 @@
 "use client";
 import { type FC, useEffect, useMemo, useState } from "react";
 
-import {
-  EditableSuggestion,
-  EditableTextNode,
-} from "@/components/EditableTextNode";
-import { EditIcon } from "@/components/icons/EditIcon";
+import { EditableNode, EditableSuggestion } from "@/components/EditableNode";
 import { getMissions, type MissionWithFullConfig } from "@/lib/api/cogames";
 
 export const MissionTitle: FC<{ mission: MissionWithFullConfig }> = ({
   mission,
 }) => {
-  const [mode, setMode] = useState<"edit" | "view">("view");
   const [suggestions, setSuggestions] = useState<EditableSuggestion[]>([]);
   const [filter, setFilter] = useState<string>("");
 
@@ -23,7 +18,7 @@ export const MissionTitle: FC<{ mission: MissionWithFullConfig }> = ({
           const text = `${m.mission.site.name}.${m.mission.name}`;
           return {
             text: text,
-            hyperlink: `/cogames/missions/view/${encodeURIComponent(text)}`,
+            href: `/cogames/missions/view/${encodeURIComponent(text)}`,
           };
         });
         setSuggestions(allSuggestions);
@@ -47,17 +42,15 @@ export const MissionTitle: FC<{ mission: MissionWithFullConfig }> = ({
   return (
     <h1 className="font-mono text-2xl font-bold text-gray-700">
       <span className="text-gray-500">CoGames Mission: </span>
-      <EditableTextNode
+      <EditableNode
         text={`${mission.mission.site.name}.${mission.mission.name}`}
         suggestions={filteredSuggestions}
-        mode={mode}
-        onModeChange={(m) => (m === "view" ? setMode("view") : setMode("edit"))}
         onChange={setFilter}
-      />
-      <EditIcon
-        className="ml-2 inline align-middle"
-        onClick={() => setMode("edit")}
-      />
+      >
+        {mission.mission.site.name}
+        <span className="text-gray-500">.</span>
+        {mission.mission.name}
+      </EditableNode>
     </h1>
   );
 };

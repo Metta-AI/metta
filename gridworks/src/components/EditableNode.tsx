@@ -1,42 +1,44 @@
 "use client";
-import { type FC, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { type FC, useMemo, useState } from "react";
 import Select, { type InputActionMeta, type SingleValue } from "react-select";
+
+import { EditIcon } from "@/components/icons/EditIcon";
 
 type Mode = "edit" | "view";
 
 export type EditableSuggestion = {
   text: string;
-  hyperlink?: string;
+  href: string;
 };
 
 type Props = {
+  children: React.ReactNode;
   text: string;
-  mode: Mode;
-  href?: string;
   suggestions?: EditableSuggestion[];
   onChange?: (text: string) => void;
-  onModeChange?: (mode: Mode) => void;
 };
 
 type OptionType = {
   value: string;
   label: string;
-  href: string | undefined;
+  href: string;
 };
 
-export const EditableTextNode: FC<Props> = ({
+export const EditableNode: FC<Props> = ({
+  children,
   text,
-  mode,
-  href,
   suggestions,
-  onModeChange,
   onChange,
 }) => {
+  const router = useRouter();
+  const [mode, setMode] = useState<Mode>("view");
+
   const options = useMemo(() => {
     return suggestions?.map((s) => ({
       value: s.text,
       label: s.text,
-      href: s.hyperlink,
+      href: s.href,
     }));
   }, [suggestions]);
 
@@ -53,16 +55,13 @@ export const EditableTextNode: FC<Props> = ({
   function onOptionSelect(selectedOption: SingleValue<OptionType>) {
     if (selectedOption) {
       onChange?.(selectedOption.value);
-
-      if (selectedOption.href) {
-        window.location.href = selectedOption.href;
-      }
+      router.push(selectedOption.href);
     }
   }
 
-  if (mode === "edit") {
-    return (
-      <span className="inline-block">
+  return (
+    <span className="inline-flex items-center gap-1">
+      {mode === "edit" ? (
         <Select
           autoFocus
           isSearchable
@@ -70,7 +69,11 @@ export const EditableTextNode: FC<Props> = ({
           styles={{
             menu: (base) => ({
               ...base,
-              minWidth: "450px",
+              minWidth: "fit-content",
+            }),
+            menuList: (base) => ({
+              ...base,
+              minWidth: "fit-content",
             }),
             option: (_, props) => ({
               fontSize: "1rem",
@@ -84,20 +87,16 @@ export const EditableTextNode: FC<Props> = ({
           value={selectedOption}
           onInputChange={onInputChange}
           onChange={onOptionSelect}
-          onBlur={() => onModeChange?.("view")}
+          onBlur={() => setMode("view")}
           placeholder={text}
         />
-      </span>
-    );
-  }
-
-  if (href) {
-    return (
-      <a href={href} className="hover:underline">
-        {text}
-      </a>
-    );
-  }
-
-  return <span onClick={() => onModeChange?.("edit")}>{text}</span>;
+      ) : (
+        <span>{children}</span>
+      )}
+      <EditIcon
+        className="cursor-pointer"
+        onClick={() => setMode((m) => (m === "edit" ? "view" : "edit"))}
+      />
+    </span>
+  );
 };

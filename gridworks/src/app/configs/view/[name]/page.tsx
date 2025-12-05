@@ -1,13 +1,12 @@
 import { StyledLink } from "@/components/StyledLink";
 import { configsRoute } from "@/lib/routes";
 
-import { getConfig, GroupedConfigMakers } from "../../../../lib/api";
+import { getConfig } from "../../../../lib/api";
 import { ConfigViewScreen } from "./ConfigViewScreen";
 import { ConfigViewTitle } from "./ConfigViewTitle";
 
 interface ConfigViewPage {
   params: Promise<{ name: string }>;
-  allConfigs: GroupedConfigMakers;
 }
 
 export default async function ConfigViewPage({ params }: ConfigViewPage) {

@@ -1,11 +1,7 @@
 "use client";
 import { type FC, useEffect, useMemo, useState } from "react";
 
-import {
-  EditableSuggestion,
-  EditableTextNode,
-} from "@/components/EditableTextNode";
-import { EditIcon } from "@/components/icons/EditIcon";
+import { EditableNode, EditableSuggestion } from "@/components/EditableNode";
 import { listConfigMakers, type MakerConfig } from "@/lib/api";
 
 type Props = {
@@ -13,28 +9,21 @@ type Props = {
 };
 
 export const ConfigViewTitle: FC<Props> = ({ maker }) => {
-  const [mode, setMode] = useState<"edit" | "view">("view");
   const [suggestions, setSuggestions] = useState<EditableSuggestion[]>([]);
   const [filter, setFilter] = useState<string>("");
 
   useEffect(() => {
     async function fetchConfigs() {
       try {
-        const cfgs = await listConfigMakers();
-        if (!cfgs) return;
+        const configs = await listConfigMakers();
+        if (!configs) return;
 
-        const allSuggestions: EditableSuggestion[] = [];
-        for (const kind of Object.keys(cfgs)) {
-          const cfgList = cfgs[kind as keyof typeof cfgs];
-          if (!cfgList) continue;
-
-          for (const cfg of cfgList) {
-            allSuggestions.push({
-              text: cfg.path,
-              hyperlink: `/configs/view/${encodeURIComponent(cfg.path)}`,
-            });
-          }
-        }
+        const allSuggestions = Object.values(configs)
+          .flatMap((list) => list ?? [])
+          .map((config) => ({
+            text: config.path,
+            href: `/configs/view/${encodeURIComponent(config.path)}`,
+          }));
 
         setSuggestions(allSuggestions);
       } catch (error) {
@@ -55,23 +44,19 @@ export const ConfigViewTitle: FC<Props> = ({ maker }) => {
 
   return (
     <h1 className="text-2xl font-bold">
-      <span
-        className="mr-2 cursor-pointer rounded pl-1 hover:bg-gray-200"
-        onClick={() => setMode((m) => (m === "view" ? "edit" : "view"))}
-      >
-        <EditIcon className="inline align-middle" />
-      </span>
-      <span>
-        <div className="inline hover:underline">
-          <EditableTextNode
-            text={maker.path}
-            mode={mode}
+      <span className="inline hover:underline">
+        <EditableNode
+          text={maker.path}
+          onChange={setFilter}
+          suggestions={filteredSuggestions}
+        >
+          <a
+            className="hover:underline"
             href={`cursor://file${maker.absolute_path}:${maker.line}`}
-            onModeChange={(newMode) => setMode(newMode)}
-            onChange={setFilter}
-            suggestions={filteredSuggestions}
-          />
-        </div>
+          >
+            {maker.path}
+          </a>
+        </EditableNode>
       </span>
       <span className="text-xl text-gray-400"> &rarr;</span>
       <span className="text-xl text-gray-500"> {maker.kind}</span>
