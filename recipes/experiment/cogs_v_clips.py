@@ -78,12 +78,20 @@ def _normalize_variant_names(
 ) -> list[str]:
     names: list[str] = []
     for source in (initial, variants):
-        if not source:
-            continue
-        for name in source:
-            if name not in names:
-                names.append(name)
-    return names
+        if source:
+            names.extend(source)
+    return list(dict.fromkeys(names))
+
+
+def _default_lp_config(enable_detailed_slice_logging: bool) -> LearningProgressConfig:
+    return LearningProgressConfig(
+        use_bidirectional=True,
+        ema_timescale=0.001,
+        exploration_bonus=0.1,
+        max_memory_tasks=2000,
+        max_slice_axes=4,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+    )
 
 
 def _resolve_mission_template(name: str) -> Mission:
@@ -124,6 +132,27 @@ def _prepare_mission(
         mission = mission.with_variants(variant_objects)
     mission = mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
     return mission
+
+
+def _apply_cvc_defaults(trainer_cfg: TrainerConfig) -> None:
+    clip = 0.22017136216163635
+    gae = 0.9900000095367432
+    vf = 0.49657103419303894
+
+    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
+    trainer_cfg.optimizer.eps = 5.0833278919526e-07
+
+    trainer_cfg.losses.ppo.clip_coef = clip
+    trainer_cfg.losses.ppo.gae_lambda = gae
+    trainer_cfg.losses.ppo.vf_coef = vf
+
+    trainer_cfg.losses.ppo_actor.clip_coef = clip
+
+    trainer_cfg.losses.ppo_critic.gae_lambda = gae
+    trainer_cfg.losses.ppo_critic.vf_coef = vf
+
+    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = gae
+    trainer_cfg.losses.quantile_ppo_critic.vf_coef = vf
 
 
 def make_eval_suite(
@@ -264,19 +293,103 @@ def make_curriculum(
     merged_tasks = cc.merge(all_mission_tasks)
 
     if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,
-            ema_timescale=0.001,
-            exploration_bonus=0.1,
-            max_memory_tasks=2000,
-            max_slice_axes=4,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-        )
+        algorithm_config = _default_lp_config(enable_detailed_slice_logging)
 
     return merged_tasks.to_curriculum(
         num_active_tasks=1500,
         algorithm_config=algorithm_config,
     )
+
+
+def _bc_window_steps(bc_policy_uri: Optional[str], bc_steps: Optional[int]) -> tuple[int, int, int]:
+    steps = 0 if bc_policy_uri is None and bc_steps is None else (bc_steps if bc_steps is not None else 99999)
+    bc_steps_actual = int(steps * 1_000_000)
+    return bc_steps_actual, int(bc_steps_actual * 0.5), bc_steps_actual
+
+
+def _ppo_run_gates(start_step: int) -> list[LossRunGate]:
+    return [
+        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=start_step),
+        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=start_step),
+        LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=start_step),
+        LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=start_step),
+    ]
+
+
+def _configure_bc(
+    tt: TrainTool,
+    *,
+    bc_policy_uri: str,
+    bc_mode: Literal["sliced_cloner", "supervisor"],
+    bc_teacher_lead_prob: float,
+    bc_steps_actual: int,
+    anneal_start: int,
+    anneal_end: int,
+) -> tuple[list[LossRunGate], list[HyperUpdateRule]]:
+    tt.training_env.supervisor_policy_uri = bc_policy_uri
+    losses = tt.trainer.losses
+    losses.ppo.enabled = False
+    losses.ppo_actor.enabled = True
+    losses.ppo_critic.enabled = True
+    losses.ppo_critic.deferred_training_start_step = bc_steps_actual
+
+    if bc_mode == "sliced_cloner":
+        losses.sliced_scripted_cloner.enabled = True
+        losses.supervisor.enabled = False
+
+        run_gates = [
+            LossRunGate(loss_instance_name="sliced_scripted_cloner", phase=phase, end_at_step=bc_steps_actual)
+            for phase in ("rollout", "train")
+        ]
+
+        rules = [
+            HyperUpdateRule(
+                loss_instance_name="sliced_scripted_cloner",
+                attr_path="teacher_led_proportion",
+                mode="progress",
+                style="linear",
+                start_value=0.2,
+                end_value=0.0,
+                start_agent_step=0,
+                end_agent_step=bc_steps_actual,
+            )
+        ]
+
+        return run_gates, rules
+
+    losses.supervisor.enabled = True
+    losses.sliced_scripted_cloner.enabled = False
+    losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+
+    run_gates = [
+        LossRunGate(loss_instance_name="action_supervisor", phase=phase, end_at_step=bc_steps_actual)
+        for phase in ("rollout", "train")
+    ]
+
+    rules = [
+        HyperUpdateRule(
+            loss_instance_name="action_supervisor",
+            attr_path="action_loss_coef",
+            mode="progress",
+            style="linear",
+            start_value=1.0,
+            end_value=0.0,
+            start_agent_step=anneal_start,
+            end_agent_step=anneal_end,
+        ),
+        HyperUpdateRule(
+            loss_instance_name="action_supervisor",
+            attr_path="teacher_lead_prob",
+            mode="progress",
+            style="linear",
+            start_value=bc_teacher_lead_prob,
+            end_value=0.0,
+            start_agent_step=anneal_start,
+            end_agent_step=anneal_end,
+        ),
+    ]
+
+    return run_gates, rules
 
 
 # How to submit a policy trained here to the CoGames leaderboard:
@@ -325,21 +438,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
     )
-    # Inline CVC defaults from the latest sweep (Dec 2025)
-    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
-    trainer_cfg.optimizer.eps = 5.0833278919526e-07
-
-    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
-    trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
-
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
-
-    trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
-
-    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
+    _apply_cvc_defaults(trainer_cfg)
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
@@ -362,103 +461,24 @@ def train(
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
 
-    # Configure BC-to-PPO annealing schedule
-    # bc_steps is in millions of agent steps (e.g., bc_steps=5 means 5M steps)
-    if bc_policy_uri is None:
-        bc_steps = 0 if bc_steps is None else bc_steps
-    elif bc_steps is None:
-        bc_steps = 99999
+    bc_steps_actual, anneal_start, anneal_end = _bc_window_steps(bc_policy_uri, bc_steps)
 
-    bc_steps_actual = int(bc_steps * 1_000_000)
-    anneal_start = int(bc_steps_actual * 0.5)
-    anneal_end = bc_steps_actual
-
-    scheduler_run_gates: list[LossRunGate] = [
-        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_steps_actual),
-        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=bc_steps_actual),
-        LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_steps_actual),
-        LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=bc_steps_actual),
-    ]
+    scheduler_run_gates: list[LossRunGate] = _ppo_run_gates(bc_steps_actual)
     scheduler_rules: list[HyperUpdateRule] = []
 
     if bc_policy_uri is not None:
-        tt.training_env.supervisor_policy_uri = bc_policy_uri
+        run_gates, rules = _configure_bc(
+            tt,
+            bc_policy_uri=bc_policy_uri,
+            bc_mode=bc_mode,
+            bc_teacher_lead_prob=bc_teacher_lead_prob,
+            bc_steps_actual=bc_steps_actual,
+            anneal_start=anneal_start,
+            anneal_end=anneal_end,
+        )
 
-        # Keep PPO disabled until after the BC window; gates above will enable it
-        tt.trainer.losses.ppo.enabled = False
-        tt.trainer.losses.ppo_actor.enabled = True
-        tt.trainer.losses.ppo_critic.enabled = True
-        tt.trainer.losses.ppo_critic.deferred_training_start_step = bc_steps_actual
-
-        if bc_mode == "sliced_cloner":
-            tt.trainer.losses.sliced_scripted_cloner.enabled = True
-            tt.trainer.losses.supervisor.enabled = False
-
-            scheduler_run_gates += [
-                LossRunGate(
-                    loss_instance_name="sliced_scripted_cloner",
-                    phase="rollout",
-                    end_at_step=bc_steps_actual,
-                ),
-                LossRunGate(
-                    loss_instance_name="sliced_scripted_cloner",
-                    phase="train",
-                    end_at_step=bc_steps_actual,
-                ),
-            ]
-
-            scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="sliced_scripted_cloner",
-                    attr_path="teacher_led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=0.2,
-                    end_value=0.0,
-                    start_agent_step=0,
-                    end_agent_step=bc_steps_actual,
-                )
-            )
-        else:
-            tt.trainer.losses.supervisor.enabled = True
-            tt.trainer.losses.sliced_scripted_cloner.enabled = False
-            tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
-
-            scheduler_run_gates += [
-                LossRunGate(
-                    loss_instance_name="action_supervisor",
-                    phase="rollout",
-                    end_at_step=bc_steps_actual,
-                ),
-                LossRunGate(
-                    loss_instance_name="action_supervisor",
-                    phase="train",
-                    end_at_step=bc_steps_actual,
-                ),
-            ]
-
-            scheduler_rules += [
-                HyperUpdateRule(
-                    loss_instance_name="action_supervisor",
-                    attr_path="action_loss_coef",
-                    mode="progress",
-                    style="linear",
-                    start_value=1.0,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=anneal_end,
-                ),
-                HyperUpdateRule(
-                    loss_instance_name="action_supervisor",
-                    attr_path="teacher_lead_prob",
-                    mode="progress",
-                    style="linear",
-                    start_value=bc_teacher_lead_prob,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=anneal_end,
-                ),
-            ]
+        scheduler_run_gates += run_gates
+        scheduler_rules += rules
 
     tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
@@ -496,14 +516,7 @@ def train_variants(
     merged_tasks = cc.merge(all_variant_tasks)
 
     if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,
-            ema_timescale=0.001,
-            exploration_bonus=0.1,
-            max_memory_tasks=2000,
-            max_slice_axes=4,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-        )
+        algorithm_config = _default_lp_config(enable_detailed_slice_logging)
 
     curriculum = merged_tasks.to_curriculum(
         num_active_tasks=1500,

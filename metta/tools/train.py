@@ -126,19 +126,7 @@ class TrainTool(Tool):
 
         self.training_env.seed += distributed_helper.get_rank()
 
-        supervisor_policy_spec = None
-        if self.training_env.supervisor_policy_uri:
-            sup_uri = self.training_env.supervisor_policy_uri
-            # Shorthand policy name (no scheme, no extension, nonexistent path)
-            if "://" not in sup_uri:
-                candidate = Path(sup_uri)
-                if candidate.suffix == "" and not candidate.exists():
-                    class_path = resolve_policy_class_path(sup_uri)
-                    supervisor_policy_spec = PolicySpec(class_path=class_path)
-                else:
-                    supervisor_policy_spec = policy_spec_from_uri(sup_uri)
-            else:
-                supervisor_policy_spec = policy_spec_from_uri(sup_uri)
+        supervisor_policy_spec = self._resolve_supervisor_policy_spec()
 
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 
@@ -205,6 +193,22 @@ class TrainTool(Tool):
             if sdpa_stack is not None:
                 sdpa_stack.close()
                 self._sdpa_context_stack = None
+
+    def _resolve_supervisor_policy_spec(self) -> PolicySpec | None:
+        sup_uri = self.training_env.supervisor_policy_uri
+        if not sup_uri:
+            return None
+
+        try:
+            return policy_spec_from_uri(sup_uri)
+        except Exception:
+            candidate = Path(sup_uri)
+            # Only fall back to shorthand class names when the string looks like one
+            if "://" in sup_uri or candidate.suffix or os.sep in sup_uri or candidate.parent != Path("."):
+                raise
+
+            class_path = resolve_policy_class_path(sup_uri)
+            return PolicySpec(class_path=class_path)
 
     def _initialize_trainer(
         self,

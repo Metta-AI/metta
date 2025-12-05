@@ -240,7 +240,8 @@ class DistributedPolicy(MultiAgentPolicy, DistributedDataParallel, metaclass=Pol
         kwargs = {
             "module": policy,
             "broadcast_buffers": False,
-            "find_unused_parameters": False,
+            # Allow heads that a given loss doesn't touch without tripping DDP
+            "find_unused_parameters": True,
         }
         if device.type != "cpu" and device.index is not None:
             kwargs.update({"device_ids": [device.index], "output_device": device.index})
