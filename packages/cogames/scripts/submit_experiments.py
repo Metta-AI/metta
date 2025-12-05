@@ -87,7 +87,6 @@ def submit_s3_successful_missions_experiment():
         "easy_hearts_training",
         "easy_hearts_training_facility",
         "easy_medium_hearts",
-        "easy_mode",
         "easy_small_hearts",
         "go_together",
         "repair",
