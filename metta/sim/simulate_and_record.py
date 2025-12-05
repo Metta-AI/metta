@@ -47,6 +47,7 @@ def simulate_and_record(
     simulations: Sequence[SimulationRunConfig],
     replay_dir: str,
     seed: int,
+    max_workers: int | None = None,
     observatory_writer: ObservatoryWriter | None = None,
     wandb_writer: WandbWriter | None = None,
     on_progress: Callable[[str], None] = lambda x: None,
@@ -56,6 +57,7 @@ def simulate_and_record(
         simulations=simulations,
         replay_dir=replay_dir,
         seed=seed,
+        max_workers=max_workers,
         on_progress=on_progress,
     )
 
