@@ -32,6 +32,8 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
+from mettagrid.policy.loader import resolve_policy_class_path
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
@@ -382,7 +384,18 @@ def train(
     scheduler_rules: list[HyperUpdateRule] = []
 
     if bc_policy_uri is not None:
-        tt.training_env.supervisor_policy_uri = bc_policy_uri
+        # Allow shorthand policy names (no scheme, no extension, nonexistent path)
+        if "://" not in bc_policy_uri:
+            candidate = Path(bc_policy_uri)
+            if candidate.suffix == "" and not candidate.exists():
+                class_path = resolve_policy_class_path(bc_policy_uri)
+                bc_policy_spec = PolicySpec(class_path=class_path)
+                tt.training_env.supervisor_policy_uri = None
+                tt.training_env.supervisor_policy_spec = bc_policy_spec  # type: ignore[attr-defined]
+            else:
+                tt.training_env.supervisor_policy_uri = bc_policy_uri
+        else:
+            tt.training_env.supervisor_policy_uri = bc_policy_uri
 
         # Keep PPO disabled until after the BC window; gates above will enable it
         tt.trainer.losses.ppo.enabled = False
