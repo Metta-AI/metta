@@ -303,7 +303,7 @@ class MettaRepo:
                     await cur.execute(
                         """
                         SELECT * FROM eval_tasks_view
-                        WHERE assignee = %s AND status = 'unprocessed' AND is_finished = FALSE
+                        WHERE assignee = %s AND is_finished = FALSE
                         ORDER BY created_at ASC
                         """,
                         (assignee,),
@@ -312,7 +312,7 @@ class MettaRepo:
                     await cur.execute(
                         """
                         SELECT * FROM eval_tasks_view
-                        WHERE status = 'unprocessed' AND assignee IS NOT NULL AND is_finished = FALSE
+                        WHERE assignee IS NOT NULL AND is_finished = FALSE
                         ORDER BY created_at ASC
                         """
                     )
