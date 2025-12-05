@@ -9,17 +9,6 @@ from cogames.main import app
 runner = CliRunner()
 
 
-def has_aws_credentials() -> bool:
-    """Check if AWS credentials are available."""
-    try:
-        import boto3
-
-        boto3.client("s3").list_buckets()
-        return True
-    except Exception:
-        return False
-
-
 @pytest.mark.parametrize("mission_name", get_all_missions())
 @pytest.mark.timeout(60)
 def test_mission_describe(mission_name):

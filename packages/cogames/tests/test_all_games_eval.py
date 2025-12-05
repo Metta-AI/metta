@@ -9,31 +9,15 @@ from cogames.main import app
 runner = CliRunner()
 
 
-def has_aws_credentials() -> bool:
-    """Check if AWS credentials are available."""
-    try:
-        import boto3
-
-        boto3.client("s3").list_buckets()
-        return True
-    except Exception:
-        return False
-
-
 @pytest.mark.parametrize("mission_name", get_all_missions())
 @pytest.mark.timeout(60)
 def test_mission_eval(mission_name: str):
     """Test that 'cogames eval' works for small games with random policy."""
-<<<<<<< HEAD
-    # Skip navigation missions in CI without AWS credentials
-    if "navigation" in mission_name and not has_aws_credentials():
+    if "navigation" in mission_name:
         pytest.skip("Navigation missions require S3 access (AWS credentials not available)")
 
-    result = subprocess.run(
-=======
     result = runner.invoke(
         app,
->>>>>>> a53e3b6b0bf7a7398addcb65dc850156cd57bac2
         [
             "evaluate",
             "-m",
