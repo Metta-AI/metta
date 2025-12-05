@@ -2,7 +2,7 @@ import logging
 import multiprocessing
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,14 +16,22 @@ logger = logging.getLogger(__name__)
 
 
 def _run_single_simulation(
-    *,
     sim_idx: int,
-    simulation: "SimulationRunConfig",
-    policy_specs: Sequence[PolicySpec],
+    simulation: "SimulationRunConfig" | dict[str, Any],
+    policy_data: Sequence[PolicySpec] | Sequence[dict[str, Any]],
     replay_dir: str | None,
     seed: int,
 ) -> "SimulationRunResult":
-    env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
+    sim_cfg = (
+        simulation if isinstance(simulation, SimulationRunConfig) else SimulationRunConfig.model_validate(simulation)
+    )
+    policy_specs = (
+        list(policy_data)
+        if policy_data and isinstance(policy_data[0], PolicySpec)
+        else [PolicySpec.model_validate(spec) for spec in policy_data]
+    )
+
+    env_interface = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
     multi_agent_policies: list[MultiAgentPolicy] = [
         initialize_or_load_policy(env_interface, spec) for spec in policy_specs
     ]
@@ -32,39 +40,16 @@ def _run_single_simulation(
         os.makedirs(replay_dir, exist_ok=True)
 
     rollout_result = multi_episode_rollout(
-        env_cfg=simulation.env,
+        env_cfg=sim_cfg.env,
         policies=multi_agent_policies,
-        episodes=simulation.num_episodes,
+        episodes=sim_cfg.num_episodes,
         seed=seed + sim_idx,
-        proportions=simulation.proportions,
+        proportions=sim_cfg.proportions,
         save_replay=replay_dir,
-        max_action_time_ms=simulation.max_action_time_ms,
+        max_action_time_ms=sim_cfg.max_action_time_ms,
     )
 
-    return SimulationRunResult(run=simulation, results=rollout_result)
-
-
-def _run_single_simulation_from_payload(
-    sim_idx: int,
-    sim_payload: dict,
-    policy_payloads: list[dict],
-    replay_dir: str | None,
-    seed: int,
-) -> "SimulationRunResult":
-    """Adapter for ProcessPool workers that rebuilds Pydantic models."""
-
-    simulation = SimulationRunConfig.model_validate(sim_payload)
-    policy_specs = [PolicySpec.model_validate(spec_payload) for spec_payload in policy_payloads]
-    per_sim_replay_dir = None
-    if replay_dir:
-        per_sim_replay_dir = os.path.join(replay_dir, f"sim_{sim_idx}")
-    return _run_single_simulation(
-        sim_idx=sim_idx,
-        simulation=simulation,
-        policy_specs=policy_specs,
-        replay_dir=per_sim_replay_dir,
-        seed=seed,
-    )
+    return SimulationRunResult(run=sim_cfg, results=rollout_result)
 
 
 class SimulationRunConfig(BaseModel):
@@ -105,13 +90,7 @@ def run_simulations(
         for i, simulation in enumerate(simulations):
             on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
             simulation_rollouts.append(
-                _run_single_simulation(
-                    sim_idx=i,
-                    simulation=simulation,
-                    policy_specs=materialized_specs,
-                    replay_dir=replay_dir,
-                    seed=seed,
-                )
+                _run_single_simulation(i, simulation, materialized_specs, replay_dir, seed)
             )
             on_progress(f"Finished rollout for simulation {i + 1} of {len(simulations)}")
 
@@ -132,11 +111,11 @@ def run_simulations(
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_context) as executor:
         future_to_idx = {
             executor.submit(
-                _run_single_simulation_from_payload,
+                _run_single_simulation,
                 idx,
                 payload,
                 policy_payloads,
-                replay_dir,
+                os.path.join(replay_dir, f"sim_{idx}") if replay_dir else None,
                 seed,
             ): idx
             for idx, payload in enumerate(simulation_payloads)
