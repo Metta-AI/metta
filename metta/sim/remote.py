@@ -17,7 +17,6 @@ def evaluate_remotely(
     command_parts = [
         "uv run tools/run.py recipes.experiment.remote_eval.eval",
         f"policy_version_id={str(policy_version_id)}",
-        f"stats_server_uri={stats_client._backend_url}",
     ]
     command = " ".join(command_parts)
     request = TaskCreateRequest(
