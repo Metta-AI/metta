@@ -4,10 +4,6 @@ from cogames.cogs_vs_clips.machina_missions_trainer import MACHINA_TRAINER_MISSI
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import (
-    EASY_MODE,
-    FIXED_30,
-    FIXED_50,
-    FIXED_70,
     HELLO_WORLD,
     MACHINA_1,
     TRAINING_FACILITY,
@@ -119,45 +115,7 @@ HelloWorldUnclipMission = Mission(
 )
 
 
-# Easy Mode: Simplified training mission with extractor hub and generous variants
-EasyMode = Mission(
-    name="easy_mode",
-    description="Easy training: extractor_hub_30 with lonely_heart, heart_chorus, and pack_rat variants.",
-    site=EASY_MODE,
-    variants=[
-        LonelyHeartVariant(),
-        HeartChorusVariant(),
-        PackRatVariant(),
-    ],
-)
-
-# Fixed extractor hub benchmarks (one mission per site)
-ExtractorHub30 = Mission(
-    name="extractor_hub",
-    description="Fixed-map extractor hub benchmark (30x30).",
-    site=FIXED_30,
-    variants=[],
-)
-
-ExtractorHub50 = Mission(
-    name="extractor_hub",
-    description="Fixed-map extractor hub benchmark (50x50).",
-    site=FIXED_50,
-    variants=[],
-)
-
-ExtractorHub70 = Mission(
-    name="extractor_hub",
-    description="Fixed-map extractor hub benchmark (70x70).",
-    site=FIXED_70,
-    variants=[],
-)
-
-
 MISSIONS: list[Mission] = [
-    ExtractorHub30,
-    ExtractorHub50,
-    ExtractorHub70,
     HarvestMission,
     VibeCheckMission,
     RepairMission,
@@ -167,7 +125,6 @@ MISSIONS: list[Mission] = [
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
     Machina1BalancedCornersMission,
-    EasyMode,
     *INTEGRATED_EVAL_MISSIONS,
     *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
     *MACHINA_TRAINER_MISSIONS,

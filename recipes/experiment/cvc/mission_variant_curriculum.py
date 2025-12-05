@@ -120,8 +120,8 @@ def resolve_missions(
         ['go_together', 'oxygen_bottleneck', ...]
         >>> resolve_missions(["eval_missions", "diagnostic_missions"])
         ['go_together', ..., 'diagnostic_assemble_seeded_near', ...]
-        >>> resolve_missions("extractor_hub_30,extractor_hub_50")
-        ['extractor_hub_30', 'extractor_hub_50']
+        >>> resolve_missions("energy_starved,oxygen_bottleneck")
+        ['energy_starved', 'oxygen_bottleneck']
     """
     # Handle None - default to all missions
     if missions is None:
@@ -200,7 +200,7 @@ def make_curriculum(
             - None: Uses FULL_CURRICULUM_MISSIONS
             - A mission set name: "eval_missions", "diagnostic_missions", "training_facility_missions", "all"
             - A comma-separated string of mission names or set names (e.g., "eval_missions,diagnostic_missions")
-            - A list of mission names or set names (e.g., ["eval_missions", "extractor_hub_30"])
+            - A list of mission names or set names (e.g., ["eval_missions", "energy_starved"])
         num_cogs: Number of agents per mission
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
