@@ -558,6 +558,7 @@ def _get_policy_action_space(policy_uri: str) -> Optional[int]:
 
     try:
         from mettagrid.policy.mpt_artifact import load_mpt
+
         artifact = load_mpt(policy_uri)
 
         # Look for actor head weight to determine action space

@@ -37,7 +37,11 @@ logger = logging.getLogger(__name__)
 
 # Single canonical curriculum list (fixed + procedural)
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    # Core hello_world missions
+    "fixed_30.extractor_hub",
+    "fixed_50.extractor_hub",
+    "fixed_70.extractor_hub",
+    # Fixed-map classics (now listed with their canonical names)
+    "easy_mode",
     "hello_world.easy_hearts",
     "hello_world.oxygen_bottleneck",
     "hello_world.energy_starved",
@@ -319,6 +323,7 @@ def train(
         losses=LossesConfig(),
     )
     # Inline CVC defaults from the latest sweep (Dec 2025)
+    trainer_cfg.total_timesteps = 936_831_488
     trainer_cfg.optimizer.learning_rate = 0.00737503357231617
     trainer_cfg.optimizer.eps = 5.0833278919526e-07
 
@@ -363,7 +368,7 @@ def train(
         tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
         tt.trainer.losses.ppo_critic.sample_enabled = False
         tt.trainer.losses.ppo_critic.train_forward_enabled = False
-        tt.training_env.supervisor_policy_uri = bc_policy_uri
+        tt.training_env.supervisor.policy = bc_policy_uri
         tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
 
     return tt
