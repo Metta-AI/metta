@@ -432,9 +432,6 @@ def train(
         tt.trainer.losses.ppo.enabled = False
         tt.trainer.losses.ppo_actor.enabled = True  # Enable but gate it
         tt.trainer.losses.ppo_critic.enabled = True
-        tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
-        tt.trainer.losses.ppo_critic.sample_enabled = False
-        tt.trainer.losses.ppo_critic.train_forward_enabled = False
         tt.trainer.losses.ppo_critic.deferred_training_start_step = bc_steps_actual
 
         if bc_mode == "sliced_cloner":
