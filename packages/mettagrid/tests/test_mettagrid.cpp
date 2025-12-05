@@ -217,6 +217,95 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   EXPECT_FLOAT_EQ(agent_reward, 6.25f);  // 50 * 0.125
 }
 
+TEST_F(MettaGridCppTest, AgentInventoryStatsUpdate) {
+  AgentConfig agent_cfg = create_test_agent_config();
+  auto resource_names = create_test_resource_names();
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
+
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+
+  // Test that stats are updated when inventory changes via inventory.update() directly
+  // This verifies the on_inventory_change callback mechanism
+
+  // Initial state: no stats should be set
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".amount"), 0.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".gained"), 0.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".lost"), 0.0f);
+
+  // Add items via inventory.update() directly (bypassing update_inventory)
+  InventoryDelta delta1 = agent->inventory.update(TestItems::ORE, 10);
+  EXPECT_EQ(delta1, 10);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 10);
+
+  // Verify stats were updated via callback
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".amount"), 10.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".gained"), 10.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".lost"), 0.0f);
+
+  // Add more items
+  InventoryDelta delta2 = agent->inventory.update(TestItems::ORE, 5);
+  EXPECT_EQ(delta2, 5);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 15);
+
+  // Verify stats accumulated correctly
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".amount"), 15.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".gained"), 15.0f);  // 10 + 5
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".lost"), 0.0f);
+
+  // Remove items
+  InventoryDelta delta3 = agent->inventory.update(TestItems::ORE, -7);
+  EXPECT_EQ(delta3, -7);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 8);
+
+  // Verify stats updated correctly
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".amount"), 8.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".gained"), 15.0f);  // Unchanged
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".lost"), 7.0f);     // 0 + 7
+
+  // Remove more items
+  InventoryDelta delta4 = agent->inventory.update(TestItems::ORE, -3);
+  EXPECT_EQ(delta4, -3);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 5);
+
+  // Verify stats updated correctly
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".amount"), 5.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".gained"), 15.0f);  // Unchanged
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".lost"), 10.0f);    // 7 + 3
+
+  // Test with a different resource (LASER)
+  InventoryDelta delta5 = agent->inventory.update(TestItems::LASER, 20);
+  EXPECT_EQ(delta5, 20);
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 20);
+
+  // Verify LASER stats were updated
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::LASER) + ".amount"), 20.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::LASER) + ".gained"), 20.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::LASER) + ".lost"), 0.0f);
+
+  // Test that zero delta doesn't update stats (but callback should still be called)
+  InventoryDelta delta6 = agent->inventory.update(TestItems::ORE, 0);
+  EXPECT_EQ(delta6, 0);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 5);
+
+  // Stats should remain unchanged (delta was 0, so no stats update in callback)
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".amount"), 5.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".gained"), 15.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".lost"), 10.0f);
+
+  // Test hitting limit - stats should reflect actual change, not attempted change
+  agent->inventory.update(TestItems::ORE, 50);                           // Fill to limit
+  InventoryDelta delta7 = agent->inventory.update(TestItems::ORE, 100);  // Try to add 100, but limit is 50
+  EXPECT_EQ(delta7, 0);                                                  // No change because already at limit
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 50);
+
+  // Stats should reflect only the actual change (0), so no update
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".amount"), 50.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".gained"),
+                  60.0f);  // 15 + 45 (from filling to limit)
+  EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".lost"), 10.0f);
+}
+
 // Test for reward capping behavior with a lower cap to actually hit it
 TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   // Create a custom config with a lower ore reward cap that we can actually hit
