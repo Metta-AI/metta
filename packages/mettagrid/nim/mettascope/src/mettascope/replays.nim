@@ -667,7 +667,7 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     if "type_name" in obj:
       resolvedTypeName = obj["type_name"].getStr
 
-    if resolvedTypeName.len == 0 and "type_id" in obj:
+    if resolvedTypeName == "unknown" and "type_id" in obj:
       let candidateId = obj["type_id"].getInt
       if candidateId >= 0 and candidateId < replay.typeNames.len:
         resolvedTypeName = replay.typeNames[candidateId]
