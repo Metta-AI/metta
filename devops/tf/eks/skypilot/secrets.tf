@@ -30,3 +30,14 @@ resource "kubernetes_secret" "skypilot_api_server_credentials" {
 data "aws_secretsmanager_secret" "datadog_api_key" {
   name = "datadog/api-key"
 }
+
+data "kubernetes_secret" "skypilot_db_connection" {
+  metadata {
+    name      = "skypilot-db-connection-uri"
+    namespace = "skypilot"
+  }
+
+  data = {
+    connection_string = local.postgres_url
+  }
+}
