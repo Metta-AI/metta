@@ -154,6 +154,17 @@ ExtractorHub70 = Mission(
 )
 
 
+EasyModeHelloWorldMission = Mission(
+    name="easy_mode_hello_world",
+    description="Easy training: extractor_hub_30 with lonely_heart, heart_chorus, and pack_rat variants.",
+    site=HELLO_WORLD,
+    variants=[
+        LonelyHeartVariant(),
+        HeartChorusVariant(),
+        PackRatVariant(),
+    ],
+)
+
 MISSIONS: list[Mission] = [
     ExtractorHub30,
     ExtractorHub50,
@@ -166,6 +177,7 @@ MISSIONS: list[Mission] = [
     HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
+    EasyModeHelloWorldMission,
     Machina1BalancedCornersMission,
     EasyMode,
     *INTEGRATED_EVAL_MISSIONS,

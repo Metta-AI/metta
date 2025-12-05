@@ -392,12 +392,13 @@ proc step*(
     # Deposit heart into the chest.
     if invHeart > 0:
 
-      # Reset the targets when we deposit hearts.
+      # Reset targets to 0 so they get re-read from recipe on next cycle.
+      # (Previously used hardcoded defaults which broke variant recipes)
       log "depositing hearts"
-      agent.carbonTarget = PutCarbonAmount
-      agent.oxygenTarget = PutOxygenAmount
-      agent.germaniumTarget = PutGermaniumAmount
-      agent.siliconTarget = PutSiliconAmount
+      agent.carbonTarget = 0
+      agent.oxygenTarget = 0
+      agent.germaniumTarget = 0
+      agent.siliconTarget = 0
 
       let depositAction = agent.cfg.actions.vibeHeartB
       let depositVibe = agent.cfg.vibes.heartB
