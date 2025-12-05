@@ -227,9 +227,14 @@ class CurriculumConfig(Config):
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
 
-    algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
-        default=None, description="Curriculum algorithm hyperparameters"
-    )
+    algorithm_config: Optional[
+        Union[
+            "DiscreteRandomConfig",
+            "LearningProgressConfig",
+            "PrioritizedRegretConfig",
+            "RegretLearningProgressConfig",
+        ]
+    ] = Field(default=None, description="Curriculum algorithm hyperparameters")
 
     @classmethod
     def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
@@ -472,6 +477,8 @@ class Curriculum(StatsLogger):
 # Import concrete config classes at the end to avoid circular imports
 # ruff: noqa: E402
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.prioritized_regret_algorithm import PrioritizedRegretConfig
+from metta.cogworks.curriculum.regret_learning_progress_algorithm import RegretLearningProgressConfig
 
 # Rebuild the model to resolve forward references
 CurriculumConfig.model_rebuild()

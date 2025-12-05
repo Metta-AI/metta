@@ -3,6 +3,12 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
 from .curriculum_env import CurriculumEnv
 from .learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+from .prioritized_regret_algorithm import PrioritizedRegretAlgorithm, PrioritizedRegretConfig
+from .regret_learning_progress_algorithm import (
+    RegretLearningProgressAlgorithm,
+    RegretLearningProgressConfig,
+)
+from .regret_tracker import RegretTracker
 from .stats import SliceAnalyzer, StatsLogger
 from .task_generator import (
     AnyTaskGeneratorConfig,
@@ -21,6 +27,11 @@ __all__ = [
     "CurriculumTask",
     "LearningProgressAlgorithm",
     "LearningProgressConfig",
+    "PrioritizedRegretAlgorithm",
+    "PrioritizedRegretConfig",
+    "RegretLearningProgressAlgorithm",
+    "RegretLearningProgressConfig",
+    "RegretTracker",
     "StatsLogger",
     "SliceAnalyzer",
     "TaskTracker",
