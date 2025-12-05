@@ -52,8 +52,6 @@ public:
 
   void set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory);
 
-  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta);
-
   void on_inventory_change(InventoryItem item, InventoryDelta delta) override;
 
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr);
