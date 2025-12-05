@@ -74,9 +74,6 @@ class EvaluateTool(Tool):
         else:
             policy_uris = list(self.policy_uris)
 
-        if not self.stats_server_uri:
-            raise ValueError("stats_server_uri is required")
-
         policy_specs = [policy_spec_from_uri(resolve_uri(uri)) for uri in policy_uris]
 
         observatory_writer: ObservatoryWriter | None = None
@@ -84,12 +81,18 @@ class EvaluateTool(Tool):
         wandb_context = contextlib.nullcontext(None)
         primary_policy_version: PolicyVersionWithName | None = None
 
-        stats_client = StatsClient.create(self.stats_server_uri)
+        stats_client: StatsClient | None = None
+        if self.push_metrics_to_wandb or any(uri.startswith("metta://") for uri in policy_uris):
+            if not self.stats_server_uri:
+                raise ValueError("stats_server_uri is required when using metta:// policies or pushing metrics")
+            stats_client = StatsClient.create(self.stats_server_uri)
 
-        policy_versions = [self._get_policy_version(uri) for uri in policy_uris]
+        policy_versions = (
+            [self._get_policy_version(uri) for uri in policy_uris] if stats_client else [None for _ in policy_uris]
+        )
         primary_policy_version = policy_versions[0]
 
-        if primary_policy_version:
+        if primary_policy_version and stats_client:
             policy_version_ids = [str(pv.id) for pv in policy_versions if pv]
             if not all(policy_version_ids):
                 raise ValueError("All policy URIs must specify a policy registered in the stats server")
