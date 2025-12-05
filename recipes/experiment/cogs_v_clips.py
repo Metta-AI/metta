@@ -8,6 +8,7 @@ recipes should import from here and extend via custom defaults, similar to how
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Literal, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
