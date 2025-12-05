@@ -124,7 +124,7 @@ class TrainingVariant(MissionVariant):
         # Modify chest to only deposit hearts by default (not all resources)
         chest = env.game.objects.get("chest")
         if isinstance(chest, ChestConfig):
-            chest.vibe_transfers={
+            chest.vibe_transfers = {
                 "heart_b": {"heart": 1},
                 "carbon_a": {"carbon": -10},
                 "carbon_b": {"carbon": 10},

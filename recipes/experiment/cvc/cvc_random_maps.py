@@ -185,10 +185,21 @@ def make_random_maps_curriculum(
             # Easy: default vibe also works
             _make_assembler_protocols(["default", "heart_a", "heart_b"]),
             # All vibes work
-            _make_assembler_protocols([
-                "default", "heart_a", "heart_b", "carbon_a", "carbon_b",
-                "oxygen_a", "oxygen_b", "germanium_a", "germanium_b", "silicon_a", "silicon_b",
-            ]),
+            _make_assembler_protocols(
+                [
+                    "default",
+                    "heart_a",
+                    "heart_b",
+                    "carbon_a",
+                    "carbon_b",
+                    "oxygen_a",
+                    "oxygen_b",
+                    "germanium_a",
+                    "germanium_b",
+                    "silicon_a",
+                    "silicon_b",
+                ]
+            ),
         ],
     )
 
