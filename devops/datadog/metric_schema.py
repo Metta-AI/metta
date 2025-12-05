@@ -7,7 +7,7 @@ Each entry describes a workflow category, its workflows, and the metrics (with s
 conditions) that populate both the summary and detailed dashboards.
 """
 
-from typing import Dict, List, TypedDict
+from typing import List, TypedDict
 
 
 class MetricDefinition(TypedDict):
