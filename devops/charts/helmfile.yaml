@@ -9,8 +9,8 @@ repositories:
     url: https://kubernetes-sigs.github.io/metrics-server/
   - name: skypilot
     url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.3
-  # - name: skypilot-beta
-  #   url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.3
+  - name: skypilot-beta
+    url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.5
   - name: datadog
     url: https://helm.datadoghq.com
 
@@ -124,19 +124,21 @@ releases:
   #   kubectl get secret $s --namespace=skypilot -o yaml | sed 's/namespace: .*/namespace: skypilot-beta/' | kubectl apply -f -
   # done
 
-  # - name: skypilot-beta
-  #   chart: skypilot-beta/skypilot
-  #   version: 0.0.0
-  #   namespace: skypilot-beta
-  #   values:
-  #     - ./helm.values/skypilot-values.yaml
-  #     - apiService:
-  #         image: berkeleyskypilot/skypilot:0.10.3
-  #       rbac:
-  #         manageRbacPolicies: false
-  #         manageSystemComponents: false
-  #       ingress:
-  #         host: skypilot-api-beta.softmax-research.net
+  - name: skypilot-beta
+    chart: skypilot-beta/skypilot
+    version: 0.0.0
+    namespace: skypilot-beta
+    values:
+      - ./helm.values/skypilot-values.yaml
+      - apiService:
+          image: berkeleyskypilot/skypilot:0.10.5
+          dbConnectionSecretName: skypilot-beta-db-connection-uri
+          config: null
+        rbac:
+          manageRbacPolicies: false
+          manageSystemComponents: false
+        ingress:
+          host: skypilot-api-beta.softmax-research.net
 
   ########## Softmax apps ##########
   - name: orchestrator
