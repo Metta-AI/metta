@@ -147,6 +147,7 @@ class EvaluatePolicyVersionTool(Tool):
     group: str | None = None  # Separate group parameter like in train.py
     write_to_wandb: bool = True
     device: str = "cpu"
+    max_workers: int = 3  # set to number of cpus requested for remote eval workers
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.stats_server_uri is None:
@@ -188,5 +189,6 @@ class EvaluatePolicyVersionTool(Tool):
                 seed=self.system.seed,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
+                max_workers=self.max_workers,
             )
         render_eval_summary(rollout_results, policy_names=[_spec_display_name(policy_spec)])
