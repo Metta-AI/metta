@@ -20,7 +20,6 @@ from pathlib import Path
 REQUIRED_NIM_VERSION = "2.2.6"
 REQUIRED_NIMBY_VERSION = "0.1.13"
 MIN_BAZEL_VERSION = "7.0.0"
-DEFAULT_BAZEL_VERSION = "latest"
 BAZELISK_VERSION = "v1.19.0"
 
 
@@ -51,16 +50,6 @@ def error(message: str) -> None:
     _log("ERROR", message)
 
 
-def _safe_unlink(path: Path) -> None:
-    """Safely remove a file/symlink, logging warnings on failure."""
-    try:
-        path.unlink(missing_ok=True)
-    except PermissionError:
-        warning(f"Unable to remove {path}: permission denied")
-    except Exception as exc:
-        warning(f"Unable to remove {path}: {exc}")
-
-
 def get_install_dir() -> Path | None:
     path_dirs = os.environ.get("PATH", "").split(os.pathsep)
     for dir_str in TARGET_INSTALL_DIRS:
@@ -69,29 +58,6 @@ def get_install_dir() -> Path | None:
             if dir_path.exists() and (os.access(dir_path, os.W_OK) or (hasattr(os, "geteuid") and os.geteuid() == 0)):
                 return dir_path
     return None
-
-
-def ensure_bazel_version_file(version: str) -> None:
-    """Ensure a workspace-level .bazelversion exists to pin Bazelisk."""
-    try:
-        workspace = Path.cwd()
-        version_file = workspace / ".bazelversion"
-        if version_file.exists():
-            return
-        # Check if directory is writable (skip in Docker builds or read-only contexts)
-        if not os.access(workspace, os.W_OK):
-            return  # Not writable, skip silently
-        version_file.write_text(f"{version}\n")
-        info(f"Created {version_file} to request Bazel '{version}'.")
-    except Exception:  # pragma: no cover - silently fail in Docker builds or other non-writable contexts
-        pass
-
-
-def bazel_env() -> dict[str, str]:
-    """Environment dict ensuring Bazelisk uses the desired default version."""
-    env = os.environ.copy()
-    env.setdefault("USE_BAZEL_VERSION", DEFAULT_BAZEL_VERSION)
-    return env
 
 
 def _parse_version(v: str) -> tuple[int, ...]:
@@ -137,7 +103,6 @@ def check_bootstrap_deps() -> bool:
             check=True,
             capture_output=True,
             text=True,
-            env=bazel_env(),
         )
         version_line = result.stdout.strip()
         version_raw = version_line.split()[1] if len(version_line.split()) > 1 else ""
@@ -265,8 +230,6 @@ def get_bazelisk_url() -> str:
 
 def install_bazel(run_command=None, non_interactive: bool = False) -> None:
     """Install bazel via bazelisk."""
-    ensure_bazel_version_file(DEFAULT_BAZEL_VERSION)
-
     if shutil.which("bazel"):
         try:
             result = subprocess.run(
@@ -274,7 +237,6 @@ def install_bazel(run_command=None, non_interactive: bool = False) -> None:
                 check=True,
                 capture_output=True,
                 text=True,
-                env=bazel_env(),
             )
             version_line = result.stdout.strip()
             version_raw = version_line.split()[1] if len(version_line.split()) > 1 else ""
@@ -319,8 +281,7 @@ def install_bazel(run_command=None, non_interactive: bool = False) -> None:
             ["bazel", "--version"],
             check=True,
             capture_output=True,
-            text=True,
-            env=bazel_env(),
+            text=True
         )
         version_line = result.stdout.strip()
         version_raw = version_line.split()[1] if len(version_line.split()) > 1 else ""
