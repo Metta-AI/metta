@@ -38,11 +38,12 @@ def _spec_display_name(policy_spec: PolicySpec) -> str:
     return init_kwargs.get("display_name") or policy_spec.name
 
 
-def _get_policy_version_id(uri: str) -> str | None:
+def _get_policy_version_id(uri: str, stats_server_uri: str | None = None) -> str | None:
     if not uri.startswith("metta://"):
         return None
     try:
-        policy_version = MettaSchemeResolver()._get_policy_version(uri)
+        resolver = MettaSchemeResolver(stats_server_uri)
+        policy_version = resolver._get_policy_version(uri)
         return str(policy_version.id)
     except Exception:
         return None
@@ -50,13 +51,13 @@ def _get_policy_version_id(uri: str) -> str | None:
 
 class EvaluateTool(Tool):
     simulations: Sequence[SimulationConfig] | Sequence[SimulationRunConfig]
-    policy_uris: list[str] = Field(description="Policy URIs to evaluate. The first URI is the primary policy.")
+    policy_uris: str | list[str] = Field(description="Policy URIs to evaluate. The first URI is the primary policy.")
 
     replay_dir: str = Field(default_factory=auto_replay_dir)
     enable_replays: bool = True
 
     group: str | None = None
-    stats_server_uri: str | None = auto_stats_server_uri()
+    stats_server_uri: str | None = Field(default_factory=auto_stats_server_uri)
     eval_task_id: str | None = None
     verbose: bool = False
     push_metrics_to_wandb: bool = False
@@ -75,53 +76,61 @@ class EvaluateTool(Tool):
     def invoke(self, args: dict[str, str]) -> list[SimulationRunResult]:
         if not self.policy_uris:
             raise ValueError("policy_uris is required")
-        if not self.stats_server_uri:
-            raise ValueError("stats_server_uri is required")
 
-        policy_uris = list(self.policy_uris)
+        if isinstance(self.policy_uris, str):
+            policy_uris = [self.policy_uris]
+        else:
+            policy_uris = list(self.policy_uris)
+
         primary_uri = policy_uris[0]
 
         policy_specs = [policy_spec_from_uri(resolve_uri(uri), device=self.device) for uri in policy_uris]
-
-        stats_client = StatsClient.create(self.stats_server_uri)
-
-        policy_version_ids = [_get_policy_version_id(uri) for uri in policy_uris]
-        primary_policy_version_id = policy_version_ids[0]
 
         observatory_writer: ObservatoryWriter | None = None
         wandb_writer: WandbWriter | None = None
         wandb_context = contextlib.nullcontext(None)
 
-        if primary_policy_version_id:
-            valid_policy_version_ids = [pid for pid in policy_version_ids if pid]
-            observatory_writer = ObservatoryWriter(
-                stats_client=stats_client,
-                policy_version_ids=valid_policy_version_ids,
-                primary_policy_version_id=primary_policy_version_id,
-            )
+        if self.stats_server_uri:
+            stats_client = StatsClient.create(self.stats_server_uri)
+            resolver = MettaSchemeResolver(self.stats_server_uri)
 
-            if self.push_metrics_to_wandb:
-                try:
-                    policy_version = MettaSchemeResolver()._get_policy_version(primary_uri)
-                    epoch = policy_version.attributes.get("epoch")
-                    agent_step = policy_version.attributes.get("agent_step")
-                    if epoch and agent_step:
-                        wandb_config = _get_wandb_config(policy_version.name, self.group)
-                        wandb_context = WandbRunAppendContext(wandb_config)
-                except Exception:
-                    pass
+            policy_version_ids = [_get_policy_version_id(uri, self.stats_server_uri) for uri in policy_uris]
+            primary_policy_version_id = policy_version_ids[0]
+
+            if primary_policy_version_id:
+                valid_policy_version_ids = [pid for pid in policy_version_ids if pid]
+                observatory_writer = ObservatoryWriter(
+                    stats_client=stats_client,
+                    policy_version_ids=valid_policy_version_ids,
+                    primary_policy_version_id=primary_policy_version_id,
+                )
+
+                if self.push_metrics_to_wandb:
+                    try:
+                        policy_version = resolver._get_policy_version(primary_uri)
+                        epoch = policy_version.attributes.get("epoch")
+                        agent_step = policy_version.attributes.get("agent_step")
+                        if epoch and agent_step:
+                            wandb_config = _get_wandb_config(policy_version.name, self.group)
+                            wandb_context = WandbRunAppendContext(wandb_config)
+                    except Exception:
+                        pass
 
         with wandb_context as wandb_run:
             if wandb_run:
-                policy_version = MettaSchemeResolver()._get_policy_version(primary_uri)
-                epoch = policy_version.attributes.get("epoch")
-                agent_step = policy_version.attributes.get("agent_step")
-                if epoch and agent_step:
-                    wandb_writer = WandbWriter(
-                        wandb_run=wandb_run,
-                        epoch=epoch,
-                        agent_step=agent_step,
-                    )
+                try:
+                    resolver = MettaSchemeResolver(self.stats_server_uri)
+                    policy_version = resolver._get_policy_version(primary_uri)
+                    epoch = policy_version.attributes.get("epoch")
+                    agent_step = policy_version.attributes.get("agent_step")
+                    if epoch and agent_step:
+                        wandb_writer = WandbWriter(
+                            wandb_run=wandb_run,
+                            epoch=epoch,
+                            agent_step=agent_step,
+                        )
+                except Exception:
+                    logger.warning("Failed to get policy version for wandb writer")
 
             rollout_results = simulate_and_record(
                 policy_specs=policy_specs,
