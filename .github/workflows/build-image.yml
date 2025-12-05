@@ -4,9 +4,14 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  workflow_dispatch: {}
   schedule:
     - cron: "0 7 * * *" # 7 AM UTC (11 PM PST / 12 AM PDT)
+  # Temporary branch-specific trigger so Akshay can iterate on Datadog metrics.
+  # Remove once the feature branch merges.
+  push:
+    branches:
+      - akshay/datadog-dashboard
+  workflow_dispatch: {}
 
 jobs:
   build-and-push-image:
@@ -20,6 +25,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
           persist-credentials: false
 
       - name: Build Docker image

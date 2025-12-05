@@ -8,10 +8,9 @@ from datadog_api_client import ApiClient, Configuration
 from datadog_api_client.v2.api.metrics_api import MetricsApi
 from datadog_api_client.v2.model.metric_payload import MetricPayload
 
+from devops.datadog.models import MetricSample
 from metta.common.datadog.config import datadog_config
 from softmax.aws.secrets_manager import get_secretsmanager_secret
-
-from devops.datadog.models import MetricSample
 
 logger = logging.getLogger(__name__)
 
