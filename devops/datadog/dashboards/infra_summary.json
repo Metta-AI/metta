@@ -1,0 +1,252 @@
+{
+  "title": "Metta Infra Health \u2013 Summary",
+  "description": "Auto-generated summary view of workflow categories.",
+  "layout_type": "ordered",
+  "template_variables": [],
+  "widgets": [
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Training summary",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 0,
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "(m1 > 0.0) * (m2 > 0.5) * (m3 > 40000.0) * (m4 > 0.0) * (m5 > 0.5) * (m6 > 40000.0) * (m7 > 0.0) * (m8 > 0.0) * (m9 < 1.0)"
+              }
+            ],
+            "queries": [
+              {
+                "name": "m1",
+                "data_source": "metrics",
+                "query": "avg:container.cpu.usage{*}"
+              },
+              {
+                "name": "m2",
+                "data_source": "metrics",
+                "query": "avg:container.cpu.limit{*}"
+              },
+              {
+                "name": "m3",
+                "data_source": "metrics",
+                "query": "avg:container.cpu.throttled{*}"
+              },
+              {
+                "name": "m4",
+                "data_source": "metrics",
+                "query": "avg:container.cpu.partial_stall{*}"
+              },
+              {
+                "name": "m5",
+                "data_source": "metrics",
+                "query": "avg:container.cpu.system{*}"
+              },
+              {
+                "name": "m6",
+                "data_source": "metrics",
+                "query": "avg:container.cpu.throttled.periods{*}"
+              },
+              {
+                "name": "m7",
+                "data_source": "metrics",
+                "query": "avg:cri.uptime{*}"
+              },
+              {
+                "name": "m8",
+                "data_source": "metrics",
+                "query": "avg:datadog.agent.started{*}"
+              },
+              {
+                "name": "m9",
+                "data_source": "metrics",
+                "query": "avg:datadog.agent.running{*}"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 1,
+                "palette": "green_on_white"
+              },
+              {
+                "comparator": "<",
+                "value": 1,
+                "palette": "red_on_white"
+              }
+            ]
+          }
+        ],
+        "autoscale": true,
+        "time": {
+          "live_span": "1h"
+        }
+      },
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "width": 4,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "CI summary",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 0,
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "(m1 > 0.0) * (m2 > 0.0) * (m3 < 2.0) * (m4 < 5.0) * (m5 < 7.0) * (m6 < 1.0) * (m7 < 5.0) * (m8 < 10.0) * (m9 < 10.0)"
+              }
+            ],
+            "queries": [
+              {
+                "name": "m1",
+                "data_source": "metrics",
+                "query": "avg:commits.hotfix{*}"
+              },
+              {
+                "name": "m2",
+                "data_source": "metrics",
+                "query": "avg:commits.reverts{*}"
+              },
+              {
+                "name": "m3",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.ci.workflow.other_failing{*}"
+              },
+              {
+                "name": "m4",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.ci.github.hotfix.count{*}"
+              },
+              {
+                "name": "m5",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.ci.github.force_merge.count{*}"
+              },
+              {
+                "name": "m6",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.ci.github.reverts.count{*}"
+              },
+              {
+                "name": "m7",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.ci.workflow.duration.p90{*}"
+              },
+              {
+                "name": "m8",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.ci.workflow.cancelled{*}"
+              },
+              {
+                "name": "m9",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.ci.workflow.flaky_tests{*}"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 1,
+                "palette": "green_on_white"
+              },
+              {
+                "comparator": "<",
+                "value": 1,
+                "palette": "red_on_white"
+              }
+            ]
+          }
+        ],
+        "autoscale": true,
+        "time": {
+          "live_span": "1h"
+        }
+      },
+      "layout": {
+        "x": 4,
+        "y": 0,
+        "width": 4,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Eval summary",
+        "title_size": "16",
+        "title_align": "left",
+        "precision": 0,
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "(m1 > 0.0) * (m2 < 10.0) * (m3 > 0.0) * (m4 < 10.0) * (m5 <= 5.0)"
+              }
+            ],
+            "queries": [
+              {
+                "name": "m1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.eval.local.success{*}"
+              },
+              {
+                "name": "m2",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.eval.local.heart_delta_pct{*}"
+              },
+              {
+                "name": "m3",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.eval.remote.success{*}"
+              },
+              {
+                "name": "m4",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.eval.remote.heart_delta_pct{*}"
+              },
+              {
+                "name": "m5",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.eval.remote.duration_minutes{*}"
+              }
+            ],
+            "response_format": "scalar",
+            "conditional_formats": [
+              {
+                "comparator": ">=",
+                "value": 1,
+                "palette": "green_on_white"
+              },
+              {
+                "comparator": "<",
+                "value": 1,
+                "palette": "red_on_white"
+              }
+            ]
+          }
+        ],
+        "autoscale": true,
+        "time": {
+          "live_span": "1h"
+        }
+      },
+      "layout": {
+        "x": 8,
+        "y": 0,
+        "width": 4,
+        "height": 2
+      }
+    }
+  ]
+}
