@@ -38,9 +38,6 @@ public:
 
   // Whether the inventory is accessible to an agent.
   virtual bool inventory_is_accessible();
-
-  // Update the inventory for a specific item
-  virtual InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta);
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_

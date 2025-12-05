@@ -77,7 +77,7 @@ public:
     // Set initial inventory for all configured resources
     for (const auto& [resource, amount] : cfg.initial_inventory) {
       if (amount > 0) {
-        update_inventory(resource, amount);
+        inventory.update(resource, amount);
       }
     }
   }
