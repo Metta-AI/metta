@@ -189,7 +189,7 @@ class Evaluator(TrainerComponent):
 
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
-        policy_spec = self._build_policy_spec(policy_uri)
+        policy_spec = policy_spec_from_uri(policy_uri, device=str(self._device))
         policy_version_id: uuid.UUID | None = None
         if self._stats_client:
             policy_version_id = self._create_policy_version(
@@ -243,9 +243,6 @@ class Evaluator(TrainerComponent):
             render_eval_summary(
                 rollout_results, policy_names=[self._spec_display_name(policy_spec)], verbose=self._config.verbose
             )
-
-    def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
-        return policy_spec_from_uri(policy_uri, device=str(self._device))
 
     @staticmethod
     def _spec_display_name(policy_spec: PolicySpec) -> str:

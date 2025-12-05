@@ -368,7 +368,7 @@ def train(
         tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
         tt.trainer.losses.ppo_critic.sample_enabled = False
         tt.trainer.losses.ppo_critic.train_forward_enabled = False
-        tt.training_env.supervisor.policy = bc_policy_uri
+        tt.training_env.supervisor_policy_uri = bc_policy_uri
         tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
 
     return tt
