@@ -152,21 +152,41 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Score tasks using bidirectional learning progress.
 
         We compute raw per-task learning progress (fast/slow gap with smoothing and
-        perf bonus), then apply the legacy standardize+sigmoid normalization and
-        renormalize to a probability-like distribution. This preserves the prior
-        behavior where sampling weights were derived from a normalized LP vector,
-        while keeping the per-task EMA update path lightweight.
+        perf bonus), then apply sigmoid + normalize (zeroing tasks with no progress)
+        to mirror the distribution-based sampling while keeping per-task EMA updates lightweight.
         """
 
         if not task_ids:
             return {}
 
         # Compute raw LP scores for all tasks (with per-task cache for the raw step)
-        raw_scores = [self._get_bidirectional_learning_progress_score(tid) for tid in task_ids]
+        raw_scores = np.array([self._get_bidirectional_learning_progress_score(tid) for tid in task_ids], dtype=float)
 
-        # Return raw scores (already exploration-bonus clamped) so smoothing effects
-        # and magnitude differences remain visible to sampling/eviction logic.
-        return {tid: float(score) for tid, score in zip(task_ids, raw_scores, strict=True)}
+        # Give zero-progress tasks a tiny weight so they can still be sampled occasionally
+        raw_scores = np.where(raw_scores == 0, 1e-6, raw_scores)
+
+        # Legacy behavior: consider only tasks with positive progress; others get zero
+        posidxs = [i for i, val in enumerate(raw_scores) if val > 0]
+
+        if posidxs:
+            subprobs = raw_scores[posidxs]
+            # Sigmoid without standardization to preserve magnitude differences (and smoothing effect)
+            subprobs = self._sigmoid(subprobs)
+
+            # Normalize
+            total = float(np.sum(subprobs))
+            if total > 0:
+                subprobs = subprobs / total
+            else:
+                subprobs = np.ones_like(subprobs) / len(subprobs)
+
+            norm_scores = np.zeros_like(raw_scores)
+            norm_scores[posidxs] = subprobs
+        else:
+            # No positive progress: fall back to uniform
+            norm_scores = np.ones_like(raw_scores) / len(raw_scores)
+
+        return {tid: float(score) for tid, score in zip(task_ids, norm_scores, strict=True)}
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using basic EMA variance method."""
@@ -199,9 +219,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             # Small bonus for above-baseline performance
             perf_bonus = max(fast, 0) * 0.1
             score = lp + perf_bonus
-
-        # Always keep a minimum exploration weight so tasks never get zero probability
-        score = max(score, self.hypers.exploration_bonus)
 
         # Cache the computed score
         self._score_cache[task_id] = score
@@ -266,8 +283,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 perf_bonus = max(fast, 0) * 0.1
                 score = lp + perf_bonus
 
-                # Keep a minimum exploration weight to avoid zeroing out tasks.
-                return max(score, self.hypers.exploration_bonus)
+                return score
 
             return min(task_ids, key=ev_score)
 
