@@ -71,12 +71,12 @@ MACHINA_1 = Site(
     max_cogs=20,
 )
 
-# Evals site used by evaluation missions
-# Note: Individual eval missions override this with their own specific maps
+# Evals site used by diagnostic evaluation missions
+# Note: Individual diagnostic missions override this with their own specific maps
 EVALS = Site(
     name="evals",
-    description="Evaluation missions for scripted agent testing",
-    map_builder=get_map("evals/eval_oxygen_bottleneck.map"),  # Default map (rarely used)
+    description="Diagnostic evaluation arenas.",
+    map_builder=get_map("diagnostic_evals/diagnostic_radial.map"),  # Default map (rarely used)
     min_cogs=1,
     max_cogs=8,
 )
@@ -84,7 +84,7 @@ EVALS = Site(
 EASY_MODE = Site(
     name="easy_mode",
     description="Easy training configuration with simplified variants",
-    map_builder=get_map("evals/extractor_hub_30x30.map"),
+    map_builder=get_map("diagnostic_evals/diagnostic_radial.map"),
     min_cogs=1,
     max_cogs=8,
 )

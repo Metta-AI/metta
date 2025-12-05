@@ -70,6 +70,35 @@ def _ensure_vibe_supports_gear(env_cfg) -> None:
             change_vibe.number_of_vibes = 8
 
 
+def _enforce_training_vibes(env_cfg) -> None:
+    """Enforce TRAINING_VIBES configuration to match trained policies."""
+    from mettagrid.config import vibes as vibes_module
+
+    training_vibe_names = [v.name for v in vibes_module.TRAINING_VIBES]
+    env_cfg.game.vibe_names = training_vibe_names
+
+    if env_cfg.game.actions:
+        # Configure vibe action
+        if env_cfg.game.actions.change_vibe:
+            env_cfg.game.actions.change_vibe.number_of_vibes = len(training_vibe_names)
+            # Filter initial vibe
+            if env_cfg.game.agent.initial_vibe >= len(training_vibe_names):
+                env_cfg.game.agent.initial_vibe = 0
+
+        # Disable attack action (not part of training action space)
+        if env_cfg.game.actions.attack:
+            env_cfg.game.actions.attack.enabled = False
+
+    # Prune vibe transfers
+    allowed_vibes = set(env_cfg.game.vibe_names)
+    chest = env_cfg.game.objects.get("chest")
+    if chest:
+        vibe_transfers = getattr(chest, "vibe_transfers", None)
+        if isinstance(vibe_transfers, dict):
+            new_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
+            chest.vibe_transfers = new_transfers
+
+
 @dataclass
 class EvalResult:
     agent: str
@@ -185,6 +214,7 @@ def _run_case(
         mission = base_mission.with_variants(mission_variants)
         env_config = mission.make_env()
         _ensure_vibe_supports_gear(env_config)
+        _enforce_training_vibes(env_config)  # Enforce TRAINING_VIBES for compatibility with trained policies
         if variant is None or getattr(variant, "max_steps_override", None) is None:
             env_config.game.max_steps = max_steps
 
@@ -362,6 +392,7 @@ def run_evaluation(
                 mission_0 = base_mission_0.with_variants(mission_variants_0)
                 env_config_0 = mission_0.make_env()
                 _ensure_vibe_supports_gear(env_config_0)
+                _enforce_training_vibes(env_config_0)  # Enforce TRAINING_VIBES for compatibility with trained policies
                 policy_env_info_0 = PolicyEnvInterface.from_mg_cfg(env_config_0)
                 logger.info(f"Pre-loading policy from {agent_config.policy_path}...")
                 cached_policy = load_policy(policy_env_info_0, agent_config.policy_path, agent_config.data_path)
