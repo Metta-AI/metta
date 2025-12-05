@@ -7,6 +7,7 @@ from pydantic import Field
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.common.tool import Tool
+from metta.common.tool.tool import ToolResult, ToolWithResult
 from metta.common.wandb.context import WandbRunAppendContext
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.sim.handle_results import render_eval_summary
@@ -62,6 +63,9 @@ class EvaluateTool(Tool):
             return None
 
     def invoke(self, args: dict[str, str]) -> list[SimulationRunResult]:
+        return self.run_eval()
+
+    def run_eval(self) -> list[SimulationRunResult]:
         if not self.policy_uris:
             raise ValueError("policy_uris is required")
 
@@ -87,6 +91,8 @@ class EvaluateTool(Tool):
 
         if primary_policy_version:
             policy_version_ids = [str(pv.id) for pv in policy_versions if pv]
+            if not all(policy_version_ids):
+                raise ValueError("All policy URIs must specify a policy registered in the stats server")
             observatory_writer = ObservatoryWriter(
                 stats_client=stats_client,
                 policy_version_ids=policy_version_ids,
@@ -103,7 +109,7 @@ class EvaluateTool(Tool):
             wandb_context = WandbRunAppendContext(wandb_config)
             epoch = primary_policy_version.attributes.get("epoch")
             agent_step = primary_policy_version.attributes.get("agent_step")
-            if epoch or None or agent_step is None:
+            if epoch is None or agent_step is None:
                 raise ValueError(
                     f"Cannot find the agent step or epoch associated with {primary_policy_version.name}. This is "
                     "needed to push metrics to WandB."
@@ -136,3 +142,12 @@ class EvaluateTool(Tool):
         )
 
         return rollout_results
+
+
+class EvalWithResultTool(EvaluateTool, ToolWithResult):
+    def run_job(self) -> ToolResult:
+        try:
+            self.run_eval()
+            return ToolResult(result="success")
+        except Exception as e:
+            return ToolResult(result="failure", error=str(e))
