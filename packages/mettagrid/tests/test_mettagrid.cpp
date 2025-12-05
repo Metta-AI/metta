@@ -187,21 +187,21 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   agent->init(&agent_reward);
 
   // Test adding items
-  int delta = agent->update_inventory(TestItems::ORE, 5);
+  int delta = agent->inventory.update(TestItems::ORE, 5);
   EXPECT_EQ(delta, 5);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 5);
   agent->compute_stat_rewards();
   EXPECT_FLOAT_EQ(agent_reward, 0.625f);  // 5 * 0.125
 
   // Test removing items
-  delta = agent->update_inventory(TestItems::ORE, -2);
+  delta = agent->inventory.update(TestItems::ORE, -2);
   EXPECT_EQ(delta, -2);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 3);
   agent->compute_stat_rewards();
   EXPECT_FLOAT_EQ(agent_reward, 0.375f);  // 3 * 0.125
 
   // Test hitting zero
-  delta = agent->update_inventory(TestItems::ORE, -10);
+  delta = agent->inventory.update(TestItems::ORE, -10);
   EXPECT_EQ(delta, -3);  // Should only remove what's available
   // check that the item is not in the inventory
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);
@@ -209,8 +209,8 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   EXPECT_FLOAT_EQ(agent_reward, 0.0f);
 
   // Test hitting resource_limits limit
-  agent->update_inventory(TestItems::ORE, 30);
-  delta = agent->update_inventory(TestItems::ORE, 50);  // resource_limits is 50
+  agent->inventory.update(TestItems::ORE, 30);
+  delta = agent->inventory.update(TestItems::ORE, 50);  // resource_limits is 50
   EXPECT_EQ(delta, 20);                                 // Should only add up to resource_limits
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 50);
   agent->compute_stat_rewards();
@@ -233,7 +233,6 @@ TEST_F(MettaGridCppTest, AgentInventoryStatsUpdate) {
   EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".gained"), 0.0f);
   EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".lost"), 0.0f);
 
-  // Add items via inventory.update() directly (bypassing update_inventory)
   InventoryDelta delta1 = agent->inventory.update(TestItems::ORE, 10);
   EXPECT_EQ(delta1, 10);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 10);
@@ -305,7 +304,6 @@ TEST_F(MettaGridCppTest, AgentInventoryStatsUpdate) {
                   60.0f);  // 15 + 45 (from filling to limit)
   EXPECT_FLOAT_EQ(agent->stats.get(std::string(TestItemStrings::ORE) + ".lost"), 10.0f);
 }
-
 // Test for reward capping behavior with a lower cap to actually hit it
 TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   // Create a custom config with a lower ore reward cap that we can actually hit
@@ -325,7 +323,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
   // Test 1: Add items up to the cap
   // 16 ORE * 0.125 = 2.0 (exactly at cap)
-  int delta = agent->update_inventory(TestItems::ORE, 16);
+  int delta = agent->inventory.update(TestItems::ORE, 16);
   EXPECT_EQ(delta, 16);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 16);
   agent->compute_stat_rewards();
@@ -333,7 +331,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
   // Test 2: Add more items beyond the cap
   // 32 ORE * 0.125 = 4.0, but capped at 2.0
-  delta = agent->update_inventory(TestItems::ORE, 16);
+  delta = agent->inventory.update(TestItems::ORE, 16);
   EXPECT_EQ(delta, 16);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 32);
   agent->compute_stat_rewards();
@@ -341,7 +339,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
   // Test 3: Remove some items while still over cap
   // 24 ORE * 0.125 = 3.0, but still capped at 2.0
-  delta = agent->update_inventory(TestItems::ORE, -8);
+  delta = agent->inventory.update(TestItems::ORE, -8);
   EXPECT_EQ(delta, -8);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 24);
   agent->compute_stat_rewards();
@@ -349,7 +347,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
   // Test 4: Remove enough items to go below cap
   // 12 ORE * 0.125 = 1.5 (now below cap)
-  delta = agent->update_inventory(TestItems::ORE, -12);
+  delta = agent->inventory.update(TestItems::ORE, -12);
   EXPECT_EQ(delta, -12);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 12);
   agent->compute_stat_rewards();
@@ -357,7 +355,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
   // Test 5: Add items again, but not enough to hit cap
   // 14 ORE * 0.125 = 1.75 (still below cap)
-  delta = agent->update_inventory(TestItems::ORE, 2);
+  delta = agent->inventory.update(TestItems::ORE, 2);
   EXPECT_EQ(delta, 2);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 14);
   agent->compute_stat_rewards();
@@ -365,7 +363,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
   // Test 6: Add items to go over cap again
   // 20 ORE * 0.125 = 2.5, but capped at 2.0
-  delta = agent->update_inventory(TestItems::ORE, 6);
+  delta = agent->inventory.update(TestItems::ORE, 6);
   EXPECT_EQ(delta, 6);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 20);
   agent->compute_stat_rewards();
@@ -391,37 +389,37 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   agent->init(&agent_reward);
 
   // Add ORE beyond its cap
-  agent->update_inventory(TestItems::ORE, 50);  // 50 * 0.125 = 6.25, capped at 2.0
+  agent->inventory.update(TestItems::ORE, 50);  // 50 * 0.125 = 6.25, capped at 2.0
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 50);
   agent->compute_stat_rewards();
   EXPECT_FLOAT_EQ(agent_reward, 2.0f);
 
   // Add HEART up to its cap
-  agent->update_inventory(TestItems::HEART, 30);  // 30 * 1.0 = 30.0
+  agent->inventory.update(TestItems::HEART, 30);  // 30 * 1.0 = 30.0
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 30);
   agent->compute_stat_rewards();
   EXPECT_FLOAT_EQ(agent_reward, 32.0f);  // 2.0 + 30.0
 
   // Add more HEART beyond its cap
-  agent->update_inventory(TestItems::HEART, 10);  // 40 * 1.0 = 40.0, capped at 30.0
+  agent->inventory.update(TestItems::HEART, 10);  // 40 * 1.0 = 40.0, capped at 30.0
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 40);
   agent->compute_stat_rewards();
   EXPECT_FLOAT_EQ(agent_reward, 32.0f);  // Still 2.0 + 30.0
 
   // Remove some ORE (still over cap)
-  agent->update_inventory(TestItems::ORE, -10);  // 40 * 0.125 = 5.0, still capped at 2.0
+  agent->inventory.update(TestItems::ORE, -10);  // 40 * 0.125 = 5.0, still capped at 2.0
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 40);
   agent->compute_stat_rewards();
   EXPECT_FLOAT_EQ(agent_reward, 32.0f);  // No change
 
   // Remove ORE to go below cap
-  agent->update_inventory(TestItems::ORE, -35);  // 5 * 0.125 = 0.625
+  agent->inventory.update(TestItems::ORE, -35);  // 5 * 0.125 = 0.625
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 5);
   agent->compute_stat_rewards();
   EXPECT_FLOAT_EQ(agent_reward, 30.625f);  // 0.625 + 30.0
 
   // Remove HEART to go below its cap
-  agent->update_inventory(TestItems::HEART, -15);  // 25 * 1.0 = 25.0
+  agent->inventory.update(TestItems::HEART, -15);  // 25 * 1.0 = 25.0
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 25);
   agent->compute_stat_rewards();
   EXPECT_FLOAT_EQ(agent_reward, 25.625f);  // 0.625 + 25.0
@@ -448,47 +446,47 @@ TEST_F(MettaGridCppTest, SharedInventoryLimits) {
   agent->init(&agent_reward);
 
   // Add ORE up to 20
-  int delta = agent->update_inventory(TestItems::ORE, 20);
+  int delta = agent->inventory.update(TestItems::ORE, 20);
   EXPECT_EQ(delta, 20);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 20);
 
   // Try to add 20 LASER - should only add 10 due to shared limit
-  delta = agent->update_inventory(TestItems::LASER, 20);
+  delta = agent->inventory.update(TestItems::LASER, 20);
   EXPECT_EQ(delta, 10);  // Only 10 can be added (20 ORE + 10 LASER = 30 total)
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 10);
 
   // Try to add more ORE - should fail as we're at the shared limit
-  delta = agent->update_inventory(TestItems::ORE, 5);
+  delta = agent->inventory.update(TestItems::ORE, 5);
   EXPECT_EQ(delta, 0);  // Can't add any more
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 20);
 
   // Remove some LASER
-  delta = agent->update_inventory(TestItems::LASER, -5);
+  delta = agent->inventory.update(TestItems::LASER, -5);
   EXPECT_EQ(delta, -5);
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 5);
 
   // Now we can add more ORE since we freed up shared space
-  delta = agent->update_inventory(TestItems::ORE, 5);
+  delta = agent->inventory.update(TestItems::ORE, 5);
   EXPECT_EQ(delta, 5);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 25);
 
   // ARMOR should work independently with its own limit
-  delta = agent->update_inventory(TestItems::ARMOR, 40);
+  delta = agent->inventory.update(TestItems::ARMOR, 40);
   EXPECT_EQ(delta, 40);
   EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 40);
 
   // Can still add more ARMOR up to its limit
-  delta = agent->update_inventory(TestItems::ARMOR, 20);
+  delta = agent->inventory.update(TestItems::ARMOR, 20);
   EXPECT_EQ(delta, 10);  // Should cap at 50
   EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 50);
 
   // Remove all ORE
-  delta = agent->update_inventory(TestItems::ORE, -25);
+  delta = agent->inventory.update(TestItems::ORE, -25);
   EXPECT_EQ(delta, -25);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);
 
   // Now we can add up to 25 more LASER (5 existing + 25 = 30)
-  delta = agent->update_inventory(TestItems::LASER, 30);
+  delta = agent->inventory.update(TestItems::LASER, 30);
   EXPECT_EQ(delta, 25);
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 30);
 
@@ -842,9 +840,9 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
   Agent agent2(0, 0, agent_config, &resource_names);
   Agent agent3(0, 0, agent_config, &resource_names);
 
-  agent1.update_inventory(TestItems::ORE, 20);
-  agent2.update_inventory(TestItems::ORE, 20);
-  agent3.update_inventory(TestItems::ORE, 20);
+  agent1.inventory.update(TestItems::ORE, 20);
+  agent2.inventory.update(TestItems::ORE, 20);
+  agent3.inventory.update(TestItems::ORE, 20);
 
   std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3};
 
@@ -896,10 +894,10 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
   Agent agent3(0, 0, agent_config, &resource_names);
   Agent agent4(0, 0, agent_config, &resource_names);
 
-  agent1.update_inventory(TestItems::ORE, 0);   // No resources
-  agent2.update_inventory(TestItems::ORE, 1);   // Limited resources
-  agent3.update_inventory(TestItems::ORE, 50);  // Ample resources
-  agent4.update_inventory(TestItems::ORE, 50);  // Ample resources
+  agent1.inventory.update(TestItems::ORE, 0);   // No resources
+  agent2.inventory.update(TestItems::ORE, 1);   // Limited resources
+  agent3.inventory.update(TestItems::ORE, 50);  // Ample resources
+  agent4.inventory.update(TestItems::ORE, 50);  // Ample resources
 
   std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3, &agent4};
 
@@ -1260,7 +1258,7 @@ TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {
   grid.add_object(agent);
 
   // Test 1: Agent with full inventory for output item - should fail
-  agent->update_inventory(TestItems::LASER, 50);  // Fill to limit (50)
+  agent->inventory.update(TestItems::LASER, 50);  // Fill to limit (50)
 
   // Verify agent has full inventory
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 50);
@@ -1274,7 +1272,7 @@ TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {
 
   // Test 2: Agent with space for output - should succeed
   // Remove all LASER to make space
-  agent->update_inventory(TestItems::LASER, -50);
+  agent->inventory.update(TestItems::LASER, -50);
   // ORE should still be 10 since Test 1 failed and didn't consume it
 
   // Verify agent has space
@@ -1302,9 +1300,9 @@ TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {
   assembler_no_output.set_current_timestep_ptr(&current_timestep);
 
   // Fill agent's inventory again
-  agent->update_inventory(TestItems::LASER, 50);  // Fill to limit
+  agent->inventory.update(TestItems::LASER, 50);  // Fill to limit
   // Calculate delta needed to get ORE back to 10 (it was consumed to 8 in Test 2)
-  agent->update_inventory(TestItems::ORE, 2);  // Reset ORE to 10
+  agent->inventory.update(TestItems::ORE, 2);  // Reset ORE to 10
 
   // Agent with full inventory - should still succeed because protocol has no output
   success = assembler_no_output.onUse(*agent, 0);
@@ -1318,8 +1316,8 @@ TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {
   assembler_multi.set_current_timestep_ptr(&current_timestep);
 
   // Reset agent's state
-  agent->update_inventory(TestItems::ORE, 10);
-  agent->update_inventory(TestItems::LASER, 50);  // Full
+  agent->inventory.update(TestItems::ORE, 10);
+  agent->inventory.update(TestItems::LASER, 50);  // Full
 
   // Add a second agent at a different surrounding position
   AgentConfig agent_cfg2 = create_test_agent_config();
@@ -1402,7 +1400,7 @@ TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_WithLimits) {
   Agent agent3(2, 0, agent_cfg, &resource_names);
 
   // Pre-fill agent1 with 5 ore
-  agent1.update_inventory(TestItems::ORE, 5);
+  agent1.inventory.update(TestItems::ORE, 5);
 
   std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
 
@@ -1432,9 +1430,9 @@ TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_EvenDistribution) {
   Agent agent3(2, 0, agent_cfg, &resource_names);
 
   // Pre-fill agent inventories with 20 ore each
-  agent1.update_inventory(TestItems::ORE, 20);
-  agent2.update_inventory(TestItems::ORE, 20);
-  agent3.update_inventory(TestItems::ORE, 20);
+  agent1.inventory.update(TestItems::ORE, 20);
+  agent2.inventory.update(TestItems::ORE, 20);
+  agent3.inventory.update(TestItems::ORE, 20);
 
   std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
 
@@ -1461,9 +1459,9 @@ TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_InsufficientResources) {
   Agent agent3(2, 0, agent_cfg, &resource_names);
 
   // Pre-fill agent inventories with different amounts
-  agent1.update_inventory(TestItems::ORE, 5);   // Only has 5
-  agent2.update_inventory(TestItems::ORE, 20);  // Has plenty
-  agent3.update_inventory(TestItems::ORE, 20);  // Has plenty
+  agent1.inventory.update(TestItems::ORE, 5);   // Only has 5
+  agent2.inventory.update(TestItems::ORE, 20);  // Has plenty
+  agent3.inventory.update(TestItems::ORE, 20);  // Has plenty
 
   std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
 
@@ -1491,9 +1489,9 @@ TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_UnevenDistribution) {
   Agent agent3(2, 0, agent_cfg, &resource_names);
 
   // Pre-fill agent inventories with 20 ore each
-  agent1.update_inventory(TestItems::ORE, 20);
-  agent2.update_inventory(TestItems::ORE, 20);
-  agent3.update_inventory(TestItems::ORE, 20);
+  agent1.inventory.update(TestItems::ORE, 20);
+  agent2.inventory.update(TestItems::ORE, 20);
+  agent3.inventory.update(TestItems::ORE, 20);
 
   std::vector<HasInventory*> inventory_havers = {&agent1, &agent2, &agent3};
 
@@ -1547,8 +1545,8 @@ TEST_F(MettaGridCppTest, SharedUpdate_AllInventoriesAtLimit) {
   Agent agent2(1, 0, agent_cfg, &resource_names);
 
   // Fill both to limit
-  agent1.update_inventory(TestItems::ORE, 10);
-  agent2.update_inventory(TestItems::ORE, 10);
+  agent1.inventory.update(TestItems::ORE, 10);
+  agent2.inventory.update(TestItems::ORE, 10);
 
   std::vector<HasInventory*> inventory_havers = {&agent1, &agent2};
 
