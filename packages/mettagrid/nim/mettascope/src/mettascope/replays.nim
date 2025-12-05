@@ -190,6 +190,14 @@ let EmptyReplay* = Replay(
   fileName: "",
 )
 
+proc getInt*(obj: JsonNode, key: string, default: int = 0): int =
+  ## Get an integer field from JsonNode with a default value if key is missing.
+  if key in obj: obj[key].getInt else: default
+
+proc getString*(obj: JsonNode, key: string, default: string = ""): string =
+  ## Get a string field from JsonNode with a default value if key is missing.
+  if key in obj: obj[key].getStr else: default
+
 proc parseHook*(s: string, i: var int, v: var IVec2) =
   var arr: array[2, int32]
   parseHook(s, i, arr)
@@ -230,6 +238,10 @@ proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
   else:
     # A single value is a valid sequence.
     return @[data.to(T)]
+
+proc getExpandedIntSeq*(obj: JsonNode, key: string, maxSteps: int, default: seq[int] = @[0]): seq[int] =
+  ## Get an expanded integer sequence field from JsonNode with a default if key is missing.
+  if key in obj: expand[int](obj[key], maxSteps, 0) else: default
 
 let drawnAgentActionNames =
   ["attack", "attack_nearest", "put_items", "get_items", "swap"]
@@ -661,13 +673,13 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
         resolvedTypeName = replay.typeNames[candidateId]
 
     let entity = Entity(
-      id: if "id" in obj: obj["id"].getInt else: 0,
+      id: obj.getInt("id", 0),
       typeName: resolvedTypeName,
       location: location,
-      orientation: if "orientation" in obj: expand[int](obj["orientation"], replay.maxSteps, 0) else: @[0],
+      orientation: obj.getExpandedIntSeq("orientation", replay.maxSteps),
       inventory: inventory,
-      inventoryMax: if "inventory_max" in obj: obj["inventory_max"].getInt else: 0,
-      color: if "color" in obj: expand[int](obj["color"], replay.maxSteps, 0) else: @[0],
+      inventoryMax: obj.getInt("inventory_max", 0),
+      color: obj.getExpandedIntSeq("color", replay.maxSteps),
     )
     if "group_id" in obj:
       entity.groupId = obj["group_id"].getInt
