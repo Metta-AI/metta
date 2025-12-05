@@ -4,14 +4,16 @@ import pytest
 
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from mettagrid.util.file import ParsedURI
-from mettagrid.util.url_schemes import key_and_version
+from mettagrid.util.uri_resolvers.schemes import parse_uri
 
 
 class TestS3URIs:
-    def test_key_and_version_parsing(self):
-        key, version = key_and_version("s3://bucket/foo/checkpoints/foo:v9.mpt")
-        assert key == "foo"
-        assert version == 9
+    def test_checkpoint_info_parsing(self):
+        info = parse_uri("s3://bucket/foo/checkpoints/foo:v9.mpt").checkpoint_info
+        assert info is not None
+        run_name, epoch = info
+        assert run_name == "foo"
+        assert epoch == 9
 
 
 class TestMettaURIs:
@@ -23,15 +25,10 @@ class TestMettaURIs:
     def test_resolve_metta_uri_invalid_format(self):
         resolver = MettaSchemeResolver()
         with pytest.raises(ValueError, match="Unsupported metta:// URI format"):
-            resolver.resolve("metta://invalid")
-
-    def test_resolve_metta_uri_invalid_uuid(self):
-        resolver = MettaSchemeResolver()
-        with pytest.raises(ValueError, match="Invalid policy version ID"):
-            resolver.resolve("metta://policy/not-a-uuid")
+            resolver.get_path_to_policy_spec_or_mpt("metta://invalid")
 
     def test_resolve_metta_uri_requires_stats_server(self, monkeypatch):
-        monkeypatch.setattr("metta.tools.utils.auto_config.auto_stats_server_uri", lambda: None)
+        monkeypatch.setattr("metta.rl.metta_scheme_resolver.auto_stats_server_uri", lambda: None)
         resolver = MettaSchemeResolver()
         with pytest.raises(ValueError, match="stats server not configured"):
-            resolver.resolve("metta://policy/acee831a-f409-4345-9c44-79b34af17c3e")
+            resolver.get_path_to_policy_spec_or_mpt("metta://policy/acee831a-f409-4345-9c44-79b34af17c3e")

@@ -177,6 +177,17 @@ class StatsClient:
         )
         return self._make_sync_request(PolicyVersionsResponse, "GET", "/stats/policies", params=params)
 
+    def get_versions_for_policy(
+        self,
+        policy_id: str,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> PolicyVersionsResponse:
+        params = remove_none_values({"limit": limit, "offset": offset})
+        return self._make_sync_request(
+            PolicyVersionsResponse, "GET", f"/stats/policies/{policy_id}/versions", params=params
+        )
+
     def get_leaderboard_policies_v2_users_me(self) -> LeaderboardPoliciesResponse:
         return self._make_sync_request(
             LeaderboardPoliciesResponse,

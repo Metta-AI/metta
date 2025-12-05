@@ -32,6 +32,8 @@ from typing import Dict, List, Optional
 
 import matplotlib
 
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,7 +47,6 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
-from mettagrid.util.url_schemes import policy_spec_from_uri
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -132,6 +133,16 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
         key="ladybug",
         label="Ladybug",
         policy_path="cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
+    ),
+    "thinky": AgentConfig(
+        key="thinky",
+        label="Thinky",
+        policy_path="cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
+    ),
+    "racecar": AgentConfig(
+        key="racecar",
+        label="RaceCar",
+        policy_path="cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy",
     ),
     "starter": AgentConfig(
         key="starter",

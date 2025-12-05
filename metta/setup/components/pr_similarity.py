@@ -32,7 +32,7 @@ class PrSimilaritySetup(SetupModule):
         return "Configure PR similarity MCP server (Codex & Claude)"
 
     def dependencies(self) -> list[str]:
-        return ["core", "aws"]
+        return ["uv", "aws"]
 
     def check_installed(self) -> bool:
         meta_path, vectors_path = _resolve_cache_paths(self.repo_root)

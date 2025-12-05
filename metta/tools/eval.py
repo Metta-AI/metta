@@ -18,7 +18,11 @@ from metta.sim.simulate_and_record import (
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.url_schemes import get_checkpoint_metadata, policy_spec_from_uri, resolve_uri
+from mettagrid.util.uri_resolvers.schemes import (
+    get_checkpoint_metadata,
+    policy_spec_from_uri,
+    resolve_uri,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,30 +62,26 @@ class EvaluateTool(Tool):
     verbose: bool = False
     push_metrics_to_wandb: bool = False
 
-    def _build_policy_spec(self, normalized_uri: str) -> PolicySpec:
-        spec = policy_spec_from_uri(normalized_uri, device="cpu")
-        return spec
-
     def _get_checkpoint_metadata(self, policy_uri: str, stats_client: StatsClient) -> MyPolicyMetadata | None:
         metadata = get_checkpoint_metadata(policy_uri)
         result = stats_client.sql_query(
             f"""SELECT pv.id, pv.attributes->>'agent_step'
             FROM policy_versions pv
             JOIN policies p ON pv.policy_id = p.id
-            WHERE p.name = '{metadata["run_name"]}' AND pv.attributes->>'epoch' = '{metadata["epoch"]}'"""
+            WHERE p.name = '{metadata.run_name}' AND pv.attributes->>'epoch' = '{metadata.epoch}'"""
         )
         if result.rows is None or len(result.rows) == 0:
             return None
         return MyPolicyMetadata(
-            policy_name=metadata["run_name"],
+            policy_name=metadata.run_name,
             policy_version_id=result.rows[0][0],
-            epoch=metadata["epoch"],
+            epoch=metadata.epoch,
             agent_step=int(result.rows[0][1]),
         )
 
     def handle_single_policy_uri(self, policy_uri: str) -> tuple[int, str, list[SimulationRunResult]]:
         normalized_uri = resolve_uri(policy_uri)
-        policy_spec = self._build_policy_spec(normalized_uri)
+        policy_spec = policy_spec_from_uri(normalized_uri, device="cpu")
 
         observatory_writer: ObservatoryWriter | None = None
         wandb_writer: WandbWriter | None = None
@@ -147,6 +147,7 @@ class EvaluatePolicyVersionTool(Tool):
     group: str | None = None  # Separate group parameter like in train.py
     write_to_wandb: bool = True
     device: str = "cpu"
+    max_workers: int = 3  # set to number of cpus requested for remote eval workers
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.stats_server_uri is None:
@@ -188,5 +189,6 @@ class EvaluatePolicyVersionTool(Tool):
                 seed=self.system.seed,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
+                max_workers=self.max_workers,
             )
         render_eval_summary(rollout_results, policy_names=[_spec_display_name(policy_spec)])

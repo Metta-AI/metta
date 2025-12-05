@@ -36,6 +36,7 @@ from metta.rl.training import (
     TorchProfiler,
     TrainerComponent,
     TrainingEnvironmentConfig,
+    UpdateEpochAutoTuner,
     VectorizedTrainingEnvironment,
     WandbAborter,
     WandbAborterConfig,
@@ -48,6 +49,7 @@ from metta.tools.utils.auto_config import (
     auto_stats_server_uri,
     auto_wandb_config,
 )
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = getRankAwareLogger(__name__)
 
@@ -120,7 +122,12 @@ class TrainTool(Tool):
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()
-        env = VectorizedTrainingEnvironment(self.training_env)
+
+        supervisor_policy_spec = None
+        if self.training_env.supervisor_policy_uri:
+            supervisor_policy_spec = policy_spec_from_uri(self.training_env.supervisor_policy_uri)
+
+        env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 
         self._configure_torch_backends()
 
@@ -222,6 +229,10 @@ class TrainTool(Tool):
         heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
         if heartbeat_cfg is not None:
             components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
+
+        autotune_cfg = getattr(self.trainer, "update_epochs_autotune", None)
+        if autotune_cfg and getattr(autotune_cfg, "enabled", False):
+            components.append(UpdateEpochAutoTuner(autotune_cfg))
 
         stats_component: TrainerComponent | None = None
 
