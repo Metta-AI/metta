@@ -290,6 +290,7 @@ class EvalTaskWorker:
     @trace("worker.attempt_task")
     async def attempt_task(self, task: EvalTaskRow) -> None:
         logger.info(f"Processing task {task.id}")
+        self._client.start_task(task.id)
         span = tracer.current_span()
         if span:
             span.set_tags(
