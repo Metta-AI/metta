@@ -67,6 +67,10 @@ export const EditableNode: FC<Props> = ({
           isSearchable
           options={options}
           styles={{
+            control: (base) => ({
+              ...base,
+              minWidth: "200px",
+            }),
             menu: (base) => ({
               ...base,
               minWidth: "fit-content",
@@ -83,11 +87,21 @@ export const EditableNode: FC<Props> = ({
               cursor: "pointer",
               backgroundColor: props.isFocused ? "#e5e7eb" : "white",
             }),
+            noOptionsMessage: (base) => ({
+              ...base,
+              fontSize: "1rem",
+              fontWeight: "normal",
+              fontFamily: "monospace",
+              padding: "3px",
+            }),
           }}
           value={selectedOption}
           onInputChange={onInputChange}
           onChange={onOptionSelect}
-          onBlur={() => setMode("view")}
+          onBlur={() => {
+            setMode("view");
+            onChange?.("");
+          }}
           placeholder={text}
         />
       ) : (
