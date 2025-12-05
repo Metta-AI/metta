@@ -5,32 +5,33 @@ from pydantic import Field
 
 from metta.common.tool.tool import ToolResult, ToolWithResult
 from metta.sim.runner import SimulationRunConfig
-from metta.tools.eval import EvaluatePolicyVersionTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.utils.auto_config import auto_replay_dir
 
 
 class ExecuteRemoteEvalTool(ToolWithResult):
-    simulations: Sequence[SimulationRunConfig]  # list of simulations to run
-    policy_version_id: str  # policy uri to evaluate
+    simulations: Sequence[SimulationRunConfig]
+    policy_version_id: str
     replay_dir: str = Field(default_factory=auto_replay_dir)
-    result_file_path: str  # path to the file where the results will be written
+    result_file_path: str
 
-    group: str | None = None  # Separate group parameter like in train.py
-
-    stats_server_uri: str | None = None  # If set, send stats to this http server
+    group: str | None = None
+    stats_server_uri: str | None = None
     push_metrics_to_wandb: bool = True
 
     def run_job(self) -> ToolResult:
-        # Will error if stats_server_uri does not exist or we are not not authenticated with it
         if self.stats_server_uri is None:
             raise ValueError("stats_server_uri is required")
 
-        eval_tool = EvaluatePolicyVersionTool(
+        policy_uri = f"metta://policy/{self.policy_version_id}"
+        eval_tool = EvaluateTool(
             simulations=self.simulations,
-            policy_version_id=self.policy_version_id,
+            policy_uris=[policy_uri],
             replay_dir=self.replay_dir,
             group=self.group,
             stats_server_uri=self.stats_server_uri,
+            push_metrics_to_wandb=self.push_metrics_to_wandb,
+            max_workers=3,
         )
         try:
             eval_tool.invoke({})
