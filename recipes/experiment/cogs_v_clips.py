@@ -8,7 +8,6 @@ recipes should import from here and extend via custom defaults, similar to how
 from __future__ import annotations
 
 import logging
-import uuid
 from typing import Literal, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -19,7 +18,6 @@ from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
-from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -29,14 +27,11 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
-from metta.tools.utils.auto_config import auto_stats_server_uri
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
 
@@ -306,13 +301,11 @@ def train(
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
     bc_policy_uri: Optional[str] = None,
-    policy_version_id: Optional[str] = None,
     bc_teacher_lead_prob: float = 1.0,
     bc_steps: Optional[int] = None,
+    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
     use_lp: bool = True,
     maps_cache_size: Optional[int] = 50,
-    stats_server_uri: Optional[str] = None,
-    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -332,7 +325,6 @@ def train(
         losses=LossesConfig(),
     )
     # Inline CVC defaults from the latest sweep (Dec 2025)
-    trainer_cfg.total_timesteps = 936_831_488
     trainer_cfg.optimizer.learning_rate = 0.00737503357231617
     trainer_cfg.optimizer.eps = 5.0833278919526e-07
 
@@ -369,53 +361,16 @@ def train(
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
 
-    # Resolve policy_version_id to bc_policy_uri if provided
-    if policy_version_id is not None:
-        if bc_policy_uri is not None:
-            raise ValueError("Cannot specify both bc_policy_uri and policy_version_id")
-
-        api_url = stats_server_uri or auto_stats_server_uri()
-        if api_url is None:
-            raise ValueError("stats_server_uri is required when using policy_version_id (set STATS_SERVER_URI env var)")
-
-        stats_client = StatsClient.create(api_url)
-        policy_version = stats_client.get_policy_version(uuid.UUID(policy_version_id))
-
-        # Try to get URI from policy_spec first
-        bc_policy_uri = None
-        if policy_version.policy_spec and len(policy_version.policy_spec) > 0:
-            try:
-                policy_spec = PolicySpec.model_validate(policy_version.policy_spec)
-                if policy_spec.data_path is not None:
-                    bc_policy_uri = policy_spec.data_path
-            except Exception:
-                # If policy_spec validation fails, fall through to s3_path
-                pass
-
-        # Fallback to s3_path if we don't have a URI yet
-        if bc_policy_uri is None:
-            if policy_version.s3_path is not None:
-                # Ensure s3_path is a proper S3 URI
-                if policy_version.s3_path.startswith("s3://"):
-                    bc_policy_uri = policy_version.s3_path
-                else:
-                    bc_policy_uri = f"s3://{policy_version.s3_path}"
-            else:
-                raise ValueError(
-                    f"Policy version {policy_version_id} has neither a valid policy_spec with data_path nor an s3_path"
-                )
-
-    # Determine bc_steps: 0 for pure RL (no bc_policy_uri), 99999 for pure BC, or use provided value
-    if bc_policy_uri is None:
-        bc_steps = 0  # Pure RL mode
-    elif bc_steps is None:
-        bc_steps = 99999  # Pure BC mode
-
     # Configure BC-to-PPO annealing schedule
     # bc_steps is in millions of agent steps (e.g., bc_steps=5 means 5M steps)
+    if bc_policy_uri is None:
+        bc_steps = 0 if bc_steps is None else bc_steps
+    elif bc_steps is None:
+        bc_steps = 99999
+
     bc_steps_actual = int(bc_steps * 1_000_000)
-    anneal_start = int(bc_steps_actual * 0.5)  # Start annealing at 50% of bc_steps
-    anneal_end = bc_steps_actual  # Complete transition at bc_steps
+    anneal_start = int(bc_steps_actual * 0.5)
+    anneal_end = bc_steps_actual
 
     scheduler_run_gates: list[LossRunGate] = [
         LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_steps_actual),
@@ -426,11 +381,11 @@ def train(
     scheduler_rules: list[HyperUpdateRule] = []
 
     if bc_policy_uri is not None:
-        tt.training_env.supervisor.policy = bc_policy_uri
+        tt.training_env.supervisor_policy_uri = bc_policy_uri
 
-        # Keep PPO off until after the BC window; start with actor/critic gated
+        # Keep PPO disabled until after the BC window; gates above will enable it
         tt.trainer.losses.ppo.enabled = False
-        tt.trainer.losses.ppo_actor.enabled = True  # Enable but gate it
+        tt.trainer.losses.ppo_actor.enabled = True
         tt.trainer.losses.ppo_critic.enabled = True
         tt.trainer.losses.ppo_critic.deferred_training_start_step = bc_steps_actual
 
@@ -504,11 +459,7 @@ def train(
                 ),
             ]
 
-    scheduler = SchedulerConfig(
-        run_gates=scheduler_run_gates,
-        rules=scheduler_rules,
-    )
-    tt.scheduler = scheduler
+    tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
     return tt
 
