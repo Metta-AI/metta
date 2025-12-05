@@ -62,8 +62,10 @@ class EvaluateTool(Tool):
         except Exception:
             return None
 
-    def invoke(self, args: dict[str, str]) -> list[SimulationRunResult]:
-        return self.run_eval()
+    def invoke(self, args: dict[str, str]) -> int:
+        """CLI entrypoint via run_tool. Runs eval and returns success exit code."""
+        self.run_eval()
+        return 0
 
     def run_eval(self) -> list[SimulationRunResult]:
         if not self.policy_uris:
