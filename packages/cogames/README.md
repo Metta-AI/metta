@@ -37,7 +37,7 @@ policy plays with other policies in the pool through running multi-policy, multi
 ## Quick Start
 
 Let's install cogames and walk through playing an easy mission in Cogs vs. Clips. Then, we'll train a simple starter
-policy. `easy_mode` uses three variants to simplify training:
+policy. `easy_hearts` uses three variants to simplify training:
 
 - `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
   energy)
@@ -56,14 +56,14 @@ uv pip install cogames
 # Play an episode yourself
 cogames tutorial
 
-# Play an episode of the easy_mode mission with a scripted policy
-cogames play -m easy_mode -p class=baseline
+# Play an episode of the easy_hearts mission with a scripted policy
+cogames play -m easy_hearts -p class=baseline
 
 # Try the scripted policy on a set of eval missions
 cogames eval -set integrated_evals -p class=baseline
 
-# Train with an LSTM policy on easy_mode
-cogames train -m easy_mode -p class=lstm
+# Train with an LSTM policy on easy_hearts
+cogames train -m easy_hearts -p class=lstm
 ```
 
 Other useful commands:
