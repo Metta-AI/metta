@@ -180,6 +180,16 @@ class PufferPolicy(Policy):
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)
 
+        # Reset LSTM state for agents whose episodes have ended
+        # This is critical: stale memory from previous episodes prevents learning
+        dones = td.get("dones", None)
+        truncateds = td.get("truncateds", None)
+        if dones is not None and truncateds is not None:
+            reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+            # Reset hidden and cell states to zero for ended episodes
+            self._hidden_state = self._hidden_state.masked_fill(reset_mask, 0.0)
+            self._cell_state = self._cell_state.masked_fill(reset_mask, 0.0)
+
         lstm_output, (self._hidden_state, self._cell_state) = self.lstm(
             lstm_input, (self._hidden_state, self._cell_state)
         )
