@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Literal, overload
 from urllib.parse import unquote, urlparse
 
 import boto3
@@ -31,7 +32,7 @@ class FileSchemeResolver(SchemeResolver):
         return "file"
 
     def matches_scheme(self, uri: str) -> bool:
-        return uri.startswith("file://") or "://" not in uri
+        return uri.startswith("file://")
 
     def parse(self, uri: str) -> ParsedScheme:
         if uri.startswith("file://"):
@@ -64,7 +65,7 @@ class FileSchemeResolver(SchemeResolver):
                 best = (info[1], uri)
         return best[1] if best else None
 
-    def resolve(self, uri: str) -> str:
+    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
             base_uri = uri[:-7]
             if base_uri.endswith("/"):
@@ -190,35 +191,52 @@ class MockSchemeResolver(SchemeResolver):
         return ParsedScheme(raw=uri, scheme=self.scheme, canonical=canonical, path=path)
 
 
-SCHEME_RESOLVERS: dict[str, str] = {
-    "file": "mettagrid.util.uri_resolvers.schemes.FileSchemeResolver",
-    "s3": "mettagrid.util.uri_resolvers.schemes.S3SchemeResolver",
-    "http": "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
-    "https": "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
-    "mock": "mettagrid.util.uri_resolvers.schemes.MockSchemeResolver",
-    "metta": "metta.rl.metta_scheme_resolver.MettaSchemeResolver",
-}
+_SCHEME_RESOLVERS: list[str] = [
+    "mettagrid.util.uri_resolvers.schemes.FileSchemeResolver",
+    "mettagrid.util.uri_resolvers.schemes.S3SchemeResolver",
+    "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
+    "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
+    "mettagrid.util.uri_resolvers.schemes.MockSchemeResolver",
+    "metta.rl.metta_scheme_resolver.MettaSchemeResolver",
+]
 
 
-def _get_resolver(uri: str) -> SchemeResolver:
+def _get_resolver(uri: str, default_scheme: str | None = "file") -> SchemeResolver | None:
     if not uri:
         raise ValueError("URI cannot be empty")
 
-    for resolver_path in SCHEME_RESOLVERS.values():
+    if default_scheme and "://" not in uri:
+        uri = f"{default_scheme}://{uri}"
+
+    for resolver_path in _SCHEME_RESOLVERS:
         resolver_class: type[SchemeResolver] | None = load_symbol(resolver_path, strict=False)  # type: ignore[assignment]
         if resolver_class and resolver_class().matches_scheme(uri):
             return resolver_class()
-
-    scheme = uri.split("://", 1)[0] if "://" in uri else None
-    raise ValueError(f"Unsupported URI scheme: {scheme}://" if scheme else f"No resolver found for URI: {uri}")
+    return None
 
 
-def parse_uri(uri: str) -> ParsedScheme:
-    return _get_resolver(uri).parse(uri)
+@overload
+def parse_uri(uri: str, allow_none: Literal[False], **kwargs) -> ParsedScheme: ...
+@overload
+def parse_uri(uri: str, allow_none: Literal[True], **kwargs) -> ParsedScheme | None: ...
+@overload
+def parse_uri(uri: str, allow_none: bool, **kwargs) -> ParsedScheme | None: ...
+
+
+def parse_uri(uri: str, allow_none: bool = False, **kwargs) -> ParsedScheme | None:
+    resolver = _get_resolver(uri, **kwargs)
+    if resolver is None:
+        if allow_none:
+            return None
+        raise ValueError("Invalid URI")
+    return resolver.parse(uri)
 
 
 def resolve_uri(uri: str) -> str:
-    return _get_resolver(uri).resolve(uri)
+    resolver = _get_resolver(uri)
+    if not resolver:
+        raise ValueError("Unsupported URI")
+    return resolver.get_path_to_policy_spec_or_mpt(uri)
 
 
 def checkpoint_filename(run_name: str, epoch: int) -> str:
@@ -227,22 +245,30 @@ def checkpoint_filename(run_name: str, epoch: int) -> str:
 
 def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
     resolved = resolve_uri(uri)
-    parsed = parse_uri(resolved)
+    parsed = parse_uri(resolved, allow_none=False)
     info = parsed.checkpoint_info
     if not info:
         raise ValueError(f"Could not extract checkpoint metadata from {uri}")
     return CheckpointMetadata(run_name=info[0], epoch=info[1], uri=resolved)
 
 
-def policy_spec_from_uri(uri: str, *, device: str = "cpu", strict: bool = True):
+def policy_spec_from_uri(
+    uri: str, *, device: str = "cpu", strict: bool = True, remove_downloaded_copy_on_exit: bool = False
+):
     from mettagrid.policy.policy import PolicySpec
+    from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
 
-    normalized_uri = resolve_uri(uri)
-    return PolicySpec(
-        class_path="mettagrid.policy.mpt_policy.MptPolicy",
-        init_kwargs={
-            "checkpoint_uri": normalized_uri,
-            "device": device,
-            "strict": strict,
-        },
-    )
+    path_to_spec = resolve_uri(uri)
+    if path_to_spec.endswith(".mpt"):
+        return PolicySpec(
+            class_path="mettagrid.policy.mpt_policy.MptPolicy",
+            init_kwargs={
+                "checkpoint_uri": path_to_spec,
+                "device": device,
+                "strict": strict,
+            },
+        )
+    if path_to_spec.startswith("s3://"):
+        return load_policy_spec_from_s3(path_to_spec, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit)
+    else:
+        return load_policy_spec_from_local_dir(Path(path_to_spec))

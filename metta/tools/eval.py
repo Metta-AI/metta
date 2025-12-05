@@ -18,7 +18,11 @@ from metta.sim.simulate_and_record import (
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, policy_spec_from_uri, resolve_uri
+from mettagrid.util.uri_resolvers.schemes import (
+    get_checkpoint_metadata,
+    policy_spec_from_uri,
+    resolve_uri,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +62,6 @@ class EvaluateTool(Tool):
     verbose: bool = False
     push_metrics_to_wandb: bool = False
 
-    def _build_policy_spec(self, normalized_uri: str) -> PolicySpec:
-        spec = policy_spec_from_uri(normalized_uri, device="cpu")
-        return spec
-
     def _get_checkpoint_metadata(self, policy_uri: str, stats_client: StatsClient) -> MyPolicyMetadata | None:
         metadata = get_checkpoint_metadata(policy_uri)
         result = stats_client.sql_query(
@@ -81,7 +81,7 @@ class EvaluateTool(Tool):
 
     def handle_single_policy_uri(self, policy_uri: str) -> tuple[int, str, list[SimulationRunResult]]:
         normalized_uri = resolve_uri(policy_uri)
-        policy_spec = self._build_policy_spec(normalized_uri)
+        policy_spec = policy_spec_from_uri(normalized_uri, device="cpu")
 
         observatory_writer: ObservatoryWriter | None = None
         wandb_writer: WandbWriter | None = None

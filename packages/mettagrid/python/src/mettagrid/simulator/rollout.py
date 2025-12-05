@@ -54,7 +54,7 @@ class Rollout:
     def step(self) -> None:
         """Execute one step of the rollout."""
         if self._step_count % 100 == 0:
-            logging.info(f"Step {self._step_count}")
+            logger.debug(f"Step {self._step_count}")
 
         for i in range(len(self._policies)):
             start_time = time.time()
