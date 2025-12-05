@@ -1,4 +1,3 @@
-import logging
 import multiprocessing
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -12,24 +11,16 @@ from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 
-logger = logging.getLogger(__name__)
-
 
 def _run_single_simulation(
     sim_idx: int,
-    simulation: "SimulationRunConfig" | dict[str, Any],
-    policy_data: Sequence[PolicySpec] | Sequence[dict[str, Any]],
+    simulation: Any,
+    policy_data: Sequence[Any],
     replay_dir: str | None,
     seed: int,
 ) -> "SimulationRunResult":
-    sim_cfg = (
-        simulation if isinstance(simulation, SimulationRunConfig) else SimulationRunConfig.model_validate(simulation)
-    )
-    policy_specs = (
-        list(policy_data)
-        if policy_data and isinstance(policy_data[0], PolicySpec)
-        else [PolicySpec.model_validate(spec) for spec in policy_data]
-    )
+    sim_cfg = SimulationRunConfig.model_validate(simulation)
+    policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data]
 
     env_interface = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
     multi_agent_policies: list[MultiAgentPolicy] = [
@@ -82,16 +73,12 @@ def run_simulations(
     if not policy_specs:
         raise ValueError("At least one policy spec is required")
 
-    materialized_specs = list(policy_specs)
-
     # Sequential path for max_workers unset or 1
     if not max_workers or max_workers <= 1:
         simulation_rollouts: list[SimulationRunResult] = []
         for i, simulation in enumerate(simulations):
             on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
-            simulation_rollouts.append(
-                _run_single_simulation(i, simulation, materialized_specs, replay_dir, seed)
-            )
+            simulation_rollouts.append(_run_single_simulation(i, simulation, policy_specs, replay_dir, seed))
             on_progress(f"Finished rollout for simulation {i + 1} of {len(simulations)}")
 
         return simulation_rollouts
