@@ -323,7 +323,6 @@ def train(
         losses=LossesConfig(),
     )
     # Inline CVC defaults from the latest sweep (Dec 2025)
-    trainer_cfg.total_timesteps = 936_831_488
     trainer_cfg.optimizer.learning_rate = 0.00737503357231617
     trainer_cfg.optimizer.eps = 5.0833278919526e-07
 
