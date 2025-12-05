@@ -88,11 +88,16 @@ class ReplayLogWriter(SimulatorEventHandler):
 class EpisodeReplay:
     """Helper class for managing replay data for a single episode."""
 
+    # Object types that never change state and only need to be recorded once
+    STATIC_OBJECT_TYPES = frozenset({"wall"})
+
     def __init__(self, sim: Simulation):
         self.sim = sim
         self.step = 0
         self.objects: list[dict[str, Any]] = []
         self.total_rewards = np.zeros(sim.num_agents)
+        # Map object IDs to their index in self.objects for consistent ordering
+        self._object_id_to_index: dict[int, int] = {}
 
         self._validate_non_empty_string_list(sim.action_names, "action_names")
         self._validate_non_empty_string_list(sim.resource_names, "item_names")
@@ -112,8 +117,20 @@ class EpisodeReplay:
     def log_step(self, current_step: int, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
         self.total_rewards += rewards
-        for i, grid_object in enumerate(self.sim.grid_objects().values()):
-            if len(self.objects) <= i:
+
+        # On first step, get ALL objects (including walls) to set up the replay
+        # On subsequent steps, use ignore_types to skip static objects at the C++ level
+        if self.step == 0:
+            grid_objects = self.sim.grid_objects()
+        else:
+            grid_objects = self.sim.grid_objects(ignore_types=list(self.STATIC_OBJECT_TYPES))
+
+        for obj_id, grid_object in grid_objects.items():
+            # Use object ID as index for consistent ordering
+            idx = self._object_id_to_index.get(obj_id)
+            if idx is None:
+                idx = len(self.objects)
+                self._object_id_to_index[obj_id] = idx
                 self.objects.append({})
 
             update_object = format_grid_object(
@@ -124,7 +141,7 @@ class EpisodeReplay:
                 self.total_rewards,
             )
 
-            self._seq_key_merge(self.objects[i], self.step, update_object)
+            self._seq_key_merge(self.objects[idx], self.step, update_object)
         self.step += 1
         if current_step != self.step:
             raise ValueError(
