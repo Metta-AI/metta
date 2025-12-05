@@ -1,5 +1,6 @@
 import contextlib
 import os
+from pathlib import Path
 import platform
 from datetime import timedelta
 from typing import Any, Optional
@@ -49,6 +50,8 @@ from metta.tools.utils.auto_config import (
     auto_stats_server_uri,
     auto_wandb_config,
 )
+from mettagrid.policy.loader import resolve_policy_class_path
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = getRankAwareLogger(__name__)
@@ -125,7 +128,17 @@ class TrainTool(Tool):
 
         supervisor_policy_spec = None
         if self.training_env.supervisor_policy_uri:
-            supervisor_policy_spec = policy_spec_from_uri(self.training_env.supervisor_policy_uri)
+            sup_uri = self.training_env.supervisor_policy_uri
+            # Shorthand policy name (no scheme, no extension, nonexistent path)
+            if "://" not in sup_uri:
+                candidate = Path(sup_uri)
+                if candidate.suffix == "" and not candidate.exists():
+                    class_path = resolve_policy_class_path(sup_uri)
+                    supervisor_policy_spec = PolicySpec(class_path=class_path)
+                else:
+                    supervisor_policy_spec = policy_spec_from_uri(sup_uri)
+            else:
+                supervisor_policy_spec = policy_spec_from_uri(sup_uri)
 
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 

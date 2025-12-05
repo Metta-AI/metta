@@ -8,6 +8,7 @@ from urllib.parse import unquote, urlparse
 import boto3
 
 from mettagrid.util.module import load_symbol
+from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.util.uri_resolvers.base import (
     CheckpointMetadata,
     ParsedScheme,
@@ -257,6 +258,13 @@ def policy_spec_from_uri(
 ):
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
+
+    # Shorthand policy name (no scheme, no extension, non-existent path)
+    if "://" not in uri:
+        candidate = Path(uri)
+        if candidate.suffix == "" and not candidate.exists():
+            class_path = resolve_policy_class_path(uri)
+            return PolicySpec(class_path=class_path, init_kwargs={"device": device})
 
     path_to_spec = resolve_uri(uri)
     if path_to_spec.endswith(".mpt"):

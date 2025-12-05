@@ -8,7 +8,6 @@ recipes should import from here and extend via custom defaults, similar to how
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Literal, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -33,8 +32,6 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
-from mettagrid.policy.loader import resolve_policy_class_path
-from mettagrid.policy.policy import PolicySpec
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
@@ -385,15 +382,7 @@ def train(
     scheduler_rules: list[HyperUpdateRule] = []
 
     if bc_policy_uri is not None:
-        # Shorthand policy name -> class path; otherwise treat as URI/path
-        candidate = Path(bc_policy_uri)
-        if "://" not in bc_policy_uri and candidate.suffix == "" and not candidate.exists():
-            tt.training_env.supervisor_policy_uri = None
-            tt.training_env.supervisor_policy_spec = PolicySpec(  # type: ignore[attr-defined]
-                class_path=resolve_policy_class_path(bc_policy_uri)
-            )
-        else:
-            tt.training_env.supervisor_policy_uri = bc_policy_uri
+        tt.training_env.supervisor_policy_uri = bc_policy_uri
 
         # Keep PPO disabled until after the BC window; gates above will enable it
         tt.trainer.losses.ppo.enabled = False
