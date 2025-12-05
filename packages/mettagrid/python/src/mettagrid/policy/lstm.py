@@ -237,7 +237,7 @@ class LSTMPolicy(MultiAgentPolicy):
     short_names = ["lstm"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, device: Optional[torch.device] = None):
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, is_scripted=False)
         self._device = device if device is not None else torch.device("cpu")
         self._policy_env_info = policy_env_info
         self._net = LSTMPolicyNet(policy_env_info).to(self._device)
@@ -250,7 +250,12 @@ class LSTMPolicy(MultiAgentPolicy):
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a StatefulPolicy wrapper for a specific agent."""
-        return StatefulAgentPolicy(self._agent_policy, self._policy_env_info, agent_id=agent_id)
+        return StatefulAgentPolicy(
+            self._agent_policy,
+            self._policy_env_info,
+            agent_id=agent_id,
+            policy_descriptor=self._policy_descriptor,
+        )
 
     def is_recurrent(self) -> bool:
         return True
