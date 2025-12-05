@@ -36,20 +36,25 @@ private:
       if (delta > 0) {
         InventoryDelta transferred = HasInventory::transfer_resources(agent, *this, resource, delta, true);
         if (transferred > 0) {
-          stats_tracker->add("chest." + stats_tracker->resource_name(resource) + ".deposited", transferred);
-          stats_tracker->set("chest." + stats_tracker->resource_name(resource) + ".amount", inventory.amount(resource));
           any_transfer = true;
         }
       } else if (delta < 0) {
         InventoryDelta transferred = HasInventory::transfer_resources(*this, agent, resource, -delta, true);
         if (transferred > 0) {
-          stats_tracker->add("chest." + stats_tracker->resource_name(resource) + ".withdrawn", transferred);
-          stats_tracker->set("chest." + stats_tracker->resource_name(resource) + ".amount", inventory.amount(resource));
           any_transfer = true;
         }
       }
     }
     return any_transfer;
+  }
+
+  void on_inventory_change(InventoryItem item, InventoryDelta delta) override {
+    if (delta > 0) {
+      stats_tracker->add("chest." + stats_tracker->resource_name(item) + ".deposited", delta);
+    } else if (delta < 0) {
+      stats_tracker->add("chest." + stats_tracker->resource_name(item) + ".withdrawn", -delta);
+    }
+    stats_tracker->set("chest." + stats_tracker->resource_name(item) + ".amount", inventory.amount(item));
   }
 
 public:

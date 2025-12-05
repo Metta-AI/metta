@@ -54,6 +54,8 @@ public:
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta);
 
+  void on_inventory_change(InventoryItem item, InventoryDelta delta) override;
+
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr);
 
   // Implementation of Usable interface
