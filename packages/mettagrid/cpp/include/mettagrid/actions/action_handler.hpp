@@ -138,7 +138,7 @@ public:
       for (const auto& [item, amount] : _consumed_resources) {
         if (amount > 0) {
           InventoryDelta delta = static_cast<InventoryDelta>(-static_cast<int>(amount));
-          [[maybe_unused]] InventoryDelta actual_delta = actor.update_inventory(item, delta);
+          [[maybe_unused]] InventoryDelta actual_delta = actor.inventory.update(item, delta);
           // We consume resources after the action succeeds, but in the future we might have an action that uses the
           // resource. This check will catch that.
           assert(actual_delta == delta);
