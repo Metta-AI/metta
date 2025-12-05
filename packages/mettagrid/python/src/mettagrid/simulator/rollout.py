@@ -44,6 +44,12 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
+        # Add pointer to policies so that Doxascope EventHandlers can access:
+        self._sim._context["policies"] = self._policies
+
+        # Commented because it breaks things
+        # sim = self._sim if self._pass_sim_to_policies else None
+
         # Reset policies and create agent policies if needed
         for policy in self._policies:
             policy.reset()
