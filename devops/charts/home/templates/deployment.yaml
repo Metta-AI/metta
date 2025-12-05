@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: home
+  name: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: home
+      name: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: home
+        name: {{ .Release.Name }}
     spec:
       containers:
         - name: home
