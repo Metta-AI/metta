@@ -4,10 +4,6 @@ from cogames.cogs_vs_clips.machina_missions_trainer import MACHINA_TRAINER_MISSI
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import (
-    EASY_MODE,
-    FIXED_30,
-    FIXED_50,
-    FIXED_70,
     HELLO_WORLD,
     MACHINA_1,
     TRAINING_FACILITY,
@@ -120,9 +116,6 @@ HelloWorldUnclipMission = Mission(
 
 
 MISSIONS: list[Mission] = [
-    ExtractorHub30,
-    ExtractorHub50,
-    ExtractorHub70,
     HarvestMission,
     VibeCheckMission,
     RepairMission,
