@@ -126,7 +126,18 @@ class TrainTool(Tool):
 
         self.training_env.seed += distributed_helper.get_rank()
 
-        supervisor_policy_spec = self._resolve_supervisor_policy_spec()
+        sup_uri = self.training_env.supervisor_policy_uri
+        supervisor_policy_spec: PolicySpec | None = None
+        if sup_uri:
+            candidate = Path(sup_uri)
+            looks_like_path = candidate.suffix or os.sep in sup_uri or candidate.parent != Path(".")
+            looks_like_uri = "://" in sup_uri
+
+            if looks_like_uri or looks_like_path:
+                supervisor_policy_spec = policy_spec_from_uri(sup_uri)
+            else:
+                class_path = resolve_policy_class_path(sup_uri)
+                supervisor_policy_spec = PolicySpec(class_path=class_path)
 
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 
@@ -193,22 +204,6 @@ class TrainTool(Tool):
             if sdpa_stack is not None:
                 sdpa_stack.close()
                 self._sdpa_context_stack = None
-
-    def _resolve_supervisor_policy_spec(self) -> PolicySpec | None:
-        sup_uri = self.training_env.supervisor_policy_uri
-        if not sup_uri:
-            return None
-
-        # If it looks like a URI or a path, resolve as-is; otherwise treat it as a class shorthand.
-        candidate = Path(sup_uri)
-        looks_like_path = candidate.suffix or os.sep in sup_uri or candidate.parent != Path(".")
-        looks_like_uri = "://" in sup_uri
-
-        if looks_like_uri or looks_like_path:
-            return policy_spec_from_uri(sup_uri)
-
-        class_path = resolve_policy_class_path(sup_uri)
-        return PolicySpec(class_path=class_path)
 
     def _initialize_trainer(
         self,
