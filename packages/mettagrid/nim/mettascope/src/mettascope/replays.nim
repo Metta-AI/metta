@@ -632,24 +632,26 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     replay.config = fromJson($(jsonObj["mg_config"]), Config)
 
   for obj in jsonObj["objects"]:
-    let inventoryRaw = expand[seq[seq[int]]](obj["inventory"], replay.maxSteps, @[])
+
     var inventory: seq[seq[ItemAmount]]
-    for i in 0 ..< inventoryRaw.len:
-      var itemAmounts: seq[ItemAmount]
-      for j in 0 ..< inventoryRaw[i].len:
-        itemAmounts.add(ItemAmount(itemId: inventoryRaw[i][j][0],
-            count: inventoryRaw[i][j][1]))
-      inventory.add(itemAmounts)
+    if "inventory" in obj:
+      let inventoryRaw = expand[seq[seq[int]]](obj["inventory"], replay.maxSteps, @[])
+      for i in 0 ..< inventoryRaw.len:
+        var itemAmounts: seq[ItemAmount]
+        for j in 0 ..< inventoryRaw[i].len:
+          itemAmounts.add(ItemAmount(itemId: inventoryRaw[i][j][0],
+              count: inventoryRaw[i][j][1]))
+        inventory.add(itemAmounts)
 
-    let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0])
     var location: seq[IVec2]
-    for i in 0 ..< locationRaw.len:
-      location.add(ivec2(
-        locationRaw[i][0].int32,
-        locationRaw[i][1].int32
-      ))
+    if "location" in obj:
+      let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0])
+      for coords in locationRaw:
+        location.add(ivec2(coords[0].int32, coords[1].int32))
+    else:
+      location = @[ivec2(0, 0)]
 
-    var resolvedTypeName = ""
+    var resolvedTypeName = "unknown"
     if "type_name" in obj:
       resolvedTypeName = obj["type_name"].getStr
 
@@ -658,17 +660,14 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       if candidateId >= 0 and candidateId < replay.typeNames.len:
         resolvedTypeName = replay.typeNames[candidateId]
 
-    doAssert resolvedTypeName.len > 0,
-      "Unknown object type for replay entity"
-
     let entity = Entity(
-      id: obj["id"].getInt,
+      id: if "id" in obj: obj["id"].getInt else: 0,
       typeName: resolvedTypeName,
       location: location,
-      orientation: expand[int](obj["orientation"], replay.maxSteps, 0),
+      orientation: if "orientation" in obj: expand[int](obj["orientation"], replay.maxSteps, 0) else: @[0],
       inventory: inventory,
-      inventoryMax: obj["inventory_max"].getInt,
-      color: expand[int](obj["color"], replay.maxSteps, 0),
+      inventoryMax: if "inventory_max" in obj: obj["inventory_max"].getInt else: 0,
+      color: if "color" in obj: expand[int](obj["color"], replay.maxSteps, 0) else: @[0],
     )
     if "group_id" in obj:
       entity.groupId = obj["group_id"].getInt
