@@ -5,6 +5,12 @@ from datetime import timedelta
 from typing import Any, Optional
 
 import torch
+
+# Configure TF32 early, before any torch.compile calls
+# This must happen before any model compilation to avoid API conflicts
+if torch.cuda.is_available() and hasattr(torch.backends, "cuda"):
+    torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
+    torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
 from pydantic import Field
 
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -295,14 +301,10 @@ class TrainTool(Tool):
             trainer.register(LossScheduler(self.scheduler))
 
     def _configure_torch_backends(self) -> None:
+        # TF32 is already configured at module import time (see top of file)
+        # This method now only handles SDPA and flash attention configuration
         if not torch.cuda.is_available():
             return
-
-        try:
-            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
-            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
-        except Exception as exc:  # pragma: no cover - diagnostic only
-            logger.debug("Skipping CUDA matmul backend configuration: %s", exc)
 
         # Opportunistically enable flash attention when available
         if os.environ.get("FLASH_ATTENTION") is None:
