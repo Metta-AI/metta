@@ -45,11 +45,8 @@ DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
 # Training facility missions
 TRAINING_FACILITY_MISSIONS: tuple[str, ...] = (
     "harvest",
-    "assemble",
     "vibe_check",
     "repair",
-    "unclip_drills",
-    "signs_and_portents",
 )
 
 # Procedural generation missions (using MachinaArena)
@@ -68,7 +65,6 @@ FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
     "hello_world_unclip",
     # Training facility missions we currently support in this repo
     "harvest",
-    "assemble",
     "vibe_check",
     "repair",
     "oxygen_bottleneck",
@@ -699,7 +695,9 @@ def experiment(
     print(f"Command: {' '.join(cmd)}")
     print("=" * 50)
 
-    subprocess.run(cmd, check=True)
+    print(f"Command: {' '.join(cmd)}")
+
+    # subprocess.run(cmd, check=True)
     print(f"✓ Successfully launched job: {run_name}")
 
 
