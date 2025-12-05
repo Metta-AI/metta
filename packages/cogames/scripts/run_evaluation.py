@@ -120,8 +120,8 @@ def _configure_env_for_action_space(env_cfg, num_actions: int) -> None:
 
     # Select the appropriate vibe set
     if num_vibes == 16:
-        # TRAINING_VIBES (16 vibes)
-        vibe_names = [v.name for v in vibes_module.TRAINING_VIBES]
+        # First 16 vibes (standard training set)
+        vibe_names = [v.name for v in vibes_module.VIBES[:16]]
     elif num_vibes == 13:
         # First 13 vibes (cvc_random_maps style)
         vibe_names = [v.name for v in vibes_module.VIBES[:13]]
