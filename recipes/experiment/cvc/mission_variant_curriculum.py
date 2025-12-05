@@ -9,7 +9,6 @@ This replaces both variants_curriculum.py and full_curriculum.py.
 
 from __future__ import annotations
 
-import subprocess
 import time
 from typing import NamedTuple, Optional, Sequence
 
