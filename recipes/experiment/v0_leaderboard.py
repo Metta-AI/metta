@@ -5,8 +5,7 @@ from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from metta.app_backend.leaderboard_constants import LEADERBOARD_SIM_NAME_EPISODE_KEY
 from metta.sim.runner import SimulationRunConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluatePolicyVersionTool
-from metta.tools.multi_versioned_policy_eval import MultiPolicyVersionEvalTool
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.utils.auto_config import auto_stats_server_uri
 
@@ -73,47 +72,33 @@ def simulations(num_episodes: int = 1, map_seed: int | None = None) -> Sequence[
     return [sp_config, thinky_config, ladybug_config]
 
 
-# ./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_version_id=f32ca3a3-b6f0-479f-8105-27ce02b873cb
-# Or using metta:// URI:
 # ./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_uri=metta://policy/f32ca3a3-b6f0-479f-8105-27ce02b873cb
 def evaluate(
-    policy_version_id: str | None = None,
     policy_uri: str | None = None,
-    result_file_path: str | None = None,
+    policy_version_id: str | None = None,
     stats_server_uri: str | None = None,
     seed: int = 50,
-) -> MultiPolicyVersionEvalTool:
-    """
-    Run the V0 Leaderboard Evaluation.
-
-    Compares the candidate policy (policy_version_id) against known baselines
-    (Thinky and Ladybug) in the Machina 1 Open World environment.
-
-    Args:
-        policy_version_id: Observatory policy version UUID (legacy parameter)
-        policy_uri: Policy URI (e.g., metta://policy/<uuid>, s3://..., file://...)
-    """
-    # Support both legacy policy_version_id and new policy_uri parameter
-    if policy_uri and policy_uri.startswith("metta://policy/"):
-        policy_version_id = policy_uri.split("/")[-1]
-    elif not policy_version_id:
-        raise ValueError("Either policy_version_id or policy_uri is required")
+) -> EvaluateTool:
+    if policy_version_id and not policy_uri:
+        policy_uri = f"metta://policy/{policy_version_id}"
+    if not policy_uri:
+        raise ValueError("policy_uri is required")
 
     if (api_url := stats_server_uri or auto_stats_server_uri()) is None:
         raise ValueError("stats_server_uri is required")
 
-    policy_version_ids = [policy_version_id, THINKY_UUID, LADYBUG_UUID]
+    policy_uris = [
+        policy_uri,
+        f"metta://policy/{THINKY_UUID}",
+        f"metta://policy/{LADYBUG_UUID}",
+    ]
 
-    tool = MultiPolicyVersionEvalTool(
-        result_file_path=result_file_path or f"leaderboard_eval_{policy_version_id}.json",
+    tool = EvaluateTool(
         simulations=simulations(map_seed=seed),
-        policy_version_ids=policy_version_ids,
-        primary_policy_version_id=policy_version_id,
+        policy_uris=policy_uris,
         verbose=True,
         stats_server_uri=api_url,
     )
-
-    # Set the seed
     tool.system.seed = seed
 
     return tool
@@ -131,12 +116,13 @@ def play(policy_version_id: str | None = None, s3_path: str | None = None) -> Pl
 # This is similar to what evaluate_remote() ultimately calls within remote_eval_worker
 # ./tools/run.py recipes.experiment.v0_leaderboard.test_remote_eval
 #   policy_version_id=99810f21-d73d-4e72-8082-70516f2b6b2a
-def test_remote_eval(policy_version_id: str) -> EvaluatePolicyVersionTool:
+def test_remote_eval(policy_version_id: str) -> EvaluateTool:
     sims = simulations()
     for sim in sims:
         sim.proportions = [1.0]
-    return EvaluatePolicyVersionTool(
+    return EvaluateTool(
         simulations=sims,
-        policy_version_id=policy_version_id,
+        policy_uris=[f"metta://policy/{policy_version_id}"],
         stats_server_uri=auto_stats_server_uri(),
+        max_workers=3,
     )
