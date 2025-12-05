@@ -73,7 +73,7 @@ class TestParseUri:
         assert parsed.scheme == "file"
 
     def test_unknown_scheme_raises(self):
-        with pytest.raises(ValueError, match="Unsupported URI scheme"):
+        with pytest.raises(ValueError, match="Invalid URI"):
             parse_uri("unknown://path")
 
 
