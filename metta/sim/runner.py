@@ -15,29 +15,6 @@ from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult,
 logger = logging.getLogger(__name__)
 
 
-def _is_cuda_device(device: object | None) -> bool:
-    """Return True if the provided device description targets CUDA."""
-
-    if device is None:
-        return False
-    if isinstance(device, str):
-        return device.lower().startswith("cuda")
-    device_type = getattr(device, "type", None)
-    if isinstance(device_type, str):
-        return device_type.lower() == "cuda"
-    return False
-
-
-def _needs_spawn_context(policy_specs: Sequence[PolicySpec]) -> bool:
-    """Check whether any policy will initialize CUDA and thus require spawn workers."""
-
-    for spec in policy_specs:
-        init_kwargs = spec.init_kwargs or {}
-        if _is_cuda_device(init_kwargs.get("device")):
-            return True
-    return False
-
-
 def _run_single_simulation(
     sim_idx: int,
     sim_payload: dict,
@@ -145,11 +122,8 @@ def run_simulations(
 
     on_progress(f"Launching {len(simulations)} eval rollouts with up to {max_workers} workers")
 
-    mp_context = None
-    if _needs_spawn_context(policy_specs):
-        # PyTorch cannot safely reinitialize CUDA in forked workers; spawn avoids inheriting state.
-        mp_context = multiprocessing.get_context("spawn")
-        logger.debug("Using spawn multiprocessing context to isolate CUDA evaluators")
+    # Use spawn in parallel mode; it's safer for CUDA and avoids subtle fork issues.
+    mp_context = multiprocessing.get_context("spawn")
 
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_context) as executor:
         future_to_idx = {
