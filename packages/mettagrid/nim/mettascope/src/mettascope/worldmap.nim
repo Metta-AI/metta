@@ -187,19 +187,11 @@ proc buildAtlas*() {.measure.} =
   bxy.addImage("selection", readImage(dataDir & "/selection.png"))
   bxy.addImage("agents/path", readImage(dataDir & "/agents/path.png"))
   bxy.addImage("agents/footprints", readImage(dataDir & "/agents/footprints.png"))
+  bxy.addImage("agents/frozen", readImage(dataDir & "/agents/frozen.png"))
   bxy.addImage("actions/thoughts_lightning", readImage(dataDir & "/actions/thoughts_lightning.png"))
   bxy.addImage("actions/icons/unknown", readImage(dataDir & "/actions/icons/unknown.png"))
   bxy.addImage("actions/arrow", readImage(dataDir & "/actions/arrow.png"))
   bxy.addImage("actions/thoughts", readImage(dataDir & "/actions/thoughts.png"))
-
-  bxy.addImage("minimap/agent", readImage(dataDir & "/minimap/agent.png"))
-  bxy.addImage("minimap/assembler", readImage(dataDir & "/minimap/assembler.png"))
-  bxy.addImage("minimap/carbon_extractor", readImage(dataDir & "/minimap/carbon_extractor.png"))
-  bxy.addImage("minimap/charger", readImage(dataDir & "/minimap/charger.png"))
-  bxy.addImage("minimap/germanium_extractor", readImage(dataDir & "/minimap/germanium_extractor.png"))
-  bxy.addImage("minimap/silicon_extractor", readImage(dataDir & "/minimap/silicon_extractor.png"))
-  bxy.addImage("minimap/oxygen_extractor", readImage(dataDir & "/minimap/oxygen_extractor.png"))
-  bxy.addImage("minimap/chest", readImage(dataDir & "/minimap/chest.png"))
 
   proc addDir(rootDir: string, dir: string) =
     for path in walkDirRec(rootDir / dir):
@@ -730,36 +722,34 @@ proc drawWorldMini*() {.measure.} =
 
   drawTerrain()
 
-  # Overlays
-  if settings.showVisualRange:
-    drawVisualRanges()
-  elif settings.showFogOfWar:
-    drawFogOfWar()
-
   # Agents
   let scale = 3.0
   bxy.saveTransform()
   bxy.scale(vec2(scale, scale))
 
   for obj in replay.objects:
-    let pipName = "minimap/" & obj.typeName
-    if pipName in bxy:
-      let loc = obj.location.at(step).xy
-      let rect = rect(
+    if obj.typeName != agentTypeName:
+      continue
+
+    let loc = obj.location.at(step).xy
+    bxy.drawImage(
+      "minimapPip",
+      rect(
         (loc.x.float32) / scale - 0.5,
         (loc.y.float32) / scale - 0.5,
         1,
         1
-      )
-      bxy.drawImage(
-        pipName,
-        rect,
-        color(1, 1, 1, 1)
-      )
+      ),
+      color(1, 1, 1, 1)
+    )
 
   bxy.restoreTransform()
 
-
+  # Overlays
+  if settings.showVisualRange:
+    drawVisualRanges()
+  elif settings.showFogOfWar:
+    drawFogOfWar()
 
 proc centerAt*(panel: Panel, entity: Entity) {.measure.} =
   ## Center the map on the given entity.
@@ -786,7 +776,7 @@ proc drawWorldMain*() {.measure.} =
   bxy.exitRawOpenGLMode()
   measurePop()
 
-  #drawActions()
+  drawActions()
   drawAgentDecorations()
   drawSelection()
   drawPlannedPath()
@@ -823,49 +813,6 @@ proc fitFullMap*(panel: Panel) {.measure.} =
     z = panel.zoom * panel.zoom
   panel.pos.x = rectW / 2.0f - cx * z
   panel.pos.y = rectH / 2.0f - cy * z
-
-proc fitVisibleMap*(panel: Panel) {.measure.} =
-  ## Set zoom and pan so the visible area (union of all agent vision ranges) fits in the panel.
-  if replay.isNil:
-    return
-  
-  if replay.agents.len == 0:
-    fitFullMap(panel)
-    return
-
-  let rectSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
-
-  # Calculate the union of all agent vision areas.
-  var
-    minPos = vec2(float32.high, float32.high)
-    maxPos = vec2(float32.low, float32.low)
-
-  for agent in replay.agents:
-    if agent.location.len == 0:
-      continue
-    let
-      pos = agent.location.at(step).xy.vec2
-      visionRadius = agent.visionSize.float32 / 2.0f
-      agentMin = pos - vec2(visionRadius, visionRadius)
-      agentMax = pos + vec2(visionRadius, visionRadius)
-
-    minPos = min(minPos, agentMin)
-    maxPos = max(maxPos, agentMax)
-
-  # Ensure we have valid bounds with reasonable size, otherwise fall back to full map
-  let size = maxPos - minPos
-  if size.x < 1.0f or size.y < 1.0f:
-    fitFullMap(panel)
-    return
-
-  let
-    visibleSize = maxPos - minPos
-    zoomScale = min(rectSize.x / visibleSize.x, rectSize.y / visibleSize.y)
-    center = (minPos + maxPos) / 2.0f
-    zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
-
-  panel.zoom = zoom
-  panel.pos = rectSize / 2.0f - center * (zoom * zoom)
 
 proc adjustPanelForResize*(panel: Panel) {.measure.} =
   ## Adjust pan and zoom when panel resizes to show the same portion of the map.
