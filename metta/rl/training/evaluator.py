@@ -194,6 +194,7 @@ class Evaluator(TrainerComponent):
 
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
+        sim_run_configs = [sim.to_simulation_run_config() for sim in sims]
         policy_spec = self._build_policy_spec(policy_uri)
         policy_version_id: uuid.UUID | None = None
         if self._stats_client:
@@ -207,7 +208,10 @@ class Evaluator(TrainerComponent):
         # Remote evaluation
         if self._evaluate_remote and self._stats_client and policy_version_id:
             response = evaluate_remotely(
-                policy_version_id, [sim.to_simulation_run_config() for sim in sims], self._stats_client, self._git_hash
+                policy_version_id,
+                sim_run_configs,
+                self._stats_client,
+                self._git_hash,
             )
             logger.info(f"Created remote evaluation task {response}")
 
@@ -238,7 +242,7 @@ class Evaluator(TrainerComponent):
 
             rollout_results = simulate_and_record(
                 policy_specs=[policy_spec],
-                simulations=[sim.to_simulation_run_config() for sim in sims],
+                simulations=sim_run_configs,
                 replay_dir=self._replay_dir,
                 seed=self._seed,
                 max_workers=self._config.parallel_evals,

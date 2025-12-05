@@ -15,26 +15,26 @@ from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult,
 logger = logging.getLogger(__name__)
 
 
-def _run_single_simulation(
+def _evaluate_simulation(
+    *,
     sim_idx: int,
-    sim_payload: dict,
-    policy_payloads: list[dict],
+    simulation: "SimulationRunConfig",
+    policy_specs: Sequence[PolicySpec],
     replay_dir: str | None,
     seed: int,
+    per_sim_replay_subdir: bool,
 ) -> "SimulationRunResult":
-    """Run one simulation in a worker process."""
+    """Run one simulation using already materialized configs."""
 
-    simulation = SimulationRunConfig.model_validate(sim_payload)
     env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
     multi_agent_policies: list[MultiAgentPolicy] = [
-        initialize_or_load_policy(env_interface, PolicySpec.model_validate(spec_payload))
-        for spec_payload in policy_payloads
+        initialize_or_load_policy(env_interface, spec) for spec in policy_specs
     ]
 
-    replay_subdir = None
-    if replay_dir:
-        replay_subdir = os.path.join(replay_dir, f"sim_{sim_idx}")
-        os.makedirs(replay_subdir, exist_ok=True)
+    replay_target = replay_dir
+    if replay_dir and per_sim_replay_subdir:
+        replay_target = os.path.join(replay_dir, f"sim_{sim_idx}")
+        os.makedirs(replay_target, exist_ok=True)
 
     rollout_result = multi_episode_rollout(
         env_cfg=simulation.env,
@@ -42,11 +42,32 @@ def _run_single_simulation(
         episodes=simulation.num_episodes,
         seed=seed + sim_idx,
         proportions=simulation.proportions,
-        save_replay=replay_subdir,
+        save_replay=replay_target,
         max_action_time_ms=simulation.max_action_time_ms,
     )
 
     return SimulationRunResult(run=simulation, results=rollout_result)
+
+
+def _run_single_simulation(
+    sim_idx: int,
+    sim_payload: dict,
+    policy_payloads: list[dict],
+    replay_dir: str | None,
+    seed: int,
+) -> "SimulationRunResult":
+    """Adapter for ProcessPool workers that rebuilds Pydantic models."""
+
+    simulation = SimulationRunConfig.model_validate(sim_payload)
+    policy_specs = [PolicySpec.model_validate(spec_payload) for spec_payload in policy_payloads]
+    return _evaluate_simulation(
+        sim_idx=sim_idx,
+        simulation=simulation,
+        policy_specs=policy_specs,
+        replay_dir=replay_dir,
+        seed=seed,
+        per_sim_replay_subdir=True,
+    )
 
 
 class SimulationRunConfig(BaseModel):
@@ -79,37 +100,24 @@ def run_simulations(
     if not policy_specs:
         raise ValueError("At least one policy spec is required")
 
+    materialized_specs = list(policy_specs)
+
     # Sequential path for max_workers unset or 1
     if not max_workers or max_workers <= 1:
         simulation_rollouts: list[SimulationRunResult] = []
         for i, simulation in enumerate(simulations):
-            proportions = simulation.proportions
-
-            env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
-            multi_agent_policies: list[MultiAgentPolicy] = [
-                initialize_or_load_policy(env_interface, spec) for spec in policy_specs
-            ]
-
             on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
-            rollout_result = multi_episode_rollout(
-                env_cfg=simulation.env,
-                policies=multi_agent_policies,
-                episodes=simulation.num_episodes,
-                seed=seed + i,
-                proportions=proportions,
-                save_replay=replay_dir,
-                # TODO: support this if and only if we also reflect that it happened in results
-                # max_time_s=simulation.max_time_s,
-                max_action_time_ms=simulation.max_action_time_ms,
-            )
-            on_progress(f"Finished rollout for simulation {i + 1} of {len(simulations)}")
-
             simulation_rollouts.append(
-                SimulationRunResult(
-                    run=simulation,
-                    results=rollout_result,
+                _evaluate_simulation(
+                    sim_idx=i,
+                    simulation=simulation,
+                    policy_specs=materialized_specs,
+                    replay_dir=replay_dir,
+                    seed=seed,
+                    per_sim_replay_subdir=False,
                 )
             )
+            on_progress(f"Finished rollout for simulation {i + 1} of {len(simulations)}")
 
         return simulation_rollouts
 
