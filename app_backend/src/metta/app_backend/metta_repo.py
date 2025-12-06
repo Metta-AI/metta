@@ -743,12 +743,17 @@ class MettaRepo:
         name_exact: str | None = None,
         name_fuzzy: str | None = None,
         version: int | None = None,
+        policy_version_ids: list[uuid.UUID] | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[PublicPolicyVersionRow], int]:
         async with self.connect() as con:
             where_conditions: list[str] = []
             params: list[Any] = []
+
+            if policy_version_ids:
+                where_conditions.append("pv.id = ANY(%s)")
+                params.append(policy_version_ids)
 
             if name_exact:
                 where_conditions.append("p.name = %s")
