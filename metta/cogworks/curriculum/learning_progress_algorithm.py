@@ -254,13 +254,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if not task_ids:
             return None
 
-        if self.hypers.use_bidirectional:
-            raw_scores = {tid: self._get_bidirectional_learning_progress_score(tid) for tid in task_ids}
-            return min(raw_scores, key=raw_scores.get)
-
-        # Basic mode: reuse existing scores
+        # Use the same scoring signal as sampling; lower score = lower learning progress
         scores = self.score_tasks(task_ids)
-        return min(task_ids, key=lambda tid: scores.get(tid, 0.0))
+
+        def _evict_key(tid: int) -> tuple[float, int, int]:
+            task_stats = self.task_tracker.get_task_stats(tid) or {"completion_count": 0}
+            # Fewest presentations is preferred when scores tie; final tie-breaker on task_id for determinism
+            return (scores.get(tid, self.hypers.exploration_bonus), task_stats["completion_count"], tid)
+
+        return min(task_ids, key=_evict_key)
 
     def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
         """Check if a task should be evicted based on criteria."""
