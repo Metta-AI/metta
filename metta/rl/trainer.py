@@ -93,7 +93,13 @@ class Trainer:
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.policy_env_info.num_agents
 
-        policy_experience_spec = self._extend_policy_experience_spec(self._policy.get_agent_experience_spec())
+        base_spec = self._policy.get_agent_experience_spec()
+        slot_metadata = {
+            "slot_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+            "loss_profile_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+            "is_trainable_agent": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool),
+        }
+        policy_experience_spec = Composite({**dict(base_spec.items()), **slot_metadata})
 
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,
@@ -370,23 +376,6 @@ class Trainer:
             "trainable_mask": trainable_tensor,
             "slot_policies": slot_policies,
         }
-
-    def _extend_policy_experience_spec(self, base_spec: Composite) -> Composite:
-        """Ensure slot/loss-profile metadata is always present in the experience spec.
-
-        Losses uniformly expect slot metadata (slot id, loss profile id, trainable flag)
-        in their minibatches. Adding these fields unconditionally avoids KeyErrors in the
-        common single-slot configuration while keeping multi-slot behavior unchanged.
-        """
-
-        extras = {
-            "slot_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
-            "loss_profile_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
-            "is_trainable_agent": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool),
-        }
-        merged = dict(base_spec.items())
-        merged.update(extras)
-        return Composite(merged)
 
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
         """Invoke all registered callbacks of the specified type."""
