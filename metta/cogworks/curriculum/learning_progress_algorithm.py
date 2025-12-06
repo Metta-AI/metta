@@ -548,7 +548,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if hasattr(self, "_outcomes"):
             state.update(
                 {
-                    "lp_state_version": 1,
                     # Deep-copy mutable state to avoid aliasing after checkpoint is captured
                     "outcomes": {k: list(v) for k, v in self._outcomes.items()},
                     "counter": dict(self._counter),
@@ -568,13 +567,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Restore bidirectional scoring state
         if "outcomes" in state:
-            if state.get("lp_state_version") == 1:
-                self._outcomes = state["outcomes"]
-                self._counter = state["counter"]
-                self._per_task_fast = state.get("per_task_fast", {})
-                self._per_task_slow = state.get("per_task_slow", {})
-            else:
-                # Legacy checkpoint: rebuild learning progress from scratch on resume
+            self._outcomes = state.get("outcomes", {})
+            self._counter = state.get("counter", {})
+            self._per_task_fast = state.get("per_task_fast", {})
+            self._per_task_slow = state.get("per_task_slow", {})
+
+            # If essential pieces are missing (legacy checkpoint), rebuild LP state from scratch
+            if not self._per_task_fast or not self._per_task_slow or not self._outcomes:
                 self._outcomes = {}
                 self._counter = {}
                 self._per_task_fast = {}
