@@ -187,7 +187,6 @@ private:
 
   inline size_t _cell_index(GridCoord r, GridCoord c) const { return static_cast<size_t>(r) * _grid->width + c; }
   inline void _mark_cell_dirty(GridCoord r, GridCoord c);
-  inline void _mark_cell_dirty_idx(size_t idx);
   inline void _mark_observation_window_dirty(GridCoord center_r, GridCoord center_c);
 };
 

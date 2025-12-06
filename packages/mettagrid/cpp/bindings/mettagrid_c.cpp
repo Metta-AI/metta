@@ -563,10 +563,7 @@ void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_ac
 
 inline void MettaGrid::_mark_cell_dirty(GridCoord r, GridCoord c) {
   if (r >= _grid->height || c >= _grid->width) return;
-  _mark_cell_dirty_idx(_cell_index(r, c));
-}
-
-inline void MettaGrid::_mark_cell_dirty_idx(size_t idx) {
+  const size_t idx = _cell_index(r, c);
   if (idx >= _dirty_flags.size()) return;
   if (_dirty_flags[idx]) return;
   _dirty_flags[idx] = 1;
