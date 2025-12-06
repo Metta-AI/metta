@@ -319,7 +319,6 @@ export const PolicyVersionPage: FC = () => {
           setError={setTaskError}
           initialFilters={{ command: policyVersionId }}
           hideFilters
-          title="Related Jobs"
         />
       )}
     </div>

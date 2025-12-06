@@ -96,6 +96,15 @@ class SweepRow(BaseModel):
     updated_at: datetime
 
 
+class PolicyRow(BaseModel):
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    user_id: str
+    attributes: dict[str, Any]
+    version_count: int
+
+
 class PolicyVersionRow(BaseModel):
     id: uuid.UUID
     internal_id: int
@@ -738,6 +747,60 @@ class MettaRepo:
                 )
                 return await cur.fetchall()
 
+    async def get_policies(
+        self,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[PolicyRow], int]:
+        async with self.connect() as con:
+            where_conditions: list[str] = []
+            params: list[Any] = []
+
+            if name_exact:
+                where_conditions.append("p.name = %s")
+                params.append(name_exact)
+
+            if name_fuzzy:
+                where_conditions.append("p.name ILIKE %s")
+                params.append(f"%{name_fuzzy}%")
+
+            where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+
+            count_query = f"SELECT COUNT(*) FROM policies p {where_clause}"
+            count_result = await con.execute(count_query, params)
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            params.extend([limit, offset])
+
+            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT
+                        p.id,
+                        p.name,
+                        p.created_at,
+                        p.user_id,
+                        p.attributes,
+                        COALESCE(vc.version_count, 0) AS version_count
+                    FROM policies p
+                    LEFT JOIN (
+                        SELECT policy_id, COUNT(*) AS version_count
+                        FROM policy_versions
+                        GROUP BY policy_id
+                    ) vc ON p.id = vc.policy_id
+                    {where_clause}
+                    ORDER BY p.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    params,
+                )
+                rows = await cur.fetchall()
+
+            return rows, total_count
+
     async def get_policy_versions(
         self,
         name_exact: str | None = None,
@@ -784,7 +847,7 @@ class MettaRepo:
             async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
                 await cur.execute(
                     f"""
-                    SELECT DISTINCT ON (pv.policy_id)
+                    SELECT
                         pv.id,
                         pv.policy_id,
                         pv.created_at,
@@ -796,7 +859,7 @@ class MettaRepo:
                     FROM policy_versions pv
                     JOIN policies p ON pv.policy_id = p.id
                     {where_clause}
-                    ORDER BY pv.policy_id, pv.version DESC
+                    ORDER BY pv.created_at DESC
                     LIMIT %s OFFSET %s
                     """,
                     params,

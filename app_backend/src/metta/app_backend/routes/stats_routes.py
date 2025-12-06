@@ -11,6 +11,7 @@ from metta.app_backend.auth import UserOrToken
 from metta.app_backend.metta_repo import (
     EpisodeWithTags,
     MettaRepo,
+    PolicyRow,
     PolicyVersionWithName,
     PublicPolicyVersionRow,
 )
@@ -95,6 +96,11 @@ class EpisodeQueryRequest(BaseModel):
 
 class EpisodeQueryResponse(BaseModel):
     episodes: list[EpisodeWithTags]
+
+
+class PoliciesResponse(BaseModel):
+    entries: list[PolicyRow]
+    total_count: int
 
 
 class PolicyVersionsResponse(BaseModel):
@@ -342,6 +348,22 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/policies")
     @timed_http_handler
     async def get_policies(
+        name_exact: Optional[str] = None,
+        name_fuzzy: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> PoliciesResponse:
+        entries, total_count = await stats_repo.get_policies(
+            name_exact=name_exact,
+            name_fuzzy=name_fuzzy,
+            limit=limit,
+            offset=offset,
+        )
+        return PoliciesResponse(entries=entries, total_count=total_count)
+
+    @router.get("/policy-versions")
+    @timed_http_handler
+    async def get_policy_versions(
         name_exact: Optional[str] = None,
         name_fuzzy: Optional[str] = None,
         version: Optional[int] = None,
