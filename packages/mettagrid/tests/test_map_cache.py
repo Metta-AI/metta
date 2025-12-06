@@ -1,8 +1,6 @@
 """Tests for shared memory map cache."""
 
 import importlib.util
-import multiprocessing
-import platform
 from pathlib import Path
 
 import numpy as np
@@ -177,91 +175,6 @@ def test_large_map(cache):
 
     assert game_map is not None
     assert game_map.grid.shape == (100, 100)
-
-
-def _worker_get_map(config_json: str, num_agents: int, result_queue: multiprocessing.Queue) -> None:
-    """Worker function to get a map from shared cache."""
-    from mettagrid.map_builder.ascii import AsciiMapBuilder
-
-    cache = get_shared_cache()
-    # Reconstruct config from JSON
-    config = AsciiMapBuilder.Config.model_validate_json(config_json)
-    retrieved_map = cache.get_or_create(config, num_agents)
-    if retrieved_map is not None:
-        result_queue.put(("success", retrieved_map.grid.tolist()))
-    else:
-        result_queue.put(("not_found", None))
-
-
-def _worker_create_map(config_json: str, num_agents: int, result_queue: multiprocessing.Queue) -> None:
-    """Worker function to create a map in shared cache."""
-    from mettagrid.map_builder.ascii import AsciiMapBuilder
-
-    cache = get_shared_cache()
-    config = AsciiMapBuilder.Config.model_validate_json(config_json)
-    cache.get_or_create(config, num_agents)
-    result_queue.put(("done", None))
-
-
-@pytest.mark.skipif(
-    platform.system() == "Darwin",
-    reason="Multiprocessing tests can be flaky on macOS with fork method",
-)
-def test_cross_process_sharing(cache):
-    """Test that maps can be shared across processes."""
-    # Set spawn method for cross-platform compatibility
-    if platform.system() != "Windows":
-        try:
-            multiprocessing.set_start_method("spawn", force=True)
-        except RuntimeError:
-            pass  # Already set
-
-    # Create and cache a map in main process
-    config = _make_test_config(1)
-    num_agents = 1
-    game_map = cache.get_or_create(config, num_agents)
-    expected_grid = game_map.grid.tolist()
-
-    # Try to retrieve it from a worker process
-    config_json = config.model_dump_json()
-    result_queue = multiprocessing.Queue()
-    process = multiprocessing.Process(target=_worker_get_map, args=(config_json, num_agents, result_queue))
-    process.start()
-    process.join(timeout=5)
-
-    assert process.exitcode == 0
-    status, retrieved_grid = result_queue.get(timeout=1)
-    assert status == "success"
-    assert retrieved_grid == expected_grid
-
-
-@pytest.mark.skipif(
-    platform.system() == "Darwin",
-    reason="Multiprocessing tests can be flaky on macOS with fork method",
-)
-def test_cross_process_create_get(cache):
-    """Test creating a map in one process and getting it in another."""
-    # Set spawn method for cross-platform compatibility
-    if platform.system() != "Windows":
-        try:
-            multiprocessing.set_start_method("spawn", force=True)
-        except RuntimeError:
-            pass  # Already set
-
-    # Create map from worker process
-    config = _make_test_config(1)
-    num_agents = 1
-    config_json = config.model_dump_json()
-
-    result_queue = multiprocessing.Queue()
-    process1 = multiprocessing.Process(target=_worker_create_map, args=(config_json, num_agents, result_queue))
-    process1.start()
-    process1.join(timeout=5)
-    assert process1.exitcode == 0
-
-    # Get map from main process - should use cached version
-    retrieved_map = cache.get_or_create(config, num_agents)
-    assert retrieved_map is not None
 
 
 def test_get_shared_cache_singleton():

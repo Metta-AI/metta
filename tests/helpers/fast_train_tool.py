@@ -5,45 +5,48 @@ from pathlib import Path
 import torch
 from torch import nn
 
+from metta.agent.components.actor import ActionProbsConfig
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policy import Policy
+from metta.agent.policy import Policy, PolicyArchitecture
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_pt
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.policy.mpt_artifact import save_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
+
+
+class DummyPolicyArchitecture(PolicyArchitecture):
+    class_path: str = "tests.helpers.fast_train_tool.DummyPolicy"
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+
+    def make_policy(self, policy_env_info):
+        return DummyPolicy(0)
 
 
 class DummyPolicy(Policy, nn.Module):
-    """Lightweight torch module used to populate fake checkpoints quickly."""
-
     def __init__(self, epoch: int) -> None:
         policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
         super().__init__(policy_env_info)
         self.register_buffer("epoch_tensor", torch.tensor(epoch, dtype=torch.float32))
 
     def forward(self, td) -> None:
-        """Dummy forward method."""
         pass
 
     @property
     def device(self) -> torch.device:
-        """Return device of the epoch tensor."""
         return torch.device("cpu")
 
     def reset_memory(self) -> None:
-        """Dummy reset_memory method."""
         pass
 
 
 class FastCheckpointTrainTool(TrainTool):
-    """Minimal TrainTool variant that writes synthetic checkpoints without training."""
-
     def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:
             assert self.run is None, "run cannot be set twice"
@@ -74,9 +77,9 @@ class FastCheckpointTrainTool(TrainTool):
             trainer_state_path,
         )
 
-        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.mpt"
+        policy_path = checkpoint_manager.checkpoint_dir / checkpoint_filename(run_name, epoch)
         policy = DummyPolicy(epoch)
-        save_policy_artifact_pt(policy_path, policy=policy)
+        save_mpt(policy_path, architecture=DummyPolicyArchitecture(), state_dict=policy.state_dict())
 
         return 0
 

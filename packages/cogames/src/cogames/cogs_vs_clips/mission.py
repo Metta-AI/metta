@@ -167,7 +167,7 @@ class Mission(Config):
             num_agents=num_cogs,
             resource_names=resources,
             vibe_names=[vibe.name for vibe in vibes.VIBES],
-            global_obs=GlobalObsConfig(compass=self.compass_enabled),
+            global_obs=GlobalObsConfig(compass=self.compass_enabled, goal_obs=True),
             actions=ActionsConfig(
                 move=MoveActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=NoopActionConfig(),
@@ -278,8 +278,10 @@ class Mission(Config):
         # Precaution - copy the env, in case the code above uses some global variable that we don't want to modify.
         # This allows variants to modify the env without copying it again.
         env = env.model_copy(deep=True)
+        env.label = self.full_name()
 
         for variant in self.variants:
             variant.modify_env(self, env)
+            env.label += f".{variant.name}"
 
         return env

@@ -22,6 +22,7 @@ from metta.app_backend.routes.stats_routes import (
     MyPolicyVersionsResponse,
     PolicyCreate,
     PolicyVersionCreate,
+    PolicyVersionsResponse,
     PresignedUploadUrlResponse,
     UUIDResponse,
 )
@@ -81,8 +82,11 @@ class StatsClient:
         policy_spec: dict[str, Any],
         git_hash: str | None = None,
         attributes: dict[str, Any] | None = None,
+        s3_path: str | None = None,
     ) -> UUIDResponse:
-        data = PolicyVersionCreate(git_hash=git_hash, policy_spec=policy_spec, attributes=attributes or {})
+        data = PolicyVersionCreate(
+            git_hash=git_hash, policy_spec=policy_spec, attributes=attributes or {}, s3_path=s3_path
+        )
         return self._make_sync_request(
             UUIDResponse, "POST", f"/stats/policies/{policy_id}/versions", json=data.model_dump(mode="json")
         )
@@ -147,11 +151,44 @@ class StatsClient:
     def get_leaderboard_policies_v2(self) -> LeaderboardPoliciesResponse:
         return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2")
 
+    def get_leaderboard_policies_with_vor(self) -> LeaderboardPoliciesResponse:
+        return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2/vor")
+
     def get_my_policy_versions(self) -> MyPolicyVersionsResponse:
         return self._make_sync_request(
             MyPolicyVersionsResponse,
             "GET",
             "/stats/policies/my-versions",
+        )
+
+    def get_policy_versions(
+        self,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
+        version: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> PolicyVersionsResponse:
+        params = remove_none_values(
+            {
+                "name_exact": name_exact,
+                "name_fuzzy": name_fuzzy,
+                "version": version,
+                "limit": limit,
+                "offset": offset,
+            }
+        )
+        return self._make_sync_request(PolicyVersionsResponse, "GET", "/stats/policy-versions", params=params)
+
+    def get_versions_for_policy(
+        self,
+        policy_id: str,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> PolicyVersionsResponse:
+        params = remove_none_values({"limit": limit, "offset": offset})
+        return self._make_sync_request(
+            PolicyVersionsResponse, "GET", f"/stats/policies/{policy_id}/versions", params=params
         )
 
     def get_leaderboard_policies_v2_users_me(self) -> LeaderboardPoliciesResponse:

@@ -15,7 +15,6 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from mettagrid import PufferMettaGridEnv, dtype_observations
-from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.simulator import Simulator
 
 
@@ -31,8 +30,7 @@ class TestBasicPolicyEnvironment:
     def env_with_config(self, simple_env_config):
         """Create PufferMettaGridEnv from config."""
         simulator = Simulator()
-        env_supervisor_cfg = EnvSupervisorConfig()
-        env = PufferMettaGridEnv(simulator, simple_env_config, env_supervisor_cfg)
+        env = PufferMettaGridEnv(simulator, simple_env_config)
         try:
             yield env
         finally:
@@ -41,7 +39,7 @@ class TestBasicPolicyEnvironment:
     def test_basic_environment_creation(self, simple_env_config):
         """Test that we can create environments programmatically."""
         assert simple_env_config.game.num_agents == 2
-        assert "altar" in simple_env_config.game.objects
+        assert "assembler" in simple_env_config.game.objects
         assert simple_env_config.game.actions.move is not None
 
     def test_environment_reset_and_step(self, env_with_config):

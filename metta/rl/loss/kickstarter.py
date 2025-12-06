@@ -12,6 +12,8 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.mpt_policy import MptPolicy
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -32,17 +34,9 @@ class KickstarterConfig(LossConfig):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "Kickstarter":
         """Create Kickstarter loss instance."""
-        return Kickstarter(
-            policy,
-            trainer_cfg,
-            vec_env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return Kickstarter(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class Kickstarter(Loss):
@@ -62,19 +56,18 @@ class Kickstarter(Loss):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any = None,
+        cfg: "KickstarterConfig",
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         self.student_forward = self.cfg.student_forward
-
-        # Load teacher. Lazy import to avoid circular dependency
-        from metta.rl.checkpoint_manager import CheckpointManager
 
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-        teacher_spec = CheckpointManager.policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
+        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
+        if isinstance(self.teacher_policy, MptPolicy):
+            self.teacher_policy = self.teacher_policy._policy
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape

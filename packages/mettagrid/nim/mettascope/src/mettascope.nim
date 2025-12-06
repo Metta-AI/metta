@@ -19,6 +19,7 @@ proc updateReplayHeader() =
 
 proc onReplayLoaded() =
   ## Called when a replay is loaded.
+  replay.loadImages()
   updateReplayHeader()
   worldMapPanel.pos = vec2(0, 0)
   onStepChanged()
@@ -59,10 +60,10 @@ find "/UI/Main":
     rootArea.split = 0.30
 
     rootArea.areas[0].split(Horizontal)
-    rootArea.areas[0].split = 0.8
+    rootArea.areas[0].split = 0.7
 
     rootArea.areas[1].split(Vertical)
-    rootArea.areas[1].split = 0.50
+    rootArea.areas[1].split = 0.6
 
     objectInfoPanel = rootArea.areas[0].areas[0].addPanel(ObjectInfo, "Object")
     environmentInfoPanel = rootArea.areas[0].areas[0].addPanel(EnvironmentInfo, "Environment")
@@ -70,7 +71,7 @@ find "/UI/Main":
     worldMapPanel = rootArea.areas[1].areas[0].addPanel(WorldMap, "Map")
     minimapPanel = rootArea.areas[0].areas[1].addPanel(Minimap, "Minimap")
 
-    agentTracesPanel = rootArea.areas[1].areas[0].addPanel(AgentTraces, "Agent Traces")
+    #agentTracesPanel = rootArea.areas[1].areas[0].addPanel(AgentTraces, "Agent Traces")
     # agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
 
     vibePanel = rootArea.areas[1].areas[1].addPanel(VibePanel, "Vibe Selector")
@@ -90,7 +91,7 @@ find "/UI/Main":
         thisNode.size.y
       )
       if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
-        fitFullMap(worldMapPanel)
+        fitVisibleMap(worldMapPanel)
       adjustPanelForResize(worldMapPanel)
       bxy.translate(worldMapPanel.rect.xy.vec2 * window.contentScale)
       drawWorldMap(worldMapPanel)
@@ -108,17 +109,17 @@ find "/UI/Main":
       drawMinimap(minimapPanel)
       bxy.restoreTransform()
 
-    agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
-      bxy.saveTransform()
-      agentTracesPanel.rect = irect(
-        thisNode.absolutePosition.x,
-        thisNode.absolutePosition.y,
-        thisNode.size.x,
-        thisNode.size.y
-      )
-      bxy.translate(agentTracesPanel.rect.xy.vec2 * window.contentScale)
-      drawAgentTraces(agentTracesPanel)
-      bxy.restoreTransform()
+    # agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
+    #   bxy.saveTransform()
+    #   agentTracesPanel.rect = irect(
+    #     thisNode.absolutePosition.x,
+    #     thisNode.absolutePosition.y,
+    #     thisNode.size.x,
+    #     thisNode.size.y
+    #   )
+    #   bxy.translate(agentTracesPanel.rect.xy.vec2 * window.contentScale)
+    #   drawAgentTraces(agentTracesPanel)
+    #   bxy.restoreTransform()
 
     globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
@@ -196,7 +197,7 @@ when isMainModule:
 
   startFidget(
     figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
-    windowTitle = "MetaScope V2",
+    windowTitle = "MettaScope",
     entryFrame = "UI/Main",
     windowStyle = DecoratedResizable,
     dataDir = dataDir

@@ -30,6 +30,8 @@ class PPOCriticConfig(LossConfig):
     train_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under training
     rollout_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under rollout
 
+    deferred_training_start_step: int | None = None  # if set, sample/train_forward enable after this step
+
     def create(
         self,
         policy: Policy,
@@ -37,17 +39,8 @@ class PPOCriticConfig(LossConfig):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "PPOCritic":
-        """Points to the PPO class for initialization."""
-        return PPOCritic(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return PPOCritic(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class PPOCritic(Loss):
@@ -69,9 +62,9 @@ class PPOCritic(Loss):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "PPOCriticConfig",
     ):
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.sample_enabled = self.cfg.sample_enabled
         self.train_forward_enabled = self.cfg.train_forward_enabled
@@ -96,8 +89,15 @@ class PPOCritic(Loss):
             truncateds=scalar_f32,
         )
 
+    def on_rollout_start(self, context: ComponentContext | None = None) -> None:
+        """Called before starting a rollout phase."""
+        super().on_rollout_start(context)
+        if self.cfg.deferred_training_start_step is not None:
+            if self._require_context(context).agent_step >= self.cfg.deferred_training_start_step:
+                self.sample_enabled = True
+                self.train_forward_enabled = True
+
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
-        """Rollout step: forward policy and store experience with optional burn-in."""
         if not self.rollout_forward_enabled:
             return
 
@@ -118,6 +118,12 @@ class PPOCritic(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         # compute advantages on the first mb
         if mb_idx == 0:
+            # a hack because loss run gates can get updated between rollout and train
+            if self.cfg.deferred_training_start_step is not None:
+                if self._require_context(context).agent_step >= self.cfg.deferred_training_start_step:
+                    self.sample_enabled = True
+                    self.train_forward_enabled = True
+
             advantages = torch.zeros_like(self.replay.buffer["values"], device=self.device)
             self.advantages = compute_advantage(
                 self.replay.buffer["values"],
@@ -161,6 +167,9 @@ class PPOCritic(Loss):
                     device=self.device,
                     dtype=torch.float32,
                 )
+
+        if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
+            return self._zero_tensor, shared_loss_data, False
 
         shared_loss_data["advantages"] = self.advantages[indices]
         # Share gamma/lambda with other losses (e.g. actor) to ensure consistency
