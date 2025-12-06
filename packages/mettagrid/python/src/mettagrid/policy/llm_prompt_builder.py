@@ -275,11 +275,10 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         if inventory:
             sections.append(self._build_inventory_section(inventory))
 
-        # 4. Nearby agents with their inventories (for coordination)
-        nearby_objects = self._find_nearby_objects(obs, agent_x, agent_y)
-        nearby_agents = [obj for obj in nearby_objects if obj["name"] == "agent"]
-        if nearby_agents:
-            sections.append(self._build_nearby_agents_section(nearby_agents))
+        # 4. Visible objects with coordinates (spatial awareness)
+        visible_objects = self._extract_visible_objects_with_coords(obs, agent_x, agent_y)
+        if visible_objects:
+            sections.append(self._build_visible_objects_section(visible_objects))
 
         # 5. Include available actions only on first/reset steps
         if include_actions:
@@ -301,8 +300,8 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         grid: dict[tuple[int, int], str] = {}
 
         for token in obs.tokens:
-            # IMPORTANT: row() returns X, col() returns Y
-            x, y = token.row(), token.col()
+            # row() = Y (North/South), col() = X (East/West)
+            x, y = token.col(), token.row()
 
             # Only care about tag features for the grid
             if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
@@ -338,14 +337,14 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         lines.append(header)
 
         # Grid rows (y-axis = rows)
-        # spatial_grid keys are (row, col) from token.row(), token.col()
+        # spatial_grid keys are (x, y) where x=col(), y=row()
         for row in range(obs_height):
             row_str = f"{row % 10} "
             for col in range(obs_width):
-                if row == agent_x and col == agent_y:
+                if col == agent_x and row == agent_y:
                     row_str += "@"  # Agent position
-                elif (row, col) in spatial_grid:
-                    tag = spatial_grid[(row, col)]
+                elif (col, row) in spatial_grid:
+                    tag = spatial_grid[(col, row)]
                     # Use distinctive letter for each type
                     if tag == "wall":
                         row_str += "W"
@@ -723,8 +722,8 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
         # Build spatial grid from tokens
         spatial_grid: dict[tuple[int, int], list[dict]] = {}
         for token in obs.tokens:
-            # IMPORTANT: row() returns X, col() returns Y
-            x, y = token.row(), token.col()
+            # row() = Y (North/South), col() = X (East/West)
+            x, y = token.col(), token.row()
             if (x, y) not in spatial_grid:
                 spatial_grid[(x, y)] = []
 
@@ -827,8 +826,8 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
         seen_locations: set[tuple[int, int]] = set()
 
         for token in obs.tokens:
-            # IMPORTANT: row() returns X, col() returns Y
-            x, y = token.row(), token.col()
+            # row() = Y (North/South), col() = X (East/West)
+            x, y = token.col(), token.row()
 
             # Skip agent's own location
             if x == agent_x and y == agent_y:
@@ -851,8 +850,8 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
                 properties = []
                 inventory = {}
                 for t in obs.tokens:
-                    # IMPORTANT: row() returns X, col() returns Y
-                    if t.row() == x and t.col() == y:
+                    # row() = Y, col() = X, so compare col() with x and row() with y
+                    if t.col() == x and t.row() == y:
                         if t.feature.name == "cooldown_remaining" and t.value > 0:
                             properties.append(f"cooldown: {t.value}")
                         elif t.feature.name == "remaining_uses":
@@ -940,8 +939,8 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
         """
         inventory = {}
         for token in obs.tokens:
-            # IMPORTANT: row() returns X, col() returns Y
-            if token.row() == agent_x and token.col() == agent_y:
+            # row() = Y, col() = X, so compare col() with agent_x and row() with agent_y
+            if token.col() == agent_x and token.row() == agent_y:
                 if token.feature.name.startswith("inv:"):
                     resource = token.feature.name[4:]  # Remove "inv:" prefix
                     inventory[resource] = token.value
@@ -1006,6 +1005,120 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
             result["available_actions"] = self._policy_env_info.action_names
 
         return result
+
+    def _extract_visible_objects_with_coords(
+        self, obs: AgentObservation, agent_x: int, agent_y: int
+    ) -> list[dict]:
+        """Extract all visible objects with their absolute coordinates and properties.
+
+        Args:
+            obs: Agent observation
+            agent_x: Agent's X coordinate (center of view)
+            agent_y: Agent's Y coordinate (center of view)
+
+        Returns:
+            List of object dicts with name, x, y, and properties
+        """
+        # First pass: collect all tokens by position
+        positions: dict[tuple[int, int], dict] = {}
+
+        for token in obs.tokens:
+            # row() = Y (North/South), col() = X (East/West)
+            x, y = token.col(), token.row()
+
+            # Skip agent's own position (we show inventory separately)
+            if x == agent_x and y == agent_y:
+                continue
+
+            if (x, y) not in positions:
+                positions[(x, y)] = {
+                    "tag": None,
+                    "properties": {},
+                    "inventory": {},
+                }
+
+            pos_data = positions[(x, y)]
+
+            # Capture tag (object type)
+            if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
+                pos_data["tag"] = self._policy_env_info.tags[token.value]
+
+            # Capture inventory for agents
+            elif token.feature.name.startswith("inv:") and token.value > 0:
+                resource = token.feature.name[4:]  # Remove "inv:" prefix
+                pos_data["inventory"][resource] = token.value
+
+            # Capture other useful properties
+            elif token.feature.name == "cooldown_remaining" and token.value > 0:
+                pos_data["properties"]["cooldown"] = token.value
+            elif token.feature.name == "remaining_uses":
+                pos_data["properties"]["uses"] = token.value
+            elif token.feature.name == "agent:group":
+                pos_data["properties"]["group"] = token.value
+
+        # Second pass: build object list with coordinates
+        objects = []
+        for (x, y), data in positions.items():
+            if data["tag"] is None:
+                continue  # Skip positions without a recognized object
+
+            # Skip walls - they clutter the output
+            if data["tag"] == "wall":
+                continue
+
+            # Calculate relative coordinates (offset from agent)
+            rel_x = x - agent_x
+            rel_y = y - agent_y
+
+            obj = {
+                "name": data["tag"],
+                "x": rel_x,
+                "y": rel_y,
+                "distance": abs(rel_x) + abs(rel_y),  # Manhattan distance
+                "properties": data["properties"],
+                "inventory": data["inventory"],
+            }
+            objects.append(obj)
+
+        # Sort by distance (closest first)
+        return sorted(objects, key=lambda o: o["distance"])
+
+    def _build_visible_objects_section(self, objects: list[dict]) -> str:
+        """Build section showing visible objects with coordinates.
+
+        Format: "object_name at: x=X, y=Y (properties)"
+
+        Args:
+            objects: List of object dicts from _extract_visible_objects_with_coords
+
+        Returns:
+            Formatted section with spatial coordinates
+        """
+        lines = ["=== VISIBLE OBJECTS (relative to you at 0,0) ==="]
+        lines.append("Coordinates: x+ is East, x- is West, y+ is South, y- is North")
+        lines.append("")
+
+        for obj in objects:
+            # Format: "assembler at: x=2, y=-3"
+            line = f"  {obj['name']} at: x={obj['x']}, y={obj['y']}"
+
+            # Add properties in parentheses
+            props = []
+            if obj["properties"]:
+                for key, val in obj["properties"].items():
+                    props.append(f"{key}={val}")
+
+            # Add inventory for agents
+            if obj["inventory"]:
+                inv_parts = [f"{k}={v}" for k, v in sorted(obj["inventory"].items())]
+                props.append(f"inventory: {', '.join(inv_parts)}")
+
+            if props:
+                line += f" ({'; '.join(props)})"
+
+            lines.append(line)
+
+        return "\n".join(lines)
 
     @property
     def step_count(self) -> int:
