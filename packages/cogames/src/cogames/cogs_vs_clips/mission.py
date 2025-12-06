@@ -236,25 +236,25 @@ class Mission(Config):
                 "chest_carbon": self.chest.station_cfg().model_copy(
                     update={
                         "map_name": "chest_carbon",
-                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                        "vibe_transfers": {"default": {"carbon": 255}},
                     }
                 ),
                 "chest_oxygen": self.chest.station_cfg().model_copy(
                     update={
                         "map_name": "chest_oxygen",
-                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                        "vibe_transfers": {"default": {"oxygen": 255}},
                     }
                 ),
                 "chest_germanium": self.chest.station_cfg().model_copy(
                     update={
                         "map_name": "chest_germanium",
-                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                        "vibe_transfers": {"default": {"germanium": 255}},
                     }
                 ),
                 "chest_silicon": self.chest.station_cfg().model_copy(
                     update={
                         "map_name": "chest_silicon",
-                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                        "vibe_transfers": {"default": {"silicon": 255}},
                     }
                 ),
                 # Clipped variants with unique map_names so they don't conflict with regular extractors
