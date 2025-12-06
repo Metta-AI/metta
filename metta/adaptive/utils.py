@@ -123,8 +123,6 @@ def build_eval_overrides(
 
     # WandB configuration - simplified to match new setup
     eval_overrides["push_metrics_to_wandb"] = "True"
-    # Use 'group' instead of 'wandb.group' to match train.py pattern
-    eval_overrides["group"] = experiment_id
 
     # Stats server configuration
     if stats_server_uri:

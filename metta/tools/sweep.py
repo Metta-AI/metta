@@ -231,7 +231,12 @@ class SweepTool(Tool):
         init_logging(run_dir=Path(self.sweep_dir))
 
         logger.info("[SweepTool] " + "=" * 60)
-        logger.info(f"[SweepTool] Starting Bayesian optimization sweep: {self.sweep_name}")
+        sweep_kind = (
+            "Grid search sweep"
+            if self.scheduler_type == SweepSchedulerType.GRID_SEARCH
+            else "Bayesian optimization sweep"
+        )
+        logger.info(f"[SweepTool] Starting {sweep_kind}: {self.sweep_name}")
         logger.info(f"[SweepTool] Recipe: {self.recipe_module}.{self.train_entrypoint}")
         logger.info(f"[SweepTool] Max trials: {self.max_trials}")
         logger.info(f"[SweepTool] Batch size: {self.batch_size}")
@@ -397,12 +402,16 @@ class SweepTool(Tool):
             metric_for_hook = getattr(self.protein_config, "metric", None)
             if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and not metric_for_hook:
                 metric_for_hook = self.grid_metric
-            logger.info(f"[SweepTool] Optimizing metric: {metric_for_hook}")
-            if self.cost_key:
-                logger.info(f"[SweepTool] Cost metric: {self.cost_key}")
 
-            # Create the on_eval_completed hook with the specific metric we're optimizing
-            on_eval_completed = create_on_eval_completed_hook(metric_for_hook, cost_key=self.cost_key)
+            on_eval_completed = None
+            if metric_for_hook:
+                logger.info(f"[SweepTool] Optimizing metric: {metric_for_hook}")
+                if self.cost_key:
+                    logger.info(f"[SweepTool] Cost metric: {self.cost_key}")
+                # Create the on_eval_completed hook with the specific metric we're optimizing
+                on_eval_completed = create_on_eval_completed_hook(metric_for_hook, cost_key=self.cost_key)
+            else:
+                logger.info("[SweepTool] No metric provided; skipping sweep/score logging for evaluations")
 
             # Pass on_eval_completed hook to run method for sweep-specific observation tracking
             controller.run(
