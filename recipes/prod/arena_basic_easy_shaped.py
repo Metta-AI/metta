@@ -19,6 +19,7 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import grid_search as grid_search_tool
 from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -252,5 +253,24 @@ def sweep(sweep_name: str) -> SweepTool:
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
+        num_parallel_trials=4,
+    )
+
+
+def grid_search(sweep_name: str) -> SweepTool:
+    grid_parameters = [
+        SP.categorical("trainer.optimizer.learning_rate", [1e-4, 3e-4]),
+        SP.categorical("trainer.losses.ppo.clip_coef", [0.1, 0.2]),
+        SP.categorical("trainer.losses.ppo.ent_coef", [0.003, 0.01]),
+        SP.categorical("trainer.total_timesteps", [5e8, 1e9]),
+    ]
+
+    return grid_search_tool(
+        name=sweep_name,
+        recipe="recipes.prod.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        parameters=grid_parameters,
+        max_trials=16,
         num_parallel_trials=4,
     )

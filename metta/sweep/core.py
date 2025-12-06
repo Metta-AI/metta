@@ -302,7 +302,7 @@ def grid_search(
     recipe: str,
     train_entrypoint: str,
     eval_entrypoint: str,
-    objective: str,
+    objective: Optional[str] = None,
     parameters: Union[Dict[str, Any], List[Dict[str, Any]]],
     max_trials: int = 10,
     num_parallel_trials: int = 1,
@@ -328,10 +328,11 @@ def grid_search(
             num_parallel_trials: Max parallel jobs
             train_overrides: Optional overrides for training configuration
             eval_overrides: Optional overrides for evaluation configuration
+            objective: Optional metric to log; unused by the scheduler
             **advanced: Additional SweepTool options
 
         Grid parameters:
-            objective: Metric to optimize (used by evaluation hooks)
+            objective: Optional metric to log (used by evaluation hooks; not required)
             parameters: Nested dict of categorical choices (lists or CategoricalParameterConfig)
 
     Returns:
