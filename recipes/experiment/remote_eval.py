@@ -1,6 +1,5 @@
-import json
-
-from metta.sim.runner import SimulationRunConfig
+from metta.common.util.constants import PROD_STATS_SERVER_URI
+from metta.sim.remote import SimulationList
 from metta.tools.eval import EvalWithResultTool
 
 
@@ -11,12 +10,12 @@ def eval(
     result_file_path: str,
 ) -> EvalWithResultTool:
     with open(task_data_path, "rb") as f:
-        simulations_json = f.read()
-    sim_json_array = json.loads(simulations_json)["simulations"]
-    simulations = [SimulationRunConfig.model_validate(sim) for sim in sim_json_array]
+        task_data = SimulationList.model_validate_json(f.read())
 
     return EvalWithResultTool(
-        simulations=simulations,
+        simulations=task_data.simulations,
         policy_uris=[f"metta://policy/{policy_version_id}"],
+        stats_server_uri=PROD_STATS_SERVER_URI,
+        push_metrics_to_wandb=True,
         result_file_path=result_file_path,
     )
