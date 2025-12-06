@@ -28,6 +28,7 @@ public:
     _clipped = get("clipped");
     _remaining_uses = get("remaining_uses");
     _goal = get("goal");
+    _agent_cooldown_remaining = get("agent_cooldown_remaining");
 
     // Initialize public members (must be done AFTER private members are set above)
     Group = _group;
@@ -42,6 +43,7 @@ public:
     Clipped = _clipped;
     RemainingUses = _remaining_uses;
     Goal = _goal;
+    AgentCooldownRemaining = _agent_cooldown_remaining;
   }
 
   // Get feature ID by name (throws if not found)
@@ -71,6 +73,7 @@ public:
   ObservationType Clipped;
   ObservationType RemainingUses;
   ObservationType Goal;
+  ObservationType AgentCooldownRemaining;
 
 private:
   std::unordered_map<std::string, ObservationType> _name_to_id;
@@ -88,6 +91,7 @@ private:
   ObservationType _clipped;
   ObservationType _remaining_uses;
   ObservationType _goal;
+  ObservationType _agent_cooldown_remaining;
 };
 
 // Global singleton instance
@@ -112,6 +116,7 @@ extern ObservationType CooldownRemaining;
 extern ObservationType Clipped;
 extern ObservationType RemainingUses;
 extern ObservationType Goal;
+extern ObservationType AgentCooldownRemaining;
 }  // namespace ObservationFeature
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CONFIG_OBSERVATION_FEATURES_HPP_

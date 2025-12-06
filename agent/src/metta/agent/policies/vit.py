@@ -165,6 +165,8 @@ class ViTDefaultConfig(PolicyArchitecture):
     core_resnet_layers: int = 1
     # Enable layer normalization after each trunk layer
     core_use_layer_norm: bool = True
+    # Whether to torch.compile the trunk (Cortex stack)
+    core_compile: bool = False
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
@@ -228,6 +230,7 @@ class ViTDefaultConfig(PolicyArchitecture):
             num_layers=self.core_resnet_layers,
             pattern="A",
             post_norm=self.core_use_layer_norm,
+            compile_blocks=self.core_compile,
         )
 
         AgentClass = load_symbol(self.class_path)

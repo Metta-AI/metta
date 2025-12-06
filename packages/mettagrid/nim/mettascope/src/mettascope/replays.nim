@@ -800,7 +800,9 @@ proc loadImages*(replay: Replay) =
   for i in 0 ..< replay.itemNames.len:
     replay.itemImages[i] = "resources/" & replay.itemNames[i]
     if replay.itemImages[i] notin bxy:
-      replay.itemImages[i] = "resources/unknown"
+      replay.itemImages[i] = "vibe/" & replay.itemNames[i]
+      if replay.itemImages[i] notin bxy:
+        replay.itemImages[i] = "resources/unknown"
 
 proc loadReplay*(data: string, fileName: string): Replay =
   ## Load a replay from a string.
