@@ -151,6 +151,9 @@ class StatsClient:
     def get_leaderboard_policies_v2(self) -> LeaderboardPoliciesResponse:
         return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2")
 
+    def get_leaderboard_policies_with_vor(self) -> LeaderboardPoliciesResponse:
+        return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2/vor")
+
     def get_my_policy_versions(self) -> MyPolicyVersionsResponse:
         return self._make_sync_request(
             MyPolicyVersionsResponse,
