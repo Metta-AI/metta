@@ -548,6 +548,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if hasattr(self, "_outcomes"):
             state.update(
                 {
+                    "lp_state_version": 1,
                     # Deep-copy mutable state to avoid aliasing after checkpoint is captured
                     "outcomes": {k: list(v) for k, v in self._outcomes.items()},
                     "counter": dict(self._counter),
@@ -567,15 +568,21 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Restore bidirectional scoring state
         if "outcomes" in state:
-            self._outcomes = state["outcomes"]
-            self._counter = state["counter"]
-
-            # Restore per-task EMAs
-            self._per_task_fast = state.get("per_task_fast", {})
-            self._per_task_slow = state.get("per_task_slow", {})
+            if state.get("lp_state_version") == 1:
+                self._outcomes = state["outcomes"]
+                self._counter = state["counter"]
+                self._per_task_fast = state.get("per_task_fast", {})
+                self._per_task_slow = state.get("per_task_slow", {})
+            else:
+                # Legacy checkpoint: rebuild learning progress from scratch on resume
+                self._outcomes = {}
+                self._counter = {}
+                self._per_task_fast = {}
+                self._per_task_slow = {}
+                self._score_cache = {}
+                self._cache_valid_tasks = set()
 
             # Scoring formula may differ across versions; invalidate cached scores
-            # to ensure fresh recomputation after load.
             self._score_cache = {}
             self._cache_valid_tasks = set()
 
