@@ -27,6 +27,8 @@ struct GlobalObsConfig {
   bool goal_obs = false;
 };
 
+#include "config/melee_combat_config.hpp"
+
 struct GameConfig {
   size_t num_agents;
   unsigned int max_steps;
@@ -51,6 +53,9 @@ struct GameConfig {
 
   // Global clipper settings
   std::shared_ptr<ClipperConfig> clipper = nullptr;
+
+  // Melee combat settings
+  MeleeCombatConfig melee_combat;
 };
 
 namespace py = pybind11;
@@ -69,6 +74,18 @@ inline void bind_global_obs_config(py::module& m) {
       .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
       .def_readwrite("compass", &GlobalObsConfig::compass)
       .def_readwrite("goal_obs", &GlobalObsConfig::goal_obs);
+}
+
+inline void bind_melee_combat_config(py::module& m) {
+  py::class_<MeleeCombatConfig>(m, "MeleeCombatConfig")
+      .def(py::init<>())
+      .def_readwrite("enabled", &MeleeCombatConfig::enabled)
+      .def_readwrite("attack_vibe_id", &MeleeCombatConfig::attack_vibe_id)
+      .def_readwrite("defense_vibe_id", &MeleeCombatConfig::defense_vibe_id)
+      .def_readwrite("attack_item_id", &MeleeCombatConfig::attack_item_id)
+      .def_readwrite("defense_item_id", &MeleeCombatConfig::defense_item_id)
+      .def_readwrite("attack_consumes_item", &MeleeCombatConfig::attack_consumes_item)
+      .def_readwrite("defense_consumes_item", &MeleeCombatConfig::defense_consumes_item);
 }
 
 inline void bind_game_config(py::module& m) {
@@ -95,7 +112,10 @@ inline void bind_game_config(py::module& m) {
                     unsigned int,
 
                     // Clipper
-                    const std::shared_ptr<ClipperConfig>&>(),
+                    const std::shared_ptr<ClipperConfig>&,
+
+                    // Melee combat
+                    const MeleeCombatConfig&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -118,7 +138,10 @@ inline void bind_game_config(py::module& m) {
            py::arg("inventory_regen_interval") = 0,
 
            // Clipper
-           py::arg("clipper") = std::shared_ptr<ClipperConfig>(nullptr))
+           py::arg("clipper") = std::shared_ptr<ClipperConfig>(nullptr),
+
+           // Melee combat
+           py::arg("melee_combat") = MeleeCombatConfig())
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -146,7 +169,10 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("inventory_regen_interval", &GameConfig::inventory_regen_interval)
 
       // Clipper
-      .def_readwrite("clipper", &GameConfig::clipper);
+      .def_readwrite("clipper", &GameConfig::clipper)
+
+      // Melee combat
+      .def_readwrite("melee_combat", &GameConfig::melee_combat);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CONFIG_METTAGRID_CONFIG_HPP_
