@@ -51,11 +51,8 @@ def _modern_sdpa_context(
         return None
 
     sdpa_kernel = getattr(nn_attention, "sdpa_kernel", None)
-    if not callable(sdpa_kernel):
-        return None
-
     backend_cls = getattr(nn_attention, "SDPBackend", None)
-    if backend_cls is None:
+    if not callable(sdpa_kernel) or backend_cls is None:
         return None
 
     backends: list = []
