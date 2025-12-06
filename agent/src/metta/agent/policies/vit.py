@@ -10,6 +10,7 @@ from tensordict.nn import TensorDictModule as TDM
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.cortex import CortexTDConfig
+from metta.agent.components.diversity_injection import DiversityInjectionConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
@@ -163,6 +164,14 @@ class ViTDefaultConfig(PolicyArchitecture):
     # Enable layer normalization after each trunk layer
     core_use_layer_norm: bool = True
 
+    # Diversity injection - auto-expands exploration when gradients vanish
+    # Enable with losses.diversity.enabled=True losses.diversity.diversity_coef=0.01
+    use_diversity_injection: bool = False
+
+    # Dynamics/Muesli unrolling - number of steps to unroll for model-based prediction
+    # Set to > 0 to enable dynamics modules for Muesli loss
+    unroll_steps: int = 0
+
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
         ObsAttrEmbedFourierConfig(
@@ -226,6 +235,21 @@ class ViTDefaultConfig(PolicyArchitecture):
             pattern="A",
             post_norm=self.core_use_layer_norm,
         )
+
+        # Conditionally add diversity injection after Cortex
+        if self.use_diversity_injection:
+            # Find Cortex index and insert diversity injection after it
+            cortex_idx = next(i for i, c in enumerate(self.components) if isinstance(c, CortexTDConfig))
+            # Check if already inserted
+            if not any(isinstance(c, DiversityInjectionConfig) for c in self.components):
+                self.components.insert(
+                    cortex_idx + 1,
+                    DiversityInjectionConfig(
+                        in_key="core",
+                        out_key="core",  # in-place replacement
+                        name="diversity_injection",
+                    ),
+                )
 
         AgentClass = load_symbol(self.class_path)
         if not isinstance(AgentClass, type):
