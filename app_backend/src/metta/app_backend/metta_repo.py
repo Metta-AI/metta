@@ -13,8 +13,21 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field, field_validator
 
+from metta.app_backend.leaderboard_constants import (
+    LADYBUG_UUID,
+    LEADERBOARD_CANDIDATE_COUNT_KEY,
+    LEADERBOARD_LADYBUG_COUNT_KEY,
+    LEADERBOARD_SCENARIO_KEY,
+    LEADERBOARD_THINKY_COUNT_KEY,
+    THINKY_UUID,
+)
 from metta.app_backend.migrations import MIGRATIONS
 from metta.app_backend.schema_manager import run_migrations
+from metta.app_backend.value_over_replacement import (
+    RunningStats,
+    compute_overall_vor_from_stats,
+)
+from metta.common.util.memoization import memoize
 
 TaskStatus = Literal["unprocessed", "running", "canceled", "done", "error", "system_error"]
 FinishedTaskStatus = Literal["done", "error", "canceled", "system_error"]
@@ -157,6 +170,7 @@ class LeaderboardPolicyEntry(BaseModel):
     policy_version: PublicPolicyVersionRow
     scores: dict[str, float]
     avg_score: float | None = None
+    overall_vor: float | None = None  # Value Over Replacement (fetched separately)
     replays: dict[str, list[EpisodeReplay]] = Field(default_factory=dict)
     score_episode_ids: dict[str, uuid.UUID | None] = Field(default_factory=dict)
 
@@ -1061,6 +1075,91 @@ GROUP BY pv.id, et.key, et.value
                 -entry.policy_version.created_at.timestamp(),
             )
         )
+        return entries
+
+    @memoize(max_age=60.0)
+    async def _get_vor_stats(
+        self, policy_version_ids: tuple[uuid.UUID | str, ...]
+    ) -> defaultdict[uuid.UUID, defaultdict[int, RunningStats]]:
+        query = f"""
+        SELECT
+            ep.policy_version_id,
+            et_cand.value::int AS candidate_count,
+            et_thinky.value::int AS thinky_count,
+            et_lady.value::int AS ladybug_count,
+            epm.value / NULLIF(ep.num_agents, 0) AS avg_reward
+        FROM episodes e
+        JOIN episode_tags et_scen
+            ON et_scen.episode_id = e.id AND et_scen.key = '{LEADERBOARD_SCENARIO_KEY}'
+        JOIN episode_tags et_cand
+            ON et_cand.episode_id = e.id AND et_cand.key = '{LEADERBOARD_CANDIDATE_COUNT_KEY}'
+        LEFT JOIN episode_tags et_thinky
+            ON et_thinky.episode_id = e.id AND et_thinky.key = '{LEADERBOARD_THINKY_COUNT_KEY}'
+        LEFT JOIN episode_tags et_lady
+            ON et_lady.episode_id = e.id AND et_lady.key = '{LEADERBOARD_LADYBUG_COUNT_KEY}'
+        JOIN episode_policies ep ON ep.episode_id = e.id
+        JOIN policy_versions pv ON pv.id = ep.policy_version_id
+        JOIN episode_policy_metrics epm
+            ON epm.episode_internal_id = e.internal_id AND epm.pv_internal_id = pv.internal_id
+        WHERE e.primary_pv_id = ANY(%s)
+            AND epm.metric_name = 'reward'
+            AND ep.num_agents > 0
+        """
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(query, (list(policy_version_ids),))
+                rows = await cur.fetchall()
+        stats_by_policy: defaultdict[uuid.UUID, defaultdict[int, RunningStats]] = defaultdict(
+            lambda: defaultdict(RunningStats)
+        )
+        for row in rows:
+            candidate_count = row.get("candidate_count")
+            avg_reward = row.get("avg_reward")
+            if candidate_count is None or avg_reward is None:
+                continue
+            candidate_count = int(candidate_count)
+            reward = float(avg_reward)
+
+            if candidate_count == 0:
+                # Replacement: weight = thinky + ladybug
+                thinky_count = int(row.get("thinky_count") or 0)
+                ladybug_count = int(row.get("ladybug_count") or 0)
+                weight = thinky_count + ladybug_count
+            else:
+                weight = candidate_count
+
+            stats_by_policy[row["policy_version_id"]][candidate_count].update(reward, weight=weight)
+        return stats_by_policy
+
+    async def get_leaderboard_policies_with_vor(
+        self,
+        policy_version_tags: dict[str, str],
+        score_group_episode_tag: str,
+    ) -> list[LeaderboardPolicyEntry]:
+        """Return leaderboard entries with overall_vor computed for each policy."""
+        # Get base leaderboard entries
+        entries = await self.get_leaderboard_policies(
+            policy_version_tags=policy_version_tags,
+            score_group_episode_tag=score_group_episode_tag,
+            user_id=None,
+            policy_version_id=None,
+        )
+        baseline_vor_stats = await self._get_vor_stats((THINKY_UUID, LADYBUG_UUID))
+        candidate_vor_stats = await self._get_vor_stats(tuple(entry.policy_version.id for entry in entries))
+
+        # Combine baseline stats (candidate_count == 0) into replacement_stats
+        replacement_stats = RunningStats()
+        for pv_stats in baseline_vor_stats.values():
+            if 0 in pv_stats:
+                replacement_stats.merge(pv_stats[0])
+
+        # Compute overall_vor for each entry
+        for entry in entries:
+            pv_id = entry.policy_version.id
+            candidate_stats = candidate_vor_stats.get(pv_id, {})
+            if candidate_stats:
+                entry.overall_vor = compute_overall_vor_from_stats(candidate_stats, replacement_stats)
+
         return entries
 
     async def get_episodes(
