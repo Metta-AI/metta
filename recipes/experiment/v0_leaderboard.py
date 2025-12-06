@@ -17,7 +17,7 @@ from metta.app_backend.leaderboard_constants import (
 )
 from metta.sim.runner import SimulationRunConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
+from metta.tools.eval import EvaluateTool, EvalWithResultTool
 from metta.tools.play import PlayTool
 from metta.tools.utils.auto_config import auto_stats_server_uri
 
@@ -136,29 +136,25 @@ def simulations(
 def evaluate(
     policy_uri: str | None = None,
     policy_version_id: str | None = None,
-    stats_server_uri: str | None = None,
     seed: int = 50,
     use_baseline_scores: bool = True,
-) -> EvaluateTool:
+    result_file_path: str | None = None,
+) -> EvalWithResultTool:
     if policy_version_id and not policy_uri:
         policy_uri = f"metta://policy/{policy_version_id}"
     if not policy_uri:
         raise ValueError("policy_uri is required")
-
-    if (api_url := stats_server_uri or auto_stats_server_uri()) is None:
-        raise ValueError("stats_server_uri is required")
-
     policy_uris = [
         policy_uri,
         f"metta://policy/{THINKY_UUID}",
         f"metta://policy/{LADYBUG_UUID}",
     ]
 
-    tool = EvaluateTool(
+    tool = EvalWithResultTool(
         simulations=simulations(map_seed=seed, minimal=not use_baseline_scores),
         policy_uris=policy_uris,
         verbose=True,
-        stats_server_uri=api_url,
+        result_file_path=result_file_path or f"leaderboard_eval_{policy_version_id}.json",
     )
     tool.system.seed = seed
     return tool
