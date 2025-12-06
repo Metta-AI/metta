@@ -149,7 +149,6 @@ private:
   std::vector<uint8_t> _dirty_flags;
   std::vector<size_t> _dirty_cells;
   std::vector<PackedOffset> _obs_pattern;
-  std::vector<size_t> _obs_tokens_written;
 
   // We'd prefer to store these as more raw c-style arrays, but we need to both
   // operate on the memory directly and return them to python.

@@ -223,7 +223,6 @@ void MettaGrid::_make_buffers(unsigned int num_agents) {
   this->_episode_rewards =
       py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
 
-  _obs_tokens_written.assign(num_agents, 0);
   set_buffers(observations, terminals, truncations, rewards, actions);
 }
 
@@ -242,7 +241,6 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
             0.0f);
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
-  std::fill(_obs_tokens_written.begin(), _obs_tokens_written.end(), 0);
 
   // Clear observations
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
@@ -531,7 +529,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     const size_t bytes = (capacity - tokens_written) * 3 * sizeof(ObservationType);
     std::memset(tail_start, EmptyTokenByte, bytes);
   }
-  _obs_tokens_written[agent_idx] = tokens_written;
 }
 
 void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_actions) {
@@ -555,6 +552,24 @@ void MettaGrid::_initialize_pattern() {
         PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c)),
     });
   }
+}
+
+inline size_t _copy_feats_to_cache(const std::vector<PartialObservationToken>& feats,
+                                   size_t offset,
+                                   MettaGrid::CellCache& cache,
+                                   bool& logged_truncation) {
+  const size_t capacity = MettaGrid::kMaxTokensPerCell - offset;
+  const size_t to_copy = std::min(capacity, feats.size());
+  if (to_copy < feats.size() && !logged_truncation) {
+    std::cerr << "mettagrid: observation tokens truncated for cell; capacity=" << MettaGrid::kMaxTokensPerCell
+              << " tokens=" << feats.size() << std::endl;
+    logged_truncation = true;
+  }
+  for (size_t i = 0; i < to_copy; ++i) {
+    cache.feature_ids[offset + i] = feats[i].feature_id;
+    cache.values[offset + i] = feats[i].value;
+  }
+  return to_copy;
 }
 
 inline void MettaGrid::_mark_cell_dirty(GridCoord r, GridCoord c) {
@@ -586,17 +601,7 @@ void MettaGrid::_refresh_dynamic_cell(size_t cell_idx) {
   }
 
   const auto feats = obj->obs_features();
-  const size_t capacity = kMaxTokensPerCell - static_cast<size_t>(cell.static_count);
-  const size_t to_copy = std::min(capacity, feats.size());
-  if (to_copy < feats.size() && !_logged_cell_truncation) {
-    std::cerr << "mettagrid: observation tokens truncated for dynamic cell; capacity=" << kMaxTokensPerCell
-              << " tokens=" << feats.size() << std::endl;
-    _logged_cell_truncation = true;
-  }
-  for (size_t i = 0; i < to_copy; ++i) {
-    cell.feature_ids[cell.static_count + i] = feats[i].feature_id;
-    cell.values[cell.static_count + i] = feats[i].value;
-  }
+  const size_t to_copy = _copy_feats_to_cache(feats, cell.static_count, cell, _logged_cell_truncation);
   cell.dynamic_count = static_cast<uint8_t>(to_copy);
   cell.dirty = false;
   _dirty_flags[cell_idx] = 0;
@@ -632,17 +637,7 @@ void MettaGrid::_refresh_all_dynamic_cells() {
     const auto idx = _cell_index(obj->location.r, obj->location.c);
     const auto feats = obj->obs_features();
     auto& cache = _cell_cache[idx];
-    const size_t capacity = kMaxTokensPerCell - static_cast<size_t>(cache.static_count);
-    const size_t to_copy = std::min(capacity, feats.size());
-    if (to_copy < feats.size() && !_logged_cell_truncation) {
-      std::cerr << "mettagrid: observation tokens truncated for dynamic cell; capacity="
-                << kMaxTokensPerCell << " tokens=" << feats.size() << std::endl;
-      _logged_cell_truncation = true;
-    }
-    for (size_t i = 0; i < to_copy; ++i) {
-      cache.feature_ids[cache.static_count + i] = feats[i].feature_id;
-      cache.values[cache.static_count + i] = feats[i].value;
-    }
+    const size_t to_copy = _copy_feats_to_cache(feats, cache.static_count, cache, _logged_cell_truncation);
     cache.dynamic_count = static_cast<uint8_t>(to_copy);
   }
 }
@@ -684,16 +679,7 @@ void MettaGrid::_init_static_token_cache() {
     if (wall != nullptr) {
       const auto feats = obj->obs_features();
       auto& cache = _cell_cache[idx];
-      const size_t to_copy = std::min(kMaxTokensPerCell, feats.size());
-      if (to_copy < feats.size() && !_logged_cell_truncation) {
-        std::cerr << "mettagrid: observation tokens truncated for static cell; capacity=" << kMaxTokensPerCell
-                  << " tokens=" << feats.size() << std::endl;
-        _logged_cell_truncation = true;
-      }
-      for (size_t i = 0; i < to_copy; ++i) {
-        cache.feature_ids[i] = feats[i].feature_id;
-        cache.values[i] = feats[i].value;
-      }
+      const size_t to_copy = _copy_feats_to_cache(feats, 0, cache, _logged_cell_truncation);
       cache.static_count = static_cast<uint8_t>(to_copy);
     }
   }
