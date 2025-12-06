@@ -66,6 +66,9 @@ class LLMPromptBuilder:
         self._last_visible: VisibleElements | None = None
         self._debug_mode = debug_mode
 
+        # Store mg_cfg for id_map access
+        self._mg_cfg = mg_cfg
+
         # Extract chest vibe transfers if config is provided
         self._chest_vibe_transfers: dict[str, dict[str, int]] = {}
         if mg_cfg is not None:
@@ -94,8 +97,11 @@ class LLMPromptBuilder:
         Returns:
             Minimal game rules - only what agent cannot discover
         """
-        # Build heart recipe from assembler protocols
-        heart_recipe = self._build_heart_recipe()
+        # Build all recipes section
+        all_recipes_section = self._build_all_recipes()
+
+        # Build id_map reference from mg_cfg
+        id_map_section = self._build_id_map_section()
 
         return f"""=== GOAL ===
 Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
@@ -107,8 +113,7 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
 4. DEPOSIT at CHEST: change vibe to heart_b, then move toward it
 5. RECHARGE at CHARGER when energy is low
 
-=== HEART RECIPE ===
-{heart_recipe}
+{all_recipes_section}
 
 === VIBES ===
 - heart_a: craft hearts at assembler
@@ -119,7 +124,8 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
 - Stand ADJACENT to stations, then move TOWARD them to interact
 - Silicon extractor costs 20 energy - watch your energy!
 - If energy < 30, find a CHARGER immediately
-"""
+
+{id_map_section}"""
 
     def _build_heart_recipe(self) -> str:
         """Build heart recipe string from assembler protocols.
@@ -144,6 +150,101 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
 
         # Fallback to default recipe
         return "1 HEART = 10 carbon + 10 oxygen + 2 germanium + 30 silicon"
+
+    def _build_all_recipes(self) -> str:
+        """Build all assembler recipes/protocols.
+
+        Returns:
+            Human-readable list of all crafting recipes with vibe requirements
+        """
+        if not self._policy_env_info.assembler_protocols:
+            return ""
+
+        lines = ["=== CRAFTING RECIPES ==="]
+        lines.append("Use these vibes at an ASSEMBLER to craft items:")
+        lines.append("")
+
+        # Group by output for clarity
+        seen_recipes: set[str] = set()
+
+        for protocol in self._policy_env_info.assembler_protocols:
+            # Format inputs
+            input_parts = []
+            for resource in ["carbon", "oxygen", "germanium", "silicon", "energy", "heart", "decoder", "modulator", "resonator", "scrambler"]:
+                amount = protocol.input_resources.get(resource, 0)
+                if amount > 0:
+                    input_parts.append(f"{amount} {resource}")
+
+            # Format outputs
+            output_parts = []
+            for resource, amount in protocol.output_resources.items():
+                if amount > 0:
+                    output_parts.append(f"{amount} {resource}")
+
+            # Format vibes
+            if protocol.vibes:
+                if len(protocol.vibes) == 1:
+                    vibe_str = f"vibe: {protocol.vibes[0]}"
+                else:
+                    # Multiple vibes means multiple agents needed
+                    vibe_str = f"vibes: {' + '.join(protocol.vibes)} ({len(protocol.vibes)} agents)"
+            else:
+                vibe_str = "vibe: any"
+
+            # Create recipe string
+            recipe = f"  {', '.join(output_parts)} <- {', '.join(input_parts)} [{vibe_str}]"
+
+            # Avoid duplicates
+            if recipe not in seen_recipes:
+                seen_recipes.add(recipe)
+                lines.append(recipe)
+
+        # Add instructions for multi-agent crafting
+        lines.append("")
+        lines.append("MULTI-AGENT CRAFTING:")
+        lines.append("  When a recipe shows multiple vibes (e.g., 'heart_a + heart_a'), multiple agents")
+        lines.append("  must stand ADJACENT to the same assembler, each with their required vibe set.")
+        lines.append("  Resources are pooled from all adjacent agents. Any agent can trigger the craft.")
+        lines.append("")
+        lines.append("GEAR ITEMS (decoder, modulator, scrambler, resonator):")
+        lines.append("  These are advanced items that require 2-agent coordination.")
+        lines.append("  One agent sets vibe 'gear', the other sets the resource vibe (e.g., 'carbon_a').")
+        lines.append("  Both must be adjacent to the assembler, then either triggers the craft.")
+
+        return "\n".join(lines)
+
+    def _build_id_map_section(self) -> str:
+        """Build id_map reference section with features and tags.
+
+        Returns:
+            Formatted section with all observation features and object tags
+        """
+        if self._mg_cfg is None:
+            return ""
+
+        try:
+            id_map = self._mg_cfg.game.id_map()
+            lines = []
+
+            # Features section
+            lines.append("=== OBSERVATION FEATURES ===")
+            lines.append("These are the features you may see in observation tokens:")
+            for feature in id_map.features():
+                lines.append(f"  {feature.id:2d}: \"{feature.name}\"")
+
+            lines.append("")
+
+            # Tags section
+            lines.append("=== OBJECT TAGS ===")
+            lines.append("When you see a 'tag' feature, its value maps to these object types:")
+            for i, tag in enumerate(id_map.tag_names()):
+                lines.append(f"  {i}: \"{tag}\"")
+
+            return "\n".join(lines)
+        except Exception as e:
+            if self._debug_mode:
+                print(f"[LLMPromptBuilder] Could not build id_map section: {e}")
+            return ""
 
     def basic_info_prompt(self) -> str:
         """Get the basic game information prompt.

@@ -88,10 +88,6 @@ def run_simulations(
 
     # Parallel path
     simulation_rollouts: list[SimulationRunResult] = [None] * len(simulations)  # type: ignore[assignment]
-        env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
-        multi_agent_policies: list[MultiAgentPolicy] = [
-            initialize_or_load_policy(env_interface, spec, mg_cfg=simulation.env) for spec in policy_specs
-        ]
 
     # Serialize configs to avoid pickling issues
     simulation_payloads = [sim.model_dump(mode="json") for sim in simulations]
