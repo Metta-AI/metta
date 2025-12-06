@@ -45,6 +45,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       resource_names(game_config.resource_names),
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
+      _optimized_obs(game_config.optimized_obs),
       _num_observation_tokens(game_config.num_observation_tokens),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
@@ -86,9 +87,11 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _init_grid(game_config, map);
 
-  // Initialize per-cell token cache (static once, dynamic will be rebuilt each step)
-  _init_static_token_cache();
-  _rebuild_dynamic_token_cache();
+  if (_optimized_obs) {
+    // Initialize per-cell token cache (static once, dynamic will be rebuilt each step)
+    _init_static_token_cache();
+    _rebuild_dynamic_token_cache();
+  }
 
   // Create buffers
   _make_buffers(num_agents);
@@ -448,15 +451,30 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
     //  process a single grid location
     GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c));
+    int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
+    int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
+
+    if (!_optimized_obs) {
+      auto obj = _grid->object_at(object_loc);
+      if (!obj) {
+        continue;
+      }
+      ObservationToken* obs_ptr =
+          reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+      ObservationTokens obs_tokens(
+          obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
+      uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
+      attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
+      tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+      continue;
+    }
+
     const auto& cell_cache = _cell_cache[_cell_index(object_loc.r, object_loc.c)];
     if (cell_cache.static_tokens.empty() && cell_cache.dynamic_tokens.empty()) {
       continue;
     }
 
-    int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
-    int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
-
-    // Encode location and add tokens
+    // Encode location and add tokens from cache
     uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
 
     auto remaining_capacity = static_cast<size_t>(observation_view.shape(1)) - tokens_written;
@@ -609,7 +627,9 @@ void MettaGrid::_step() {
   }
 
   // Compute observations for next step
-  _rebuild_dynamic_token_cache();
+  if (_optimized_obs) {
+    _rebuild_dynamic_token_cache();
+  }
   _compute_observations(executed_actions);
 
   // Compute stat-based rewards for all agents

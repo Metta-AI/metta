@@ -115,6 +115,7 @@ private:
   // Member variables
   GlobalObsConfig _global_obs_config;
   GameConfig _game_config;
+  bool _optimized_obs = false;
 
   std::unique_ptr<Grid> _grid;
 
