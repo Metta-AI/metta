@@ -109,14 +109,24 @@ class CMPO(Loss):
             return
 
         with torch.no_grad():
-            for target_param, online_param in zip(
-                self.target_policy.parameters(),
-                self.policy.parameters(),
-                strict=False,
-            ):
-                target_param.data = (
-                    self.cfg.target_ema_decay * target_param.data + (1 - self.cfg.target_ema_decay) * online_param.data
-                )
+            target_state = self.target_policy.state_dict()
+            online_state = self.policy.state_dict()
+
+            for name, online_param in online_state.items():
+                if name in target_state:
+                    target_param = target_state[name]
+                    if target_param.shape == online_param.shape:
+                        target_state[name] = (
+                            self.cfg.target_ema_decay * target_param + (1 - self.cfg.target_ema_decay) * online_param
+                        )
+                    else:
+                        # Shape mismatch (e.g., lazy init resize) - copy directly
+                        target_state[name] = online_param.clone()
+                else:
+                    # New parameter - add it
+                    target_state[name] = online_param.clone()
+
+            self.target_policy.load_state_dict(target_state)
 
     def compute_cmpo_policy(
         self,

@@ -7,8 +7,10 @@ from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from metta.rl.loss.cmpo import CMPOConfig
+from metta.rl.loss.diversity import DiversityLossConfig
 from metta.rl.loss.dynamics import DynamicsConfig
 from metta.rl.loss.grpo import GRPOConfig
+from metta.rl.loss.inverse_dynamics import InverseDynamicsConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
 from metta.rl.loss.loss import Loss, LossConfig
@@ -17,6 +19,7 @@ from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
 from metta.rl.loss.ppo_critic import PPOCriticConfig
 from metta.rl.loss.quantile_ppo_critic import QuantilePPOCriticConfig
+from metta.rl.loss.rnd import RNDConfig
 from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
 from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedClonerConfig
 from metta.rl.loss.vit_reconstruction import ViTReconstructionLossConfig
@@ -44,6 +47,9 @@ class LossesConfig(Config):
         "supervisor",
         "kickstarter",
         "logit_kickstarter",
+        "diversity",
+        "rnd",
+        "inverse_dynamics",
     )
 
     # ENABLED BY DEFAULT: PPO split into two terms for flexibility, simplicity, and separation of concerns
@@ -74,6 +80,9 @@ class LossesConfig(Config):
     vit_reconstruction: ViTReconstructionLossConfig = Field(
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
     )
+    diversity: DiversityLossConfig = Field(default_factory=lambda: DiversityLossConfig(enabled=False))
+    rnd: RNDConfig = Field(default_factory=lambda: RNDConfig(enabled=False))
+    inverse_dynamics: InverseDynamicsConfig = Field(default_factory=lambda: InverseDynamicsConfig(enabled=False))
 
     def _configs(self) -> dict[str, LossConfig]:
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.

@@ -14,7 +14,7 @@ from metta.rl.training import ComponentContext
 
 class DynamicsConfig(LossConfig):
     returns_step_look_ahead: int = Field(default=1)
-    unroll_steps: int = Field(default=0)
+    unroll_steps: int = Field(default=2)
     returns_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
     reward_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
 
