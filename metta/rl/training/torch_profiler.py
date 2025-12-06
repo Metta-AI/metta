@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import torch.profiler
 import wandb
@@ -17,8 +17,6 @@ from metta.rl.utils import should_run
 from mettagrid.util.file import http_url, is_public_uri, write_file
 
 logger = logging.getLogger(__name__)
-# Large active window so one schedule covers the full epoch while we step per minibatch.
-_PROFILE_ACTIVE_STEPS = 1_000_000_000
 
 
 class TorchProfileSession:
@@ -42,18 +40,15 @@ class TorchProfileSession:
         self._profile_filename_base: str | None = None
         # Allow overriding the first profile epoch via env for short runs; default to a warmup-friendly 300.
         env_first_epoch = os.environ.get("TORCH_PROFILER_FIRST_EPOCH")
-        try:
-            self._first_profile_epoch = max(1, int(env_first_epoch)) if env_first_epoch else 300
-        except ValueError:
-            self._first_profile_epoch = 300
+        self._first_profile_epoch = max(1, int(env_first_epoch)) if env_first_epoch else 300
 
     def on_epoch_end(self, epoch: int) -> None:
         force = (epoch == self._first_profile_epoch) if not self._active else False
         if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
             self._setup_profiler(epoch)
 
-    def ensure_armed_for_epoch(self, epoch: int, interval: int) -> None:
-        """Ensure the profiler is armed before the epoch starts."""
+    def arm_for_epoch(self, epoch: int, interval: int) -> None:
+        """Arm the profiler ahead of an epoch when schedule permits."""
         if self._active:
             return
         force = epoch == self._first_profile_epoch
@@ -88,7 +83,12 @@ class TorchProfileSession:
             profile_memory=True,
             with_stack=True,
             with_modules=True,
-            schedule=torch.profiler.schedule(wait=0, warmup=0, active=_PROFILE_ACTIVE_STEPS, repeat=1),
+            schedule=torch.profiler.schedule(
+                wait=0,
+                warmup=0,
+                active=getattr(self._profiler_config, "active_steps", 1_000_000_000),
+                repeat=1,
+            ),
         )
         self._profiler.start()
         self.step()  # Prime the schedule so rollout is captured as well.
@@ -100,15 +100,11 @@ class TorchProfileSession:
             return False
 
         logger.info("Stopping torch profiler for epoch %s", self._start_epoch)
-        try:
-            self._profiler.stop()
-            self._save_profile(self._profiler)
-        except Exception:  # pragma: no cover - defensive
-            logger.exception("Failed to save torch profile")
-        finally:
-            self._profiler = None
-            self._active = False
-            self._profile_filename_base = None
+        self._profiler.stop()
+        self._save_profile(self._profiler)
+        self._profiler = None
+        self._active = False
+        self._profile_filename_base = None
 
         return False
 
@@ -126,12 +122,12 @@ class TorchProfileSession:
 
         output_filename_json = f"{self._profile_filename_base}.json"
         output_filename_gz = f"{output_filename_json}.gz"
-        temp_dir = tempfile.mkdtemp(prefix="torch_profile_")
-        temp_json_path = os.path.join(temp_dir, output_filename_json)
-        final_gz_path = os.path.join(temp_dir, output_filename_gz)
         upload_path = os.path.join(self._profiler_config.profile_dir, output_filename_gz)
 
-        try:
+        with tempfile.TemporaryDirectory(prefix="torch_profile_") as temp_dir:
+            temp_json_path = os.path.join(temp_dir, output_filename_json)
+            final_gz_path = os.path.join(temp_dir, output_filename_gz)
+
             self._export_profile(prof, temp_json_path)
             self._compress_trace(temp_json_path, final_gz_path)
             write_file(upload_path, final_gz_path, content_type="application/gzip")
@@ -144,8 +140,6 @@ class TorchProfileSession:
                     )
                 }
                 self._wandb_run.log(link_summary)
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
 
     def _export_profile(self, prof: torch.profiler.profile, output_path: str) -> None:
         logger.info("Exporting torch profile to %s", output_path)
@@ -155,10 +149,7 @@ class TorchProfileSession:
         logger.info("Compressing torch profile to %s", output_path)
         with open(input_path, "rb") as f_in, gzip.open(output_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
-        try:
-            os.remove(input_path)
-        except OSError:
-            logger.debug("Unable to delete temporary torch profile %s", input_path)
+        os.remove(input_path)
 
 
 class TorchProfiler(TrainerComponent):
@@ -182,7 +173,6 @@ class TorchProfiler(TrainerComponent):
         self._original_train_epoch = None
         self._master_only = True
         self._epoch_counter = 0
-        self._original_profiler_step: Callable[[], None] | None = None
 
     def register(self, context: ComponentContext) -> None:  # type: ignore[override]
         super().register(context)
@@ -200,7 +190,6 @@ class TorchProfiler(TrainerComponent):
             )
 
         original_train_epoch = context.get_train_epoch_callable()
-        self._original_profiler_step = context.profiler_step
         context.profiler_step = self._session.step if self._session else None
 
         def wrapped_train_epoch():
@@ -208,7 +197,7 @@ class TorchProfiler(TrainerComponent):
                 return original_train_epoch()
             # Arm the profiler ahead of the epoch so short runs capture traces.
             self._epoch_counter += 1
-            self._session.ensure_armed_for_epoch(self._epoch_counter, interval)
+            self._session.arm_for_epoch(self._epoch_counter, interval)
             with self._session:
                 return original_train_epoch()
 
@@ -220,6 +209,6 @@ class TorchProfiler(TrainerComponent):
             self._session.on_epoch_end(epoch)
 
     def on_training_complete(self) -> None:  # type: ignore[override]
-        self.context.profiler_step = self._original_profiler_step
+        self.context.profiler_step = None
         if self._original_train_epoch is not None:
             self.context.set_train_epoch_callable(self._original_train_epoch)
