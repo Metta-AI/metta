@@ -668,6 +668,32 @@ class LLMAgentPolicy(AgentPolicy):
         else:
             self.debugger = None
 
+        # Print id_map and recipes at startup
+        if mg_cfg is not None:
+            try:
+                id_map = mg_cfg.game.id_map()
+                print("\n" + "=" * 70)
+                print("ID_MAP FEATURES")
+                print("=" * 70)
+                for feature in id_map.features():
+                    print(f"  {feature.id:3d}: '{feature.name}' (normalization: {feature.normalization})")
+                print("=" * 70)
+
+                print("\nID_MAP TAGS:")
+                print("=" * 70)
+                for i, tag in enumerate(id_map.tag_names()):
+                    print(f"  {i:3d}: '{tag}'")
+                print("=" * 70)
+
+                # Print recipes from prompt builder if available
+                if self.use_dynamic_prompts and self.prompt_builder:
+                    all_recipes = self.prompt_builder._build_all_recipes()
+                    if all_recipes:
+                        print("\n" + all_recipes)
+                    print("=" * 70 + "\n")
+            except Exception as e:
+                print(f"\n[DEBUG] Could not print id_map: {e}\n")
+
         # Initialize LLM client
         # Note: API key validation is handled by LLMMultiAgentPolicy before creating agent policies
         if self.provider == "openai":
