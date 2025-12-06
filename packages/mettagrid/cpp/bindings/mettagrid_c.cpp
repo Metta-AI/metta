@@ -38,6 +38,24 @@
 
 namespace py = pybind11;
 
+inline size_t _copy_feats_to_cache(const std::vector<PartialObservationToken>& feats,
+                                   size_t offset,
+                                   MettaGrid::CellCache& cache,
+                                   bool& logged_truncation) {
+  const size_t capacity = MettaGrid::kMaxTokensPerCell - offset;
+  const size_t to_copy = std::min(capacity, feats.size());
+  if (to_copy < feats.size() && !logged_truncation) {
+    std::cerr << "mettagrid: observation tokens truncated for cell; capacity=" << MettaGrid::kMaxTokensPerCell
+              << " tokens=" << feats.size() << std::endl;
+    logged_truncation = true;
+  }
+  for (size_t i = 0; i < to_copy; ++i) {
+    cache.feature_ids[offset + i] = feats[i].feature_id;
+    cache.values[offset + i] = feats[i].value;
+  }
+  return to_copy;
+}
+
 MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned int seed)
     : obs_width(game_config.obs_width),
       obs_height(game_config.obs_height),
@@ -531,7 +549,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   // Clear the unused tail for this agent to avoid stale data without full-buffer fills.
   if (tokens_written < capacity) {
     auto* tail_start = reinterpret_cast<ObservationType*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
-    const size_t bytes = (capacity - tokens_written) * 3 * sizeof(ObservationType);
     std::fill(tail_start, tail_start + (capacity - tokens_written) * 3, EmptyTokenByte);
   }
 }
@@ -542,39 +559,6 @@ void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_ac
     ActionType action_idx = executed_actions[idx];
     _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, action_idx);
   }
-}
-
-void MettaGrid::_initialize_pattern() {
-  _obs_pattern.clear();
-  ObservationCoord obs_width_radius = obs_width >> 1;
-  ObservationCoord obs_height_radius = obs_height >> 1;
-  for (const auto& [r_offset, c_offset] : PackedCoordinate::ObservationPattern{obs_height, obs_width}) {
-    const int obs_r = r_offset + static_cast<int>(obs_height_radius);
-    const int obs_c = c_offset + static_cast<int>(obs_width_radius);
-    _obs_pattern.push_back(PackedOffset{
-        static_cast<int16_t>(r_offset),
-        static_cast<int16_t>(c_offset),
-        PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c)),
-    });
-  }
-}
-
-inline size_t _copy_feats_to_cache(const std::vector<PartialObservationToken>& feats,
-                                   size_t offset,
-                                   MettaGrid::CellCache& cache,
-                                   bool& logged_truncation) {
-  const size_t capacity = MettaGrid::kMaxTokensPerCell - offset;
-  const size_t to_copy = std::min(capacity, feats.size());
-  if (to_copy < feats.size() && !logged_truncation) {
-    std::cerr << "mettagrid: observation tokens truncated for cell; capacity=" << MettaGrid::kMaxTokensPerCell
-              << " tokens=" << feats.size() << std::endl;
-    logged_truncation = true;
-  }
-  for (size_t i = 0; i < to_copy; ++i) {
-    cache.feature_ids[offset + i] = feats[i].feature_id;
-    cache.values[offset + i] = feats[i].value;
-  }
-  return to_copy;
 }
 
 inline void MettaGrid::_mark_cell_dirty(GridCoord r, GridCoord c) {
