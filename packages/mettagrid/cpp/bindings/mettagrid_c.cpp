@@ -38,12 +38,12 @@
 
 namespace py = pybind11;
 
-inline size_t _copy_feats_to_cache(const std::vector<PartialObservationToken>& feats,
-                                   size_t offset,
-                                   MettaGrid::CellCache& cache,
-                                   bool& logged_truncation) {
+inline uint8_t _copy_feats_to_cache(const std::vector<PartialObservationToken>& feats,
+                                    uint8_t offset,
+                                    MettaGrid::CellCache& cache,
+                                    bool& logged_truncation) {
   const size_t capacity = MettaGrid::kMaxTokensPerCell - offset;
-  const size_t to_copy = std::min(capacity, feats.size());
+  const uint8_t to_copy = static_cast<uint8_t>(std::min(capacity, feats.size()));
   if (to_copy < feats.size() && !logged_truncation) {
     std::cerr << "mettagrid: observation tokens truncated for cell; capacity=" << MettaGrid::kMaxTokensPerCell
               << " tokens=" << feats.size() << std::endl;
@@ -132,14 +132,14 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     if (wall != nullptr) {
       const auto feats = obj->obs_features();
       auto& cache = _cell_cache[idx];
-      const size_t to_copy = _copy_feats_to_cache(feats, 0, cache, _logged_cell_truncation);
-      cache.static_count = static_cast<uint8_t>(to_copy);
+      const uint8_t to_copy = _copy_feats_to_cache(feats, 0, cache, _logged_cell_truncation);
+      cache.static_count = to_copy;
       continue;
     }
     const auto feats = obj->obs_features();
     auto& cache = _cell_cache[idx];
-    const size_t to_copy = _copy_feats_to_cache(feats, cache.static_count, cache, _logged_cell_truncation);
-    cache.dynamic_count = static_cast<uint8_t>(to_copy);
+    const uint8_t to_copy = _copy_feats_to_cache(feats, cache.static_count, cache, _logged_cell_truncation);
+    cache.dynamic_count = to_copy;
   }
 
   // Create buffers
@@ -284,8 +284,9 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
 
   // Clear observations
-  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
-  auto obs_size = static_cast<size_t>(_observations.size());
+  auto obs_info = _observations.request();
+  auto obs_ptr = static_cast<uint8_t*>(obs_info.ptr);
+  const size_t obs_size = obs_info.size;
   std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
   // Compute initial observations. Every agent starts with a noop.
@@ -475,8 +476,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
         ObservationToken* compass_ptr =
             reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
-        ObservationTokens compass_tokens(
-            compass_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
+        ObservationTokens compass_tokens(compass_ptr, capacity - tokens_written);
 
         const std::vector<PartialObservationToken> compass_token = {
             {ObservationFeature::Compass, static_cast<ObservationType>(1)}};
@@ -544,7 +544,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   _stats->add("tokens_written", tokens_written);
   _stats->add("tokens_dropped", attempted_tokens_written - tokens_written);
-  _stats->add("tokens_free_space", static_cast<size_t>(observation_view.shape(1)) - tokens_written);
+  _stats->add("tokens_free_space", capacity - tokens_written);
 
   // Clear the unused tail for this agent to avoid stale data without full-buffer fills.
   if (tokens_written < capacity) {
@@ -713,8 +713,8 @@ void MettaGrid::_step() {
     }
 
     const auto feats = obj->obs_features();
-    const size_t to_copy = _copy_feats_to_cache(feats, cell.static_count, cell, _logged_cell_truncation);
-    cell.dynamic_count = static_cast<uint8_t>(to_copy);
+    const uint8_t to_copy = _copy_feats_to_cache(feats, cell.static_count, cell, _logged_cell_truncation);
+    cell.dynamic_count = to_copy;
     _dirty_flags[idx] = 0;
   }
   _dirty_cells.clear();
