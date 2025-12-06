@@ -38,21 +38,19 @@ class TorchProfileSession:
         self._active = False
         self._start_epoch: int | None = None
         self._profile_filename_base: str | None = None
-        # Allow overriding the first profile epoch via env for short runs; default to a warmup-friendly 300.
+        # Default to profiling after an initial warmup unless overridden via env.
         env_first_epoch = os.environ.get("TORCH_PROFILER_FIRST_EPOCH")
         self._first_profile_epoch = max(1, int(env_first_epoch)) if env_first_epoch else 300
 
     def on_epoch_end(self, epoch: int) -> None:
-        force = (epoch == self._first_profile_epoch) if not self._active else False
-        if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
+        if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=False):
             self._setup_profiler(epoch)
 
-    def arm_for_epoch(self, epoch: int, interval: int) -> None:
-        """Arm the profiler ahead of an epoch when schedule permits."""
+    def start_if_due(self, epoch: int, interval: int) -> None:
+        """Arm the profiler ahead of an epoch when the schedule permits."""
         if self._active:
             return
-        force = epoch == self._first_profile_epoch
-        if should_run(epoch, interval, force=force):
+        if should_run(epoch, interval, force=False):
             self._setup_profiler(epoch)
 
     def _setup_profiler(self, epoch: int) -> None:
@@ -197,7 +195,7 @@ class TorchProfiler(TrainerComponent):
                 return original_train_epoch()
             # Arm the profiler ahead of the epoch so short runs capture traces.
             self._epoch_counter += 1
-            self._session.arm_for_epoch(self._epoch_counter, interval)
+            self._session.start_if_due(self._epoch_counter, interval)
             with self._session:
                 return original_train_epoch()
 
