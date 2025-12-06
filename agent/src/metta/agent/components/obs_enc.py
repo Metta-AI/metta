@@ -330,12 +330,15 @@ class ObsPerceiverLatent(nn.Module):
                     # attn_mask: [B,1,1,M] -> padding mask [B,M]
                     pad_mask = attn_mask.view(attn_mask.shape[0], -1)
                     attn_bias = xops.fmha.attn_bias.PaddingMask(pad_mask)
-                out = xops.memory_efficient_attention(q_x, k_x, v_x, attn_bias=attn_bias, p=0.0)
+                with torch.profiler.record_function("obs_perceiver_latent.xops"):
+                    out = xops.memory_efficient_attention(q_x, k_x, v_x, attn_bias=attn_bias, p=0.0)
                 return out.permute(0, 2, 1, 3)
             except Exception:
                 pass
 
-        return F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask)
+        with torch.backends.cuda.sdp_kernel(enable_flash=False, enable_mem_efficient=True, enable_math=True):
+            with torch.profiler.record_function("obs_perceiver_latent.sdpa"):
+                return F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask)
 
 
 class ObsSelfAttnConfig(ComponentConfig):
