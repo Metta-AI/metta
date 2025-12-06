@@ -38,11 +38,24 @@ class TorchProfileSession:
         self._active = False
         self._start_epoch: int | None = None
         self._profile_filename_base: str | None = None
-        self._first_profile_epoch = 300  # allow torch warmup cycles before profiling
+        # Allow overriding the first profile epoch via env for short runs; default to a warmup-friendly 300.
+        env_first_epoch = os.environ.get("TORCH_PROFILER_FIRST_EPOCH")
+        try:
+            self._first_profile_epoch = max(1, int(env_first_epoch)) if env_first_epoch else 300
+        except ValueError:
+            self._first_profile_epoch = 300
 
     def on_epoch_end(self, epoch: int) -> None:
         force = (epoch == self._first_profile_epoch) if not self._active else False
         if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
+            self._setup_profiler(epoch)
+
+    def ensure_armed_for_epoch(self, epoch: int, interval: int) -> None:
+        """Ensure the profiler is armed before the epoch starts."""
+        if self._active:
+            return
+        force = epoch == self._first_profile_epoch
+        if should_run(epoch, interval, force=force):
             self._setup_profiler(epoch)
 
     def _setup_profiler(self, epoch: int) -> None:
@@ -158,6 +171,7 @@ class TorchProfiler(TrainerComponent):
         self._session: Optional[TorchProfileSession] = None
         self._original_train_epoch = None
         self._master_only = True
+        self._epoch_counter = 0
 
     def register(self, context: ComponentContext) -> None:  # type: ignore[override]
         super().register(context)
@@ -179,6 +193,9 @@ class TorchProfiler(TrainerComponent):
         def wrapped_train_epoch():
             if self._session is None:
                 return original_train_epoch()
+            # Arm the profiler ahead of the epoch so short runs capture traces.
+            self._epoch_counter += 1
+            self._session.ensure_armed_for_epoch(self._epoch_counter, interval)
             with self._session:
                 return original_train_epoch()
 
