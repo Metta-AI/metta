@@ -44,7 +44,6 @@ struct GameConfig {
 
   // FEATURE FLAGS
   bool protocol_details_obs = true;
-  bool optimized_obs = false;
   std::unordered_map<std::string, float> reward_estimates = {};
 
   // Inventory regeneration interval (global check timing)
@@ -90,7 +89,6 @@ inline void bind_game_config(py::module& m) {
 
                     // FEATURE FLAGS
                     bool,
-                    bool,
                     const std::unordered_map<std::string, float>&,
 
                     // Inventory regeneration
@@ -114,7 +112,6 @@ inline void bind_game_config(py::module& m) {
 
            // FEATURE FLAGS
            py::arg("protocol_details_obs") = true,
-           py::arg("optimized_obs") = false,
            py::arg("reward_estimates") = std::unordered_map<std::string, float>(),
 
            // Inventory regeneration
@@ -143,7 +140,6 @@ inline void bind_game_config(py::module& m) {
 
       // FEATURE FLAGS
       .def_readwrite("protocol_details_obs", &GameConfig::protocol_details_obs)
-      .def_readwrite("optimized_obs", &GameConfig::optimized_obs)
       .def_readwrite("reward_estimates", &GameConfig::reward_estimates)
 
       // Inventory regeneration
