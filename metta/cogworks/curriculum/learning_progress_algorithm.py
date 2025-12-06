@@ -162,18 +162,17 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Compute raw LP scores for all tasks (with per-task cache for the raw step)
         raw_scores = np.array([self._get_bidirectional_learning_progress_score(tid) for tid in task_ids], dtype=float)
 
-        # Give zero-progress tasks a tiny weight so they can still be sampled occasionally
-        raw_scores = np.where(raw_scores == 0, 1e-6, raw_scores)
-
-        # Legacy behavior: consider only tasks with positive progress; others get zero
+        # Consider only tasks with positive progress; others get zero weight
         posidxs = [i for i, val in enumerate(raw_scores) if val > 0]
 
         if posidxs:
             subprobs = raw_scores[posidxs]
-            # Sigmoid without standardization to preserve magnitude differences (and smoothing effect)
+            # Standardize then sigmoid (legacy shape)
+            std = np.std(subprobs)
+            mean = np.mean(subprobs)
+            subprobs = (subprobs - mean) / std if std > 0 else subprobs - mean
             subprobs = self._sigmoid(subprobs)
 
-            # Normalize
             total = float(np.sum(subprobs))
             if total > 0:
                 subprobs = subprobs / total
@@ -183,7 +182,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             norm_scores = np.zeros_like(raw_scores)
             norm_scores[posidxs] = subprobs
         else:
-            # No positive progress: fall back to uniform
+            # No positive progress: uniform exploration
             norm_scores = np.ones_like(raw_scores) / len(raw_scores)
 
         return {tid: float(score) for tid, score in zip(task_ids, norm_scores, strict=True)}
@@ -554,13 +553,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     "counter": dict(self._counter),
                     "per_task_fast": dict(self._per_task_fast),
                     "per_task_slow": dict(self._per_task_slow),
-                    # Legacy array fields retained for compatibility
-                    "p_fast": [self._per_task_fast.get(tid, 0.0) for tid in sorted(self._outcomes.keys())],
-                    "p_slow": [self._per_task_slow.get(tid, 0.0) for tid in sorted(self._outcomes.keys())],
-                    "p_true": [
-                        float(np.mean(vals)) if vals else DEFAULT_SUCCESS_RATE
-                        for _tid, vals in sorted(self._outcomes.items())
-                    ],
                     "score_cache": dict(self._score_cache),
                     "cache_valid_tasks": list(self._cache_valid_tasks),
                 }
@@ -581,19 +573,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             # Restore per-task EMAs
             self._per_task_fast = state.get("per_task_fast", {})
             self._per_task_slow = state.get("per_task_slow", {})
-
-            # Backward compatibility: if only array fields exist, rebuild per-task dicts
-            if (not self._per_task_fast or not self._per_task_slow) and "p_fast" in state and "p_slow" in state:
-                self._per_task_fast = {}
-                self._per_task_slow = {}
-                task_ids = sorted(self._outcomes.keys())
-                p_fast = state.get("p_fast") or []
-                p_slow = state.get("p_slow") or []
-                for idx, tid in enumerate(task_ids):
-                    if idx < len(p_fast):
-                        self._per_task_fast[tid] = float(p_fast[idx])
-                    if idx < len(p_slow):
-                        self._per_task_slow[tid] = float(p_slow[idx])
 
             # Scoring formula may differ across versions; invalidate cached scores
             # to ensure fresh recomputation after load.
