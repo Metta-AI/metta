@@ -8,7 +8,7 @@ recipes should import from here and extend via custom defaults, similar to how
 from __future__ import annotations
 
 import logging
-from typing import Optional, Sequence
+from typing import Literal, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
@@ -27,6 +27,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -274,6 +275,82 @@ def make_curriculum(
     )
 
 
+def _configure_bc(
+    tt: TrainTool,
+    *,
+    bc_policy_uri: str,
+    bc_mode: Literal["sliced_cloner", "supervisor"],
+    bc_teacher_lead_prob: float,
+    bc_steps_actual: int,
+    anneal_start: int,
+    anneal_end: int,
+) -> tuple[list[LossRunGate], list[HyperUpdateRule]]:
+    tt.training_env.supervisor_policy_uri = bc_policy_uri
+    losses = tt.trainer.losses
+    losses.ppo.enabled = False
+    losses.ppo_actor.enabled = True
+    losses.ppo_critic.enabled = True
+    losses.ppo_critic.deferred_training_start_step = bc_steps_actual
+
+    if bc_mode == "sliced_cloner":
+        losses.sliced_scripted_cloner.enabled = True
+        losses.supervisor.enabled = False
+
+        run_gates = [
+            LossRunGate(loss_instance_name="sliced_scripted_cloner", phase=phase, end_at_step=bc_steps_actual)
+            for phase in ("rollout", "train")
+        ]
+
+        rules = [
+            HyperUpdateRule(
+                loss_instance_name="sliced_scripted_cloner",
+                attr_path="teacher_led_proportion",
+                mode="progress",
+                style="linear",
+                start_value=0.2,
+                end_value=0.0,
+                start_agent_step=0,
+                end_agent_step=bc_steps_actual,
+            )
+        ]
+
+        return run_gates, rules
+
+    losses.supervisor.enabled = True
+    losses.sliced_scripted_cloner.enabled = False
+    losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+
+    run_gates = [
+        LossRunGate(loss_instance_name="action_supervisor", phase=phase, end_at_step=bc_steps_actual)
+        for phase in ("rollout", "train")
+    ]
+
+    rules = [
+        HyperUpdateRule(
+            loss_instance_name="action_supervisor",
+            attr_path="action_loss_coef",
+            mode="progress",
+            style="linear",
+            start_value=1.0,
+            end_value=0.0,
+            start_agent_step=anneal_start,
+            end_agent_step=anneal_end,
+        ),
+        HyperUpdateRule(
+            loss_instance_name="action_supervisor",
+            attr_path="teacher_lead_prob",
+            mode="progress",
+            style="linear",
+            start_value=bc_teacher_lead_prob,
+            end_value=0.0,
+            start_agent_step=anneal_start,
+            end_agent_step=anneal_end,
+        ),
+    ]
+
+    return run_gates, rules
+
+
 # How to submit a policy trained here to the CoGames leaderboard:
 #
 # uv run cogames submit \
@@ -298,6 +375,8 @@ def train(
     max_evals: Optional[int] = None,
     bc_policy_uri: Optional[str] = None,
     bc_teacher_lead_prob: float = 1.0,
+    bc_steps: Optional[int] = None,
+    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
     use_lp: bool = True,
     maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
@@ -355,16 +434,36 @@ def train(
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
 
+    # Compute BC window in steps (1 unit = 1M agent steps)
+    default_steps = 1000 if bc_policy_uri is not None else 0  # 1B agent steps when BC is enabled
+    steps = bc_steps if bc_steps is not None else default_steps
+    bc_steps_actual = int(steps * 1_000_000)
+    anneal_start = int(bc_steps_actual * 0.5)
+    anneal_end = bc_steps_actual
+
+    scheduler_run_gates: list[LossRunGate] = [
+        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_steps_actual),
+        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=bc_steps_actual),
+        LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_steps_actual),
+        LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=bc_steps_actual),
+    ]
+    scheduler_rules: list[HyperUpdateRule] = []
+
     if bc_policy_uri is not None:
-        tt.trainer.losses.supervisor.enabled = True
-        tt.trainer.losses.ppo.enabled = False
-        tt.trainer.losses.ppo_actor.enabled = False
-        tt.trainer.losses.ppo_critic.enabled = True
-        tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
-        tt.trainer.losses.ppo_critic.sample_enabled = False
-        tt.trainer.losses.ppo_critic.train_forward_enabled = False
-        tt.training_env.supervisor_policy_uri = bc_policy_uri
-        tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+        run_gates, rules = _configure_bc(
+            tt,
+            bc_policy_uri=bc_policy_uri,
+            bc_mode=bc_mode,
+            bc_teacher_lead_prob=bc_teacher_lead_prob,
+            bc_steps_actual=bc_steps_actual,
+            anneal_start=anneal_start,
+            anneal_end=anneal_end,
+        )
+
+        scheduler_run_gates += run_gates
+        scheduler_rules += rules
+
+    tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
     return tt
 
