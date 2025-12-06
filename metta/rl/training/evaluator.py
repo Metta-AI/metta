@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import uuid
 import zipfile
 from typing import Any, Optional
@@ -36,8 +37,14 @@ class EvaluatorConfig(Config):
     """Configuration for evaluation."""
 
     epoch_interval: int = 100  # 0 to disable
-    evaluate_local: bool = True
-    evaluate_remote: bool = False
+    evaluate_local: bool = Field(
+        default_factory=lambda: os.getenv("SKYPILOT_TASK_ID") is None,
+        description="Run evals locally. Defaults to True locally, False on SkyPilot.",
+    )
+    evaluate_remote: bool = Field(
+        default_factory=lambda: os.getenv("SKYPILOT_TASK_ID") is not None,
+        description="Run evals remotely via Observatory. Defaults to False locally, True on SkyPilot.",
+    )
     num_training_tasks: int = 2
     parallel_evals: int = Field(
         default=9,
