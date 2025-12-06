@@ -264,7 +264,16 @@ def grid_search(sweep_name: str) -> SweepTool:
     a sweep controller sandbox and running from there (instructions in previous docstring)
     
     Example command: 
-        
+
+        # Run with local dispatch for local training (recommended for testing)
+        uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.grid_search \
+            sweep_name="ak.grid_search_local_test.1205.1034" \
+            local_test=True
+
+        # Run with Skypilot dispatch 
+        uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.grid_search \
+            sweep_name="ak.grid_search_local_test.1205.1034"
+
     """
     grid_parameters = [
         SP.categorical("trainer.optimizer.learning_rate", [1e-4, 3e-4]),
@@ -273,7 +282,7 @@ def grid_search(sweep_name: str) -> SweepTool:
         SP.categorical("trainer.total_timesteps", [1e4, 2e4, 3e4]),
         
         # The following are special parameters (reserved keywords) 
-        # they are not path overrides and instead are handles downstream. 
+        # they are not path overrides and instead are handled downstream. 
         SP.categorical("nodes", [1,2]),
         SP.categorical("gpus", [1,4])
     ]
