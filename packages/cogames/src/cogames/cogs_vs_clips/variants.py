@@ -100,6 +100,43 @@ class SolarFlareVariant(MissionVariant):
         mission.charger.efficiency = max(1, mission.charger.efficiency - 50)
 
 
+class TrainingVariant(MissionVariant):
+    name: str = "training"
+    description: str = "Training-friendly: max cargo, fast extractors, chest only deposits hearts."
+
+    @override
+    def modify_mission(self, mission):
+        mission.cargo_capacity = 255  # Maximum cargo for easier resource collection
+
+    @override
+    def modify_env(self, mission, env):
+        # Set all extractor cooldowns to 5ms (fast)
+        for extractor_name in ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"]:
+            extractor = env.game.objects.get(extractor_name)
+            if isinstance(extractor, AssemblerConfig):
+                updated_protocols = []
+                for proto in extractor.protocols:
+                    updated_proto = proto.model_copy(deep=True)
+                    updated_proto.cooldown = 5
+                    updated_protocols.append(updated_proto)
+                extractor.protocols = updated_protocols
+
+        # Modify chest to only deposit hearts by default (not all resources)
+        chest = env.game.objects.get("chest")
+        if isinstance(chest, ChestConfig):
+            chest.vibe_transfers = {
+                "heart_b": {"heart": 1},
+                "carbon_a": {"carbon": -10},
+                "carbon_b": {"carbon": 10},
+                "oxygen_a": {"oxygen": -10},
+                "oxygen_b": {"oxygen": 10},
+                "germanium_a": {"germanium": -1},
+                "germanium_b": {"germanium": 1},
+                "silicon_a": {"silicon": -25},
+                "silicon_b": {"silicon": 25},
+            }
+
+
 class PackRatVariant(MissionVariant):
     name: str = "pack_rat"
     description: str = "Raise heart, cargo, energy, and gear caps to 255."
@@ -660,6 +697,7 @@ VARIANTS: list[MissionVariant] = [
     SuperChargedVariant(),
     TraderVariant(),
     TinyHeartProtocolsVariant(),
+    TrainingVariant(),
     VibeCheckMin2Variant(),
     *DIFFICULTY_VARIANTS,
 ]

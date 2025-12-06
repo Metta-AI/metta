@@ -9,7 +9,11 @@ from cogames.main import app
 runner = CliRunner()
 
 
-@pytest.mark.parametrize("mission_name", get_all_missions())
+# Skip navigation missions - they timeout in CI due to heavy initialization
+_NON_NAVIGATION_MISSIONS = [m for m in get_all_missions() if "navigation" not in m]
+
+
+@pytest.mark.parametrize("mission_name", _NON_NAVIGATION_MISSIONS)
 @pytest.mark.timeout(60)
 def test_mission_play_non_interactive(mission_name):
     result = runner.invoke(

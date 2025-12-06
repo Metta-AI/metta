@@ -2,10 +2,20 @@ import { FC, PropsWithChildren, Ref, useCallback, useEffect, useImperativeHandle
 
 import { Button } from '../components/Button'
 import { Input } from '../components/Input'
-import { PaginatedEvalTasksResponse, Repo, TaskFilters } from '../repo'
+import { PaginatedEvalTasksResponse, PublicPolicyVersionRow, Repo, TaskFilters } from '../repo'
 import { TaskRow } from './TaskRow'
 
 const pageSize = 50
+
+const UUID_REGEX = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/
+
+export function parsePolicyVersionId(command: string): string | null {
+  const match = command.match(/policy_version_id=([0-9a-fA-F-]{36})/)
+  if (match && UUID_REGEX.test(match[1])) {
+    return match[1]
+  }
+  return null
+}
 
 export type TasksTableHandle = {
   loadTasks: (page: number) => void
@@ -62,12 +72,13 @@ export const TasksTable: FC<{
   ref?: Ref<TasksTableHandle>
   initialFilters?: TaskFilters
   hideFilters?: boolean
-  title?: string
-}> = ({ repo, setError, ref, initialFilters, hideFilters, title }) => {
+}> = ({ repo, setError, ref, initialFilters, hideFilters }) => {
   const [tasksResponse, setTasksResponse] = useState<PaginatedEvalTasksResponse | undefined>()
   const currentPage = tasksResponse?.page || 1
   const [filters, setFilters] = useState<TaskFilters>(initialFilters || {})
   const isInitialMount = useRef(true)
+  const [policyInfoMap, setPolicyInfoMap] = useState<Record<string, PublicPolicyVersionRow>>({})
+  const attemptedPolicyIds = useRef<Set<string>>(new Set())
 
   // Load tasks
   const loadTasks = useCallback(
@@ -75,6 +86,35 @@ export const TasksTable: FC<{
       try {
         const response = await repo.getEvalTasksPaginated(page, pageSize, filters)
         setTasksResponse(response)
+
+        // Extract unique policy_version_ids from commands that we haven't attempted yet
+        const policyVersionIds: string[] = []
+        for (const task of response.tasks) {
+          const pvId = parsePolicyVersionId(task.command)
+          if (pvId && !attemptedPolicyIds.current.has(pvId)) {
+            policyVersionIds.push(pvId)
+          }
+        }
+
+        // Batch fetch policy info for new IDs
+        if (policyVersionIds.length > 0) {
+          try {
+            const policyVersions = await repo.getPolicyVersionsBatch(policyVersionIds)
+            // Mark as attempted only after successful fetch
+            for (const pvId of policyVersionIds) {
+              attemptedPolicyIds.current.add(pvId)
+            }
+            const newPolicyInfo: Record<string, PublicPolicyVersionRow> = {}
+            for (const pv of policyVersions) {
+              newPolicyInfo[pv.id] = pv
+            }
+            if (Object.keys(newPolicyInfo).length > 0) {
+              setPolicyInfoMap((prev) => ({ ...prev, ...newPolicyInfo }))
+            }
+          } catch (err) {
+            console.error('Failed to fetch policy versions:', err)
+          }
+        }
       } catch (err: any) {
         console.error('Failed to load tasks:', err)
         setError(`Failed to load tasks: ${err.message}`)
@@ -115,20 +155,15 @@ export const TasksTable: FC<{
 
   return (
     <div>
-      <h2 className="mb-5">
-        {title || 'All Tasks'} ({tasksResponse.total_count})
-      </h2>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse table-fixed">
           <thead className="border-b border-b-gray-300 bg-gray-100">
             <tr>
-              <TH>ID</TH>
-              <TH width="30%">Command</TH>
+              <TH>Policy</TH>
+              <TH>Recipe</TH>
               <TH>Status</TH>
-              <TH>User</TH>
-              <TH>Assignee</TH>
-              <TH>Attempts</TH>
               <TH>Created</TH>
+              <TH>Duration</TH>
               <TH>Logs</TH>
             </tr>
             {!hideFilters && (
@@ -146,32 +181,21 @@ export const TasksTable: FC<{
                     onChange={(value) => setFilters({ ...filters, status: value })}
                   />
                 </THFilter>
-                <THFilter>
-                  <FilterInput
-                    value={filters.user_id || ''}
-                    onChange={(value) => setFilters({ ...filters, user_id: value })}
-                  />
-                </THFilter>
-                <THFilter>
-                  <FilterInput
-                    value={filters.assignee || ''}
-                    onChange={(value) => setFilters({ ...filters, assignee: value })}
-                  />
-                </THFilter>
                 <THFilter />
-                <THFilter>
-                  <FilterInput
-                    value={filters.created_at || ''}
-                    onChange={(value) => setFilters({ ...filters, created_at: value })}
-                  />
-                </THFilter>
-                <th />
+                <THFilter />
+                <THFilter />
               </tr>
             )}
           </thead>
           <tbody>
             {tasksResponse.tasks.map((task) => (
-              <TaskRow key={task.id} task={task} repo={repo} />
+              <TaskRow
+                key={task.id}
+                task={task}
+                repo={repo}
+                policyInfoMap={policyInfoMap}
+                attemptedPolicyIds={attemptedPolicyIds.current}
+              />
             ))}
           </tbody>
         </table>

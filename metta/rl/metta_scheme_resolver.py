@@ -57,20 +57,22 @@ class MettaSchemeResolver(SchemeResolver):
       - metta://policy/<name>:v<N>         (specific version N of named policy)
     """
 
+    def __init__(self, stats_server_uri: str | None = None):
+        self._stats_server_uri = stats_server_uri or auto_stats_server_uri()
+
     @property
     def scheme(self) -> str:
         return "metta"
 
     def _get_stats_client(self) -> StatsClient:
-        stats_server_uri = auto_stats_server_uri()
-        if not stats_server_uri:
+        if not self._stats_server_uri:
             raise ValueError("Cannot resolve metta:// URI: stats server not configured")
-        return StatsClient.create(stats_server_uri)
+        return StatsClient.create(self._stats_server_uri)
 
     def _resolve_policy_version_by_name(
         self, stats_client: StatsClient, name: str, version: int | None
     ) -> PolicyVersionWithName:
-        response = stats_client.get_policies(name_exact=name, version=version, limit=1)
+        response = stats_client.get_policy_versions(name_exact=name, version=version, limit=1)
         if not response.entries:
             version_str = f":v{version}" if version is not None else ""
             raise ValueError(f"No policy found with name '{name}{version_str}'")

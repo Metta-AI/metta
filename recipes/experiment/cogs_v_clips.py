@@ -37,11 +37,7 @@ logger = logging.getLogger(__name__)
 
 # Single canonical curriculum list (fixed + procedural)
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    "fixed_30.extractor_hub",
-    "fixed_50.extractor_hub",
-    "fixed_70.extractor_hub",
-    # Fixed-map classics (now listed with their canonical names)
-    "easy_mode",
+    # Core hello_world missions
     "hello_world.easy_hearts",
     "hello_world.oxygen_bottleneck",
     "hello_world.energy_starved",
@@ -452,7 +448,7 @@ def train_single_mission(
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: list[str] | str,
     num_cogs: int = 4,
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,

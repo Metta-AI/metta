@@ -393,11 +393,13 @@ proc step*(
     if invHeart > 0:
 
       # Reset the targets when we deposit hearts.
+      # Reset to 0 (not hardcoded defaults) so the recipe-reading logic
+      # can set correct targets from activeRecipe on the next cycle.
       log "depositing hearts"
-      agent.carbonTarget = PutCarbonAmount
-      agent.oxygenTarget = PutOxygenAmount
-      agent.germaniumTarget = PutGermaniumAmount
-      agent.siliconTarget = PutSiliconAmount
+      agent.carbonTarget = 0
+      agent.oxygenTarget = 0
+      agent.germaniumTarget = 0
+      agent.siliconTarget = 0
 
       let depositAction = agent.cfg.actions.vibeHeartB
       let depositVibe = agent.cfg.vibes.heartB
