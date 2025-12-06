@@ -6,6 +6,7 @@ from pydantic import Field
 from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+from torch.profiler import record_function
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
@@ -124,32 +125,34 @@ class PPOCritic(Loss):
                     self.sample_enabled = True
                     self.train_forward_enabled = True
 
-            advantages = torch.zeros_like(self.replay.buffer["values"], device=self.device)
-            self.advantages = compute_advantage(
-                self.replay.buffer["values"],
-                self.replay.buffer["rewards"],
-                self.replay.buffer["dones"],
-                torch.ones_like(self.replay.buffer["values"]),
-                advantages,
-                self.cfg.gamma,
-                self.cfg.gae_lambda,
-                1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
-                1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
-                self.device,
-            )
+            with record_function("ppo_critic.compute_advantage"):
+                advantages = torch.zeros_like(self.replay.buffer["values"], device=self.device)
+                self.advantages = compute_advantage(
+                    self.replay.buffer["values"],
+                    self.replay.buffer["rewards"],
+                    self.replay.buffer["dones"],
+                    torch.ones_like(self.replay.buffer["values"]),
+                    advantages,
+                    self.cfg.gamma,
+                    self.cfg.gae_lambda,
+                    1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
+                    1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
+                    self.device,
+                )
 
         # sample from the buffer if called for
         if self.sample_enabled:
-            minibatch, indices, prio_weights = prio_sample(
-                buffer=self.replay,
-                mb_idx=mb_idx,
-                epoch=context.epoch,
-                total_timesteps=self.trainer_cfg.total_timesteps,
-                batch_size=self.trainer_cfg.batch_size,
-                prio_alpha=self.cfg.prio_alpha,
-                prio_beta0=self.cfg.prio_beta0,
-                advantages=self.advantages,
-            )
+            with record_function("ppo_critic.prio_sample"):
+                minibatch, indices, prio_weights = prio_sample(
+                    buffer=self.replay,
+                    mb_idx=mb_idx,
+                    epoch=context.epoch,
+                    total_timesteps=self.trainer_cfg.total_timesteps,
+                    batch_size=self.trainer_cfg.batch_size,
+                    prio_alpha=self.cfg.prio_alpha,
+                    prio_beta0=self.cfg.prio_beta0,
+                    advantages=self.advantages,
+                )
             # mb data should have been computed with policy under torch.no_grad()
             shared_loss_data["sampled_mb"] = minibatch
             shared_loss_data["indices"] = NonTensorData(indices)  # this may break compile if we ever use it again
@@ -179,12 +182,13 @@ class PPOCritic(Loss):
 
         # forward the policy if called for
         if self.train_forward_enabled:
-            policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
-            flat_actions = minibatch["actions"].reshape(B * TT, -1)
-            self.policy.reset_memory()
-            policy_td = self.policy.forward(policy_td, action=flat_actions)
-            policy_td = policy_td.reshape(B, TT)
-            shared_loss_data["policy_td"] = policy_td
+            with record_function("ppo_critic.policy_forward"):
+                policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
+                flat_actions = minibatch["actions"].reshape(B * TT, -1)
+                self.policy.reset_memory()
+                policy_td = self.policy.forward(policy_td, action=flat_actions)
+                policy_td = policy_td.reshape(B, TT)
+                shared_loss_data["policy_td"] = policy_td
 
         # compute value loss
         old_values = minibatch["values"]
@@ -197,29 +201,31 @@ class PPOCritic(Loss):
             newvalue_reshaped = newvalue.view(returns.shape)
 
         if newvalue_reshaped is not None:
-            if self.cfg.clip_vloss:
-                v_loss_unclipped = (newvalue_reshaped - returns) ** 2
-                vf_clip_coef = self.cfg.vf_clip_coef
-                v_clipped = old_values + torch.clamp(
-                    newvalue_reshaped - old_values,
-                    -vf_clip_coef,
-                    vf_clip_coef,
-                )
-                v_loss_clipped = (v_clipped - returns) ** 2
-                v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
-            else:
-                v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
+            with record_function("ppo_critic.value_loss"):
+                if self.cfg.clip_vloss:
+                    v_loss_unclipped = (newvalue_reshaped - returns) ** 2
+                    vf_clip_coef = self.cfg.vf_clip_coef
+                    v_clipped = old_values + torch.clamp(
+                        newvalue_reshaped - old_values,
+                        -vf_clip_coef,
+                        vf_clip_coef,
+                    )
+                    v_loss_clipped = (v_clipped - returns) ** 2
+                    v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+                else:
+                    v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
 
-            # Update values in experience buffer
-            update_td = TensorDict(
-                {
-                    "values": newvalue.view(minibatch["values"].shape).detach(),
-                },
-                batch_size=minibatch.batch_size,
-            )
-            self.replay.update(indices, update_td)
+                # Update values in experience buffer
+                update_td = TensorDict(
+                    {
+                        "values": newvalue.view(minibatch["values"].shape).detach(),
+                    },
+                    batch_size=minibatch.batch_size,
+                )
+                self.replay.update(indices, update_td)
         else:
-            v_loss = 0.5 * ((old_values - returns) ** 2).mean()
+            with record_function("ppo_critic.value_loss"):
+                v_loss = 0.5 * ((old_values - returns) ** 2).mean()
 
         # Scale value loss by coefficient
         v_loss = v_loss * self.cfg.vf_coef
