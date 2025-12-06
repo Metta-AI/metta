@@ -63,7 +63,10 @@ class PolicyAutoBuilder(Policy):
         self.to(device)
         if device.type == "cuda":
             self._configure_sdp()
-            torch.set_float32_matmul_precision("high")
+            # TF32 is already configured at module import time in metta/tools/train.py
+            # and in DistributedHelper._setup_torch_optimizations()
+            # Setting it here causes API conflicts with torch.compile which is called
+            # during CortexStack.__init__() before this method runs
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
