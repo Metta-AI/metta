@@ -38,11 +38,7 @@ logger = logging.getLogger(__name__)
 
 # Single canonical curriculum list (fixed + procedural)
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    "fixed_30.extractor_hub",
-    "fixed_50.extractor_hub",
-    "fixed_70.extractor_hub",
-    # Fixed-map classics (now listed with their canonical names)
-    "easy_mode",
+    # Core hello_world missions
     "hello_world.easy_hearts",
     "hello_world.oxygen_bottleneck",
     "hello_world.energy_starved",

@@ -126,9 +126,6 @@ def build_eval_overrides(
     # Use 'group' instead of 'wandb.group' to match train.py pattern
     eval_overrides["group"] = experiment_id
 
-    # Ensure evaluation has a stats directory to avoid Path(None) errors downstream
-    eval_overrides.setdefault("enable_replays", False)
-
     # Stats server configuration
     if stats_server_uri:
         eval_overrides["stats_server_uri"] = stats_server_uri
