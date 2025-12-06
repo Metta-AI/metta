@@ -162,28 +162,21 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Compute raw LP scores for all tasks (with per-task cache for the raw step)
         raw_scores = np.array([self._get_bidirectional_learning_progress_score(tid) for tid in task_ids], dtype=float)
 
-        # Consider only tasks with positive progress; others get zero weight
-        posidxs = [i for i, val in enumerate(raw_scores) if val > 0]
+        # Ensure every task retains some exploration weight so it can still be sampled
+        min_weight = max(self.hypers.exploration_bonus, 1e-6)
+        raw_scores = np.maximum(raw_scores, min_weight)
 
-        if posidxs:
-            subprobs = raw_scores[posidxs]
-            # Standardize then sigmoid (legacy shape)
-            std = np.std(subprobs)
-            mean = np.mean(subprobs)
-            subprobs = (subprobs - mean) / std if std > 0 else subprobs - mean
-            subprobs = self._sigmoid(subprobs)
+        # Center (but do not standardize) so smoothing magnitude is preserved
+        if len(raw_scores) > 1:
+            raw_scores = raw_scores - np.mean(raw_scores)
 
-            total = float(np.sum(subprobs))
-            if total > 0:
-                subprobs = subprobs / total
-            else:
-                subprobs = np.ones_like(subprobs) / len(subprobs)
+        subprobs = self._sigmoid(raw_scores)
 
-            norm_scores = np.zeros_like(raw_scores)
-            norm_scores[posidxs] = subprobs
+        total = float(np.sum(subprobs))
+        if total > 0:
+            norm_scores = subprobs / total
         else:
-            # No positive progress: uniform exploration
-            norm_scores = np.ones_like(raw_scores) / len(raw_scores)
+            norm_scores = np.ones_like(subprobs) / len(subprobs)
 
         return {tid: float(score) for tid, score in zip(task_ids, norm_scores, strict=True)}
 
@@ -217,7 +210,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             lp = abs(fast - slow)
             # Small bonus for above-baseline performance
             perf_bonus = max(fast, 0) * 0.1
-            score = lp + perf_bonus
+            score = max(lp + perf_bonus, self.hypers.exploration_bonus)
 
         # Cache the computed score
         self._score_cache[task_id] = score
