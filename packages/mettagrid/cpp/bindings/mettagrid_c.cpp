@@ -314,6 +314,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   const int map_center_r = static_cast<int>(_grid->height) / 2;
   const int map_center_c = static_cast<int>(_grid->width) / 2;
 
+  // Fill in visible objects. Observations used to be cleared in _step;
+  // with the cached path we overwrite the used prefix and clear the unused tail below.
   size_t attempted_tokens_written = 0;
   size_t tokens_written = 0;
   auto observation_view = _observations.mutable_unchecked<3>();
@@ -436,20 +438,24 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     }
   }
 
+  // Process locations in increasing manhattan distance order
   for (const auto& offset : _obs_pattern) {
     int r = static_cast<int>(observer_row) + offset.dr;
     int c = static_cast<int>(observer_col) + offset.dc;
 
+    // Skip if outside map bounds
     if (r < r_start || r >= r_end || c < c_start || c >= c_end) {
       continue;
     }
 
+    // Process a single grid location using the cached token view
     const auto& cell_cache = _cell_cache[_cell_index(static_cast<GridCoord>(r), static_cast<GridCoord>(c))];
     const size_t cell_count = static_cast<size_t>(cell_cache.static_count) + static_cast<size_t>(cell_cache.dynamic_count);
     if (cell_count == 0) {
       continue;
     }
 
+    // Location is pre-packed with agent at the center of the observation window
     const uint8_t packed_location = offset.packed;
 
     attempted_tokens_written += cell_count;
@@ -457,6 +463,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       continue;
     }
 
+    // Prepare observation buffer for this cell
     const size_t remaining = capacity - tokens_written;
     const size_t to_write = std::min(remaining, cell_count);
     auto* dst = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
@@ -666,7 +673,7 @@ void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat
 void MettaGrid::_step() {
   auto actions_view = _actions.unchecked<1>();
 
-  // Reset rewards
+  // Reset rewards; observations used to be cleared here but are now handled opportunistically in _compute_observation.
   auto rewards_view = _rewards.mutable_unchecked<1>();
 
   std::fill(
