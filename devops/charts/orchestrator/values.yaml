@@ -45,11 +45,11 @@ evalScheduler:
     DD_TRACE_ENABLED: "true"
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 100m
+      memory: 1Gi
     limits:
-      cpu: 200m
-      memory: 512Mi
+      cpu: 500m
+      memory: 3Gi
   datadog:
     enabled: true
     env: "production"
