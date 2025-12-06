@@ -10,7 +10,7 @@ repositories:
   - name: skypilot
     url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.3
   - name: skypilot-beta
-    url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.5
+    url: https://helm.skypilot.co
   - name: datadog
     url: https://helm.datadoghq.com
 
@@ -25,11 +25,7 @@ releases:
   - name: system
     chart: ./system
     version: 0.1.0
-    namespace: kube-system
-    values:
-      - nodePools:
-          jobs:
-            enabled: true
+    namespace: orchestrator # historical accident
 
   ########## Core infrastructure ##########
   - name: external-dns
@@ -126,19 +122,26 @@ releases:
 
   - name: skypilot-beta
     chart: skypilot-beta/skypilot
-    version: 0.0.0
-    namespace: skypilot-beta
+    version: 0.11.0-rc.1
+    namespace: skypilot
+    devel: true
     values:
       - ./helm.values/skypilot-values.yaml
       - apiService:
-          image: berkeleyskypilot/skypilot:0.10.5
-          dbConnectionSecretName: skypilot-beta-db-connection-uri
+          image: berkeleyskypilot/skypilot:0.11.0rc1
+          dbConnectionSecretName: skypilot-db-connection-uri
           config: null
         rbac:
+          create: false
+          serviceAccountName: skypilot-api-sa
           manageRbacPolicies: false
           manageSystemComponents: false
         ingress:
           host: skypilot-api-beta.softmax-research.net
+          tls:
+            enabled: true
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt
 
   ########## Softmax apps ##########
   - name: orchestrator
