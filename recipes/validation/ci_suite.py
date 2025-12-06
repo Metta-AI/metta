@@ -43,6 +43,8 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
             "checkpointer.epoch_interval=1",
             "training_env.forward_pass_minibatch_target_size=96",
             "training_env.vectorization=serial",
+            "evaluator.evaluate_local=False",
+            "evaluator.evaluate_remote=False",
         ],
         timeout_s=180,  # CI runners are slower; initialization alone can take 30+ seconds
         is_training_job=True,
