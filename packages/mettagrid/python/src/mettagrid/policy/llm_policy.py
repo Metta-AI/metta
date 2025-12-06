@@ -758,6 +758,23 @@ class LLMAgentPolicy(AgentPolicy):
         # Return a copy of messages for the API call
         return list(self._messages)
 
+    def _should_show(self, component: str) -> bool:
+        """Check if a debug component should be shown.
+
+        Args:
+            component: Component name to check (e.g., "prompt", "llm", "grid")
+
+        Returns:
+            True if component should be shown
+        """
+        # Handle boolean debug_mode
+        if isinstance(self.debug_mode, bool):
+            return self.debug_mode
+        # Handle set debug_mode
+        if isinstance(self.debug_mode, set):
+            return "all" in self.debug_mode or component in self.debug_mode
+        return False
+
     def step(self, obs: AgentObservation) -> Action:
         """Get action from LLM given observation.
 
@@ -782,6 +799,14 @@ class LLMAgentPolicy(AgentPolicy):
                     logger.info(f"[DYNAMIC] Sent basic_info + observable (step {step}, {num_msgs} msgs)")
                 else:
                     logger.info(f"[DYNAMIC] Sent observable only (step {step}, {num_msgs} msgs)")
+
+                # Print actual prompt if "prompt" is in debug_mode
+                if self._should_show("prompt"):
+                    print("\n" + "=" * 70)
+                    print(f"[PROMPT] Step {step} - Sending to LLM:")
+                    print("=" * 70)
+                    print(user_prompt)
+                    print("=" * 70 + "\n")
         else:
             # Use old static prompt approach
             obs_json = observation_to_json(obs, self.policy_env_info)

@@ -288,7 +288,13 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         if inventory:
             sections.append(self._build_inventory_section(inventory))
 
-        # 4. Include available actions only on first/reset steps
+        # 4. Nearby agents with their inventories (for coordination)
+        nearby_objects = self._find_nearby_objects(obs, agent_x, agent_y)
+        nearby_agents = [obj for obj in nearby_objects if obj["name"] == "agent"]
+        if nearby_agents:
+            sections.append(self._build_nearby_agents_section(nearby_agents))
+
+        # 5. Include available actions only on first/reset steps
         if include_actions:
             # Only include essential actions, not all 156 vibes
             essential_actions = self._get_essential_actions()
@@ -888,6 +894,7 @@ Output ONLY the action name:
 
                 # Collect additional properties
                 properties = []
+                inventory = {}
                 for t in obs.tokens:
                     # IMPORTANT: row() returns X, col() returns Y
                     if t.row() == x and t.col() == y:
@@ -895,12 +902,19 @@ Output ONLY the action name:
                             properties.append(f"cooldown: {t.value}")
                         elif t.feature.name == "remaining_uses":
                             properties.append(f"uses: {t.value}")
+                        elif t.feature.name == "agent:group":
+                            properties.append(f"group: {t.value}")
+                        elif t.feature.name.startswith("inv:") and t.value > 0:
+                            # Collect inventory for other agents
+                            resource = t.feature.name[4:]  # Remove "inv:" prefix
+                            inventory[resource] = t.value
 
                 objects.append({
                     "name": tag_name,
                     "direction": direction,
                     "distance": distance,
                     "properties": properties,
+                    "inventory": inventory,
                 })
 
         # Sort by distance
@@ -920,7 +934,42 @@ Output ONLY the action name:
             desc = f"  {obj['name']} - {obj['direction']} (distance: {obj['distance']})"
             if obj["properties"]:
                 desc += f" [{', '.join(obj['properties'])}]"
+            # Show inventory for other agents
+            if obj.get("inventory"):
+                inv_str = ", ".join(f"{k}:{v}" for k, v in sorted(obj["inventory"].items()))
+                desc += f" inv={{" + inv_str + "}}"
             lines.append(desc)
+        return "\n".join(lines)
+
+    def _build_nearby_agents_section(self, agents: list[dict]) -> str:
+        """Build section showing nearby agents and their inventories.
+
+        Args:
+            agents: List of agent info dicts (filtered from nearby objects)
+
+        Returns:
+            Formatted section showing teammate positions and inventories
+        """
+        lines = ["=== NEARBY AGENTS ==="]
+        for agent in agents:
+            # Determine if ally or enemy based on group
+            group_info = ""
+            for prop in agent["properties"]:
+                if prop.startswith("group:"):
+                    group_info = f" ({prop})"
+                    break
+
+            desc = f"  Agent {agent['direction']} (distance: {agent['distance']}){group_info}"
+
+            # Show their inventory
+            if agent.get("inventory"):
+                inv_parts = []
+                for resource, amount in sorted(agent["inventory"].items()):
+                    inv_parts.append(f"{resource}:{amount}")
+                if inv_parts:
+                    desc += f" - inventory: {', '.join(inv_parts)}"
+            lines.append(desc)
+
         return "\n".join(lines)
 
     def _extract_inventory(self, obs: AgentObservation, agent_x: int, agent_y: int) -> dict[str, int]:
