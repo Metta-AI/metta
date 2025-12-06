@@ -8,7 +8,7 @@ export const METTA_WANDB_ENTITY = 'metta-research'
 export const METTASCOPE_REPLAY_URL_PREFIX = 'https://metta-ai.github.io/metta/mettascope/mettascope.html?replay='
 
 // Leaderboard
-export const LEADERBOARD_SIM_VERSION = 'v0.1'
+export const LEADERBOARD_SIM_VERSION = 'v0.2'
 export const LEADERBOARD_SIM_NAME_EPISODE_KEY = `leaderboard-name-${LEADERBOARD_SIM_VERSION}`
 export const LEADERBOARD_ATTEMPTS_TAG = `leaderboard-attempts-${LEADERBOARD_SIM_VERSION}`
 export const LEADERBOARD_DONE_TAG = `leaderboard-evals-done-${LEADERBOARD_SIM_VERSION}`
