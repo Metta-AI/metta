@@ -124,10 +124,6 @@ private:
   // Member variables
   GlobalObsConfig _global_obs_config;
   GameConfig _game_config;
-  bool _optimized_obs = false;
-  bool _opt_dirty_refresh = true;
-  bool _opt_move_swap = true;
-  bool _opt_prepacked = true;
 
   std::unique_ptr<Grid> _grid;
 

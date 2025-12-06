@@ -165,7 +165,6 @@ class GameConfig:
         objects: dict[str, GridObjectConfig],
         tag_id_map: dict[int, str] | None = None,
         protocol_details_obs: bool = True,
-        optimized_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
         inventory_regen_amounts: dict[int, int] | None = None,
@@ -183,7 +182,6 @@ class GameConfig:
     global_obs: GlobalObsConfig
     # FEATURE FLAGS
     protocol_details_obs: bool
-    optimized_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
     tag_id_map: dict[int, str]
