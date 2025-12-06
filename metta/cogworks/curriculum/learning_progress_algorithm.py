@@ -149,35 +149,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return self._score_tasks_basic(task_ids)
 
     def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
-        """Score tasks using bidirectional learning progress.
-
-        We compute raw per-task learning progress (fast/slow gap with smoothing and
-        perf bonus), then apply sigmoid + normalize (zeroing tasks with no progress)
-        to mirror the distribution-based sampling while keeping per-task EMA updates lightweight.
-        """
+        """Score tasks with per-task LP, then sigmoid + normalize per call."""
 
         if not task_ids:
             return {}
 
-        # Compute raw LP scores for all tasks (with per-task cache for the raw step)
         raw_scores = np.array([self._get_bidirectional_learning_progress_score(tid) for tid in task_ids], dtype=float)
-
-        # Ensure every task retains some exploration weight so it can still be sampled
-        min_weight = max(self.hypers.exploration_bonus, 1e-6)
-        raw_scores = np.maximum(raw_scores, min_weight)
-
-        # Center (but do not standardize) so smoothing magnitude is preserved
-        if len(raw_scores) > 1:
-            raw_scores = raw_scores - np.mean(raw_scores)
-
-        subprobs = self._sigmoid(raw_scores)
-
-        total = float(np.sum(subprobs))
-        if total > 0:
-            norm_scores = subprobs / total
-        else:
-            norm_scores = np.ones_like(subprobs) / len(subprobs)
-
+        norm_scores = self._normalize_bidirectional_scores(raw_scores)
         return {tid: float(score) for tid, score in zip(task_ids, norm_scores, strict=True)}
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
@@ -530,6 +508,26 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     def _sigmoid(self, x: np.ndarray) -> np.ndarray:
         """Apply sigmoid function to array values with clipping for stability."""
         return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
+
+    def _normalize_bidirectional_scores(self, raw_scores: np.ndarray) -> np.ndarray:
+        """Apply exploration floor, center, sigmoid, and normalize."""
+        if raw_scores.size == 0:
+            return raw_scores
+
+        # Ensure every task retains some exploration weight so it can still be sampled
+        min_weight = max(self.hypers.exploration_bonus, 1e-6)
+        raw_scores = np.maximum(raw_scores, min_weight)
+
+        # Center (but do not standardize) so smoothing magnitude is preserved
+        if len(raw_scores) > 1:
+            raw_scores = raw_scores - np.mean(raw_scores)
+
+        subprobs = self._sigmoid(raw_scores)
+
+        total = float(np.sum(subprobs))
+        if total > 0:
+            return subprobs / total
+        return np.ones_like(subprobs) / len(subprobs)
 
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
