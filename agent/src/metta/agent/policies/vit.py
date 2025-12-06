@@ -1,5 +1,5 @@
 import types
-from typing import List
+from typing import List, Optional
 
 import torch
 from cortex.stacks import build_cortex_auto_config
@@ -19,7 +19,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 
 
-def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
+def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
     """Forward pass for the ViT policy with dynamics heads."""
     self.network()(td)
     self.action_probs(td, action)
@@ -27,7 +27,7 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
     if "values" in td.keys():
         td["values"] = td["values"].flatten()
 
-    # Dynamics/Muesli predictions - only if modules were created by Dynamics loss
+    # Dynamics/Muesli predictions - only if modules were created
     if hasattr(self, "returns_pred") and self.returns_pred is not None:
         td["pred_input"] = torch.cat([td["core"], td["logits"]], dim=-1)
         self.returns_pred(td)
@@ -139,7 +139,12 @@ def _prediction_step(self, hidden: torch.Tensor) -> tuple[torch.Tensor, torch.Te
 
 
 class ViTDefaultConfig(PolicyArchitecture):
-    """Speed-optimized ViT variant with lighter token embeddings and attention stack."""
+    """Speed-optimized ViT variant with lighter token embeddings and attention stack.
+
+    The trunk uses Axon blocks (post-up experts with residual connections) for efficient
+    feature processing. Configure trunk depth, layer normalization, and hidden dimension
+    scaling independently.
+    """
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
@@ -154,6 +159,12 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     # Dynamics/Muesli unroll steps - set > 0 to enable dynamics modules
     unroll_steps: int = 0
+
+    # Trunk configuration
+    # Number of Axon layers in the trunk (default: 16 for large model)
+    core_resnet_layers: int = 1
+    # Enable layer normalization after each trunk layer
+    core_use_layer_norm: bool = True
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
@@ -180,9 +191,9 @@ class ViTDefaultConfig(PolicyArchitecture):
             key_prefix="vit_cortex_state",
             stack_cfg=build_cortex_auto_config(
                 d_hidden=_latent_dim,
-                num_layers=1,
-                pattern="L",
-                post_norm=False,
+                num_layers=1,  # Default to 1, can be overridden
+                pattern="A",  # Axon blocks provide residual-like connections
+                post_norm=True,
             ),
             pass_state_during_training=pass_state_during_training,
         ),
@@ -208,34 +219,33 @@ class ViTDefaultConfig(PolicyArchitecture):
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
     def make_policy(self, policy_env_info: PolicyEnvInterface) -> Policy:
-        # Ensure downstream components match core dimension
-        # (self._latent_dim might have been overridden on the instance without updating all components)
+        # Apply trunk configuration dynamically to the Cortex component
         cortex = next(c for c in self.components if isinstance(c, CortexTDConfig))
-        core_dim = cortex.out_features or cortex.d_hidden
 
-        actor_mlp = next(c for c in self.components if c.name == "actor_mlp")
-        assert isinstance(actor_mlp, MLPConfig)
-        if actor_mlp.in_features != core_dim:
-            actor_mlp.in_features = core_dim
-
-        critic = next(c for c in self.components if c.name == "critic")
-        assert isinstance(critic, MLPConfig)
-        if critic.in_features != core_dim:
-            critic.in_features = core_dim
+        # Rebuild stack config with current parameters
+        cortex.stack_cfg = build_cortex_auto_config(
+            d_hidden=int(self._latent_dim),
+            num_layers=self.core_resnet_layers,
+            pattern="A",
+            post_norm=self.core_use_layer_norm,
+        )
 
         AgentClass = load_symbol(self.class_path)
+        if not isinstance(AgentClass, type):
+            raise TypeError(f"Loaded symbol {self.class_path} is not a class")
+
         policy = AgentClass(policy_env_info, self)
         policy.num_actions = policy_env_info.action_space.n
         policy.unroll_steps = self.unroll_steps
 
         # Only create dynamics modules if unroll_steps > 0
         if self.unroll_steps > 0:
-            latent_dim = core_dim
-            num_actions = policy.num_actions
+            latent_dim = int(self._latent_dim)
+            num_actions = int(policy.num_actions)
 
             # Dynamics Model: (Hidden + Action) -> (Hidden + Reward)
-            dyn_input_dim = latent_dim + num_actions
-            dyn_output_dim = latent_dim + 1
+            dyn_input_dim = int(latent_dim + num_actions)
+            dyn_output_dim = int(latent_dim + 1)
 
             dynamics_net = nn.Sequential(
                 nn.Linear(dyn_input_dim, 256),
@@ -245,7 +255,8 @@ class ViTDefaultConfig(PolicyArchitecture):
             policy.dynamics_model = dynamics_net
 
             # Returns/Reward Prediction Heads (for Muesli)
-            pred_input_dim = latent_dim + num_actions
+            # Input: Core + Logits
+            pred_input_dim = int(latent_dim + num_actions)
 
             returns_module = nn.Linear(pred_input_dim, 1)
             reward_module = nn.Linear(pred_input_dim, 1)
