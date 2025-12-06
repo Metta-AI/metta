@@ -9,6 +9,8 @@
 #include "objects/constants.hpp"
 #include "objects/inventory_config.hpp"
 
+class HasInventory;
+
 struct SharedInventoryLimit {
   InventoryQuantity limit;
   // How much do we have of whatever-this-limit-applies-to
@@ -19,10 +21,14 @@ class Inventory {
 private:
   std::unordered_map<InventoryItem, InventoryQuantity> _inventory;
   std::unordered_map<InventoryItem, SharedInventoryLimit*> _limits;
+  // The HasInventory that owns this inventory. If we want multiple things to react to changes,
+  // we can make this a vector.
+  HasInventory* _owner;
 
 public:
   // Constructor and Destructor
   explicit Inventory(const InventoryConfig& cfg,
+                     HasInventory* owner = nullptr,
                      const std::vector<std::string>* resource_names = nullptr,
                      const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr);
   ~Inventory();

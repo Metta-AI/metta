@@ -31,7 +31,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
@@ -291,11 +291,8 @@ def train(
     )
     trainer_cfg = TrainerConfig(losses=LossesConfig())
     scheduler = None
-    supervisor = EnvSupervisorConfig()
 
     if bc_policy_uri is not None:
-        supervisor = EnvSupervisorConfig(policy=bc_policy_uri)
-
         ssc_end_step = 300_000_000  # 1_000_000_000
         trainer_cfg.losses.sliced_scripted_cloner.enabled = True
         trainer_cfg.losses.ppo_critic.sample_enabled = False
@@ -346,16 +343,14 @@ def train(
         evaluate_local=False,
     )
 
-    tt = TrainTool(
+    return TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum, supervisor=supervisor),
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum, supervisor_policy_uri=bc_policy_uri),
         evaluator=evaluator_cfg,
         policy_architecture=ViTSize2Config(),
         scheduler=scheduler,
         checkpointer=CheckpointerConfig(epoch_interval=100),
     )
-
-    return tt
 
 
 def train_variants(

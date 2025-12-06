@@ -423,13 +423,6 @@ class GameConfig(Config):
         return IdMap(self)
 
 
-class EnvSupervisorConfig(Config):
-    """Environment supervisor configuration."""
-
-    policy: Optional[str] = Field(default=None)
-    policy_data_path: Optional[str] = Field(default=None)
-
-
 class MettaGridConfig(Config):
     """Environment configuration."""
 
