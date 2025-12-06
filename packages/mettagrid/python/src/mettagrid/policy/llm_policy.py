@@ -668,21 +668,15 @@ class LLMAgentPolicy(AgentPolicy):
         else:
             self.debugger = None
 
-        # Print id_map and recipes at startup
+        # Print object types and recipes at startup
         if mg_cfg is not None:
             try:
                 id_map = mg_cfg.game.id_map()
                 print("\n" + "=" * 70)
-                print("ID_MAP FEATURES")
+                print("OBJECT TYPES")
                 print("=" * 70)
-                for feature in id_map.features():
-                    print(f"  {feature.id:3d}: '{feature.name}' (normalization: {feature.normalization})")
-                print("=" * 70)
-
-                print("\nID_MAP TAGS:")
-                print("=" * 70)
-                for i, tag in enumerate(id_map.tag_names()):
-                    print(f"  {i:3d}: '{tag}'")
+                for tag in id_map.tag_names():
+                    print(f"  - {tag}")
                 print("=" * 70)
 
                 # Print recipes from prompt builder if available
@@ -785,9 +779,9 @@ class LLMAgentPolicy(AgentPolicy):
             Action to take
         """
         # Print human-readable debug info if debug mode is enabled
-        if self.debug_mode and self.debugger:
-            debug_output = self.debugger.debug_observation(obs, self.last_action)
-            print("\n" + debug_output + "\n")
+        # if self.debug_mode and self.debugger:
+        #     debug_output = self.debugger.debug_observation(obs, self.last_action)
+            # print("\n" + debug_output + "\n")
 
         # Build prompt using dynamic or static approach
         if self.use_dynamic_prompts:

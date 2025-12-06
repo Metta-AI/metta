@@ -214,10 +214,10 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         return "\n".join(lines)
 
     def _build_id_map_section(self) -> str:
-        """Build id_map reference section with features and tags.
+        """Build id_map reference section with object tags.
 
         Returns:
-            Formatted section with all observation features and object tags
+            Formatted section with object types available in this mission
         """
         if self._mg_cfg is None:
             return ""
@@ -226,19 +226,11 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
             id_map = self._mg_cfg.game.id_map()
             lines = []
 
-            # Features section
-            lines.append("=== OBSERVATION FEATURES ===")
-            lines.append("These are the features you may see in observation tokens:")
-            for feature in id_map.features():
-                lines.append(f"  {feature.id:2d}: \"{feature.name}\"")
-
-            lines.append("")
-
-            # Tags section
-            lines.append("=== OBJECT TAGS ===")
-            lines.append("When you see a 'tag' feature, its value maps to these object types:")
-            for i, tag in enumerate(id_map.tag_names()):
-                lines.append(f"  {i}: \"{tag}\"")
+            # Tags section - what objects exist in this mission
+            lines.append("=== OBJECT TYPES ===")
+            lines.append("Objects you may encounter:")
+            for tag in id_map.tag_names():
+                lines.append(f"  - {tag}")
 
             return "\n".join(lines)
         except Exception as e:
@@ -258,10 +250,9 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         """Build prompt with ONLY currently observable elements.
 
         This is the "dynamic" part sent at each step, describing:
-        - Spatial grid (ASCII map of what agent sees)
         - Directional awareness (what's adjacent)
-        - Nearby objects with directions and distances
-        - Current observation data
+        - Agent's inventory
+        - Nearby agents with their inventories
 
         Args:
             obs: Current agent observation
@@ -275,11 +266,7 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
 
         sections = []
 
-        # 1. Spatial grid - ASCII map so agent can see passages and layout
-        spatial_grid = self._build_spatial_grid(obs)
-        sections.append(self._build_spatial_grid_section(spatial_grid, agent_x, agent_y))
-
-        # 2. Directional awareness - what's immediately adjacent (CRITICAL for avoiding walls)
+        # 1. Directional awareness - what's immediately adjacent (CRITICAL for avoiding walls)
         directions = self._analyze_adjacent_tiles(obs, agent_x, agent_y)
         sections.append(self._build_directional_awareness_section(directions))
 
@@ -404,50 +391,26 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
 
 {self.observable_prompt(obs, include_actions=True)}
 
-=== HOW TO READ THE MAP ===
-- You are @ in the center
-- . = empty tile (you can walk here)
-- W = wall (cannot walk through)
-- Letters = objects (C=Charger, A=Assembler, X=Extractor, H=Chest)
-- To reach an object, find a path of dots (.) leading to it
-
 === DECISION PRIORITY ===
 
-1. LOOK AT THE MAP - find the nearest useful object:
-   - Need resources? Look for extractors (C=carbon, O=oxygen, G=germanium, S=silicon)
-   - Have resources? Look for A (Assembler) to craft hearts
-   - Have heart? Look for H (Chest) to deposit
-   - Low energy? Look for C (Charger)
-
-2. NAVIGATE TOWARD IT:
-   - If object is to your RIGHT (higher column) → move_east
-   - If object is to your LEFT (lower column) → move_west
-   - If object is ABOVE you (lower row) → move_north
-   - If object is BELOW you (higher row) → move_south
-   - If there's a WALL (W) blocking you, go AROUND it through empty tiles (.)
-
-3. WHEN ADJACENT to the object:
+1. Check ADJACENT TILES to see what's around you
+2. If adjacent to a useful object:
    - Set the right vibe if needed (heart_a for assembler, heart_b for chest)
    - Move INTO the object to use it
+3. If not adjacent to anything useful:
+   - Move toward the nearest useful object based on NEARBY AGENTS/OBJECTS info
+   - Need resources? Find extractors
+   - Have resources? Find assembler to craft hearts
+   - Have heart? Find chest to deposit
+   - Low energy? Find charger
 
-NEVER move in circles! If you've been going north/south/east/west repeatedly, pick a NEW direction toward a visible object.
+⚠️ OUTPUT FORMAT ⚠️
+You MUST respond with a JSON object. No other text before or after.
 
-⚠️ OUTPUT FORMAT - READ THIS FIRST ⚠️
-Your response must be EXACTLY ONE action name. Nothing else.
-NO analysis. NO explanation. NO markdown. NO "I think" or "Looking at".
-Just the action name. One word (or underscore-separated words).
+{{"reasoning": "<your step-by-step thinking>", "action": "<action_name>"}}
 
-WRONG responses (will cause errors):
-- "I need to analyze..."
-- "Looking at the situation..."
-- "move_east because..."
-- "**move_east**"
-
-CORRECT responses (exactly like this):
-move_east
-move_north
-change_vibe_heart_a
-noop
+Example:
+{{"reasoning": "I need carbon. Carbon extractor is to the east. Moving east.", "action": "move_east"}}
 """
 
     def context_prompt(
@@ -491,19 +454,11 @@ noop
 
             prompt = f"""{self.observable_prompt(obs)}
 
-LOOK AT THE MAP: Find a letter (A=Assembler, C=Charger, X=Extractor, H=Chest).
-Navigate toward it through empty tiles (.). Go AROUND walls (W).
-
-- Object to your RIGHT? → move_east
-- Object to your LEFT? → move_west
-- Object ABOVE you? → move_north
-- Object BELOW you? → move_south
-
-DON'T move in circles! Pick a direction toward a visible object.
+Check ADJACENT TILES. If next to a useful object, use it. Otherwise move toward one.
 
 VALID: {", ".join(action_list[:8])}, ...
 
-Output ONLY the action name:
+Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
 """
             includes_basic = False
 
