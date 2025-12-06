@@ -269,6 +269,12 @@ class ObsPerceiverLatent(nn.Module):
             )
 
         self.final_norm = nn.LayerNorm(self._latent_dim)
+        try:
+            from xformers import ops as xops  # type: ignore[import-not-found]
+        except ImportError:
+            self._xops = None
+        else:
+            self._xops = xops
 
     def forward(self, td: TensorDict) -> TensorDict:
         x_features = td[self.config.in_key]
@@ -280,10 +286,9 @@ class ObsPerceiverLatent(nn.Module):
         k = einops.rearrange(k, "b m (h d) -> b h m d", h=self._num_heads)
         v = einops.rearrange(v, "b m (h d) -> b h m d", h=self._num_heads)
 
-        attn_bias = None
+        attn_mask = None
         if key_mask is not None:
-            mask_value = -torch.finfo(k.dtype).max
-            attn_bias = einops.rearrange(key_mask.to(torch.bool), "b m -> b 1 1 m").to(k.dtype) * mask_value
+            attn_mask = einops.rearrange(key_mask.to(torch.bool), "b m -> b 1 1 m")
 
         latents = self.latents.expand(x_features.shape[0], -1, -1)
 
@@ -292,7 +297,7 @@ class ObsPerceiverLatent(nn.Module):
             q = layer["q_proj"](layer["latent_norm"](latents))
             q = einops.rearrange(q, "b n (h d) -> b h n d", h=self._num_heads)
 
-            attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
+            attn_output = self._attention(q, k, v, attn_mask)
             attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
             latents = residual + layer["attn_out_proj"](attn_output)
 
@@ -311,6 +316,27 @@ class ObsPerceiverLatent(nn.Module):
 
         td[self.config.out_key] = latents
         return td
+
+    def _attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, attn_mask: torch.Tensor | None) -> torch.Tensor:
+        """Compute attention using xformers when available, otherwise SDPA."""
+        if self._xops is not None:
+            xops = self._xops
+            try:
+                # xformers expects [B, N, H, D]
+                q_x = q.permute(0, 2, 1, 3)
+                k_x = k.permute(0, 2, 1, 3)
+                v_x = v.permute(0, 2, 1, 3)
+                attn_bias = None
+                if attn_mask is not None:
+                    # attn_mask: [B,1,1,M] -> padding mask [B,M]
+                    pad_mask = attn_mask.view(attn_mask.shape[0], -1)
+                    attn_bias = xops.fmha.attn_bias.PaddingMask(pad_mask)
+                out = xops.memory_efficient_attention(q_x, k_x, v_x, attn_bias=attn_bias, p=0.0)
+                return out.permute(0, 2, 1, 3)
+            except Exception:
+                pass
+
+        return F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask)
 
 
 class ObsSelfAttnConfig(ComponentConfig):
