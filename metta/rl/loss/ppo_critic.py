@@ -5,8 +5,8 @@ import torch
 from pydantic import Field
 from tensordict import NonTensorData, TensorDict
 from torch import Tensor
-from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from torch.profiler import record_function
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
