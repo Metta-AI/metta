@@ -266,22 +266,43 @@ class ScorecardWidget(anywidget.AnyWidget):
         if search_term:
             policies_data = await self.client.search_policies(search=search_term)
         else:
-            policies_data = await self.client.get_policies()
+            policies_data = await self.client.get_policy_versions()
+
+        def _get_attr(policy: Any, key: str) -> Any:
+            if isinstance(policy, dict):
+                return policy.get(key)
+            return getattr(policy, key, None)
+
+        policy_entries = (
+            getattr(policies_data, "entries", None)
+            or getattr(policies_data, "policies", [])
+            or []
+        )
 
         # Find training run IDs that match our training run names
         training_run_ids = []
         run_free_policy_ids = []
-        for policy in policies_data.policies:
-            if policy.type == "training_run" and (
+        for policy in policy_entries:
+            tags = _get_attr(policy, "tags") or {}
+            policy_type = (
+                _get_attr(policy, "type")
+                or tags.get("type")
+                or tags.get("policy_type")
+                or "training_run"
+            )
+            policy_id = _get_attr(policy, "id")
+            policy_name = _get_attr(policy, "name") or ""
+
+            if policy_type == "training_run" and (
                 not restrict_to_policy_names
                 or any(
-                    filter_policy_name in policy.name
+                    filter_policy_name in policy_name
                     for filter_policy_name in restrict_to_policy_names
                 )
             ):
-                training_run_ids.append(policy.id)
-            elif policy.type == "policy" and include_run_free_policies:
-                run_free_policy_ids.append(policy.id)
+                training_run_ids.append(policy_id)
+            elif policy_type == "policy" and include_run_free_policies:
+                run_free_policy_ids.append(policy_id)
 
         if restrict_to_policy_ids:
             training_run_ids = [

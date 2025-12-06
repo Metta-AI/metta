@@ -32,17 +32,17 @@ policy_widget = create_policy_selector_widget()
 
 # Load policies from backend
 client = ScorecardClient()
-policies_response = await client.get_policies()
+policies_response = await client.get_policy_versions()
 policies = [
     {
         "id": p.id,
-        "type": p.type,
+        "type": getattr(p, "type", None) or p.tags.get("type") or p.tags.get("policy_type") or "training_run",
         "name": p.name,
         "user_id": p.user_id,
         "created_at": p.created_at,
         "tags": p.tags,
     }
-    for p in policies_response.policies
+    for p in getattr(policies_response, "entries", [])
 ]
 
 # Set policy data
