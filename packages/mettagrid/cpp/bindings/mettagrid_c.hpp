@@ -52,6 +52,10 @@ class METTAGRID_API MettaGrid {
 public:
   MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
   ~MettaGrid();
+  struct CellCache {
+    std::vector<PartialObservationToken> static_tokens;
+    std::vector<PartialObservationToken> dynamic_tokens;
+  };
 
   ObservationCoord obs_width;
   ObservationCoord obs_height;
@@ -128,6 +132,9 @@ private:
   // probably move ownership here.
   std::vector<Agent*> _agents;
 
+  // Per-cell cached tokens (static at init, dynamic rebuilt each step)
+  std::vector<CellCache> _cell_cache;  // size: grid_height * grid_width
+
   // We'd prefer to store these as more raw c-style arrays, but we need to both
   // operate on the memory directly and return them to python.
   py::array_t<uint8_t> _observations;
@@ -164,6 +171,10 @@ private:
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
+
+  inline size_t _cell_index(GridCoord r, GridCoord c) const { return static_cast<size_t>(r) * _grid->width + c; }
+  void _init_static_token_cache();
+  void _rebuild_dynamic_token_cache();
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

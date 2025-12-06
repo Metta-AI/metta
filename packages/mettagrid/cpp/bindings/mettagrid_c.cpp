@@ -86,6 +86,10 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _init_grid(game_config, map);
 
+  // Initialize per-cell token cache (static once, dynamic will be rebuilt each step)
+  _init_static_token_cache();
+  _rebuild_dynamic_token_cache();
+
   // Create buffers
   _make_buffers(num_agents);
 
@@ -444,25 +448,36 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
     //  process a single grid location
     GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c));
-    auto obj = _grid->object_at(object_loc);
-    if (!obj) {
+    const auto& cell_cache = _cell_cache[_cell_index(object_loc.r, object_loc.c)];
+    if (cell_cache.static_tokens.empty() && cell_cache.dynamic_tokens.empty()) {
       continue;
     }
 
-    // Prepare observation buffer for this object
-    ObservationToken* obs_ptr =
-        reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
-    ObservationTokens obs_tokens(
-        obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
-
-    // Calculate position within the observation window (agent is at the center)
     int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
     int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
 
     // Encode location and add tokens
     uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
-    attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
-    tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+
+    auto remaining_capacity = static_cast<size_t>(observation_view.shape(1)) - tokens_written;
+    auto write_tokens = [&](const std::vector<PartialObservationToken>& src_tokens) {
+      if (src_tokens.empty() || remaining_capacity == 0) {
+        return;
+      }
+      const size_t to_write = std::min(remaining_capacity, src_tokens.size());
+      auto* dst = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+      for (size_t i = 0; i < to_write; ++i) {
+        dst[i].location = location;
+        dst[i].feature_id = src_tokens[i].feature_id;
+        dst[i].value = src_tokens[i].value;
+      }
+      tokens_written += to_write;
+      remaining_capacity = static_cast<size_t>(observation_view.shape(1)) - tokens_written;
+    };
+
+    attempted_tokens_written += cell_cache.static_tokens.size() + cell_cache.dynamic_tokens.size();
+    write_tokens(cell_cache.static_tokens);
+    write_tokens(cell_cache.dynamic_tokens);
   }
 
   _stats->add("tokens_written", tokens_written);
@@ -475,6 +490,46 @@ void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_ac
     auto& agent = _agents[idx];
     ActionType action_idx = executed_actions[idx];
     _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, action_idx);
+  }
+}
+
+void MettaGrid::_init_static_token_cache() {
+  const size_t total_cells = static_cast<size_t>(_grid->height) * _grid->width;
+  _cell_cache.assign(total_cells, CellCache{});
+
+  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
+    auto* obj = _grid->object(obj_id);
+    if (obj == nullptr) {
+      continue;
+    }
+    const auto idx = _cell_index(obj->location.r, obj->location.c);
+    auto* wall = dynamic_cast<Wall*>(obj);
+    if (wall != nullptr) {
+      auto feats = obj->obs_features();
+      auto& cache = _cell_cache[idx];
+      cache.static_tokens.insert(cache.static_tokens.end(), feats.begin(), feats.end());
+    }
+  }
+}
+
+void MettaGrid::_rebuild_dynamic_token_cache() {
+  for (auto& cell : _cell_cache) {
+    cell.dynamic_tokens.clear();
+  }
+
+  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
+    auto* obj = _grid->object(obj_id);
+    if (obj == nullptr) {
+      continue;
+    }
+    // Skip static objects; their tokens are precomputed in the static cache.
+    if (dynamic_cast<Wall*>(obj) != nullptr) {
+      continue;
+    }
+    const auto idx = _cell_index(obj->location.r, obj->location.c);
+    auto feats = obj->obs_features();
+    auto& cache = _cell_cache[idx];
+    cache.dynamic_tokens.insert(cache.dynamic_tokens.end(), feats.begin(), feats.end());
   }
 }
 
@@ -554,6 +609,7 @@ void MettaGrid::_step() {
   }
 
   // Compute observations for next step
+  _rebuild_dynamic_token_cache();
   _compute_observations(executed_actions);
 
   // Compute stat-based rewards for all agents
