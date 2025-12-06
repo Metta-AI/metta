@@ -31,11 +31,6 @@ EVALS: List[Tuple[str, str, int]] = [
         NUM_COGS,
     ),  # E is very hard, max E is 256, but agents think its 100.
     ("oxygen_bottleneck", "", NUM_COGS),
-    ("extractor_hub_30", "", NUM_COGS),
-    ("extractor_hub_50", "", NUM_COGS),
-    ("extractor_hub_70", "", NUM_COGS),
-    ("extractor_hub_80", "", NUM_COGS),
-    ("extractor_hub_100", "", NUM_COGS),
     ("collect_resources_classic", "", NUM_COGS),
     ("collect_resources_spread", "", NUM_COGS),
     ("collect_far", "", NUM_COGS),
