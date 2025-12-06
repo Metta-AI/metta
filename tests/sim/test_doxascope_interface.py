@@ -10,25 +10,19 @@ that Doxascope uses for data logging.
 
 """
 
-import uuid
-from unittest.mock import MagicMock, patch
-import pytest
-from metta.sim.runner import SimulationRunConfig
-from metta.sim.simulate_and_record import simulate_and_record
-from metta.sim.simulation_config import SimulationConfig
-from mettagrid import MettaGridConfig
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Simulator, SimulatorEventHandler
-from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
-from mettagrid.simulator.rollout import Rollout
-from metta.agent.components.cortex import CortexTD, CortexTDConfig
+from unittest.mock import MagicMock
+
 from cortex import CortexStackConfig
+
+from metta.agent.components.cortex import CortexTD, CortexTDConfig
+from mettagrid import MettaGridConfig
+from mettagrid.simulator import Simulator, SimulatorEventHandler
+from mettagrid.simulator.rollout import Rollout
 
 ###############################################
 # =========== EVENT HANDLER TESTS =========== #
 ###############################################
+
 
 class Test01EventHandlerLifecycleCalled:
     """Test that SimulatorEventHandler on_step is called as expected by Doxascope."""
@@ -66,7 +60,6 @@ class Test01EventHandlerLifecycleCalled:
         assert handler.step_count == 3, f"on_step should be called 3 times, got {handler.step_count}"
 
 
-
 class Test02SimulationContextPoliciesInjection:
     """
     Test that Rollout correctly injects policies into simulation._context.
@@ -99,6 +92,7 @@ class Test02SimulationContextPoliciesInjection:
         assert rollout._sim._context["policies"] == mock_policies, "policies list doesn't match"
         assert len(rollout._sim._context["policies"]) == 2, "wrong number of policies in context"
 
+
 #####################################################
 # =========== GRID OBJ EXTRACTION TESTS =========== #
 #####################################################
@@ -106,6 +100,7 @@ class Test02SimulationContextPoliciesInjection:
 
 class Test03SimulationGridObjectsInterface:
     """Test that Simulation.grid_objects() returns the expected structure."""
+
     # Good to go and necessary
     def test_grid_objects_structure(self):
         """Verify grid_objects() returns dict with correct structure."""
@@ -142,6 +137,7 @@ class Test03SimulationGridObjectsInterface:
         agent_objects = [obj for obj in objects.values() if obj["type_name"].startswith("agent")]
         assert len(agent_objects) == 3, f"Expected 3 agents, found {len(agent_objects)}"
 
+
 class Test04SimulationObjectTypeNamesInterface:
     """Test that Simulation.object_type_names property exists and works as expected."""
 
@@ -173,6 +169,7 @@ class Test04SimulationObjectTypeNamesInterface:
         agent_types = [name for name in type_names if name.startswith("agent")]
         assert len(agent_types) > 0, "object_type_names should contain at least one agent type"
 
+
 ##########################################################
 # =========== CORTEX MEMORY EXTRACTION TESTS =========== #
 ##########################################################
@@ -184,7 +181,7 @@ class Test05CortexActivationExtractionInterface:
     def test_can_find_cortex_in_policy_components(self):
         """Verify we can find CortexTD in a policy's components using Doxascope's pattern."""
         import torch.nn as nn
-        from cortex import PassThroughBlockConfig, LSTMCellConfig
+        from cortex import LSTMCellConfig, PassThroughBlockConfig
 
         # Create a real CortexTD component
         stack_config = CortexStackConfig(
@@ -207,11 +204,13 @@ class Test05CortexActivationExtractionInterface:
         class MockPolicyWithCortex(nn.Module):
             def __init__(self):
                 super().__init__()
-                self.components = nn.ModuleDict({
-                    "encoder": nn.Linear(10, 64),
-                    "cortex": cortex_component,
-                    "decoder": nn.Linear(64, 10),
-                })
+                self.components = nn.ModuleDict(
+                    {
+                        "encoder": nn.Linear(10, 64),
+                        "cortex": cortex_component,
+                        "decoder": nn.Linear(64, 10),
+                    }
+                )
 
         policy = MockPolicyWithCortex()
 
@@ -228,14 +227,18 @@ class Test05CortexActivationExtractionInterface:
         # Assert: Found the CortexTD component
         assert found_cortex is not None, "Should find CortexTD in policy components"
         assert found_cortex is cortex_component, "Should find the exact CortexTD instance"
-        assert hasattr(found_cortex, "_rollout_current_state"), "Found CortexTD component, but it doesn't have have the required attribute _rollout_current_state."
-        assert hasattr(found_cortex, "_rollout_current_env_ids"), "Found CortexTD component, but it doesn't have have the required attribute _rollout_current_env_ids"
+        assert hasattr(found_cortex, "_rollout_current_state"), (
+            "Found CortexTD component, but it doesn't have the required attribute _rollout_current_state."
+        )
+        assert hasattr(found_cortex, "_rollout_current_env_ids"), (
+            "Found CortexTD component, but it doesn't have the required attribute _rollout_current_env_ids"
+        )
 
     def test_cortex_state_structure_for_extraction(self):
         """Verify that _rollout_current_state has the structure Doxascope expects for extraction."""
         import torch
+        from cortex import LSTMCellConfig, PassThroughBlockConfig
         from tensordict import TensorDict
-        from cortex import PassThroughBlockConfig, LSTMCellConfig
 
         # Create a CortexTD component
         stack_config = CortexStackConfig(
@@ -255,9 +258,9 @@ class Test05CortexActivationExtractionInterface:
         cortex = CortexTD(cortex_config)
 
         # Initially, _rollout_current_state should be None or a valid TensorDict
-        assert cortex._rollout_current_state is None or isinstance(
-            cortex._rollout_current_state, TensorDict
-        ), "_rollout_current_state should be None or TensorDict"
+        assert cortex._rollout_current_state is None or isinstance(cortex._rollout_current_state, TensorDict), (
+            "_rollout_current_state should be None or TensorDict"
+        )
 
         # Simulate what happens during a forward pass - create a mock state
         # This mimics what Doxascope will encounter after the policy runs
@@ -278,6 +281,7 @@ class Test05CortexActivationExtractionInterface:
 
         # Test: Verify we can extract tensors from it (pattern from doxascope_data.py:487-494)
         import optree
+
         leaves, _ = optree.tree_flatten(cortex._rollout_current_state, namespace="torch")
 
         # Assert: Should have tensor leaves
@@ -286,4 +290,3 @@ class Test05CortexActivationExtractionInterface:
             assert isinstance(leaf, torch.Tensor), "All leaves should be torch.Tensors"
             assert leaf.dim() >= 1, "Tensors should have at least a batch dimension"
             assert leaf.shape[0] == batch_size, f"Batch dimension should be {batch_size}"
-
