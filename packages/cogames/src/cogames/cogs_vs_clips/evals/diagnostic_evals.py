@@ -133,7 +133,7 @@ class _DiagnosticMissionBase(Mission):
         cli_override: bool = False,
     ) -> "Mission":
         forced_map = get_map(self.map_name)
-        mission = super().instantiate(forced_map, num_cogs, variant, cli_override=cli_override)
+        mission = super().instantiate(forced_map, num_cogs, variant, cli_override=cli_override)  # type: ignore[misc]
         if not cli_override and self.required_agents is not None:
             mission.num_cogs = self.required_agents
 
@@ -174,7 +174,7 @@ class _DiagnosticMissionBase(Mission):
             return
         chest = cfg.game.objects.get("communal_chest")
         if isinstance(chest, ChestConfig):
-            chest.initial_inventory = self.communal_chest_hearts
+            chest.initial_inventory = {"heart": self.communal_chest_hearts}
 
     def _apply_resource_chests(self, cfg: MettaGridConfig) -> None:
         if not self.resource_chest_stock:
@@ -182,7 +182,7 @@ class _DiagnosticMissionBase(Mission):
         for resource, amount in self.resource_chest_stock.items():
             chest_cfg = cfg.game.objects.get(f"chest_{resource}")
             if isinstance(chest_cfg, ChestConfig):
-                chest_cfg.initial_inventory = amount
+                chest_cfg.initial_inventory = {resource: amount}
 
     def _apply_extractor_settings(self, cfg: MettaGridConfig) -> None:
         for resource in RESOURCE_NAMES:
@@ -190,9 +190,9 @@ class _DiagnosticMissionBase(Mission):
             if extractor is None:
                 continue
             if resource in self.clip_extractors and hasattr(extractor, "start_clipped"):
-                extractor.start_clipped = True
+                extractor.start_clipped = True  # type: ignore[union-attr]
             if resource in self.extractor_max_uses and hasattr(extractor, "max_uses"):
-                extractor.max_uses = self.extractor_max_uses[resource]
+                extractor.max_uses = self.extractor_max_uses[resource]  # type: ignore[union-attr]
 
     def _apply_assembler_requirements(self, cfg: MettaGridConfig) -> None:
         assembler = cfg.game.objects.get("assembler")
@@ -420,7 +420,7 @@ class _UnclipBase(_DiagnosticMissionBase):
         for res in to_clip:
             station = cfg.game.objects.get(f"{res}_extractor")
             if station is not None and hasattr(station, "start_clipped"):
-                station.start_clipped = True
+                station.start_clipped = True  # type: ignore[union-attr]
         # Configure unclipping to require the other three resources of the clipped station (no gear)
         unclipping_protos: list[ProtocolConfig] = []
         for res in to_clip:
@@ -522,13 +522,85 @@ class DiagnosticAgile(_DiagnosticMissionBase):
                 station.protocols = updated
 
 
-class DiagnosticMemory(_DiagnosticMissionBase):
-    name: str = "diagnostic_memory"
-    description: str = "Harder memory challenge with longer distance to chest."
-    map_name: str = "evals/diagnostic_memory.map"
+class DiagnosticMemoryLevel1(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level1"
+    description: str = "Memory challenge - level 1 (height 17)."
+    map_name: str = "evals/diagnostic_memory_level1.map"
     inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
     required_agents: int | None = 1
-    max_steps: int = Field(default=110)
+    max_steps: int = Field(default=64)
+
+
+class DiagnosticMemoryLevel2(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level2"
+    description: str = "Memory challenge - level 2 (height 27)."
+    map_name: str = "evals/diagnostic_memory_level2.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=84)
+
+
+class DiagnosticMemoryLevel3(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level3"
+    description: str = "Memory challenge - level 3 (height 37)."
+    map_name: str = "evals/diagnostic_memory_level3.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=104)
+
+
+class DiagnosticMemoryLevel4(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level4"
+    description: str = "Memory challenge - level 4 (height 47)."
+    map_name: str = "evals/diagnostic_memory_level4.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=124)
+
+
+class DiagnosticMemoryLevel5(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level5"
+    description: str = "Memory challenge - level 5 (height 57)."
+    map_name: str = "evals/diagnostic_memory_level5.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=154)
+
+
+class DiagnosticMemoryLevel6(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level6"
+    description: str = "Memory challenge - level 6 (height 67)."
+    map_name: str = "evals/diagnostic_memory_level6.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=174)
+
+
+class DiagnosticMemoryLevel7(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level7"
+    description: str = "Memory challenge - level 7 (height 77)."
+    map_name: str = "evals/diagnostic_memory_level7.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=194)
+
+
+class DiagnosticMemoryLevel8(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level8"
+    description: str = "Memory challenge - level 8 (height 87)."
+    map_name: str = "evals/diagnostic_memory_level8.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=214)
+
+
+class DiagnosticMemoryLevel9(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level9"
+    description: str = "Memory challenge - level 9 (height 97)."
+    map_name: str = "evals/diagnostic_memory_level9.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=234)
 
 
 class DiagnosticRadial(_DiagnosticMissionBase):
@@ -605,13 +677,6 @@ class DiagnosticChargeUpHard(_DiagnosticMissionBase):
         agent.inventory_regen_amounts = {"energy": 0}
 
 
-class DiagnosticMemoryHard(_DiagnosticMissionBase):
-    name: str = "diagnostic_memory_hard"
-    description: str = "Harder memory challenge with longer distance to chest (hard)."
-    map_name: str = "evals/diagnostic_memory_hard.map"
-    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
-    required_agents: int | None = 1
-    max_steps: int = Field(default=170)
 
 
 class DiagnosticAssembleSeededSearchHard(_DiagnosticMissionBase):
@@ -702,7 +767,15 @@ DIAGNOSTIC_EVALS: list[type[_DiagnosticMissionBase]] = [
     DiagnosticChestDepositNear,
     DiagnosticChestDepositSearch,
     DiagnosticChargeUp,
-    DiagnosticMemory,
+    DiagnosticMemoryLevel1,
+    DiagnosticMemoryLevel2,
+    DiagnosticMemoryLevel3,
+    DiagnosticMemoryLevel4,
+    DiagnosticMemoryLevel5,
+    DiagnosticMemoryLevel6,
+    DiagnosticMemoryLevel7,
+    DiagnosticMemoryLevel8,
+    DiagnosticMemoryLevel9,
     DiagnosticAssembleSeededNear,
     DiagnosticAssembleSeededSearch,
     DiagnosticExtractMissingCarbon,
@@ -719,7 +792,6 @@ DIAGNOSTIC_EVALS: list[type[_DiagnosticMissionBase]] = [
     DiagnosticChestNavigation3Hard,
     DiagnosticChestDepositSearchHard,
     DiagnosticChargeUpHard,
-    DiagnosticMemoryHard,
     DiagnosticAssembleSeededSearchHard,
     DiagnosticExtractMissingCarbonHard,
     DiagnosticExtractMissingOxygenHard,
