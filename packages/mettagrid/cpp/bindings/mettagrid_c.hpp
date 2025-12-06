@@ -181,21 +181,14 @@ private:
   void _compute_observations(const std::vector<ActionType>& executed_actions);
   void _step();
 
-  void _initialize_pattern();
-  inline void _mark_cell_dirty(GridCoord r, GridCoord c);
-  inline void _mark_cell_dirty_idx(size_t idx);
-  inline void _mark_observation_window_dirty(GridCoord center_r, GridCoord center_c);
-  void _refresh_dynamic_cell(size_t cell_idx);
-  void _refresh_dirty_cells();
-  void _refresh_all_dynamic_cells();
-  void _move_cached_tokens(size_t src_idx, size_t dst_idx);
-
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
 
   inline size_t _cell_index(GridCoord r, GridCoord c) const { return static_cast<size_t>(r) * _grid->width + c; }
-  void _init_static_token_cache();
+  inline void _mark_cell_dirty(GridCoord r, GridCoord c);
+  inline void _mark_cell_dirty_idx(size_t idx);
+  inline void _mark_observation_window_dirty(GridCoord center_r, GridCoord center_c);
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

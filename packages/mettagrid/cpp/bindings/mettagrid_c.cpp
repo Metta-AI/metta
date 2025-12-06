@@ -57,6 +57,20 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   current_step = 0;
 
+  // Precompute packed offsets for the observation window.
+  _obs_pattern.clear();
+  const ObservationCoord obs_width_radius = obs_width >> 1;
+  const ObservationCoord obs_height_radius = obs_height >> 1;
+  for (const auto& [r_offset, c_offset] : PackedCoordinate::ObservationPattern{obs_height, obs_width}) {
+    const int obs_r = r_offset + static_cast<int>(obs_height_radius);
+    const int obs_c = c_offset + static_cast<int>(obs_width_radius);
+    _obs_pattern.push_back(PackedOffset{
+        static_cast<int16_t>(r_offset),
+        static_cast<int16_t>(c_offset),
+        PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c)),
+    });
+  }
+
   bool observation_size_is_packable =
       obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
   if (!observation_size_is_packable) {
@@ -68,7 +82,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
-  _initialize_pattern();
   _obs_encoder = std::make_unique<ObservationEncoder>(
       game_config.protocol_details_obs, resource_names, game_config.feature_ids);
 
@@ -88,9 +101,28 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _init_grid(game_config, map);
 
-  // Initialize per-cell token cache (static once, dynamic will be rebuilt each step)
-  _init_static_token_cache();
-  _refresh_all_dynamic_cells();
+  // Initialize per-cell token cache (static once, dynamic rebuilt each step).
+  const size_t total_cells = static_cast<size_t>(_grid->height) * _grid->width;
+  _cell_cache.assign(total_cells, CellCache{});
+  _dirty_flags.assign(total_cells, 0);
+  _dirty_cells.clear();
+  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
+    auto* obj = _grid->object(obj_id);
+    if (obj == nullptr) continue;
+    const auto idx = _cell_index(obj->location.r, obj->location.c);
+    auto* wall = dynamic_cast<Wall*>(obj);
+    if (wall != nullptr) {
+      const auto feats = obj->obs_features();
+      auto& cache = _cell_cache[idx];
+      const size_t to_copy = _copy_feats_to_cache(feats, 0, cache, _logged_cell_truncation);
+      cache.static_count = static_cast<uint8_t>(to_copy);
+      continue;
+    }
+    const auto feats = obj->obs_features();
+    auto& cache = _cell_cache[idx];
+    const size_t to_copy = _copy_feats_to_cache(feats, cache.static_count, cache, _logged_cell_truncation);
+    cache.dynamic_count = static_cast<uint8_t>(to_copy);
+  }
 
   // Create buffers
   _make_buffers(num_agents);
@@ -567,102 +599,6 @@ inline void MettaGrid::_mark_observation_window_dirty(GridCoord center_r, GridCo
   }
 }
 
-void MettaGrid::_refresh_dynamic_cell(size_t cell_idx) {
-  if (cell_idx >= _cell_cache.size()) {
-    return;
-  }
-  auto& cell = _cell_cache[cell_idx];
-  cell.dynamic_count = 0;
-
-  const GridCoord r = static_cast<GridCoord>(cell_idx / _grid->width);
-  const GridCoord c = static_cast<GridCoord>(cell_idx % _grid->width);
-  auto* obj = _grid->object_at(GridLocation(r, c));
-  if (obj == nullptr || dynamic_cast<Wall*>(obj) != nullptr) {
-    _dirty_flags[cell_idx] = 0;
-    return;
-  }
-
-  const auto feats = obj->obs_features();
-  const size_t to_copy = _copy_feats_to_cache(feats, cell.static_count, cell, _logged_cell_truncation);
-  cell.dynamic_count = static_cast<uint8_t>(to_copy);
-  _dirty_flags[cell_idx] = 0;
-}
-
-void MettaGrid::_refresh_dirty_cells() {
-  for (size_t idx : _dirty_cells) {
-    _refresh_dynamic_cell(idx);
-  }
-  _dirty_cells.clear();
-}
-
-void MettaGrid::_refresh_all_dynamic_cells() {
-  if (_cell_cache.empty()) {
-    return;
-  }
-  std::fill(_dirty_flags.begin(), _dirty_flags.end(), 0);
-  _dirty_cells.clear();
-
-  for (auto& cell : _cell_cache) {
-    cell.dynamic_count = 0;
-  }
-
-  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
-    auto* obj = _grid->object(obj_id);
-    if (obj == nullptr) {
-      continue;
-    }
-    if (dynamic_cast<Wall*>(obj) != nullptr) {
-      continue;
-    }
-    const auto idx = _cell_index(obj->location.r, obj->location.c);
-    const auto feats = obj->obs_features();
-    auto& cache = _cell_cache[idx];
-    const size_t to_copy = _copy_feats_to_cache(feats, cache.static_count, cache, _logged_cell_truncation);
-    cache.dynamic_count = static_cast<uint8_t>(to_copy);
-  }
-}
-
-void MettaGrid::_move_cached_tokens(size_t src_idx, size_t dst_idx) {
-  if (src_idx >= _cell_cache.size() || dst_idx >= _cell_cache.size()) {
-    return;
-  }
-  auto& src = _cell_cache[src_idx];
-  auto& dst = _cell_cache[dst_idx];
-  // Destination should be empty or static-only.
-  const size_t capacity = kMaxTokensPerCell - static_cast<size_t>(dst.static_count);
-  const size_t to_copy = std::min(capacity, static_cast<size_t>(src.dynamic_count));
-  for (size_t i = 0; i < to_copy; ++i) {
-    dst.feature_ids[dst.static_count + i] = src.feature_ids[src.static_count + i];
-    dst.values[dst.static_count + i] = src.values[src.static_count + i];
-  }
-  dst.dynamic_count = static_cast<uint8_t>(to_copy);
-  src.dynamic_count = 0;
-  if (src_idx < _dirty_flags.size()) _dirty_flags[src_idx] = 0;
-  if (dst_idx < _dirty_flags.size()) _dirty_flags[dst_idx] = 0;
-}
-
-void MettaGrid::_init_static_token_cache() {
-  const size_t total_cells = static_cast<size_t>(_grid->height) * _grid->width;
-  _cell_cache.assign(total_cells, CellCache{});
-  _dirty_flags.assign(total_cells, 0);
-  _dirty_cells.clear();
-
-  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
-    auto* obj = _grid->object(obj_id);
-    if (obj == nullptr) {
-      continue;
-    }
-    const auto idx = _cell_index(obj->location.r, obj->location.c);
-    auto* wall = dynamic_cast<Wall*>(obj);
-    if (wall != nullptr) {
-      const auto feats = obj->obs_features();
-      auto& cache = _cell_cache[idx];
-      const size_t to_copy = _copy_feats_to_cache(feats, 0, cache, _logged_cell_truncation);
-      cache.static_count = static_cast<uint8_t>(to_copy);
-    }
-  }
-}
-
 void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type) {
   auto& agent = _agents[agent_idx];
   agent->stats.incr(stat);
@@ -731,7 +667,18 @@ void MettaGrid::_step() {
             // Successful move: shift cached tokens instead of rebuilding.
             const size_t src_idx = _cell_index(before_loc.r, before_loc.c);
             const size_t dst_idx = _cell_index(after_loc.r, after_loc.c);
-            _move_cached_tokens(src_idx, dst_idx);
+            auto& src = _cell_cache[src_idx];
+            auto& dst = _cell_cache[dst_idx];
+            const size_t capacity = kMaxTokensPerCell - static_cast<size_t>(dst.static_count);
+            const size_t to_copy = std::min(capacity, static_cast<size_t>(src.dynamic_count));
+            for (size_t i = 0; i < to_copy; ++i) {
+              dst.feature_ids[dst.static_count + i] = src.feature_ids[src.static_count + i];
+              dst.values[dst.static_count + i] = src.values[src.static_count + i];
+            }
+            dst.dynamic_count = static_cast<uint8_t>(to_copy);
+            src.dynamic_count = 0;
+            if (src_idx < _dirty_flags.size()) _dirty_flags[src_idx] = 0;
+            if (dst_idx < _dirty_flags.size()) _dirty_flags[dst_idx] = 0;
           }
         } else if (dynamic_cast<ChangeVibe*>(handler) != nullptr) {
           _mark_cell_dirty(agent->location.r, agent->location.c);
@@ -769,8 +716,28 @@ void MettaGrid::_step() {
     }
   }
 
+  // Refresh dirty cells before computing the next observation.
+  for (size_t idx : _dirty_cells) {
+    if (idx >= _cell_cache.size()) continue;
+    auto& cell = _cell_cache[idx];
+    cell.dynamic_count = 0;
+
+    const GridCoord r = static_cast<GridCoord>(idx / _grid->width);
+    const GridCoord c = static_cast<GridCoord>(idx % _grid->width);
+    auto* obj = _grid->object_at(GridLocation(r, c));
+    if (obj == nullptr || dynamic_cast<Wall*>(obj) != nullptr) {
+      _dirty_flags[idx] = 0;
+      continue;
+    }
+
+    const auto feats = obj->obs_features();
+    const size_t to_copy = _copy_feats_to_cache(feats, cell.static_count, cell, _logged_cell_truncation);
+    cell.dynamic_count = static_cast<uint8_t>(to_copy);
+    _dirty_flags[idx] = 0;
+  }
+  _dirty_cells.clear();
+
   // Compute observations for next step
-  _refresh_dirty_cells();
   _compute_observations(executed_actions);
 
   // Compute stat-based rewards for all agents
