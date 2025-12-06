@@ -661,15 +661,15 @@ void MettaGrid::_step() {
             auto& dst = _cell_cache[dst_idx];
             const size_t capacity = kMaxTokensPerCell - static_cast<size_t>(dst.static_count);
             const size_t to_copy = std::min(capacity, static_cast<size_t>(src.dynamic_count));
-            for (size_t i = 0; i < to_copy; ++i) {
-              dst.feature_ids[dst.static_count + i] = src.feature_ids[src.static_count + i];
-              dst.values[dst.static_count + i] = src.values[src.static_count + i];
-            }
+            std::copy_n(src.feature_ids.begin() + src.static_count, to_copy, dst.feature_ids.begin() + dst.static_count);
+            std::copy_n(src.values.begin() + src.static_count, to_copy, dst.values.begin() + dst.static_count);
             dst.dynamic_count = static_cast<uint8_t>(to_copy);
             src.dynamic_count = 0;
             const size_t flags_size = _dirty_flags.size();
             if (src_idx < flags_size) _dirty_flags[src_idx] = 0;
             if (dst_idx < flags_size) _dirty_flags[dst_idx] = 0;
+            // Recompute features (e.g., inventory/energy) for the moved agent.
+            _mark_cell_dirty(after_loc.r, after_loc.c);
           }
         } else if (dirty_kind == ActionDirtyKind::kChangeVibe) {
           _mark_cell_dirty(agent->location.r, agent->location.c);
