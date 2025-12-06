@@ -238,6 +238,7 @@ class CoreTrainingLoop:
             loss.zero_loss_tracker()
 
         epochs_trained = 0
+        profiler_step = context.profiler_step
 
         for _ in range(update_epochs):
             stop_update_epoch = False
@@ -280,6 +281,9 @@ class CoreTrainingLoop:
                 # Notify losses of minibatch end
                 for loss_obj in self.losses.values():
                     loss_obj.on_mb_end(context, mb_idx)
+
+                if profiler_step is not None:
+                    profiler_step()
 
             epochs_trained += 1
             if stop_update_epoch:

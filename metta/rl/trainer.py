@@ -158,6 +158,9 @@ class Trainer:
     def _run_epoch(self) -> None:
         """Run a single training epoch."""
         self._context.reset_for_epoch()
+        profiler_step = self._context.profiler_step
+        if profiler_step is not None:
+            profiler_step()
 
         # Start new epoch
         self.core_loop.on_epoch_start(self._context)
@@ -178,6 +181,9 @@ class Trainer:
                 self._prev_agent_step_for_step_callbacks = previous_agent_step
                 self._invoke_callback(TrainerCallback.STEP, rollout_result.raw_infos)
             self._invoke_callback(TrainerCallback.ROLLOUT_END)
+
+        if profiler_step is not None:
+            profiler_step()
 
         # Training phase
         with self.timer("_train"):
