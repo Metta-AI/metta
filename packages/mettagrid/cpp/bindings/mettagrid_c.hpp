@@ -14,7 +14,6 @@
 #include <pybind11/stl.h>
 
 #include <array>
-#include <cstdint>
 #include <memory>
 #include <random>
 #include <string>
@@ -54,8 +53,10 @@ class METTAGRID_API MettaGrid {
 public:
   MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
   ~MettaGrid();
+  static constexpr size_t kMaxTokensPerCell = 24;
   struct CellCache {
-    std::array<PartialObservationToken, 32> tokens{};
+    std::array<ObservationType, kMaxTokensPerCell> feature_ids{};
+    std::array<ObservationType, kMaxTokensPerCell> values{};
     uint8_t static_count = 0;
     uint8_t dynamic_count = 0;
     bool dirty = false;
@@ -137,6 +138,7 @@ private:
   std::unique_ptr<StatsTracker> _stats;
 
   size_t _num_observation_tokens;
+  bool _logged_cell_truncation = false;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
