@@ -88,7 +88,8 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                     actions_cfg,
                     objects_cfg,
                     tag_id_map,
-                    false,
+                    false,  // protocol_details_obs
+                    false,  // optimized_obs
                     std::unordered_map<std::string, float>(),
                     0,
                     nullptr);
