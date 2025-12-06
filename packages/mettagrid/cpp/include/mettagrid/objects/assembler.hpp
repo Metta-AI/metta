@@ -89,11 +89,11 @@ private:
     return agents;
   }
 
-  // Check if agents have sufficient resources for the given protocol
-  bool static can_afford_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  // Check if inventories have sufficient resources for the given protocol
+  bool static can_afford_protocol(const Protocol& protocol, const std::vector<Inventory*>& surrounding_inventories) {
     std::unordered_map<InventoryItem, InventoryQuantity> total_resources;
-    for (Agent* agent : surrounding_agents) {
-      for (const auto& [item, amount] : agent->inventory.get()) {
+    for (Inventory* inventory : surrounding_inventories) {
+      for (const auto& [item, amount] : inventory->get()) {
         total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
       }
     }
@@ -105,28 +105,28 @@ private:
     return true;
   }
 
-  // Check if surrounding agents can receive output from the given protocol
-  // Returns true if either (a) the protocol has no output, or (b) the surrounding agents
+  // Check if surrounding inventories can receive output from the given protocol
+  // Returns true if either (a) the protocol has no output, or (b) the surrounding inventories
   // can absorb at least one item in the output. Returns false if the protocol produces
-  // output and the surrounding agents cannot absorb any of it.
-  bool static can_receive_output(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  // output and the surrounding inventories cannot absorb any of it.
+  bool static can_receive_output(const Protocol& protocol, const std::vector<Inventory*>& surrounding_inventories) {
     // If protocol has no positive output, return true
     if (!Assembler::protocol_has_positive_output(protocol)) {
       return true;
     }
 
-    // If there are no surrounding agents, they can't absorb anything
-    if (surrounding_agents.empty()) {
+    // If there are no surrounding inventories, they can't absorb anything
+    if (surrounding_inventories.empty()) {
       return false;
     }
 
-    // Check if agents can absorb at least one item for each output resource
+    // Check if inventories can absorb at least one item
     for (const auto& [item, amount] : protocol.output_resources) {
       if (amount > 0) {
-        // Sum up free space across all surrounding agents for this item
+        // Sum up free space across all surrounding inventories for this item
         InventoryQuantity total_free_space = 0;
-        for (Agent* agent : surrounding_agents) {
-          total_free_space += agent->inventory.free_space(item);
+        for (Inventory* inventory : surrounding_inventories) {
+          total_free_space += inventory->free_space(item);
         }
         // If at least one item can be absorbed, return true
         if (total_free_space >= 1) {
@@ -135,18 +135,14 @@ private:
       }
     }
 
-    // Protocol produces output but agents can absorb none of it
+    // Protocol produces output but inventories can absorb none of it
     return false;
   }
 
-  // Give output resources to agents and log creation stats
-  void give_output_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
-    std::vector<HasInventory*> agents_as_inventory_havers;
-    for (Agent* agent : surrounding_agents) {
-      agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
-    }
+  // Give output resources to inventories and log creation stats
+  void give_output_for_protocol(const Protocol& protocol, const std::vector<Inventory*>& surrounding_inventories) {
     for (const auto& [item, amount] : protocol.output_resources) {
-      InventoryDelta distributed = HasInventory::shared_update(agents_as_inventory_havers, item, amount);
+      InventoryDelta distributed = HasInventory::shared_update(surrounding_inventories, item, amount);
 
       // Count newly created outputs
       if (stats_tracker && distributed > 0) {
@@ -167,15 +163,12 @@ private:
   }
 
 public:
-  // Consume resources from surrounding agents for the given protocol
+  // Consume resources from surrounding inventories for the given protocol
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
-  void static consume_resources_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
-    std::vector<HasInventory*> agents_as_inventory_havers;
-    for (Agent* agent : surrounding_agents) {
-      agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
-    }
+  void static consume_resources_for_protocol(const Protocol& protocol,
+                                             const std::vector<Inventory*>& surrounding_inventories) {
     for (const auto& [item, required_amount] : protocol.input_resources) {
-      InventoryDelta consumed = HasInventory::shared_update(agents_as_inventory_havers, item, -required_amount);
+      InventoryDelta consumed = HasInventory::shared_update(surrounding_inventories, item, -required_amount);
       assert(consumed == -required_amount && "Expected all required resources to be consumed");
     }
   }
@@ -432,16 +425,21 @@ public:
     }
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
-    if (!Assembler::can_afford_protocol(protocol_to_use, surrounding_agents)) {
+    // Extract Inventory* pointers from agents for resource operations
+    std::vector<Inventory*> surrounding_inventories;
+    for (Agent* agent : surrounding_agents) {
+      surrounding_inventories.push_back(&agent->inventory);
+    }
+    if (!Assembler::can_afford_protocol(protocol_to_use, surrounding_inventories)) {
       return false;
     }
-    if (!Assembler::can_receive_output(protocol_to_use, surrounding_agents) && !is_clipped) {
-      // If the agents gain nothing from the protocol, don't use it.
+    if (!Assembler::can_receive_output(protocol_to_use, surrounding_inventories) && !is_clipped) {
+      // If the inventories gain nothing from the protocol, don't use it.
       return false;
     }
 
-    consume_resources_for_protocol(protocol_to_use, surrounding_agents);
-    give_output_for_protocol(protocol_to_use, surrounding_agents);
+    consume_resources_for_protocol(protocol_to_use, surrounding_inventories);
+    give_output_for_protocol(protocol_to_use, surrounding_inventories);
 
     cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;

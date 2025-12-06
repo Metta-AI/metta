@@ -26,7 +26,7 @@ void test_basic_transfer() {
   source.inventory.update(0, 50);
 
   // Transfer 30 units from source to target
-  InventoryDelta transferred = HasInventory::transfer_resources(source, target, 0, 30, false);
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 0, 30, false);
 
   // Check results
   assert(transferred == 30);
@@ -47,7 +47,7 @@ void test_transfer_with_limited_source() {
   source.inventory.update(0, 20);
 
   // Try to transfer 30 units (but source only has 20)
-  InventoryDelta transferred = HasInventory::transfer_resources(source, target, 0, 30, false);
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 0, 30, false);
 
   // Should only transfer 20
   assert(transferred == 20);
@@ -73,7 +73,7 @@ void test_transfer_with_limited_target() {
   target.inventory.update(0, 10);
 
   // Try to transfer 30 units (but target can only accept 15)
-  InventoryDelta transferred = HasInventory::transfer_resources(source, target, 0, 30, false);
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 0, 30, false);
 
   // Should only transfer 15
   assert(transferred == 15);
@@ -100,7 +100,7 @@ void test_destroy_untransferred_resources_true() {
 
   // Try to transfer 30 units with destroy_untransferred_resources=true
   // Source should lose 30, but target can only receive 5
-  InventoryDelta transferred = HasInventory::transfer_resources(source, target, 0, 30, true);
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 0, 30, true);
 
   // Should transfer 5, but source loses 30
   assert(transferred == 5);
@@ -126,7 +126,7 @@ void test_destroy_untransferred_with_limited_source() {
 
   // Try to transfer 25 units with destroy_untransferred_resources=true
   // Source can only give 15, target can accept 10
-  InventoryDelta transferred = HasInventory::transfer_resources(source, target, 0, 25, true);
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 0, 25, true);
 
   // Should transfer 10, source loses all 15
   assert(transferred == 10);
@@ -147,7 +147,7 @@ void test_zero_delta() {
   target.inventory.update(0, 20);
 
   // Transfer with delta=0 should do nothing
-  InventoryDelta transferred = HasInventory::transfer_resources(source, target, 0, 0, false);
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 0, 0, false);
 
   assert(transferred == 0);
   assert(source.inventory.amount(0) == 50);  // Unchanged
@@ -167,7 +167,7 @@ void test_negative_delta() {
   target.inventory.update(0, 20);
 
   // Transfer with negative delta should do nothing
-  InventoryDelta transferred = HasInventory::transfer_resources(source, target, 0, -10, false);
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 0, -10, false);
 
   assert(transferred == 0);
   assert(source.inventory.amount(0) == 50);  // Unchanged
@@ -187,7 +187,7 @@ void test_transfer_to_full_inventory() {
   target.inventory.update(0, 50);  // Target is full
 
   // Try to transfer to full inventory
-  InventoryDelta transferred = HasInventory::transfer_resources(source, target, 0, 10, false);
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 0, 10, false);
 
   assert(transferred == 0);
   assert(source.inventory.amount(0) == 30);  // Unchanged
@@ -207,7 +207,7 @@ void test_transfer_from_empty_inventory() {
   target.inventory.update(0, 20);
 
   // Try to transfer from empty inventory
-  InventoryDelta transferred = HasInventory::transfer_resources(source, target, 0, 10, false);
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 0, 10, false);
 
   assert(transferred == 0);
   assert(source.inventory.amount(0) == 0);   // Still empty

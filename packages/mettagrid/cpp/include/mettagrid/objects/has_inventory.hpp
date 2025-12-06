@@ -23,15 +23,13 @@ public:
   virtual void on_inventory_change(InventoryItem item, InventoryDelta delta) {}
 
   // Splits the delta between the inventories. Returns the amount of delta successfully consumed.
-  static InventoryDelta shared_update(std::vector<HasInventory*> inventory_havers,
-                                      InventoryItem item,
-                                      InventoryDelta delta);
+  static InventoryDelta shared_update(std::vector<Inventory*> inventories, InventoryItem item, InventoryDelta delta);
 
   // Transfer resources from source to target. Returns the amount actually transferred.
   // If destroy_untransferred_resources is true, the source loses min(delta, available) resources
   // even if the target cannot accept all of them.
-  static InventoryDelta transfer_resources(HasInventory& source,
-                                           HasInventory& target,
+  static InventoryDelta transfer_resources(Inventory& source,
+                                           Inventory& target,
                                            InventoryItem item,
                                            InventoryDelta delta,
                                            bool destroy_untransferred_resources);
