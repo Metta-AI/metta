@@ -137,7 +137,6 @@ def evaluate(
     policy_uri: str | None = None,
     policy_version_id: str | None = None,
     seed: int = 50,
-    use_baseline_scores: bool = True,
     result_file_path: str | None = None,
 ) -> EvalWithResultTool:
     if policy_version_id and not policy_uri:
@@ -151,7 +150,7 @@ def evaluate(
     ]
 
     tool = EvalWithResultTool(
-        simulations=simulations(map_seed=seed, minimal=not use_baseline_scores),
+        simulations=simulations(map_seed=seed, minimal=True),
         policy_uris=policy_uris,
         verbose=True,
         result_file_path=result_file_path or f"leaderboard_eval_{policy_version_id}.json",

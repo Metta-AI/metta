@@ -150,17 +150,17 @@ def _variance_of_mean(summary: CandidateCountSummary | None) -> float | None:
 
 def compute_overall_vor_from_stats(
     candidate_count_stats: Mapping[int, RunningStats],
-    replacement_stats: RunningStats,
+    replacement_baseline: float,
 ) -> float | None:
-    """Compute just the overall VOR value without full breakdown.
+    """Compute VOR using a fixed replacement baseline.
 
-    This is a lighter-weight computation for batch VOR calculations.
+    Args:
+        candidate_count_stats: Stats per candidate_count level
+        replacement_baseline: Hardcoded replacement mean (from REPLACEMENT_BASELINE_MEAN)
+
+    Returns:
+        VOR = candidate_avg - replacement_baseline
     """
-    replacement_mean = replacement_stats.mean
-    if replacement_mean is None:
-        return None
-
-    # Sum weighted rewards across ALL candidate_count levels, divide by total agents
     total_candidate_agents = 0
     total_candidate_weighted_sum = 0.0
 
@@ -173,7 +173,7 @@ def compute_overall_vor_from_stats(
         return None
 
     overall_candidate_avg = total_candidate_weighted_sum / total_candidate_agents
-    return overall_candidate_avg - replacement_mean
+    return overall_candidate_avg - replacement_baseline
 
 
 def build_value_over_replacement_summary_from_stats(
