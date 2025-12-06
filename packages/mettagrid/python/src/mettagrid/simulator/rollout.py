@@ -4,7 +4,7 @@ from typing import Optional
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.envs.stats_tracker import StatsTracker
-from mettagrid.policy.policy import AgentPolicy
+from mettagrid.policy.policy import AgentPolicy, PolicyDescriptor
 from mettagrid.renderer.renderer import Renderer, RenderMode, create_renderer
 from mettagrid.simulator import Simulator, SimulatorEventHandler
 from mettagrid.util.stats_writer import StatsWriter
@@ -44,7 +44,14 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
-        # Reset policies and create agent policies if needed
+        from mettagrid.policy.policy import PolicyDescriptor
+
+        policy_descriptors = [
+            getattr(policy, "policy_descriptor", PolicyDescriptor(name="unknown", is_scripted=True))
+            for policy in self._policies
+        ]
+        self._sim.set_policy_descriptors(policy_descriptors)
+
         for policy in self._policies:
             policy.reset()
 
