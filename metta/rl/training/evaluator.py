@@ -36,8 +36,8 @@ class EvaluatorConfig(Config):
     """Configuration for evaluation."""
 
     epoch_interval: int = 100  # 0 to disable
-    evaluate_local: bool = True
-    evaluate_remote: bool = False
+    evaluate_local: bool = False
+    evaluate_remote: bool = True
     num_training_tasks: int = 2
     parallel_evals: int = Field(
         default=9,
