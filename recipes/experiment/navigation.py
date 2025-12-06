@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -183,7 +183,7 @@ def train(
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: list[str] | str,
 ) -> EvaluateTool:
     return EvaluateTool(
         simulations=simulations(),
