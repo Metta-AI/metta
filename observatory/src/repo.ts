@@ -89,10 +89,6 @@ export type TaskAttempt = {
   output_log_path: string | null
 } & TaskStatusMixin
 
-export type EvalTasksResponse = {
-  tasks: EvalTask[]
-}
-
 export type PaginatedEvalTasksResponse = {
   tasks: EvalTask[]
   total_count: number
@@ -134,19 +130,6 @@ export type RunFreePolicyInfo = {
   name: string
   user_id: string | null
   created_at: string
-}
-
-export type UnifiedPolicyInfo = {
-  id: string
-  type: 'training_run' | 'policy'
-  name: string
-  user_id: string | null
-  created_at: string
-  tags: string[]
-}
-
-export type PoliciesResponse = {
-  policies: UnifiedPolicyInfo[]
 }
 
 export type EvalNamesRequest = {
@@ -274,6 +257,20 @@ export type AIQueryRequest = {
 
 export type AIQueryResponse = {
   query: string
+}
+
+export type PolicyRow = {
+  id: string
+  name: string
+  created_at: string
+  user_id: string
+  attributes: Record<string, any>
+  version_count: number
+}
+
+export type PoliciesResponse = {
+  entries: PolicyRow[]
+  total_count: number
 }
 
 export type PolicyVersionsResponse = {
@@ -427,11 +424,6 @@ export class Repo {
     return this.apiCallWithBody<EvalTask>('/tasks', request)
   }
 
-  async getEvalTasks(): Promise<EvalTask[]> {
-    const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
-    return response.tasks
-  }
-
   async getEvalTasksPaginated(
     page: number,
     pageSize: number,
@@ -502,11 +494,42 @@ export class Repo {
     return this.apiCall<PolicyVersionWithName>(`/stats/policies/versions/${policyVersionId}`)
   }
 
+  async getPolicyVersionsBatch(policyVersionIds: string[]): Promise<PublicPolicyVersionRow[]> {
+    const chunkSize = 10
+    const results: PublicPolicyVersionRow[] = []
+
+    for (let i = 0; i < policyVersionIds.length; i += chunkSize) {
+      const chunk = policyVersionIds.slice(i, i + chunkSize)
+      const params = chunk.map((id) => `policy_version_ids=${id}`).join('&')
+      const response = await this.apiCall<PolicyVersionsResponse>(
+        `/stats/policy-versions?${params}&limit=${chunk.length}`
+      )
+      results.push(...response.entries)
+    }
+
+    return results
+  }
+
   async queryEpisodes(request: EpisodeQueryRequest): Promise<EpisodeQueryResponse> {
     return this.apiCallWithBody<EpisodeQueryResponse>('/stats/episodes/query', request)
   }
 
   async getPolicies(params?: {
+    name_exact?: string
+    name_fuzzy?: string
+    limit?: number
+    offset?: number
+  }): Promise<PoliciesResponse> {
+    const searchParams = new URLSearchParams()
+    if (params?.name_exact) searchParams.append('name_exact', params.name_exact)
+    if (params?.name_fuzzy) searchParams.append('name_fuzzy', params.name_fuzzy)
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<PoliciesResponse>(`/stats/policies${query ? `?${query}` : ''}`)
+  }
+
+  async getPolicyVersions(params?: {
     name_exact?: string
     name_fuzzy?: string
     limit?: number
@@ -518,7 +541,7 @@ export class Repo {
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
-    return this.apiCall<PolicyVersionsResponse>(`/stats/policies${query ? `?${query}` : ''}`)
+    return this.apiCall<PolicyVersionsResponse>(`/stats/policy-versions${query ? `?${query}` : ''}`)
   }
 
   async getVersionsForPolicy(
