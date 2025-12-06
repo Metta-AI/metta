@@ -27,11 +27,10 @@ class SlicedKickstarterConfig(LossConfig):
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
-    student_forward: bool = Field(default=True)  # probably always true for sliced_kickstarter
-
-    # remainder of the sum below is left for the PPO loss to use
+    student_forward: bool = Field(default=True)
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    profiles: list[str] | None = Field(default=None)
 
     def create(
         self,
@@ -46,9 +45,7 @@ class SlicedKickstarterConfig(LossConfig):
 
 
 class SlicedKickstarter(Loss):
-    """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
-    value against the student's using a KL divergence and MSE loss respectively.
-    """
+    """Forward a teacher policy and distil its logits/values into the student."""
 
     __slots__ = (
         "teacher_policy",
@@ -73,6 +70,7 @@ class SlicedKickstarter(Loss):
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         self.student_forward = self.cfg.student_forward
+        self.loss_profiles = None  # inherit default filtering (all)
 
         base_policy_env_info = getattr(self.env, "policy_env_info", None)
         if base_policy_env_info is None:
@@ -253,15 +251,25 @@ class SlicedKickstarter(Loss):
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
         minibatch, indices = sequential_sample(self.replay, mb_idx)
+        shared_loss_data = shared_loss_data.clone()
+        shared_loss_data["sampled_mb"] = minibatch
+        shared_loss_data["indices"] = NonTensorData(indices)
+        shared_loss_data = self._filter_minibatch(shared_loss_data)
+
+        minibatch = shared_loss_data["sampled_mb"]
+        indices = shared_loss_data["indices"]
+        if isinstance(indices, NonTensorData):
+            indices = indices.data
+
+        if minibatch.batch_size.numel() == 0:
+            return self._zero_tensor, shared_loss_data, False
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
         train_ppo_mask = minibatch["ppo_mask"][:, 0]
 
-        shared_loss_data["sampled_mb"] = minibatch
         # cut down all of shared_loss_data to just the ppo mask before passing out to PPO losses
-        shared_loss_data = shared_loss_data[train_ppo_mask]
-        # slice - minus teacher led minus student led
+        shared_loss_data["sampled_mb"] = minibatch[train_ppo_mask]
         shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
         # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
 

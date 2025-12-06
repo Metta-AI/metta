@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Mapping
 
 import torch
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
@@ -168,6 +168,57 @@ class Loss:
     def attach_replay_buffer(self, experience: Experience) -> None:
         """Attach the replay buffer to the loss."""
         self.replay = experience
+        # Align with replay layout so slot metadata survives policy TD prep
+        self.policy_experience_spec = experience.buffer.spec  # type: ignore[attr-defined]
+
+    def _filter_minibatch(self, shared_loss_data: TensorDict) -> TensorDict:
+        """Filter minibatch rows by slot profile/trainable flags."""
+
+        mb = shared_loss_data["sampled_mb"]
+
+        profiles = getattr(self, "loss_profiles", None)
+        mask = None
+        if profiles is not None:
+            pid = mb["loss_profile_id"]
+            mask = torch.isin(pid, torch.as_tensor(list(profiles), device=pid.device))
+
+        if getattr(self, "trainable_only", False):
+            train_mask = mb["is_trainable_agent"]
+            mask = train_mask if mask is None else mask & train_mask
+
+        if mask is None:
+            return shared_loss_data
+
+        if mask.dim() == 1:
+            row_mask = mask
+        else:
+            # collapse all trailing dims; keep per-segment structure intact
+            reduce_dims = tuple(range(1, mask.dim()))
+            row_mask = mask.any(dim=reduce_dims)
+
+        filtered = shared_loss_data.clone()
+        filtered["sampled_mb"] = mb[row_mask]
+
+        for key, value in list(filtered.items()):
+            if key == "sampled_mb":
+                continue
+            filtered[key] = self._apply_row_mask(value, row_mask)
+
+        return filtered
+
+    def _apply_row_mask(self, value: Any, row_mask: torch.Tensor) -> Any:
+        if isinstance(value, NonTensorData):
+            data = value.data
+            mask = row_mask.to(device=getattr(data, "device", row_mask.device))
+            return NonTensorData(data[mask])
+
+        if isinstance(value, torch.Tensor):
+            return value[row_mask]
+
+        if hasattr(value, "batch_size"):
+            return value[row_mask]
+
+        return value
 
     # End utility helpers
 
