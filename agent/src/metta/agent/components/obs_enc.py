@@ -247,8 +247,8 @@ class ObsPerceiverLatent(nn.Module):
         nn.init.trunc_normal_(self.latents, std=0.02)
 
         self.token_norm = nn.LayerNorm(self._feat_dim)
-        self.k_proj = nn.Linear(self._feat_dim, self._latent_dim, bias=False)
-        self.v_proj = nn.Linear(self._feat_dim, self._latent_dim, bias=False)
+        # Fuse key/value projections to reduce kernel launches
+        self.kv_proj = nn.Linear(self._feat_dim, 2 * self._latent_dim, bias=False)
 
         self.layers = nn.ModuleList([])
         for _ in range(self._num_layers):
@@ -280,9 +280,8 @@ class ObsPerceiverLatent(nn.Module):
         x_features = td[self.config.in_key]
         key_mask = td.get("obs_mask") if self._use_mask else None
         tokens_norm = self.token_norm(x_features)
-        k = self.k_proj(tokens_norm)
-        v = self.v_proj(tokens_norm)
-
+        kv = self.kv_proj(tokens_norm)
+        k, v = kv.split(self._latent_dim, dim=-1)
         k = einops.rearrange(k, "b m (h d) -> b h m d", h=self._num_heads)
         v = einops.rearrange(v, "b m (h d) -> b h m d", h=self._num_heads)
 
