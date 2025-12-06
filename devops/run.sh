@@ -7,7 +7,6 @@ MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-12345}
 NODE_INDEX=${NODE_INDEX:-0}
 
-# Display configuration
 echo "[CONFIG] Training configuration:"
 echo "  - GPUs: $NUM_GPUS"
 echo "  - Nodes: $NUM_NODES"
@@ -24,7 +23,10 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
-# run torchrun; preserve exit code and print a friendly line
+DATADOG_LOG="/tmp/datadog-training.log"
+mkdir -p "$(dirname "$DATADOG_LOG")"
+touch "$DATADOG_LOG"
+chmod 666 "$DATADOG_LOG" 2> /dev/null || true
 set +e
 uv run torchrun \
   --nnodes=$NUM_NODES \
@@ -33,8 +35,8 @@ uv run torchrun \
   --master-port=$MASTER_PORT \
   --node-rank=$NODE_INDEX \
   tools/run.py \
-  "$@"
-EXIT_CODE=$?
+  "$@" 2>&1 | tee -a "$DATADOG_LOG"
+EXIT_CODE=${PIPESTATUS[0]}
 set -e
 
 if [[ $EXIT_CODE -eq 0 ]]; then
