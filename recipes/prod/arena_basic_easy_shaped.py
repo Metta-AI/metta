@@ -209,7 +209,7 @@ def sweep(sweep_name: str) -> SweepTool:
     (otherwise sweep progress will halt when you close your computer).
 
     Running on the remote:
-        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
+        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py new --sweep-controller`, and ssh into it.
         2 - Clean git pollution: `git clean -df && git stash`
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
@@ -258,6 +258,14 @@ def sweep(sweep_name: str) -> SweepTool:
 
 
 def grid_search(sweep_name: str) -> SweepTool:
+    """
+    Entrypoint for running a grid search over our infra. 
+    If this is going to be a long running experiment, we recommend booting up  
+    a sweep controller sandbox and running from there (instructions in previous docstring)
+    
+    Example command: 
+        
+    """
     grid_parameters = [
         SP.categorical("trainer.optimizer.learning_rate", [1e-4, 3e-4]),
         SP.categorical("trainer.losses.ppo.clip_coef", [0.1, 0.2]),
@@ -266,7 +274,7 @@ def grid_search(sweep_name: str) -> SweepTool:
         
         # The following are special parameters (reserved keywords) 
         # they are not path overrides and instead are handles downstream. 
-        SP.categorical("nodes", [1,2])
+        SP.categorical("nodes", [1,2]),
         SP.categorical("gpus", [1,4])
     ]
 
