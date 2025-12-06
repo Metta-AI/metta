@@ -13,6 +13,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <array>
+#include <cstdint>
 #include <memory>
 #include <random>
 #include <string>
@@ -53,8 +55,15 @@ public:
   MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
   ~MettaGrid();
   struct CellCache {
-    std::vector<PartialObservationToken> static_tokens;
-    std::vector<PartialObservationToken> dynamic_tokens;
+    std::array<PartialObservationToken, 32> tokens{};
+    uint8_t static_count = 0;
+    uint8_t dynamic_count = 0;
+    bool dirty = false;
+  };
+  struct PackedOffset {
+    int16_t dr;
+    int16_t dc;
+    uint8_t packed;
   };
 
   ObservationCoord obs_width;
@@ -135,6 +144,10 @@ private:
 
   // Per-cell cached tokens (static at init, dynamic rebuilt each step)
   std::vector<CellCache> _cell_cache;  // size: grid_height * grid_width
+  std::vector<uint8_t> _dirty_flags;
+  std::vector<size_t> _dirty_cells;
+  std::vector<PackedOffset> _obs_pattern;
+  std::vector<size_t> _obs_tokens_written;
 
   // We'd prefer to store these as more raw c-style arrays, but we need to both
   // operate on the memory directly and return them to python.
@@ -169,13 +182,20 @@ private:
   void _compute_observations(const std::vector<ActionType>& executed_actions);
   void _step();
 
+  void _initialize_pattern();
+  inline void _mark_cell_dirty(GridCoord r, GridCoord c);
+  inline void _mark_cell_dirty_idx(size_t idx);
+  void _refresh_dynamic_cell(size_t cell_idx);
+  void _refresh_dirty_cells();
+  void _refresh_all_dynamic_cells();
+  void _move_cached_tokens(size_t src_idx, size_t dst_idx);
+
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
 
   inline size_t _cell_index(GridCoord r, GridCoord c) const { return static_cast<size_t>(r) * _grid->width + c; }
   void _init_static_token_cache();
-  void _rebuild_dynamic_token_cache();
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

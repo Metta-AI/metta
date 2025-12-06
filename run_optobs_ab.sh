@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage: ./run_optobs_ab.sh [run_prefix] [total_timesteps]
 
 RUN_PREFIX="${1:-ab_optobs}"
-TOTAL_TIMESTEPS="${2:-200000}"
+TOTAL_TIMESTEPS="${2:-1000000}"
 
 COMMON_ARGS=(
   ./tools/run.py train arena

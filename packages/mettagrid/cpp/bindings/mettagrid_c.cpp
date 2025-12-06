@@ -17,6 +17,7 @@
 #include "actions/change_vibe.hpp"
 #include "actions/move.hpp"
 #include "actions/move_config.hpp"
+#include "actions/orientation.hpp"
 #include "actions/noop.hpp"
 #include "config/observation_features.hpp"
 #include "core/grid.hpp"
@@ -73,6 +74,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
+  _initialize_pattern();
   _obs_encoder = std::make_unique<ObservationEncoder>(
       game_config.protocol_details_obs, resource_names, game_config.feature_ids);
 
@@ -95,7 +97,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   if (_optimized_obs) {
     // Initialize per-cell token cache (static once, dynamic will be rebuilt each step)
     _init_static_token_cache();
-    _rebuild_dynamic_token_cache();
+    _refresh_all_dynamic_cells();
   }
 
   // Create buffers
@@ -220,6 +222,7 @@ void MettaGrid::_make_buffers(unsigned int num_agents) {
   this->_episode_rewards =
       py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
 
+  _obs_tokens_written.assign(num_agents, 0);
   set_buffers(observations, terminals, truncations, rewards, actions);
 }
 
@@ -238,6 +241,7 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
             0.0f);
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
+  std::fill(_obs_tokens_written.begin(), _obs_tokens_written.end(), 0);
 
   // Clear observations
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
@@ -320,17 +324,15 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   const int map_center_r = static_cast<int>(_grid->height) / 2;
   const int map_center_c = static_cast<int>(_grid->width) / 2;
 
-  // Fill in visible objects. Observations should have been cleared in _step, so
-  // we don't need to do that here.
   size_t attempted_tokens_written = 0;
   size_t tokens_written = 0;
   auto observation_view = _observations.mutable_unchecked<3>();
   auto rewards_view = _rewards.unchecked<1>();
+  const size_t capacity = static_cast<size_t>(observation_view.shape(1));
 
   // Global tokens
   ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
-  ObservationTokens agent_obs_tokens(
-      agent_obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
+  ObservationTokens agent_obs_tokens(agent_obs_ptr, capacity);
 
   // Build global tokens based on configuration
   std::vector<PartialObservationToken> global_tokens;
@@ -395,7 +397,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   attempted_tokens_written +=
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
-  tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+  tokens_written = std::min(attempted_tokens_written, capacity);
 
   /*
    * COMPASS TOKEN EMISSION
@@ -439,73 +441,96 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
         attempted_tokens_written +=
             _obs_encoder->append_tokens_if_room_available(compass_tokens, compass_token, compass_location);
-        tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+        tokens_written = std::min(attempted_tokens_written, capacity);
       }
     }
   }
 
-  // Process locations in increasing manhattan distance order
-  for (const auto& [r_offset, c_offset] : PackedCoordinate::ObservationPattern{observable_height, observable_width}) {
-    int r = static_cast<int>(observer_row) + r_offset;
-    int c = static_cast<int>(observer_col) + c_offset;
+  if (!_optimized_obs) {
+    for (const auto& [r_offset, c_offset] : PackedCoordinate::ObservationPattern{observable_height, observable_width}) {
+      int r = static_cast<int>(observer_row) + r_offset;
+      int c = static_cast<int>(observer_col) + c_offset;
 
-    // Skip if outside map bounds
-    if (r < r_start || r >= r_end || c < c_start || c >= c_end) {
-      continue;
-    }
+      // Skip if outside map bounds
+      if (r < r_start || r >= r_end || c < c_start || c >= c_end) {
+        continue;
+      }
 
-    //  process a single grid location
-    GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c));
-    int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
-    int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
-
-    if (!_optimized_obs) {
+      GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c));
+      uint8_t location =
+          PackedCoordinate::pack(static_cast<uint8_t>(r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius)),
+                                 static_cast<uint8_t>(c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius)));
       auto obj = _grid->object_at(object_loc);
       if (!obj) {
         continue;
       }
       ObservationToken* obs_ptr =
           reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
-      ObservationTokens obs_tokens(
-          obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
-      uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
+      ObservationTokens obs_tokens(obs_ptr, capacity - tokens_written);
       attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
-      tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
-      continue;
+      tokens_written = std::min(attempted_tokens_written, capacity);
     }
+  } else {
+    for (const auto& offset : _obs_pattern) {
+      int r = static_cast<int>(observer_row) + offset.dr;
+      int c = static_cast<int>(observer_col) + offset.dc;
 
-    const auto& cell_cache = _cell_cache[_cell_index(object_loc.r, object_loc.c)];
-    if (cell_cache.static_tokens.empty() && cell_cache.dynamic_tokens.empty()) {
-      continue;
-    }
-
-    // Encode location and add tokens from cache
-    uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
-
-    auto remaining_capacity = static_cast<size_t>(observation_view.shape(1)) - tokens_written;
-    auto write_tokens = [&](const std::vector<PartialObservationToken>& src_tokens) {
-      if (src_tokens.empty() || remaining_capacity == 0) {
-        return;
+      if (r < r_start || r >= r_end || c < c_start || c >= c_end) {
+        continue;
       }
-      const size_t to_write = std::min(remaining_capacity, src_tokens.size());
-      auto* dst = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
-      for (size_t i = 0; i < to_write; ++i) {
-        dst[i].location = location;
-        dst[i].feature_id = src_tokens[i].feature_id;
-        dst[i].value = src_tokens[i].value;
+
+      const auto& cell_cache = _cell_cache[_cell_index(static_cast<GridCoord>(r), static_cast<GridCoord>(c))];
+      const size_t cell_count = static_cast<size_t>(cell_cache.static_count) + static_cast<size_t>(cell_cache.dynamic_count);
+      if (cell_count == 0) {
+        continue;
       }
+
+      attempted_tokens_written += cell_count;
+      if (tokens_written >= capacity) {
+        continue;
+      }
+
+      const size_t remaining = capacity - tokens_written;
+      const size_t to_write = std::min(remaining, cell_count);
+      auto* dst =
+          reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+
+      const size_t static_to_write = std::min(to_write, static_cast<size_t>(cell_cache.static_count));
+      for (size_t i = 0; i < static_to_write; ++i) {
+        dst[i].location = offset.packed;
+        dst[i].feature_id = cell_cache.tokens[i].feature_id;
+        dst[i].value = cell_cache.tokens[i].value;
+      }
+
+      const size_t dynamic_to_write = to_write - static_to_write;
+      if (dynamic_to_write > 0) {
+        const size_t dyn_offset = static_to_write;
+        const size_t dyn_start = static_cast<size_t>(cell_cache.static_count);
+        for (size_t i = 0; i < dynamic_to_write; ++i) {
+          const auto& src = cell_cache.tokens[dyn_start + i];
+          dst[dyn_offset + i].location = offset.packed;
+          dst[dyn_offset + i].feature_id = src.feature_id;
+          dst[dyn_offset + i].value = src.value;
+        }
+      }
+
       tokens_written += to_write;
-      remaining_capacity = static_cast<size_t>(observation_view.shape(1)) - tokens_written;
-    };
-
-    attempted_tokens_written += cell_cache.static_tokens.size() + cell_cache.dynamic_tokens.size();
-    write_tokens(cell_cache.static_tokens);
-    write_tokens(cell_cache.dynamic_tokens);
+      if (tokens_written >= capacity) {
+        break;
+      }
+    }
   }
 
   _stats->add("tokens_written", tokens_written);
   _stats->add("tokens_dropped", attempted_tokens_written - tokens_written);
   _stats->add("tokens_free_space", static_cast<size_t>(observation_view.shape(1)) - tokens_written);
+
+  // Clear the unused tail for this agent to avoid stale data without full-buffer fills.
+  if (tokens_written < capacity) {
+    auto* tail_start = reinterpret_cast<ObservationType*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+    std::fill(tail_start, tail_start + (capacity - tokens_written) * 3, EmptyTokenByte);
+  }
+  _obs_tokens_written[agent_idx] = tokens_written;
 }
 
 void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_actions) {
@@ -516,9 +541,120 @@ void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_ac
   }
 }
 
+void MettaGrid::_initialize_pattern() {
+  _obs_pattern.clear();
+  ObservationCoord obs_width_radius = obs_width >> 1;
+  ObservationCoord obs_height_radius = obs_height >> 1;
+  for (const auto& [r_offset, c_offset] : PackedCoordinate::ObservationPattern{obs_height, obs_width}) {
+    const int obs_r = r_offset + static_cast<int>(obs_height_radius);
+    const int obs_c = c_offset + static_cast<int>(obs_width_radius);
+    _obs_pattern.push_back(PackedOffset{
+        static_cast<int16_t>(r_offset),
+        static_cast<int16_t>(c_offset),
+        PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c)),
+    });
+  }
+}
+
+inline void MettaGrid::_mark_cell_dirty(GridCoord r, GridCoord c) {
+  if (r >= _grid->height || c >= _grid->width) return;
+  _mark_cell_dirty_idx(_cell_index(r, c));
+}
+
+inline void MettaGrid::_mark_cell_dirty_idx(size_t idx) {
+  if (idx >= _dirty_flags.size()) return;
+  if (_dirty_flags[idx]) return;
+  _dirty_flags[idx] = 1;
+  _dirty_cells.push_back(idx);
+}
+
+void MettaGrid::_refresh_dynamic_cell(size_t cell_idx) {
+  if (cell_idx >= _cell_cache.size()) {
+    return;
+  }
+  auto& cell = _cell_cache[cell_idx];
+  cell.dynamic_count = 0;
+
+  const GridCoord r = static_cast<GridCoord>(cell_idx / _grid->width);
+  const GridCoord c = static_cast<GridCoord>(cell_idx % _grid->width);
+  auto* obj = _grid->object_at(GridLocation(r, c));
+  if (obj == nullptr || dynamic_cast<Wall*>(obj) != nullptr) {
+    cell.dirty = false;
+    _dirty_flags[cell_idx] = 0;
+    return;
+  }
+
+  const auto feats = obj->obs_features();
+  const size_t capacity = cell.tokens.size() - static_cast<size_t>(cell.static_count);
+  const size_t to_copy = std::min(capacity, feats.size());
+  std::copy_n(feats.begin(), to_copy, cell.tokens.begin() + cell.static_count);
+  cell.dynamic_count = static_cast<uint8_t>(to_copy);
+  cell.dirty = false;
+  _dirty_flags[cell_idx] = 0;
+}
+
+void MettaGrid::_refresh_dirty_cells() {
+  for (size_t idx : _dirty_cells) {
+    _refresh_dynamic_cell(idx);
+  }
+  _dirty_cells.clear();
+}
+
+void MettaGrid::_refresh_all_dynamic_cells() {
+  if (_cell_cache.empty()) {
+    return;
+  }
+  std::fill(_dirty_flags.begin(), _dirty_flags.end(), 0);
+  _dirty_cells.clear();
+
+  for (auto& cell : _cell_cache) {
+    cell.dynamic_count = 0;
+    cell.dirty = false;
+  }
+
+  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
+    auto* obj = _grid->object(obj_id);
+    if (obj == nullptr) {
+      continue;
+    }
+    if (dynamic_cast<Wall*>(obj) != nullptr) {
+      continue;
+    }
+    const auto idx = _cell_index(obj->location.r, obj->location.c);
+    const auto feats = obj->obs_features();
+    auto& cache = _cell_cache[idx];
+    const size_t capacity = cache.tokens.size() - static_cast<size_t>(cache.static_count);
+    const size_t to_copy = std::min(capacity, feats.size());
+    std::copy_n(feats.begin(), to_copy, cache.tokens.begin() + cache.static_count);
+    cache.dynamic_count = static_cast<uint8_t>(to_copy);
+  }
+}
+
+void MettaGrid::_move_cached_tokens(size_t src_idx, size_t dst_idx) {
+  if (src_idx >= _cell_cache.size() || dst_idx >= _cell_cache.size()) {
+    return;
+  }
+  auto& src = _cell_cache[src_idx];
+  auto& dst = _cell_cache[dst_idx];
+  // Destination should be empty or static-only.
+  const size_t capacity = dst.tokens.size() - static_cast<size_t>(dst.static_count);
+  const size_t to_copy = std::min(capacity, static_cast<size_t>(src.dynamic_count));
+  if (to_copy > 0) {
+    std::copy_n(src.tokens.begin() + src.static_count, to_copy, dst.tokens.begin() + dst.static_count);
+  }
+  dst.dynamic_count = static_cast<uint8_t>(to_copy);
+  src.dynamic_count = 0;
+  src.dirty = false;
+  dst.dirty = false;
+  if (src_idx < _dirty_flags.size()) _dirty_flags[src_idx] = 0;
+  if (dst_idx < _dirty_flags.size()) _dirty_flags[dst_idx] = 0;
+}
+
 void MettaGrid::_init_static_token_cache() {
   const size_t total_cells = static_cast<size_t>(_grid->height) * _grid->width;
   _cell_cache.assign(total_cells, CellCache{});
+  _dirty_flags.assign(total_cells, 0);
+  _dirty_cells.clear();
 
   for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
     auto* obj = _grid->object(obj_id);
@@ -528,31 +664,12 @@ void MettaGrid::_init_static_token_cache() {
     const auto idx = _cell_index(obj->location.r, obj->location.c);
     auto* wall = dynamic_cast<Wall*>(obj);
     if (wall != nullptr) {
-      auto feats = obj->obs_features();
+      const auto feats = obj->obs_features();
       auto& cache = _cell_cache[idx];
-      cache.static_tokens.insert(cache.static_tokens.end(), feats.begin(), feats.end());
+      const size_t to_copy = std::min(cache.tokens.size(), feats.size());
+      std::copy_n(feats.begin(), to_copy, cache.tokens.begin());
+      cache.static_count = static_cast<uint8_t>(to_copy);
     }
-  }
-}
-
-void MettaGrid::_rebuild_dynamic_token_cache() {
-  for (auto& cell : _cell_cache) {
-    cell.dynamic_tokens.clear();
-  }
-
-  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
-    auto* obj = _grid->object(obj_id);
-    if (obj == nullptr) {
-      continue;
-    }
-    // Skip static objects; their tokens are precomputed in the static cache.
-    if (dynamic_cast<Wall*>(obj) != nullptr) {
-      continue;
-    }
-    const auto idx = _cell_index(obj->location.r, obj->location.c);
-    auto feats = obj->obs_features();
-    auto& cache = _cell_cache[idx];
-    cache.dynamic_tokens.insert(cache.dynamic_tokens.end(), feats.begin(), feats.end());
   }
 }
 
@@ -566,15 +683,11 @@ void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat
 void MettaGrid::_step() {
   auto actions_view = _actions.unchecked<1>();
 
-  // Reset rewards and observations
+  // Reset rewards
   auto rewards_view = _rewards.mutable_unchecked<1>();
 
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0);
-
-  auto obs_ptr = static_cast<ObservationType*>(_observations.request().ptr);
-  auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
   std::fill(_action_success.begin(), _action_success.end(), false);
 
@@ -607,10 +720,38 @@ void MettaGrid::_step() {
       }
 
       auto* agent = _agents[agent_idx];
+      GridLocation before_loc = agent->location;
+      auto* handler = action.handler();
       bool success = action.handle(*agent);
       _action_success[agent_idx] = success;
       if (success) {
         executed_actions[agent_idx] = action_idx;
+        if (_optimized_obs) {
+          if (dynamic_cast<Move*>(handler) != nullptr) {
+            GridLocation after_loc = agent->location;
+            if (after_loc == before_loc) {
+              // Move turned into a use; mark both actor and target cells as dirty.
+              int dc = 0;
+              int dr = 0;
+              getOrientationDelta(static_cast<Orientation>(action.arg()), dc, dr);
+              GridCoord target_r = static_cast<GridCoord>(static_cast<int>(before_loc.r) + dr);
+              GridCoord target_c = static_cast<GridCoord>(static_cast<int>(before_loc.c) + dc);
+              _mark_cell_dirty(before_loc.r, before_loc.c);
+              _mark_cell_dirty(target_r, target_c);
+            } else {
+              // Successful move: shift cached tokens instead of rebuilding.
+              const size_t src_idx = _cell_index(before_loc.r, before_loc.c);
+              const size_t dst_idx = _cell_index(after_loc.r, after_loc.c);
+              _move_cached_tokens(src_idx, dst_idx);
+              _mark_cell_dirty_idx(dst_idx);
+            }
+          } else if (dynamic_cast<ChangeVibe*>(handler) != nullptr) {
+            _mark_cell_dirty(agent->location.r, agent->location.c);
+          } else {
+            // Conservative default for other actions (e.g., attack)
+            _mark_cell_dirty(agent->location.r, agent->location.c);
+          }
+        }
       }
     }
   }
@@ -622,6 +763,9 @@ void MettaGrid::_step() {
         for (const auto& [item, amount] : agent->inventory_regen_amounts) {
           agent->inventory.update(item, amount);
         }
+        if (_optimized_obs) {
+          _mark_cell_dirty(agent->location.r, agent->location.c);
+        }
       }
     }
   }
@@ -629,11 +773,20 @@ void MettaGrid::_step() {
   // Apply global systems
   if (_clipper) {
     _clipper->maybe_clip_new_assembler();
+    if (_optimized_obs) {
+      for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
+        auto* obj = _grid->object(obj_id);
+        if (obj == nullptr) continue;
+        if (dynamic_cast<Assembler*>(obj) != nullptr) {
+          _mark_cell_dirty(obj->location.r, obj->location.c);
+        }
+      }
+    }
   }
 
   // Compute observations for next step
   if (_optimized_obs) {
-    _rebuild_dynamic_token_cache();
+    _refresh_dirty_cells();
   }
   _compute_observations(executed_actions);
 
