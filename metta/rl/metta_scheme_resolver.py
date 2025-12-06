@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import logging
 import uuid
-from pathlib import Path
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.tools.utils.auto_config import auto_stats_server_uri
-from mettagrid.util.uri_resolvers.base import SchemeResolver, _extract_run_and_epoch
+from mettagrid.util.uri_resolvers.base import SchemeResolver
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -31,7 +30,7 @@ def _is_uuid(s: str) -> bool:
         raise ValueError(f"Invalid policy version ID: {s}") from e
 
 
-def _parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
+def _parse_policy_identifier(path: str) -> tuple[str, int | None]:
     """Parse a policy identifier into (name, version).
 
     Supports:
@@ -39,12 +38,13 @@ def _parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
     - policy-name:latest -> (policy-name, None) meaning latest
     - policy-name:vX -> (policy-name, X) meaning specific version
     """
-    if identifier.endswith(":latest"):
-        return identifier[:-7], None
-    info = _extract_run_and_epoch(Path(identifier))
-    if info:
-        return info
-    return identifier, None
+    if path.endswith(":latest"):
+        return path[:-7], None
+    if ":v" in path:
+        run_name, suffix = path.rsplit(":v", 1)
+        if run_name and suffix.isdigit():
+            return (run_name, int(suffix))
+    return path, None
 
 
 class MettaSchemeResolver(SchemeResolver):
