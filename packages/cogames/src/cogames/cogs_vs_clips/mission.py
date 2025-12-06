@@ -167,7 +167,7 @@ class Mission(Config):
             num_agents=num_cogs,
             resource_names=resources,
             vibe_names=[vibe.name for vibe in vibes.VIBES],
-            global_obs=GlobalObsConfig(compass=self.compass_enabled),
+            global_obs=GlobalObsConfig(compass=self.compass_enabled, goal_obs=True),
             actions=ActionsConfig(
                 move=MoveActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=NoopActionConfig(),
