@@ -625,6 +625,17 @@ inline void MettaGrid::_mark_cell_dirty_idx(size_t idx) {
   _dirty_cells.push_back(idx);
 }
 
+inline void MettaGrid::_mark_observation_window_dirty(GridCoord center_r, GridCoord center_c) {
+  if (!_opt_dirty_refresh) return;
+  for (const auto& offset : _obs_pattern) {
+    const int r = static_cast<int>(center_r) + offset.dr;
+    const int c = static_cast<int>(center_c) + offset.dc;
+    if (r < 0 || c < 0) continue;
+    if (r >= static_cast<int>(_grid->height) || c >= static_cast<int>(_grid->width)) continue;
+    _mark_cell_dirty(static_cast<GridCoord>(r), static_cast<GridCoord>(c));
+  }
+}
+
 void MettaGrid::_refresh_dynamic_cell(size_t cell_idx) {
   if (cell_idx >= _cell_cache.size()) {
     return;
@@ -801,9 +812,11 @@ void MettaGrid::_step() {
             }
           } else if (dynamic_cast<ChangeVibe*>(handler) != nullptr) {
             _mark_cell_dirty(agent->location.r, agent->location.c);
+          } else if (dynamic_cast<Noop*>(handler) != nullptr) {
+            _mark_cell_dirty(agent->location.r, agent->location.c);
           } else {
             // Conservative default for other actions (e.g., attack)
-            _mark_cell_dirty(agent->location.r, agent->location.c);
+            _mark_observation_window_dirty(before_loc.r, before_loc.c);
           }
         }
       }

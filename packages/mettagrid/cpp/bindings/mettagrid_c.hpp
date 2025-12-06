@@ -189,6 +189,7 @@ private:
   void _initialize_pattern();
   inline void _mark_cell_dirty(GridCoord r, GridCoord c);
   inline void _mark_cell_dirty_idx(size_t idx);
+  inline void _mark_observation_window_dirty(GridCoord center_r, GridCoord center_c);
   void _refresh_dynamic_cell(size_t cell_idx);
   void _refresh_dirty_cells();
   void _refresh_all_dynamic_cells();
