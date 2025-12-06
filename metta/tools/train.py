@@ -310,7 +310,9 @@ class TrainTool(Tool):
             from metta.rl.training.timer_reporter import TimerReporter, _env_enabled
         except Exception:
             TimerReporter = None  # type: ignore
-            _env_enabled = lambda: False  # type: ignore
+
+            def _env_enabled() -> bool:  # type: ignore
+                return False
 
         if TimerReporter is not None and _env_enabled() and distributed_helper.is_master():
             trainer.register(TimerReporter())
