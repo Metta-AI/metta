@@ -127,7 +127,6 @@ private:
   bool _optimized_obs = false;
   bool _opt_dirty_refresh = true;
   bool _opt_move_swap = true;
-  bool _opt_memset = true;
   bool _opt_prepacked = true;
 
   std::unique_ptr<Grid> _grid;

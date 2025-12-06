@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <iostream>
 #include <numeric>
 #include <random>
@@ -104,11 +103,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   if (const char* env_opt = std::getenv("METTAGRID_OPT_MOVE_SWAP")) {
     if (std::string(env_opt) == "0") {
       _opt_move_swap = false;
-    }
-  }
-  if (const char* env_opt = std::getenv("METTAGRID_OPT_MEMSET")) {
-    if (std::string(env_opt) == "0") {
-      _opt_memset = false;
     }
   }
   if (const char* env_opt = std::getenv("METTAGRID_OPT_PREPACKED")) {
@@ -271,11 +265,7 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
   // Clear observations
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = static_cast<size_t>(_observations.size());
-  if (_opt_memset) {
-    std::memset(obs_ptr, EmptyTokenByte, obs_size * sizeof(uint8_t));
-  } else {
-    std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
-  }
+  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
   // Compute initial observations. Every agent starts with a noop.
   std::vector<ActionType> executed_actions(_agents.size());
@@ -562,11 +552,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (tokens_written < capacity) {
     auto* tail_start = reinterpret_cast<ObservationType*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
     const size_t bytes = (capacity - tokens_written) * 3 * sizeof(ObservationType);
-    if (_opt_memset) {
-      std::memset(tail_start, EmptyTokenByte, bytes);
-    } else {
-      std::fill(tail_start, tail_start + (capacity - tokens_written) * 3, EmptyTokenByte);
-    }
+    std::fill(tail_start, tail_start + (capacity - tokens_written) * 3, EmptyTokenByte);
   }
 }
 
