@@ -74,20 +74,12 @@ def _normalize_variant_names(
 ) -> list[str]:
     names: list[str] = []
     for source in (initial, variants):
-        if source:
-            names.extend(source)
-    return list(dict.fromkeys(names))
-
-
-def _default_lp_config(enable_detailed_slice_logging: bool) -> LearningProgressConfig:
-    return LearningProgressConfig(
-        use_bidirectional=True,
-        ema_timescale=0.001,
-        exploration_bonus=0.1,
-        max_memory_tasks=2000,
-        max_slice_axes=4,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-    )
+        if not source:
+            continue
+        for name in source:
+            if name not in names:
+                names.append(name)
+    return names
 
 
 def _resolve_mission_template(name: str) -> Mission:
@@ -128,27 +120,6 @@ def _prepare_mission(
         mission = mission.with_variants(variant_objects)
     mission = mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
     return mission
-
-
-def _apply_cvc_defaults(trainer_cfg: TrainerConfig) -> None:
-    clip = 0.22017136216163635
-    gae = 0.9900000095367432
-    vf = 0.49657103419303894
-
-    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
-    trainer_cfg.optimizer.eps = 5.0833278919526e-07
-
-    trainer_cfg.losses.ppo.clip_coef = clip
-    trainer_cfg.losses.ppo.gae_lambda = gae
-    trainer_cfg.losses.ppo.vf_coef = vf
-
-    trainer_cfg.losses.ppo_actor.clip_coef = clip
-
-    trainer_cfg.losses.ppo_critic.gae_lambda = gae
-    trainer_cfg.losses.ppo_critic.vf_coef = vf
-
-    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = gae
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = vf
 
 
 def make_eval_suite(
@@ -289,7 +260,14 @@ def make_curriculum(
     merged_tasks = cc.merge(all_mission_tasks)
 
     if algorithm_config is None:
-        algorithm_config = _default_lp_config(enable_detailed_slice_logging)
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=2000,
+            max_slice_axes=4,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
 
     return merged_tasks.to_curriculum(
         num_active_tasks=1500,
@@ -434,7 +412,21 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
     )
-    _apply_cvc_defaults(trainer_cfg)
+    # Inline CVC defaults from the latest sweep (Dec 2025)
+    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
+    trainer_cfg.optimizer.eps = 5.0833278919526e-07
+
+    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
+    trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
+    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
+
+    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
+
+    trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
+    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
+
+    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
+    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
@@ -512,7 +504,14 @@ def train_variants(
     merged_tasks = cc.merge(all_variant_tasks)
 
     if algorithm_config is None:
-        algorithm_config = _default_lp_config(enable_detailed_slice_logging)
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=2000,
+            max_slice_axes=4,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
 
     curriculum = merged_tasks.to_curriculum(
         num_active_tasks=1500,
