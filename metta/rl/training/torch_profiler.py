@@ -86,7 +86,7 @@ class TorchProfileSession:
             schedule=torch.profiler.schedule(
                 wait=0,
                 warmup=0,
-                active=getattr(self._profiler_config, "active_steps", 1_000_000_000),
+                active=self._profiler_config.active_steps,
                 repeat=1,
             ),
         )
