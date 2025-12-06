@@ -275,21 +275,6 @@ def make_curriculum(
     )
 
 
-def _bc_window_steps(bc_policy_uri: Optional[str], bc_steps: Optional[int]) -> tuple[int, int, int]:
-    steps = 0 if bc_policy_uri is None and bc_steps is None else (bc_steps if bc_steps is not None else 99999)
-    bc_steps_actual = int(steps * 1_000_000)
-    return bc_steps_actual, int(bc_steps_actual * 0.5), bc_steps_actual
-
-
-def _ppo_run_gates(start_step: int) -> list[LossRunGate]:
-    return [
-        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=start_step),
-        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=start_step),
-        LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=start_step),
-        LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=start_step),
-    ]
-
-
 def _configure_bc(
     tt: TrainTool,
     *,
@@ -449,9 +434,18 @@ def train(
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
 
-    bc_steps_actual, anneal_start, anneal_end = _bc_window_steps(bc_policy_uri, bc_steps)
+    # Compute BC window in steps (1 unit = 1M agent steps)
+    steps = 0 if bc_policy_uri is None and bc_steps is None else (bc_steps if bc_steps is not None else 99999)
+    bc_steps_actual = int(steps * 1_000_000)
+    anneal_start = int(bc_steps_actual * 0.5)
+    anneal_end = bc_steps_actual
 
-    scheduler_run_gates: list[LossRunGate] = _ppo_run_gates(bc_steps_actual)
+    scheduler_run_gates: list[LossRunGate] = [
+        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_steps_actual),
+        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=bc_steps_actual),
+        LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_steps_actual),
+        LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=bc_steps_actual),
+    ]
     scheduler_rules: list[HyperUpdateRule] = []
 
     if bc_policy_uri is not None:
