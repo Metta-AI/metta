@@ -53,18 +53,24 @@ class METTAGRID_API MettaGrid {
 public:
   MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
   ~MettaGrid();
+
   static constexpr size_t kMaxTokensPerCell = 24;
+
   struct CellCache {
     std::array<ObservationType, kMaxTokensPerCell> feature_ids{};
     std::array<ObservationType, kMaxTokensPerCell> values{};
     uint8_t static_count = 0;
     uint8_t dynamic_count = 0;
   };
+
   struct PackedOffset {
     int16_t dr;
     int16_t dc;
     uint8_t packed;
   };
+
+  using Actions = py::array_t<ActionType, py::array::c_style>;
+  using ActionSuccess = std::vector<bool>;
 
   ObservationCoord obs_width;
   ObservationCoord obs_height;
@@ -106,9 +112,6 @@ public:
   py::dict get_episode_stats();
   py::list action_success_py();
 
-  using Actions = py::array_t<ActionType, py::array::c_style>;
-  using ActionSuccess = std::vector<bool>;
-
   const Grid& grid() const {
     return *_grid;
   }
@@ -121,51 +124,39 @@ public:
   }
 
 private:
-  // Member variables
   GlobalObsConfig _global_obs_config;
   GameConfig _game_config;
+  size_t _num_observation_tokens;
+  unsigned int _inventory_regen_interval;
+  unsigned int _seed;
+  std::mt19937 _rng;
 
   std::unique_ptr<Grid> _grid;
-
-  Actions _actions;
-  std::vector<Action> _action_handlers;                              // All actions from all handlers
-  std::vector<std::unique_ptr<ActionHandler>> _action_handler_impl;  // Owns the ActionHandler objects
-  unsigned char _max_action_priority;
-
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
-
-  size_t _num_observation_tokens;
-  bool _logged_cell_truncation = false;
+  std::unique_ptr<Clipper> _clipper;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
   std::vector<Agent*> _agents;
 
-  // Per-cell cached tokens (static at init, dynamic rebuilt each step)
+  Actions _actions;
+  std::vector<Action> _action_handlers;                              // All actions from all handlers
+  std::vector<std::unique_ptr<ActionHandler>> _action_handler_impl;  // Owns the ActionHandler objects
+  unsigned char _max_action_priority;
+  ActionSuccess _action_success;
+
   std::vector<CellCache> _cell_cache;  // size: grid_height * grid_width
   std::vector<uint8_t> _dirty_flags;
   std::vector<size_t> _dirty_cells;
   std::vector<PackedOffset> _obs_pattern;
+  bool _logged_cell_truncation = false;
 
-  // We'd prefer to store these as more raw c-style arrays, but we need to both
-  // operate on the memory directly and return them to python.
   py::array_t<uint8_t> _observations;
   py::array_t<bool> _terminals;
   py::array_t<bool> _truncations;
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
-
-  ActionSuccess _action_success;
-
-  std::mt19937 _rng;
-  unsigned int _seed;
-
-  // Inventory regeneration
-  unsigned int _inventory_regen_interval;
-
-  // Global systems
-  std::unique_ptr<Clipper> _clipper;
 
   void init_action_handlers(const GameConfig& game_config);
   void add_agent(Agent* agent);
