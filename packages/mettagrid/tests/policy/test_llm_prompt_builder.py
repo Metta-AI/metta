@@ -126,12 +126,10 @@ class TestLLMPromptBuilder:
         # Check for key sections in minimal prompt
         assert "GOAL" in basic_info
         assert "HOW TO PLAY" in basic_info
-        assert "HEART RECIPE" in basic_info
         assert "VIBES" in basic_info
 
-        # Check heart recipe is present
+        # Check heart deposit goal is present
         assert "HEART" in basic_info
-        assert "carbon" in basic_info
 
         # Check key gameplay instructions
         assert "ADJACENT" in basic_info
@@ -142,9 +140,8 @@ class TestLLMPromptBuilder:
         """Test that observable_prompt only describes visible elements."""
         observable = prompt_builder.observable_prompt(sample_observation)
 
-        # Should include spatial map section
-        assert "MAP" in observable
-        assert "@" in observable  # Agent position marker
+        # Should include visible objects with coordinates section
+        assert "VISIBLE OBJECTS" in observable
 
         # Should include directional awareness section
         assert "ADJACENT TILES" in observable
@@ -171,11 +168,12 @@ class TestLLMPromptBuilder:
 
         # Full prompt should contain key parts of both
         assert "GOAL" in full  # From basic_info
-        assert "MAP" in full  # From observable (spatial grid)
+        assert "VISIBLE OBJECTS" in full  # From observable (spatial coordinates)
         assert "ADJACENT TILES" in full  # From observable
 
-        # Should also include the response instructions
-        assert "EXACTLY ONE action name" in full
+        # Should also include the JSON response format instructions
+        assert "reasoning" in full
+        assert "action" in full
 
     def test_context_prompt_first_step_includes_basic_info(self, prompt_builder, sample_observation):
         """Test that first step includes basic info."""
@@ -183,7 +181,7 @@ class TestLLMPromptBuilder:
 
         assert includes_basic is True
         assert "GOAL" in prompt
-        assert "HEART RECIPE" in prompt
+        assert "HOW TO PLAY" in prompt
         assert prompt_builder.step_count == 1
 
     def test_context_prompt_second_step_excludes_basic_info(self, prompt_builder, sample_observation):
@@ -534,3 +532,166 @@ class TestLLMPromptBuilder:
         short_count = sum(1 for r in results if "SHORT" in r)
         assert full_count == 3  # Steps 1, 6, 11
         assert short_count == 9  # All other steps
+
+    def test_coordinate_system_matches_movement_directions(self, mock_policy_env_info):
+        """Verify that coordinate system matches movement directions.
+
+        Based on orientation.hpp:
+        - North: dy=-1 (row decreases)
+        - South: dy=+1 (row increases)
+        - East: dx=+1 (col increases)
+        - West: dx=-1 (col decreases)
+
+        This means:
+        - row() = Y axis (vertical, North/South)
+        - col() = X axis (horizontal, East/West)
+
+        For LLM prompts with relative coords:
+        - x = col - agent_col (positive = East)
+        - y = row - agent_row (positive = South)
+        """
+        builder = LLMPromptBuilder(policy_env_info=mock_policy_env_info)
+
+        tag_feature = mock_policy_env_info.obs_features[0]  # tag
+
+        # Agent is at center (5, 5), which means row=5, col=5
+        agent_row, agent_col = 5, 5
+
+        # Object to the NORTH: row - 1, same col
+        # In relative coords: x=0, y=-1
+        north_obs = AgentObservation(
+            agent_id=0,
+            tokens=[
+                ObservationToken(
+                    feature=tag_feature,
+                    location=(agent_col, agent_row - 1),  # location is (col, row)
+                    value=1,  # assembler
+                    raw_token=(tag_feature.id, (agent_col << 16) | (agent_row - 1), 1),
+                ),
+            ],
+        )
+
+        # Object to the EAST: same row, col + 1
+        # In relative coords: x=+1, y=0
+        east_obs = AgentObservation(
+            agent_id=0,
+            tokens=[
+                ObservationToken(
+                    feature=tag_feature,
+                    location=(agent_col + 1, agent_row),  # location is (col, row)
+                    value=2,  # carbon_extractor
+                    raw_token=(tag_feature.id, ((agent_col + 1) << 16) | agent_row, 2),
+                ),
+            ],
+        )
+
+        # Test North object
+        north_prompt = builder.observable_prompt(north_obs)
+        # Should show x=0, y=-1 (North means negative Y)
+        assert "x=0" in north_prompt, f"North object should have x=0, got: {north_prompt}"
+        assert "y=-1" in north_prompt, f"North object should have y=-1, got: {north_prompt}"
+
+        # Test East object
+        east_prompt = builder.observable_prompt(east_obs)
+        # Should show x=1, y=0 (East means positive X)
+        assert "x=1" in east_prompt, f"East object should have x=1, got: {east_prompt}"
+        assert "y=0" in east_prompt, f"East object should have y=0, got: {east_prompt}"
+
+    def test_spatial_grid_renders_correctly(self, mock_policy_env_info):
+        """Test that spatial grid ASCII rendering places objects correctly.
+
+        The grid should render with:
+        - Rows going top to bottom (row 0 at top)
+        - Columns going left to right (col 0 at left)
+        - North objects appear ABOVE the agent (lower row index)
+        - East objects appear to the RIGHT of the agent (higher col index)
+        """
+        builder = LLMPromptBuilder(policy_env_info=mock_policy_env_info)
+
+        tag_feature = mock_policy_env_info.obs_features[0]  # tag
+
+        # Agent is at center (5, 5)
+        agent_row, agent_col = 5, 5
+
+        # Create observation with objects in known positions
+        obs = AgentObservation(
+            agent_id=0,
+            tokens=[
+                # Wall to the NORTH (row - 1) - should appear ABOVE agent in grid
+                ObservationToken(
+                    feature=tag_feature,
+                    location=(agent_col, agent_row - 1),  # location is (col, row)
+                    value=8,  # wall
+                    raw_token=(tag_feature.id, (agent_col << 16) | (agent_row - 1), 8),
+                ),
+                # Carbon extractor to the EAST (col + 1) - should appear to RIGHT of agent
+                ObservationToken(
+                    feature=tag_feature,
+                    location=(agent_col + 1, agent_row),  # location is (col, row)
+                    value=2,  # carbon_extractor
+                    raw_token=(tag_feature.id, ((agent_col + 1) << 16) | agent_row, 2),
+                ),
+            ],
+        )
+
+        # Build the spatial grid
+        spatial_grid = builder._build_spatial_grid(obs)
+
+        # The grid keys should be (x, y) = (col, row)
+        # Wall at North: col=5, row=4 -> key should be (5, 4)
+        # Extractor at East: col=6, row=5 -> key should be (6, 5)
+        assert (agent_col, agent_row - 1) in spatial_grid, f"Wall should be at ({agent_col}, {agent_row - 1})"
+        assert spatial_grid[(agent_col, agent_row - 1)] == "wall"
+
+        assert (agent_col + 1, agent_row) in spatial_grid, f"Extractor should be at ({agent_col + 1}, {agent_row})"
+        assert spatial_grid[(agent_col + 1, agent_row)] == "carbon_extractor"
+
+        # Build the ASCII grid section and verify visual layout
+        agent_x = agent_col  # X = col
+        agent_y = agent_row  # Y = row
+        grid_section = builder._build_spatial_grid_section(spatial_grid, agent_x, agent_y)
+
+        # Split into lines for analysis
+        lines = grid_section.split("\n")
+
+        # Filter to only grid lines (lines that start with a digit and space, representing row numbers)
+        # Grid lines look like: "5 .....@C...."
+        grid_lines = [(i, line) for i, line in enumerate(lines) if len(line) > 2 and line[0].isdigit() and line[1] == " "]
+
+        # Find the row containing the agent (@)
+        agent_line_idx = None
+        agent_col_in_line = None
+        agent_grid_row = None
+        for orig_idx, line in grid_lines:
+            if "@" in line:
+                agent_line_idx = orig_idx
+                agent_col_in_line = line.index("@")
+                agent_grid_row = int(line[0])  # The row number from the grid
+                break
+
+        assert agent_line_idx is not None, f"Agent @ not found in grid. Grid lines: {grid_lines}"
+
+        # Find the line containing a standalone "W" (wall) in the grid area
+        wall_line_idx = None
+        wall_col_in_line = None
+        wall_grid_row = None
+        for orig_idx, line in grid_lines:
+            # Look for W that's part of the grid content (after "X " prefix)
+            grid_content = line[2:]  # Skip "X " prefix
+            if "W" in grid_content:
+                wall_line_idx = orig_idx
+                wall_col_in_line = line.index("W")
+                wall_grid_row = int(line[0])
+                break
+
+        assert wall_line_idx is not None, f"Wall W not found in grid. Grid lines: {grid_lines}"
+        # Wall should be ABOVE agent (lower grid row = higher on screen = North)
+        assert wall_grid_row < agent_grid_row, f"Wall should be above agent: wall at row {wall_grid_row}, agent at row {agent_grid_row}"
+        # Wall should be at same column as agent (directly north)
+        assert wall_col_in_line == agent_col_in_line, f"Wall should be directly above agent: wall at col {wall_col_in_line}, agent at col {agent_col_in_line}"
+
+        # Carbon extractor (C) should be to the RIGHT of agent in same line
+        agent_line = lines[agent_line_idx]
+        assert "C" in agent_line, f"Carbon extractor should be on same line as agent: {agent_line}"
+        extractor_col = agent_line.index("C")
+        assert extractor_col > agent_col_in_line, f"Extractor should be to right of agent: extractor at {extractor_col}, agent at {agent_col_in_line}"
