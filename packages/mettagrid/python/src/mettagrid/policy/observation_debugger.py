@@ -57,10 +57,6 @@ class ObservationDebugger:
         for direction, info in directional_info.items():
             lines.append(f"  {direction}: {info}")
 
-        # Spatial grid visualization
-        lines.append("\n🗺️  SPATIAL GRID (what agent sees):")
-        lines.append(self._visualize_grid(spatial_grid, agent_x, agent_y))
-
         # Inventory section
         inventory = self._extract_inventory(obs)
         if inventory:
@@ -231,45 +227,6 @@ class ObservationDebugger:
         if vertical and horizontal:
             return f"{vertical}-{horizontal}"
         return vertical or horizontal
-
-    def _visualize_grid(self, spatial_grid: dict[tuple[int, int], list[dict]], agent_x: int, agent_y: int) -> str:
-        """Create ASCII visualization of spatial grid.
-
-        Args:
-            spatial_grid: Spatial grid of tokens (keys are (row, col) from token.row(), token.col())
-            agent_x: Agent's row coordinate (from token.row())
-            agent_y: Agent's col coordinate (from token.col())
-
-        Returns:
-            ASCII grid visualization
-        """
-        lines = []
-        # Column headers
-        lines.append("  " + "".join([f"{col:2}" for col in range(self.obs_width)]))
-
-        # Grid rows - spatial_grid keys are (row, col)
-        for row in range(self.obs_height):
-            row_str = f"{row:2} "
-            for col in range(self.obs_width):
-                if row == agent_x and col == agent_y:
-                    row_str += "@ "  # Agent position
-                elif (row, col) in spatial_grid:
-                    # Find tag to display
-                    tag_found = False
-                    for token_info in spatial_grid[(row, col)]:
-                        if token_info["tag"]:
-                            # Use first letter of tag
-                            row_str += token_info["tag"][0].upper() + " "
-                            tag_found = True
-                            break
-                    if not tag_found:
-                        row_str += "· "  # Something there but no tag
-                else:
-                    row_str += ". "  # Empty
-            lines.append(row_str)
-
-        lines.append("\n  Legend: @ = Agent, . = Empty, · = Unknown, Letters = Object tags")
-        return "\n".join(lines)
 
     def _extract_inventory(self, obs: AgentObservation) -> dict[str, int]:
         """Extract inventory information from observation.
