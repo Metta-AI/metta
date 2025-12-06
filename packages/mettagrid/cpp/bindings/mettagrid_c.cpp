@@ -48,6 +48,11 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _optimized_obs(game_config.optimized_obs),
       _num_observation_tokens(game_config.num_observation_tokens),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
+  if (const char* env_opt = std::getenv("METTAGRID_OPTIMIZED_OBS")) {
+    if (std::string(env_opt) == "1") {
+      _optimized_obs = true;
+    }
+  }
   _seed = seed;
   _rng = std::mt19937(seed);
 
