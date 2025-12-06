@@ -435,7 +435,8 @@ def train(
         tt.training_env.maps_cache_size = maps_cache_size
 
     # Compute BC window in steps (1 unit = 1M agent steps)
-    steps = 0 if bc_policy_uri is None and bc_steps is None else (bc_steps if bc_steps is not None else 99999)
+    default_steps = 1000 if bc_policy_uri is not None else 0  # 1B agent steps when BC is enabled
+    steps = bc_steps if bc_steps is not None else default_steps
     bc_steps_actual = int(steps * 1_000_000)
     anneal_start = int(bc_steps_actual * 0.5)
     anneal_end = bc_steps_actual
