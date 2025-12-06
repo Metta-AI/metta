@@ -314,12 +314,7 @@ export const PolicyVersionPage: FC = () => {
       )}
 
       {policyVersionId && (
-        <TasksTable
-          repo={repo}
-          setError={setTaskError}
-          initialFilters={{ command: policyVersionId }}
-          hideFilters
-        />
+        <TasksTable repo={repo} setError={setTaskError} initialFilters={{ command: policyVersionId }} hideFilters />
       )}
     </div>
   )

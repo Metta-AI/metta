@@ -197,17 +197,38 @@ export const TaskRow: FC<TaskRowProps> = ({ task, repo, policyInfoMap, attempted
                               <tr>
                                 <td className="pr-2 text-gray-600">Assigned:</td>
                                 <td className="text-right">{formatDate(attempt.assigned_at)}</td>
-                                <td className={clsx('pl-2 text-right', getTimeDiffColor(task.created_at, attempt.assigned_at))}>{assignedDiff ? `(+ ${assignedDiff})` : ''}</td>
+                                <td
+                                  className={clsx(
+                                    'pl-2 text-right',
+                                    getTimeDiffColor(task.created_at, attempt.assigned_at)
+                                  )}
+                                >
+                                  {assignedDiff ? `(+ ${assignedDiff})` : ''}
+                                </td>
                               </tr>
                               <tr>
                                 <td className="pr-2 text-gray-600">Started:</td>
                                 <td className="text-right">{formatDate(attempt.started_at)}</td>
-                                <td className={clsx('pl-2 text-right', getTimeDiffColor(attempt.assigned_at, attempt.started_at))}>{startedDiff ? `(+ ${startedDiff})` : ''}</td>
+                                <td
+                                  className={clsx(
+                                    'pl-2 text-right',
+                                    getTimeDiffColor(attempt.assigned_at, attempt.started_at)
+                                  )}
+                                >
+                                  {startedDiff ? `(+ ${startedDiff})` : ''}
+                                </td>
                               </tr>
                               <tr>
                                 <td className="pr-2 text-gray-600">Finished:</td>
                                 <td className="text-right">{formatDate(attempt.finished_at)}</td>
-                                <td className={clsx('pl-2 text-right', getTimeDiffColor(attempt.started_at, attempt.finished_at))}>{finishedDiff ? `(+ ${finishedDiff})` : ''}</td>
+                                <td
+                                  className={clsx(
+                                    'pl-2 text-right',
+                                    getTimeDiffColor(attempt.started_at, attempt.finished_at)
+                                  )}
+                                >
+                                  {finishedDiff ? `(+ ${finishedDiff})` : ''}
+                                </td>
                               </tr>
                             </tbody>
                           </table>
