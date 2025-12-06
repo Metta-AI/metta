@@ -90,11 +90,11 @@ class CoreTrainingLoop:
 
         while not self.experience.ready_for_training:
             # Get observation from environment
-            with torch.profiler.record_function("_rollout.env_wait"), context.stopwatch("_rollout.env_wait"):
+            with context.stopwatch("_rollout.env_wait"):
                 o, r, d, t, ta, info, training_env_id, _, num_steps = env.get_observations()
             last_env_id = training_env_id
             # Prepare data for policy
-            with torch.profiler.record_function("_rollout.td_prep"), context.stopwatch("_rollout.td_prep"):
+            with context.stopwatch("_rollout.td_prep"):
                 td = buffer_step[training_env_id].clone()
                 target_device = td.device
                 td["env_obs"] = o.to(device=target_device, non_blocking=True)
@@ -125,7 +125,7 @@ class CoreTrainingLoop:
                 self._ensure_rollout_metadata(td)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
-            with torch.profiler.record_function("_rollout.inference"), context.stopwatch("_rollout.inference"):
+            with context.stopwatch("_rollout.inference"):
                 context.training_env_id = training_env_id
                 for loss in self.losses.values():
                     loss.rollout(td, context)
@@ -162,7 +162,7 @@ class CoreTrainingLoop:
             target_buffer.copy_(actions_column)
 
             # Ship actions to the environment
-            with torch.profiler.record_function("_rollout.send"), context.stopwatch("_rollout.send"):
+            with context.stopwatch("_rollout.send"):
                 env.send_actions(td["actions"].cpu().numpy())
 
             infos_list: list[dict[str, Any]] = list(info) if info else []
@@ -244,18 +244,16 @@ class CoreTrainingLoop:
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
                 if mb_idx % self.accumulate_minibatches == 0:
-                    with torch.profiler.record_function("_train.zero_grad"):
-                        self.optimizer.zero_grad()
+                    self.optimizer.zero_grad()
 
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
                 shared_loss_mb_data = self.experience.give_me_empty_md_td()
 
                 for _loss_name, loss_obj in self.losses.items():
-                    with torch.profiler.record_function(f"_train.loss.{_loss_name}"):
-                        loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
-                            shared_loss_mb_data, context, mb_idx
-                        )
+                    loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
+                        shared_loss_mb_data, context, mb_idx
+                    )
                     total_loss = total_loss + loss_val
                     stop_update_epoch_mb = stop_update_epoch_mb or loss_requests_stop
 
@@ -263,8 +261,7 @@ class CoreTrainingLoop:
                     stop_update_epoch = True
                     break
 
-                with torch.profiler.record_function("_train.backward"):
-                    total_loss.backward()
+                total_loss.backward()
 
                 # Optimizer step with gradient accumulation
                 if (mb_idx + 1) % self.accumulate_minibatches == 0:
@@ -275,17 +272,15 @@ class CoreTrainingLoop:
                             actual_max_grad_norm = loss_obj.cfg.max_grad_norm
                             break
 
-                    with torch.profiler.record_function("_train.clip_and_step"):
-                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
-                        self.optimizer.step()
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
+                    self.optimizer.step()
 
                     if self.device.type == "cuda":
                         torch.cuda.synchronize()
 
                 # Notify losses of minibatch end
                 for loss_obj in self.losses.values():
-                    with torch.profiler.record_function(f"_train.mb_end.{loss_obj.__class__.__name__}"):
-                        loss_obj.on_mb_end(context, mb_idx)
+                    loss_obj.on_mb_end(context, mb_idx)
 
                 if profiler_step is not None:
                     profiler_step()
