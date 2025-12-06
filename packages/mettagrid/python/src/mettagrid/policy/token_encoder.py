@@ -156,7 +156,7 @@ class TokenPolicy(MultiAgentPolicy):
         device: torch.device,
         policy_env_info: PolicyEnvInterface,
     ):
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, is_scripted=False)
         self._net = TokenPolicyNet(features, actions_cfg).to(device)
         self._device = device
         self._num_actions = len(actions_cfg.actions())
@@ -166,7 +166,9 @@ class TokenPolicy(MultiAgentPolicy):
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return TokenAgentPolicyImpl(self._net, self._device, self._num_actions)
+        policy_impl = TokenAgentPolicyImpl(self._net, self._device, self._num_actions)
+        policy_impl._policy_descriptor = self._policy_descriptor
+        return policy_impl
 
     def is_recurrent(self) -> bool:
         return False
