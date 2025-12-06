@@ -93,7 +93,6 @@ export const TasksTable: FC<{
           const pvId = parsePolicyVersionId(task.command)
           if (pvId && !attemptedPolicyIds.current.has(pvId)) {
             policyVersionIds.push(pvId)
-            attemptedPolicyIds.current.add(pvId)
           }
         }
 
@@ -101,6 +100,10 @@ export const TasksTable: FC<{
         if (policyVersionIds.length > 0) {
           try {
             const policyVersions = await repo.getPolicyVersionsBatch(policyVersionIds)
+            // Mark as attempted only after successful fetch
+            for (const pvId of policyVersionIds) {
+              attemptedPolicyIds.current.add(pvId)
+            }
             const newPolicyInfo: Record<string, PublicPolicyVersionRow> = {}
             for (const pv of policyVersions) {
               newPolicyInfo[pv.id] = pv
