@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import torch.profiler
 import wandb
@@ -17,6 +17,8 @@ from metta.rl.utils import should_run
 from mettagrid.util.file import http_url, is_public_uri, write_file
 
 logger = logging.getLogger(__name__)
+# Large active window so one schedule covers the full epoch while we step per minibatch.
+_PROFILE_ACTIVE_STEPS = 1_000_000_000
 
 
 class TorchProfileSession:
@@ -86,8 +88,10 @@ class TorchProfileSession:
             profile_memory=True,
             with_stack=True,
             with_modules=True,
+            schedule=torch.profiler.schedule(wait=0, warmup=0, active=_PROFILE_ACTIVE_STEPS, repeat=1),
         )
         self._profiler.start()
+        self.step()  # Prime the schedule so rollout is captured as well.
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -107,6 +111,12 @@ class TorchProfileSession:
             self._profile_filename_base = None
 
         return False
+
+    def step(self) -> None:
+        """Advance the profiler schedule for per-minibatch stepping."""
+        if not self._active or self._profiler is None:
+            return
+        self._profiler.step()
 
     # Internal helpers -------------------------------------------------
     def _save_profile(self, prof: torch.profiler.profile) -> None:
@@ -172,6 +182,7 @@ class TorchProfiler(TrainerComponent):
         self._original_train_epoch = None
         self._master_only = True
         self._epoch_counter = 0
+        self._original_profiler_step: Callable[[], None] | None = None
 
     def register(self, context: ComponentContext) -> None:  # type: ignore[override]
         super().register(context)
@@ -189,6 +200,8 @@ class TorchProfiler(TrainerComponent):
             )
 
         original_train_epoch = context.get_train_epoch_callable()
+        self._original_profiler_step = context.profiler_step
+        context.profiler_step = self._session.step if self._session else None
 
         def wrapped_train_epoch():
             if self._session is None:
@@ -207,5 +220,6 @@ class TorchProfiler(TrainerComponent):
             self._session.on_epoch_end(epoch)
 
     def on_training_complete(self) -> None:  # type: ignore[override]
+        self.context.profiler_step = self._original_profiler_step
         if self._original_train_epoch is not None:
             self.context.set_train_epoch_callable(self._original_train_epoch)

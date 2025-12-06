@@ -158,42 +158,51 @@ class Trainer:
     def _run_epoch(self) -> None:
         """Run a single training epoch."""
         self._context.reset_for_epoch()
+        profiler_step = self._context.profiler_step
+
+        if profiler_step is not None:
+            profiler_step()
 
         # Start new epoch
         self.core_loop.on_epoch_start(self._context)
 
         # Rollout phase
-        with self.timer("_rollout"):
-            # Ensure ScheduleFree optimizer is in eval mode during rollout
-            if self._is_schedulefree:
-                self.optimizer.eval()
+        with torch.profiler.record_function("_rollout"):
+            with self.timer("_rollout"):
+                # Ensure ScheduleFree optimizer is in eval mode during rollout
+                if self._is_schedulefree:
+                    self.optimizer.eval()
 
-            rollout_result = self.core_loop.rollout_phase(self._env, self._context)
-            self._context.training_env_id = rollout_result.training_env_id
-            world_size = self._distributed_helper.get_world_size()
-            previous_agent_step = self._context.agent_step
-            if rollout_result.agent_steps:
-                self._context.record_rollout(rollout_result.agent_steps, world_size)
-            if rollout_result.raw_infos:
-                self._prev_agent_step_for_step_callbacks = previous_agent_step
-                self._invoke_callback(TrainerCallback.STEP, rollout_result.raw_infos)
-            self._invoke_callback(TrainerCallback.ROLLOUT_END)
+                rollout_result = self.core_loop.rollout_phase(self._env, self._context)
+                self._context.training_env_id = rollout_result.training_env_id
+                world_size = self._distributed_helper.get_world_size()
+                previous_agent_step = self._context.agent_step
+                if rollout_result.agent_steps:
+                    self._context.record_rollout(rollout_result.agent_steps, world_size)
+                if rollout_result.raw_infos:
+                    self._prev_agent_step_for_step_callbacks = previous_agent_step
+                    self._invoke_callback(TrainerCallback.STEP, rollout_result.raw_infos)
+                self._invoke_callback(TrainerCallback.ROLLOUT_END)
+
+        if profiler_step is not None:
+            profiler_step()
 
         # Training phase
-        with self.timer("_train"):
-            if self._context.training_env_id is None:
-                raise RuntimeError("Training environment slice unavailable for training phase")
+        with torch.profiler.record_function("_train"):
+            with self.timer("_train"):
+                if self._context.training_env_id is None:
+                    raise RuntimeError("Training environment slice unavailable for training phase")
 
-            # ScheduleFree optimizer is in train mode for training phase
-            if self._is_schedulefree:
-                self.optimizer.train()
+                # ScheduleFree optimizer is in train mode for training phase
+                if self._is_schedulefree:
+                    self.optimizer.train()
 
-            losses_stats, epochs_trained = self.core_loop.training_phase(
-                context=self._context,
-                update_epochs=self._cfg.update_epochs,
-                max_grad_norm=0.5,
-            )
-            self._context.advance_epoch(epochs_trained)
+                losses_stats, epochs_trained = self.core_loop.training_phase(
+                    context=self._context,
+                    update_epochs=self._cfg.update_epochs,
+                    max_grad_norm=0.5,
+                )
+                self._context.advance_epoch(epochs_trained)
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
 
