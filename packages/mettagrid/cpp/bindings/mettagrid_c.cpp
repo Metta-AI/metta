@@ -658,8 +658,9 @@ void MettaGrid::_step() {
             }
             dst.dynamic_count = static_cast<uint8_t>(to_copy);
             src.dynamic_count = 0;
-            if (src_idx < _dirty_flags.size()) _dirty_flags[src_idx] = 0;
-            if (dst_idx < _dirty_flags.size()) _dirty_flags[dst_idx] = 0;
+            const size_t flags_size = _dirty_flags.size();
+            if (src_idx < flags_size) _dirty_flags[src_idx] = 0;
+            if (dst_idx < flags_size) _dirty_flags[dst_idx] = 0;
           }
         } else if (dynamic_cast<ChangeVibe*>(handler) != nullptr) {
           _mark_cell_dirty(agent->location.r, agent->location.c);
