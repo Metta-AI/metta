@@ -231,7 +231,11 @@ class SweepTool(Tool):
         init_logging(run_dir=Path(self.sweep_dir))
 
         logger.info("[SweepTool] " + "=" * 60)
-        sweep_kind = "Grid search sweep" if self.scheduler_type == SweepSchedulerType.GRID_SEARCH else "Bayesian optimization sweep"
+        sweep_kind = (
+            "Grid search sweep"
+            if self.scheduler_type == SweepSchedulerType.GRID_SEARCH
+            else "Bayesian optimization sweep"
+        )
         logger.info(f"[SweepTool] Starting {sweep_kind}: {self.sweep_name}")
         logger.info(f"[SweepTool] Recipe: {self.recipe_module}.{self.train_entrypoint}")
         logger.info(f"[SweepTool] Max trials: {self.max_trials}")

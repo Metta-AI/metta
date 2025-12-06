@@ -280,27 +280,23 @@ def grid_search(sweep_name: str) -> SweepTool:
         SP.categorical("trainer.losses.ppo.clip_coef", [0.1, 0.2]),
         SP.categorical("trainer.losses.ppo.ent_coef", [0.003, 0.01]),
         SP.categorical("trainer.total_timesteps", [1e4, 2e4, 3e4]),
-        
-        # The following are special parameters (reserved keywords) 
-        # they are not path overrides and instead are handled downstream. 
-        SP.categorical("nodes", [1,2]),
-        SP.categorical("gpus", [1,4])
+        # The following are special parameters (reserved keywords)
+        # they are not path overrides and instead are handled downstream.
+        SP.categorical("nodes", [1, 2]),
+        SP.categorical("gpus", [1, 4]),
     ]
 
     return grid_search_tool(
         name=sweep_name,
         recipe="recipes.prod.arena_basic_easy_shaped",
         train_entrypoint="train",
-        
-        # ingore evals for grid sweep 
-        # TODO Make sure we can specify evals and they work 
+        # ingore evals for grid sweep
+        # TODO Make sure we can specify evals and they work
         eval_entrypoint="evaluate_stub",
         parameters=grid_parameters,
-
-        # This is just a guad so we don't accidentally launch 1000s of trials 
-        # on a huge grid. 
+        # This is just a guad so we don't accidentally launch 1000s of trials
+        # on a huge grid.
         max_trials=100,
-
         # Infrastructure throttling
         num_parallel_trials=4,
     )
