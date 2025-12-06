@@ -665,8 +665,9 @@ void MettaGrid::_step() {
             std::copy_n(src.values.begin() + src.static_count, to_copy, dst.values.begin() + dst.static_count);
             dst.dynamic_count = static_cast<uint8_t>(to_copy);
             src.dynamic_count = 0;
-            // Recompute features (e.g., inventory/energy) for the moved agent.
-            _mark_cell_dirty(after_loc.r, after_loc.c);
+            const size_t flags_size = _dirty_flags.size();
+            if (src_idx < flags_size) _dirty_flags[src_idx] = 0;
+            if (dst_idx < flags_size) _dirty_flags[dst_idx] = 0;
           }
         } else if (dirty_kind == ActionDirtyKind::kChangeVibe) {
           _mark_cell_dirty(agent->location.r, agent->location.c);
@@ -676,9 +677,6 @@ void MettaGrid::_step() {
           // Conservative default for other actions (e.g., attack)
           _mark_observation_window_dirty(before_loc.r, before_loc.c);
         }
-      } else {
-        // Failed action (e.g., insufficient resources) should still refresh cached features.
-        _mark_cell_dirty(agent->location.r, agent->location.c);
       }
     }
   }
