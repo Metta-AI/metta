@@ -111,6 +111,11 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     feature_id_to_name[id] = name;
   }
 
+  for (size_t i = 0; i < resource_names.size(); ++i) {
+    _resource_name_to_index.emplace(resource_names[i], i);
+  }
+  _goal_token_flags.assign(resource_names.size(), 0);
+
   _stats = std::make_unique<StatsTracker>(&resource_names);
 
   _action_success.resize(num_agents);
@@ -297,6 +302,7 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
 
 void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   _max_action_priority = 0;
+  _action_dirty_kinds.clear();
 
   // Noop
   auto noop = std::make_unique<Noop>(*game_config.actions.at("noop"));
@@ -304,6 +310,7 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   if (noop->priority > _max_action_priority) _max_action_priority = noop->priority;
   for (const auto& action : noop->actions()) {
     _action_handlers.push_back(action);
+    _action_dirty_kinds.push_back(ActionDirtyKind::kNoop);
   }
   _action_handler_impl.push_back(std::move(noop));
 
@@ -314,6 +321,7 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   if (move->priority > _max_action_priority) _max_action_priority = move->priority;
   for (const auto& action : move->actions()) {
     _action_handlers.push_back(action);
+    _action_dirty_kinds.push_back(ActionDirtyKind::kMove);
   }
   _action_handler_impl.push_back(std::move(move));
 
@@ -324,6 +332,7 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   if (attack->priority > _max_action_priority) _max_action_priority = attack->priority;
   for (const auto& action : attack->actions()) {
     _action_handlers.push_back(action);
+    _action_dirty_kinds.push_back(ActionDirtyKind::kOther);
   }
   _action_handler_impl.push_back(std::move(attack));
 
@@ -335,6 +344,7 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   if (change_vibe->priority > _max_action_priority) _max_action_priority = change_vibe->priority;
   for (const auto& action : change_vibe->actions()) {
     _action_handlers.push_back(action);
+    _action_dirty_kinds.push_back(ActionDirtyKind::kChangeVibe);
   }
   _action_handler_impl.push_back(std::move(change_vibe));
 }
@@ -378,7 +388,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   ObservationTokens agent_obs_tokens(agent_obs_ptr, capacity);
 
   // Build global tokens based on configuration
-  std::vector<PartialObservationToken> global_tokens;
+  _global_tokens_buffer.clear();
+  _global_tokens_buffer.reserve(8);
 
   if (_global_obs_config.episode_completion_pct) {
     ObservationType episode_completion_pct = 0;
@@ -393,43 +404,43 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
         );
       }
     }
-    global_tokens.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
+    _global_tokens_buffer.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
   }
 
   if (_global_obs_config.last_action) {
-    global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
+    _global_tokens_buffer.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
   }
 
   if (_global_obs_config.last_reward) {
     ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
-    global_tokens.push_back({ObservationFeature::LastReward, reward_int});
+    _global_tokens_buffer.push_back({ObservationFeature::LastReward, reward_int});
   }
 
   // Add goal tokens for rewarding resources when enabled
   if (_global_obs_config.goal_obs) {
+    if (_goal_token_flags.size() < resource_names.size()) {
+      _goal_token_flags.assign(resource_names.size(), 0);
+    } else {
+      std::fill(_goal_token_flags.begin(), _goal_token_flags.end(), 0);
+    }
     auto& agent = _agents[agent_idx];
-    // Track which resources we've already added goal tokens for
-    std::unordered_set<std::string> added_resources;
     // Iterate through stat_rewards to find rewarding resources
     for (const auto& [stat_name, reward_value] : agent->stat_rewards) {
       // Extract resource name from stat name (e.g., "carbon.amount" -> "carbon", "carbon.gained" -> "carbon")
       size_t dot_pos = stat_name.find('.');
       if (dot_pos != std::string::npos) {
         std::string resource_name = stat_name.substr(0, dot_pos);
+        auto resource_idx_it = _resource_name_to_index.find(resource_name);
+        if (resource_idx_it == _resource_name_to_index.end()) continue;
+        const size_t resource_idx = resource_idx_it->second;
         // Only add one goal token per resource
-        if (added_resources.find(resource_name) == added_resources.end()) {
-          // Find the resource index in resource_names
-          for (size_t i = 0; i < resource_names.size(); i++) {
-            if (resource_names[i] == resource_name) {
-              // Get the inventory feature ID for this resource
-              ObservationType inventory_feature_id = _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
-              // Add a goal token with the resource's inventory feature ID as the value
-              global_tokens.push_back({ObservationFeature::Goal, inventory_feature_id});
-              added_resources.insert(resource_name);
-              break;
-            }
-          }
-        }
+        if (_goal_token_flags[resource_idx]) continue;
+        _goal_token_flags[resource_idx] = 1;
+        // Get the inventory feature ID for this resource
+        ObservationType inventory_feature_id =
+            _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(resource_idx));
+        // Add a goal token with the resource's inventory feature ID as the value
+        _global_tokens_buffer.push_back({ObservationFeature::Goal, inventory_feature_id});
       }
     }
   }
@@ -439,7 +450,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
 
   attempted_tokens_written +=
-      _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
+      _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, _global_tokens_buffer, global_location);
   tokens_written = std::min(attempted_tokens_written, capacity);
 
   /*
@@ -518,22 +529,14 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     const size_t to_write = std::min(remaining, cell_count);
     auto* dst = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
 
-    const size_t static_to_write = std::min(to_write, static_cast<size_t>(cell_cache.static_count));
-    for (size_t i = 0; i < static_to_write; ++i) {
-      dst[i].location = packed_location;
-      dst[i].feature_id = cell_cache.feature_ids[i];
-      dst[i].value = cell_cache.values[i];
-    }
-
-    const size_t dynamic_to_write = to_write - static_to_write;
-    if (dynamic_to_write > 0) {
-      const size_t dyn_offset = static_to_write;
-      const size_t dyn_start = static_cast<size_t>(cell_cache.static_count);
-      for (size_t i = 0; i < dynamic_to_write; ++i) {
-        dst[dyn_offset + i].location = packed_location;
-        dst[dyn_offset + i].feature_id = cell_cache.feature_ids[dyn_start + i];
-        dst[dyn_offset + i].value = cell_cache.values[dyn_start + i];
-      }
+    const size_t static_count = static_cast<size_t>(cell_cache.static_count);
+    const size_t dyn_start = static_count;
+    for (size_t i = 0; i < to_write; ++i) {
+      const size_t src_idx = (i < static_count) ? i : dyn_start + (i - static_count);
+      auto& token = dst[i];
+      token.location = packed_location;
+      token.feature_id = cell_cache.feature_ids[src_idx];
+      token.value = cell_cache.values[src_idx];
     }
 
     tokens_written += to_write;
@@ -602,18 +605,24 @@ void MettaGrid::_step() {
   current_step++;
 
   // Create and shuffle agent indices for randomized action order
-  std::vector<size_t> agent_indices(_agents.size());
-  std::iota(agent_indices.begin(), agent_indices.end(), 0);
-  std::shuffle(agent_indices.begin(), agent_indices.end(), _rng);
+  if (_agent_indices.size() != _agents.size()) {
+    _agent_indices.resize(_agents.size());
+  }
+  for (size_t i = 0; i < _agent_indices.size(); ++i) {
+    _agent_indices[i] = i;
+  }
+  std::shuffle(_agent_indices.begin(), _agent_indices.end(), _rng);
 
-  std::vector<ActionType> executed_actions(_agents.size());
+  if (_executed_actions.size() != _agents.size()) {
+    _executed_actions.resize(_agents.size());
+  }
   // Fill with noop. Replace this with the actual action if it's successful.
-  std::fill(executed_actions.begin(), executed_actions.end(), ActionType(0));
+  std::fill(_executed_actions.begin(), _executed_actions.end(), ActionType(0));
   // Process actions by priority levels (highest to lowest)
   for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
     unsigned char current_priority = _max_action_priority - offset;
 
-    for (const auto& agent_idx : agent_indices) {
+    for (const auto& agent_idx : _agent_indices) {
       ActionType action_idx = actions_view(agent_idx);
 
       if (action_idx < 0 || static_cast<size_t>(action_idx) >= _action_handlers.size()) {
@@ -628,12 +637,12 @@ void MettaGrid::_step() {
 
       auto* agent = _agents[agent_idx];
       GridLocation before_loc = agent->location;
-      auto* handler = action.handler();
       bool success = action.handle(*agent);
       _action_success[agent_idx] = success;
       if (success) {
-        executed_actions[agent_idx] = action_idx;
-        if (dynamic_cast<Move*>(handler) != nullptr) {
+        _executed_actions[agent_idx] = action_idx;
+        const auto dirty_kind = _action_dirty_kinds[static_cast<size_t>(action_idx)];
+        if (dirty_kind == ActionDirtyKind::kMove) {
           GridLocation after_loc = agent->location;
           if (after_loc == before_loc) {
             // Move turned into a use; mark both actor and target cells as dirty.
@@ -662,9 +671,9 @@ void MettaGrid::_step() {
             if (src_idx < flags_size) _dirty_flags[src_idx] = 0;
             if (dst_idx < flags_size) _dirty_flags[dst_idx] = 0;
           }
-        } else if (dynamic_cast<ChangeVibe*>(handler) != nullptr) {
+        } else if (dirty_kind == ActionDirtyKind::kChangeVibe) {
           _mark_cell_dirty(agent->location.r, agent->location.c);
-        } else if (dynamic_cast<Noop*>(handler) != nullptr) {
+        } else if (dirty_kind == ActionDirtyKind::kNoop) {
           _mark_cell_dirty(agent->location.r, agent->location.c);
         } else {
           // Conservative default for other actions (e.g., attack)
@@ -720,7 +729,7 @@ void MettaGrid::_step() {
   _dirty_cells.clear();
 
   // Compute observations for next step
-  _compute_observations(executed_actions);
+  _compute_observations(_executed_actions);
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {

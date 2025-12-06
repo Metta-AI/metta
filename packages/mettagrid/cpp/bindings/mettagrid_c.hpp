@@ -112,6 +112,8 @@ public:
   py::dict get_episode_stats();
   py::list action_success_py();
 
+  enum class ActionDirtyKind : uint8_t { kMove, kChangeVibe, kNoop, kOther };
+
   const Grid& grid() const {
     return *_grid;
   }
@@ -143,14 +145,20 @@ private:
   Actions _actions;
   std::vector<Action> _action_handlers;                              // All actions from all handlers
   std::vector<std::unique_ptr<ActionHandler>> _action_handler_impl;  // Owns the ActionHandler objects
+  std::vector<ActionDirtyKind> _action_dirty_kinds;
   unsigned char _max_action_priority;
   ActionSuccess _action_success;
+  std::vector<size_t> _agent_indices;
+  std::vector<ActionType> _executed_actions;
 
   std::vector<CellCache> _cell_cache;  // size: grid_height * grid_width
   std::vector<uint8_t> _dirty_flags;
   std::vector<size_t> _dirty_cells;
   std::vector<PackedOffset> _obs_pattern;
   bool _logged_cell_truncation = false;
+  std::unordered_map<std::string, size_t> _resource_name_to_index;
+  std::vector<uint8_t> _goal_token_flags;
+  std::vector<PartialObservationToken> _global_tokens_buffer;
 
   py::array_t<uint8_t> _observations;
   py::array_t<bool> _terminals;
