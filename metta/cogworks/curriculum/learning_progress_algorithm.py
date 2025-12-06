@@ -263,29 +263,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return None
 
         if self.hypers.use_bidirectional:
-
-            def ev_score(tid: int) -> float:
-                # Evict the task with the lowest bidirectional learning progress
-                # (same formula used for sampling). Fallback to exploration_bonus
-                # when we do not yet have enough data points.
-                vals = self._outcomes.get(tid, [])
-                if len(vals) < 2:
-                    return self.hypers.exploration_bonus
-
-                fast = self._per_task_fast.get(tid, 0.0)
-                slow = self._per_task_slow.get(tid, 0.0)
-
-                if self.hypers.progress_smoothing != 0.0:
-                    fast = float(self._reweight(fast))
-                    slow = float(self._reweight(slow))
-
-                lp = abs(fast - slow)
-                perf_bonus = max(fast, 0) * 0.1
-                score = lp + perf_bonus
-
-                return score
-
-            return min(task_ids, key=ev_score)
+            raw_scores = {tid: self._get_bidirectional_learning_progress_score(tid) for tid in task_ids}
+            return min(raw_scores, key=raw_scores.get)
 
         # Basic mode: reuse existing scores
         scores = self.score_tasks(task_ids)
