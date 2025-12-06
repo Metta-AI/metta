@@ -75,6 +75,13 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   current_step = 0;
 
+  bool observation_size_is_packable =
+      obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
+  if (!observation_size_is_packable) {
+    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) + "x" +
+                             std::to_string(obs_height) + ") exceeds maximum packable size");
+  }
+
   // Precompute packed offsets for the observation window.
   _obs_pattern.clear();
   const ObservationCoord obs_width_radius = obs_width >> 1;
@@ -87,13 +94,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         static_cast<int16_t>(c_offset),
         PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c)),
     });
-  }
-
-  bool observation_size_is_packable =
-      obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
-  if (!observation_size_is_packable) {
-    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) + "x" +
-                             std::to_string(obs_height) + ") exceeds maximum packable size");
   }
 
   GridCoord height = static_cast<GridCoord>(py::len(map));
