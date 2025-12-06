@@ -4,7 +4,8 @@ set -euo pipefail
 # Temporary helper to reproduce the optimized_obs A/B runs from the CLI.
 # Usage: ./run_optobs_ab.sh [run_prefix] [total_timesteps]
 
-RUN_PREFIX="${1:-ab_optobs}"
+RUN_PREFIX_BASE="${1:-ab_optobs}"
+RUN_PREFIX="${RUN_PREFIX_BASE}_$(date +%s)"
 TOTAL_TIMESTEPS="${2:-1000000}"
 
 COMMON_ARGS=(
@@ -28,8 +29,8 @@ COMMON_ARGS=(
   stats_server_uri=none
 )
 
-echo "Running baseline (optimized_obs OFF)..."
+echo "Running baseline (optimized_obs OFF) run=${RUN_PREFIX}_off..."
 METTA_TIMER_REPORT=1 uv run "${COMMON_ARGS[@]}" "run=${RUN_PREFIX}_off"
 
-echo "Running optimized (optimized_obs ON via env)..."
+echo "Running optimized (optimized_obs ON via env) run=${RUN_PREFIX}_on..."
 METTAGRID_OPTIMIZED_OBS=1 METTA_TIMER_REPORT=1 uv run "${COMMON_ARGS[@]}" "run=${RUN_PREFIX}_on"
