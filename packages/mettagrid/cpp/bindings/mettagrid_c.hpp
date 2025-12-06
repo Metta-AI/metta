@@ -59,7 +59,6 @@ public:
     std::array<ObservationType, kMaxTokensPerCell> values{};
     uint8_t static_count = 0;
     uint8_t dynamic_count = 0;
-    bool dirty = false;
   };
   struct PackedOffset {
     int16_t dr;

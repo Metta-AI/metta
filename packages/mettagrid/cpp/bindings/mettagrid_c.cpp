@@ -636,7 +636,6 @@ void MettaGrid::_refresh_dynamic_cell(size_t cell_idx) {
   const GridCoord c = static_cast<GridCoord>(cell_idx % _grid->width);
   auto* obj = _grid->object_at(GridLocation(r, c));
   if (obj == nullptr || dynamic_cast<Wall*>(obj) != nullptr) {
-    cell.dirty = false;
     _dirty_flags[cell_idx] = 0;
     return;
   }
@@ -644,7 +643,6 @@ void MettaGrid::_refresh_dynamic_cell(size_t cell_idx) {
   const auto feats = obj->obs_features();
   const size_t to_copy = _copy_feats_to_cache(feats, cell.static_count, cell, _logged_cell_truncation);
   cell.dynamic_count = static_cast<uint8_t>(to_copy);
-  cell.dirty = false;
   _dirty_flags[cell_idx] = 0;
 }
 
@@ -668,7 +666,6 @@ void MettaGrid::_refresh_all_dynamic_cells() {
 
   for (auto& cell : _cell_cache) {
     cell.dynamic_count = 0;
-    cell.dirty = false;
   }
 
   for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
@@ -702,8 +699,6 @@ void MettaGrid::_move_cached_tokens(size_t src_idx, size_t dst_idx) {
   }
   dst.dynamic_count = static_cast<uint8_t>(to_copy);
   src.dynamic_count = 0;
-  src.dirty = false;
-  dst.dirty = false;
   if (src_idx < _dirty_flags.size()) _dirty_flags[src_idx] = 0;
   if (dst_idx < _dirty_flags.size()) _dirty_flags[dst_idx] = 0;
 }
