@@ -182,13 +182,19 @@ class PPOCritic(Loss):
 
         # forward the policy if called for
         if self.train_forward_enabled:
-            with record_function("ppo_critic.policy_forward"):
+            with record_function("ppo_critic.prepare_policy_td"):
                 policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
                 flat_actions = minibatch["actions"].reshape(B * TT, -1)
+
+            with record_function("ppo_critic.policy_reset"):
                 self.policy.reset_memory()
+
+            with record_function("ppo_critic.policy_forward"):
                 policy_td = self.policy.forward(policy_td, action=flat_actions)
+
+            with record_function("ppo_critic.policy_td_reshape"):
                 policy_td = policy_td.reshape(B, TT)
-                shared_loss_data["policy_td"] = policy_td
+            shared_loss_data["policy_td"] = policy_td
 
         # compute value loss
         old_values = minibatch["values"]
