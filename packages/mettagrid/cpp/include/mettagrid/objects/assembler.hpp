@@ -14,7 +14,9 @@
 #include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/assembler_config.hpp"
+#include "objects/chest.hpp"
 #include "objects/constants.hpp"
+#include "objects/inventory.hpp"
 #include "objects/protocol.hpp"
 #include "objects/usable.hpp"
 #include "systems/observation_encoder.hpp"
@@ -87,6 +89,35 @@ private:
     }
 
     return agents;
+  }
+
+  // Get surrounding chests within chest_search_distance (Chebyshev distance)
+  // Returns empty vector if chest_search_distance is 0
+  std::vector<Chest*> get_surrounding_chests() const {
+    std::vector<Chest*> chests;
+    if (!grid || chest_search_distance == 0) return chests;
+
+    GridCoord r = location.r;
+    GridCoord c = location.c;
+
+    for (int dr = -static_cast<int>(chest_search_distance); dr <= static_cast<int>(chest_search_distance); ++dr) {
+      for (int dc = -static_cast<int>(chest_search_distance); dc <= static_cast<int>(chest_search_distance); ++dc) {
+        // Skip center (assembler itself)
+        if (dr == 0 && dc == 0) continue;
+
+        GridCoord check_r = r + dr;
+        GridCoord check_c = c + dc;
+        GridLocation check_location(check_r, check_c);
+
+        if (grid->is_valid_location(check_location)) {
+          if (Chest* chest = dynamic_cast<Chest*>(grid->object_at(check_location))) {
+            chests.push_back(chest);
+          }
+        }
+      }
+    }
+
+    return chests;
   }
 
   // Check if inventories have sufficient resources for the given protocol
@@ -215,6 +246,9 @@ public:
   // Allow partial usage during cooldown
   bool allow_partial_usage;
 
+  // Chest search distance - if > 0, assembler can use inventories from chests within this distance
+  unsigned int chest_search_distance;
+
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg, StatsTracker* stats)
       : protocols(build_protocol_map(cfg.protocols)),
         unclip_protocols(),
@@ -230,6 +264,7 @@ public:
         current_timestep_ptr(nullptr),
         obs_encoder(nullptr),
         allow_partial_usage(cfg.allow_partial_usage),
+        chest_search_distance(cfg.chest_search_distance),
         clipper_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
   }
@@ -426,20 +461,31 @@ public:
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
     // Extract Inventory* pointers from agents for resource operations
-    std::vector<Inventory*> surrounding_inventories;
+    std::vector<Inventory*> input_inventories;
     for (Agent* agent : surrounding_agents) {
-      surrounding_inventories.push_back(&agent->inventory);
+      input_inventories.push_back(&agent->inventory);
     }
-    if (!Assembler::can_afford_protocol(protocol_to_use, surrounding_inventories)) {
+    // Add chest inventories if chest_search_distance > 0
+    if (chest_search_distance > 0) {
+      std::vector<Chest*> surrounding_chests = get_surrounding_chests();
+      for (Chest* chest : surrounding_chests) {
+        input_inventories.push_back(&chest->inventory);
+      }
+    }
+    if (!Assembler::can_afford_protocol(protocol_to_use, input_inventories)) {
       return false;
     }
-    if (!Assembler::can_receive_output(protocol_to_use, surrounding_inventories) && !is_clipped) {
+    std::vector<Inventory*> output_inventories;
+    for (const auto& [item, amount] : protocol_to_use.output_resources) {
+      output_inventories.push_back(&actor.inventory);
+    }
+    if (!Assembler::can_receive_output(protocol_to_use, output_inventories) && !is_clipped) {
       // If the inventories gain nothing from the protocol, don't use it.
       return false;
     }
 
-    consume_resources_for_protocol(protocol_to_use, surrounding_inventories);
-    give_output_for_protocol(protocol_to_use, surrounding_inventories);
+    consume_resources_for_protocol(protocol_to_use, input_inventories);
+    give_output_for_protocol(protocol_to_use, output_inventories);
 
     cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;

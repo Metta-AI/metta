@@ -14,10 +14,8 @@
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
+#include "systems/observation_encoder.hpp"
 #include "systems/stats_tracker.hpp"
-
-class ObservationEncoder;
-
 class Chest : public GridObject, public Usable, public HasInventory {
 private:
   // a reference to the game stats tracker

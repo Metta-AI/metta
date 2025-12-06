@@ -271,6 +271,11 @@ class AssemblerConfig(GridObjectConfig):
     start_clipped: bool = Field(
         default=False, description="If true, this assembler starts in a clipped state at the beginning of the game"
     )
+    chest_search_distance: int = Field(
+        default=0,
+        ge=0,
+        description="Distance within which assembler can use inventories from chests",
+    )
 
 
 class ChestConfig(GridObjectConfig):
