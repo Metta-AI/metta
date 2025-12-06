@@ -800,7 +800,6 @@ void MettaGrid::_step() {
               const size_t src_idx = _cell_index(before_loc.r, before_loc.c);
               const size_t dst_idx = _cell_index(after_loc.r, after_loc.c);
               _move_cached_tokens(src_idx, dst_idx);
-              _mark_cell_dirty_idx(dst_idx);
             } else {
               _mark_cell_dirty(before_loc.r, before_loc.c);
               _mark_cell_dirty(after_loc.r, after_loc.c);
