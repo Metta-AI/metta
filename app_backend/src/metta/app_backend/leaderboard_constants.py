@@ -1,6 +1,6 @@
 """Shared constants used by leaderboard components."""
 
-LEADERBOARD_SIM_VERSION = "v0.1"
+LEADERBOARD_SIM_VERSION = "v0.2"
 
 # Policy version tags
 COGAMES_SUBMITTED_PV_KEY = "cogames-submitted"
