@@ -658,16 +658,8 @@ void MettaGrid::_step() {
             const size_t src_idx = _cell_index(before_loc.r, before_loc.c);
             const size_t dst_idx = _cell_index(after_loc.r, after_loc.c);
             auto& src = _cell_cache[src_idx];
-            auto& dst = _cell_cache[dst_idx];
-            const size_t capacity = kMaxTokensPerCell - static_cast<size_t>(dst.static_count);
-            const size_t to_copy = std::min(capacity, static_cast<size_t>(src.dynamic_count));
-            std::copy_n(src.feature_ids.begin() + src.static_count, to_copy, dst.feature_ids.begin() + dst.static_count);
-            std::copy_n(src.values.begin() + src.static_count, to_copy, dst.values.begin() + dst.static_count);
-            dst.dynamic_count = static_cast<uint8_t>(to_copy);
             src.dynamic_count = 0;
-            const size_t flags_size = _dirty_flags.size();
-            if (src_idx < flags_size) _dirty_flags[src_idx] = 0;
-            if (dst_idx < flags_size) _dirty_flags[dst_idx] = 0;
+            _mark_cell_dirty(after_loc.r, after_loc.c);
           }
         } else if (dirty_kind == ActionDirtyKind::kChangeVibe) {
           _mark_cell_dirty(agent->location.r, agent->location.c);
@@ -677,6 +669,7 @@ void MettaGrid::_step() {
           // Conservative default for other actions (e.g., attack)
           _mark_observation_window_dirty(before_loc.r, before_loc.c);
         }
+        _mark_cell_dirty(agent->location.r, agent->location.c);
       }
     }
   }
