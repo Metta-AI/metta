@@ -118,6 +118,10 @@ class EpisodeReplay:
         """Log a single step of the episode."""
         self.total_rewards += rewards
 
+        agent_policy_ids = {}
+        for agent_id in range(self.sim.num_agents):
+            agent_policy_ids[agent_id] = self.sim.get_agent_policy_id(agent_id)
+
         # On first step, get ALL objects (including walls) to set up the replay
         # On subsequent steps, use ignore_types to skip static objects at the C++ level
         if self.step == 0:
@@ -139,6 +143,7 @@ class EpisodeReplay:
                 self.sim.action_success,
                 rewards,
                 self.total_rewards,
+                agent_policy_ids=agent_policy_ids,
             )
 
             self._seq_key_merge(self.objects[idx], self.step, update_object)
@@ -182,6 +187,15 @@ class EpisodeReplay:
                 ):
                     grid_object[key] = changes[0][1]
 
+        policies_data = []
+        unique_policies = self.sim.get_unique_policy_descriptors()
+        for policy in unique_policies:
+            policies_data.append({
+                "name": policy.name,
+                "is_scripted": policy.is_scripted,
+            })
+
+        self.replay_data["policies"] = policies_data
         return self.replay_data
 
     def write_replay(self, path: str):
