@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
 import torch
@@ -32,6 +33,8 @@ class CortexStack(nn.Module):
         self._tf32_configured: bool = False
 
         compile_requested = bool(getattr(cfg, "compile_blocks", False))
+        if os.environ.get("CORTEX_DISABLE_COMPILE") == "1":
+            compile_requested = False
         if compile_requested and not torch.cuda.is_available():
             logger.warning("Disabling block compilation for CortexStack: running on CPU.")
             compile_requested = False
