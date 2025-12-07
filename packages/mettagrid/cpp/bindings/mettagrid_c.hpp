@@ -1,1 +1,1 @@
-/home/relh/Code/metta/packages/mettagrid/cpp/bindings/alt_mettagrid_c.hpp
+alt_mettagrid_c.hpp

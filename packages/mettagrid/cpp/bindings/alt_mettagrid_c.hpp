@@ -13,6 +13,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <array>
 #include <memory>
 #include <random>
 #include <string>
@@ -124,6 +125,9 @@ private:
 
   size_t _num_observation_tokens;
 
+  // Static wall cache: cell index -> encoded tokens for walls
+  std::vector<std::vector<PartialObservationToken>> _wall_token_cache;
+
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
   std::vector<Agent*> _agents;
@@ -164,6 +168,19 @@ private:
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
+
+  struct PackedOffset {
+    int16_t dr;
+    int16_t dc;
+    uint8_t packed;
+  };
+
+  // Precomputed observation pattern and reusable buffers
+  std::vector<PackedOffset> _obs_pattern;
+  std::vector<PartialObservationToken> _global_tokens_buffer;
+  std::vector<uint8_t> _goal_token_flags;
+  std::vector<size_t> _agent_indices;
+  std::vector<ActionType> _executed_actions;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

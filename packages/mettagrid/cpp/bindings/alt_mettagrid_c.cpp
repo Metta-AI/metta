@@ -63,6 +63,20 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
                              std::to_string(obs_height) + ") exceeds maximum packable size");
   }
 
+  // Precompute packed offsets for the observation window.
+  _obs_pattern.clear();
+  const ObservationCoord obs_width_radius = obs_width >> 1;
+  const ObservationCoord obs_height_radius = obs_height >> 1;
+  for (const auto& [r_offset, c_offset] : PackedCoordinate::ObservationPattern{obs_height, obs_width}) {
+    const int obs_r = r_offset + static_cast<int>(obs_height_radius);
+    const int obs_c = c_offset + static_cast<int>(obs_width_radius);
+    _obs_pattern.push_back(PackedOffset{
+        static_cast<int16_t>(r_offset),
+        static_cast<int16_t>(c_offset),
+        PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c)),
+    });
+  }
+
   GridCoord height = static_cast<GridCoord>(py::len(map));
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
@@ -77,6 +91,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   for (const auto& [name, id] : game_config.feature_ids) {
     feature_id_to_name[id] = name;
   }
+
+  _goal_token_flags.assign(resource_names.size(), 0);
+  _wall_token_cache.clear();
 
   _stats = std::make_unique<StatsTracker>(&resource_names);
 
@@ -111,6 +128,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   object_type_names.resize(game_config.objects.size());
+  _wall_token_cache.assign(static_cast<size_t>(height) * width, {});
 
   for (const auto& [key, object_cfg] : game_config.objects) {
     TypeId type_id = object_cfg->type_id;
@@ -308,8 +326,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   const int map_center_r = static_cast<int>(_grid->height) / 2;
   const int map_center_c = static_cast<int>(_grid->width) / 2;
 
-  // Fill in visible objects. Observations should have been cleared in _step, so
-  // we don't need to do that here.
+  // Fill in visible objects. Tail clearing handled per-agent; no full-buffer clear.
   size_t attempted_tokens_written = 0;
   size_t tokens_written = 0;
   auto observation_view = _observations.mutable_unchecked<3>();
@@ -321,7 +338,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       agent_obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
 
   // Build global tokens based on configuration
-  std::vector<PartialObservationToken> global_tokens;
+  _global_tokens_buffer.clear();
 
   if (_global_obs_config.episode_completion_pct) {
     ObservationType episode_completion_pct = 0;
@@ -336,43 +353,38 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
         );
       }
     }
-    global_tokens.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
+    _global_tokens_buffer.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
   }
 
   if (_global_obs_config.last_action) {
-    global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
+    _global_tokens_buffer.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
   }
 
   if (_global_obs_config.last_reward) {
     ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
-    global_tokens.push_back({ObservationFeature::LastReward, reward_int});
+    _global_tokens_buffer.push_back({ObservationFeature::LastReward, reward_int});
   }
 
   // Add goal tokens for rewarding resources when enabled
   if (_global_obs_config.goal_obs) {
+    if (_goal_token_flags.size() < resource_names.size()) {
+      _goal_token_flags.assign(resource_names.size(), 0);
+    } else {
+      std::fill(_goal_token_flags.begin(), _goal_token_flags.end(), 0);
+    }
     auto& agent = _agents[agent_idx];
-    // Track which resources we've already added goal tokens for
-    std::unordered_set<std::string> added_resources;
-    // Iterate through stat_rewards to find rewarding resources
     for (const auto& [stat_name, reward_value] : agent->stat_rewards) {
-      // Extract resource name from stat name (e.g., "carbon.amount" -> "carbon", "carbon.gained" -> "carbon")
       size_t dot_pos = stat_name.find('.');
-      if (dot_pos != std::string::npos) {
-        std::string resource_name = stat_name.substr(0, dot_pos);
-        // Only add one goal token per resource
-        if (added_resources.find(resource_name) == added_resources.end()) {
-          // Find the resource index in resource_names
-          for (size_t i = 0; i < resource_names.size(); i++) {
-            if (resource_names[i] == resource_name) {
-              // Get the inventory feature ID for this resource
-              ObservationType inventory_feature_id = _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
-              // Add a goal token with the resource's inventory feature ID as the value
-              global_tokens.push_back({ObservationFeature::Goal, inventory_feature_id});
-              added_resources.insert(resource_name);
-              break;
-            }
-          }
-        }
+      if (dot_pos == std::string::npos) continue;
+      std::string resource_name = stat_name.substr(0, dot_pos);
+      for (size_t i = 0; i < resource_names.size(); i++) {
+        if (resource_names[i] != resource_name) continue;
+        if (_goal_token_flags[i]) break;
+        _goal_token_flags[i] = 1;
+        ObservationType inventory_feature_id =
+            _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
+        _global_tokens_buffer.push_back({ObservationFeature::Goal, inventory_feature_id});
+        break;
       }
     }
   }
@@ -382,7 +394,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
 
   attempted_tokens_written +=
-      _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
+      _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, _global_tokens_buffer, global_location);
   tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
 
   /*
@@ -432,17 +444,17 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     }
   }
 
-  // Process locations in increasing manhattan distance order
-  for (const auto& [r_offset, c_offset] : PackedCoordinate::ObservationPattern{observable_height, observable_width}) {
-    int r = static_cast<int>(observer_row) + r_offset;
-    int c = static_cast<int>(observer_col) + c_offset;
+  // Process locations in increasing manhattan distance order (precomputed pattern)
+  for (const auto& offset : _obs_pattern) {
+    int r = static_cast<int>(observer_row) + offset.dr;
+    int c = static_cast<int>(observer_col) + offset.dc;
 
     // Skip if outside map bounds
     if (r < r_start || r >= r_end || c < c_start || c >= c_end) {
       continue;
     }
 
-    //  process a single grid location
+    // process a single grid location
     GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c));
     auto obj = _grid->object_at(object_loc);
     if (!obj) {
@@ -460,14 +472,30 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
 
     // Encode location and add tokens
-    uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
-    attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
+    uint8_t location = offset.packed;
+    // Use cached tokens for walls.
+    if (auto* wall = dynamic_cast<Wall*>(obj)) {
+      const size_t cell_idx = static_cast<size_t>(object_loc.r) * _grid->width + object_loc.c;
+      auto& cached = _wall_token_cache[cell_idx];
+      if (cached.empty()) {
+        cached = wall->obs_features();
+      }
+      attempted_tokens_written += _obs_encoder->append_tokens_if_room_available(obs_tokens, cached, location);
+    } else {
+      attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
+    }
     tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
   }
 
   _stats->add("tokens_written", tokens_written);
   _stats->add("tokens_dropped", attempted_tokens_written - tokens_written);
   _stats->add("tokens_free_space", static_cast<size_t>(observation_view.shape(1)) - tokens_written);
+
+  // Clear the unused tail to avoid stale data.
+  auto* tail_start = reinterpret_cast<ObservationType*>(observation_view.mutable_data(
+      agent_idx, static_cast<py::ssize_t>(tokens_written), 0));
+  const size_t tail_elems = (static_cast<size_t>(observation_view.shape(1)) - tokens_written) * 3;
+  std::fill(tail_start, tail_start + tail_elems, EmptyTokenByte);
 }
 
 void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_actions) {
@@ -494,10 +522,6 @@ void MettaGrid::_step() {
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0);
 
-  auto obs_ptr = static_cast<ObservationType*>(_observations.request().ptr);
-  auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
-
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Increment timestep and process events
@@ -505,17 +529,22 @@ void MettaGrid::_step() {
 
   // Create and shuffle agent indices for randomized action order
   std::vector<size_t> agent_indices(_agents.size());
-  std::iota(agent_indices.begin(), agent_indices.end(), 0);
-  std::shuffle(agent_indices.begin(), agent_indices.end(), _rng);
+  if (_agent_indices.size() != _agents.size()) {
+    _agent_indices.resize(_agents.size());
+  }
+  std::iota(_agent_indices.begin(), _agent_indices.end(), 0);
+  std::shuffle(_agent_indices.begin(), _agent_indices.end(), _rng);
 
-  std::vector<ActionType> executed_actions(_agents.size());
+  if (_executed_actions.size() != _agents.size()) {
+    _executed_actions.resize(_agents.size());
+  }
   // Fill with noop. Replace this with the actual action if it's successful.
-  std::fill(executed_actions.begin(), executed_actions.end(), ActionType(0));
+  std::fill(_executed_actions.begin(), _executed_actions.end(), ActionType(0));
   // Process actions by priority levels (highest to lowest)
   for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
     unsigned char current_priority = _max_action_priority - offset;
 
-    for (const auto& agent_idx : agent_indices) {
+    for (const auto& agent_idx : _agent_indices) {
       ActionType action_idx = actions_view(agent_idx);
 
       if (action_idx < 0 || static_cast<size_t>(action_idx) >= _action_handlers.size()) {
@@ -532,7 +561,7 @@ void MettaGrid::_step() {
       bool success = action.handle(*agent);
       _action_success[agent_idx] = success;
       if (success) {
-        executed_actions[agent_idx] = action_idx;
+        _executed_actions[agent_idx] = action_idx;
       }
     }
   }
@@ -554,7 +583,7 @@ void MettaGrid::_step() {
   }
 
   // Compute observations for next step
-  _compute_observations(executed_actions);
+  _compute_observations(_executed_actions);
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {
