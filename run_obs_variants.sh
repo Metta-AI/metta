@@ -25,7 +25,7 @@ declare -A VARIANT_HPP=(
 )
 
 COMMON_ARGS=(
-  ./tools/run.py train arena
+  ./tools/run.py train cogs_v_clips
   system.local_only=true
   wandb.enabled=false wandb.project=na wandb.entity=na
   trainer.minibatch_size=512
@@ -74,7 +74,7 @@ for variant in push dirtybit main; do
   sleep 2
 done
 
-# Restore push variant as default
-set_variant push
+# Restore dirtybit variant as default
+set_variant dirtybit
 
 echo "All variants completed."

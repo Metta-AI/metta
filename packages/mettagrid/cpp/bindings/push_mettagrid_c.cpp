@@ -933,6 +933,44 @@ void MettaGrid::_clear_agent_observation(size_t agent_idx) {
   }
 }
 
+void MettaGrid::_shift_agent_window(size_t agent_idx, int dr, int dc) {
+  if (dr == 0 && dc == 0) return;
+  auto observation_view = _observations.mutable_unchecked<3>();
+  ObservationToken* buffer = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+  const size_t capacity = static_cast<size_t>(observation_view.shape(1));
+
+  const ObservationCoord obs_height_radius = obs_height >> 1;
+  const ObservationCoord obs_width_radius = obs_width >> 1;
+  const uint8_t center_location =
+      PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
+
+  for (size_t i = 0; i < capacity; ++i) {
+    auto& token = buffer[i];
+    if (token.location == EmptyTokenByte) continue;
+    if (token.location == center_location && _is_global_feature(token.feature_id)) {
+      continue;
+    }
+    auto unpacked = PackedCoordinate::unpack(token.location);
+    if (!unpacked.has_value()) {
+      token.location = EmptyTokenByte;
+      token.feature_id = EmptyTokenByte;
+      token.value = EmptyTokenByte;
+      continue;
+    }
+    int new_r = static_cast<int>(unpacked->first) - dr;
+    int new_c = static_cast<int>(unpacked->second) - dc;
+    if (new_r < 0 || new_c < 0 || new_r >= static_cast<int>(obs_height) || new_c >= static_cast<int>(obs_width)) {
+      token.location = EmptyTokenByte;
+      token.feature_id = EmptyTokenByte;
+      token.value = EmptyTokenByte;
+      continue;
+    }
+    token.location = PackedCoordinate::pack(static_cast<uint8_t>(new_r), static_cast<uint8_t>(new_c));
+  }
+
+  _rebuild_location_spans_for_agent(agent_idx);
+}
+
 namespace {
 }  // namespace
 
@@ -1075,6 +1113,15 @@ void MettaGrid::_step() {
 
   _refresh_dirty_cells();
 
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+    if (!agent_moved[agent_idx]) continue;
+    const auto& before = _prev_locations[agent_idx];
+    const auto& after = _agents[agent_idx]->location;
+    const int dr = static_cast<int>(after.r) - static_cast<int>(before.r);
+    const int dc = static_cast<int>(after.c) - static_cast<int>(before.c);
+    _shift_agent_window(agent_idx, dr, dc);
+  }
+
   _rebuild_fov_reverse_map();
 
   std::vector<size_t> cells_to_update;
@@ -1085,7 +1132,6 @@ void MettaGrid::_step() {
 
   for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
     if (!agent_moved[agent_idx]) continue;
-    _clear_agent_observation(agent_idx);
     const auto* agent = _agents[agent_idx];
     for (const auto& [dr, dc] : PackedCoordinate::ObservationPattern{obs_height, obs_width}) {
       int rr = static_cast<int>(agent->location.r) + dr;

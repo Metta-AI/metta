@@ -220,6 +220,7 @@ private:
   void _update_observation_from_cache(GridCoord r, GridCoord c);
   void _rewrite_global_tokens(size_t agent_idx, ActionType action);
   void _clear_agent_observation(size_t agent_idx);
+  void _shift_agent_window(size_t agent_idx, int dr, int dc);
 
   std::vector<GridLocation> _prev_locations;
 };
