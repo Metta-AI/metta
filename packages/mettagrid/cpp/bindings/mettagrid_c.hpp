@@ -54,6 +54,12 @@ public:
   MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
   ~MettaGrid();
 
+  enum DirtyBits : uint8_t {
+    kDirtyLocation = 1 << 0,
+    kDirtyContent = 1 << 1,
+    kDirtyAll = kDirtyLocation | kDirtyContent,
+  };
+
   static constexpr size_t kMaxTokensPerCell = 24;
 
   struct CellCache {
@@ -185,8 +191,10 @@ private:
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
 
   inline size_t _cell_index(GridCoord r, GridCoord c) const { return static_cast<size_t>(r) * _grid->width + c; }
-  inline void _mark_cell_dirty(GridCoord r, GridCoord c);
-  inline void _mark_observation_window_dirty(GridCoord center_r, GridCoord center_c);
+  inline void _mark_cell_dirty(GridCoord r, GridCoord c, uint8_t flags = DirtyBits::kDirtyAll);
+  inline void _mark_observation_window_dirty(GridCoord center_r, GridCoord center_c, uint8_t flags = DirtyBits::kDirtyAll);
+  void _refresh_dirty_cells();
+  void _mark_all_assembler_cells_dirty();
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

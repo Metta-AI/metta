@@ -121,7 +121,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _action_success.resize(num_agents);
 
   init_action_handlers(game_config);
-
   _init_grid(game_config, map);
 
   // Initialize per-cell token cache (static once, dynamic rebuilt each step).
@@ -163,6 +162,10 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
                                          clipper_cfg.clip_period,
                                          _rng);
   }
+
+  // Ensure assembler cells are refreshed after clipper initialization/start-clipped handling.
+  _mark_all_assembler_cells_dirty();
+  _refresh_dirty_cells();
 }
 
 MettaGrid::~MettaGrid() = default;
@@ -564,23 +567,64 @@ void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_ac
   }
 }
 
-inline void MettaGrid::_mark_cell_dirty(GridCoord r, GridCoord c) {
+inline void MettaGrid::_mark_cell_dirty(GridCoord r, GridCoord c, uint8_t flags) {
+  if (flags == 0) return;
   if (r >= _grid->height || c >= _grid->width) return;
   const size_t idx = _cell_index(r, c);
   if (idx >= _dirty_flags.size()) return;
-  if (_dirty_flags[idx]) return;
-  _dirty_flags[idx] = 1;
+  if ((_dirty_flags[idx] & flags) == flags) return;
+  _dirty_flags[idx] |= flags;
   _dirty_cells.push_back(idx);
 }
 
-inline void MettaGrid::_mark_observation_window_dirty(GridCoord center_r, GridCoord center_c) {
+inline void MettaGrid::_mark_observation_window_dirty(GridCoord center_r, GridCoord center_c, uint8_t flags) {
   for (const auto& offset : _obs_pattern) {
     const int r = static_cast<int>(center_r) + offset.dr;
     const int c = static_cast<int>(center_c) + offset.dc;
     if (r < 0 || c < 0) continue;
     if (r >= static_cast<int>(_grid->height) || c >= static_cast<int>(_grid->width)) continue;
-    _mark_cell_dirty(static_cast<GridCoord>(r), static_cast<GridCoord>(c));
+    _mark_cell_dirty(static_cast<GridCoord>(r), static_cast<GridCoord>(c), flags);
   }
+}
+
+void MettaGrid::_mark_all_assembler_cells_dirty() {
+  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
+    auto* obj = _grid->object(obj_id);
+    if (obj == nullptr) continue;
+    if (dynamic_cast<Assembler*>(obj) != nullptr) {
+      _mark_cell_dirty(obj->location.r, obj->location.c, DirtyBits::kDirtyContent);
+    }
+  }
+}
+
+void MettaGrid::_refresh_dirty_cells() {
+  if (_dirty_cells.empty()) return;
+
+  for (size_t idx : _dirty_cells) {
+    if (idx >= _cell_cache.size()) continue;
+    auto& cell = _cell_cache[idx];
+
+    const bool has_content_dirty = (_dirty_flags[idx] & DirtyBits::kDirtyContent) != 0;
+    if (!has_content_dirty) continue;
+
+    cell.dynamic_count = 0;
+
+    const GridCoord r = static_cast<GridCoord>(idx / _grid->width);
+    const GridCoord c = static_cast<GridCoord>(idx % _grid->width);
+    auto* obj = _grid->object_at(GridLocation(r, c));
+    if (obj == nullptr || dynamic_cast<Wall*>(obj) != nullptr) {
+      _dirty_flags[idx] &= ~DirtyBits::kDirtyContent;
+      continue;
+    }
+
+    const auto feats = obj->obs_features();
+    const uint8_t to_copy = _copy_feats_to_cache(feats, cell.static_count, cell, _logged_cell_truncation);
+    cell.dynamic_count = to_copy;
+    _dirty_flags[idx] &= ~DirtyBits::kDirtyContent;
+  }
+
+  // Clear list; location dirties will be cleared after observations are computed.
+  _dirty_cells.clear();
 }
 
 void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type) {
@@ -651,25 +695,34 @@ void MettaGrid::_step() {
             getOrientationDelta(static_cast<Orientation>(action.arg()), dc, dr);
             GridCoord target_r = static_cast<GridCoord>(static_cast<int>(before_loc.r) + dr);
             GridCoord target_c = static_cast<GridCoord>(static_cast<int>(before_loc.c) + dc);
-            _mark_cell_dirty(before_loc.r, before_loc.c);
-            _mark_cell_dirty(target_r, target_c);
+            _mark_cell_dirty(before_loc.r, before_loc.c, DirtyBits::kDirtyContent);
+            _mark_cell_dirty(target_r, target_c, DirtyBits::kDirtyContent);
           } else {
             // Successful move: shift cached tokens instead of rebuilding.
             const size_t src_idx = _cell_index(before_loc.r, before_loc.c);
             const size_t dst_idx = _cell_index(after_loc.r, after_loc.c);
             auto& src = _cell_cache[src_idx];
+            auto& dst = _cell_cache[dst_idx];
+            const size_t capacity = kMaxTokensPerCell - static_cast<size_t>(dst.static_count);
+            const size_t to_copy = std::min(capacity, static_cast<size_t>(src.dynamic_count));
+            for (size_t i = 0; i < to_copy; ++i) {
+              dst.feature_ids[dst.static_count + i] = src.feature_ids[src.static_count + i];
+              dst.values[dst.static_count + i] = src.values[src.static_count + i];
+            }
+            dst.dynamic_count = static_cast<uint8_t>(to_copy);
             src.dynamic_count = 0;
-            _mark_cell_dirty(after_loc.r, after_loc.c);
+            _mark_cell_dirty(after_loc.r, after_loc.c, DirtyBits::kDirtyLocation);
+            _mark_cell_dirty(before_loc.r, before_loc.c, DirtyBits::kDirtyLocation);
           }
         } else if (dirty_kind == ActionDirtyKind::kChangeVibe) {
-          _mark_cell_dirty(agent->location.r, agent->location.c);
+          _mark_cell_dirty(agent->location.r, agent->location.c, DirtyBits::kDirtyContent);
         } else if (dirty_kind == ActionDirtyKind::kNoop) {
-          _mark_cell_dirty(agent->location.r, agent->location.c);
+          _mark_cell_dirty(agent->location.r, agent->location.c, DirtyBits::kDirtyContent);
         } else {
           // Conservative default for other actions (e.g., attack)
-          _mark_observation_window_dirty(before_loc.r, before_loc.c);
+          _mark_observation_window_dirty(before_loc.r, before_loc.c, DirtyBits::kDirtyContent);
         }
-        _mark_cell_dirty(agent->location.r, agent->location.c);
+        _mark_cell_dirty(agent->location.r, agent->location.c, DirtyBits::kDirtyContent);
       }
     }
   }
@@ -681,7 +734,7 @@ void MettaGrid::_step() {
         for (const auto& [item, amount] : agent->inventory_regen_amounts) {
           agent->inventory.update(item, amount);
         }
-        _mark_cell_dirty(agent->location.r, agent->location.c);
+        _mark_cell_dirty(agent->location.r, agent->location.c, DirtyBits::kDirtyContent);
       }
     }
   }
@@ -693,34 +746,18 @@ void MettaGrid::_step() {
       auto* obj = _grid->object(obj_id);
       if (obj == nullptr) continue;
       if (dynamic_cast<Assembler*>(obj) != nullptr) {
-        _mark_cell_dirty(obj->location.r, obj->location.c);
+        _mark_cell_dirty(obj->location.r, obj->location.c, DirtyBits::kDirtyContent);
       }
     }
   }
 
-  // Refresh dirty cells before computing the next observation.
-  for (size_t idx : _dirty_cells) {
-    if (idx >= _cell_cache.size()) continue;
-    auto& cell = _cell_cache[idx];
-    cell.dynamic_count = 0;
-
-    const GridCoord r = static_cast<GridCoord>(idx / _grid->width);
-    const GridCoord c = static_cast<GridCoord>(idx % _grid->width);
-    auto* obj = _grid->object_at(GridLocation(r, c));
-    if (obj == nullptr || dynamic_cast<Wall*>(obj) != nullptr) {
-      _dirty_flags[idx] = 0;
-      continue;
-    }
-
-    const auto feats = obj->obs_features();
-    const uint8_t to_copy = _copy_feats_to_cache(feats, cell.static_count, cell, _logged_cell_truncation);
-    cell.dynamic_count = to_copy;
-    _dirty_flags[idx] = 0;
-  }
-  _dirty_cells.clear();
+  _refresh_dirty_cells();
 
   // Compute observations for next step
   _compute_observations(_executed_actions);
+
+  // Clear remaining dirty flags (e.g., location-only)
+  std::fill(_dirty_flags.begin(), _dirty_flags.end(), 0);
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {
