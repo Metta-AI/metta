@@ -356,18 +356,17 @@ def train(
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
 
-    # Compute BC window in steps (1 unit = 1M agent steps)
-    default_steps = 1000 if bc_policy_uri is not None else 0  # 1B agent steps when BC is enabled
-    steps = bc_steps if bc_steps is not None else default_steps
-    bc_steps_actual = int(steps * 1_000_000)
-    anneal_start = int(bc_steps_actual * 0.5)
-    anneal_end = bc_steps_actual
+    # Compute BC window in agent steps (default is 1B when BC is enabled)
+    default_bc_steps = 1_000_000_000 if bc_policy_uri is not None else 0
+    bc_total_steps = bc_steps if bc_steps is not None else default_bc_steps
+    anneal_start = int(bc_total_steps * 0.5)
+    anneal_end = bc_total_steps
 
     scheduler_run_gates: list[LossRunGate] = [
-        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_steps_actual),
-        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=bc_steps_actual),
-        LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_steps_actual),
-        LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=bc_steps_actual),
+        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_total_steps),
+        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=bc_total_steps),
+        LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
+        LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=bc_total_steps),
     ]
     scheduler_rules: list[HyperUpdateRule] = []
 
@@ -377,7 +376,7 @@ def train(
         losses.ppo.enabled = False
         losses.ppo_actor.enabled = True
         losses.ppo_critic.enabled = True
-        losses.ppo_critic.deferred_training_start_step = bc_steps_actual
+        losses.ppo_critic.deferred_training_start_step = bc_total_steps
 
         if bc_mode == "sliced_cloner":
             losses.sliced_scripted_cloner.enabled = True
@@ -392,7 +391,7 @@ def train(
                     start_value=0.2,
                     end_value=0.0,
                     start_agent_step=0,
-                    end_agent_step=bc_steps_actual,
+                    end_agent_step=bc_total_steps,
                 )
             ]
         else:
@@ -424,7 +423,7 @@ def train(
             ]
 
         bc_run_gates = [
-            LossRunGate(loss_instance_name=loss_instance_name, phase=phase, end_at_step=bc_steps_actual)
+            LossRunGate(loss_instance_name=loss_instance_name, phase=phase, end_at_step=bc_total_steps)
             for phase in ("rollout", "train")
         ]
         scheduler_run_gates += bc_run_gates
