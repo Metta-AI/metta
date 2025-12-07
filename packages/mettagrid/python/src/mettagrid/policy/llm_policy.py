@@ -635,8 +635,22 @@ class LLMAgentPolicy(AgentPolicy):
                 unique_positions.append(pos)
                 seen.add(pos)
 
-        summary = f"[Window {window_num}] Moved from {pos_to_dir(*start_pos)} to {pos_to_dir(*end_pos)}"
-        summary += f" | Visited: {len(unique_positions)} unique spots, {len(self._all_visited_positions)} total explored"
+        # Calculate net direction of movement this window
+        dx = end_pos[0] - start_pos[0]
+        dy = end_pos[1] - start_pos[1]
+        net_direction = []
+        if dy < 0:
+            net_direction.append("North")
+        elif dy > 0:
+            net_direction.append("South")
+        if dx > 0:
+            net_direction.append("East")
+        elif dx < 0:
+            net_direction.append("West")
+        net_dir_str = "-".join(net_direction) if net_direction else "stationary"
+
+        summary = f"[Window {window_num}] {pos_to_dir(*start_pos)} → {pos_to_dir(*end_pos)} (heading {net_dir_str})"
+        summary += f" | {len(unique_positions)} new spots, {len(self._all_visited_positions)} total"
 
         return summary
 
