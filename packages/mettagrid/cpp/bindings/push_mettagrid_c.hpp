@@ -47,6 +47,11 @@ struct ActionConfig;
 struct AttackActionConfig;
 struct ChangeVibeActionConfig;
 
+struct LocationSpan {
+  size_t start;
+  size_t len;
+};
+
 namespace py = pybind11;
 
 class METTAGRID_API MettaGrid {
@@ -198,6 +203,23 @@ private:
   void _mark_all_assembler_cells_dirty(bool force = false);
   inline void _mark_if_assembler(GridCoord r, GridCoord c);
   inline void _mark_adjacent_assemblers(GridCoord r, GridCoord c);
+
+  bool _is_global_feature(ObservationType feature_id) const;
+
+  // Push-mode helpers and state
+  std::vector<std::vector<size_t>> _cell_to_agents;
+  void _rebuild_fov_reverse_map();
+
+  std::vector<std::array<LocationSpan, 256>> _location_spans;
+  void _rebuild_location_spans();
+
+  void _init_cell_cache();
+  void _refresh_cell_cache(GridCoord r, GridCoord c);
+
+  void _update_observation_from_cache(GridCoord r, GridCoord c);
+  void _rewrite_global_tokens(size_t agent_idx, ActionType action);
+
+  std::vector<GridLocation> _prev_locations;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_
