@@ -17,6 +17,7 @@
 #include <random>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "config/mettagrid_config.hpp"
@@ -164,6 +165,11 @@ private:
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
+
+  void _shift_observation(size_t agent_idx, int dr, int dc);
+  void _rewrite_global_tokens(size_t agent_idx, ActionType action);
+  void _update_observation(GridCoord r, GridCoord c);
+  bool _is_global_feature(ObservationType feature_id) const;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

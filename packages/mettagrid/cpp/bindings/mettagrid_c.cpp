@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <string>
@@ -287,6 +288,248 @@ void MettaGrid::add_agent(Agent* agent) {
   _agents.push_back(agent);
 }
 
+bool MettaGrid::_is_global_feature(ObservationType feature_id) const {
+  return feature_id == ObservationFeature::EpisodeCompletionPct || feature_id == ObservationFeature::LastAction ||
+         feature_id == ObservationFeature::LastReward || feature_id == ObservationFeature::Compass ||
+         feature_id == ObservationFeature::Goal;
+}
+
+void MettaGrid::_shift_observation(size_t agent_idx, int dr, int dc) {
+  if (dr == 0 && dc == 0) {
+    return;
+  }
+
+  auto observation_view = _observations.mutable_unchecked<3>();
+  ObservationToken* tokens =
+      reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+  const size_t capacity = static_cast<size_t>(observation_view.shape(1));
+
+  for (size_t i = 0; i < capacity; ++i) {
+    ObservationToken& token = tokens[i];
+    if (token.location == EmptyTokenByte) {
+      continue;
+    }
+    if (_is_global_feature(token.feature_id)) {
+      continue;
+    }
+    auto unpacked = PackedCoordinate::unpack(token.location);
+    if (!unpacked.has_value()) {
+      token.location = EmptyTokenByte;
+      token.feature_id = EmptyTokenByte;
+      token.value = EmptyTokenByte;
+      continue;
+    }
+    int new_r = static_cast<int>(unpacked->first) - dr;
+    int new_c = static_cast<int>(unpacked->second) - dc;
+    if (new_r < 0 || new_r >= static_cast<int>(obs_height) || new_c < 0 || new_c >= static_cast<int>(obs_width)) {
+      token.location = EmptyTokenByte;
+      token.feature_id = EmptyTokenByte;
+      token.value = EmptyTokenByte;
+      continue;
+    }
+    token.location = PackedCoordinate::pack(static_cast<uint8_t>(new_r), static_cast<uint8_t>(new_c));
+  }
+}
+
+void MettaGrid::_rewrite_global_tokens(size_t agent_idx, ActionType action) {
+  auto observation_view = _observations.mutable_unchecked<3>();
+  ObservationToken* buffer =
+      reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+  const size_t capacity = static_cast<size_t>(observation_view.shape(1));
+
+  std::vector<ObservationToken> kept;
+  kept.reserve(capacity);
+  for (size_t i = 0; i < capacity; ++i) {
+    const ObservationToken& token = buffer[i];
+    if (token.location == EmptyTokenByte) {
+      continue;
+    }
+    if (_is_global_feature(token.feature_id)) {
+      continue;
+    }
+    kept.push_back(token);
+  }
+
+  const ObservationCoord obs_height_radius = obs_height >> 1;
+  const ObservationCoord obs_width_radius = obs_width >> 1;
+  const uint8_t center_location =
+      PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
+
+  std::vector<PartialObservationToken> global_tokens;
+
+  if (_global_obs_config.episode_completion_pct) {
+    ObservationType episode_completion_pct = 0;
+    if (max_steps > 0) {
+      if (current_step >= max_steps) {
+        episode_completion_pct = std::numeric_limits<ObservationType>::max();
+      } else {
+        episode_completion_pct = static_cast<ObservationType>(
+            (static_cast<uint32_t>(std::numeric_limits<ObservationType>::max()) + 1) * current_step / max_steps);
+      }
+    }
+    global_tokens.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
+  }
+
+  if (_global_obs_config.last_action) {
+    global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
+  }
+
+  if (_global_obs_config.last_reward) {
+    auto rewards_view = _rewards.unchecked<1>();
+    ObservationType reward_int =
+        static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
+    global_tokens.push_back({ObservationFeature::LastReward, reward_int});
+  }
+
+  if (_global_obs_config.goal_obs) {
+    auto* agent = _agents[agent_idx];
+    std::unordered_set<std::string> added_resources;
+    for (const auto& [stat_name, _] : agent->stat_rewards) {
+      size_t dot_pos = stat_name.find('.');
+      if (dot_pos != std::string::npos) {
+        std::string resource_name = stat_name.substr(0, dot_pos);
+        if (added_resources.find(resource_name) == added_resources.end()) {
+          for (size_t i = 0; i < resource_names.size(); i++) {
+            if (resource_names[i] == resource_name) {
+              ObservationType inventory_feature_id =
+                  _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
+              global_tokens.push_back({ObservationFeature::Goal, inventory_feature_id});
+              added_resources.insert(resource_name);
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  std::vector<ObservationToken> rebuilt;
+  rebuilt.reserve(capacity);
+
+  for (const auto& token : global_tokens) {
+    ObservationToken rewritten{};
+    rewritten.location = center_location;
+    rewritten.feature_id = token.feature_id;
+    rewritten.value = token.value;
+    rebuilt.push_back(rewritten);
+  }
+
+  // Compass token (optional)
+  if (_global_obs_config.compass) {
+    const int map_center_r = static_cast<int>(_grid->height) / 2;
+    const int map_center_c = static_cast<int>(_grid->width) / 2;
+    const auto* agent = _agents[agent_idx];
+
+    const int delta_r = map_center_r - static_cast<int>(agent->location.r);
+    const int delta_c = map_center_c - static_cast<int>(agent->location.c);
+
+    int step_r = 0;
+    int step_c = 0;
+    if (delta_r != 0) {
+      step_r = (delta_r > 0) ? 1 : -1;
+    }
+    if (delta_c != 0) {
+      step_c = (delta_c > 0) ? 1 : -1;
+    }
+
+    if (step_r != 0 || step_c != 0) {
+      int obs_r = static_cast<int>(obs_height_radius) + step_r;
+      int obs_c = static_cast<int>(obs_width_radius) + step_c;
+
+      if (obs_r >= 0 && obs_r < static_cast<int>(obs_height) && obs_c >= 0 && obs_c < static_cast<int>(obs_width)) {
+        ObservationToken compass{};
+        compass.location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
+        compass.feature_id = ObservationFeature::Compass;
+        compass.value = static_cast<ObservationType>(1);
+        rebuilt.push_back(compass);
+      }
+    }
+  }
+
+  for (const auto& token : kept) {
+    if (rebuilt.size() >= capacity) {
+      break;
+    }
+    rebuilt.push_back(token);
+  }
+
+  for (size_t i = 0; i < capacity; ++i) {
+    if (i < rebuilt.size()) {
+      buffer[i] = rebuilt[i];
+    } else {
+      buffer[i].location = EmptyTokenByte;
+      buffer[i].feature_id = EmptyTokenByte;
+      buffer[i].value = EmptyTokenByte;
+    }
+  }
+}
+
+void MettaGrid::_update_observation(GridCoord r, GridCoord c) {
+  const ObservationCoord obs_height_radius = obs_height >> 1;
+  const ObservationCoord obs_width_radius = obs_width >> 1;
+
+  GridLocation loc(r, c);
+  const GridObject* obj = _grid->object_at(loc);
+
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+    const auto* agent = _agents[agent_idx];
+    int dr = static_cast<int>(r) - static_cast<int>(agent->location.r);
+    int dc = static_cast<int>(c) - static_cast<int>(agent->location.c);
+    if (std::abs(dr) > obs_height_radius || std::abs(dc) > obs_width_radius) {
+      continue;
+    }
+
+    const uint8_t packed_location =
+        PackedCoordinate::pack(static_cast<uint8_t>(dr + obs_height_radius),
+                               static_cast<uint8_t>(dc + obs_width_radius));
+
+    std::vector<ObservationToken> new_tokens;
+    if (obj != nullptr) {
+      new_tokens.resize(_num_observation_tokens);
+      ObservationTokens token_span(new_tokens.data(), new_tokens.size());
+      size_t attempted = _obs_encoder->encode_tokens(obj, token_span, packed_location);
+      size_t count = std::min(attempted, new_tokens.size());
+      new_tokens.resize(count);
+    }
+
+    auto observation_view = _observations.mutable_unchecked<3>();
+    ObservationToken* buffer =
+        reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+    const size_t capacity = static_cast<size_t>(observation_view.shape(1));
+
+    std::vector<ObservationToken> rebuilt;
+    rebuilt.reserve(capacity);
+
+    for (size_t i = 0; i < capacity; ++i) {
+      const ObservationToken& token = buffer[i];
+      if (token.location == EmptyTokenByte) {
+        continue;
+      }
+      if (token.location == packed_location && !_is_global_feature(token.feature_id)) {
+        continue;
+      }
+      rebuilt.push_back(token);
+    }
+
+    for (const auto& token : new_tokens) {
+      if (rebuilt.size() >= capacity) {
+        break;
+      }
+      rebuilt.push_back(token);
+    }
+
+    for (size_t i = 0; i < capacity; ++i) {
+      if (i < rebuilt.size()) {
+        buffer[i] = rebuilt[i];
+      } else {
+        buffer[i].location = EmptyTokenByte;
+        buffer[i].feature_id = EmptyTokenByte;
+        buffer[i].value = EmptyTokenByte;
+      }
+    }
+  }
+}
+
 void MettaGrid::_compute_observation(GridCoord observer_row,
                                      GridCoord observer_col,
                                      ObservationCoord observable_width,
@@ -494,14 +737,15 @@ void MettaGrid::_step() {
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0);
 
-  auto obs_ptr = static_cast<ObservationType*>(_observations.request().ptr);
-  auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
-
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Increment timestep and process events
   current_step++;
+
+  std::vector<GridLocation> prev_locations(_agents.size());
+  for (size_t idx = 0; idx < _agents.size(); ++idx) {
+    prev_locations[idx] = _agents[idx]->location;
+  }
 
   // Create and shuffle agent indices for randomized action order
   std::vector<size_t> agent_indices(_agents.size());
@@ -537,6 +781,50 @@ void MettaGrid::_step() {
     }
   }
 
+  const ObservationCoord obs_height_radius = obs_height >> 1;
+  const ObservationCoord obs_width_radius = obs_width >> 1;
+
+  std::vector<GridLocation> cells_to_update;
+
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+    if (_action_success[agent_idx]) {
+      ActionType action_idx = executed_actions[agent_idx];
+      Action& action = _action_handlers[static_cast<size_t>(action_idx)];
+      auto* move_handler = dynamic_cast<Move*>(action.handler());
+      if (move_handler != nullptr) {
+        GridCoord new_r = _agents[agent_idx]->location.r;
+        GridCoord new_c = _agents[agent_idx]->location.c;
+        const GridCoord old_r = prev_locations[agent_idx].r;
+        const GridCoord old_c = prev_locations[agent_idx].c;
+        int dr = static_cast<int>(new_r) - static_cast<int>(old_r);
+        int dc = static_cast<int>(new_c) - static_cast<int>(old_c);
+        _shift_observation(agent_idx, dr, dc);
+
+        cells_to_update.push_back(prev_locations[agent_idx]);
+        cells_to_update.push_back(GridLocation(new_r, new_c));
+
+        if (dr != 0) {
+          int fringe_r_int = dr > 0 ? static_cast<int>(new_r) + static_cast<int>(obs_height_radius)
+                                    : static_cast<int>(new_r) - static_cast<int>(obs_height_radius);
+          GridCoord fringe_r = static_cast<GridCoord>(fringe_r_int);
+          for (int dc_off = -static_cast<int>(obs_width_radius); dc_off <= static_cast<int>(obs_width_radius); ++dc_off) {
+            GridCoord col = static_cast<GridCoord>(static_cast<int>(new_c) + dc_off);
+            cells_to_update.push_back(GridLocation(fringe_r, col));
+          }
+        }
+        if (dc != 0) {
+          int fringe_c_int = dc > 0 ? static_cast<int>(new_c) + static_cast<int>(obs_width_radius)
+                                    : static_cast<int>(new_c) - static_cast<int>(obs_width_radius);
+          GridCoord fringe_c = static_cast<GridCoord>(fringe_c_int);
+          for (int dr_off = -static_cast<int>(obs_height_radius); dr_off <= static_cast<int>(obs_height_radius); ++dr_off) {
+            GridCoord row = static_cast<GridCoord>(static_cast<int>(new_r) + dr_off);
+            cells_to_update.push_back(GridLocation(row, fringe_c));
+          }
+        }
+      }
+    }
+  }
+
   // Handle per-agent inventory regeneration (global interval check, per-agent amounts)
   if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
     for (auto* agent : _agents) {
@@ -553,8 +841,34 @@ void MettaGrid::_step() {
     _clipper->maybe_clip_new_assembler();
   }
 
-  // Compute observations for next step
-  _compute_observations(executed_actions);
+  // Always refresh agent cells to propagate inventory/vibe changes
+  for (const auto* agent : _agents) {
+    cells_to_update.push_back(agent->location);
+  }
+
+  // Refresh all existing object cells to keep tokens in sync
+  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
+    auto* obj = _grid->object(obj_id);
+    if (obj == nullptr) {
+      continue;
+    }
+    cells_to_update.push_back(obj->location);
+  }
+
+  std::unordered_set<size_t> seen_cells;
+  for (const auto& cell : cells_to_update) {
+    if (!_grid->is_valid_location(cell)) {
+      continue;
+    }
+    size_t idx = static_cast<size_t>(cell.r) * _grid->width + cell.c;
+    if (seen_cells.insert(idx).second) {
+      _update_observation(cell.r, cell.c);
+    }
+  }
+
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+    _rewrite_global_tokens(agent_idx, executed_actions[agent_idx]);
+  }
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {
