@@ -170,6 +170,10 @@ private:
   void _rewrite_global_tokens(size_t agent_idx, ActionType action);
   void _update_observation(GridCoord r, GridCoord c);
   bool _is_global_feature(ObservationType feature_id) const;
+
+  // FoV reverse map: cell_idx -> list of agent indices who can see it.
+  std::vector<std::vector<size_t>> _cell_to_agents;
+  void _rebuild_fov_reverse_map();
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

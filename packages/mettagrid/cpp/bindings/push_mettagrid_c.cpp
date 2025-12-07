@@ -86,6 +86,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   init_action_handlers(game_config);
 
   _init_grid(game_config, map);
+  _rebuild_fov_reverse_map();
 
   // Create buffers
   _make_buffers(num_agents);
@@ -288,6 +289,28 @@ void MettaGrid::add_agent(Agent* agent) {
   _agents.push_back(agent);
 }
 
+void MettaGrid::_rebuild_fov_reverse_map() {
+  _cell_to_agents.clear();
+  const size_t total_cells = static_cast<size_t>(_grid->height) * _grid->width;
+  _cell_to_agents.resize(total_cells);
+
+  const ObservationCoord obs_height_radius = obs_height >> 1;
+  const ObservationCoord obs_width_radius = obs_width >> 1;
+
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+    const auto* agent = _agents[agent_idx];
+    for (const auto& [dr, dc] : PackedCoordinate::ObservationPattern{obs_height, obs_width}) {
+      int rr = static_cast<int>(agent->location.r) + dr;
+      int cc = static_cast<int>(agent->location.c) + dc;
+      if (rr < 0 || cc < 0 || rr >= static_cast<int>(_grid->height) || cc >= static_cast<int>(_grid->width)) {
+        continue;
+      }
+      size_t idx = static_cast<size_t>(rr) * _grid->width + static_cast<size_t>(cc);
+      _cell_to_agents[idx].push_back(agent_idx);
+    }
+  }
+}
+
 bool MettaGrid::_is_global_feature(ObservationType feature_id) const {
   return feature_id == ObservationFeature::EpisodeCompletionPct || feature_id == ObservationFeature::LastAction ||
          feature_id == ObservationFeature::LastReward || feature_id == ObservationFeature::Compass ||
@@ -471,14 +494,16 @@ void MettaGrid::_update_observation(GridCoord r, GridCoord c) {
   GridLocation loc(r, c);
   const GridObject* obj = _grid->object_at(loc);
 
-  for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+  size_t cell_idx = static_cast<size_t>(r) * _grid->width + static_cast<size_t>(c);
+  const auto& watchers = _cell_to_agents[cell_idx];
+
+  for (size_t agent_idx : watchers) {
     const auto* agent = _agents[agent_idx];
     int dr = static_cast<int>(r) - static_cast<int>(agent->location.r);
     int dc = static_cast<int>(c) - static_cast<int>(agent->location.c);
     if (std::abs(dr) > obs_height_radius || std::abs(dc) > obs_width_radius) {
       continue;
     }
-
     const uint8_t packed_location =
         PackedCoordinate::pack(static_cast<uint8_t>(dr + obs_height_radius),
                                static_cast<uint8_t>(dc + obs_width_radius));
@@ -781,6 +806,9 @@ void MettaGrid::_step() {
     }
   }
 
+  // Refresh FoV reverse map after all moves have been applied.
+  _rebuild_fov_reverse_map();
+
   const ObservationCoord obs_height_radius = obs_height >> 1;
   const ObservationCoord obs_width_radius = obs_width >> 1;
 
@@ -839,20 +867,6 @@ void MettaGrid::_step() {
   // Apply global systems
   if (_clipper) {
     _clipper->maybe_clip_new_assembler();
-  }
-
-  // Always refresh agent cells to propagate inventory/vibe changes
-  for (const auto* agent : _agents) {
-    cells_to_update.push_back(agent->location);
-  }
-
-  // Refresh all existing object cells to keep tokens in sync
-  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
-    auto* obj = _grid->object(obj_id);
-    if (obj == nullptr) {
-      continue;
-    }
-    cells_to_update.push_back(obj->location);
   }
 
   std::unordered_set<size_t> seen_cells;
@@ -953,6 +967,7 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
 
   validate_buffers();
   _init_buffers(_agents.size());
+  _rebuild_fov_reverse_map();
 }
 
 void MettaGrid::step() {
