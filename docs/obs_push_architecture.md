@@ -1,52 +1,31 @@
-# Observation Update: Push-Based Architecture (No Dirty Bits)
+# Observation Update: Simple Push Setup
 
-This describes a push-driven observation updater that keeps per-agent buffers accurate without sweeping dirty bits. Moves are fast (shift the window), and world changes push token updates directly into the agents that can see them.
+Based on the current `mettagrid_c.cpp/.hpp` (full rebuild every step) and the prior dirty-bit experiment now parked in `dirtybit_mettagrid_c.cpp/.hpp`, we can drop dirty-bit read/write entirely and add a minimal push-style updater.
 
-## Core Data Structures
-- **obs_buffers[agent]**: current observation buffer for each agent (tokens with packed locations).
-- **cell_tokens[cell]**: current token list for each cell (static+dynamic). Refresh only when that cell’s object changes.
-- **fov_map[agent]**: precomputed list of cell indices in the agent’s FoV (using the packed offset pattern). Also build a reverse index: **cell -> list of agents** who can see it.
-- **cell_offsets[agent][cell]**: for cells currently in that agent’s FoV, the start/end positions in the agent’s obs buffer. Updated when windows shift or when inserts/removals happen.
-- **assembler_cells**: list of assembler (and other neighbor-dependent) cell indices for quick adjacency checks.
+## Baseline + Backup
+- Keep `mettagrid_c.cpp/.hpp` on the clean origin/main implementation (clears obs in `_step` and calls `_compute_observations`).
+- Preserve the dirty-bit version in `dirtybit_mettagrid_c.cpp/.hpp` for reference and benchmarking (it precomputes `_obs_pattern`, caches per-cell tokens, tracks assembler adjacency, and logs per-cell truncation).
+- No new dirty flags or per-cell caches in the main path; fall back to full rebuild on reset or if a push path ever desyncs.
 
-## Step Order (matches current pipeline: actions → regen → clipper → obs)
-1) **Shift from prior obs**  
-   - Copy prior obs buffers to “next”.  
-   - For each agent that successfully moved N/S/E/W, shift its window: rewrite packed locations and adjust `cell_offsets`. No clearing.
+## `updateObservation` Helper
+- Input: a cell location (and optional object pointer/null). Compute fresh tokens for that cell via `_obs_encoder->encode_tokens` into a small stack buffer; if empty, use an empty token set.
+- For each agent: if `abs(dr) <= obs_height/2` and `abs(dc) <= obs_width/2`, compute the packed location (`PackedCoordinate::pack(dr + obs_height/2, dc + obs_width/2)`), scan that agent’s obs buffer for tokens matching that location, and rewrite them in-place (drop extras with `EmptyTokenByte`, extend when fewer existed).
+- No per-cell offset bookkeeping; the packed location already lives in each token (see `mettagrid_c.cpp`’s `_compute_observation` loop over `PackedCoordinate::ObservationPattern`).
+- Keep a tiny scratch buffer and reuse it to avoid allocations; keep the 24-token-per-cell truncation log pattern from `dirtybit_mettagrid_c.cpp` if helpful.
 
-2) **Collect change events as the world mutates**  
-   - Move success: record `move_event(src_cell, dst_cell, object_id)`.  
-   - Inventory/vibe changes: `content_event(cell)`.  
-   - Time-based ticks: emit `cooldown_event(cell)` per assembler (or only those with active cooldown).  
-   - Clipper/start-clipped: after clipper init/unclip, emit `content_event(cell)` for affected assemblers.
+## Movement Slice
+- Add `shiftObservation(agent_idx, dr, dc)` that walks an agent’s tokens, updates their packed locations, and drops any that move outside the window.
+- After a successful move, call `shiftObservation` and then `updateObservation` on the fringe cells that became newly visible (one row/col depending on N/S/E/W). If the agent started/ended near a boundary, fall back to `_compute_observation` for that agent only.
 
-3) **Apply change events (push updates)**  
-   For each event cell:
-   - Recompute `cell_tokens[cell]` if needed.  
-   - For each agent in `cell -> agents`:
-     - If the cell is already in view (`cell_offsets` exists): overwrite that span with the new tokens (truncate/log if too many, pad tail if fewer).  
-     - If the cell just entered view due to the agent’s shift: insert the new tokens at the proper position, shift the tail, and update `cell_offsets` for subsequent cells.  
-     - If the cell left view: remove its span and compact (or overwrite with next cell’s tokens and pad tail).
+## Where to Call `updateObservation`
+- Move success: shift the mover’s window, then `updateObservation` on the source cell, destination cell, and any swapped occupant.
+- Action handlers that mutate objects: `Attack` (target cell, attacker cell if stats/inventory change), `ChangeVibe`, any inventory transfers, freeze/unfreeze, vibe changes, or stat deltas that affect `obs_features`.
+- Global/system ticks: inventory regeneration, assembler cooldown/use, clipper start/unclip toggles, vibe transfers in chests, protocol switches, and any spawn/despawn.
+- Grid-level spawns/destructions (agent death, object removal/addition) should `updateObservation` the affected cell(s).
 
-4) **Neighbor-dependent objects (assemblers, etc.)**  
-   - For each `move_event`, if `src` or `dst` is adjacent to an `assembler_cell`, emit `content_event(assembler_cell)`. This keeps recipe/synergy tokens current without dirtying every move.
-
-5) **Finalize**  
-   - Update `cell_offsets` for agents whose windows shifted or whose windows had inserts/removals.  
-   - No global recompute; no per-agent rebuild unless a change touched their FoV.
-
-## Precomputation & Token Rules
-- Precompute `fov_map` and the reverse map at reset; reuse each step.  
-- Keep per-cell token order stable: static tokens first, then dynamic, so overwrites are predictable.  
-- Keep the per-cell cap at 24; log on truncation to avoid silent drops.  
-- Construct the clipper before the first obs; run start-clipped/unclip, then push `content_event` to those cells so reset observations are accurate.
-
-## Why This Works
-- **Performance**: Moves stay O(window_size) via shift; updates are O(changed_cells × agents_in_view × token_count) with a cheap reverse map and few assembler updates.  
-- **Correctness**: Cooldowns and neighbor changes are pushed directly; no stale cached cells.  
-- **Simplicity**: No dirty sweeps; events drive the minimal writes needed to keep observations correct.
-
-## Current Status
-- Implemented assembler awareness with a lightweight adjacency mark and cooldown-based refresh.  
-- Benchmark (arena, 1M steps, batch 32k/minibatch 512, bptt 8, 1 worker, CUDA, METTA_TIMER_REPORT=1): rollout ≈ 8.09s, train ≈ 8.90s, throughput ~64–66 ksps (near prior baseline).  
-- Token cap remains 24; truncation still logged.
+## Landing Steps
+1) Copy current `mettagrid_c.cpp/.hpp` to `dirtybit_mettagrid_c.cpp/.hpp` (done) so the dirty-bit path stays available.
+2) Reset `mettagrid_c.*` to origin/main to remove dirty-bit read/write.
+3) Add `updateObservation` and `shiftObservation` helpers that operate directly on the existing observation buffer layout (no extra caches).
+4) Wire calls into the mutation sites above; keep `_compute_observations` for reset and as a safety fallback.
+5) Reuse the token-cap/truncation logging pattern if we exceed per-cell capacity while patching.

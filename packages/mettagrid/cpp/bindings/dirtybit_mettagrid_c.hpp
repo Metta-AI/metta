@@ -13,6 +13,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <array>
 #include <memory>
 #include <random>
 #include <string>
@@ -52,6 +53,30 @@ class METTAGRID_API MettaGrid {
 public:
   MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
   ~MettaGrid();
+
+  enum DirtyBits : uint8_t {
+    kDirtyLocation = 1 << 0,
+    kDirtyContent = 1 << 1,
+    kDirtyAll = kDirtyLocation | kDirtyContent,
+  };
+
+  static constexpr size_t kMaxTokensPerCell = 24;
+
+  struct CellCache {
+    std::array<ObservationType, kMaxTokensPerCell> feature_ids{};
+    std::array<ObservationType, kMaxTokensPerCell> values{};
+    uint8_t static_count = 0;
+    uint8_t dynamic_count = 0;
+  };
+
+  struct PackedOffset {
+    int16_t dr;
+    int16_t dc;
+    uint8_t packed;
+  };
+
+  using Actions = py::array_t<ActionType, py::array::c_style>;
+  using ActionSuccess = std::vector<bool>;
 
   ObservationCoord obs_width;
   ObservationCoord obs_height;
@@ -93,8 +118,7 @@ public:
   py::dict get_episode_stats();
   py::list action_success_py();
 
-  using Actions = py::array_t<ActionType, py::array::c_style>;
-  using ActionSuccess = std::vector<bool>;
+  enum class ActionDirtyKind : uint8_t { kMove, kChangeVibe, kNoop, kOther };
 
   const Grid& grid() const {
     return *_grid;
@@ -108,44 +132,46 @@ public:
   }
 
 private:
-  // Member variables
   GlobalObsConfig _global_obs_config;
   GameConfig _game_config;
+  size_t _num_observation_tokens;
+  unsigned int _inventory_regen_interval;
+  unsigned int _seed;
+  std::mt19937 _rng;
 
   std::unique_ptr<Grid> _grid;
-
-  Actions _actions;
-  std::vector<Action> _action_handlers;                              // All actions from all handlers
-  std::vector<std::unique_ptr<ActionHandler>> _action_handler_impl;  // Owns the ActionHandler objects
-  unsigned char _max_action_priority;
-
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
-
-  size_t _num_observation_tokens;
+  std::unique_ptr<Clipper> _clipper;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
   std::vector<Agent*> _agents;
 
-  // We'd prefer to store these as more raw c-style arrays, but we need to both
-  // operate on the memory directly and return them to python.
+  Actions _actions;
+  std::vector<Action> _action_handlers;                              // All actions from all handlers
+  std::vector<std::unique_ptr<ActionHandler>> _action_handler_impl;  // Owns the ActionHandler objects
+  std::vector<ActionDirtyKind> _action_dirty_kinds;
+  unsigned char _max_action_priority;
+  ActionSuccess _action_success;
+  std::vector<size_t> _agent_indices;
+  std::vector<ActionType> _executed_actions;
+  std::vector<size_t> _assembler_cells;
+
+  std::vector<CellCache> _cell_cache;  // size: grid_height * grid_width
+  std::vector<uint8_t> _dirty_flags;
+  std::vector<size_t> _dirty_cells;
+  std::vector<PackedOffset> _obs_pattern;
+  bool _logged_cell_truncation = false;
+  std::unordered_map<std::string, size_t> _resource_name_to_index;
+  std::vector<uint8_t> _goal_token_flags;
+  std::vector<PartialObservationToken> _global_tokens_buffer;
+
   py::array_t<uint8_t> _observations;
   py::array_t<bool> _terminals;
   py::array_t<bool> _truncations;
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
-
-  ActionSuccess _action_success;
-
-  std::mt19937 _rng;
-  unsigned int _seed;
-
-  // Inventory regeneration
-  unsigned int _inventory_regen_interval;
-
-  // Global systems
-  std::unique_ptr<Clipper> _clipper;
 
   void init_action_handlers(const GameConfig& game_config);
   void add_agent(Agent* agent);
@@ -164,6 +190,14 @@ private:
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
+
+  inline size_t _cell_index(GridCoord r, GridCoord c) const { return static_cast<size_t>(r) * _grid->width + c; }
+  inline void _mark_cell_dirty(GridCoord r, GridCoord c, uint8_t flags = DirtyBits::kDirtyAll);
+  inline void _mark_observation_window_dirty(GridCoord center_r, GridCoord center_c, uint8_t flags = DirtyBits::kDirtyAll);
+  void _refresh_dirty_cells();
+  void _mark_all_assembler_cells_dirty(bool force = false);
+  inline void _mark_if_assembler(GridCoord r, GridCoord c);
+  inline void _mark_adjacent_assemblers(GridCoord r, GridCoord c);
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_
