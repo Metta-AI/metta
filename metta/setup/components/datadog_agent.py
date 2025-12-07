@@ -98,9 +98,13 @@ class DatadogAgentSetup(SetupModule):
         except Exception as e:
             warning(f"Could not enable logs in DD config: {e}")
 
+    def _stop_agent(self) -> None:
+        subprocess.run(["pkill", "-f", "datadog-agent"], capture_output=True)
+
     def _start_agent(self) -> None:
         if not os.path.exists(AGENT_BINARY):
             return
+        self._stop_agent()
         subprocess.Popen(
             [AGENT_BINARY, "run"],
             stdout=subprocess.DEVNULL,
