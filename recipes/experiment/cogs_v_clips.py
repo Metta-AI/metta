@@ -321,13 +321,13 @@ def _configure_bc(
     losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
 
     run_gates = [
-        LossRunGate(loss_instance_name="action_supervisor", phase=phase, end_at_step=bc_steps_actual)
+        LossRunGate(loss_instance_name="supervisor", phase=phase, end_at_step=bc_steps_actual)
         for phase in ("rollout", "train")
     ]
 
     rules = [
         HyperUpdateRule(
-            loss_instance_name="action_supervisor",
+            loss_instance_name="supervisor",
             attr_path="action_loss_coef",
             mode="progress",
             style="linear",
@@ -337,7 +337,7 @@ def _configure_bc(
             end_agent_step=anneal_end,
         ),
         HyperUpdateRule(
-            loss_instance_name="action_supervisor",
+            loss_instance_name="supervisor",
             attr_path="teacher_lead_prob",
             mode="progress",
             style="linear",
