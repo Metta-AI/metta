@@ -1,7 +1,6 @@
 import os
 import platform
 import subprocess
-from shutil import which
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
@@ -106,13 +105,8 @@ class DatadogAgentSetup(SetupModule):
             return
 
         info("Installing Datadog agent...")
-        install_cmd = 'bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"'
-        if which("sudo"):
-            install_cmd = f"sudo {install_cmd}"
-
         result = subprocess.run(
-            install_cmd,
-            shell=True,
+            ["bash", "-c", "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"],
             env=env,
             capture_output=True,
             text=True,
