@@ -120,6 +120,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _action_success.resize(num_agents);
 
+  _assembler_cells.clear();
+
   init_action_handlers(game_config);
   _init_grid(game_config, map);
 
@@ -139,6 +141,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       const uint8_t to_copy = _copy_feats_to_cache(feats, 0, cache, _logged_cell_truncation);
       cache.static_count = to_copy;
       continue;
+    }
+    if (dynamic_cast<Assembler*>(obj) != nullptr) {
+      _assembler_cells.push_back(idx);
     }
     const auto feats = obj->obs_features();
     auto& cache = _cell_cache[idx];
@@ -164,7 +169,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   }
 
   // Ensure assembler cells are refreshed after clipper initialization/start-clipped handling.
-  _mark_all_assembler_cells_dirty();
+  _mark_all_assembler_cells_dirty(/*force=*/true);
   _refresh_dirty_cells();
 }
 
@@ -587,12 +592,34 @@ inline void MettaGrid::_mark_observation_window_dirty(GridCoord center_r, GridCo
   }
 }
 
-void MettaGrid::_mark_all_assembler_cells_dirty() {
-  for (GridObjectId obj_id = 1; obj_id < _grid->objects.size(); ++obj_id) {
-    auto* obj = _grid->object(obj_id);
-    if (obj == nullptr) continue;
-    if (dynamic_cast<Assembler*>(obj) != nullptr) {
-      _mark_cell_dirty(obj->location.r, obj->location.c, DirtyBits::kDirtyContent);
+void MettaGrid::_mark_all_assembler_cells_dirty(bool force) {
+  for (const auto idx : _assembler_cells) {
+    const GridCoord r = static_cast<GridCoord>(idx / _grid->width);
+    const GridCoord c = static_cast<GridCoord>(idx % _grid->width);
+    auto* obj = _grid->object_at(GridLocation(r, c));
+    auto* assembler = dynamic_cast<Assembler*>(obj);
+    if (assembler == nullptr) continue;
+    if (force || assembler->cooldown_remaining() > 0) {
+      _mark_cell_dirty(r, c, DirtyBits::kDirtyContent);
+    }
+  }
+}
+
+inline void MettaGrid::_mark_if_assembler(GridCoord r, GridCoord c) {
+  if (r >= _grid->height || c >= _grid->width) return;
+  auto* obj = _grid->object_at(GridLocation(r, c));
+  if (obj != nullptr && dynamic_cast<Assembler*>(obj) != nullptr) {
+    _mark_cell_dirty(r, c, DirtyBits::kDirtyContent);
+  }
+}
+
+inline void MettaGrid::_mark_adjacent_assemblers(GridCoord r, GridCoord c) {
+  for (int dr = -1; dr <= 1; ++dr) {
+    for (int dc = -1; dc <= 1; ++dc) {
+      const int rr = static_cast<int>(r) + dr;
+      const int cc = static_cast<int>(c) + dc;
+      if (rr < 0 || cc < 0) continue;
+      _mark_if_assembler(static_cast<GridCoord>(rr), static_cast<GridCoord>(cc));
     }
   }
 }
@@ -626,6 +653,9 @@ void MettaGrid::_refresh_dirty_cells() {
   // Clear list; location dirties will be cleared after observations are computed.
   _dirty_cells.clear();
 }
+
+namespace {
+}  // namespace
 
 void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type) {
   auto& agent = _agents[agent_idx];
@@ -714,6 +744,8 @@ void MettaGrid::_step() {
             _mark_cell_dirty(after_loc.r, after_loc.c, DirtyBits::kDirtyLocation);
             _mark_cell_dirty(before_loc.r, before_loc.c, DirtyBits::kDirtyLocation);
           }
+          _mark_adjacent_assemblers(before_loc.r, before_loc.c);
+          _mark_adjacent_assemblers(after_loc.r, after_loc.c);
         } else if (dirty_kind == ActionDirtyKind::kChangeVibe) {
           _mark_cell_dirty(agent->location.r, agent->location.c, DirtyBits::kDirtyContent);
         } else if (dirty_kind == ActionDirtyKind::kNoop) {
@@ -750,6 +782,9 @@ void MettaGrid::_step() {
       }
     }
   }
+
+  // Assemblers can change over time (cooldowns); refresh them every tick.
+  _mark_all_assembler_cells_dirty();
 
   _refresh_dirty_cells();
 

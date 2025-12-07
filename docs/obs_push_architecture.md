@@ -45,3 +45,8 @@ This describes a push-driven observation updater that keeps per-agent buffers ac
 - **Performance**: Moves stay O(window_size) via shift; updates are O(changed_cells × agents_in_view × token_count) with a cheap reverse map and few assembler updates.  
 - **Correctness**: Cooldowns and neighbor changes are pushed directly; no stale cached cells.  
 - **Simplicity**: No dirty sweeps; events drive the minimal writes needed to keep observations correct.
+
+## Current Status
+- Implemented assembler awareness with a lightweight adjacency mark and cooldown-based refresh.  
+- Benchmark (arena, 1M steps, batch 32k/minibatch 512, bptt 8, 1 worker, CUDA, METTA_TIMER_REPORT=1): rollout ≈ 8.09s, train ≈ 8.90s, throughput ~64–66 ksps (near prior baseline).  
+- Token cap remains 24; truncation still logged.

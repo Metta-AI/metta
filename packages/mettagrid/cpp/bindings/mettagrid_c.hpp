@@ -156,6 +156,7 @@ private:
   ActionSuccess _action_success;
   std::vector<size_t> _agent_indices;
   std::vector<ActionType> _executed_actions;
+  std::vector<size_t> _assembler_cells;
 
   std::vector<CellCache> _cell_cache;  // size: grid_height * grid_width
   std::vector<uint8_t> _dirty_flags;
@@ -194,7 +195,9 @@ private:
   inline void _mark_cell_dirty(GridCoord r, GridCoord c, uint8_t flags = DirtyBits::kDirtyAll);
   inline void _mark_observation_window_dirty(GridCoord center_r, GridCoord center_c, uint8_t flags = DirtyBits::kDirtyAll);
   void _refresh_dirty_cells();
-  void _mark_all_assembler_cells_dirty();
+  void _mark_all_assembler_cells_dirty(bool force = false);
+  inline void _mark_if_assembler(GridCoord r, GridCoord c);
+  inline void _mark_adjacent_assemblers(GridCoord r, GridCoord c);
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_
