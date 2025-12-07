@@ -1,8 +1,10 @@
 import { FC, Fragment, useContext, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import type { components } from './api-types'
 import { AppContext } from './AppContext'
 import { ReplayViewer, normalizeReplayUrl } from './components/ReplayViewer'
+
 import {
   LEADERBOARD_ATTEMPTS_TAG,
   LEADERBOARD_DONE_TAG,
@@ -10,11 +12,12 @@ import {
   LEADERBOARD_EVAL_DONE_VALUE,
   LEADERBOARD_SIM_NAME_EPISODE_KEY,
 } from './constants'
-import type { EpisodeReplay, LeaderboardPolicyEntry } from './repo'
 import { formatPolicyVersion } from './utils/format'
 
+type Schemas = components['schemas']
+
 type SectionState = {
-  entries: LeaderboardPolicyEntry[]
+  entries: Schemas['LeaderboardPolicyEntry'][]
   loading: boolean
   error: string | null
 }
@@ -37,7 +40,7 @@ type EvalStatusInfo = {
 type ReplayFetchState = {
   loading: boolean
   error: string | null
-  episodesBySimulation: Record<string, EpisodeReplay[]>
+  episodesBySimulation: Record<string, Schemas['EpisodeReplay'][]>
 }
 
 const REFRESH_INTERVAL_MS = 10_000
@@ -505,7 +508,7 @@ export const Leaderboard: FC = () => {
     }
   }, [repo])
 
-  const toggleRow = (rowKey: string, entry: LeaderboardPolicyEntry) => {
+  const toggleRow = (rowKey: string, entry: Schemas['LeaderboardPolicyEntry']) => {
     setExpandedRows((previous) => {
       const next = new Set(previous)
       if (next.has(rowKey)) {
@@ -546,7 +549,7 @@ export const Leaderboard: FC = () => {
     </button>
   )
 
-  const fetchReplaysForPolicy = async (entry: LeaderboardPolicyEntry) => {
+  const fetchReplaysForPolicy = async (entry: Schemas['LeaderboardPolicyEntry']) => {
     const policyId = entry.policy_version.id
     const existing = replayState[policyId]
     if (existing && (existing.loading || Object.keys(existing.episodesBySimulation).length > 0 || existing.error)) {
@@ -580,9 +583,10 @@ export const Leaderboard: FC = () => {
         primary_policy_version_ids: [policyId],
         tag_filters: { [LEADERBOARD_SIM_NAME_EPISODE_KEY]: simTagValues },
         limit: null,
+        offset: 0,
       })
 
-      const episodesBySimulation: Record<string, EpisodeReplay[]> = {}
+      const episodesBySimulation: Record<string, Schemas['EpisodeReplay'][]> = {}
       response.episodes.forEach((episode) => {
         const tagValue = episode.tags?.[LEADERBOARD_SIM_NAME_EPISODE_KEY]
         if (!tagValue || !episode.replay_url) {
@@ -661,8 +665,8 @@ export const Leaderboard: FC = () => {
             const rowKey = `${config.sectionKey}-${policyId}`
             const isExpanded = expandedRows.has(rowKey)
             const scoreEntries = Object.entries(entry.scores).sort(([a], [b]) => a.localeCompare(b))
-            const tagEntries = Object.entries(policyVersion.tags).sort(([a], [b]) => a.localeCompare(b))
-            const evalStatus = getEvalStatus(policyVersion.tags)
+            const tagEntries = Object.entries(policyVersion.tags ?? {}).sort(([a], [b]) => a.localeCompare(b))
+            const evalStatus = getEvalStatus(policyVersion.tags ?? {})
             const policyUri = `metta://policy/${policyVersion.name}:v${policyVersion.version}`
             const evaluateCommand = `./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_version_id=${policyId}`
             const playCommand = `./tools/run.py recipes.experiment.v0_leaderboard.play policy_version_id=${policyId}`

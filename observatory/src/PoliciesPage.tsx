@@ -1,9 +1,11 @@
 import { FC, useContext, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import type { components } from './api-types'
 import { AppContext } from './AppContext'
-import type { PolicyRow } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
+
+type Schemas = components['schemas']
 
 const DEBOUNCE_MS = 300
 
@@ -15,7 +17,7 @@ type LoadState<T> = {
 
 export const PoliciesPage: FC = () => {
   const { repo } = useContext(AppContext)
-  const [policiesState, setPoliciesState] = useState<LoadState<PolicyRow[]>>({
+  const [policiesState, setPoliciesState] = useState<LoadState<Schemas['PolicyRow'][]>>({
     data: [],
     loading: true,
     error: null,

@@ -1,11 +1,13 @@
 import { FC, useContext, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import type { components } from './api-types'
 import { AppContext } from './AppContext'
 import { ReplayViewer } from './components/ReplayViewer'
-import type { EpisodeWithTags, PolicyVersionWithName } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
 import { formatPolicyVersion } from './utils/format'
+
+type Schemas = components['schemas']
 
 type LoadState<T> = {
   data: T
@@ -30,12 +32,12 @@ export const EpisodeDetailPage: FC = () => {
   const { episodeId } = useParams<{ episodeId: string }>()
   const { repo } = useContext(AppContext)
 
-  const [state, setState] = useState<LoadState<EpisodeWithTags | null>>(() =>
-    createInitialState<EpisodeWithTags | null>(null)
+  const [state, setState] = useState<LoadState<Schemas['EpisodeWithTags'] | null>>(() =>
+    createInitialState<Schemas['EpisodeWithTags'] | null>(null)
   )
-  const [policyInfoState, setPolicyInfoState] = useState<LoadState<Record<string, PolicyVersionWithName | null>>>(() =>
-    createInitialState<Record<string, PolicyVersionWithName | null>>({})
-  )
+  const [policyInfoState, setPolicyInfoState] = useState<
+    LoadState<Record<string, Schemas['PolicyVersionWithName'] | null>>
+  >(() => createInitialState<Record<string, Schemas['PolicyVersionWithName'] | null>>({}))
 
   useEffect(() => {
     if (!episodeId) {
@@ -254,11 +256,11 @@ export const EpisodeDetailPage: FC = () => {
             <>
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">Tags</h3>
-                {Object.keys(episode.tags).length === 0 ? (
+                {Object.keys(episode.tags ?? {}).length === 0 ? (
                   <div className="text-gray-500 text-sm">No tags found.</div>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    {Object.entries(episode.tags)
+                    {Object.entries(episode.tags ?? {})
                       .sort(([a], [b]) => a.localeCompare(b))
                       .map(([key, value]) => (
                         <span

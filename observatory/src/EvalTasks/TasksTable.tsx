@@ -1,9 +1,13 @@
 import { FC, PropsWithChildren, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 
+import type { components } from '../api-types'
 import { Button } from '../components/Button'
+import { TaskFilters } from '../client-types'
 import { Input } from '../components/Input'
-import { PaginatedEvalTasksResponse, PublicPolicyVersionRow, Repo, TaskFilters } from '../repo'
+import { Repo } from '../repo'
 import { TaskRow } from './TaskRow'
+
+type Schemas = components['schemas']
 
 const pageSize = 50
 
@@ -73,11 +77,11 @@ export const TasksTable: FC<{
   initialFilters?: TaskFilters
   hideFilters?: boolean
 }> = ({ repo, setError, ref, initialFilters, hideFilters }) => {
-  const [tasksResponse, setTasksResponse] = useState<PaginatedEvalTasksResponse | undefined>()
+  const [tasksResponse, setTasksResponse] = useState<Schemas['PaginatedTasksResponse'] | undefined>()
   const currentPage = tasksResponse?.page || 1
   const [filters, setFilters] = useState<TaskFilters>(initialFilters || {})
   const isInitialMount = useRef(true)
-  const [policyInfoMap, setPolicyInfoMap] = useState<Record<string, PublicPolicyVersionRow>>({})
+  const [policyInfoMap, setPolicyInfoMap] = useState<Record<string, Schemas['PublicPolicyVersionRow']>>({})
   const attemptedPolicyIds = useRef<Set<string>>(new Set())
 
   // Load tasks
@@ -104,7 +108,7 @@ export const TasksTable: FC<{
             for (const pvId of policyVersionIds) {
               attemptedPolicyIds.current.add(pvId)
             }
-            const newPolicyInfo: Record<string, PublicPolicyVersionRow> = {}
+            const newPolicyInfo: Record<string, Schemas['PublicPolicyVersionRow']> = {}
             for (const pv of policyVersions) {
               newPolicyInfo[pv.id] = pv
             }

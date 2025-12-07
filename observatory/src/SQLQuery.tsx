@@ -1,8 +1,10 @@
 import { FC, useContext, useEffect, useState } from 'react'
 
+import type { components } from './api-types'
 import { AIQueryBuilder } from './AIQueryBuilder'
 import { AppContext } from './AppContext'
-import { SQLQueryResponse, TableInfo, TableSchema } from './repo'
+
+type Schemas = components['schemas']
 
 interface QueryHistoryItem {
   query: string
@@ -407,14 +409,14 @@ const SQL_QUERY_CSS = `
 type QueryState =
   | { type: 'idle' }
   | { type: 'loading' }
-  | { type: 'success'; data: SQLQueryResponse }
+  | { type: 'success'; data: Schemas['SQLQueryResponse'] }
   | { type: 'error'; error: string }
 
 export const SQLQuery: FC = () => {
   const { repo } = useContext(AppContext)
-  const [tables, setTables] = useState<TableInfo[]>([])
+  const [tables, setTables] = useState<Schemas['TableInfo'][]>([])
   const [selectedTable, setSelectedTable] = useState<string | null>(null)
-  const [tableSchema, setTableSchema] = useState<TableSchema | null>(null)
+  const [tableSchema, setTableSchema] = useState<Schemas['TableSchema'] | null>(null)
   const [query, setQuery] = useState('')
   const [queryState, setQueryState] = useState<QueryState>({ type: 'idle' })
   const [tablesLoading, setTablesLoading] = useState(true)
@@ -474,7 +476,7 @@ export const SQLQuery: FC = () => {
     }
   }
 
-  function saveQueryToHistory(queryText: string, result: SQLQueryResponse | null, error: boolean = false) {
+  function saveQueryToHistory(queryText: string, result: Schemas['SQLQueryResponse'] | null, error: boolean = false) {
     const newItem: QueryHistoryItem = {
       query: queryText,
       timestamp: Date.now(),
@@ -651,16 +653,21 @@ export const SQLQuery: FC = () => {
               <div className="schema-info">
                 <h4>Schema for {tableSchema.table_name}</h4>
                 <div className="schema-columns">
-                  {tableSchema.columns.map((col) => (
-                    <div key={col.name} className="schema-column">
-                      <strong>{col.name}</strong>
-                      <span className="column-type">
-                        {' '}
-                        ({col.type}
-                        {col.nullable ? ', nullable' : ''})
-                      </span>
-                    </div>
-                  ))}
+                  {tableSchema.columns.map((col) => {
+                    const name = col.name as string
+                    const type = col.type as string
+                    const nullable = col.nullable as boolean
+                    return (
+                      <div key={name} className="schema-column">
+                        <strong>{name}</strong>
+                        <span className="column-type">
+                          {' '}
+                          ({type}
+                          {nullable ? ', nullable' : ''})
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

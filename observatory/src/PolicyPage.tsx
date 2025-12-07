@@ -1,10 +1,12 @@
 import { FC, useContext, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import type { components } from './api-types'
 import { AppContext } from './AppContext'
 import { CopyableUri } from './components/CopyableUri'
-import type { PublicPolicyVersionRow } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
+
+type Schemas = components['schemas']
 
 type LoadState<T> = {
   data: T
@@ -16,7 +18,7 @@ export const PolicyPage: FC = () => {
   const { policyId } = useParams<{ policyId: string }>()
   const { repo } = useContext(AppContext)
 
-  const [versionsState, setVersionsState] = useState<LoadState<PublicPolicyVersionRow[]>>({
+  const [versionsState, setVersionsState] = useState<LoadState<Schemas['PublicPolicyVersionRow'][]>>({
     data: [],
     loading: true,
     error: null,

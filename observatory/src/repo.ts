@@ -1,282 +1,17 @@
+import type { components } from './api-types'
 import { getToken, initiateLogin } from './auth'
+import type {
+  TaskFilters,
+  TokenCreate,
+  TokenListResponse,
+  TokenResponse,
+  TrainingRun,
+  TrainingRunListResponse,
+  TrainingRunPolicy,
+  ValueOverReplacementSummary,
+} from './client-types'
 
-export type TokenInfo = {
-  id: string
-  name: string
-  created_at: string
-  expiration_time: string
-  last_used_at: string | null
-}
-
-export type TokenCreate = {
-  name: string
-}
-
-export type TokenResponse = {
-  token: string
-}
-
-export type TokenListResponse = {
-  tokens: TokenInfo[]
-}
-
-export type TrainingRun = {
-  id: string
-  name: string
-  created_at: string
-  user_id: string
-  finished_at: string | null
-  status: string
-  url: string | null
-  description: string | null
-  tags: string[]
-}
-
-export type TrainingRunListResponse = {
-  training_runs: TrainingRun[]
-}
-
-export type TrainingRunDescriptionUpdate = {
-  description: string
-}
-
-export type TrainingRunTagsUpdate = {
-  tags: string[]
-}
-
-export type EvalTaskCreateRequest = {
-  command: string
-  git_hash: string | null
-  attributes: Record<string, any>
-}
-
-export type TaskStatus = 'unprocessed' | 'running' | 'canceled' | 'done' | 'error' | 'system_error'
-
-type TaskStatusMixin = {
-  status: TaskStatus
-  status_details: Record<string, any> | null
-}
-
-export type EvalTask = {
-  // eval_tasks table columns
-  id: number
-  command: string
-  data_uri: string | null
-  git_hash: string | null
-  attributes: Record<string, any>
-  user_id: string
-  created_at: string
-  is_finished: boolean
-  latest_attempt_id: number | null
-
-  // Latest attempt columns (from JOIN)
-  attempt_number: number | null
-  assigned_at: string | null
-  assignee: string | null
-  started_at: string | null
-  finished_at: string | null
-  output_log_path: string | null
-} & TaskStatusMixin
-
-export type TaskAttempt = {
-  id: number
-  task_id: number
-  attempt_number: number
-  assigned_at: string | null
-  assignee: string | null
-  started_at: string | null
-  finished_at: string | null
-  output_log_path: string | null
-} & TaskStatusMixin
-
-export type PaginatedEvalTasksResponse = {
-  tasks: EvalTask[]
-  total_count: number
-  page: number
-  page_size: number
-  total_pages: number
-}
-
-export type TaskAttemptsResponse = {
-  attempts: TaskAttempt[]
-}
-
-export type TaskFilters = {
-  command?: string
-  user_id?: string
-  status?: string
-  assignee?: string
-  git_hash?: string
-  created_at?: string
-  assigned_at?: string
-}
-
-// Policy-based scorecard types
-export type PaginationRequest = {
-  page: number
-  page_size: number
-}
-
-export type TrainingRunInfo = {
-  id: string
-  name: string
-  user_id: string | null
-  created_at: string
-  tags: string[]
-}
-
-export type RunFreePolicyInfo = {
-  id: string
-  name: string
-  user_id: string | null
-  created_at: string
-}
-
-export type EvalNamesRequest = {
-  training_run_ids: string[]
-  run_free_policy_ids: string[]
-}
-
-export type MetricsRequest = {
-  training_run_ids: string[]
-  run_free_policy_ids: string[]
-  eval_names: string[]
-}
-
-export type TrainingRunScorecardRequest = {
-  eval_names: string[]
-  metric: string
-}
-
-export type TrainingRunPolicy = {
-  policy_name: string
-  policy_id: string
-  epoch_start: number | null
-  epoch_end: number | null
-}
-
-export type PublicPolicyVersionRow = {
-  id: string
-  policy_id: string
-  created_at: string
-  policy_created_at: string
-  user_id: string
-  name: string
-  version: number
-  tags: Record<string, string>
-  version_count?: number
-}
-
-export type EpisodeReplay = {
-  episode_id: string
-  replay_url: string
-}
-
-export type EpisodeWithTags = {
-  id: string
-  primary_pv_id: string | null
-  replay_url: string | null
-  thumbnail_url: string | null
-  attributes: Record<string, any>
-  eval_task_id: string | null
-  created_at: string
-  tags: Record<string, string>
-  avg_rewards: Record<string, number>
-}
-
-export type LeaderboardPolicyEntry = {
-  policy_version: PublicPolicyVersionRow
-  scores: Record<string, number>
-  avg_score: number | null
-  overall_vor: number | null
-  replays: Record<string, EpisodeReplay[]>
-  score_episode_ids: Record<string, string | null>
-}
-
-export type LeaderboardPoliciesResponse = {
-  entries: LeaderboardPolicyEntry[]
-}
-
-export type ValueOverReplacementSummary = {
-  policy_version_id: string
-  overall_vor: number | null
-  overall_vor_std: number | null
-  total_candidate_agents: number
-}
-
-export type PolicyVersionWithName = {
-  id: string
-  policy_id: string
-  version: number
-  name: string
-  created_at: string
-}
-
-export type EpisodeQueryRequest = {
-  primary_policy_version_ids?: string[]
-  tag_filters?: Record<string, string[] | null>
-  limit?: number | null
-  offset?: number
-  episode_ids?: string[]
-}
-
-export type EpisodeQueryResponse = {
-  episodes: EpisodeWithTags[]
-}
-
-export type TableInfo = {
-  table_name: string
-  column_count: number
-  row_count: number
-}
-
-export type TableSchema = {
-  table_name: string
-  columns: Array<{
-    name: string
-    type: string
-    nullable: boolean
-    default: string | null
-    max_length: number | null
-  }>
-}
-
-export type SQLQueryRequest = {
-  query: string
-}
-
-export type SQLQueryResponse = {
-  columns: string[]
-  rows: any[][]
-  row_count: number
-}
-
-export type AIQueryRequest = {
-  description: string
-}
-
-export type AIQueryResponse = {
-  query: string
-}
-
-export type PolicyRow = {
-  id: string
-  name: string
-  created_at: string
-  user_id: string
-  attributes: Record<string, any>
-  version_count: number
-}
-
-export type PoliciesResponse = {
-  entries: PolicyRow[]
-  total_count: number
-}
-
-export type PolicyVersionsResponse = {
-  entries: PublicPolicyVersionRow[]
-  total_count: number
-}
+type Schemas = components['schemas']
 
 export class Repo {
   constructor(private baseUrl: string = 'http://localhost:8000') {}
@@ -302,7 +37,6 @@ export class Repo {
     })
     if (!response.ok) {
       if (response.status === 401) {
-        // Unauthorized - redirect to login
         initiateLogin()
         throw new Error('Unauthorized - redirecting to login')
       }
@@ -311,7 +45,7 @@ export class Repo {
     return response.json()
   }
 
-  private async apiCallWithBody<T>(endpoint: string, body: any): Promise<T> {
+  private async apiCallWithBody<T>(endpoint: string, body: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
       headers: this.getHeaders('application/json'),
@@ -319,7 +53,6 @@ export class Repo {
     })
     if (!response.ok) {
       if (response.status === 401) {
-        // Unauthorized - redirect to login
         initiateLogin()
         throw new Error('Unauthorized - redirecting to login')
       }
@@ -328,7 +61,7 @@ export class Repo {
     return response.json()
   }
 
-  private async apiCallWithBodyPut<T>(endpoint: string, body: any): Promise<T> {
+  private async apiCallWithBodyPut<T>(endpoint: string, body: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'PUT',
       headers: this.getHeaders('application/json'),
@@ -336,7 +69,6 @@ export class Repo {
     })
     if (!response.ok) {
       if (response.status === 401) {
-        // Unauthorized - redirect to login
         initiateLogin()
         throw new Error('Unauthorized - redirecting to login')
       }
@@ -352,7 +84,6 @@ export class Repo {
     })
     if (!response.ok) {
       if (response.status === 401) {
-        // Unauthorized - redirect to login
         initiateLogin()
         throw new Error('Unauthorized - redirecting to login')
       }
@@ -374,25 +105,25 @@ export class Repo {
   }
 
   // User methods
-  async whoami(): Promise<{ user_email: string }> {
-    return this.apiCall<{ user_email: string }>('/whoami')
+  async whoami(): Promise<Schemas['WhoAmIResponse']> {
+    return this.apiCall<Schemas['WhoAmIResponse']>('/whoami')
   }
 
   // SQL query methods
-  async listTables(): Promise<TableInfo[]> {
-    return this.apiCall<TableInfo[]>('/sql/tables')
+  async listTables(): Promise<Schemas['TableInfo'][]> {
+    return this.apiCall<Schemas['TableInfo'][]>('/sql/tables')
   }
 
-  async getTableSchema(tableName: string): Promise<TableSchema> {
-    return this.apiCall<TableSchema>(`/sql/tables/${encodeURIComponent(tableName)}/schema`)
+  async getTableSchema(tableName: string): Promise<Schemas['TableSchema']> {
+    return this.apiCall<Schemas['TableSchema']>(`/sql/tables/${encodeURIComponent(tableName)}/schema`)
   }
 
-  async executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse> {
-    return this.apiCallWithBody<SQLQueryResponse>('/sql/query', request)
+  async executeQuery(request: Schemas['SQLQueryRequest']): Promise<Schemas['SQLQueryResponse']> {
+    return this.apiCallWithBody<Schemas['SQLQueryResponse']>('/sql/query', request)
   }
 
-  async generateAIQuery(description: string): Promise<AIQueryResponse> {
-    return this.apiCallWithBody<AIQueryResponse>('/sql/generate-query', {
+  async generateAIQuery(description: string): Promise<Schemas['AIQueryResponse']> {
+    return this.apiCallWithBody<Schemas['AIQueryResponse']>('/sql/generate-query', {
       description,
     })
   }
@@ -420,20 +151,19 @@ export class Repo {
     return this.apiCall<TrainingRunPolicy[]>(`/training-runs/${encodeURIComponent(runId)}/policies`)
   }
 
-  async createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask> {
-    return this.apiCallWithBody<EvalTask>('/tasks', request)
+  async createEvalTask(request: Schemas['TaskCreateRequest']): Promise<Schemas['EvalTaskRow']> {
+    return this.apiCallWithBody<Schemas['EvalTaskRow']>('/tasks', request)
   }
 
   async getEvalTasksPaginated(
     page: number,
     pageSize: number,
     filters: TaskFilters
-  ): Promise<PaginatedEvalTasksResponse> {
+  ): Promise<Schemas['PaginatedTasksResponse']> {
     const params = new URLSearchParams()
     params.append('page', page.toString())
     params.append('page_size', pageSize.toString())
 
-    // Only append non-empty filter values
     if (filters.command?.trim()) params.append('command', filters.command.trim())
     if (filters.user_id?.trim()) params.append('user_id', filters.user_id.trim())
     if (filters.status?.trim()) params.append('status', filters.status.trim())
@@ -442,15 +172,15 @@ export class Repo {
     if (filters.created_at?.trim()) params.append('created_at', filters.created_at.trim())
     if (filters.assigned_at?.trim()) params.append('assigned_at', filters.assigned_at.trim())
 
-    return this.apiCall<PaginatedEvalTasksResponse>(`/tasks/paginated?${params}`)
+    return this.apiCall<Schemas['PaginatedTasksResponse']>(`/tasks/paginated?${params}`)
   }
 
-  async getEvalTask(taskId: number): Promise<EvalTask> {
-    return this.apiCall<EvalTask>(`/tasks/${taskId}`)
+  async getEvalTask(taskId: number): Promise<Schemas['EvalTaskRow']> {
+    return this.apiCall<Schemas['EvalTaskRow']>(`/tasks/${taskId}`)
   }
 
-  async getTaskAttempts(taskId: number): Promise<TaskAttemptsResponse> {
-    return this.apiCall<TaskAttemptsResponse>(`/tasks/${taskId}/attempts`)
+  async getTaskAttempts(taskId: number): Promise<Schemas['TaskAttemptsResponse']> {
+    return this.apiCall<Schemas['TaskAttemptsResponse']>(`/tasks/${taskId}/attempts`)
   }
 
   getTaskLogUrl(taskId: number, logType: 'output'): string {
@@ -466,20 +196,20 @@ export class Repo {
   }
 
   // Leaderboard / policy version queries
-  async getPublicLeaderboard(): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2')
+  async getPublicLeaderboard(): Promise<Schemas['LeaderboardPoliciesResponse']> {
+    return this.apiCall<Schemas['LeaderboardPoliciesResponse']>('/leaderboard/v2')
   }
 
-  async getPublicLeaderboardWithVor(): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/vor')
+  async getPublicLeaderboardWithVor(): Promise<Schemas['LeaderboardPoliciesResponse']> {
+    return this.apiCall<Schemas['LeaderboardPoliciesResponse']>('/leaderboard/v2/vor')
   }
 
-  async getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me')
+  async getPersonalLeaderboard(): Promise<Schemas['LeaderboardPoliciesResponse']> {
+    return this.apiCall<Schemas['LeaderboardPoliciesResponse']>('/leaderboard/v2/users/me')
   }
 
-  async getLeaderboardPolicy(policyVersionId: string): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>(`/leaderboard/v2/policy/${policyVersionId}`)
+  async getLeaderboardPolicy(policyVersionId: string): Promise<Schemas['LeaderboardPoliciesResponse']> {
+    return this.apiCall<Schemas['LeaderboardPoliciesResponse']>(`/leaderboard/v2/policy/${policyVersionId}`)
   }
 
   async getValueOverReplacementDetail(policyVersionId: string): Promise<ValueOverReplacementSummary | null> {
@@ -490,18 +220,18 @@ export class Repo {
     }
   }
 
-  async getPolicyVersion(policyVersionId: string): Promise<PolicyVersionWithName> {
-    return this.apiCall<PolicyVersionWithName>(`/stats/policies/versions/${policyVersionId}`)
+  async getPolicyVersion(policyVersionId: string): Promise<Schemas['PolicyVersionWithName']> {
+    return this.apiCall<Schemas['PolicyVersionWithName']>(`/stats/policies/versions/${policyVersionId}`)
   }
 
-  async getPolicyVersionsBatch(policyVersionIds: string[]): Promise<PublicPolicyVersionRow[]> {
+  async getPolicyVersionsBatch(policyVersionIds: string[]): Promise<Schemas['PublicPolicyVersionRow'][]> {
     const chunkSize = 10
-    const results: PublicPolicyVersionRow[] = []
+    const results: Schemas['PublicPolicyVersionRow'][] = []
 
     for (let i = 0; i < policyVersionIds.length; i += chunkSize) {
       const chunk = policyVersionIds.slice(i, i + chunkSize)
       const params = chunk.map((id) => `policy_version_ids=${id}`).join('&')
-      const response = await this.apiCall<PolicyVersionsResponse>(
+      const response = await this.apiCall<Schemas['PolicyVersionsResponse']>(
         `/stats/policy-versions?${params}&limit=${chunk.length}`
       )
       results.push(...response.entries)
@@ -510,8 +240,8 @@ export class Repo {
     return results
   }
 
-  async queryEpisodes(request: EpisodeQueryRequest): Promise<EpisodeQueryResponse> {
-    return this.apiCallWithBody<EpisodeQueryResponse>('/stats/episodes/query', request)
+  async queryEpisodes(request: Schemas['EpisodeQueryRequest']): Promise<Schemas['EpisodeQueryResponse']> {
+    return this.apiCallWithBody<Schemas['EpisodeQueryResponse']>('/stats/episodes/query', request)
   }
 
   async getPolicies(params?: {
@@ -519,14 +249,14 @@ export class Repo {
     name_fuzzy?: string
     limit?: number
     offset?: number
-  }): Promise<PoliciesResponse> {
+  }): Promise<Schemas['PoliciesResponse']> {
     const searchParams = new URLSearchParams()
     if (params?.name_exact) searchParams.append('name_exact', params.name_exact)
     if (params?.name_fuzzy) searchParams.append('name_fuzzy', params.name_fuzzy)
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
-    return this.apiCall<PoliciesResponse>(`/stats/policies${query ? `?${query}` : ''}`)
+    return this.apiCall<Schemas['PoliciesResponse']>(`/stats/policies${query ? `?${query}` : ''}`)
   }
 
   async getPolicyVersions(params?: {
@@ -534,24 +264,26 @@ export class Repo {
     name_fuzzy?: string
     limit?: number
     offset?: number
-  }): Promise<PolicyVersionsResponse> {
+  }): Promise<Schemas['PolicyVersionsResponse']> {
     const searchParams = new URLSearchParams()
     if (params?.name_exact) searchParams.append('name_exact', params.name_exact)
     if (params?.name_fuzzy) searchParams.append('name_fuzzy', params.name_fuzzy)
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
-    return this.apiCall<PolicyVersionsResponse>(`/stats/policy-versions${query ? `?${query}` : ''}`)
+    return this.apiCall<Schemas['PolicyVersionsResponse']>(`/stats/policy-versions${query ? `?${query}` : ''}`)
   }
 
   async getVersionsForPolicy(
     policyId: string,
     params?: { limit?: number; offset?: number }
-  ): Promise<PolicyVersionsResponse> {
+  ): Promise<Schemas['PolicyVersionsResponse']> {
     const searchParams = new URLSearchParams()
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
-    return this.apiCall<PolicyVersionsResponse>(`/stats/policies/${policyId}/versions${query ? `?${query}` : ''}`)
+    return this.apiCall<Schemas['PolicyVersionsResponse']>(
+      `/stats/policies/${policyId}/versions${query ? `?${query}` : ''}`
+    )
   }
 }
