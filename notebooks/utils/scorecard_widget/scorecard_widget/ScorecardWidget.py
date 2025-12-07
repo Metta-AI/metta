@@ -297,7 +297,11 @@ class ScorecardWidget(anywidget.AnyWidget):
 
         # Apply optional ID restriction
         if restrict_to_policy_ids:
-            policy_ids = [policy_id for policy_id in policy_ids if policy_id in restrict_to_policy_ids]
+            policy_ids = [
+                policy_id
+                for policy_id in policy_ids
+                if policy_id in restrict_to_policy_ids
+            ]
 
         # Deduplicate while preserving order
         seen = set()
