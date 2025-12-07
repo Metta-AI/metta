@@ -4,12 +4,18 @@ This module provides intelligent prompt building that:
 1. Sends basic game rules only once per N steps (context window)
 2. Sends only observable changes at each step
 3. Manages context windows of configurable size
+
+Prompt templates are loaded from markdown files in the 'prompts/' directory:
+- basic_info.md: Game rules and instructions
+- full_prompt.md: Complete prompt with decision logic
+- dynamic_prompt.md: Shorter prompt for within-window steps
 """
 
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -17,6 +23,25 @@ from mettagrid.simulator import AgentObservation
 
 if TYPE_CHECKING:
     from mettagrid.config.mettagrid_config import MettaGridConfig
+
+# Load prompt templates from markdown files
+_PROMPTS_DIR = Path(__file__).parent / "prompts"
+
+
+def _load_prompt_template(name: str) -> str:
+    """Load a prompt template from the prompts directory.
+
+    Args:
+        name: Template filename (without .md extension)
+
+    Returns:
+        Template content as string
+    """
+    template_path = _PROMPTS_DIR / f"{name}.md"
+    if template_path.exists():
+        return template_path.read_text()
+    else:
+        raise FileNotFoundError(f"Prompt template not found: {template_path}")
 
 
 @dataclass
@@ -97,35 +122,13 @@ class LLMPromptBuilder:
         Returns:
             Minimal game rules - only what agent cannot discover
         """
-        # Build all recipes section
+        # Build dynamic sections
         all_recipes_section = self._build_all_recipes()
-
-        # Build id_map reference from mg_cfg
         id_map_section = self._build_id_map_section()
 
-        return f"""=== GOAL ===
-Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
-
-=== HOW TO PLAY ===
-1. EXPLORE to find extractors (carbon, oxygen, germanium, silicon)
-2. COLLECT by standing ADJACENT to extractors (not on top)
-3. CRAFT at ASSEMBLER: change vibe to heart_a, then move toward it
-4. DEPOSIT at CHEST: change vibe to heart_b, then move toward it
-5. RECHARGE at CHARGER when energy is low
-
-{all_recipes_section}
-
-=== VIBES ===
-- heart_a: craft hearts at assembler
-- heart_b: deposit hearts at chest
-- default: recharge at charger
-
-=== TIPS ===
-- Stand ADJACENT to stations, then move TOWARD them to interact
-- Silicon extractor costs 20 energy - watch your energy!
-- If energy < 30, find a CHARGER immediately
-
-{id_map_section}"""
+        # Load template and substitute variables
+        template = _load_prompt_template("basic_info")
+        return template.replace("{{RECIPES}}", all_recipes_section).replace("{{ID_MAP}}", id_map_section)
 
     def _build_heart_recipe(self) -> str:
         """Build heart recipe string from assembler protocols.
@@ -388,35 +391,13 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         Returns:
             Complete prompt with game rules and current observation
         """
-        return f"""{self.basic_info_prompt()}
-
-{self.observable_prompt(obs, include_actions=True)}
-
-=== DECISION PRIORITY ===
-
-1. Check ADJACENT TILES to see what's around you
-2. If adjacent to a useful object:
-   - Set the right vibe if needed (heart_a for assembler, heart_b for chest)
-   - Move INTO the object to use it
-3. If not adjacent to anything useful:
-   - Move toward the nearest useful object based on NEARBY AGENTS/OBJECTS info
-   - Need resources? Find extractors
-   - Have resources? Find assembler to craft hearts
-   - Have heart? Find chest to deposit
-   - Low energy? Find charger
-
-⚠️ CRITICAL: OUTPUT FORMAT ⚠️
-You MUST respond with ONLY a JSON object. NO other text, NO explanation, NO preamble.
-If you write anything other than valid JSON, the game will crash.
-
-REQUIRED FORMAT:
-{{"reasoning": "<brief thinking>", "action": "<action_name>"}}
-
-VALID ACTIONS: noop, move_north, move_south, move_east, move_west, change_vibe_heart_a, change_vibe_heart_b, change_vibe_default
-
-Example response (copy this format EXACTLY):
-{{"reasoning": "Carbon extractor at x=1. Moving east.", "action": "move_east"}}
-"""
+        # Load template and substitute variables
+        template = _load_prompt_template("full_prompt")
+        return (
+            template
+            .replace("{{BASIC_INFO}}", self.basic_info_prompt())
+            .replace("{{OBSERVABLE}}", self.observable_prompt(obs, include_actions=True))
+        )
 
     def context_prompt(
         self,
@@ -457,15 +438,13 @@ Example response (copy this format EXACTLY):
             vibe_actions = [name for name in self._policy_env_info.action_names if name.startswith("change_vibe_") and any(x in name for x in ["heart", "carbon", "oxygen", "silicon", "germanium", "default"])]
             action_list = common_actions + vibe_actions[:10]  # Limit to top 10 vibe actions
 
-            prompt = f"""{self.observable_prompt(obs)}
-
-Check ADJACENT TILES. If next to a useful object, use it. Otherwise move toward one.
-
-VALID: {", ".join(action_list[:8])}, ...
-
-⚠️ RESPOND WITH ONLY JSON - NO OTHER TEXT:
-{{"reasoning": "<brief>", "action": "<action_name>"}}
-"""
+            # Load template and substitute variables
+            template = _load_prompt_template("dynamic_prompt")
+            prompt = (
+                template
+                .replace("{{OBSERVABLE}}", self.observable_prompt(obs))
+                .replace("{{ACTIONS}}", ", ".join(action_list[:8]) + ", ...")
+            )
             includes_basic = False
 
         # Track what we saw this step
