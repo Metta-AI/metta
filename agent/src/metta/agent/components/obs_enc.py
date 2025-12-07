@@ -331,7 +331,8 @@ class ObsPerceiverLatent(nn.Module):
             except Exception:
                 pass
 
-        with torch.backends.cuda.sdp_kernel(enable_flash=False, enable_mem_efficient=True, enable_math=True):
+        # Prefer flash attention when available; fall back to mem-efficient/math otherwise.
+        with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False):
             with torch.profiler.record_function("obs_perceiver_latent.sdpa"):
                 return F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask)
 
