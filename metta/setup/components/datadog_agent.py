@@ -99,7 +99,7 @@ class DatadogAgentSetup(SetupModule):
             warning(f"Could not enable logs in DD config: {e}")
 
     def _stop_agent(self) -> None:
-        subprocess.run(["pkill", "-f", "datadog-agent"], capture_output=True)
+        subprocess.run(["pkill", "-f", AGENT_BINARY], capture_output=True)
 
     def _start_agent(self) -> None:
         if not os.path.exists(AGENT_BINARY):
