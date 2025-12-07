@@ -53,8 +53,8 @@ set_variant() {
     echo "Missing sources for variant '$variant'" >&2
     exit 1
   fi
-  ln -sf "$cpp_src" "$BINDINGS_DIR/mettagrid_c.cpp"
-  ln -sf "$hpp_src" "$BINDINGS_DIR/mettagrid_c.hpp"
+  ln -sf "$(basename "$cpp_src")" "$BINDINGS_DIR/mettagrid_c.cpp"
+  ln -sf "$(basename "$hpp_src")" "$BINDINGS_DIR/mettagrid_c.hpp"
 }
 
 run_variant() {
