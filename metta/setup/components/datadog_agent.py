@@ -7,14 +7,6 @@ from metta.setup.registry import register_module
 from metta.setup.utils import error, info, success, warning
 from softmax.aws.secrets_manager import get_secretsmanager_secret
 
-LOG_CONFIG = """\
-logs:
-  - type: file
-    path: /tmp/datadog-training.log
-    service: skypilot-training
-    source: training
-"""
-
 AGENT_BINARY = "/opt/datadog-agent/bin/agent/agent"
 
 
@@ -55,12 +47,31 @@ class DatadogAgentSetup(SetupModule):
         return tags
 
     def _setup_log_config(self) -> None:
+        log_file = os.environ.get("METTA_DD_LOG_FILE")
+        if not log_file:
+            return
+
+        try:
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            open(log_file, "a").close()
+            os.chmod(log_file, 0o666)
+        except Exception as e:
+            warning(f"Could not create log file {log_file}: {e}")
+            return
+
+        config = f"""\
+logs:
+  - type: file
+    path: {log_file}
+    service: skypilot-training
+    source: training
+"""
         conf_dir = "/etc/datadog-agent/conf.d/skypilot_training.d"
         try:
             os.makedirs(conf_dir, exist_ok=True)
             config_path = os.path.join(conf_dir, "conf.yaml")
             with open(config_path, "w") as f:
-                f.write(LOG_CONFIG)
+                f.write(config)
             os.chmod(config_path, 0o644)
         except Exception as e:
             warning(f"Could not create Datadog log config: {e}")

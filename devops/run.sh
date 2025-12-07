@@ -23,10 +23,6 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
-DATADOG_LOG="/tmp/datadog-training.log"
-mkdir -p "$(dirname "$DATADOG_LOG")"
-touch "$DATADOG_LOG"
-chmod 666 "$DATADOG_LOG" 2> /dev/null || true
 set +e
 uv run torchrun \
   --nnodes=$NUM_NODES \
@@ -35,7 +31,7 @@ uv run torchrun \
   --master-port=$MASTER_PORT \
   --node-rank=$NODE_INDEX \
   tools/run.py \
-  "$@" 2>&1 | tee -a "$DATADOG_LOG"
+  "$@" 2>&1 | tee -a "${METTA_DD_LOG_FILE:-/dev/null}"
 EXIT_CODE=${PIPESTATUS[0]}
 set -e
 

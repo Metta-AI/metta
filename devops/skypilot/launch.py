@@ -239,6 +239,7 @@ def main(
             TEST_JOB_RESTART="true" if run_ci_tests else "false",
             TEST_NCCL="true" if run_ci_tests else "false",
             DD_LOGS_ENABLED="true",
+            METTA_DD_LOG_FILE="/tmp/datadog-training.log",
         )
     )
     if heartbeat_timeout_seconds:
