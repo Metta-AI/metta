@@ -14,12 +14,11 @@ from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field, field_validator
 
 from metta.app_backend.leaderboard_constants import (
-    LADYBUG_UUID,
     LEADERBOARD_CANDIDATE_COUNT_KEY,
     LEADERBOARD_LADYBUG_COUNT_KEY,
     LEADERBOARD_SCENARIO_KEY,
     LEADERBOARD_THINKY_COUNT_KEY,
-    THINKY_UUID,
+    REPLACEMENT_BASELINE_MEAN,
 )
 from metta.app_backend.migrations import MIGRATIONS
 from metta.app_backend.schema_manager import run_migrations
@@ -1205,28 +1204,19 @@ GROUP BY pv.id, et.key, et.value
         score_group_episode_tag: str,
     ) -> list[LeaderboardPolicyEntry]:
         """Return leaderboard entries with overall_vor computed for each policy."""
-        # Get base leaderboard entries
         entries = await self.get_leaderboard_policies(
             policy_version_tags=policy_version_tags,
             score_group_episode_tag=score_group_episode_tag,
             user_id=None,
             policy_version_id=None,
         )
-        baseline_vor_stats = await self._get_vor_stats((THINKY_UUID, LADYBUG_UUID))
         candidate_vor_stats = await self._get_vor_stats(tuple(entry.policy_version.id for entry in entries))
 
-        # Combine baseline stats (candidate_count == 0) into replacement_stats
-        replacement_stats = RunningStats()
-        for pv_stats in baseline_vor_stats.values():
-            if 0 in pv_stats:
-                replacement_stats.merge(pv_stats[0])
-
-        # Compute overall_vor for each entry
         for entry in entries:
             pv_id = entry.policy_version.id
             candidate_stats = candidate_vor_stats.get(pv_id, {})
             if candidate_stats:
-                entry.overall_vor = compute_overall_vor_from_stats(candidate_stats, replacement_stats)
+                entry.overall_vor = compute_overall_vor_from_stats(candidate_stats, REPLACEMENT_BASELINE_MEAN)
 
         return entries
 
