@@ -106,18 +106,26 @@ class DatadogAgentSetup(SetupModule):
         if not os.path.exists(AGENT_BINARY):
             return
         self._stop_agent()
-        subprocess.Popen(
-            [AGENT_BINARY, "run"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-        time.sleep(2)
+        log_path = "/tmp/dd-agent-startup.log"
+        with open(log_path, "w") as log_file:
+            subprocess.Popen(
+                [AGENT_BINARY, "run"],
+                stdout=log_file,
+                stderr=log_file,
+                start_new_session=True,
+            )
+        time.sleep(3)
         result = subprocess.run(["pgrep", "-f", AGENT_BINARY], capture_output=True)
         if result.returncode == 0:
             info("Started Datadog agent.")
         else:
-            warning("Datadog agent may not be running")
+            warning("Datadog agent failed to start. Check /tmp/dd-agent-startup.log")
+            try:
+                with open(log_path) as f:
+                    for line in f.readlines()[:10]:
+                        warning(f"  {line.rstrip()}")
+            except Exception:
+                pass
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         try:
