@@ -1,6 +1,7 @@
 import os
 import platform
 import subprocess
+import time
 
 import yaml
 
@@ -111,7 +112,12 @@ class DatadogAgentSetup(SetupModule):
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-        info("Started Datadog agent.")
+        time.sleep(2)
+        result = subprocess.run(["pgrep", "-f", AGENT_BINARY], capture_output=True)
+        if result.returncode == 0:
+            info("Started Datadog agent.")
+        else:
+            warning("Datadog agent may not be running")
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         try:
