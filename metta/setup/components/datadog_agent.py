@@ -93,11 +93,13 @@ class DatadogAgentSetup(SetupModule):
             return
         try:
             with open(config_file) as f:
-                content = f.read()
+                lines = f.readlines()
+            has_logs_enabled = any(line.strip().startswith("logs_enabled:") for line in lines)
+            has_hostname = any(line.strip().startswith("hostname:") for line in lines)
             additions = []
-            if "logs_enabled:" not in content:
+            if not has_logs_enabled:
                 additions.append("logs_enabled: true")
-            if "hostname:" not in content:
+            if not has_hostname:
                 hostname = socket.gethostname() or "skypilot-node"
                 additions.append(f"hostname: {hostname}")
             if additions:
