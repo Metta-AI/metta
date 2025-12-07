@@ -275,84 +275,6 @@ def make_curriculum(
     )
 
 
-def _configure_bc(
-    tt: TrainTool,
-    *,
-    bc_policy_uri: str,
-    bc_mode: Literal["sliced_cloner", "supervisor"],
-    bc_teacher_lead_prob: float,
-    bc_steps_actual: int,
-    anneal_start: int,
-    anneal_end: int,
-) -> tuple[list[LossRunGate], list[HyperUpdateRule]]:
-    tt.training_env.supervisor_policy_uri = bc_policy_uri
-    losses = tt.trainer.losses
-    losses.ppo.enabled = False
-    losses.ppo_actor.enabled = True
-    losses.ppo_critic.enabled = True
-    losses.ppo_critic.deferred_training_start_step = bc_steps_actual
-
-    if bc_mode == "sliced_cloner":
-        losses.sliced_scripted_cloner.enabled = True
-        losses.supervisor.enabled = False
-
-        run_gates = [
-            LossRunGate(loss_instance_name="sliced_scripted_cloner", phase=phase, end_at_step=bc_steps_actual)
-            for phase in ("rollout", "train")
-        ]
-
-        rules = [
-            HyperUpdateRule(
-                loss_instance_name="sliced_scripted_cloner",
-                attr_path="teacher_led_proportion",
-                mode="progress",
-                style="linear",
-                start_value=0.2,
-                end_value=0.0,
-                start_agent_step=0,
-                end_agent_step=bc_steps_actual,
-            )
-        ]
-
-        return run_gates, rules
-
-    losses.supervisor.enabled = True
-    losses.sliced_scripted_cloner.enabled = False
-    losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
-
-    run_gates = [
-        LossRunGate(loss_instance_name="supervisor", phase=phase, end_at_step=bc_steps_actual)
-        for phase in ("rollout", "train")
-    ]
-
-    rules = [
-        HyperUpdateRule(
-            loss_instance_name="supervisor",
-            attr_path="action_loss_coef",
-            mode="progress",
-            style="linear",
-            start_value=1.0,
-            end_value=0.0,
-            start_agent_step=anneal_start,
-            end_agent_step=anneal_end,
-        ),
-        HyperUpdateRule(
-            loss_instance_name="supervisor",
-            attr_path="teacher_lead_prob",
-            mode="progress",
-            style="linear",
-            start_value=bc_teacher_lead_prob,
-            end_value=0.0,
-            start_agent_step=anneal_start,
-            end_agent_step=anneal_end,
-        ),
-    ]
-
-    return run_gates, rules
-
-
-# How to submit a policy trained here to the CoGames leaderboard:
-#
 # uv run cogames submit \
 #   -p class=mpt,kw.checkpoint_uri=s3://softmax-public/policies/...:v1.mpt \
 #   -n your-policy-name-for-leaderboard \
@@ -450,18 +372,63 @@ def train(
     scheduler_rules: list[HyperUpdateRule] = []
 
     if bc_policy_uri is not None:
-        run_gates, rules = _configure_bc(
-            tt,
-            bc_policy_uri=bc_policy_uri,
-            bc_mode=bc_mode,
-            bc_teacher_lead_prob=bc_teacher_lead_prob,
-            bc_steps_actual=bc_steps_actual,
-            anneal_start=anneal_start,
-            anneal_end=anneal_end,
-        )
+        tt.training_env.supervisor_policy_uri = bc_policy_uri
+        losses = tt.trainer.losses
+        losses.ppo.enabled = False
+        losses.ppo_actor.enabled = True
+        losses.ppo_critic.enabled = True
+        losses.ppo_critic.deferred_training_start_step = bc_steps_actual
 
-        scheduler_run_gates += run_gates
-        scheduler_rules += rules
+        if bc_mode == "sliced_cloner":
+            losses.sliced_scripted_cloner.enabled = True
+            losses.supervisor.enabled = False
+            loss_instance_name = "sliced_scripted_cloner"
+            bc_rules = [
+                HyperUpdateRule(
+                    loss_instance_name="sliced_scripted_cloner",
+                    attr_path="teacher_led_proportion",
+                    mode="progress",
+                    style="linear",
+                    start_value=0.2,
+                    end_value=0.0,
+                    start_agent_step=0,
+                    end_agent_step=bc_steps_actual,
+                )
+            ]
+        else:
+            losses.supervisor.enabled = True
+            losses.sliced_scripted_cloner.enabled = False
+            losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+            loss_instance_name = "supervisor"
+            bc_rules = [
+                HyperUpdateRule(
+                    loss_instance_name="supervisor",
+                    attr_path="action_loss_coef",
+                    mode="progress",
+                    style="linear",
+                    start_value=1.0,
+                    end_value=0.0,
+                    start_agent_step=anneal_start,
+                    end_agent_step=anneal_end,
+                ),
+                HyperUpdateRule(
+                    loss_instance_name="supervisor",
+                    attr_path="teacher_lead_prob",
+                    mode="progress",
+                    style="linear",
+                    start_value=bc_teacher_lead_prob,
+                    end_value=0.0,
+                    start_agent_step=anneal_start,
+                    end_agent_step=anneal_end,
+                ),
+            ]
+
+        bc_run_gates = [
+            LossRunGate(loss_instance_name=loss_instance_name, phase=phase, end_at_step=bc_steps_actual)
+            for phase in ("rollout", "train")
+        ]
+        scheduler_run_gates += bc_run_gates
+        scheduler_rules += bc_rules
 
     tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
