@@ -62,6 +62,7 @@ dependencies = [
   "setuptools>=80.9.0",
   "simple-term-menu>=1.6.4",
   "skypilot==0.10.3.post2",
+  "skylight",
   "softmax",
   "sympy>=1.13.3",
   "tabulate>=0.9.0",
@@ -115,6 +116,8 @@ dev = [{ include-group = "testing" }, { include-group = "lint" }, { include-grou
 metta = "metta.setup.metta_cli:main"
 skypilot = "devops.skypilot.launch:main"
 skypilot-sandbox = "devops.skypilot.sandbox:main"
+skylight = "skylight.cli:main"
+skytower = "skylight.cli:main"
 mapgen = "tools.map.gen:main"
 mapgen-scene = "tools.map.gen_scene:main"
 
@@ -160,6 +163,7 @@ members = [
   "softmax",
   "mcp_servers/pr_similarity",
   "mcp_servers/wandb_dashboard",
+  "projects/skylight",
 ]
 
 [tool.uv.sources]
@@ -171,6 +175,7 @@ metta-agent = { workspace = true }
 metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
 pufferlib-core = { workspace = true }
+skylight = { workspace = true }
 softmax = { workspace = true }
 wandb-dashboard-mcp = { workspace = true }
 metta-pr-similarity-mcp = { workspace = true }
