@@ -25,27 +25,13 @@ The widget is automatically built when you run `pnpm install` and `pnpm run buil
 
 ```python
 from policy_selector_widget import create_policy_selector_widget
-from metta.app_backend.clients.scorecard_client import ScorecardClient
+from policy_selector_widget.util import fetch_policies_from_backend
 
 # Create the widget
 policy_widget = create_policy_selector_widget()
 
-# Load policies from backend
-client = ScorecardClient()
-policies_response = await client.get_policies()
-policies = [
-    {
-        "id": p.id,
-        "type": p.type,
-        "name": p.name,
-        "user_id": p.user_id,
-        "created_at": p.created_at,
-        "tags": p.tags,
-    }
-    for p in policies_response.policies
-]
-
-# Set policy data
+# Load policies from backend (returns normalized dicts)
+policies = await fetch_policies_from_backend()
 policy_widget.set_policy_data(policies)
 
 # Display the widget
