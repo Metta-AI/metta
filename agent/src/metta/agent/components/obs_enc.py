@@ -278,16 +278,11 @@ class ObsPerceiverLatent(nn.Module):
 
     def forward(self, td: TensorDict) -> TensorDict:
         x_features = td[self.config.in_key]
-        key_mask = td.get("obs_mask") if self._use_mask else None
         tokens_norm = self.token_norm(x_features)
         kv = self.kv_proj(tokens_norm)
         k, v = kv.split(self._latent_dim, dim=-1)
         k = einops.rearrange(k, "b m (h d) -> b h m d", h=self._num_heads)
         v = einops.rearrange(v, "b m (h d) -> b h m d", h=self._num_heads)
-
-        attn_mask = None
-        if key_mask is not None:
-            attn_mask = einops.rearrange(key_mask.to(torch.bool), "b m -> b 1 1 m")
 
         latents = self.latents.expand(x_features.shape[0], -1, -1)
 
@@ -296,7 +291,7 @@ class ObsPerceiverLatent(nn.Module):
             q = layer["q_proj"](layer["latent_norm"](latents))
             q = einops.rearrange(q, "b n (h d) -> b h n d", h=self._num_heads)
 
-            attn_output = self._attention(q, k, v, attn_mask)
+            attn_output = self._attention(q, k, v, None)
             attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
             latents = residual + layer["attn_out_proj"](attn_output)
 
