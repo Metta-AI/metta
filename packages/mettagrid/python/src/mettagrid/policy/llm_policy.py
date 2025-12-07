@@ -427,6 +427,7 @@ class LLMAgentPolicy(AgentPolicy):
         debug_mode: bool = False,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
+        summary_interval: int = 5,
         mg_cfg = None,
         agent_id: int = 0,
     ):
@@ -440,6 +441,7 @@ class LLMAgentPolicy(AgentPolicy):
             debug_mode: If True, print human-readable observation debug info (default: True)
             use_dynamic_prompts: If True, use dynamic prompt builder (default: True)
             context_window_size: Number of steps before resending basic info (default: 20)
+            summary_interval: Number of steps between history summaries (default: 5)
             mg_cfg: Optional MettaGridConfig for extracting game-specific info (chest vibes, etc.)
             agent_id: Agent ID for this policy instance (used for debug output filtering)
         """
@@ -449,6 +451,7 @@ class LLMAgentPolicy(AgentPolicy):
         self.debug_mode = debug_mode
         self.agent_id = agent_id
         self.last_action: str | None = None
+        self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
         # Handle string "false"/"true" from config system
         if isinstance(use_dynamic_prompts, str):
             self.use_dynamic_prompts = use_dynamic_prompts.lower() not in ("false", "0", "no")
@@ -462,18 +465,21 @@ class LLMAgentPolicy(AgentPolicy):
         # Format: [{"role": "user"/"assistant", "content": "..."}, ...]
         self._messages: list[dict[str, str]] = []
 
-        # History summaries - one summary per context window (up to 100)
-        # Each summary captures what the agent thought and did in that window
+        # History summaries - one summary per summary_interval (up to 100)
+        # Each summary captures what the agent thought and did in that interval
         self._history_summaries: list[str] = []
         self._max_history_summaries = 100
 
-        # Track actions within current context window for summarization
+        # Track actions within current summary interval for summarization
         self._current_window_actions: list[dict[str, str]] = []
+
+        # Step counter for summary intervals (separate from context window)
+        self._summary_step_count = 0
 
         # Track global position (agent starts at 0,0 in global coordinates)
         self._global_x = 0
         self._global_y = 0
-        # Track positions visited in current window
+        # Track positions visited in current summary interval
         self._current_window_positions: list[tuple[int, int]] = [(0, 0)]
         # Track all positions ever visited (for breadcrumb)
         self._all_visited_positions: set[tuple[int, int]] = {(0, 0)}
@@ -747,14 +753,22 @@ class LLMAgentPolicy(AgentPolicy):
         """
         # Build prompt using dynamic or static approach
         if self.use_dynamic_prompts:
+            # Increment summary step counter
+            self._summary_step_count += 1
+
+            # Check if we're at a summary interval boundary (every N steps)
+            is_summary_boundary = self._summary_step_count > 1 and (self._summary_step_count - 1) % self.summary_interval == 0
+
             # Check if we're about to start a new context window (before incrementing step counter)
             next_step = self.prompt_builder.step_count + 1
             is_window_boundary = next_step > 1 and (next_step - 1) % self.prompt_builder.context_window_size == 0
 
-            # At window boundary, finalize the current window's summary before starting new window
-            if is_window_boundary:
+            # At summary boundary, finalize the current interval's summary
+            if is_summary_boundary:
                 self._finalize_window_summary()
-                # Clear conversation messages for fresh window (keep summaries)
+
+            # At context window boundary, also clear conversation messages for fresh window
+            if is_window_boundary:
                 self._messages = []
 
             user_prompt, includes_basic_info = self.prompt_builder.context_prompt(obs)
@@ -1185,6 +1199,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         debug_mode: bool = False,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
+        summary_interval: int = 5,
         mg_cfg = None,
     ):
         """Initialize LLM multi-agent policy.
@@ -1197,6 +1212,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             debug_mode: If True, print human-readable observation debug info (default: True)
             use_dynamic_prompts: If True, use dynamic prompt builder (default: True)
             context_window_size: Number of steps before resending basic info (default: 20)
+            summary_interval: Number of steps between history summaries (default: 5)
             mg_cfg: Optional MettaGridConfig for extracting game-specific info (chest vibes, etc.)
         """
         super().__init__(policy_env_info)
@@ -1209,6 +1225,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             self.debug_mode = bool(debug_mode)
         self.use_dynamic_prompts = use_dynamic_prompts
         self.context_window_size = context_window_size
+        self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
         self.mg_cfg = mg_cfg
 
         # Check API key before model selection for paid providers
@@ -1270,6 +1287,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             debug_mode=self.debug_mode,
             use_dynamic_prompts=self.use_dynamic_prompts,
             context_window_size=self.context_window_size,
+            summary_interval=self.summary_interval,
             mg_cfg=self.mg_cfg,
             agent_id=agent_id,
         )
@@ -1289,6 +1307,7 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
         debug_mode: bool = False,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
+        summary_interval: int = 5,
         mg_cfg = None,
     ):
         super().__init__(
@@ -1299,6 +1318,7 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
             debug_mode=debug_mode,
             use_dynamic_prompts=use_dynamic_prompts,
             context_window_size=context_window_size,
+            summary_interval=summary_interval,
             mg_cfg=mg_cfg,
         )
 
@@ -1316,6 +1336,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
         debug_mode: bool = False,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
+        summary_interval: int = 5,
         mg_cfg = None,
     ):
         super().__init__(
@@ -1326,6 +1347,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
             debug_mode=debug_mode,
             use_dynamic_prompts=use_dynamic_prompts,
             context_window_size=context_window_size,
+            summary_interval=summary_interval,
             mg_cfg=mg_cfg,
         )
 
@@ -1343,6 +1365,7 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
         debug_mode: bool = False,
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
+        summary_interval: int = 5,
         mg_cfg = None,
     ):
         super().__init__(
@@ -1353,5 +1376,6 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
             debug_mode=debug_mode,
             use_dynamic_prompts=use_dynamic_prompts,
             context_window_size=context_window_size,
+            summary_interval=summary_interval,
             mg_cfg=mg_cfg,
         )
