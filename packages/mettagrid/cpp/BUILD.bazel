@@ -42,12 +42,14 @@ pybind_extension(
     srcs = [
         "bindings/mettagrid_c.cpp",
         "bindings/mettagrid_c.hpp",
+        "src/matrix_profile.cpp",
+        # "src/matrix_profile.cu",  # CUDA support - TODO: configure Bazel for CUDA
     ] + glob([
         "src/mettagrid/**/*.cpp",
         "include/mettagrid/**/*.hpp",
     ]),
-    copts = COPTS,
-    includes = ["include/mettagrid", "."],
+    copts = COPTS + ["-DCUDA_DISABLED"],  # Disable CUDA for now
+    includes = ["include/mettagrid", "include", "."],
     visibility = ["//visibility:public"],
 )
 
