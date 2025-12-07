@@ -114,15 +114,15 @@ class DatadogAgentSetup(SetupModule):
                 stderr=log_file,
                 start_new_session=True,
             )
-        time.sleep(3)
+        time.sleep(5)
         result = subprocess.run(["pgrep", "-f", AGENT_BINARY], capture_output=True)
         if result.returncode == 0:
             info("Started Datadog agent.")
         else:
-            warning("Datadog agent failed to start. Check /tmp/dd-agent-startup.log")
+            warning("Datadog agent not running after 5s")
             try:
                 with open(log_path) as f:
-                    for line in f.readlines()[:10]:
+                    for line in f.readlines()[-20:]:
                         warning(f"  {line.rstrip()}")
             except Exception:
                 pass
