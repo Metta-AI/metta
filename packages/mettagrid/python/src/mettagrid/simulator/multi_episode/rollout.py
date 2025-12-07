@@ -31,6 +31,8 @@ class EpisodeRolloutResult(BaseModel):
     replay_path: str | None
     steps: int
     max_steps: int
+    agent_inventories: list[dict[str, int]] | None = None  # agent_id -> {resource_name -> amount}
+    resource_names: list[str] | None = None  # list of resource names
 
 
 class MultiEpisodeRolloutResult(BaseModel):
@@ -120,6 +122,12 @@ def multi_episode_rollout(
             all_replay_paths = episode_replay_writer.get_written_replay_urls()
             replay_path = None if not all_replay_paths else list(all_replay_paths.values())[0]
 
+        # Collect agent inventories
+        agent_inventories = []
+        for agent_id in range(env_cfg.game.num_agents):
+            agent = rollout._sim.agent(agent_id)
+            agent_inventories.append(dict(agent.inventory))
+
         result = EpisodeRolloutResult(
             assignments=assignments.copy(),
             rewards=np.array(rollout._sim.episode_rewards, dtype=float),
@@ -128,6 +136,8 @@ def multi_episode_rollout(
             replay_path=replay_path,
             steps=rollout._sim.current_step,
             max_steps=rollout._sim.config.game.max_steps,
+            agent_inventories=agent_inventories,
+            resource_names=env_cfg.game.resource_names,
         )
 
         episode_results.append(result)
