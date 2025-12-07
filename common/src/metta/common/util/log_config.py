@@ -122,27 +122,6 @@ def _add_file_logging(run_dir: str) -> None:
     # Force a flush to make sure the file is created properly
     file_handler.flush()
 
-    if os.environ.get("SKYPILOT_TASK_ID"):
-        _add_datadog_handler()
-
-
-@functools.cache
-def _add_datadog_handler() -> None:
-    """Add file handler for Datadog log collection (fixed path, all nodes write to same file)."""
-    datadog_log_path = "/tmp/datadog-training.log"
-    try:
-        os.makedirs(os.path.dirname(datadog_log_path), exist_ok=True)
-        datadog_handler = logging.FileHandler(datadog_log_path, mode="a")
-        formatter = logging.Formatter(fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
-        datadog_handler.setFormatter(formatter)
-        datadog_handler.setLevel(logging.INFO)
-
-        root_logger = logging.getLogger()
-        root_logger.addHandler(datadog_handler)
-        os.chmod(datadog_log_path, 0o666)
-    except Exception:
-        pass
-
 
 @functools.cache
 def _init_console_logging() -> None:
