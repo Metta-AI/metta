@@ -23,11 +23,9 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
-# Start Datadog agent if configured
+# Start Datadog agent if configured (must be in run phase, not setup, due to SkyPilot subprocess cleanup)
 if [[ -n "${METTA_DD_LOG_FILE:-}" ]]; then
-  echo "[DD] Setting up Datadog agent..."
   uv run metta install datadog-agent --non-interactive --profile=softmax-docker 2>&1 | head -20 || true
-  echo "[DD] Agent running: $(pgrep -f '/opt/datadog-agent/bin/agent/agent' > /dev/null && echo 'yes' || echo 'no')"
 fi
 
 set +e
