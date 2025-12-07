@@ -1,1 +1,1 @@
-/home/relh/Code/metta/packages/mettagrid/cpp/bindings/dirtybit_mettagrid_c.cpp
+dirtybit_mettagrid_c.cpp
