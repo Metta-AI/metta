@@ -212,12 +212,14 @@ private:
 
   std::vector<std::array<LocationSpan, 256>> _location_spans;
   void _rebuild_location_spans();
+  void _rebuild_location_spans_for_agent(size_t agent_idx);
 
   void _init_cell_cache();
   void _refresh_cell_cache(GridCoord r, GridCoord c);
 
   void _update_observation_from_cache(GridCoord r, GridCoord c);
   void _rewrite_global_tokens(size_t agent_idx, ActionType action);
+  void _clear_agent_observation(size_t agent_idx);
 
   std::vector<GridLocation> _prev_locations;
 };

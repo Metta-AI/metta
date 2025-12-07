@@ -681,29 +681,35 @@ void MettaGrid::_rebuild_fov_reverse_map() {
 void MettaGrid::_rebuild_location_spans() {
   _location_spans.assign(_agents.size(), {});
   for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
-    auto& spans = _location_spans[agent_idx];
-    for (auto& span : spans) {
-      span.start = std::numeric_limits<size_t>::max();
-      span.len = 0;
+    _rebuild_location_spans_for_agent(agent_idx);
+  }
+}
+
+void MettaGrid::_rebuild_location_spans_for_agent(size_t agent_idx) {
+  if (_location_spans.size() < _agents.size()) {
+    _location_spans.assign(_agents.size(), {});
+  }
+  auto& spans = _location_spans[agent_idx];
+  for (auto& span : spans) {
+    span.start = std::numeric_limits<size_t>::max();
+    span.len = 0;
+  }
+
+  auto observation_view = _observations.mutable_unchecked<3>();
+  ObservationToken* buffer = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+  const size_t capacity = static_cast<size_t>(observation_view.shape(1));
+
+  for (size_t i = 0; i < capacity; ++i) {
+    const auto& token = buffer[i];
+    if (token.location == EmptyTokenByte) {
+      continue;
     }
-
-    auto observation_view = _observations.mutable_unchecked<3>();
-    ObservationToken* buffer =
-        reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
-    const size_t capacity = static_cast<size_t>(observation_view.shape(1));
-
-    for (size_t i = 0; i < capacity; ++i) {
-      const auto& token = buffer[i];
-      if (token.location == EmptyTokenByte) {
-        continue;
-      }
-      LocationSpan& span = spans[token.location];
-      if (span.start == std::numeric_limits<size_t>::max()) {
-        span.start = i;
-        span.len = 1;
-      } else if (span.start + span.len == i) {
-        span.len += 1;
-      }
+    LocationSpan& span = spans[token.location];
+    if (span.start == std::numeric_limits<size_t>::max()) {
+      span.start = i;
+      span.len = 1;
+    } else if (span.start + span.len == i) {
+      span.len += 1;
     }
   }
 }
@@ -900,12 +906,31 @@ void MettaGrid::_rewrite_global_tokens(size_t agent_idx, ActionType action) {
     buffer[i].feature_id = EmptyTokenByte;
     buffer[i].value = EmptyTokenByte;
   }
-  _rebuild_location_spans();
+  _rebuild_location_spans_for_agent(agent_idx);
 }
 
 bool MettaGrid::_is_global_feature(ObservationType feature_id) const {
   return feature_id == ObservationFeature::EpisodeCompletionPct || feature_id == ObservationFeature::LastAction ||
          feature_id == ObservationFeature::LastReward || feature_id == ObservationFeature::Goal;
+}
+
+void MettaGrid::_clear_agent_observation(size_t agent_idx) {
+  auto observation_view = _observations.mutable_unchecked<3>();
+  ObservationToken* buffer = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+  const size_t capacity = static_cast<size_t>(observation_view.shape(1));
+  for (size_t i = 0; i < capacity; ++i) {
+    buffer[i].location = EmptyTokenByte;
+    buffer[i].feature_id = EmptyTokenByte;
+    buffer[i].value = EmptyTokenByte;
+  }
+  if (_location_spans.size() < _agents.size()) {
+    _location_spans.assign(_agents.size(), {});
+  }
+  auto& spans = _location_spans[agent_idx];
+  for (auto& span : spans) {
+    span.start = std::numeric_limits<size_t>::max();
+    span.len = 0;
+  }
 }
 
 namespace {
@@ -928,6 +953,8 @@ void MettaGrid::_step() {
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0);
 
   std::fill(_action_success.begin(), _action_success.end(), false);
+
+  std::vector<bool> agent_moved(_agents.size(), false);
 
   // Increment timestep and process events
   current_step++;
@@ -1002,6 +1029,7 @@ void MettaGrid::_step() {
             src.dynamic_count = 0;
             _mark_cell_dirty(after_loc.r, after_loc.c, DirtyBits::kDirtyLocation);
             _mark_cell_dirty(before_loc.r, before_loc.c, DirtyBits::kDirtyLocation);
+            agent_moved[agent_idx] = true;
           }
           _mark_adjacent_assemblers(before_loc.r, before_loc.c);
           _mark_adjacent_assemblers(after_loc.r, after_loc.c);
@@ -1050,12 +1078,14 @@ void MettaGrid::_step() {
   _rebuild_fov_reverse_map();
 
   std::vector<size_t> cells_to_update;
-  cells_to_update.reserve(_dirty_cells.size());
+  cells_to_update.reserve(_dirty_cells.size() + _agents.size() * _obs_pattern.size());
   for (size_t idx : _dirty_cells) {
     cells_to_update.push_back(idx);
   }
+
   for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
-    if (_prev_locations[agent_idx] == _agents[agent_idx]->location && _dirty_cells.empty()) continue;
+    if (!agent_moved[agent_idx]) continue;
+    _clear_agent_observation(agent_idx);
     const auto* agent = _agents[agent_idx];
     for (const auto& [dr, dc] : PackedCoordinate::ObservationPattern{obs_height, obs_width}) {
       int rr = static_cast<int>(agent->location.r) + dr;
@@ -1074,7 +1104,9 @@ void MettaGrid::_step() {
   for (size_t idx : cells_to_update) {
     GridCoord r = static_cast<GridCoord>(idx / _grid->width);
     GridCoord c = static_cast<GridCoord>(idx % _grid->width);
-    _refresh_cell_cache(r, c);
+    if ((_dirty_flags[idx] & DirtyBits::kDirtyContent) != 0) {
+      _refresh_cell_cache(r, c);
+    }
     _update_observation_from_cache(r, c);
   }
 
