@@ -23,10 +23,10 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
-# DD diagnostics
+# Start Datadog agent if configured
 if [[ -n "${METTA_DD_LOG_FILE:-}" ]]; then
-  echo "[DD] Log file: $METTA_DD_LOG_FILE"
-  echo "[DD] File exists: $(test -f "$METTA_DD_LOG_FILE" && echo 'yes' || echo 'no')"
+  echo "[DD] Setting up Datadog agent..."
+  uv run metta install datadog-agent --non-interactive --profile=softmax-docker 2>&1 | head -20 || true
   echo "[DD] Agent running: $(pgrep -f '/opt/datadog-agent/bin/agent/agent' > /dev/null && echo 'yes' || echo 'no')"
 fi
 
