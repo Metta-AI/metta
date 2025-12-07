@@ -311,6 +311,36 @@ void MettaGrid::_rebuild_fov_reverse_map() {
   }
 }
 
+void MettaGrid::_rebuild_location_spans() {
+  _location_spans.assign(_agents.size(), {});
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+    auto& spans = _location_spans[agent_idx];
+    for (auto& span : spans) {
+      span.start = std::numeric_limits<size_t>::max();
+      span.len = 0;
+    }
+
+    auto observation_view = _observations.mutable_unchecked<3>();
+    ObservationToken* buffer =
+        reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+    const size_t capacity = static_cast<size_t>(observation_view.shape(1));
+
+    for (size_t i = 0; i < capacity; ++i) {
+      const auto& token = buffer[i];
+      if (token.location == EmptyTokenByte || _is_global_feature(token.feature_id)) {
+        continue;
+      }
+      LocationSpan& span = spans[token.location];
+      if (span.start == std::numeric_limits<size_t>::max()) {
+        span.start = i;
+        span.len = 1;
+      } else if (span.start + span.len == i) {
+        span.len += 1;
+      }
+    }
+  }
+}
+
 bool MettaGrid::_is_global_feature(ObservationType feature_id) const {
   return feature_id == ObservationFeature::EpisodeCompletionPct || feature_id == ObservationFeature::LastAction ||
          feature_id == ObservationFeature::LastReward || feature_id == ObservationFeature::Compass ||
@@ -426,15 +456,15 @@ void MettaGrid::_rewrite_global_tokens(size_t agent_idx, ActionType action) {
     }
   }
 
-  std::vector<ObservationToken> rebuilt;
-  rebuilt.reserve(capacity);
-
+  // Build globals in order for the center location.
+  std::vector<ObservationToken> globals_out;
+  globals_out.reserve(global_tokens.size() + 1);
   for (const auto& token : global_tokens) {
     ObservationToken rewritten{};
     rewritten.location = center_location;
     rewritten.feature_id = token.feature_id;
     rewritten.value = token.value;
-    rebuilt.push_back(rewritten);
+    globals_out.push_back(rewritten);
   }
 
   // Compass token (optional)
@@ -464,26 +494,54 @@ void MettaGrid::_rewrite_global_tokens(size_t agent_idx, ActionType action) {
         compass.location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
         compass.feature_id = ObservationFeature::Compass;
         compass.value = static_cast<ObservationType>(1);
-        rebuilt.push_back(compass);
+        globals_out.push_back(compass);
       }
     }
   }
 
-  for (const auto& token : kept) {
-    if (rebuilt.size() >= capacity) {
-      break;
+  // Find existing center globals span.
+  size_t span_start = std::numeric_limits<size_t>::max();
+  size_t span_len = 0;
+  for (size_t i = 0; i < capacity; ++i) {
+    const auto& tok = buffer[i];
+    if (tok.location != center_location || !_is_global_feature(tok.feature_id)) continue;
+    if (span_start == std::numeric_limits<size_t>::max()) {
+      span_start = i;
     }
-    rebuilt.push_back(token);
+    span_len += 1;
   }
 
-  for (size_t i = 0; i < capacity; ++i) {
-    if (i < rebuilt.size()) {
-      buffer[i] = rebuilt[i];
-    } else {
-      buffer[i].location = EmptyTokenByte;
-      buffer[i].feature_id = EmptyTokenByte;
-      buffer[i].value = EmptyTokenByte;
+  if (span_start == std::numeric_limits<size_t>::max()) {
+    // Find first contiguous empty block large enough.
+    size_t empty_start = std::numeric_limits<size_t>::max();
+    size_t empty_run = 0;
+    for (size_t i = 0; i < capacity; ++i) {
+      if (buffer[i].location == EmptyTokenByte) {
+        if (empty_start == std::numeric_limits<size_t>::max()) empty_start = i;
+        empty_run += 1;
+        if (empty_run >= globals_out.size()) break;
+      } else {
+        empty_start = std::numeric_limits<size_t>::max();
+        empty_run = 0;
+      }
     }
+    if (empty_start == std::numeric_limits<size_t>::max()) {
+      return;  // no space
+    }
+    span_start = empty_start;
+    span_len = globals_out.size();
+  } else {
+    span_len = std::max(span_len, globals_out.size());
+  }
+
+  const size_t max_write = std::min(globals_out.size(), capacity - span_start);
+  for (size_t i = 0; i < max_write; ++i) {
+    buffer[span_start + i] = globals_out[i];
+  }
+  for (size_t i = span_start + max_write; i < std::min(span_start + span_len, capacity); ++i) {
+    buffer[i].location = EmptyTokenByte;
+    buffer[i].feature_id = EmptyTokenByte;
+    buffer[i].value = EmptyTokenByte;
   }
 }
 
@@ -508,13 +566,14 @@ void MettaGrid::_update_observation(GridCoord r, GridCoord c) {
         PackedCoordinate::pack(static_cast<uint8_t>(dr + obs_height_radius),
                                static_cast<uint8_t>(dc + obs_width_radius));
 
-    std::vector<ObservationToken> new_tokens;
+    static thread_local std::vector<ObservationToken> scratch_tokens;
+    scratch_tokens.clear();
     if (obj != nullptr) {
-      new_tokens.resize(_num_observation_tokens);
-      ObservationTokens token_span(new_tokens.data(), new_tokens.size());
+      scratch_tokens.resize(_num_observation_tokens);
+      ObservationTokens token_span(scratch_tokens.data(), scratch_tokens.size());
       size_t attempted = _obs_encoder->encode_tokens(obj, token_span, packed_location);
-      size_t count = std::min(attempted, new_tokens.size());
-      new_tokens.resize(count);
+      size_t count = std::min(attempted, scratch_tokens.size());
+      scratch_tokens.resize(count);
     }
 
     auto observation_view = _observations.mutable_unchecked<3>();
@@ -522,35 +581,60 @@ void MettaGrid::_update_observation(GridCoord r, GridCoord c) {
         reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
     const size_t capacity = static_cast<size_t>(observation_view.shape(1));
 
-    std::vector<ObservationToken> rebuilt;
-    rebuilt.reserve(capacity);
+    // Use cached span for this location (globals excluded).
+    auto& spans = _location_spans[agent_idx];
+    LocationSpan& span = spans[packed_location];
+    size_t start = span.start;
+    size_t span_len = span.len;
+    const size_t required = scratch_tokens.size();
 
-    for (size_t i = 0; i < capacity; ++i) {
-      const ObservationToken& token = buffer[i];
-      if (token.location == EmptyTokenByte) {
-        continue;
+    if (start == std::numeric_limits<size_t>::max()) {
+      // Find first contiguous empty block large enough.
+      size_t empty_start = std::numeric_limits<size_t>::max();
+      size_t empty_run = 0;
+      for (size_t i = 0; i < capacity; ++i) {
+        if (buffer[i].location == EmptyTokenByte) {
+          if (empty_start == std::numeric_limits<size_t>::max()) empty_start = i;
+          empty_run += 1;
+          if (empty_run >= required) break;
+        } else {
+          empty_start = std::numeric_limits<size_t>::max();
+          empty_run = 0;
+        }
       }
-      if (token.location == packed_location && !_is_global_feature(token.feature_id)) {
-        continue;
+      if (empty_start == std::numeric_limits<size_t>::max()) {
+        continue;  // no space, drop update
       }
-      rebuilt.push_back(token);
+      start = empty_start;
+      span_len = required;
+      span.start = start;
+      span.len = span_len;
+    } else {
+      if (required > span_len) {
+        // Try to grow span into following empties.
+        size_t extra_needed = required - span_len;
+        size_t advance = start + span_len;
+        size_t extra_have = 0;
+        while (advance < capacity && buffer[advance].location == EmptyTokenByte && extra_have < extra_needed) {
+          advance += 1;
+          extra_have += 1;
+        }
+        span_len += extra_have;
+        span.len = span_len;
+      } else if (required < span_len) {
+        for (size_t i = start + required; i < start + span_len; ++i) {
+          buffer[i].location = EmptyTokenByte;
+          buffer[i].feature_id = EmptyTokenByte;
+          buffer[i].value = EmptyTokenByte;
+        }
+        span_len = required;
+        span.len = span_len;
+      }
     }
 
-    for (const auto& token : new_tokens) {
-      if (rebuilt.size() >= capacity) {
-        break;
-      }
-      rebuilt.push_back(token);
-    }
-
-    for (size_t i = 0; i < capacity; ++i) {
-      if (i < rebuilt.size()) {
-        buffer[i] = rebuilt[i];
-      } else {
-        buffer[i].location = EmptyTokenByte;
-        buffer[i].feature_id = EmptyTokenByte;
-        buffer[i].value = EmptyTokenByte;
-      }
+    const size_t to_copy = std::min(required, span_len);
+    for (size_t i = 0; i < to_copy; ++i) {
+      buffer[start + i] = scratch_tokens[i];
     }
   }
 }
@@ -968,6 +1052,7 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   validate_buffers();
   _init_buffers(_agents.size());
   _rebuild_fov_reverse_map();
+  _rebuild_location_spans();
 }
 
 void MettaGrid::step() {

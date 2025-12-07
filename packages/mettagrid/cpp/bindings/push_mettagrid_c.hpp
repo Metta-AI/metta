@@ -47,6 +47,11 @@ struct ActionConfig;
 struct AttackActionConfig;
 struct ChangeVibeActionConfig;
 
+struct LocationSpan {
+  size_t start;
+  size_t len;
+};
+
 namespace py = pybind11;
 
 class METTAGRID_API MettaGrid {
@@ -174,6 +179,10 @@ private:
   // FoV reverse map: cell_idx -> list of agent indices who can see it.
   std::vector<std::vector<size_t>> _cell_to_agents;
   void _rebuild_fov_reverse_map();
+
+  // Location spans per agent (indexed by packed coordinate); globals excluded.
+  std::vector<std::array<LocationSpan, 256>> _location_spans;
+  void _rebuild_location_spans();
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_
