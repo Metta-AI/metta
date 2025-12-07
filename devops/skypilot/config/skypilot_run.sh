@@ -194,10 +194,6 @@ start_monitors() {
   fi
 }
 
-start_datadog_agent() {
-  uv run python devops/skypilot/utils/start_datadog_agent.py &
-}
-
 run_cmd() {
   echo "[INFO] Starting process (node rank: $RANK)"
 
@@ -229,7 +225,6 @@ run_cmd() {
   fi
 
   start_monitors
-  start_datadog_agent
 
   wait "$CMD_PID"
   CMD_EXIT=$?
