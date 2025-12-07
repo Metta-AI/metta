@@ -117,7 +117,8 @@ logs:
 
         info("Installing Datadog agent...")
         result = subprocess.run(
-            ["bash", "-c", "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"],
+            "curl -fsSL https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh | bash",
+            shell=True,
             env=env,
             capture_output=True,
             text=True,
