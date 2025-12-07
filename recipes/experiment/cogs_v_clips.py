@@ -357,10 +357,8 @@ def train(
         tt.training_env.maps_cache_size = maps_cache_size
 
     # Compute BC window in agent steps (default is 1B when BC is enabled)
-    default_bc_steps = 1_000_000_000 if bc_policy_uri is not None else 0
-    bc_total_steps = bc_steps if bc_steps is not None else default_bc_steps
+    bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
     anneal_start = int(bc_total_steps * 0.5)
-    anneal_end = bc_total_steps
 
     scheduler_run_gates: list[LossRunGate] = [
         LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_total_steps),
@@ -408,7 +406,7 @@ def train(
                     start_value=1.0,
                     end_value=0.0,
                     start_agent_step=anneal_start,
-                    end_agent_step=anneal_end,
+                    end_agent_step=bc_total_steps,
                 ),
                 HyperUpdateRule(
                     loss_instance_name="supervisor",
@@ -418,7 +416,7 @@ def train(
                     start_value=bc_teacher_lead_prob,
                     end_value=0.0,
                     start_agent_step=anneal_start,
-                    end_agent_step=anneal_end,
+                    end_agent_step=bc_total_steps,
                 ),
             ]
 
