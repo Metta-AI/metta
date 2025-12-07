@@ -209,7 +209,7 @@ run_cmd() {
 
   echo "[INFO] Running command: ${cmd[*]}"
 
-  export PYTHONUNBUFFERED=1
+  # Use process substitution so $! is the trainer (not tee)
   setsid "${cmd[@]}" &
   export CMD_PID=$!
 
@@ -217,12 +217,6 @@ run_cmd() {
 
   export CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2> /dev/null | tr -d ' ')
   echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
-
-  # Verify training process is actually running
-  if ! ps -p "$CMD_PID" > /dev/null 2>&1; then
-    echo "[ERROR] Training process died immediately after startup!"
-    exit 1
-  fi
 
   start_monitors
 

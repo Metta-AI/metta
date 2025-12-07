@@ -16,6 +16,8 @@ logs:
     source: training
 """
 
+AGENT_BINARY = "/opt/datadog-agent/bin/agent/agent"
+
 
 @register_module
 class DatadogAgentSetup(SetupModule):
@@ -36,18 +38,7 @@ class DatadogAgentSetup(SetupModule):
         return platform.system() == "Linux"
 
     def check_installed(self) -> bool:
-        if os.path.exists("/opt/datadog-agent/bin/agent/agent"):
-            return True
-        try:
-            result = subprocess.run(
-                ["systemctl", "status", "datadog-agent"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            return result.returncode != 4
-        except FileNotFoundError:
-            return False
+        return os.path.exists(AGENT_BINARY)
 
     def _get_dd_api_key(self) -> str | None:
         return os.environ.get("DD_API_KEY") or get_secretsmanager_secret("datadog/api-key", require_exists=False)
@@ -75,6 +66,17 @@ class DatadogAgentSetup(SetupModule):
         except Exception as e:
             warning(f"Could not create Datadog log config: {e}")
 
+    def _start_agent(self) -> None:
+        if not os.path.exists(AGENT_BINARY):
+            return
+        subprocess.Popen(
+            [AGENT_BINARY, "run"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        info("Started Datadog agent.")
+
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         try:
             api_key = self._get_dd_api_key()
@@ -100,14 +102,7 @@ class DatadogAgentSetup(SetupModule):
         if self.check_installed():
             info("Datadog agent already installed.")
             self._setup_log_config()
-            restart_cmd = ["systemctl", "restart", "datadog-agent"]
-            if which("sudo"):
-                restart_cmd = ["sudo", *restart_cmd]
-            try:
-                subprocess.run(restart_cmd, check=True)
-                success("Datadog agent restarted.")
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                warning("Could not restart Datadog agent via systemctl.")
+            self._start_agent()
             return
 
         info("Installing Datadog agent...")
@@ -129,4 +124,5 @@ class DatadogAgentSetup(SetupModule):
             return
 
         self._setup_log_config()
+        self._start_agent()
         success("Datadog agent installed successfully.")
