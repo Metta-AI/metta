@@ -645,6 +645,14 @@ class LLMAgentPolicy(AgentPolicy):
         # Format: [{"role": "user"/"assistant", "content": "..."}, ...]
         self._messages: list[dict[str, str]] = []
 
+        # History summaries - one summary per context window (up to 100)
+        # Each summary captures what the agent thought and did in that window
+        self._history_summaries: list[str] = []
+        self._max_history_summaries = 100
+
+        # Track actions within current context window for summarization
+        self._current_window_actions: list[dict[str, str]] = []
+
         # Initialize prompt builder (new dynamic approach)
         if self.use_dynamic_prompts:
             from mettagrid.policy.llm_prompt_builder import LLMPromptBuilder
@@ -778,6 +786,81 @@ class LLMAgentPolicy(AgentPolicy):
             return "all" in self.debug_mode or component in self.debug_mode
         return False
 
+    def _summarize_current_window(self) -> str:
+        """Summarize the current context window's actions into a compact summary.
+
+        Returns:
+            A compact string summarizing what the agent did in this window.
+        """
+        if not self._current_window_actions:
+            return ""
+
+        # Count actions by type
+        action_counts: dict[str, int] = {}
+        reasonings: list[str] = []
+
+        for entry in self._current_window_actions:
+            action = entry.get("action", "unknown")
+            reasoning = entry.get("reasoning", "")
+
+            action_counts[action] = action_counts.get(action, 0) + 1
+            if reasoning and len(reasonings) < 3:  # Keep first 3 reasonings
+                reasonings.append(reasoning)
+
+        # Build summary
+        window_num = len(self._history_summaries) + 1
+        steps_in_window = len(self._current_window_actions)
+
+        # Format action counts
+        action_summary = ", ".join(f"{action}({count})" for action, count in sorted(action_counts.items(), key=lambda x: -x[1]))
+
+        summary = f"[Window {window_num}, {steps_in_window} steps] Actions: {action_summary}"
+        if reasonings:
+            summary += f" | Thoughts: {'; '.join(reasonings[:2])}"
+
+        return summary
+
+    def _add_action_to_window(self, action: str, reasoning: str = "") -> None:
+        """Track an action for the current context window summary.
+
+        Args:
+            action: The action taken
+            reasoning: The reasoning behind the action (from LLM response)
+        """
+        self._current_window_actions.append({"action": action, "reasoning": reasoning})
+
+    def _finalize_window_summary(self) -> None:
+        """Create summary for current window and reset for next window."""
+        if self._current_window_actions:
+            summary = self._summarize_current_window()
+            if summary:
+                self._history_summaries.append(summary)
+                # Prune to max size
+                if len(self._history_summaries) > self._max_history_summaries:
+                    self._history_summaries = self._history_summaries[-self._max_history_summaries:]
+
+            if self._should_show("prompt"):
+                print(f"\n[HISTORY] Created summary: {summary}")
+
+        # Reset for next window
+        self._current_window_actions = []
+
+    def _get_history_summary_text(self) -> str:
+        """Get formatted history summaries to prepend to prompts.
+
+        Returns:
+            Formatted string of past window summaries, or empty string if none.
+        """
+        if not self._history_summaries:
+            return ""
+
+        lines = ["=== PAST HISTORY ==="]
+        for summary in self._history_summaries:
+            lines.append(f"  {summary}")
+        lines.append("")  # Empty line after
+
+        return "\n".join(lines)
+
     def step(self, obs: AgentObservation) -> Action:
         """Get action from LLM given observation.
 
@@ -794,12 +877,28 @@ class LLMAgentPolicy(AgentPolicy):
 
         # Build prompt using dynamic or static approach
         if self.use_dynamic_prompts:
+            # Check if we're about to start a new context window (before incrementing step counter)
+            next_step = self.prompt_builder.step_count + 1
+            is_window_boundary = next_step > 1 and (next_step - 1) % self.prompt_builder.context_window_size == 0
+
+            # At window boundary, finalize the current window's summary before starting new window
+            if is_window_boundary:
+                self._finalize_window_summary()
+                # Clear conversation messages for fresh window (keep summaries)
+                self._messages = []
+
             user_prompt, includes_basic_info = self.prompt_builder.context_prompt(obs)
+
+            # Prepend history summaries to prompts that include basic info
+            if includes_basic_info and self._history_summaries:
+                history_text = self._get_history_summary_text()
+                user_prompt = history_text + "\n" + user_prompt
+
             if self.debug_mode:
                 num_msgs = len(self._messages) + 1  # +1 for the new user message we're about to add
                 step = self.prompt_builder.step_count
                 if includes_basic_info:
-                    logger.info(f"[DYNAMIC] Sent basic_info + observable (step {step}, {num_msgs} msgs)")
+                    logger.info(f"[DYNAMIC] Sent basic_info + observable (step {step}, {num_msgs} msgs, {len(self._history_summaries)} history summaries)")
                 else:
                     logger.info(f"[DYNAMIC] Sent observable only (step {step}, {num_msgs} msgs)")
 
@@ -1088,7 +1187,10 @@ The best action is move_east (WRONG - contains extra words)
                     )
 
             # Parse and return action
-            parsed_action = self._parse_action(action_name)
+            parsed_action, reasoning = self._parse_action(action_name)
+
+            # Track action for history summary (with reasoning if available)
+            self._add_action_to_window(parsed_action.name, reasoning)
 
             # Track last action for debug output
             self.last_action = parsed_action.name
@@ -1098,11 +1200,12 @@ The best action is move_east (WRONG - contains extra words)
         except Exception as e:
             logger.error(f"LLM API error: {e}. Falling back to random action.")
             fallback_action = random.choice(self.policy_env_info.actions.actions())
+            self._add_action_to_window(fallback_action.name, "API error fallback")
             self.last_action = fallback_action.name
             return fallback_action
 
-    def _parse_action(self, response_text: str) -> Action:
-        """Parse LLM response and return valid Action.
+    def _parse_action(self, response_text: str) -> tuple[Action, str]:
+        """Parse LLM response and return valid Action and reasoning.
 
         Handles both JSON format {"reasoning": "...", "action": "..."} and plain action names.
 
@@ -1110,19 +1213,21 @@ The best action is move_east (WRONG - contains extra words)
             response_text: Raw response from LLM
 
         Returns:
-            Valid Action object
+            Tuple of (Action, reasoning_string)
         """
         # Clean up response
         response_text = response_text.strip()
+        reasoning = ""
 
         # Try to parse as JSON first (expected format)
         try:
             parsed = json.loads(response_text)
             if isinstance(parsed, dict) and "action" in parsed:
                 action_name = parsed["action"].strip().lower()
+                reasoning = parsed.get("reasoning", "")
                 for action in self.policy_env_info.actions.actions():
                     if action.name.lower() == action_name:
-                        return action
+                        return action, reasoning
                 # If action from JSON doesn't match, fall through to other parsing
         except json.JSONDecodeError:
             pass  # Not valid JSON, try other parsing methods
@@ -1133,7 +1238,7 @@ The best action is move_east (WRONG - contains extra words)
         # Try exact match first (best case - LLM followed instructions)
         for action in self.policy_env_info.actions.actions():
             if action.name.lower() == action_name:
-                return action
+                return action, reasoning
 
         # If response contains multiple words, try to extract action from end
         # (LLM might have said "I will move_east" instead of just "move_east")
@@ -1143,23 +1248,23 @@ The best action is move_east (WRONG - contains extra words)
             last_word = words[-1].strip(".,!?;:")
             for action in self.policy_env_info.actions.actions():
                 if action.name.lower() == last_word:
-                    return action
+                    return action, reasoning
 
             # Check each word from end to start
             for word in reversed(words):
                 word = word.strip(".,!?;:")
                 for action in self.policy_env_info.actions.actions():
                     if action.name.lower() == word:
-                        return action
+                        return action, reasoning
 
         # Last resort: partial match
         # This is dangerous because it might pick up "don't move_north" as move_north
         for action in self.policy_env_info.actions.actions():
             if action.name.lower() in action_name:
-                return action
+                return action, reasoning
 
         # Fallback to random action if parsing completely fails
-        return random.choice(self.policy_env_info.actions.actions())
+        return random.choice(self.policy_env_info.actions.actions()), reasoning
 
     @classmethod
     def get_cost_summary(cls) -> dict:
