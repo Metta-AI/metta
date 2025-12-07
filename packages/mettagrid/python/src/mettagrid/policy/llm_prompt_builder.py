@@ -264,21 +264,6 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         agent_x = self._policy_env_info.obs_width // 2
         agent_y = self._policy_env_info.obs_height // 2
 
-        # DEBUG: Print raw token coordinates BEFORE building visible objects
-        # NOTE: In MettaGrid, row() = X (horizontal), col() = Y (vertical) - opposite of standard!
-        should_debug = self._debug_mode if isinstance(self._debug_mode, bool) else ("prompt" in self._debug_mode or "all" in self._debug_mode if isinstance(self._debug_mode, set) else False)
-        if should_debug:
-            print(f"\n[DEBUG RAW TOKENS - BEFORE PROMPT] agent center: x={agent_x}, y={agent_y}")
-            for token in obs.tokens:
-                if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
-                    tag_name = self._policy_env_info.tags[token.value]
-                    # SWAPPED: row() is X, col() is Y
-                    x = token.row()
-                    y = token.col()
-                    rel_x = x - agent_x
-                    rel_y = y - agent_y
-                    print(f"  {tag_name}: location={token.location}, row()={token.row()}=X, col()={token.col()}=Y => rel_x={rel_x}, rel_y={rel_y}")
-
         sections = []
 
         # 1. Directional awareness - what's immediately adjacent (CRITICAL for avoiding walls)

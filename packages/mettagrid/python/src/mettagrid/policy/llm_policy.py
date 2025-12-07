@@ -679,25 +679,6 @@ class LLMAgentPolicy(AgentPolicy):
         else:
             self.debugger = None
 
-        # Print object types and recipes at startup
-        if mg_cfg is not None:
-            try:
-                id_map = mg_cfg.game.id_map()
-                print("\n" + "=" * 70)
-                print("OBJECT TYPES")
-                print("=" * 70)
-                for tag in id_map.tag_names():
-                    print(f"  - {tag}")
-                print("=" * 70)
-
-                # Print recipes from prompt builder if available
-                if self.use_dynamic_prompts and self.prompt_builder:
-                    all_recipes = self.prompt_builder._build_all_recipes()
-                    if all_recipes:
-                        print("\n" + all_recipes)
-                    print("=" * 70 + "\n")
-            except Exception as e:
-                print(f"\n[DEBUG] Could not print id_map: {e}\n")
 
         # Initialize LLM client
         # Note: API key validation is handled by LLMMultiAgentPolicy before creating agent policies
@@ -839,8 +820,8 @@ class LLMAgentPolicy(AgentPolicy):
                 if len(self._history_summaries) > self._max_history_summaries:
                     self._history_summaries = self._history_summaries[-self._max_history_summaries:]
 
-            if self._should_show("prompt"):
-                print(f"\n[HISTORY] Created summary: {summary}")
+                # Always print history summary at window boundary
+                print(f"\n[HISTORY] {summary}\n")
 
         # Reset for next window
         self._current_window_actions = []
@@ -894,21 +875,6 @@ class LLMAgentPolicy(AgentPolicy):
                 history_text = self._get_history_summary_text()
                 user_prompt = history_text + "\n" + user_prompt
 
-            if self.debug_mode:
-                num_msgs = len(self._messages) + 1  # +1 for the new user message we're about to add
-                step = self.prompt_builder.step_count
-                if includes_basic_info:
-                    logger.info(f"[DYNAMIC] Sent basic_info + observable (step {step}, {num_msgs} msgs, {len(self._history_summaries)} history summaries)")
-                else:
-                    logger.info(f"[DYNAMIC] Sent observable only (step {step}, {num_msgs} msgs)")
-
-                # Print actual prompt if "prompt" is in debug_mode
-                if self._should_show("prompt"):
-                    print("\n" + "=" * 70)
-                    print(f"[AGENT {self.agent_id}] Step {step} - Sending to LLM:")
-                    print("=" * 70)
-                    print(user_prompt)
-                    print("=" * 70)
         else:
             # Use old static prompt approach
             obs_json = observation_to_json(obs, self.policy_env_info)
@@ -988,9 +954,8 @@ The best action is move_east (WRONG - contains extra words)
                 if raw_response is None:
                     raw_response = "noop"
 
-                # Print LLM response if "prompt" is in debug_mode
-                if self._should_show("prompt"):
-                    print(f"\n[LLM RESPONSE]\n{raw_response}\n")
+                # Always print LLM response
+                print(f"[LLM] {raw_response}")
 
                 action_name = raw_response.strip()
 
@@ -1080,9 +1045,8 @@ The best action is move_east (WRONG - contains extra words)
                         )
                     raw_response = "noop"
 
-                # Print LLM response if "prompt" is in debug_mode
-                if self._should_show("prompt"):
-                    print(f"\n[LLM RESPONSE]\n{raw_response}\n")
+                # Always print LLM response
+                print(f"[LLM] {raw_response}")
 
                 action_name = raw_response.strip()
 
@@ -1155,9 +1119,8 @@ The best action is move_east (WRONG - contains extra words)
                         raw_response = block.text
                         break
 
-                # Print LLM response if "prompt" is in debug_mode
-                if self._should_show("prompt"):
-                    print(f"\n[LLM RESPONSE]\n{raw_response}\n")
+                # Always print LLM response
+                print(f"[LLM] {raw_response}")
 
                 action_name = raw_response.strip()
 
