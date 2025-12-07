@@ -51,7 +51,9 @@ class DatadogAgentSetup(SetupModule):
     def _setup_log_config(self) -> None:
         log_file = os.environ.get("METTA_DD_LOG_FILE")
         if not log_file:
+            warning("METTA_DD_LOG_FILE not set, skipping log config")
             return
+        info(f"Configuring DD to tail: {log_file}")
 
         try:
             os.makedirs(os.path.dirname(log_file), exist_ok=True)
@@ -79,6 +81,7 @@ class DatadogAgentSetup(SetupModule):
             with open(config_path, "w") as f:
                 yaml.safe_dump(config, f, default_flow_style=False)
             os.chmod(config_path, 0o644)
+            info(f"Created DD log config at {config_path}")
         except Exception as e:
             warning(f"Could not create Datadog log config: {e}")
 
