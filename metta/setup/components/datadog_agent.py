@@ -116,13 +116,10 @@ class DatadogAgentSetup(SetupModule):
             return
         self._stop_agent()
         log_path = "/tmp/dd-agent-startup.log"
-        with open(log_path, "w") as log_file:
-            subprocess.Popen(
-                [AGENT_BINARY, "run"],
-                stdout=log_file,
-                stderr=log_file,
-                start_new_session=True,
-            )
+        subprocess.run(
+            f"nohup {AGENT_BINARY} run > {log_path} 2>&1 &",
+            shell=True,
+        )
         time.sleep(5)
         result = subprocess.run(["pgrep", "-f", AGENT_BINARY], capture_output=True)
         if result.returncode == 0:
