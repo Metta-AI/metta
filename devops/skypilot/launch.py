@@ -112,7 +112,7 @@ def main(
         Optional[Literal["json", "yaml"]],
         typer.Option(help="Dump task configuration in specified format and exit"),
     ] = None,
-    spot: Annotated[bool, typer.Option(help="Use spot instances")] = True,
+    spot: Annotated[bool, typer.Option(help="Use spot instances")] = False,
     copies: Annotated[int, typer.Option(help="Number of identical job copies to launch")] = 1,
     heartbeat_timeout_seconds: Annotated[
         int,

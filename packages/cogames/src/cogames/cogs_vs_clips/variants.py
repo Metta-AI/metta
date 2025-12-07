@@ -16,10 +16,10 @@ class MinedOutVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.carbon_extractor.efficiency -= 50
-        mission.oxygen_extractor.efficiency -= 50
-        mission.germanium_extractor.efficiency -= 50
-        mission.silicon_extractor.efficiency -= 50
+        # Clamp efficiency to minimum of 50 to prevent negative values
+        mission.carbon_extractor.max_uses = 2
+        mission.oxygen_extractor.max_uses = 2
+        mission.silicon_extractor.max_uses = 2
 
 
 class DarkSideVariant(MissionVariant):
@@ -96,7 +96,45 @@ class SolarFlareVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.charger.efficiency -= 50
+        # Clamp efficiency to minimum of 1 to prevent negative values
+        mission.charger.efficiency = max(1, mission.charger.efficiency - 50)
+
+
+class TrainingVariant(MissionVariant):
+    name: str = "training"
+    description: str = "Training-friendly: max cargo, fast extractors, chest only deposits hearts."
+
+    @override
+    def modify_mission(self, mission):
+        mission.cargo_capacity = 255  # Maximum cargo for easier resource collection
+
+    @override
+    def modify_env(self, mission, env):
+        # Set all extractor cooldowns to 5ms (fast)
+        for extractor_name in ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"]:
+            extractor = env.game.objects.get(extractor_name)
+            if isinstance(extractor, AssemblerConfig):
+                updated_protocols = []
+                for proto in extractor.protocols:
+                    updated_proto = proto.model_copy(deep=True)
+                    updated_proto.cooldown = 5
+                    updated_protocols.append(updated_proto)
+                extractor.protocols = updated_protocols
+
+        # Modify chest to only deposit hearts by default (not all resources)
+        chest = env.game.objects.get("chest")
+        if isinstance(chest, ChestConfig):
+            chest.vibe_transfers = {
+                "heart_b": {"heart": 1},
+                "carbon_a": {"carbon": -10},
+                "carbon_b": {"carbon": 10},
+                "oxygen_a": {"oxygen": -10},
+                "oxygen_b": {"oxygen": 10},
+                "germanium_a": {"germanium": -1},
+                "germanium_b": {"germanium": 1},
+                "silicon_a": {"silicon": -25},
+                "silicon_b": {"silicon": 25},
+            }
 
 
 class PackRatVariant(MissionVariant):
@@ -146,6 +184,7 @@ class ResourceBottleneckVariant(MissionVariant):
             if extractor is None:
                 raise AttributeError(f"Mission has no extractor attribute '{extractor_attr}'")
 
+            # Clamp efficiency to minimum of 1 to prevent negative values
             extractor.efficiency = max(1, int(extractor.efficiency) - 50)
 
 
@@ -185,7 +224,7 @@ class HeartChorusVariant(MissionVariant):
         rewards = dict(env.game.agent.rewards.stats)
         rewards.update(
             {
-                "heart.gained": 1.0,
+                "assembler.heart.created": 1.0,
                 "chest.heart.deposited": 1.0,
                 "chest.heart.withdrawn": -1.0,
                 "inventory.diversity.ge.2": 0.17,
@@ -273,21 +312,6 @@ class Small50Variant(MissionVariant):
             # Skip setting width/height for MapBuilderConfig instances
             return
         env.game.map_builder = map_builder.model_copy(update={"width": 50, "height": 50})
-
-
-class CogToolsOnlyVariant(MissionVariant):
-    name: str = "cog_tools_only"
-    description: str = "Gear tools (decoder/modulator/scrambler/resonator) require only the 'gear/cog' vibe."
-
-    @override
-    def modify_env(self, mission, env) -> None:
-        assembler_cfg = env.game.objects["assembler"]
-        if not isinstance(assembler_cfg, AssemblerConfig):
-            raise TypeError("Expected 'assembler' to be AssemblerConfig")
-        gear_outputs = {"decoder", "modulator", "scrambler", "resonator"}
-        for protocol in assembler_cfg.protocols:
-            if any(k in protocol.output_resources for k in gear_outputs):
-                protocol.vibes = ["gear"]
 
 
 class InventoryHeartTuneVariant(MissionVariant):
@@ -606,6 +630,21 @@ class EmptyBaseVariant(BaseHubVariant):
         node.corner_bundle = "custom"
 
 
+class BalancedCornersVariant(MachinaArenaVariant):
+    """Enable corner balancing to ensure fair spawn distances."""
+
+    name: str = "balanced_corners"
+    description: str = "Balance path distances from center to corners for fair spawns."
+    balance_tolerance: float = 1.5
+    max_balance_shortcuts: int = 10
+
+    @override
+    def modify_node(self, node):
+        node.balance_corners = True
+        node.balance_tolerance = self.balance_tolerance
+        node.max_balance_shortcuts = self.max_balance_shortcuts
+
+
 class TraderVariant(MissionVariant):
     name: str = "trader"
     description: str = "Agents can trade resources with each other."
@@ -635,7 +674,6 @@ VARIANTS: list[MissionVariant] = [
     CityVariant(),
     ClipHubStationsVariant(),
     ClipPeriodOnVariant(),
-    CogToolsOnlyVariant(),
     CompassVariant(),
     CyclicalUnclipVariant(),
     DarkSideVariant(),
@@ -659,6 +697,7 @@ VARIANTS: list[MissionVariant] = [
     SuperChargedVariant(),
     TraderVariant(),
     TinyHeartProtocolsVariant(),
+    TrainingVariant(),
     VibeCheckMin2Variant(),
     *DIFFICULTY_VARIANTS,
 ]

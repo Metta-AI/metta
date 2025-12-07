@@ -3,7 +3,7 @@ This recipe is automatically validated in CI and release processes.
 """
 
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -111,15 +111,15 @@ def train(
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=300),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
 
 
-def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
+def evaluate(policy_uris: list[str] | str) -> EvaluateTool:
     """Evaluate policies on arena simulations."""
-    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
+    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris)
 
 
 def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:

@@ -2,7 +2,6 @@
 
 import logging
 import uuid
-from contextlib import ExitStack
 from typing import Optional
 
 import torch
@@ -11,10 +10,8 @@ from rich.console import Console
 
 from metta.agent.policy import Policy as MettaPolicy
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -23,6 +20,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.random_agent import RandomMultiAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
@@ -51,14 +49,15 @@ class PlayTool(Tool):
     def _load_policy_from_uri(
         self, policy_uri: str, policy_env_info: PolicyEnvInterface, device: torch.device
     ) -> MultiAgentPolicy:
-        """Load a policy from a URI using CheckpointManager."""
+        """Load a policy from a URI."""
         logger.info(f"Loading policy from URI: {policy_uri}")
 
-        policy_spec = CheckpointManager.policy_spec_from_uri(policy_uri, device=str(device))
+        policy_spec = policy_spec_from_uri(policy_uri, device=str(device))
         policy: MettaPolicy = initialize_or_load_policy(policy_env_info, policy_spec)
         if hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(policy_env_info, device)
-        policy.eval()
+        if hasattr(policy, "eval"):
+            policy.eval()
         return policy
 
     @model_validator(mode="after")
@@ -93,29 +92,28 @@ class PlayTool(Tool):
             if not s3_path:
                 raise ValueError(f"Policy version {self.policy_version_id} has no s3 path")
 
-        with ExitStack() as stack:
-            agent_policies: list[MultiAgentPolicy] = []
-            if s3_path:
-                policy_spec = stack.enter_context(policy_spec_from_s3_submission(s3_path))
-                policy = initialize_or_load_policy(policy_env_info, policy_spec)
-                agent_policies.append(policy)
-                logger.info("Loaded policy from s3 path")
-            elif self.policy_uri:
-                agent_policies.append(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
-                logger.info("Loaded policy from deprecated-format policy uri")
-            else:
-                # Fall back to random policies only when no policy was configured explicitly.
-                agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
+        agent_policies: list[MultiAgentPolicy] = []
+        if s3_path:
+            policy_spec = policy_spec_from_uri(s3_path, remove_downloaded_copy_on_exit=True)
+            policy = initialize_or_load_policy(policy_env_info, policy_spec)
+            agent_policies.append(policy)
+            logger.info("Loaded policy from s3 path")
+        elif self.policy_uri:
+            agent_policies.append(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
+            logger.info("Loaded policy from deprecated-format policy uri")
+        else:
+            # Fall back to random policies only when no policy was configured explicitly.
+            agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
 
-            rollout_result = multi_episode_rollout(
-                env_cfg=env_cfg,
-                policies=agent_policies,
-                episodes=1,
-                seed=self.seed,
-                render_mode=self.render,
-                max_action_time_ms=10000,
-            )
-            episode = rollout_result.episodes[0]
+        rollout_result = multi_episode_rollout(
+            env_cfg=env_cfg,
+            policies=agent_policies,
+            episodes=1,
+            seed=self.seed,
+            render_mode=self.render,
+            max_action_time_ms=10000,
+        )
+        episode = rollout_result.episodes[0]
 
         # Run the rollout
         logger.info("Starting interactive play session")

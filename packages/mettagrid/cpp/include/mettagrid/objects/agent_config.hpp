@@ -19,7 +19,6 @@ struct AgentConfig : public GridObjectConfig {
               unsigned char group_id,
               const std::string& group_name,
               unsigned char freeze_duration = 0,
-              float action_failure_penalty = 0,
               const InventoryConfig& inventory_config = InventoryConfig(),
               const std::unordered_map<std::string, RewardType>& stat_rewards = {},
               const std::unordered_map<std::string, RewardType>& stat_reward_max = {},
@@ -33,7 +32,6 @@ struct AgentConfig : public GridObjectConfig {
         group_id(group_id),
         group_name(group_name),
         freeze_duration(freeze_duration),
-        action_failure_penalty(action_failure_penalty),
         inventory_config(inventory_config),
         stat_rewards(stat_rewards),
         stat_reward_max(stat_reward_max),
@@ -46,7 +44,6 @@ struct AgentConfig : public GridObjectConfig {
   unsigned char group_id;
   std::string group_name;
   short freeze_duration;
-  float action_failure_penalty;
   InventoryConfig inventory_config;
   std::unordered_map<std::string, RewardType> stat_rewards;
   std::unordered_map<std::string, RewardType> stat_reward_max;
@@ -67,7 +64,6 @@ inline void bind_agent_config(py::module& m) {
                     unsigned char,
                     const std::string&,
                     unsigned char,
-                    float,
                     const InventoryConfig&,
                     const std::unordered_map<std::string, RewardType>&,
                     const std::unordered_map<std::string, RewardType>&,
@@ -82,7 +78,6 @@ inline void bind_agent_config(py::module& m) {
            py::arg("group_id"),
            py::arg("group_name"),
            py::arg("freeze_duration") = 0,
-           py::arg("action_failure_penalty") = 0,
            py::arg("inventory_config") = InventoryConfig(),
            py::arg("stat_rewards") = std::unordered_map<std::string, RewardType>(),
            py::arg("stat_reward_max") = std::unordered_map<std::string, RewardType>(),
@@ -98,7 +93,6 @@ inline void bind_agent_config(py::module& m) {
       .def_readwrite("group_name", &AgentConfig::group_name)
       .def_readwrite("group_id", &AgentConfig::group_id)
       .def_readwrite("freeze_duration", &AgentConfig::freeze_duration)
-      .def_readwrite("action_failure_penalty", &AgentConfig::action_failure_penalty)
       .def_readwrite("inventory_config", &AgentConfig::inventory_config)
       .def_readwrite("stat_rewards", &AgentConfig::stat_rewards)
       .def_readwrite("stat_reward_max", &AgentConfig::stat_reward_max)

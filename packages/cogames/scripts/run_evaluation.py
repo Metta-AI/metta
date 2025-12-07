@@ -32,6 +32,8 @@ from typing import Dict, List, Optional
 
 import matplotlib
 
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -46,16 +48,12 @@ from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
-try:
-    from metta.rl.checkpoint_manager import CheckpointManager
-
-    CHECKPOINT_MANAGER_AVAILABLE = True
-except ImportError:
-    CHECKPOINT_MANAGER_AVAILABLE = False
-    CheckpointManager = None
-
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+# Cache for loaded policies to avoid reloading for each case (used in sequential mode)
+_cached_policy = None
+_cached_policy_key = None
 
 
 def _ensure_vibe_supports_gear(env_cfg) -> None:
@@ -70,6 +68,94 @@ def _ensure_vibe_supports_gear(env_cfg) -> None:
         change_vibe = env_cfg.game.actions.change_vibe
         if getattr(change_vibe, "number_of_vibes", 0) < 8:
             change_vibe.number_of_vibes = 8
+
+
+# Cache for policy action space sizes to avoid reloading checkpoints
+_policy_action_space_cache: Dict[str, int] = {}
+
+
+def _get_policy_action_space(policy_path: str) -> Optional[int]:
+    """Detect the action space size from a policy checkpoint.
+
+    Returns the number of actions the policy was trained with, or None if detection fails.
+    """
+    if policy_path in _policy_action_space_cache:
+        return _policy_action_space_cache[policy_path]
+
+    if not is_s3_uri(policy_path):
+        return None
+
+    try:
+        from mettagrid.policy.mpt_artifact import load_mpt
+
+        artifact = load_mpt(policy_path)
+
+        # Look for actor head weight to determine action space
+        for key, tensor in artifact.state_dict.items():
+            if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
+                action_space = tensor.shape[0]
+                _policy_action_space_cache[policy_path] = action_space
+                logger.info(f"Detected policy action space: {action_space} actions")
+                return action_space
+
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to detect policy action space: {e}")
+        return None
+
+
+def _configure_env_for_action_space(env_cfg, num_actions: int) -> None:
+    """Configure environment vibes to match a specific action space.
+
+    Action space = 1 noop + 4 move + N vibes
+    So num_vibes = num_actions - 5
+    """
+    from mettagrid.config import vibes as vibes_module
+
+    # Calculate number of vibes needed
+    # Action space = noop (1) + move (4) + change_vibe (N)
+    num_vibes = num_actions - 5
+
+    if num_vibes <= 0:
+        logger.warning(f"Invalid action space {num_actions}, skipping vibe configuration")
+        return
+
+    # Select the appropriate vibe set
+    if num_vibes == 16:
+        # First 16 vibes (standard training set)
+        vibe_names = [v.name for v in vibes_module.VIBES[:16]]
+    elif num_vibes == 13:
+        # First 13 vibes (cvc_random_maps style)
+        vibe_names = [v.name for v in vibes_module.VIBES[:13]]
+    elif num_vibes <= len(vibes_module.VIBES):
+        # Use first N vibes from VIBES list
+        vibe_names = [v.name for v in vibes_module.VIBES[:num_vibes]]
+    else:
+        # Policy has more vibes than we have defined - use all available
+        vibe_names = [v.name for v in vibes_module.VIBES]
+
+    env_cfg.game.vibe_names = vibe_names
+
+    if env_cfg.game.actions:
+        # Configure vibe action count
+        if env_cfg.game.actions.change_vibe:
+            env_cfg.game.actions.change_vibe.number_of_vibes = len(vibe_names)
+            # Filter initial vibe if out of range
+            if env_cfg.game.agent.initial_vibe >= len(vibe_names):
+                env_cfg.game.agent.initial_vibe = 0
+
+        # Disable attack action (usually not part of training action space)
+        if env_cfg.game.actions.attack:
+            env_cfg.game.actions.attack.enabled = False
+
+    # Prune vibe transfers to only allowed vibes
+    allowed_vibes = set(vibe_names)
+    chest = env_cfg.game.objects.get("chest")
+    if chest:
+        vibe_transfers = getattr(chest, "vibe_transfers", None)
+        if isinstance(vibe_transfers, dict):
+            new_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
+            chest.vibe_transfers = new_transfers
 
 
 @dataclass
@@ -112,17 +198,13 @@ def load_policy(
     device = device or torch.device("cpu")
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
-        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(checkpoint_path, device=device)
+        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     if is_s3_uri(policy_path):
-        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = CheckpointManager.policy_spec_from_uri(policy_path, device=device)
+        policy_spec = policy_spec_from_uri(policy_path, device=str(device))
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)
@@ -139,6 +221,16 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
         key="ladybug",
         label="Ladybug",
         policy_path="cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
+    ),
+    "thinky": AgentConfig(
+        key="thinky",
+        label="Thinky",
+        policy_path="cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
+    ),
+    "racecar": AgentConfig(
+        key="racecar",
+        label="RaceCar",
+        policy_path="cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy",
     ),
     "starter": AgentConfig(
         key="starter",
@@ -170,7 +262,10 @@ def _run_case(
     seed: int,
     runs_per_case: int,
     agent_config: AgentConfig,
+    cached_policy=None,  # Optional pre-loaded policy to reuse
 ) -> List[EvalResult]:
+    global _cached_policy, _cached_policy_key
+
     mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
     if variant:
         mission_variants.insert(0, variant)
@@ -178,6 +273,13 @@ def _run_case(
         mission = base_mission.with_variants(mission_variants)
         env_config = mission.make_env()
         _ensure_vibe_supports_gear(env_config)
+
+        # Auto-detect policy action space and configure environment to match
+        if is_s3_uri(agent_config.policy_path):
+            policy_action_space = _get_policy_action_space(agent_config.policy_path)
+            if policy_action_space is not None:
+                _configure_env_for_action_space(env_config, policy_action_space)
+
         if variant is None or getattr(variant, "max_steps_override", None) is None:
             env_config.game.max_steps = max_steps
 
@@ -194,7 +296,20 @@ def _run_case(
 
         actual_max_steps = env_config.game.max_steps
         policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-        policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
+
+        # Use cached policy if provided, otherwise try global cache, otherwise load fresh
+        if cached_policy is not None:
+            policy = cached_policy
+        elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
+            # Reuse globally cached policy
+            policy = _cached_policy
+        else:
+            # Load fresh and cache it globally for S3 policies
+            policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
+            if is_s3_uri(agent_config.policy_path):
+                _cached_policy = policy
+                _cached_policy_key = agent_config.policy_path
+
         agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
         out: List[EvalResult] = []
@@ -288,12 +403,76 @@ def run_evaluation(
     total_cases = len(cases)
     total_tests = total_cases * runs_per_case
     completed = 0
+
+    # Force sequential execution for S3 policies to avoid TensorDict threading issues
+    # TensorDict has internal state that conflicts with Python threading
+    use_threading = jobs != 1 and not is_s3_uri(agent_config.policy_path)
     max_workers = jobs if jobs > 0 else max(1, os.cpu_count() or 1)
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_map = {
-            executor.submit(
-                _run_case,
+    if use_threading:
+        logger.info(f"Running with {max_workers} parallel workers")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_map = {
+                executor.submit(
+                    _run_case,
+                    exp_name,
+                    variant_name,
+                    num_cogs,
+                    base_mission,
+                    variant,
+                    clip_period,
+                    max_steps,
+                    seed,
+                    runs_per_case,
+                    agent_config,
+                ): (exp_name, variant_name, num_cogs)
+                for exp_name, variant_name, num_cogs, base_mission, variant, clip_period in cases
+            }
+
+            for idx, future in enumerate(as_completed(future_map), start=1):
+                exp_name, variant_name, num_cogs = future_map[future]
+                case_results = future.result()
+                results.extend(case_results)
+                completed += len(case_results)
+                logger.info(
+                    f"[{idx}/{total_cases}] {exp_name} | {variant_name or 'base'} | {num_cogs} agent(s) "
+                    f"(progress {completed}/{total_tests})"
+                )
+    else:
+        # Sequential execution for S3 policies (TensorDict doesn't work well with threading)
+        if is_s3_uri(agent_config.policy_path):
+            logger.info("Running sequentially (S3 policies require sequential execution due to TensorDict)")
+        else:
+            logger.info("Running sequentially (--jobs 1)")
+
+        # Pre-load the policy once using the first case's env config
+        cached_policy = None
+        if cases and is_s3_uri(agent_config.policy_path):
+            first_case = cases[0]
+            exp_name_0, variant_name_0, num_cogs_0, base_mission_0, variant_0, _ = first_case
+            try:
+                mission_variants_0: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs_0)]
+                if variant_0:
+                    mission_variants_0.insert(0, variant_0)
+                mission_0 = base_mission_0.with_variants(mission_variants_0)
+                env_config_0 = mission_0.make_env()
+                _ensure_vibe_supports_gear(env_config_0)
+
+                # Auto-detect policy action space and configure environment to match
+                policy_action_space = _get_policy_action_space(agent_config.policy_path)
+                if policy_action_space is not None:
+                    _configure_env_for_action_space(env_config_0, policy_action_space)
+
+                policy_env_info_0 = PolicyEnvInterface.from_mg_cfg(env_config_0)
+                logger.info(f"Pre-loading policy from {agent_config.policy_path}...")
+                cached_policy = load_policy(policy_env_info_0, agent_config.policy_path, agent_config.data_path)
+                logger.info("Policy loaded successfully, will reuse for all cases")
+            except Exception as e:
+                logger.warning(f"Failed to pre-load policy: {e}. Will load per-case instead.")
+                cached_policy = None
+
+        for idx, (exp_name, variant_name, num_cogs, base_mission, variant, clip_period) in enumerate(cases, start=1):
+            case_results = _run_case(
                 exp_name,
                 variant_name,
                 num_cogs,
@@ -304,13 +483,8 @@ def run_evaluation(
                 seed,
                 runs_per_case,
                 agent_config,
-            ): (exp_name, variant_name, num_cogs)
-            for exp_name, variant_name, num_cogs, base_mission, variant, clip_period in cases
-        }
-
-        for idx, future in enumerate(as_completed(future_map), start=1):
-            exp_name, variant_name, num_cogs = future_map[future]
-            case_results = future.result()
+                cached_policy=cached_policy,
+            )
             results.extend(case_results)
             completed += len(case_results)
             logger.info(
@@ -375,17 +549,42 @@ def _bar_plot(
     figsize: tuple[int, int] = (12, 7),
     annotate: bool = True,
 ):
+    # Filter out labels that have no data for any series
+    # This distinguishes between "evaluated but got 0" vs "not evaluated"
+    labels_with_data = []
+    for lbl in x_labels:
+        has_any_data = False
+        for series in series_labels:
+            val = value_fn(series, lbl)
+            # Check if value is not None and not NaN (None means no data)
+            if val is not None and not (isinstance(val, float) and (np.isnan(val) or np.isinf(val))):
+                has_any_data = True
+                break
+        if has_any_data:
+            labels_with_data.append(lbl)
+
+    if not labels_with_data:
+        # No data at all, skip this plot
+        plt.close()
+        return
+
+    # Use filtered labels
+    x_labels = labels_with_data
     fig, ax = plt.subplots(figsize=figsize)
     x = np.arange(len(x_labels))
     colors = plt.get_cmap("Set2")(range(max(1, len(series_labels))))
 
     if len(series_labels) == 1:
         vals = [value_fn(series_labels[0], lbl) for lbl in x_labels]
+        # Filter out None values (replace with 0 for plotting, but we already filtered labels)
+        vals = [v if v is not None else 0.0 for v in vals]
         bars = list(ax.bar(x, vals, color=colors[0], alpha=0.8, edgecolor="black"))
     else:
         bars = []
         for i, series in enumerate(series_labels):
             vals = [value_fn(series, lbl) for lbl in x_labels]
+            # Filter out None values (replace with 0 for plotting)
+            vals = [v if v is not None else 0.0 for v in vals]
             offset = width * (i - len(series_labels) / 2 + 0.5)
             bars.extend(
                 ax.bar(x + offset, vals, width, label=str(series), color=colors[i], alpha=0.8, edgecolor="black")
@@ -396,7 +595,9 @@ def _bar_plot(
     ax.set_xlabel(xlabel, fontsize=12, fontweight="bold")
     ax.set_title(title, fontsize=14, fontweight="bold")
     ax.set_xticks(x)
-    ax.set_xticklabels(x_labels, rotation=rotation, ha="right")
+    # Adjust label alignment based on rotation
+    ha = "right" if rotation < 45 else "center" if rotation == 90 else "right"
+    ax.set_xticklabels(x_labels, rotation=rotation, ha=ha)
     ax.grid(axis="y", alpha=0.3)
 
     if annotate:
@@ -428,16 +629,40 @@ def _heatmap(
     figsize: tuple[float, float],
     xlabel: str,
     ylabel: str,
+    x_rotation: int = 0,
+    y_rotation: int = 0,
 ):
-    matrix = np.array([[value_fn(x, y) for x in x_labels] for y in y_labels])
+    # Build matrix, replacing None with 0.0 for plotting
+    matrix_data = []
+    for y in y_labels:
+        row = []
+        for x in x_labels:
+            val = value_fn(x, y)
+            # Convert None to 0.0, keep other values as float
+            if val is None:
+                row.append(0.0)
+            else:
+                row.append(float(val))
+        matrix_data.append(row)
+    matrix = np.array(matrix_data)
     fig, ax = plt.subplots(figsize=figsize)
-    im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto")
+    # Set vmax=10 for better gradient visualization
+    im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto", vmin=0, vmax=10)
 
     ax.set_xticks(np.arange(len(x_labels)))
     ax.set_yticks(np.arange(len(y_labels)))
     ax.set_xticklabels(x_labels)
     ax.set_yticklabels(y_labels)
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+
+    # Set rotation for x-axis labels
+    if x_rotation != 0:
+        plt.setp(ax.get_xticklabels(), rotation=x_rotation, ha="right" if x_rotation > 45 else "center")
+    else:
+        plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+
+    # Set rotation for y-axis labels if needed
+    if y_rotation != 0:
+        plt.setp(ax.get_yticklabels(), rotation=y_rotation, ha="right")
 
     cbar = plt.colorbar(im, ax=ax)
     cbar.set_label("Value", rotation=270, labelpad=20, fontweight="bold")
@@ -488,11 +713,12 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
         }
 
     agents = sorted(set(r.agent for r in results))
-    experiments = sorted(set(r.experiment for r in results))
-    variants = sorted(set(r.difficulty for r in results))
-    num_cogs_list = sorted(set(r.num_cogs for r in results))
+    experiments = sorted(set(r.experiment for r in results))  # Only experiments with actual results
+    variants = sorted(set(r.difficulty for r in results))  # Only variants with actual results
+    num_cogs_list = sorted(set(r.num_cogs for r in results))  # Only agent counts with actual results
 
-    def lookup(agent: str | None, exp: str | None, diff: str | None, num_cogs: int | None, field: str) -> float:
+    def lookup(agent: str | None, exp: str | None, diff: str | None, num_cogs: int | None, field: str):
+        """Lookup aggregated value. Returns None if no data exists, 0.0 if data exists but is zero."""
         vals: List[float] = [
             float(v[field])
             for v in aggregated.values()
@@ -501,7 +727,32 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             and (diff is None or v["difficulty"] == diff)
             and (num_cogs is None or v["num_cogs"] == num_cogs)
         ]
-        return float(np.mean(vals)) if vals else 0.0
+        return float(np.mean(vals)) if vals else None  # Return None if no data (not evaluated)
+
+    def has_data(agent: str | None, exp: str | None, diff: str | None, num_cogs: int | None) -> bool:
+        """Check if there's any data for the given combination."""
+        return any(
+            (agent is None or v["agent"] == agent)
+            and (exp is None or v["experiment"] == exp)
+            and (diff is None or v["difficulty"] == diff)
+            and (num_cogs is None or v["num_cogs"] == num_cogs)
+            for v in aggregated.values()
+        )
+
+    def filter_comparison_environments(envs: List[str], field: str) -> List[str]:
+        """Filter environments for comparison plots: exclude envs where ALL policies got zero reward."""
+        filtered = []
+        for exp in envs:
+            # Check if any policy has non-zero reward for this environment
+            has_nonzero = False
+            for agent in agents:
+                val = lookup(agent, exp, None, None, field)
+                if val is not None and val > 0.0:
+                    has_nonzero = True
+                    break
+            if has_nonzero:
+                filtered.append(exp)
+        return filtered
 
     bar_specs = [
         {
@@ -512,8 +763,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             "x_labels": agents,
             "series": ["value"],
             "fn": lambda _s, a: lookup(a, None, None, None, "avg_reward_per_agent"),
-            "rotation": 0,
-            "figsize": (10, 6),
+            "rotation": 45,
+            "figsize": (max(12, len(agents) * 1.2), 6),  # Wider figure for rotated labels
         },
         {
             "filename": "total_reward_by_agent.png",
@@ -523,8 +774,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             "x_labels": agents,
             "series": ["value"],
             "fn": lambda _s, a: lookup(a, None, None, None, "avg_total_reward"),
-            "rotation": 0,
-            "figsize": (10, 6),
+            "rotation": 45,
+            "figsize": (max(12, len(agents) * 1.2), 6),  # Wider figure for rotated labels
         },
         {
             "filename": "reward_by_num_cogs.png",
@@ -548,21 +799,35 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
         },
         {
             "filename": "reward_by_environment.png",
-            "title": "Average Reward by Eval Environment",
+            "title": "Average Reward by Eval Environment (Comparison)",
             "xlabel": "Eval Environment",
             "ylabel": "Average Reward Per Agent",
-            "x_labels": experiments,
+            "x_labels": filter_comparison_environments(experiments, "avg_reward_per_agent"),
+            # Filter: exclude envs where all policies got zero
             "series": agents,
             "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_reward_per_agent"),
+            "figsize": (
+                max(16, len(filter_comparison_environments(experiments, "avg_reward_per_agent")) * 0.4),
+                7,
+            ),
+            "rotation": 90,  # Vertical labels to prevent overlap
+            "width": 0.15,  # Very thin bars to prevent overlap with 4 agents
         },
         {
             "filename": "total_reward_by_environment.png",
-            "title": "Total Reward by Eval Environment",
+            "title": "Total Reward by Eval Environment (Comparison)",
             "xlabel": "Eval Environment",
             "ylabel": "Total Reward",
-            "x_labels": experiments,
+            "x_labels": filter_comparison_environments(experiments, "avg_total_reward"),
+            # Filter: exclude envs where all policies got zero
             "series": agents,
             "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_total_reward"),
+            "figsize": (
+                max(16, len(filter_comparison_environments(experiments, "avg_total_reward")) * 0.4),
+                7,
+            ),
+            "rotation": 90,  # Vertical labels to prevent overlap
+            "width": 0.15,  # Very thin bars to prevent overlap with 4 agents
         },
         {
             "filename": "reward_by_difficulty.png",
@@ -600,8 +865,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             "x_labels": agents,
             "series": ["value"],
             "fn": lambda _s, a: lookup(a, None, None, None, "avg_heart_gained_per_agent"),
-            "rotation": 0,
-            "figsize": (10, 6),
+            "rotation": 45,
+            "figsize": (max(12, len(agents) * 1.2), 6),  # Wider figure for rotated labels
         },
         {
             "filename": "total_heart_gained_by_agent.png",
@@ -611,8 +876,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             "x_labels": agents,
             "series": ["value"],
             "fn": lambda _s, a: lookup(a, None, None, None, "avg_heart_gained"),
-            "rotation": 0,
-            "figsize": (10, 6),
+            "rotation": 45,
+            "figsize": (max(12, len(agents) * 1.2), 6),  # Wider figure for rotated labels
         },
         {
             "filename": "heart_gained_by_num_cogs.png",
@@ -636,21 +901,35 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
         },
         {
             "filename": "heart_gained_by_environment.png",
-            "title": "Average Heart Gained Per Agent by Eval Environment",
+            "title": "Average Heart Gained Per Agent by Eval Environment (Comparison)",
             "xlabel": "Eval Environment",
             "ylabel": "Average Heart Gained Per Agent",
-            "x_labels": experiments,
+            "x_labels": filter_comparison_environments(experiments, "avg_heart_gained_per_agent"),
+            # Filter: exclude envs where all policies got zero
             "series": agents,
             "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_heart_gained_per_agent"),
+            "figsize": (
+                max(16, len(filter_comparison_environments(experiments, "avg_heart_gained_per_agent")) * 0.4),
+                7,
+            ),
+            "rotation": 90,  # Vertical labels to prevent overlap
+            "width": 0.15,  # Very thin bars to prevent overlap with 4 agents
         },
         {
             "filename": "total_heart_gained_by_environment.png",
-            "title": "Total Heart Gained by Eval Environment",
+            "title": "Total Heart Gained by Eval Environment (Comparison)",
             "xlabel": "Eval Environment",
             "ylabel": "Total Heart Gained",
-            "x_labels": experiments,
+            "x_labels": filter_comparison_environments(experiments, "avg_heart_gained"),
+            # Filter: exclude envs where all policies got zero
             "series": agents,
             "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_heart_gained"),
+            "figsize": (
+                max(16, len(filter_comparison_environments(experiments, "avg_heart_gained")) * 0.4),
+                7,
+            ),
+            "rotation": 90,  # Vertical labels to prevent overlap
+            "width": 0.15,  # Very thin bars to prevent overlap with 4 agents
         },
         {
             "filename": "heart_gained_by_difficulty.png",
@@ -684,28 +963,40 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             output_path=output_path,
             rotation=spec.get("rotation", 45),
             figsize=spec.get("figsize", (12, 7)),
+            width=spec.get("width", 0.35),  # Use custom width if specified, otherwise default
         )
+
+    # Filter environments for comparison heatmaps (exclude envs where all policies got zero)
+    comparison_experiments_reward = filter_comparison_environments(experiments, "avg_reward_per_agent")
 
     heatmap_specs = [
         {
             "filename": "heatmap_env_agent.png",
-            "title": "Average Reward: Environment × Agent",
+            "title": "Average Reward: Environment × Agent (Comparison)",
             "x_labels": agents,
-            "y_labels": experiments,
+            "y_labels": comparison_experiments_reward,  # Filtered: exclude envs where all policies got zero
             "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_reward_per_agent"),
-            "figsize": (10, len(experiments) * 0.5 + 2),
+            "figsize": (
+                max(12, len(agents) * 1.2),
+                len(comparison_experiments_reward) * 0.5 + 2,
+            ),  # Wider for rotated labels
             "xlabel": "Agent",
             "ylabel": "Environment",
+            "x_rotation": 45,  # Rotate agent labels to prevent overlap
         },
         {
             "filename": "heatmap_env_agent_total.png",
-            "title": "Total Reward: Environment × Agent",
+            "title": "Total Reward: Environment × Agent (Comparison)",
             "x_labels": agents,
-            "y_labels": experiments,
+            "y_labels": comparison_experiments_reward,  # Filtered: exclude envs where all policies got zero
             "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_total_reward"),
-            "figsize": (10, len(experiments) * 0.5 + 2),
+            "figsize": (
+                max(12, len(agents) * 1.2),
+                len(comparison_experiments_reward) * 0.5 + 2,
+            ),  # Wider for rotated labels
             "xlabel": "Agent",
             "ylabel": "Environment",
+            "x_rotation": 45,  # Rotate agent labels to prevent overlap
         },
         {
             "filename": "heatmap_diff_agent.png",
@@ -760,9 +1051,90 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             figsize=spec["figsize"],
             xlabel=spec["xlabel"],
             ylabel=spec["ylabel"],
+            x_rotation=spec.get("x_rotation", 0),
+            y_rotation=spec.get("y_rotation", 0),
         )
 
-    logger.info(f"✓ Plots saved to {output_path}/")
+    # Create individual policy plots (one per policy, showing all environments that policy was evaluated on)
+    per_policy_dir = output_path / "per_policy"
+    per_policy_dir.mkdir(exist_ok=True)
+    logger.info(f"\nGenerating per-policy plots in {per_policy_dir}/...")
+
+    for agent in agents:
+        # Get all environments this policy was evaluated on
+        agent_experiments = sorted(set(r.experiment for r in results if r.agent == agent))
+
+        if not agent_experiments:
+            continue
+
+        # Sanitize agent name for filename
+        safe_agent_name = agent.replace("/", "_").replace(" ", "_").replace(":", "_")
+
+        # Create closure to capture agent variable properly
+        def make_lookup_fn(agent_name: str, field: str):
+            def lookup_wrapper(_s: str, exp_name: str):
+                return lookup(agent_name, exp_name, None, None, field)
+
+            return lookup_wrapper
+
+        # Plot 1: Average reward per agent by environment
+        _bar_plot(
+            filename=f"{safe_agent_name}_reward_by_environment.png",
+            title=f"Average Reward Per Agent by Environment: {agent}",
+            xlabel="Environment",
+            ylabel="Average Reward Per Agent",
+            x_labels=agent_experiments,  # All environments this policy was evaluated on
+            series_labels=["value"],
+            value_fn=make_lookup_fn(agent, "avg_reward_per_agent"),
+            output_path=per_policy_dir,
+            rotation=90,
+            figsize=(max(16, len(agent_experiments) * 0.4), 7),
+        )
+
+        # Plot 2: Total reward by environment
+        _bar_plot(
+            filename=f"{safe_agent_name}_total_reward_by_environment.png",
+            title=f"Total Reward by Environment: {agent}",
+            xlabel="Environment",
+            ylabel="Total Reward",
+            x_labels=agent_experiments,  # All environments this policy was evaluated on
+            series_labels=["value"],
+            value_fn=make_lookup_fn(agent, "avg_total_reward"),
+            output_path=per_policy_dir,
+            rotation=90,
+            figsize=(max(16, len(agent_experiments) * 0.4), 7),
+        )
+
+        # Plot 3: Heart gained per agent by environment
+        _bar_plot(
+            filename=f"{safe_agent_name}_heart_gained_by_environment.png",
+            title=f"Average Heart Gained Per Agent by Environment: {agent}",
+            xlabel="Environment",
+            ylabel="Average Heart Gained Per Agent",
+            x_labels=agent_experiments,  # All environments this policy was evaluated on
+            series_labels=["value"],
+            value_fn=make_lookup_fn(agent, "avg_heart_gained_per_agent"),
+            output_path=per_policy_dir,
+            rotation=90,
+            figsize=(max(16, len(agent_experiments) * 0.4), 7),
+        )
+
+        # Plot 4: Total heart gained by environment
+        _bar_plot(
+            filename=f"{safe_agent_name}_total_heart_gained_by_environment.png",
+            title=f"Total Heart Gained by Environment: {agent}",
+            xlabel="Environment",
+            ylabel="Total Heart Gained",
+            x_labels=agent_experiments,  # All environments this policy was evaluated on
+            series_labels=["value"],
+            value_fn=make_lookup_fn(agent, "avg_heart_gained"),
+            output_path=per_policy_dir,
+            rotation=90,
+            figsize=(max(16, len(agent_experiments) * 0.4), 7),
+        )
+
+    logger.info(f"✓ Comparison plots saved to {output_path}/")
+    logger.info(f"✓ Per-policy plots saved to {per_policy_dir}/")
 
 
 def main():
@@ -779,7 +1151,7 @@ def main():
     parser.add_argument("--no-plots", action="store_true", help="Skip generating plots")
     parser.add_argument(
         "--mission-set",
-        choices=["eval_missions", "integrated_evals", "spanning_evals", "diagnostic_evals", "all"],
+        choices=["integrated_evals", "spanning_evals", "diagnostic_evals", "all"],
         default="all",
     )
     parser.add_argument("--repeats", type=int, default=3, help="Runs per case")
@@ -789,7 +1161,7 @@ def main():
 
     if args.mission_set == "all":
         missions_list = []
-        missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions"))
+        # Skip eval_missions - they are deprecated
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals"))
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.spanning_evals"))
         missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
@@ -799,8 +1171,6 @@ def main():
                 missions_list.append(mission)
     elif args.mission_set == "diagnostic_evals":
         missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
-    elif args.mission_set == "eval_missions":
-        missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions")
     elif args.mission_set == "integrated_evals":
         missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals")
     elif args.mission_set == "spanning_evals":
@@ -834,26 +1204,43 @@ def main():
     for config in configs:
         variants = args.variants if args.variants else []
         cogs_list = args.cogs if args.cogs else [1, 2, 4]
-        all_results.extend(
-            run_evaluation(
-                agent_config=config,
-                experiments=experiments,
-                variants=variants,
-                cogs_list=cogs_list,
-                experiment_map=experiment_map,
-                max_steps=args.steps,
-                seed=args.seed,
-                repeats=args.repeats,
-                jobs=args.jobs,
-            )
+
+        # Clear policy cache between policies
+        global _cached_policy, _cached_policy_key, _policy_action_space_cache
+        _cached_policy = None
+        _cached_policy_key = None
+
+        policy_results = run_evaluation(
+            agent_config=config,
+            experiments=experiments,
+            variants=variants,
+            cogs_list=cogs_list,
+            experiment_map=experiment_map,
+            max_steps=args.steps,
+            seed=args.seed,
+            repeats=args.repeats,
+            jobs=args.jobs,
         )
+        all_results.extend(policy_results)
+
+        # Save incremental results after each policy
+        if args.output and policy_results:
+            with open(args.output, "w") as f:
+                json.dump([asdict(r) for r in all_results], f, indent=2)
+            logger.info(f"\n[INCREMENTAL] Results saved to: {args.output} ({len(all_results)} total tests)")
+
+        # Generate per-policy plots
+        if not args.no_plots and policy_results:
+            policy_plot_dir = f"{args.plot_dir}_{config.label}" if args.plot_dir else f"eval_plots_{config.label}"
+            logger.info(f"[INCREMENTAL] Generating plots for {config.label} in {policy_plot_dir}")
+            create_plots(policy_results, output_dir=policy_plot_dir)
 
     print_summary(all_results)
 
     if args.output:
         with open(args.output, "w") as f:
             json.dump([asdict(r) for r in all_results], f, indent=2)
-        logger.info(f"\nResults saved to: {args.output}")
+        logger.info(f"\nFinal results saved to: {args.output}")
 
     if not args.no_plots and all_results:
         create_plots(all_results, output_dir=args.plot_dir)

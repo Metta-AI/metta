@@ -60,7 +60,6 @@ class AgentConfig(Config):
         description="Resource limits for this agent",
     )
     rewards: AgentRewards = Field(default_factory=AgentRewards)
-    action_failure_penalty: float = Field(default=0, ge=0)
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
@@ -98,7 +97,7 @@ class ActionConfig(Config):
     enabled: bool = Field(default=True)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: dict[str, int] = Field(default_factory=dict)
-    consumed_resources: dict[str, float] = Field(default_factory=dict)
+    consumed_resources: dict[str, int] = Field(default_factory=dict)
 
     def actions(self) -> list[Action]:
         if self.enabled:
@@ -163,21 +162,6 @@ class AttackActionConfig(ActionConfig):
         return Action(name=f"attack_{location}")
 
 
-class ResourceModActionConfig(ActionConfig):
-    """Resource mod action configuration."""
-
-    action_handler: str = Field(default="resource_mod")
-    modifies: dict[str, float] = Field(default_factory=dict)
-    agent_radius: int = Field(default=0, ge=0, le=255)
-    scales: bool = Field(default=False)
-
-    def _actions(self) -> list[Action]:
-        return [self.ResourceMod()]
-
-    def ResourceMod(self) -> Action:
-        return Action(name="resource_mod")
-
-
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -189,11 +173,10 @@ class ActionsConfig(Config):
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
-    resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
     def actions(self) -> list[Action]:
         return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe, self.resource_mod]],
+            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe]],
             [],
         )
 
@@ -211,6 +194,9 @@ class GlobalObsConfig(Config):
     # Compass token that points toward the assembler/hub center
     compass: bool = Field(default=False)
 
+    # Goal tokens that indicate rewarding resources
+    goal_obs: bool = Field(default=False)
+
 
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
@@ -223,7 +209,6 @@ class GridObjectConfig(Config):
     name: str = Field(description="Canonical type_name (human-readable)")
     map_name: str = Field(default="", description="Stable key used by maps to select this config")
     render_name: str = Field(default="", description="Stable display-class identifier for theming")
-    map_char: str = Field(default="?", description="Character used in ASCII maps")
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
@@ -395,7 +380,7 @@ class GameConfig(Config):
     vibe_names: list[str] = Field(default_factory=list)
     num_agents: int = Field(ge=1, default=24)
     # max_steps = zero means "no limit"
-    max_steps: int = Field(ge=0, default=1000)
+    max_steps: int = Field(ge=0, default=10000)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = Field(default=False)
     obs: ObsConfig = Field(default_factory=ObsConfig)
@@ -408,8 +393,6 @@ class GameConfig(Config):
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
     params: Optional[Any] = None
-
-    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
 
     # Inventory regeneration interval (global check timing)
     inventory_regen_interval: int = Field(
@@ -431,29 +414,13 @@ class GameConfig(Config):
 
     @model_validator(mode="after")
     def _compute_feature_ids(self) -> "GameConfig":
-        self._populate_vibe_names()
-        # Note that this validation only runs once by default, so later changes by the user can cause this to no
-        # longer be true.
-        if not self.actions.change_vibe.number_of_vibes == len(self.vibe_names):
-            raise ValueError("number_of_vibes must match the number of vibe names")
+        self.actions.change_vibe.number_of_vibes = self.actions.change_vibe.number_of_vibes or len(VIBES)
+        self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
         return self
-
-    def _populate_vibe_names(self) -> None:
-        """Populate vibe_names from change_vibe action config if not already set."""
-        if not self.vibe_names:
-            num_vibes = self.actions.change_vibe.number_of_vibes
-            self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
         return IdMap(self)
-
-
-class EnvSupervisorConfig(Config):
-    """Environment supervisor configuration."""
-
-    policy: Optional[str] = Field(default=None)
-    policy_data_path: Optional[str] = Field(default=None)
 
 
 class MettaGridConfig(Config):
@@ -463,10 +430,10 @@ class MettaGridConfig(Config):
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
 
-    def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
+    def with_ascii_map(self, map_data: list[list[str]], char_to_map_name: dict[str, str]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
-            char_to_map_name={o.map_char: o.map_name for o in self.game.objects.values()},
+            char_to_map_name=char_to_map_name,
         )
         return self
 
@@ -476,12 +443,10 @@ class MettaGridConfig(Config):
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
-        actions = ActionsConfig(
-            move=MoveActionConfig(),
-        )
+        actions = ActionsConfig(move=MoveActionConfig(), change_vibe=ChangeVibeActionConfig(number_of_vibes=len(VIBES)))
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(map_char="#", render_symbol="⬛")
+            objects["wall"] = WallConfig(render_symbol="⬛")
         return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

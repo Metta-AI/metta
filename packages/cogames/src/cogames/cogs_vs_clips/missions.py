@@ -1,11 +1,11 @@
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
-from cogames.cogs_vs_clips.machina_missions_trainer import MACHINA_TRAINER_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.sites import EASY_MODE, HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
+from cogames.cogs_vs_clips.navigation_missions import NAVIGATION_MISSIONS
+from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
+    BalancedCornersVariant,
     ClipHubStationsVariant,
     ClipPeriodOnVariant,
     EmptyBaseVariant,
@@ -94,6 +94,13 @@ Machina1OpenWorldMission = Mission(
     variants=[EmptyBaseVariant()],
 )
 
+Machina1BalancedCornersMission = Mission(
+    name="balanced_corners",
+    description="Collect resources and assemble HEARTs. Map has balanced corner distances for fair spawns.",
+    site=MACHINA_1,
+    variants=[EmptyBaseVariant(), BalancedCornersVariant()],
+)
+
 
 HelloWorldUnclipMission = Mission(
     name="hello_world_unclip",
@@ -101,19 +108,6 @@ HelloWorldUnclipMission = Mission(
     site=HELLO_WORLD,
     num_cogs=4,
     variants=[ClipPeriodOnVariant(), InventoryHeartTuneVariant(hearts=1), ClipHubStationsVariant()],
-)
-
-
-# Easy Mode: Simplified training mission with extractor hub and generous variants
-EasyMode = Mission(
-    name="easy_mode",
-    description="Easy training: extractor_hub_30 with lonely_heart, heart_chorus, and pack_rat variants.",
-    site=EASY_MODE,
-    variants=[
-        LonelyHeartVariant(),
-        HeartChorusVariant(),
-        PackRatVariant(),
-    ],
 )
 
 
@@ -126,11 +120,10 @@ MISSIONS: list[Mission] = [
     HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
-    EasyMode,
-    *EVAL_MISSIONS,
+    Machina1BalancedCornersMission,
     *INTEGRATED_EVAL_MISSIONS,
     *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
-    *MACHINA_TRAINER_MISSIONS,
+    *NAVIGATION_MISSIONS,
 ]
 
 

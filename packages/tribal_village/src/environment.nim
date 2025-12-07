@@ -14,9 +14,10 @@ const
   MapRoomBorder* = 0
 
   # World Objects
-  MapRoomObjectsHouses* = 12
-  MapAgentsPerHouse* = 5
-  MapRoomObjectsAgents* = MapRoomObjectsHouses * MapAgentsPerHouse  # 60 total agents
+  # Eight bases with six agents each -> 48 agents total (divisible by 12 and 16 for batching).
+  MapRoomObjectsHouses* = 8
+  MapAgentsPerHouse* = 6
+  MapRoomObjectsAgents* = MapRoomObjectsHouses * MapAgentsPerHouse  # 48 total agents
   MapRoomObjectsConverters* = 10
   MapRoomObjectsMines* = 20
   MapRoomObjectsWalls* = 30
@@ -26,9 +27,9 @@ const
   MapObjectAgentFreezeDuration* = 10
 
   # Building Parameters
-  MapObjectAltarInitialHearts* = 5
-  MapObjectAltarCooldown* = 10
-  MapObjectAltarRespawnCost* = 1
+  MapObjectassemblerInitialHearts* = 5
+  MapObjectassemblerCooldown* = 10
+  MapObjectassemblerRespawnCost* = 1
   MapObjectConverterCooldown* = 0
   MapObjectMineCooldown* = 5
   MapObjectMineInitialResources* = 30
@@ -87,7 +88,7 @@ template safeTintAdd*(tintMod: var int16, delta: int): void =
 # Global village color management
 var agentVillageColors*: seq[Color] = @[]
 var teamColors*: seq[Color] = @[]
-var altarColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
+var assemblerColors*: Table[IVec2, Color] = initTable[IVec2, Color]()
 
 const WarmVillagePalette* = [
   color(1.00, 0.20, 0.15, 1.0),  # fire red
@@ -123,9 +124,9 @@ type
     MineReadyLayer = 13
     ConverterLayer = 14  # Renamed from Converter
     ConverterReadyLayer = 15
-    AltarLayer = 16
-    AltarHeartsLayer = 17  # Hearts for respawning
-    AltarReadyLayer = 18
+    assemblerLayer = 16
+    assemblerHeartsLayer = 17  # Hearts for respawning
+    assemblerReadyLayer = 18
     TintLayer = 19        # Unified tint layer for all environmental effects
     AgentInventoryBreadLayer = 20  # Bread baked from clay oven
 
@@ -135,7 +136,7 @@ type
     Wall
     Mine
     Converter  # Converts ore to batteries
-    Altar
+    assembler
     Spawner
     Tumor
     Armory
@@ -149,7 +150,7 @@ type
     pos*: IVec2
     id*: int
     layer*: int
-    hearts*: int  # For altars only - used for respawning agents
+    hearts*: int  # For assemblers only - used for respawning agents
     resources*: int  # For mines - remaining ore
     cooldown*: int
     frozen*: int
@@ -167,23 +168,23 @@ type
     inventoryArmor*: int    # Armor from armory (5-hit protection, tracks remaining uses)
     inventoryBread*: int    # Bread baked from clay oven
     reward*: float32
-    homeAltar*: IVec2      # Position of agent's home altar for respawning
+    homeassembler*: IVec2      # Position of agent's home assembler for respawning
     # Tumor:
     homeSpawner*: IVec2     # Position of tumor's home spawner
     hasClaimedTerritory*: bool  # Whether this tumor has already branched and is now inert
     turnsAlive*: int            # Number of turns this tumor has been alive
-    
+
     # PlantedLantern:
     teamId*: int               # Which team this lantern belongs to (for color spreading)
     lanternHealthy*: bool      # Whether lantern is active (not destroyed by tumor)
-    
-    # Spawner: (no longer needs altar targeting for new creep spread behavior)
+
+    # Spawner: (no longer needs assembler targeting for new creep spread behavior)
 
   Stats* = ref object
     # Agent Stats - simplified actions:
     actionInvalid*: int
     actionNoop*: int     # Action 0: NOOP
-    actionMove*: int     # Action 1: MOVE  
+    actionMove*: int     # Action 1: MOVE
     actionAttack*: int   # Action 2: ATTACK
     actionUse*: int      # Action 3: USE (terrain/buildings)
     actionSwap*: int     # Action 4: SWAP
@@ -191,13 +192,13 @@ type
     actionPut*: int      # Action 5: GIVE to teammate
 
   TileColor* = object
-    r*, g*, b*: float32      # RGB color components  
+    r*, g*, b*: float32      # RGB color components
     intensity*: float32      # Overall intensity/brightness modifier
-  
+
   # Tint modification layers for efficient batch updates
   TintModification* = object
     r*, g*, b*: int16       # Delta values to add (scaled by 1000)
-  
+
   # Track active tiles for sparse processing
   ActiveTiles* = object
     positions*: seq[IVec2]  # Linear list of active tiles
@@ -208,16 +209,16 @@ type
   EnvironmentConfig* = object
     # Core game parameters
     maxSteps*: int
-    
+
     # Resource configuration
     orePerBattery*: int
     batteriesPerHeart*: int
-    
+
     # Combat configuration
     enableCombat*: bool
     tumorSpawnRate*: float
     tumorDamage*: int
-    
+
     # Reward configuration
     heartReward*: float
     oreReward*: float
@@ -232,7 +233,7 @@ type
     tumorKillReward*: float
     survivalPenalty*: float
     deathPenalty*: float
-    
+
   Environment* = ref object
     currentStep*: int
     config*: EnvironmentConfig  # Configuration for this environment
@@ -244,7 +245,7 @@ type
     terrain*: TerrainGrid
     tileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Main color array
     baseTileColors*: array[MapWidth, array[MapHeight, TileColor]]  # Base colors (terrain)
-    tintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Unified tint modifications  
+    tintMods*: array[MapWidth, array[MapHeight, TintModification]]  # Unified tint modifications
     activeTiles*: ActiveTiles  # Sparse list of tiles to process
     observations*: array[
       MapAgents,
@@ -265,15 +266,15 @@ proc isBuildingFrozen*(pos: IVec2, env: Environment): bool =
   ## Enhanced check if a building is frozen due to tumor creep zone effect
   if pos.x < 0 or pos.x >= MapWidth or pos.y < 0 or pos.y >= MapHeight:
     return false
-  
+
   let color = env.tileColors[pos.x][pos.y]
   # Cool colors have more blue than red+green combined
   let basicCoolCheck = color.b > (color.r + color.g)
-  
-  # Additional saturation check: blue should be significantly high (close to max saturation)  
+
+  # Additional saturation check: blue should be significantly high (close to max saturation)
   # This indicates prolonged presence in a tumor creep zone
   let highSaturationCheck = color.b >= 1.0  # Blue component near maximum
-  
+
   return basicCoolCheck and highSaturationCheck
 
 proc render*(env: Environment): string =
@@ -302,7 +303,7 @@ proc render*(env: Environment): string =
             cell = "m"
           of Converter:
             cell = "g"
-          of Altar:
+          of assembler:
             cell = "a"
           of Spawner:
             cell = "t"
@@ -399,10 +400,10 @@ proc rebuildObservations*(env: Environment) =
     of Converter:
       env.updateObservations(ConverterLayer, thing.pos, 1)
       env.updateObservations(ConverterReadyLayer, thing.pos, thing.cooldown)
-    of Altar:
-      env.updateObservations(AltarLayer, thing.pos, 1)
-      env.updateObservations(AltarHeartsLayer, thing.pos, thing.hearts)
-      env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
+    of assembler:
+      env.updateObservations(assemblerLayer, thing.pos, 1)
+      env.updateObservations(assemblerHeartsLayer, thing.pos, thing.hearts)
+      env.updateObservations(assemblerReadyLayer, thing.pos, thing.cooldown)
     of Spawner:
       discard  # No dedicated observation layer for spawners.
     of Tumor:
@@ -451,14 +452,14 @@ proc moveAction(env: Environment, id: int, agent: Thing, argument: int) =
   if argument < 0 or argument > 7:
     inc env.stats[id].actionInvalid
     return
-  
+
   let moveOrientation = Orientation(argument)
   let delta = getOrientationDelta(moveOrientation)
-  
+
   var newPos = agent.pos
   newPos.x += int32(delta.x)
   newPos.y += int32(delta.y)
-  
+
   let newOrientation = moveOrientation
   # Allow walking through planted lanterns by relocating the lantern, preferring push direction (up to 2 tiles ahead)
   var canMove = env.isEmpty(newPos)
@@ -626,14 +627,14 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
   if argument > 7:
     inc env.stats[id].actionInvalid
     return
-  
+
   # Calculate target position based on orientation argument
   let useOrientation = Orientation(argument)
   let delta = getOrientationDelta(useOrientation)
   var targetPos = agent.pos
   targetPos.x += int32(delta.x)
   targetPos.y += int32(delta.y)
-  
+
   # Check bounds
   if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
     inc env.stats[id].actionInvalid
@@ -744,14 +745,14 @@ proc useAction(env: Environment, id: int, agent: Thing, argument: int) =
       inc env.stats[id].actionUse
     else:
       inc env.stats[id].actionInvalid
-  of Altar:
+  of assembler:
     if thing.cooldown == 0 and agent.inventoryBattery >= 1:
       agent.inventoryBattery -= 1
       env.updateObservations(AgentInventoryBatteryLayer, agent.pos, agent.inventoryBattery)
       thing.hearts += 1
-      thing.cooldown = MapObjectAltarCooldown
-      env.updateObservations(AltarHeartsLayer, thing.pos, thing.hearts)
-      env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
+      thing.cooldown = MapObjectassemblerCooldown
+      env.updateObservations(assemblerHeartsLayer, thing.pos, thing.hearts)
+      env.updateObservations(assemblerReadyLayer, thing.pos, thing.cooldown)
       agent.reward += env.config.heartReward
       inc env.stats[id].actionUse
     else:
@@ -858,27 +859,27 @@ proc findFirstEmptyPositionAround*(env: Environment, center: IVec2, radius: int)
 # ============== LANTERN PLACEMENT ==============
 
 proc findLanternPlacementSpot*(env: Environment, agent: Thing, controller: pointer): IVec2 =
-  ## Find a good spot to place a lantern (7+ tiles from altar, 2+ tiles from other lanterns)
-  let homeAltar = agent.homeAltar
-  
+  ## Find a good spot to place a lantern (7+ tiles from assembler, 2+ tiles from other lanterns)
+  let homeassembler = agent.homeassembler
+
   # Search in expanding rings around the agent
   for radius in 1 .. 15:
     for dx in -radius .. radius:
       for dy in -radius .. radius:
         if abs(dx) != radius and abs(dy) != radius:
           continue  # Only check perimeter of ring
-        
+
         let candidate = agent.pos + ivec2(dx, dy)
-        
+
         # Must be valid empty position
         if not env.isValidEmptyPosition(candidate):
           continue
-          
-        # Must be 3+ tiles from home altar (reduced for testing)
-        let distToAltar = manhattanDistance(candidate, homeAltar)
-        if distToAltar < 3:
+
+        # Must be 3+ tiles from home assembler (reduced for testing)
+        let distToassembler = manhattanDistance(candidate, homeassembler)
+        if distToassembler < 3:
           continue
-          
+
         # Fast grid-based lantern proximity check (avoid scanning all things)
         var tooCloseToLantern = false
         for dx in -1..1:
@@ -890,10 +891,10 @@ proc findLanternPlacementSpot*(env: Environment, agent: Thing, controller: point
                 tooCloseToLantern = true
                 break
           if tooCloseToLantern: break
-        
+
         if not tooCloseToLantern:
           return candidate  # Found a good spot!
-  
+
   # No good spot found
   return ivec2(-1, -1)
 
@@ -966,13 +967,13 @@ proc updateTintModifications(env: Environment) =
   ## Update unified tint modification array based on entity positions - runs every frame
   # Clear previous frame's modifications
   env.clearTintModifications()
-  
+
   template markActiveTile(tileX, tileY: int) =
     if tileX >= 0 and tileX < MapWidth and tileY >= 0 and tileY < MapHeight:
       if not env.activeTiles.flags[tileX][tileY]:
         env.activeTiles.flags[tileX][tileY] = true
         env.activeTiles.positions.add(ivec2(tileX, tileY))
-  
+
   # Process all entities and mark their affected positions as active
   for thing in env.things:
     let pos = thing.pos
@@ -980,12 +981,12 @@ proc updateTintModifications(env: Environment) =
       continue
     let baseX = pos.x.int
     let baseY = pos.y.int
-    
+
     case thing.kind
     of Tumor:
       # Tumors create creep spread in 5x5 area (active seeds glow brighter)
       let creepIntensity = if thing.hasClaimedTerritory: 2 else: 1
-      
+
       for dx in -2 .. 2:
         for dy in -2 .. 2:
           let tileX = baseX + dx
@@ -995,18 +996,18 @@ proc updateTintModifications(env: Environment) =
             let distance = abs(dx) + abs(dy)  # Manhattan distance
             let falloff = max(1, 5 - distance)  # Stronger at center, weaker at edges (5x5 grid)
             markActiveTile(tileX, tileY)
-            
+
             # Tumor creep effect with overflow protection
             safeTintAdd(env.tintMods[tileX][tileY].r, -15 * creepIntensity * falloff)
             safeTintAdd(env.tintMods[tileX][tileY].g, -8 * creepIntensity * falloff)
             safeTintAdd(env.tintMods[tileX][tileY].b, 20 * creepIntensity * falloff)
-      
+
     of Agent:
       # Agents create 5x stronger warmth in 3x3 area based on their tribe color
       let tribeId = thing.agentId
       if tribeId < agentVillageColors.len:
         let tribeColor = agentVillageColors[tribeId]
-        
+
         for dx in -1 .. 1:
           for dy in -1 .. 1:
             let tileX = baseX + dx
@@ -1021,20 +1022,20 @@ proc updateTintModifications(env: Environment) =
               safeTintAdd(env.tintMods[tileX][tileY].r, int((tribeColor.r - 0.7) * 63 * falloff.float32))
               safeTintAdd(env.tintMods[tileX][tileY].g, int((tribeColor.g - 0.65) * 63 * falloff.float32))
               safeTintAdd(env.tintMods[tileX][tileY].b, int((tribeColor.b - 0.6) * 63 * falloff.float32))
-        
-    of Altar:
-      # Reduce altar tint effect by 10x (minimal warm glow)
+
+    of assembler:
+      # Reduce assembler tint effect by 10x (minimal warm glow)
       # No HashSet tracking needed
       markActiveTile(baseX, baseY)
       safeTintAdd(env.tintMods[baseX][baseY].r, 5)
       safeTintAdd(env.tintMods[baseX][baseY].g, 5)
       safeTintAdd(env.tintMods[baseX][baseY].b, 2)
-    
+
     of PlantedLantern:
       # Lanterns spread team colors in 5x5 area (similar to clippies but warm colors)
       if thing.lanternHealthy and thing.teamId >= 0 and thing.teamId < teamColors.len:
         let teamColor = teamColors[thing.teamId]
-        
+
         for dx in -2 .. 2:
           for dy in -2 .. 2:
             let tileX = baseX + dx
@@ -1044,18 +1045,18 @@ proc updateTintModifications(env: Environment) =
               let distance = abs(dx) + abs(dy)  # Manhattan distance
               let falloff = max(1, 5 - distance)  # Stronger at center, weaker at edges (5x5 grid)
               markActiveTile(tileX, tileY)
-              
+
               # Lantern warm effect with overflow protection
               safeTintAdd(env.tintMods[tileX][tileY].r, int((teamColor.r - 0.7) * 50 * falloff.float32))
               safeTintAdd(env.tintMods[tileX][tileY].g, int((teamColor.g - 0.65) * 50 * falloff.float32))
               safeTintAdd(env.tintMods[tileX][tileY].b, int((teamColor.b - 0.6) * 50 * falloff.float32))
-    
+
     else:
       discard
 
 proc applyTintModifications(env: Environment) =
   ## Apply tint modifications to entity positions and their surrounding areas
-  
+
   # Apply modifications only to tiles touched this frame
   for pos in env.activeTiles.positions:
     let tileX = pos.x.int
@@ -1067,46 +1068,46 @@ proc applyTintModifications(env: Environment) =
     let tint = env.tintMods[tileX][tileY]
     if abs(tint.r) < MinTintEpsilon and abs(tint.g) < MinTintEpsilon and abs(tint.b) < MinTintEpsilon:
       continue
-    
+
     # Skip tinting on water tiles (rivers should remain clean)
     if env.terrain[tileX][tileY] == Water:
       continue
-  
+
     # Get current color as integers (scaled by 1000 for precision)
     var r = int(env.tileColors[tileX][tileY].r * 1000)
     var g = int(env.tileColors[tileX][tileY].g * 1000)
     var b = int(env.tileColors[tileX][tileY].b * 1000)
-    
+
     # Apply unified tint modifications
     r += tint.r div 10  # 10% of the modification
     g += tint.g div 10
     b += tint.b div 10
-    
+
     # Convert back to float with clamping
     env.tileColors[tileX][tileY].r = min(max(r.float32 / 1000.0, 0.3), 1.2)
     env.tileColors[tileX][tileY].g = min(max(g.float32 / 1000.0, 0.3), 1.2)
     env.tileColors[tileX][tileY].b = min(max(b.float32 / 1000.0, 0.3), 1.2)
-  
+
   # Apply global decay to ALL tiles (but infrequently for performance)
   if env.currentStep mod 30 == 0 and env.currentStep > 0:
     let decay = 0.98'f32  # 2% decay every 30 steps
-    
+
     for x in 0 ..< MapWidth:
       for y in 0 ..< MapHeight:
         # Get the base color for this tile (could be team color for houses)
         let baseR = env.baseTileColors[x][y].r
         let baseG = env.baseTileColors[x][y].g
         let baseB = env.baseTileColors[x][y].b
-        
+
         # Only decay if color differs from base (avoid floating point errors)
         # Lowered threshold to allow subtle creep effects to be balanced by decay
-        if abs(env.tileColors[x][y].r - baseR) > 0.001 or 
-           abs(env.tileColors[x][y].g - baseG) > 0.001 or 
+        if abs(env.tileColors[x][y].r - baseR) > 0.001 or
+           abs(env.tileColors[x][y].g - baseG) > 0.001 or
            abs(env.tileColors[x][y].b - baseB) > 0.001:
           env.tileColors[x][y].r = env.tileColors[x][y].r * decay + baseR * (1.0 - decay)
           env.tileColors[x][y].g = env.tileColors[x][y].g * decay + baseG * (1.0 - decay)
           env.tileColors[x][y].b = env.tileColors[x][y].b * decay + baseB * (1.0 - decay)
-        
+
         # Also decay intensity back to base intensity
         let baseIntensity = env.baseTileColors[x][y].intensity
         if abs(env.tileColors[x][y].intensity - baseIntensity) > 0.01:
@@ -1124,32 +1125,32 @@ proc plantAction(env: Environment, id: int, agent: Thing, argument: int) =
   if argument > 7:
     inc env.stats[id].actionInvalid
     return
-  
+
   # Check if agent has a lantern
   if agent.inventoryLantern <= 0:
     inc env.stats[id].actionInvalid
     return
-  
+
   # Calculate target position based on orientation argument
   let plantOrientation = Orientation(argument)
   let delta = getOrientationDelta(plantOrientation)
   var targetPos = agent.pos
   targetPos.x += int32(delta.x)
   targetPos.y += int32(delta.y)
-  
+
   # Check bounds
   if targetPos.x < 0 or targetPos.x >= MapWidth or targetPos.y < 0 or targetPos.y >= MapHeight:
     inc env.stats[id].actionInvalid
     return
-  
+
   # Check if position is empty and not water
   if not env.isEmpty(targetPos) or env.terrain[targetPos.x][targetPos.y] == Water:
     inc env.stats[id].actionInvalid
     return
-  
+
   # Calculate team ID directly from the planting agent's ID
   var teamId = agent.agentId div 5
-  
+
   # Plant the lantern
   let lantern = Thing(
     kind: PlantedLantern,
@@ -1157,32 +1158,32 @@ proc plantAction(env: Environment, id: int, agent: Thing, argument: int) =
     teamId: teamId,
     lanternHealthy: true
   )
-  
+
   env.add(lantern)
-  
+
   # Consume the lantern from agent's inventory
   agent.inventoryLantern = 0
-  
+
   # Give reward for planting
   agent.reward += env.config.clothReward * 0.5  # Half reward for planting
-  
+
   inc env.stats[id].actionPlant
 
 proc init(env: Environment) =
   # Use current time for random seed to get different maps each time
   let seed = int(nowSeconds() * 1000)
   var r = initRand(seed)
-  
+
   # Initialize tile colors to base terrain colors (neutral gray-brown)
   for x in 0 ..< MapWidth:
     for y in 0 ..< MapHeight:
       env.tileColors[x][y] = TileColor(r: 0.7, g: 0.65, b: 0.6, intensity: 1.0)
       env.baseTileColors[x][y] = TileColor(r: 0.7, g: 0.65, b: 0.6, intensity: 1.0)
-  
+
   # Initialize active tiles tracking
   env.activeTiles.positions.setLen(0)
   env.activeTiles.flags = default(array[MapWidth, array[MapHeight, bool]])
-  
+
   # Initialize terrain with all features
   initTerrain(env.terrain, MapWidth, MapHeight, MapBorder, seed)
 
@@ -1200,8 +1201,8 @@ proc init(env: Environment) =
   # Clear and prepare village colors arrays
   agentVillageColors.setLen(MapRoomObjectsAgents)  # Allocate space for all agents
   teamColors.setLen(0)  # Clear team colors
-  altarColors.clear()  # Clear altar colors from previous game
-  # Spawn houses with their altars, walls, and associated agents (tribes)
+  assemblerColors.clear()  # Clear assembler colors from previous game
+  # Spawn houses with their assemblers, walls, and associated agents (tribes)
   let numHouses = MapRoomObjectsHouses
   var totalAgentsSpawned = 0
   for i in 0 ..< numHouses:
@@ -1232,7 +1233,7 @@ proc init(env: Environment) =
 
     if placed:
       let elements = getStructureElements(houseStruct, placementPosition)
-      
+
       # Clear terrain within the house area to create a clearing
       for dy in 0 ..< houseStruct.height:
         for dx in 0 ..< houseStruct.width:
@@ -1242,7 +1243,7 @@ proc init(env: Environment) =
             # Clear any terrain features (wheat, trees) but keep water
             if env.terrain[clearX][clearY] != Water:
               env.terrain[clearX][clearY] = Empty
-      
+
       # Generate a distinct warm color for this village (avoid cool/blue hues)
       let paletteIndex = i mod WarmVillagePalette.len
       let villageColor = WarmVillagePalette[paletteIndex]
@@ -1263,15 +1264,15 @@ proc init(env: Environment) =
 
       # Spawn agents around this house
       let agentsForThisHouse = min(MapAgentsPerHouse, MapRoomObjectsAgents - totalAgentsSpawned)
-      
-      # Add the altar with initial hearts and house bounds
+
+      # Add the assembler with initial hearts and house bounds
       env.add(Thing(
-        kind: Altar,
+        kind: assembler,
         pos: elements.center,
-        hearts: MapObjectAltarInitialHearts  # Altar starts with default hearts
+        hearts: MapObjectassemblerInitialHearts  # assembler starts with default hearts
       ))
-      altarColors[elements.center] = finalVillageColor  # Associate altar position with village color
-      
+      assemblerColors[elements.center] = finalVillageColor  # Associate assembler position with village color
+
       # Initialize base colors for house tiles to team color
       for dx in 0 ..< houseStruct.width:
         for dy in 0 ..< houseStruct.height:
@@ -1285,14 +1286,14 @@ proc init(env: Environment) =
               intensity: 1.0
             )
             env.tileColors[tileX][tileY] = env.baseTileColors[tileX][tileY]
-      
+
       # Add the walls
       for wallPos in elements.walls:
         env.add(Thing(
           kind: Wall,
           pos: wallPos,
         ))
-      
+
       # Add the corner buildings from the house layout
       # Parse the house structure to find corner buildings
       for y in 0 ..< houseStruct.height:
@@ -1305,7 +1306,7 @@ proc init(env: Environment) =
                 kind: Armory,
                 pos: worldPos,
               ))
-            of 'F':  # Forge at top-right  
+            of 'F':  # Forge at top-right
               env.add(Thing(
                 kind: Forge,
                 pos: worldPos,
@@ -1323,9 +1324,9 @@ proc init(env: Environment) =
             else:
               discard
       if agentsForThisHouse > 0:
-        # Get nearby positions around the altar
+        # Get nearby positions around the assembler
         let nearbyPositions = env.findEmptyPositionsAround(elements.center, 3)
-        
+
         for j in 0 ..< agentsForThisHouse:
           var agentPos: IVec2
           if j < nearbyPositions.len:
@@ -1334,19 +1335,19 @@ proc init(env: Environment) =
           else:
             # Fallback to random
             agentPos = r.randomEmptyPos(env)
-          
+
           let agentId = totalAgentsSpawned
-          
+
           # Store the village color for this agent
           agentVillageColors[agentId] = finalVillageColor
-          
+
           # Create the agent
           env.add(Thing(
             kind: Agent,
             agentId: agentId,
             pos: agentPos,
             orientation: Orientation(randIntInclusive(r, 0, 3)),
-            homeAltar: elements.center,  # Link agent to their home altar
+            homeassembler: elements.center,  # Link agent to their home assembler
             inventoryOre: 0,
             inventoryBattery: 0,
             inventoryWater: 0,
@@ -1357,34 +1358,34 @@ proc init(env: Environment) =
             inventoryArmor: 0,
             frozen: 0,
           ))
-          
+
           totalAgentsSpawned += 1
           if totalAgentsSpawned >= MapRoomObjectsAgents:
             break
-      
+
       # Note: Entrances are left empty (no walls placed there)
-  
+
   # Now place additional random walls after villages to avoid blocking corner placement
   for i in 0 ..< MapRoomObjectsWalls:
     let pos = r.randomEmptyPos(env)
     env.add(Thing(kind: Wall, pos: pos))
-  
+
   # If there are still agents to spawn (e.g., if not enough houses), spawn them randomly
   # They will get a neutral color
   let neutralColor = color(0.5, 0.5, 0.5, 1.0)  # Gray for unaffiliated agents
   while totalAgentsSpawned < MapRoomObjectsAgents:
     let agentPos = r.randomEmptyPos(env)
     let agentId = totalAgentsSpawned
-    
+
     # Store neutral color for agents without a village
     agentVillageColors[agentId] = neutralColor
-    
+
     env.add(Thing(
       kind: Agent,
       agentId: agentId,
       pos: agentPos,
       orientation: Orientation(randIntInclusive(r, 0, 3)),
-      homeAltar: ivec2(-1, -1),  # No home altar for unaffiliated agents
+      homeassembler: ivec2(-1, -1),  # No home assembler for unaffiliated agents
       inventoryOre: 0,
       inventoryBattery: 0,
       inventoryWater: 0,
@@ -1395,16 +1396,16 @@ proc init(env: Environment) =
       inventoryArmor: 0,
       frozen: 0,
     ))
-    
+
     totalAgentsSpawned += 1
 
   # Random spawner placement with minimum distance from villages and other spawners
-  # Gather altar positions for distance checks
-  var altarPositionsNow: seq[IVec2] = @[]
+  # Gather assembler positions for distance checks
+  var assemblerPositionsNow: seq[IVec2] = @[]
   var spawnerPositions: seq[IVec2] = @[]
   for thing in env.things:
-    if thing.kind == Altar:
-      altarPositionsNow.add(thing.pos)
+    if thing.kind == assembler:
+      assemblerPositionsNow.add(thing.pos)
 
   let numSpawners = numHouses
   let minDist = 20  # tiles; simple guard so spawner isn't extremely close to a village
@@ -1414,7 +1415,7 @@ proc init(env: Environment) =
     let spawnerStruct = createSpawner()
     var placed = false
     var targetPos: IVec2
-    
+
     for attempt in 0 ..< 200:
       targetPos = r.randomEmptyPos(env)
       # Keep within borders allowing spawner bounds
@@ -1423,7 +1424,7 @@ proc init(env: Environment) =
          targetPos.y < MapBorder + spawnerStruct.height div 2 or
          targetPos.y >= MapHeight - MapBorder - spawnerStruct.height div 2:
         continue
-      
+
       # Check simple area clear (3x3)
       var areaValid = true
       for dx in -(spawnerStruct.width div 2) .. (spawnerStruct.width div 2):
@@ -1441,10 +1442,10 @@ proc init(env: Environment) =
       if not areaValid:
         continue
 
-      # Enforce min distance from any altar and other spawners
+      # Enforce min distance from any assembler and other spawners
       var okDistance = true
-      # Check distance from villages (altars)
-      for ap in altarPositionsNow:
+      # Check distance from villages (assemblers)
+      for ap in assemblerPositionsNow:
         let dx = int(targetPos.x) - int(ap.x)
         let dy = int(targetPos.y) - int(ap.y)
         if dx*dx + dy*dy < minDist2:
@@ -1516,11 +1517,11 @@ proc init(env: Environment) =
       resources: MapObjectMineInitialResources,
     ))
 
-  # Initialize altar locations for all spawners
-  var altarPositions: seq[IVec2] = @[]
+  # Initialize assembler locations for all spawners
+  var assemblerPositions: seq[IVec2] = @[]
   for thing in env.things:
-    if thing.kind == Altar:
-      altarPositions.add(thing.pos)
+    if thing.kind == assembler:
+      assemblerPositions.add(thing.pos)
 
   # Initialize observations only when first needed (lazy approach)
   # Individual action updates will populate observations as needed
@@ -1531,19 +1532,19 @@ proc defaultEnvironmentConfig*(): EnvironmentConfig =
   EnvironmentConfig(
     # Core game parameters
     maxSteps: 1000,
-    
+
     # Resource configuration
     orePerBattery: 1,
     batteriesPerHeart: 1,
-    
+
     # Combat configuration
     enableCombat: true,
     tumorSpawnRate: 0.1,
     tumorDamage: 1,
-    
+
     # Reward configuration (only arena_basic_easy_shaped rewards active)
     heartReward: 1.0,      # Arena: heart reward
-    oreReward: 0.1,        # Arena: ore mining reward  
+    oreReward: 0.1,        # Arena: ore mining reward
     batteryReward: 0.8,    # Arena: battery crafting reward
     woodReward: 0.0,       # Disabled - not in arena
     waterReward: 0.0,      # Disabled - not in arena
@@ -1608,16 +1609,16 @@ proc step*(env: Environment, actions: ptr array[MapAgents, uint8]) =
   var tumorsToProcess: seq[Thing] = @[]
 
   for thing in env.things:
-    if thing.kind == Altar:
+    if thing.kind == assembler:
       if thing.cooldown > 0:
         thing.cooldown -= 1
-        env.updateObservations(AltarReadyLayer, thing.pos, thing.cooldown)
-      # Combine altar heart reward calculation here
+        env.updateObservations(assemblerReadyLayer, thing.pos, thing.cooldown)
+      # Combine assembler heart reward calculation here
       if env.currentStep >= env.config.maxSteps:  # Only at episode end
-        let altarHearts = thing.hearts.float32
+        let assemblerHearts = thing.hearts.float32
         for agent in env.agents:
-          if agent.homeAltar == thing.pos:
-            agent.reward += altarHearts / MapAgentsPerHouseFloat
+          if agent.homeassembler == thing.pos:
+            agent.reward += assemblerHearts / MapAgentsPerHouseFloat
     elif thing.kind == Converter:
       if thing.cooldown > 0:
         thing.cooldown -= 1
@@ -1644,18 +1645,18 @@ proc step*(env: Environment, actions: ptr array[MapAgents, uint8]) =
               let other = env.getThing(checkPos)
               if not isNil(other) and other.kind == Tumor and not other.hasClaimedTerritory:
                 inc nearbyTumorCount
-        
+
         # Spawn a new Tumor with reasonable limits to prevent unbounded growth
         let maxTumorsPerSpawner = 3  # Keep only a few active tumors near the spawner
         if nearbyTumorCount < maxTumorsPerSpawner:
           # Find first empty position (no allocation)
           let spawnPos = env.findFirstEmptyPositionAround(thing.pos, 2)
           if spawnPos.x >= 0:
-            
+
             let newTumor = createTumor(spawnPos, thing.pos, stepRng)
             # Don't add immediately - collect for later
             newTumorsToSpawn.add(newTumor)
-            
+
             # Reset spawner cooldown based on spawn rate
             # Convert spawn rate (0.0-1.0) to cooldown steps (higher rate = lower cooldown)
             let cooldown = if env.config.tumorSpawnRate > 0.0:
@@ -1750,27 +1751,27 @@ proc step*(env: Environment, actions: ptr array[MapAgents, uint8]) =
       if env.things[i] in tumorsToRemove:
         env.things.del(i)
 
-  # Respawn dead agents at their altars
+  # Respawn dead agents at their assemblers
   for agentId in 0 ..< MapAgents:
     let agent = env.agents[agentId]
-    
-    # Check if agent is dead and has a home altar
-    if env.terminated[agentId] == 1.0 and agent.homeAltar.x >= 0:
-      # Find the altar
-      var altar: Thing = nil
+
+    # Check if agent is dead and has a home assembler
+    if env.terminated[agentId] == 1.0 and agent.homeassembler.x >= 0:
+      # Find the assembler
+      var assemblerThing: Thing = nil
       for thing in env.things:
-        if thing.kind == Altar and thing.pos == agent.homeAltar:
-          altar = thing
+        if thing.kind == assembler and thing.pos == agent.homeassembler:
+          assemblerThing = thing
           break
-      
-      # Respawn if altar exists and has hearts
-      if not isNil(altar) and altar.hearts > 0:
-        # Deduct a heart from the altar
-        altar.hearts -= MapObjectAltarRespawnCost
-        env.updateObservations(AltarHeartsLayer, altar.pos, altar.hearts)
-        
-        # Find first empty position around altar (no allocation)
-        let respawnPos = env.findFirstEmptyPositionAround(altar.pos, 2)
+
+      # Respawn if assembler exists and has hearts
+      if not isNil(assemblerThing) and assemblerThing.hearts > 0:
+        # Deduct a heart from the assembler
+        assemblerThing.hearts -= MapObjectassemblerRespawnCost
+        env.updateObservations(assemblerHeartsLayer, assemblerThing.pos, assemblerThing.hearts)
+
+        # Find first empty position around assembler (no allocation)
+        let respawnPos = env.findFirstEmptyPositionAround(assemblerThing.pos, 2)
         if respawnPos.x >= 0:
           # Respawn the agent
           agent.pos = respawnPos
@@ -1782,34 +1783,34 @@ proc step*(env: Environment, actions: ptr array[MapAgents, uint8]) =
           agent.inventorySpear = 0
           agent.frozen = 0
           env.terminated[agentId] = 0.0
-          
+
           # Update grid
           env.grid[agent.pos.x][agent.pos.y] = agent
-          
+
           # Update observations
           # REMOVED: expensive per-agent full grid rebuild
-  
+
   # Apply per-step survival penalty to all living agents
   if env.config.survivalPenalty != 0.0:
     for agent in env.agents:
       if agent.frozen == 0:  # Only alive agents
         agent.reward += env.config.survivalPenalty
-  
+
   # Update heatmap using batch tint modification system
   # This is much more efficient than updating during each entity move
   env.updateTintModifications()  # Collect all entity contributions
   env.applyTintModifications()   # Apply them to the main color array in one pass
 
-  
+
   # Check if episode should end
   if env.currentStep >= env.config.maxSteps:
-    # Team altar rewards already applied in main loop above
+    # Team assembler rewards already applied in main loop above
     # Mark all living agents as truncated (episode ended due to time limit)
     for i in 0..<MapAgents:
       if env.terminated[i] == 0.0:
         env.truncated[i] = 1.0
     env.shouldReset = true
-  
+
   # Check if all agents are terminated/truncated
   var allDone = true
   for i in 0..<MapAgents:
@@ -1817,7 +1818,7 @@ proc step*(env: Environment, actions: ptr array[MapAgents, uint8]) =
       allDone = false
       break
   if allDone:
-    # Team altar rewards already applied in main loop if needed
+    # Team assembler rewards already applied in main loop if needed
     env.shouldReset = true
 
 proc reset*(env: Environment) =
@@ -1838,7 +1839,7 @@ proc reset*(env: Environment) =
   # Clear global colors that could accumulate
   agentVillageColors.setLen(0)
   teamColors.setLen(0)
-  altarColors.clear()
+  assemblerColors.clear()
   # Clear UI selection to prevent stale references
   selection = nil
   env.init()  # init() handles terrain, activeTiles, and tile colors
@@ -1869,6 +1870,6 @@ proc generateEntityColor*(entityType: string, id: int, fallbackColor: Color = co
   else:
     return fallbackColor
 
-proc getAltarColor*(pos: IVec2): Color =
-  ## Get altar color by position, with white fallback
-  altarColors.getOrDefault(pos, color(1.0, 1.0, 1.0, 1.0))
+proc getassemblerColor*(pos: IVec2): Color =
+  ## Get assembler color by position, with white fallback
+  assemblerColors.getOrDefault(pos, color(1.0, 1.0, 1.0, 1.0))

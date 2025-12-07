@@ -99,7 +99,7 @@ def demo_random_rollout():
     # Create MettaGridPufferEnv for rollout
     env = MettaGridPufferEnv(
         simulator=simulator,
-        config=config,
+        cfg=config,
     )
 
     print("Running random policy rollout...")
@@ -162,7 +162,7 @@ def demo_pufferlib_training():
     # MettaGridPufferEnv can be used directly with PufferLib training code
     env = MettaGridPufferEnv(
         simulator=simulator,
-        config=config,
+        cfg=config,
     )
 
     print("Running PufferLib training...")

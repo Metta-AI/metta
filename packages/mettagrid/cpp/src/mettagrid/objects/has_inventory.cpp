@@ -41,7 +41,7 @@ InventoryDelta HasInventory::shared_update(std::vector<HasInventory*> inventory_
       }
       if (update_immediately) {
         // Update the inventory by as much as we can, and adjust how much we have left.
-        delta_remaining -= inventory_haver->update_inventory(item, delta_per_inventory_haver);
+        delta_remaining -= inventory_haver->inventory.update(item, delta_per_inventory_haver);
         num_inventory_havers_remaining--;
         if (num_inventory_havers_remaining > 0) {
           delta_per_inventory_haver = delta_remaining / num_inventory_havers_remaining;
@@ -63,7 +63,7 @@ InventoryDelta HasInventory::shared_update(std::vector<HasInventory*> inventory_
   for (int i = inventory_havers_to_consider.size() - 1; i >= 0; i--) {
     HasInventory* inventory_haver = inventory_havers_to_consider[i];
     InventoryDelta inventory_delta = delta_remaining / (i + 1);
-    InventoryDelta actual_delta = inventory_haver->update_inventory(item, inventory_delta);
+    InventoryDelta actual_delta = inventory_haver->inventory.update(item, inventory_delta);
     assert(actual_delta == inventory_delta && "Expected inventory_haver to absorb all of the delta");
     delta_remaining -= actual_delta;
   }
@@ -96,11 +96,11 @@ InventoryDelta HasInventory::transfer_resources(HasInventory& source,
   InventoryDelta source_loss = destroy_untransferred_resources ? max_source_can_give : transfer_amount;
 
   // Remove resources from source
-  [[maybe_unused]] InventoryDelta actually_removed = source.update_inventory(item, -source_loss);
+  [[maybe_unused]] InventoryDelta actually_removed = source.inventory.update(item, -source_loss);
   assert(actually_removed == -source_loss && "Expected source to lose the amount of resources it claimed to lose");
 
   // Add resources to target
-  [[maybe_unused]] InventoryDelta actually_added = target.update_inventory(item, transfer_amount);
+  [[maybe_unused]] InventoryDelta actually_added = target.inventory.update(item, transfer_amount);
   assert(actually_added == transfer_amount &&
          "Expected target to receive the amount of resources it claimed to receive");
 
@@ -110,9 +110,4 @@ InventoryDelta HasInventory::transfer_resources(HasInventory& source,
 // Whether the inventory is accessible to an agent.
 bool HasInventory::inventory_is_accessible() {
   return true;
-}
-
-// Update the inventory for a specific item
-InventoryDelta HasInventory::update_inventory(InventoryItem item, InventoryDelta delta) {
-  return inventory.update(item, delta);
 }

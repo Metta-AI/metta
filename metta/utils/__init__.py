@@ -3,7 +3,7 @@
 # Lazy imports - modules are imported when accessed, not at package load time
 # This avoids pulling in heavy dependencies (like boto3) when only using basic CLI features
 
-__all__ = ["file", "uri"]
+__all__ = ["file"]
 
 
 def __getattr__(name: str):
@@ -14,9 +14,5 @@ def __getattr__(name: str):
     if name == "file":
         import importlib
 
-        return importlib.import_module("metta.common.util.file")
-    elif name == "uri":
-        import importlib
-
-        return importlib.import_module("metta.common.util.uri")
+        return importlib.import_module("mettagrid.util.file")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
