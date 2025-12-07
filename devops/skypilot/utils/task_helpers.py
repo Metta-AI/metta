@@ -174,7 +174,7 @@ def display_task_summary(
     print(f"\n{bold('Command:')} {yellow(cmd)}")
 
     run_id = task.envs.get("METTA_RUN_ID", task.name)
-    dd_url = f"https://app.datadoghq.com/logs?query=@metta_run_id:{run_id}"
+    dd_url = f"https://app.datadoghq.com/logs?query=metta_run_id:{run_id}"
     print(f"\n{bold('Datadog Logs:')} {yellow(dd_url)}")
 
     print(f"\n{divider}")

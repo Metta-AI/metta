@@ -2,6 +2,8 @@ import os
 import platform
 import subprocess
 
+import yaml
+
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import error, info, success, warning
@@ -59,22 +61,39 @@ class DatadogAgentSetup(SetupModule):
             warning(f"Could not create log file {log_file}: {e}")
             return
 
-        config = f"""\
-logs:
-  - type: file
-    path: {log_file}
-    service: skypilot-training
-    source: training
-"""
+        log_entry: dict = {
+            "type": "file",
+            "path": log_file,
+            "service": "skypilot-training",
+            "source": "training",
+        }
+        tags = self._build_tags()
+        if tags:
+            log_entry["tags"] = tags
+
+        config = {"logs": [log_entry]}
         conf_dir = "/etc/datadog-agent/conf.d/skypilot_training.d"
         try:
             os.makedirs(conf_dir, exist_ok=True)
             config_path = os.path.join(conf_dir, "conf.yaml")
             with open(config_path, "w") as f:
-                f.write(config)
+                yaml.safe_dump(config, f, default_flow_style=False)
             os.chmod(config_path, 0o644)
         except Exception as e:
             warning(f"Could not create Datadog log config: {e}")
+
+    def _enable_logs_in_config(self) -> None:
+        config_file = "/etc/datadog-agent/datadog.yaml"
+        if not os.path.exists(config_file):
+            return
+        try:
+            with open(config_file) as f:
+                content = f.read()
+            if "logs_enabled:" not in content:
+                with open(config_file, "a") as f:
+                    f.write("\nlogs_enabled: true\n")
+        except Exception as e:
+            warning(f"Could not enable logs in DD config: {e}")
 
     def _start_agent(self) -> None:
         if not os.path.exists(AGENT_BINARY):
@@ -111,6 +130,7 @@ logs:
 
         if self.check_installed():
             info("Datadog agent already installed.")
+            self._enable_logs_in_config()
             self._setup_log_config()
             self._start_agent()
             return
@@ -129,6 +149,7 @@ logs:
             error("Datadog agent binary not found after install")
             return
 
+        self._enable_logs_in_config()
         self._setup_log_config()
         self._start_agent()
         success("Datadog agent installed successfully.")
