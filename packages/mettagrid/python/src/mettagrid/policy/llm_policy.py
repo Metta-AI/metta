@@ -316,6 +316,8 @@ def build_game_rules_prompt(policy_env_info: PolicyEnvInterface) -> str:
     Returns:
         Complete system prompt for LLM
     """
+    from pathlib import Path
+
     # Build feature ID reference
     feature_docs = []
     for feature in policy_env_info.obs_features:
@@ -331,236 +333,51 @@ def build_game_rules_prompt(policy_env_info: PolicyEnvInterface) -> str:
     for action_id, action_name in enumerate(policy_env_info.action_names):
         action_docs.append(f"  {action_id}: '{action_name}'")
 
+    # Build action IDs list (for last_action section)
+    action_ids = "\n".join(f"    {action_id} = {action_name}" for action_id, action_name in enumerate(policy_env_info.action_names))
+
+    # Build tag IDs list (for tag section)
+    tag_ids = "\n".join(f"    {tag_id} = {tag_name}" for tag_id, tag_name in enumerate(policy_env_info.tags))
+
     obs_width = policy_env_info.obs_width
     obs_height = policy_env_info.obs_height
     agent_x = obs_width // 2
     agent_y = obs_height // 2
 
-    prompt = f"""You are playing MettaGrid, a multi-agent gridworld game.
+    # Build inventory features list
+    inv_features = ", ".join([f.name for f in policy_env_info.obs_features if f.name.startswith("inv:")])
 
-=== OBSERVATION FORMAT ===
+    # Build protocol input/output features lists
+    protocol_input_features = ", ".join([f.name for f in policy_env_info.obs_features if f.name.startswith("protocol_input:")])
+    protocol_output_features = ", ".join([f.name for f in policy_env_info.obs_features if f.name.startswith("protocol_output:")])
 
-You receive observations as a list of tokens. Each token has:
-- "feature": Feature name (see Feature Reference below)
-- "location": {{"x": col, "y": row}} coordinates
-- "value": Feature value
+    # Load template from markdown file
+    template_path = Path(__file__).parent / "prompts" / "game_rules_legacy.md"
+    template = template_path.read_text()
 
-COORDINATE SYSTEM:
-- Observation window is {obs_width}x{obs_height} grid
-- YOU (the agent) are always at the CENTER: x={agent_x}, y={agent_y}
-- Coordinates are EGOCENTRIC (relative to you)
-- x=0 is West edge, x={obs_width - 1} is East edge
-- y=0 is North edge, y={obs_height - 1} is South edge
+    # Substitute all variables
+    prompt = (
+        template
+        .replace("{{OBS_WIDTH}}", str(obs_width))
+        .replace("{{OBS_HEIGHT}}", str(obs_height))
+        .replace("{{AGENT_X}}", str(agent_x))
+        .replace("{{AGENT_Y}}", str(agent_y))
+        .replace("{{AGENT_X_PLUS_1}}", str(agent_x + 1))
+        .replace("{{AGENT_X_MINUS_1}}", str(agent_x - 1))
+        .replace("{{AGENT_Y_PLUS_1}}", str(agent_y + 1))
+        .replace("{{AGENT_Y_MINUS_1}}", str(agent_y - 1))
+        .replace("{{OBS_WIDTH_MINUS_1}}", str(obs_width - 1))
+        .replace("{{OBS_HEIGHT_MINUS_1}}", str(obs_height - 1))
+        .replace("{{ACTION_IDS}}", action_ids)
+        .replace("{{TAG_IDS}}", tag_ids)
+        .replace("{{INV_FEATURES}}", inv_features)
+        .replace("{{PROTOCOL_INPUT_FEATURES}}", protocol_input_features)
+        .replace("{{PROTOCOL_OUTPUT_FEATURES}}", protocol_output_features)
+        .replace("{{FEATURE_DOCS}}", "\n".join(feature_docs))
+        .replace("{{TAG_DOCS}}", "\n".join(tag_docs))
+        .replace("{{ACTION_DOCS}}", "\n".join(action_docs))
+    )
 
-CARDINAL DIRECTIONS FROM YOUR POSITION:
-- North: x={agent_x}, y={agent_y - 1}
-- South: x={agent_x}, y={agent_y + 1}
-- East: x={agent_x + 1}, y={agent_y}
-- West: x={agent_x - 1}, y={agent_y}
-
-UNDERSTANDING TOKENS:
-1. Tokens at YOUR location (x={agent_x}, y={agent_y}) describe YOUR state (inventory, frozen status, etc.)
-2. Tokens at OTHER locations describe objects/agents you can see
-3. Multiple tokens at the SAME location = same object with multiple properties
-4. "tag" feature tells you what type of object it is (see Tag Reference)
-
-SEMANTIC MEANING OF FEATURES:
-
-AGENT STATE FEATURES (at your location x={agent_x}, y={agent_y}):
-
-- "agent:group": Your team ID number
-  Values: 0, 1, 2, 3, etc. (team numbers)
-  → Same value as yours = ally, different value = enemy
-
-- "agent:frozen": Whether you can act
-  Values:
-    0 = not frozen (can act normally)
-    1 = frozen (cannot take actions)
-
-- "vibe": Your current interaction state/mode
-  Values: Integer representing current vibe state
-  → Different vibes may enable different interactions with objects
-
-- "agent:compass": Direction to nearest objective
-  Values:
-    0 = North
-    1 = East
-    2 = South
-    3 = West
-
-GLOBAL STATE FEATURES (no specific location):
-
-- "episode_completion_pct": Progress through episode
-  Values: 0-255 (0 = start, 255 = nearly done)
-
-- "last_action": Your previous action
-  Values (action IDs):
-{chr(10).join(f"    {action_id} = {action_name}" for action_id, action_name in enumerate(policy_env_info.action_names))}
-
-- "last_reward": Reward from last step
-  Values: Positive = good, negative = bad, 0 = neutral
-
-INVENTORY FEATURES (at your location):
-
-- "inv:*": Resources and items you're carrying
-  Features: {", ".join([f.name for f in policy_env_info.obs_features if f.name.startswith("inv:")])}
-  Values: 0-255 (higher = more of that resource)
-  → Value 0 or missing = you don't have any of that resource
-
-OBJECT IDENTIFICATION (at other locations):
-
-- "tag": Type of object at this location
-  Values (tag IDs → object types):
-{chr(10).join(f"    {tag_id} = {tag_name}" for tag_id, tag_name in enumerate(policy_env_info.tags))}
-  → This is THE KEY feature for knowing what objects are
-
-OBJECT STATE FEATURES (at other locations):
-
-- "cooldown_remaining": Steps until object can be used again
-  Values: 0-255 (0 = ready now, higher = must wait longer)
-
-- "remaining_uses": Times object can still be used
-  Values: 0-255 (0 = depleted, higher = more uses left)
-
-- "clipped": Special clipped state
-  Values: 0 = not clipped, 1 = clipped
-
-PROTOCOL FEATURES (at assembler/extractor locations):
-
-- "protocol_input:*": Resources this object REQUIRES
-  Features: {", ".join([f.name for f in policy_env_info.obs_features if f.name.startswith("protocol_input:")])}
-  Values: Amount of each resource needed
-  → You must have these resources to use the object
-
-- "protocol_output:*": Resources this object PRODUCES
-  Features: {", ".join([f.name for f in policy_env_info.obs_features if f.name.startswith("protocol_output:")])}
-  Values: Amount of each resource produced
-  → What you'll get when you successfully use the object
-
-OTHER AGENT FEATURES (at locations with "tag"=agent):
-- "agent:group": Their team ID (compare to yours: same=ally, different=enemy)
-- "inv:*": Their inventory (if visible, useful for threat assessment)
-
-FEATURE REFERENCE:
-{chr(10).join(feature_docs)}
-
-TAG REFERENCE (for "tag" feature):
-{chr(10).join(tag_docs)}
-
-ACTION REFERENCE:
-{chr(10).join(action_docs)}
-
-=== GAME MECHANICS ===
-
-OBJECTS YOU MIGHT SEE:
-- altar: Use energy here to gain rewards (costs energy, has cooldown)
-- converter: Convert resources to energy (no energy cost, has cooldown)
-- generator: Harvest resources from here (has cooldown)
-- wall: Impassable barrier - YOU CANNOT MOVE THROUGH WALLS
-- agent: Other players in the game
-
-KEY RULES:
-- Energy is required for most actions
-- Harvest resources from generators
-- Convert resources to energy at converters
-- Use altars to gain rewards (this is your main goal)
-- Attacks freeze targets and steal their resources
-- Shield protects you but drains energy
-- YOU CANNOT MOVE INTO A TILE THAT HAS A WALL OR OBJECT
-
-=== MOVEMENT LOGIC (CRITICAL) ===
-
-From the working Nim agent implementation, here's how to determine if you can move:
-
-WALKABILITY RULE:
-- A tile is WALKABLE if it has NO tokens at that location
-- A tile is BLOCKED if it has ANY of these:
-  * "tag" feature (indicates an object: wall, extractor, chest, etc.)
-  * "agent:group" feature (another agent is there)
-
-BEFORE MOVING, CHECK THE TARGET LOCATION:
-1. Look at the target coordinates (North/South/East/West from your position)
-2. Check if ANY tokens exist at those coordinates
-3. If tokens exist → BLOCKED, choose different direction
-4. If no tokens exist → WALKABLE, safe to move
-
-EXAMPLE WALKABILITY CHECK:
-Your position: x={agent_x}, y={agent_y}
-North tile: x={agent_x}, y={agent_y - 1}
-
-To move North, check all tokens:
-- If you see ANY token with location x={agent_x}, y={agent_y - 1} → DON'T move North
-- If you see NO tokens at x={agent_x}, y={agent_y - 1} → SAFE to move North
-
-GROUPING TOKENS BY LOCATION:
-Multiple tokens at the same location = same object with multiple properties:
-- Location (5, 5) with tag="wall" → Wall object
-- Location (6, 4) with tag="agent" + "agent:group"=1 + "inv:energy"=50 → Enemy agent with 50 energy
-
-=== DECISION-MAKING EXAMPLES ===
-
-EXAMPLE 1 - Should I use this generator?
-Tokens at location (6, 5):
-- {{"feature": "tag", "location": {{"x": 6, "y": 5}}, "value": 2}}  # value 2 = "carbon_extractor" tag
-- {{"feature": "cooldown_remaining", "location": {{"x": 6, "y": 5}}, "value": 0}}
-
-Analysis:
-→ It's a carbon_extractor (tag=2)
-→ Cooldown is 0, so it's READY to use
-→ DECISION: Move adjacent to (6,5) and use "use" action to harvest carbon
-
-EXAMPLE 2 - Do I have enough resources?
-Tokens at my location ({agent_x}, {agent_y}):
-- {{"feature": "inv:carbon", "location": {{"x": {agent_x}, "y": {agent_y}}}, "value": 5}}
-- {{"feature": "inv:energy", "location": {{"x": {agent_x}, "y": {agent_y}}}, "value": 20}}
-
-Assembler at location (7, 6) needs:
-- {{"feature": "protocol_input:carbon", "location": {{"x": 7, "y": 6}}, "value": 10}}
-
-Analysis:
-→ I have 5 carbon, but assembler needs 10 carbon
-→ I don't have enough!
-→ DECISION: Find a carbon generator first, harvest more carbon, THEN come back to assembler
-
-EXAMPLE 3 - Is this agent friendly or hostile?
-My tokens:
-- {{"feature": "agent:group", "location": {{"x": {agent_x}, "y": {agent_y}}}, "value": 0}}  # I'm team 0
-
-Other agent at (4, 3):
-- {{"feature": "tag", "location": {{"x": 4, "y": 3}}, "value": 0}}  # value 0 = "agent" tag
-- {{"feature": "agent:group", "location": {{"x": 4, "y": 3}}, "value": 1}}  # They're team 1
-
-Analysis:
-→ I'm team 0, they're team 1
-→ Different teams = ENEMY
-→ DECISION: Avoid them or prepare to attack if beneficial
-
-EXAMPLE 4 - Can I move East?
-Tokens in observation:
-- {{"feature": "tag", "location": {{"x": {agent_x + 1}, "y": {agent_y}}}, "value": 8}}  # value 8 = "wall"
-
-Analysis:
-→ East is location ({agent_x + 1}, {agent_y})
-→ There IS a token at ({agent_x + 1}, {agent_y}) - it's a wall
-→ ANY token at a location = BLOCKED
-→ DECISION: DON'T move East, try a different direction
-
-=== STRATEGY TIPS ===
-
-MOVEMENT:
-1. ALWAYS check target location for tokens before moving
-2. Empty locations (no tokens) = walkable
-3. Any tokens at location = blocked/occupied
-4. When stuck, try different cardinal directions
-
-RESOURCE MANAGEMENT:
-- Prioritize energy management
-- Harvest resources from generators
-- Convert resources to energy at converters
-- Use altars when you have enough energy
-
-Your goal is to maximize rewards by using the altar efficiently while managing your resources and energy.
-"""
     return prompt
 
 
@@ -652,6 +469,14 @@ class LLMAgentPolicy(AgentPolicy):
 
         # Track actions within current context window for summarization
         self._current_window_actions: list[dict[str, str]] = []
+
+        # Track global position (agent starts at 0,0 in global coordinates)
+        self._global_x = 0
+        self._global_y = 0
+        # Track positions visited in current window
+        self._current_window_positions: list[tuple[int, int]] = [(0, 0)]
+        # Track all positions ever visited (for breadcrumb)
+        self._all_visited_positions: set[tuple[int, int]] = {(0, 0)}
 
         # Initialize prompt builder (new dynamic approach)
         if self.use_dynamic_prompts:
@@ -776,28 +601,42 @@ class LLMAgentPolicy(AgentPolicy):
         if not self._current_window_actions:
             return ""
 
-        # Count actions by type
-        action_counts: dict[str, int] = {}
-        reasonings: list[str] = []
+        # Get start and end positions for this window
+        if self._current_window_positions:
+            start_pos = self._current_window_positions[0]
+            end_pos = self._current_window_positions[-1]
+        else:
+            start_pos = (0, 0)
+            end_pos = (self._global_x, self._global_y)
 
-        for entry in self._current_window_actions:
-            action = entry.get("action", "unknown")
-            reasoning = entry.get("reasoning", "")
-
-            action_counts[action] = action_counts.get(action, 0) + 1
-            if reasoning and len(reasonings) < 3:  # Keep first 3 reasonings
-                reasonings.append(reasoning)
-
-        # Build summary
+        # Build summary with position info
         window_num = len(self._history_summaries) + 1
-        steps_in_window = len(self._current_window_actions)
 
-        # Format action counts
-        action_summary = ", ".join(f"{action}({count})" for action, count in sorted(action_counts.items(), key=lambda x: -x[1]))
+        # Format position as direction from origin
+        def pos_to_dir(x: int, y: int) -> str:
+            if x == 0 and y == 0:
+                return "origin"
+            parts = []
+            if y < 0:
+                parts.append(f"{abs(y)}N")
+            elif y > 0:
+                parts.append(f"{y}S")
+            if x > 0:
+                parts.append(f"{x}E")
+            elif x < 0:
+                parts.append(f"{abs(x)}W")
+            return "".join(parts) if parts else "origin"
 
-        summary = f"[Window {window_num}, {steps_in_window} steps] Actions: {action_summary}"
-        if reasonings:
-            summary += f" | Thoughts: {'; '.join(reasonings[:2])}"
+        # Get unique positions visited this window (excluding duplicates)
+        unique_positions = []
+        seen = set()
+        for pos in self._current_window_positions:
+            if pos not in seen:
+                unique_positions.append(pos)
+                seen.add(pos)
+
+        summary = f"[Window {window_num}] Moved from {pos_to_dir(*start_pos)} to {pos_to_dir(*end_pos)}"
+        summary += f" | Visited: {len(unique_positions)} unique spots, {len(self._all_visited_positions)} total explored"
 
         return summary
 
@@ -809,6 +648,22 @@ class LLMAgentPolicy(AgentPolicy):
             reasoning: The reasoning behind the action (from LLM response)
         """
         self._current_window_actions.append({"action": action, "reasoning": reasoning})
+
+        # Update global position based on movement action
+        # Note: In MettaGrid, North=Y--, South=Y++, East=X++, West=X--
+        if action == "move_north":
+            self._global_y -= 1
+        elif action == "move_south":
+            self._global_y += 1
+        elif action == "move_east":
+            self._global_x += 1
+        elif action == "move_west":
+            self._global_x -= 1
+
+        # Track this position
+        pos = (self._global_x, self._global_y)
+        self._current_window_positions.append(pos)
+        self._all_visited_positions.add(pos)
 
     def _finalize_window_summary(self) -> None:
         """Create summary for current window and reset for next window."""
@@ -825,6 +680,8 @@ class LLMAgentPolicy(AgentPolicy):
 
         # Reset for next window
         self._current_window_actions = []
+        # Start new window positions from current position
+        self._current_window_positions = [(self._global_x, self._global_y)]
 
     def _get_history_summary_text(self) -> str:
         """Get formatted history summaries to prepend to prompts.
@@ -835,12 +692,35 @@ class LLMAgentPolicy(AgentPolicy):
         if not self._history_summaries:
             return ""
 
-        lines = ["=== PAST HISTORY ==="]
-        for summary in self._history_summaries:
-            lines.append(f"  {summary}")
-        lines.append("")  # Empty line after
+        # Format current position as direction from origin
+        def pos_to_dir(x: int, y: int) -> str:
+            if x == 0 and y == 0:
+                return "origin (starting point)"
+            parts = []
+            if y < 0:
+                parts.append(f"{abs(y)} tiles North")
+            elif y > 0:
+                parts.append(f"{y} tiles South")
+            if x > 0:
+                parts.append(f"{x} tiles East")
+            elif x < 0:
+                parts.append(f"{abs(x)} tiles West")
+            return " and ".join(parts) + " of origin"
 
-        return "\n".join(lines)
+        # Format window summaries
+        window_summaries = "\n".join(f"  {summary}" for summary in self._history_summaries)
+
+        # Load template and substitute variables
+        from pathlib import Path
+        template_path = Path(__file__).parent / "prompts" / "exploration_history.md"
+        template = template_path.read_text()
+
+        return (
+            template
+            .replace("{{CURRENT_POSITION}}", pos_to_dir(self._global_x, self._global_y))
+            .replace("{{TOTAL_EXPLORED}}", str(len(self._all_visited_positions)))
+            .replace("{{WINDOW_SUMMARIES}}", window_summaries)
+        )
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action from LLM given observation.
@@ -851,11 +731,6 @@ class LLMAgentPolicy(AgentPolicy):
         Returns:
             Action to take
         """
-        # Print human-readable debug info if debug mode is enabled
-        # if self.debug_mode and self.debugger:
-        #     debug_output = self.debugger.debug_observation(obs, self.last_action)
-            # print("\n" + debug_output + "\n")
-
         # Build prompt using dynamic or static approach
         if self.use_dynamic_prompts:
             # Check if we're about to start a new context window (before incrementing step counter)
