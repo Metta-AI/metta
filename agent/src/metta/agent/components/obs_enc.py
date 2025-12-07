@@ -215,7 +215,7 @@ class ObsPerceiverLatentConfig(ComponentConfig):
     num_heads: int = 4
     num_layers: int = 2
     mlp_ratio: float = 4.0
-    use_mask: bool = True
+    use_mask: bool = False
     pool: Literal["mean", "first", "none"] = "mean"
     name: str = "obs_perceiver_latent"
 
