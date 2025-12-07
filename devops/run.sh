@@ -23,6 +23,13 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
+# DD diagnostics
+if [[ -n "${METTA_DD_LOG_FILE:-}" ]]; then
+  echo "[DD] Log file: $METTA_DD_LOG_FILE"
+  echo "[DD] File exists: $(test -f "$METTA_DD_LOG_FILE" && echo 'yes' || echo 'no')"
+  echo "[DD] Agent running: $(pgrep -f '/opt/datadog-agent/bin/agent/agent' > /dev/null && echo 'yes' || echo 'no')"
+fi
+
 set +e
 uv run torchrun \
   --nnodes=$NUM_NODES \
