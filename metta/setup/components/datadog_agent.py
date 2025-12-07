@@ -1,5 +1,6 @@
 import os
 import platform
+import socket
 import subprocess
 import time
 
@@ -93,9 +94,15 @@ class DatadogAgentSetup(SetupModule):
         try:
             with open(config_file) as f:
                 content = f.read()
+            additions = []
             if "logs_enabled:" not in content:
+                additions.append("logs_enabled: true")
+            if "hostname:" not in content:
+                hostname = socket.gethostname() or "skypilot-node"
+                additions.append(f"hostname: {hostname}")
+            if additions:
                 with open(config_file, "a") as f:
-                    f.write("\nlogs_enabled: true\n")
+                    f.write("\n" + "\n".join(additions) + "\n")
         except Exception as e:
             warning(f"Could not enable logs in DD config: {e}")
 
