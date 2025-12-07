@@ -611,6 +611,7 @@ class LLMAgentPolicy(AgentPolicy):
         use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         mg_cfg = None,
+        agent_id: int = 0,
     ):
         """Initialize LLM agent policy.
 
@@ -623,11 +624,13 @@ class LLMAgentPolicy(AgentPolicy):
             use_dynamic_prompts: If True, use dynamic prompt builder (default: True)
             context_window_size: Number of steps before resending basic info (default: 20)
             mg_cfg: Optional MettaGridConfig for extracting game-specific info (chest vibes, etc.)
+            agent_id: Agent ID for this policy instance (used for debug output filtering)
         """
         super().__init__(policy_env_info)
         self.provider = provider
         self.temperature = temperature
         self.debug_mode = debug_mode
+        self.agent_id = agent_id
         self.last_action: str | None = None
         # Handle string "false"/"true" from config system
         if isinstance(use_dynamic_prompts, str):
@@ -755,12 +758,18 @@ class LLMAgentPolicy(AgentPolicy):
     def _should_show(self, component: str) -> bool:
         """Check if a debug component should be shown.
 
+        Only shows debug output for agent 0 to avoid cluttering the console.
+
         Args:
             component: Component name to check (e.g., "prompt", "llm", "grid")
 
         Returns:
             True if component should be shown
         """
+        # Only show debug for agent 0
+        if self.agent_id != 0:
+            return False
+
         # Handle boolean debug_mode
         if isinstance(self.debug_mode, bool):
             return self.debug_mode
@@ -797,10 +806,10 @@ class LLMAgentPolicy(AgentPolicy):
                 # Print actual prompt if "prompt" is in debug_mode
                 if self._should_show("prompt"):
                     print("\n" + "=" * 70)
-                    print(f"[PROMPT] Step {step} - Sending to LLM:")
+                    print(f"[AGENT {self.agent_id}] Step {step} - Sending to LLM:")
                     print("=" * 70)
                     print(user_prompt)
-                    print("=" * 70 + "\n")
+                    print("=" * 70)
         else:
             # Use old static prompt approach
             obs_json = observation_to_json(obs, self.policy_env_info)
@@ -841,8 +850,8 @@ The best action is move_east (WRONG - contains extra words)
                     completion_params = {
                         "model": self.model,
                         "messages": messages,
-                        "max_completion_tokens": 50 if is_gpt5_or_o1 else None,
-                        "max_tokens": None if is_gpt5_or_o1 else 50,
+                        "max_completion_tokens": 150 if is_gpt5_or_o1 else None,
+                        "max_tokens": None if is_gpt5_or_o1 else 150,
                         "temperature": None if is_gpt5_or_o1 else self.temperature,
                     }
                     # Remove None values
@@ -863,7 +872,7 @@ The best action is move_east (WRONG - contains extra words)
                             {"role": "system", "content": self.game_rules_prompt},
                             {"role": "user", "content": user_prompt},
                         ],
-                        "max_tokens": 50,
+                        "max_tokens": 150,
                         "temperature": self.temperature,
                     }
 
@@ -876,10 +885,15 @@ The best action is move_east (WRONG - contains extra words)
                     })
 
                 response = self.client.chat.completions.create(**completion_params)
-                action_name = response.choices[0].message.content
-                if action_name is None:
-                    action_name = "noop"
-                action_name = action_name.strip()
+                raw_response = response.choices[0].message.content
+                if raw_response is None:
+                    raw_response = "noop"
+
+                # Print LLM response if "prompt" is in debug_mode
+                if self._should_show("prompt"):
+                    print(f"\n[LLM RESPONSE]\n{raw_response}\n")
+
+                action_name = raw_response.strip()
 
                 # Add assistant response to stateful conversation history
                 if self.use_dynamic_prompts:
@@ -940,7 +954,7 @@ The best action is move_east (WRONG - contains extra words)
                     model=self.model,
                     messages=messages,
                     temperature=self.temperature,
-                    max_tokens=50,
+                    max_tokens=150,
                 )
 
                 if self.debug_mode:
@@ -950,25 +964,28 @@ The best action is move_east (WRONG - contains extra words)
 
                 # Some models (like gpt-oss) put output in 'reasoning' field instead of 'content'
                 message = response.choices[0].message
-                action_name = message.content or ""
+                raw_response = message.content or ""
 
                 # Check reasoning field if content is empty
-                if not action_name and hasattr(message, "reasoning") and message.reasoning:
+                if not raw_response and hasattr(message, "reasoning") and message.reasoning:
                     if self.debug_mode:
                         logger.warning(f"Model used reasoning field instead of content: {message.reasoning[:100]}...")
                     # Try to extract action from reasoning (take last line or last word)
-                    reasoning_lines = message.reasoning.strip().split("\n")
-                    action_name = reasoning_lines[-1].strip().split()[-1] if reasoning_lines else ""
+                    raw_response = message.reasoning
 
-                if not action_name:
+                if not raw_response:
                     if self.debug_mode:
                         reasoning = getattr(message, "reasoning", None)
                         logger.error(
                             f"Ollama returned empty response! content='{message.content}', reasoning='{reasoning}'"
                         )
-                    action_name = "noop"
+                    raw_response = "noop"
 
-                action_name = action_name.strip()
+                # Print LLM response if "prompt" is in debug_mode
+                if self._should_show("prompt"):
+                    print(f"\n[LLM RESPONSE]\n{raw_response}\n")
+
+                action_name = raw_response.strip()
 
                 # Add assistant response to stateful conversation history
                 if self.use_dynamic_prompts:
@@ -1011,7 +1028,7 @@ The best action is move_east (WRONG - contains extra words)
                         model=self.model,
                         messages=messages,
                         temperature=self.temperature,
-                        max_tokens=50,
+                        max_tokens=150,
                     )
                 else:
                     # Static prompts: system + user
@@ -1028,16 +1045,22 @@ The best action is move_east (WRONG - contains extra words)
                         system=self.game_rules_prompt,
                         messages=[{"role": "user", "content": user_prompt}],
                         temperature=self.temperature,
-                        max_tokens=50,
+                        max_tokens=150,
                     )
                 # Extract text from response content blocks
                 from anthropic.types import TextBlock
 
-                action_name = "noop"
+                raw_response = "noop"
                 for block in response.content:
                     if isinstance(block, TextBlock):
-                        action_name = block.text.strip()
+                        raw_response = block.text
                         break
+
+                # Print LLM response if "prompt" is in debug_mode
+                if self._should_show("prompt"):
+                    print(f"\n[LLM RESPONSE]\n{raw_response}\n")
+
+                action_name = raw_response.strip()
 
                 # Add assistant response to stateful conversation history
                 if self.use_dynamic_prompts:
@@ -1078,17 +1101,34 @@ The best action is move_east (WRONG - contains extra words)
             self.last_action = fallback_action.name
             return fallback_action
 
-    def _parse_action(self, action_name: str) -> Action:
+    def _parse_action(self, response_text: str) -> Action:
         """Parse LLM response and return valid Action.
 
+        Handles both JSON format {"reasoning": "...", "action": "..."} and plain action names.
+
         Args:
-            action_name: Action name from LLM response
+            response_text: Raw response from LLM
 
         Returns:
             Valid Action object
         """
         # Clean up response
-        action_name = action_name.strip().strip("\"'").lower()
+        response_text = response_text.strip()
+
+        # Try to parse as JSON first (expected format)
+        try:
+            parsed = json.loads(response_text)
+            if isinstance(parsed, dict) and "action" in parsed:
+                action_name = parsed["action"].strip().lower()
+                for action in self.policy_env_info.actions.actions():
+                    if action.name.lower() == action_name:
+                        return action
+                # If action from JSON doesn't match, fall through to other parsing
+        except json.JSONDecodeError:
+            pass  # Not valid JSON, try other parsing methods
+
+        # Clean up for non-JSON parsing
+        action_name = response_text.strip().strip("\"'").lower()
 
         # Try exact match first (best case - LLM followed instructions)
         for action in self.policy_env_info.actions.actions():
@@ -1274,6 +1314,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             use_dynamic_prompts=self.use_dynamic_prompts,
             context_window_size=self.context_window_size,
             mg_cfg=self.mg_cfg,
+            agent_id=agent_id,
         )
 
 

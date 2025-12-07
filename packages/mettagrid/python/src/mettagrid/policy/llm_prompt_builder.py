@@ -264,6 +264,21 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         agent_x = self._policy_env_info.obs_width // 2
         agent_y = self._policy_env_info.obs_height // 2
 
+        # DEBUG: Print raw token coordinates BEFORE building visible objects
+        # NOTE: In MettaGrid, row() = X (horizontal), col() = Y (vertical) - opposite of standard!
+        should_debug = self._debug_mode if isinstance(self._debug_mode, bool) else ("prompt" in self._debug_mode or "all" in self._debug_mode if isinstance(self._debug_mode, set) else False)
+        if should_debug:
+            print(f"\n[DEBUG RAW TOKENS - BEFORE PROMPT] agent center: x={agent_x}, y={agent_y}")
+            for token in obs.tokens:
+                if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
+                    tag_name = self._policy_env_info.tags[token.value]
+                    # SWAPPED: row() is X, col() is Y
+                    x = token.row()
+                    y = token.col()
+                    rel_x = x - agent_x
+                    rel_y = y - agent_y
+                    print(f"  {tag_name}: location={token.location}, row()={token.row()}=X, col()={token.col()}=Y => rel_x={rel_x}, rel_y={rel_y}")
+
         sections = []
 
         # 1. Directional awareness - what's immediately adjacent (CRITICAL for avoiding walls)
@@ -300,8 +315,8 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         grid: dict[tuple[int, int], str] = {}
 
         for token in obs.tokens:
-            # row() = Y (North/South), col() = X (East/West)
-            x, y = token.col(), token.row()
+            # SWAPPED: In MettaGrid, row() = X (East/West), col() = Y (North/South)
+            x, y = token.row(), token.col()
 
             # Only care about tag features for the grid
             if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
@@ -337,14 +352,16 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
         lines.append(header)
 
         # Grid rows (y-axis = rows)
-        # spatial_grid keys are (x, y) where x=col(), y=row()
+        # SWAPPED: spatial_grid keys are (x, y) where x=row(), y=col()
         for row in range(obs_height):
             row_str = f"{row % 10} "
             for col in range(obs_width):
-                if col == agent_x and row == agent_y:
+                # SWAPPED: x=row (horizontal), y=col (vertical)
+                # So grid position (col, row) in display = (x=col, y=row) but we store as (row, col)
+                if row == agent_x and col == agent_y:
                     row_str += "@"  # Agent position
-                elif (col, row) in spatial_grid:
-                    tag = spatial_grid[(col, row)]
+                elif (row, col) in spatial_grid:
+                    tag = spatial_grid[(row, col)]
                     # Use distinctive letter for each type
                     if tag == "wall":
                         row_str += "W"
@@ -403,13 +420,17 @@ Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
    - Have heart? Find chest to deposit
    - Low energy? Find charger
 
-⚠️ OUTPUT FORMAT ⚠️
-You MUST respond with a JSON object. No other text before or after.
+⚠️ CRITICAL: OUTPUT FORMAT ⚠️
+You MUST respond with ONLY a JSON object. NO other text, NO explanation, NO preamble.
+If you write anything other than valid JSON, the game will crash.
 
-{{"reasoning": "<your step-by-step thinking>", "action": "<action_name>"}}
+REQUIRED FORMAT:
+{{"reasoning": "<brief thinking>", "action": "<action_name>"}}
 
-Example:
-{{"reasoning": "I need carbon. Carbon extractor is to the east. Moving east.", "action": "move_east"}}
+VALID ACTIONS: noop, move_north, move_south, move_east, move_west, change_vibe_heart_a, change_vibe_heart_b, change_vibe_default
+
+Example response (copy this format EXACTLY):
+{{"reasoning": "Carbon extractor at x=1. Moving east.", "action": "move_east"}}
 """
 
     def context_prompt(
@@ -457,7 +478,8 @@ Check ADJACENT TILES. If next to a useful object, use it. Otherwise move toward 
 
 VALID: {", ".join(action_list[:8])}, ...
 
-Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
+⚠️ RESPOND WITH ONLY JSON - NO OTHER TEXT:
+{{"reasoning": "<brief>", "action": "<action_name>"}}
 """
             includes_basic = False
 
@@ -722,8 +744,8 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
         # Build spatial grid from tokens
         spatial_grid: dict[tuple[int, int], list[dict]] = {}
         for token in obs.tokens:
-            # row() = Y (North/South), col() = X (East/West)
-            x, y = token.col(), token.row()
+            # SWAPPED: In MettaGrid, row() = X (East/West), col() = Y (North/South)
+            x, y = token.row(), token.col()
             if (x, y) not in spatial_grid:
                 spatial_grid[(x, y)] = []
 
@@ -826,8 +848,8 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
         seen_locations: set[tuple[int, int]] = set()
 
         for token in obs.tokens:
-            # row() = Y (North/South), col() = X (East/West)
-            x, y = token.col(), token.row()
+            # SWAPPED: In MettaGrid, row() = X (East/West), col() = Y (North/South)
+            x, y = token.row(), token.col()
 
             # Skip agent's own location
             if x == agent_x and y == agent_y:
@@ -850,8 +872,8 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
                 properties = []
                 inventory = {}
                 for t in obs.tokens:
-                    # row() = Y, col() = X, so compare col() with x and row() with y
-                    if t.col() == x and t.row() == y:
+                    # SWAPPED: row() = X, col() = Y
+                    if t.row() == x and t.col() == y:
                         if t.feature.name == "cooldown_remaining" and t.value > 0:
                             properties.append(f"cooldown: {t.value}")
                         elif t.feature.name == "remaining_uses":
@@ -939,8 +961,8 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
         """
         inventory = {}
         for token in obs.tokens:
-            # row() = Y, col() = X, so compare col() with agent_x and row() with agent_y
-            if token.col() == agent_x and token.row() == agent_y:
+            # SWAPPED: row() = X, col() = Y
+            if token.row() == agent_x and token.col() == agent_y:
                 if token.feature.name.startswith("inv:"):
                     resource = token.feature.name[4:]  # Remove "inv:" prefix
                     inventory[resource] = token.value
@@ -989,7 +1011,7 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
         for token in obs.tokens:
             token_dict = {
                 "feature": token.feature.name,
-                "location": {"x": token.col(), "y": token.row()},
+                "location": {"x": token.row(), "y": token.col()},  # SWAPPED: row()=X, col()=Y
                 "value": token.value,
             }
             tokens_list.append(token_dict)
@@ -1023,8 +1045,8 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
         positions: dict[tuple[int, int], dict] = {}
 
         for token in obs.tokens:
-            # row() = Y (North/South), col() = X (East/West)
-            x, y = token.col(), token.row()
+            # SWAPPED: In MettaGrid, row() = X (East/West), col() = Y (North/South)
+            x, y = token.row(), token.col()
 
             # Skip agent's own position (we show inventory separately)
             if x == agent_x and y == agent_y:
@@ -1084,9 +1106,9 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
         return sorted(objects, key=lambda o: o["distance"])
 
     def _build_visible_objects_section(self, objects: list[dict]) -> str:
-        """Build section showing visible objects with coordinates.
+        """Build section showing visible objects with absolute coordinates.
 
-        Format: "object_name at: x=X, y=Y (properties)"
+        Format: "object_name at (X, Y) - DIRECTION (properties)"
 
         Args:
             objects: List of object dicts from _extract_visible_objects_with_coords
@@ -1094,13 +1116,23 @@ Respond with JSON: {{"reasoning": "<thinking>", "action": "<action_name>"}}
         Returns:
             Formatted section with spatial coordinates
         """
-        lines = ["=== VISIBLE OBJECTS (relative to you at 0,0) ==="]
-        lines.append("Coordinates: x+ is East, x- is West, y+ is South, y- is North")
+        agent_x = self._policy_env_info.obs_width // 2
+        agent_y = self._policy_env_info.obs_height // 2
+
+        lines = [f"=== VISIBLE OBJECTS (you are at {agent_x},{agent_y}) ==="]
+        lines.append("Grid: 11x11, (0,0)=top-left, x=column(E/W), y=row(N/S)")
         lines.append("")
 
         for obj in objects:
-            # Format: "assembler at: x=2, y=-3"
-            line = f"  {obj['name']} at: x={obj['x']}, y={obj['y']}"
+            # Calculate absolute position from relative
+            abs_x = obj['x'] + agent_x
+            abs_y = obj['y'] + agent_y
+
+            # Calculate direction from agent
+            direction = self._get_direction_name(obj['x'], obj['y'])
+
+            # Format: "assembler at (7, 5) - EAST"
+            line = f"  {obj['name']} at ({abs_x},{abs_y}) - {direction}"
 
             # Add properties in parentheses
             props = []
