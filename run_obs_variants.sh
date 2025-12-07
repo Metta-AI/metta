@@ -1,31 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run A/B/C perf comparisons across observation implementations.
-# Variants: push (current), dirtybit, main (origin/main).
+# Run A/B perf comparisons across observation implementations.
+# Variants: main (origin/main), alt (copy of main to iterate on).
 # Usage: ./run_obs_variants.sh [run_prefix] [total_timesteps]
 
 RUN_PREFIX_BASE="${1:-obsvar}"
 RUN_PREFIX="${RUN_PREFIX_BASE}_$(date +%s)"
-TOTAL_TIMESTEPS="${2:-1000000}"
+TOTAL_TIMESTEPS="${2:-100000}"
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BINDINGS_DIR="$ROOT_DIR/packages/mettagrid/cpp/bindings"
 
 declare -A VARIANT_CPP=(
-  [push]="$BINDINGS_DIR/push_mettagrid_c.cpp"
-  [dirtybit]="$BINDINGS_DIR/dirtybit_mettagrid_c.cpp"
+  [alt]="$BINDINGS_DIR/alt_mettagrid_c.cpp"
   [main]="$BINDINGS_DIR/main_mettagrid_c.cpp"
 )
 
 declare -A VARIANT_HPP=(
-  [push]="$BINDINGS_DIR/push_mettagrid_c.hpp"
-  [dirtybit]="$BINDINGS_DIR/dirtybit_mettagrid_c.hpp"
+  [alt]="$BINDINGS_DIR/alt_mettagrid_c.hpp"
   [main]="$BINDINGS_DIR/main_mettagrid_c.hpp"
 )
 
 COMMON_ARGS=(
   ./tools/run.py train cogs_v_clips
+  mission=machina_1.open_world
   system.local_only=true
   wandb.enabled=false wandb.project=na wandb.entity=na
   trainer.minibatch_size=512
@@ -66,7 +65,7 @@ run_variant() {
   AWS_PROFILE= AWS_DEFAULT_PROFILE= METTA_TIMER_REPORT=1 uv run "${COMMON_ARGS[@]}" "run=${run_name}"
 }
 
-for variant in push dirtybit main; do
+for variant in alt main; do
   run_variant "$variant"
   echo
   echo "==> Completed variant: $variant"
@@ -74,7 +73,7 @@ for variant in push dirtybit main; do
   sleep 2
 done
 
-# Restore dirtybit variant as default
-set_variant dirtybit
+# Restore alt variant as default
+set_variant alt
 
 echo "All variants completed."
