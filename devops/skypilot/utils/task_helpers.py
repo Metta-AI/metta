@@ -173,6 +173,10 @@ def display_task_summary(
     cmd = f"{task.envs['METTA_MODULE_PATH']} (args: {task.envs['METTA_ARGS']})"
     print(f"\n{bold('Command:')} {yellow(cmd)}")
 
+    run_id = task.envs.get("METTA_RUN_ID", task.name)
+    dd_url = f"https://app.datadoghq.com/logs?query=@metta_run_id:{run_id}"
+    print(f"\n{bold('Datadog Logs:')} {yellow(dd_url)}")
+
     print(f"\n{divider}")
 
 

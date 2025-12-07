@@ -116,7 +116,7 @@ logs:
             return
 
         info("Installing Datadog agent...")
-        result = subprocess.run(
+        subprocess.run(
             "curl -fsSL https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh | bash",
             shell=True,
             env=env,
@@ -125,8 +125,8 @@ logs:
             check=False,
         )
 
-        if result.returncode != 0:
-            error(f"Failed to install Datadog agent: {result.stdout}\n{result.stderr}")
+        if not os.path.exists(AGENT_BINARY):
+            error("Datadog agent binary not found after install")
             return
 
         self._setup_log_config()
