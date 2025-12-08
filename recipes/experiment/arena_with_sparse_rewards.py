@@ -189,15 +189,13 @@ def sweep(sweep_name: str) -> SweepTool:
         # and are therefore sweepable.
         SP.param("temperature", D.UNIFORM, min=0, max=0.4, search_center=0.07),
         SP.param("contrastive_coef", D.UNIFORM, min=0.0001, max=1, search_center=0.2),
+        {"enable_contrastive": True},
     ]
 
     return make_sweep(
         name=sweep_name,
         recipe="recipes.experiment.arena_with_sparse_rewards",
         train_entrypoint="train",
-        # We can set global overrides for training here.
-        # These are passed via the CLI
-        train_overrides={"enable_contrastive": True},
         eval_entrypoint="evaluate_in_sweep",
         objective=f"evaluator/eval_{SWEEP_EVAL_SUITE}/score",
         parameters=parameters,

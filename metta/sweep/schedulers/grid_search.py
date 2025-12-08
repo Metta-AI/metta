@@ -172,11 +172,14 @@ class GridSearchScheduler:
         return keys
 
     def _flatten_dims(self, params: Dict[str, Any], prefix: str = "") -> Dict[str, List[Any]]:
-        """Interpret flat categorical parameters (dot-path keys)."""
+        """Interpret categorical parameters, flattening nested dicts into dot paths."""
         dims: dict[str, list[Any]] = {}
         for key, value in params.items():
             full = f"{prefix}.{key}" if prefix else key
-            if isinstance(value, CategoricalParameterConfig):
+            if isinstance(value, dict):
+                nested = self._flatten_dims(value, full)
+                dims.update(nested)
+            elif isinstance(value, CategoricalParameterConfig):
                 dims[full] = list(value.choices)
             elif isinstance(value, list):
                 dims[full] = list(value)
