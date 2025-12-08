@@ -190,7 +190,6 @@ class SweepTool(Tool):
             # The keys include the full path "trainer.batch_size" not just "batch_size"
             self.search_space.pop("trainer.batch_size", None)
             self.search_space.pop("trainer.minibatch_size", None)
-            self.search_space.pop("trainer.total_timesteps", None)
 
         # Handle run parameter from dispatcher (ignored - only consumed to prevent unused args error)
         if "run" in args:
