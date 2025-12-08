@@ -14,6 +14,7 @@ from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
     # For type checking only; avoid runtime import cycles
+    from metta.sweep.optimizer.constraints import ConstraintSpec
     from metta.tools.sweep import SweepTool
 
 
@@ -224,6 +225,7 @@ def make_sweep(
     train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
     cost_key: Optional[str] = None,
+    constraints: Optional[list["ConstraintSpec"]] = None,
     # Catch all for un-exposed tool overrides.
     # See SweepTool definition for details.
     **advanced,
@@ -243,6 +245,7 @@ def make_sweep(
             cost_key: Optional metric path to extract cost from run summary.
                 If provided, the cost will be read from summary[cost_key].
                 If not provided, defaults to run.cost (which is 0 if not set).
+            constraints: Optional list of inter-parameter constraints to enforce.
             **advanced: Additional SweepTool options
 
         Protein config args:
@@ -265,13 +268,25 @@ def make_sweep(
 
     # Local imports to avoid circular dependencies
     from metta.sweep.protein_config import ProteinConfig, ProteinSettings
+    from metta.sweep.optimizer.constraints import ConstraintSpec, DivisionConstraintSpec
     from metta.tools.sweep import SweepSchedulerType, SweepTool
+
+    constraint_specs: list[ConstraintSpec] = list(constraints or [])
+    default_division = DivisionConstraintSpec(divisor_key="trainer.minibatch_size", dividend_key="trainer.batch_size")
+    if not any(
+        isinstance(c, DivisionConstraintSpec)
+        and c.divisor_key == default_division.divisor_key
+        and c.dividend_key == default_division.dividend_key
+        and c.adjust_target == default_division.adjust_target
+    ):
+        constraint_specs.append(default_division)
 
     protein_config = ProteinConfig(
         metric=objective,
         goal=advanced.pop("goal", "maximize"),
         parameters=parameters,
         settings=ProteinSettings(),
+        constraints=constraint_specs,
     )
 
     scheduler_type = SweepSchedulerType.ASYNC_CAPPED
