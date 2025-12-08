@@ -73,13 +73,15 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     short_names: list[str] | None = None
 
+
     def __init__(
-    self,
-    policy_env_info: PolicyEnvInterface,
-    policy_name: Optional[str] = None,
-    is_scripted: bool = True,
-    **kwargs: Any,
+        self,
+        policy_env_info: PolicyEnvInterface,
+        policy_name: Optional[str] = None,
+        is_scripted: bool = True,
+        **kwargs: Any,
     ):
+
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
         if policy_name is None:
