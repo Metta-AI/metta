@@ -319,7 +319,7 @@ class TestGlobalTokens:
         obs = env._c_sim.observations()
 
         # Check episode completion updated (1/10 = 10%)
-        expected_completion = int(round(0.1 * 255))
+        expected_completion = int(0.1 * 256)
         completion_values = helper.find_token_values(
             obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
         )
@@ -346,6 +346,17 @@ class TestGlobalTokens:
 
         last_action = helper.find_token_values(obs[0], location=(global_x, global_y), feature_id=last_action_feature_id)
         assert last_action == env.action_names.index("move_south"), f"Expected move_south action, got {last_action}"
+
+        # take a bunch more steps and check episode completion.
+        for _ in range(15):
+            env.step()
+        expected_completion = 255
+        completion_values = helper.find_token_values(
+            obs[0], location=(global_x, global_y), feature_id=episode_completion_pct_feature_id
+        )
+        assert completion_values == [expected_completion], (
+            f"Expected completion {expected_completion}, got {completion_values}"
+        )
 
     def test_vibe_signaling(self):
         """Test that agents can signal using vibes and observe each other's vibes."""

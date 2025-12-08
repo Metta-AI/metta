@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 from pydantic import Field
@@ -8,10 +8,15 @@ from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
+from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
 from metta.rl.loss.ppo_critic import PPOCriticConfig
+from metta.rl.loss.quantile_ppo_critic import QuantilePPOCriticConfig
+from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
+from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedClonerConfig
+from metta.rl.loss.vit_reconstruction import ViTReconstructionLossConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
 
@@ -20,9 +25,25 @@ if TYPE_CHECKING:
 
 
 class LossesConfig(Config):
+    _LOSS_ORDER: ClassVar[tuple[str, ...]] = (
+        "sliced_kickstarter",
+        "sliced_scripted_cloner",
+        "ppo_critic",
+        "quantile_ppo_critic",
+        "ppo_actor",
+        "ppo",
+        "vit_reconstruction",
+        "contrastive",
+        "grpo",
+        "supervisor",
+        "kickstarter",
+        "logit_kickstarter",
+    )
+
     # ENABLED BY DEFAULT: PPO split into two terms for flexibility, simplicity, and separation of concerns
     ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=True))
     ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=True))
+    quantile_ppo_critic: QuantilePPOCriticConfig = Field(default_factory=lambda: QuantilePPOCriticConfig(enabled=False))
 
     # our original PPO in a single file
     ppo: PPOConfig = Field(default_factory=lambda: PPOConfig(enabled=False))
@@ -34,26 +55,57 @@ class LossesConfig(Config):
     supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
     kickstarter: KickstarterConfig = Field(default_factory=lambda: KickstarterConfig(enabled=False))
+    sliced_kickstarter: SlicedKickstarterConfig = Field(default_factory=lambda: SlicedKickstarterConfig(enabled=False))
+    logit_kickstarter: LogitKickstarterConfig = Field(default_factory=lambda: LogitKickstarterConfig(enabled=False))
+    sliced_scripted_cloner: SlicedScriptedClonerConfig = Field(
+        default_factory=lambda: SlicedScriptedClonerConfig(enabled=False)
+    )
+    vit_reconstruction: ViTReconstructionLossConfig = Field(
+        default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
+    )
 
     def _configs(self) -> dict[str, LossConfig]:
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
         # also, the way it's setup doesn't let the experimenter give names to losses.
-        loss_configs: dict[str, LossConfig] = {}
-        if self.supervisor.enabled:
-            loss_configs["action_supervisor"] = self.supervisor
-        if self.ppo_critic.enabled:
-            loss_configs["ppo_critic"] = self.ppo_critic
-        if self.ppo_actor.enabled:
-            loss_configs["ppo_actor"] = self.ppo_actor
-        if self.ppo.enabled:
-            loss_configs["ppo"] = self.ppo
-        if self.contrastive.enabled:
-            loss_configs["contrastive"] = self.contrastive
-        if self.grpo.enabled:
-            loss_configs["grpo"] = self.grpo
-        if self.kickstarter.enabled:
-            loss_configs["kickstarter"] = self.kickstarter
+        loss_configs = {
+            name: cfg for name, cfg in ((name, getattr(self, name)) for name in self._LOSS_ORDER) if cfg.enabled
+        }
+        self._validate_sampler_dependencies()
         return loss_configs
+
+    @property
+    def loss_configs(self) -> dict[str, LossConfig]:
+        return self._configs()
+
+    def _validate_sampler_dependencies(self) -> None:
+        """Fail fast when a consumer loss is enabled but no sampler writes sampled_mb."""
+
+        samplers = [
+            self.ppo.enabled,
+            self.ppo_critic.enabled and self.ppo_critic.sample_enabled,
+            self.quantile_ppo_critic.enabled and self.quantile_ppo_critic.sample_enabled,
+            self.grpo.enabled,
+            self.sliced_kickstarter.enabled,
+            self.sliced_scripted_cloner.enabled,
+            self.supervisor.enabled and self.supervisor.sample_enabled,
+        ]
+
+        consumers = [
+            self.ppo_actor.enabled,
+            self.kickstarter.enabled,
+            self.logit_kickstarter.enabled,
+            self.vit_reconstruction.enabled,
+            self.contrastive.enabled,
+            self.supervisor.enabled and not self.supervisor.sample_enabled,
+        ]
+
+        if any(consumers) and not any(samplers):
+            raise ValueError(
+                "Loss config invalid: a loss needs sampled_mb but no sampler is enabled. "
+                "Enable one of (ppo, ppo_critic.sample_enabled, quantile_ppo_critic.sample_enabled, grpo, "
+                "sliced_kickstarter, sliced_scripted_cloner, action_supervisor.sample_enabled=True) "
+                "or disable the consumer losses."
+            )
 
     def init_losses(
         self,
@@ -63,6 +115,11 @@ class LossesConfig(Config):
         device: torch.device,
     ) -> dict[str, Loss]:
         return {
-            loss_name: loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
-            for loss_name, loss_config in self._configs().items()
+            loss_name: loss_cfg.create(policy, trainer_cfg, env, device, loss_name)
+            for loss_name, loss_cfg in self._configs().items()
         }
+
+    def __iter__(self):
+        """Iterate over (name, config) pairs for all loss configs."""
+        for name in self._LOSS_ORDER:
+            yield name, getattr(self, name)

@@ -2,8 +2,10 @@ import { FC, useContext, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
+import { ReplayViewer } from './components/ReplayViewer'
 import type { EpisodeWithTags, PolicyVersionWithName } from './repo'
-import { METTASCOPE_REPLAY_URL_PREFIX } from './constants'
+import { formatDate, formatRelativeTime } from './utils/datetime'
+import { formatPolicyVersion } from './utils/format'
 
 type LoadState<T> = {
   data: T
@@ -17,57 +19,11 @@ const createInitialState = <T,>(data: T): LoadState<T> => ({
   error: null,
 })
 
-const formatDate = (value: string | null): string => {
-  if (!value) {
-    return '—'
-  }
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-  return date.toLocaleString()
-}
-
-const formatRelativeTime = (value: string | null): string => {
-  if (!value) {
-    return '—'
-  }
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  const diffMs = Date.now() - date.getTime()
-  const diffSeconds = Math.max(0, Math.floor(diffMs / 1000))
-
-  if (diffSeconds < 60) return 'just now'
-  const diffMinutes = Math.floor(diffSeconds / 60)
-  if (diffMinutes < 60) return `${diffMinutes}m ago`
-  const diffHours = Math.floor(diffMinutes / 60)
-  if (diffHours < 24) return `${diffHours}h ago`
-  const diffDays = Math.floor(diffHours / 24)
-  if (diffDays < 7) return `${diffDays}d ago`
-  const diffWeeks = Math.floor(diffDays / 7)
-  if (diffWeeks < 4) return `${diffWeeks}w ago`
-  const diffMonths = Math.floor(diffDays / 30)
-  if (diffMonths < 12) return `${diffMonths}mo ago`
-  const diffYears = Math.floor(diffDays / 365)
-  return `${diffYears}y ago`
-}
-
 const formatScore = (value: number | null | undefined): string => {
   if (typeof value !== 'number') {
     return '—'
   }
   return value.toFixed(2)
-}
-
-const formatReplayUrl = (replayUrl: string): string => {
-  if (!replayUrl) return ''
-  if (replayUrl.startsWith(METTASCOPE_REPLAY_URL_PREFIX)) {
-    return replayUrl
-  }
-  return `${METTASCOPE_REPLAY_URL_PREFIX}${replayUrl}`
 }
 
 export const EpisodeDetailPage: FC = () => {
@@ -187,7 +143,7 @@ export const EpisodeDetailPage: FC = () => {
         <div className="flex items-center gap-3">
           {episode?.primary_pv_id ? (
             <Link
-              to={`/leaderboard/policy/${episode.primary_pv_id}`}
+              to={`/policies/versions/${episode.primary_pv_id}`}
               className="inline-flex items-center px-3 py-2 rounded border border-blue-500 text-blue-600 no-underline hover:bg-blue-50 text-sm"
             >
               View Primary Policy
@@ -232,14 +188,14 @@ export const EpisodeDetailPage: FC = () => {
                     .sort(([, a], [, b]) => (typeof b === 'number' && typeof a === 'number' ? b - a : 0))
                     .map(([policyId, reward]) => {
                       const info = policyInfoState.data[policyId]
-                      const policyLabel = info ? `${info.name}.${info.version}` : 'Unknown policy'
+                      const policyLabel = formatPolicyVersion(info)
                       const isPrimary = episode.primary_pv_id === policyId
                       return (
                         <tr key={policyId} className="border-b border-gray-100 align-top">
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-2">
                               <Link
-                                to={`/leaderboard/policy/${policyId}`}
+                                to={`/policies/versions/${policyId}`}
                                 className="text-blue-600 no-underline hover:underline font-medium"
                               >
                                 {policyLabel}
@@ -269,38 +225,23 @@ export const EpisodeDetailPage: FC = () => {
         </div>
       </div>
 
-      <div className="p-5 space-y-3">
-        {state.loading ? (
-          <div className="text-gray-500 text-sm">Loading replay...</div>
-        ) : state.error ? (
-          <div className="text-red-600 text-sm">{state.error}</div>
-        ) : !episode || !episode.replay_url ? (
-          <div className="text-gray-500 text-sm">No replay available for this episode.</div>
-        ) : (
-          <>
-            <div
-              className="w-full border border-gray-200 rounded overflow-hidden bg-black"
-              style={{ minHeight: '360px', height: '480px' }}
-            >
-              <iframe
-                src={formatReplayUrl(episode.replay_url)}
-                title="Episode replay"
-                className="w-full h-full"
-                allowFullScreen
-              />
-            </div>
-            <div className="text-sm">
-              <a
-                href={formatReplayUrl(episode.replay_url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 no-underline hover:underline"
-              >
-                Open replay in new tab
-              </a>
-            </div>
-          </>
-        )}
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Replay</h2>
+          </div>
+        </div>
+        <div className="p-5 space-y-3">
+          {state.loading ? (
+            <div className="text-gray-500 text-sm">Loading replay...</div>
+          ) : state.error ? (
+            <div className="text-red-600 text-sm">{state.error}</div>
+          ) : !episode || !episode.replay_url ? (
+            <div className="text-gray-500 text-sm">No replay available for this episode.</div>
+          ) : (
+            <ReplayViewer replayUrl={episode.replay_url} label="Episode replay" />
+          )}
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm">

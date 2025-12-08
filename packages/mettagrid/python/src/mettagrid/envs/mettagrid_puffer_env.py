@@ -30,7 +30,7 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
-from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_masks,
@@ -69,7 +69,7 @@ class MettaGridPufferEnv(PufferEnv):
         self,
         simulator: Simulator,
         cfg: MettaGridConfig,
-        env_supervisor_cfg: Optional[EnvSupervisorConfig] = None,
+        supervisor_policy_spec: Optional[PolicySpec] = None,
         buf: Any = None,
         seed: int = 0,
     ):
@@ -77,7 +77,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._simulator = simulator
         self._current_cfg = cfg
         self._current_seed = seed
-        self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig()
+        self._supervisor_policy_spec = supervisor_policy_spec
         self._sim: Simulation | None = None
 
         # Initialize shared buffers FIRST (before super().__init__)
@@ -131,13 +131,10 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
-        if self._env_supervisor_cfg.policy is not None:
+        if self._supervisor_policy_spec is not None:
             self._env_supervisor = initialize_or_load_policy(
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),
-                PolicySpec(
-                    class_path=self._env_supervisor_cfg.policy,
-                    data_path=self._env_supervisor_cfg.policy_data_path,
-                ),
+                self._supervisor_policy_spec,
             )
 
             self._compute_supervisor_actions()
@@ -167,7 +164,7 @@ class MettaGridPufferEnv(PufferEnv):
         sim.step()
 
         # Do this after step() so that the trainer can use it if needed
-        if self._env_supervisor_cfg.policy is not None:
+        if self._supervisor_policy_spec is not None:
             self._compute_supervisor_actions()
 
         return (
@@ -241,6 +238,30 @@ class MettaGridPufferEnv(PufferEnv):
     @teacher_actions.setter
     def teacher_actions(self, teacher_actions: np.ndarray) -> None:
         self._buffers.teacher_actions = teacher_actions
+
+    @property
+    def render_mode(self) -> str:
+        """PufferLib render mode - returns 'ansi' for text-based rendering."""
+        return "ansi"
+
+    def render(self) -> str:
+        """Render the current state as unicode text."""
+        from mettagrid.renderer.miniscope.buffer import MapBuffer
+        from mettagrid.renderer.miniscope.symbol import DEFAULT_SYMBOL_MAP
+
+        sim = cast(Simulation, self._sim)
+
+        symbol_map = DEFAULT_SYMBOL_MAP.copy()
+        for obj in self._current_cfg.game.objects.values():
+            if obj.render_name:
+                symbol_map[obj.render_name] = obj.render_symbol
+            symbol_map[obj.name] = obj.render_symbol
+
+        return MapBuffer(
+            symbol_map=symbol_map,
+            initial_height=sim.map_height,
+            initial_width=sim.map_width,
+        ).render_full_map(sim._c_sim.grid_objects())
 
     def close(self) -> None:
         """Close the environment."""

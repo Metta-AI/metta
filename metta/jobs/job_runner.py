@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import select
 import shlex
 import signal
 import subprocess
@@ -21,6 +22,7 @@ from typing import Callable, Optional
 import sky
 import sky.exceptions
 import sky.jobs
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 from devops.skypilot.utils.job_helpers import (
     check_job_statuses,
@@ -29,7 +31,6 @@ from devops.skypilot.utils.job_helpers import (
     tail_job_log,
 )
 from metta.common.util.fs import get_repo_root
-from metta.common.util.retry import retry_function
 from metta.jobs.job_config import JobConfig
 
 logger = logging.getLogger(__name__)
@@ -269,13 +270,28 @@ class LocalJob(Job):
 
     def _read_output(self) -> None:
         """Non-blocking read of available output (called while job runs)."""
+
         if not (self._proc and self._proc.stdout):
             return
-        chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
-        if chunk:
-            log_path = self._get_log_path()
-            with open(log_path, "ab") as f:
-                f.write(chunk)
+
+        # Use select to check if data is available (with 0 timeout for non-blocking)
+        try:
+            readable, _, _ = select.select([self._proc.stdout], [], [], 0)
+            if not readable:
+                return
+        except (ValueError, TypeError):
+            # Handle mock objects or invalid file descriptors gracefully
+            return
+
+        try:
+            chunk = self._proc.stdout.read1(65536)  # type: ignore[attr-defined]
+            if chunk:
+                log_path = self._get_log_path()
+                with open(log_path, "ab") as f:
+                    f.write(chunk)
+        except (OSError, AttributeError):
+            # Handle read errors gracefully
+            pass
 
     def _drain_output(self) -> None:
         """Blocking read of all remaining output (called when job completes)."""
@@ -429,13 +445,18 @@ class RemoteJob(Job):
 
         try:
 
+            @retry(
+                stop=stop_after_attempt(3),
+                wait=wait_exponential_jitter(initial=2.0, max=60.0),
+                reraise=True,
+            )
             def get_job_id_with_wait() -> str:
                 job_id = get_job_id_from_request_id(request_id, wait_seconds=2.0)
                 if not job_id:
                     raise Exception("Job ID not available yet")
                 return job_id
 
-            job_id_str = retry_function(get_job_id_with_wait, max_retries=2, initial_delay=2.0)
+            job_id_str = get_job_id_with_wait()
             job_id = int(job_id_str)
         except Exception:
             job_id = None
@@ -468,10 +489,16 @@ class RemoteJob(Job):
         try:
             # Only generate run_name for training jobs (they use WandB)
             run_name = self._generate_run_name() if self.config.is_training_job else None
-            request_id, job_id, _ = retry_function(
-                lambda: self._launch_via_script(run_name),
-                max_retries=max_attempts - 1,
+
+            @retry(
+                stop=stop_after_attempt(max_attempts),
+                wait=wait_exponential_jitter(initial=1.0, max=60.0),
+                reraise=True,
             )
+            def launch_with_retry():
+                return self._launch_via_script(run_name)
+
+            request_id, job_id, _ = launch_with_retry()
             self._request_id = request_id
             self._job_id = job_id
             self._submitted = True

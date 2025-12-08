@@ -33,12 +33,9 @@ class ActionSupervisedConfig(LossConfig):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "ActionSupervised":
         """Create ActionSupervised loss instance."""
-        return ActionSupervised(
-            policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config
-        )
+        return ActionSupervised(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class ActionSupervised(Loss):
@@ -55,12 +52,9 @@ class ActionSupervised(Loss):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any = None,
+        cfg: "ActionSupervisedConfig",
     ):
-        # Get loss config from trainer_cfg if not provided
-        if loss_config is None:
-            loss_config = getattr(trainer_cfg.losses, instance_name, None)
-        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         # unpack config into slots
         self.rollout_forward_enabled = self.cfg.rollout_forward_enabled
         self.train_forward_enabled = self.cfg.train_forward_enabled
@@ -127,6 +121,13 @@ class ActionSupervised(Loss):
         student_log_probs = student_log_probs.reshape(minibatch.shape[0], minibatch.shape[1])
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
+
+        # Keep all policy parameters participating in backward for DDP.
+        for key in policy_td.keys():
+            if key not in ["full_log_probs", "act_log_prob"] and isinstance(policy_td[key], Tensor):
+                value = policy_td[key]
+                if value.requires_grad:
+                    loss = loss + 0.0 * value.sum()
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
 

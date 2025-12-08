@@ -4,7 +4,7 @@ This is meant as a basic testbed for CvC buildings / mechanics.
 This recipe is automatically validated in CI and release processes.
 """
 
-from typing import Optional, Sequence
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -29,7 +29,7 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
 
     arena_env.game.objects.update(
         {
-            "altar": building.assembler_altar,
+            "assembler": building.assembler_assembler,
             "mine_red": building.assembler_mine_red,
             "generator_red": building.assembler_generator_red,
             "lasery": building.assembler_lasery,
@@ -131,10 +131,10 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
         )
 
     if assemblers:
-        # Update altar recipe to require battery_red input
-        altar_config = env_cfg.game.objects["altar"]
-        assert isinstance(altar_config, AssemblerConfig)
-        altar_config.protocols[0].input_resources["battery_red"] = 1
+        # Update assembler recipe to require battery_red input
+        assembler_config = env_cfg.game.objects["assembler"]
+        assert isinstance(assembler_config, AssemblerConfig)
+        assembler_config.protocols[0].input_resources["battery_red"] = 1
 
     trainer_cfg = TrainerConfig()
 
@@ -148,11 +148,11 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: list[str] | str,
 ) -> EvaluateTool:
     return EvaluateTool(
         simulations=simulations(),
-        policy_uris=policy_uris or [],
+        policy_uris=policy_uris,
     )
 
 

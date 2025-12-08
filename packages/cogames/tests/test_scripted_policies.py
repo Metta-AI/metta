@@ -18,7 +18,6 @@ from rich.console import Console
 from cogames.cli.mission import get_mission
 from cogames.play import play as play_episode
 from metta.common.util.log_config import init_mettagrid_system_environment
-from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy import PolicySpec
@@ -45,11 +44,11 @@ def _nim_bindings_available() -> bool:
 
 
 POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
-    PolicyUnderTest("nim_thinky", requires_nim=True, supports_supervisor=True),
+    PolicyUnderTest("thinky", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("nim_random", requires_nim=True, supports_supervisor=True),
-    PolicyUnderTest("nim_race_car", requires_nim=True, supports_supervisor=True),
+    PolicyUnderTest("race_car", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("scripted_baseline"),
-    PolicyUnderTest("scripted_unclipping"),
+    PolicyUnderTest("ladybug"),
     PolicyUnderTest("scripted_starter"),
     PolicyUnderTest(
         "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
@@ -82,7 +81,7 @@ def simulator() -> Simulator:
 
 @pytest.fixture
 def env_config():
-    _, env_cfg, _ = get_mission("evals.extractor_hub_30", variants_arg=None, cogs=2)
+    _, env_cfg, _ = get_mission("evals.diagnostic_chest_navigation1", variants_arg=None, cogs=2)
     env_cfg.game.max_steps = 8
     return env_cfg
 
@@ -91,7 +90,7 @@ def env_config():
 def test_scripted_policies_work_as_supervisors(policy: PolicyUnderTest, simulator: Simulator, env_config) -> None:
     """Supervisor policies must load and generate teacher actions for training."""
 
-    env = MettaGridPufferEnv(simulator, env_config, EnvSupervisorConfig(policy=policy.reference))
+    env = MettaGridPufferEnv(simulator, env_config, supervisor_policy_spec=PolicySpec(class_path=policy.reference))
     try:
         observations, _ = env.reset(seed=123)
         assert observations.shape[0] == env_config.game.num_agents
@@ -122,7 +121,7 @@ def test_scripted_policies_can_play_short_episode(policy: PolicyUnderTest, env_c
         console=console,
         env_cfg=env_config,
         policy_spec=policy_spec,
-        game_name="extractor_hub_30",
+        game_name="diagnostic_chest_navigation1",
         seed=42,
         render_mode="none",
     )

@@ -127,7 +127,7 @@ mcp_servers/pr_similarity/cache/
 recipe_test_jobs.json
 cluster_test_jobs.json
 
-# MetaScope
+# MettaScope
 packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
 mettascope.out
@@ -136,6 +136,7 @@ packages/mettagrid/nim/mettascope/src/tmp
 packages/mettagrid/python/src/mettagrid/nim/mettascope/
 packages/mettagrid/nim/mettascope/nim.cfg
 packages/cogames/src/cogames/policy/nim_agents/nim.cfg
+packages/tribal_village/nim.cfg
 
 # Nim Agents
 packages/cogames/src/cogames/policy/nim_agents/bindings/generated

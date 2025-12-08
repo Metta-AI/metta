@@ -15,6 +15,8 @@ from contextlib import redirect_stdout
 from functools import partial
 from typing import Callable
 
+from sky.server.common import get_server_url
+
 from metta.jobs.job_config import JobConfig
 from metta.jobs.job_display import JobDisplay, report_on_jobs
 from metta.jobs.job_manager import JobManager
@@ -28,7 +30,7 @@ def state_change_printer(job_manager: JobManager, job_name: str, old_status: str
     """Print job state changes with artifacts.
 
     Used for non-interactive mode to show progress as jobs change state.
-    Prints artifacts (WandB URLs, checkpoints, logs) when jobs complete.
+    Prints available artifacts (SkyPilot dashboard, WandB URLs, checkpoints, logs).
 
     Args:
         job_manager: JobManager instance to query job state
@@ -45,19 +47,22 @@ def state_change_printer(job_manager: JobManager, job_name: str, old_status: str
         # Print status transition
         print(f"{job_name}: {old_status} → {new_status}", flush=True)
 
-        # For completed jobs, show artifacts
-        if new_status == JobStatus.COMPLETED:
-            # Show WandB URL for training jobs
-            if job_state.wandb_url:
-                print(f"  🔗 {job_state.wandb_url}", flush=True)
+        # Show SkyPilot dashboard URL for remote jobs
+        if job_state.job_id and job_state.config.remote:
+            dashboard_url = f"{get_server_url()}/dashboard/jobs/{job_state.job_id}"
+            print(f"  🖥️  {dashboard_url}", flush=True)
 
-            # Show checkpoint URI
-            if job_state.checkpoint_uri:
-                print(f"  📦 {job_state.checkpoint_uri}", flush=True)
+        # Show WandB URL for training jobs
+        if job_state.wandb_url:
+            print(f"  🔗 {job_state.wandb_url}", flush=True)
 
-            # Always show logs path
-            if job_state.logs_path:
-                print(f"  📝 {job_state.logs_path}", flush=True)
+        # Show checkpoint URI
+        if job_state.checkpoint_uri:
+            print(f"  📦 {job_state.checkpoint_uri}", flush=True)
+
+        # Show logs path
+        if job_state.logs_path:
+            print(f"  📝 {job_state.logs_path}", flush=True)
 
 
 def submit_with_callback(

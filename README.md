@@ -1,9 +1,6 @@
 # Metta AI
 
 <p align="center">
-  <a href="https://codecov.io/gh/Metta-AI/metta">
-    <img src="https://codecov.io/gh/Metta-AI/metta/graph/badge.svg?token=SX28I8PS3E" alt="codecov">
-  </a>
   <a href="https://github.com/Metta-AI/metta/actions/workflows/checks.yml">
     <img src="https://github.com/Metta-AI/metta/actions/workflows/checks.yml/badge.svg" alt="Tests">
   </a>
@@ -71,7 +68,7 @@ with the following dynamics:
 
 - **Agents and Vision**: Agents can see a limited number of squares around them.
 - **Resources**: Agents harvest diamonds, convert them to energy at charger stations, and use energy to power the "heart
-  altar" for rewards.
+  assembler" for rewards.
 - **Energy Management**: All actions cost energy, so agents learn to manage their energy budgets efficiently.
 - **Combat**: Agents can attack others, temporarily freezing the target and stealing resources.
 - **Defense**: Agents can toggle shields, which drain energy but absorb attacks.

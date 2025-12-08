@@ -11,10 +11,8 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 import psutil
 from rich.console import Console
 
-from cogames.cli.policy import POLICY_ARG_DELIMITER
 from cogames.policy.signal_handler import DeferSigintContextManager
 from mettagrid import MettaGridConfig, PufferMettaGridEnv
-from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.mapgen.mapgen import MapGen
@@ -24,7 +22,7 @@ from mettagrid.policy.loader import (
     initialize_or_load_policy,
     resolve_policy_data_path,
 )
-from mettagrid.policy.policy import PolicySpec, TrainablePolicy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulator
 from mettagrid.util.stats_writer import NoopStatsWriter
@@ -208,10 +206,9 @@ def train(
             data_path=resolved_initial_weights,
         ),
     )
-    assert isinstance(policy, TrainablePolicy), (
-        f"Policy class {policy_class_path} must implement TrainablePolicy interface"
-    )
-    policy.network().to(device)
+    network = policy.network()
+    assert network is not None, f"Policy {policy_class_path} must be trainable (network() returned None)"
+    network.to(device)
 
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
     if not use_rnn:
@@ -384,7 +381,7 @@ def train(
 
             # Build the command with game name if provided
             policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
-            policy_arg = f"{policy_class_arg}{POLICY_ARG_DELIMITER}{final_checkpoint}"
+            policy_arg = f"class={policy_class_arg},data={final_checkpoint}"
 
             first_mission = missions_arg[0] if missions_arg else "training_facility_1"
             all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
@@ -446,7 +443,6 @@ class _EnvCreator:
         simulator = Simulator()
         simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
         simulator.add_event_handler(EarlyResetHandler())
-        env_supervisor_cfg = EnvSupervisorConfig()
-        env = PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
+        env = PufferMettaGridEnv(simulator, target_cfg, buf=buf, seed=seed if seed is not None else 0)
         set_buffers(env, buf)
         return env

@@ -1,4 +1,4 @@
-import std/[json, tables, strformat],
+import std/[json, tables],
   boxy, fidget2/[hybridrender],
   zippy, vmath, jsony,
   ./validation
@@ -190,6 +190,14 @@ let EmptyReplay* = Replay(
   fileName: "",
 )
 
+proc getInt*(obj: JsonNode, key: string, default: int = 0): int =
+  ## Get an integer field from JsonNode with a default value if key is missing.
+  if key in obj: obj[key].getInt else: default
+
+proc getString*(obj: JsonNode, key: string, default: string = ""): string =
+  ## Get a string field from JsonNode with a default value if key is missing.
+  if key in obj: obj[key].getStr else: default
+
 proc parseHook*(s: string, i: var int, v: var IVec2) =
   var arr: array[2, int32]
   parseHook(s, i, arr)
@@ -230,6 +238,10 @@ proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
   else:
     # A single value is a valid sequence.
     return @[data.to(T)]
+
+proc getExpandedIntSeq*(obj: JsonNode, key: string, maxSteps: int, default: seq[int] = @[0]): seq[int] =
+  ## Get an expanded integer sequence field from JsonNode with a default if key is missing.
+  if key in obj: expand[int](obj[key], maxSteps, 0) else: default
 
 let drawnAgentActionNames =
   ["attack", "attack_nearest", "put_items", "get_items", "swap"]
@@ -482,6 +494,115 @@ proc computeGainMap(replay: Replay) =
             gainMap.add(ItemAmount(itemId: j, count: items[n][j] - items[m][j]))
       agent.gainMap[i] = gainMap
 
+proc isInventoryCompressed(inventory: JsonNode): bool =
+  ## Check if inventory is already in V3 compressed format [[itemId, count], ...]
+  if inventory.kind != JArray or inventory.len == 0:
+    return false
+
+  for item in inventory.getElems():
+    if item.kind != JArray or item.len != 2:
+      return false
+    let itemId = item[0]
+    let count = item[1]
+    if itemId.kind != JInt or count.kind != JInt:
+      return false
+  return true
+
+proc compressInventoryArray(inventory: JsonNode): JsonNode =
+  ## Compress a flat inventory array [itemId, itemId, ...] to [[itemId, count], ...]
+  result = newJArray()
+  if inventory.kind != JArray:
+    return result
+
+  var counts: seq[int]
+  for itemId in inventory.getElems():
+    if itemId.kind == JInt:
+      let id = itemId.getInt()
+      if id < 0:
+        continue
+      if id >= counts.len:
+        counts.setLen(id + 1)
+      counts[id] += 1
+
+  for itemId, count in counts.pairs():
+    if count > 0:
+      var pair = newJArray()
+      pair.add(newJInt(itemId))
+      pair.add(newJInt(count))
+      result.add(pair)
+
+proc convertInventoryField(obj: JsonNode, fieldName: string) =
+  ## Convert a single inventory field from V2 to V3 format.
+  if fieldName notin obj:
+    return
+
+  let field = obj[fieldName]
+  if field.kind == JArray and field.len > 0:
+    # Check if this is a time series format [[step, inventory_array], ...]
+    let firstItem = field[0]
+    if firstItem.kind == JArray and firstItem.len == 2:
+      # Time series format: convert each inventory array if needed
+      var newTimeSeries = newJArray()
+      var needsConversion = false
+      for item in field.getElems():
+        if item.kind == JArray and item.len == 2:
+          let step = item[0]
+          let inventoryArray = item[1]
+          if inventoryArray.kind == JArray and not isInventoryCompressed(inventoryArray):
+            let compressed = compressInventoryArray(inventoryArray)
+            var newItem = newJArray()
+            newItem.add(step)
+            newItem.add(compressed)
+            newTimeSeries.add(newItem)
+            needsConversion = true
+          else:
+            newTimeSeries.add(item)
+        else:
+          newTimeSeries.add(item)
+      if needsConversion:
+        obj[fieldName] = newTimeSeries
+    else:
+      # Single inventory array: convert directly if needed
+      if not isInventoryCompressed(field):
+        obj[fieldName] = compressInventoryArray(field)
+  elif field.kind == JArray and field.len == 0:
+    # Empty array stays empty
+    discard
+
+proc convertReplayV2ToV3*(replayData: JsonNode): JsonNode =
+  ## Convert a V2 replay to V3 format by compressing inventory arrays.
+  ## V2: inventory as [itemId, itemId, ...] (repeated IDs)
+  ## V3: inventory as [[itemId, count], [itemId, count], ...] (compressed pairs)
+  echo "Converting replay from version 2 to version 3..."
+
+  # Create a deep copy of the data
+  var data = replayData.copy()
+
+  # Update version to 3
+  data["version"] = newJInt(3)
+
+  # Convert inventory fields in all objects
+  if "objects" in data and data["objects"].kind == JArray:
+    for obj in data["objects"].getElems():
+      if obj.kind != JObject:
+        continue
+
+      # Convert inventory field
+      convertInventoryField(obj, "inventory")
+
+      # Convert recipe_input field
+      convertInventoryField(obj, "recipe_input")
+
+      # Convert recipe_output field
+      convertInventoryField(obj, "recipe_output")
+
+      # Convert input_resources and output_resources (legacy building fields)
+      convertInventoryField(obj, "input_resources")
+
+      convertInventoryField(obj, "output_resources")
+
+  return data
+
 proc loadReplayString*(jsonData: string, fileName: string): Replay =
   ## Load a replay from a string.
   var jsonObj = fromJson(jsonData)
@@ -489,7 +610,10 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   if jsonObj["version"].getInt == 1:
     jsonObj = convertReplayV1ToV2(jsonObj)
 
-  doAssert jsonObj["version"].getInt == 2
+  if jsonObj["version"].getInt == 2:
+    jsonObj = convertReplayV2ToV3(jsonObj)
+
+  doAssert jsonObj["version"].getInt == 3
 
   # Check for validation issues and log them to console
   let issues = validateReplay(jsonObj)
@@ -508,41 +632,6 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     mapSize: (jsonObj["map_size"][0].getInt, jsonObj["map_size"][1].getInt)
   )
 
-  replay.typeImages = initTable[string, string]()
-  for typeName in replay.typeNames:
-    var imagePath = "objects/" & typeName
-    if imagePath notin bxy:
-      imagePath = "objects/unknown"
-    replay.typeImages[typeName] = imagePath
-
-  replay.actionImages = newSeq[string](replay.actionNames.len)
-  for i in 0 ..< replay.actionNames.len:
-    replay.actionImages[i] = "actions/" & replay.actionNames[i]
-    if replay.actionImages[i] notin bxy:
-      replay.actionImages[i] = "actions/unknown"
-
-  replay.actionAttackImages = newSeq[string](9)
-  for i in 0 ..< 9:
-    replay.actionAttackImages[i] = "actions/attack" & $(i + 1)
-
-  replay.actionIconImages = newSeq[string](replay.actionNames.len)
-  for i in 0 ..< replay.actionNames.len:
-    replay.actionIconImages[i] = "actions/icons/" & replay.actionNames[i]
-    if replay.actionIconImages[i] notin bxy:
-      replay.actionIconImages[i] = "actions/icons/unknown"
-
-  replay.traceImages = newSeq[string](replay.actionNames.len)
-  for i in 0 ..< replay.actionNames.len:
-    replay.traceImages[i] = "trace/" & replay.actionNames[i]
-    if replay.traceImages[i] notin bxy:
-      replay.traceImages[i] = "trace/unknown"
-
-  replay.itemImages = newSeq[string](replay.itemNames.len)
-  for i in 0 ..< replay.itemNames.len:
-    replay.itemImages[i] = "resources/" & replay.itemNames[i]
-    if replay.itemImages[i] notin bxy:
-      replay.itemImages[i] = "resources/unknown"
-
   for actionName in drawnAgentActionNames:
     let idx = replay.actionNames.find(actionName)
     if idx != -1:
@@ -555,43 +644,42 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     replay.config = fromJson($(jsonObj["mg_config"]), Config)
 
   for obj in jsonObj["objects"]:
-    let inventoryRaw = expand[seq[seq[int]]](obj["inventory"], replay.maxSteps, @[])
+
     var inventory: seq[seq[ItemAmount]]
-    for i in 0 ..< inventoryRaw.len:
-      var itemAmounts: seq[ItemAmount]
-      for j in 0 ..< inventoryRaw[i].len:
-        itemAmounts.add(ItemAmount(itemId: inventoryRaw[i][j][0],
-            count: inventoryRaw[i][j][1]))
-      inventory.add(itemAmounts)
+    if "inventory" in obj:
+      let inventoryRaw = expand[seq[seq[int]]](obj["inventory"], replay.maxSteps, @[])
+      for i in 0 ..< inventoryRaw.len:
+        var itemAmounts: seq[ItemAmount]
+        for j in 0 ..< inventoryRaw[i].len:
+          itemAmounts.add(ItemAmount(itemId: inventoryRaw[i][j][0],
+              count: inventoryRaw[i][j][1]))
+        inventory.add(itemAmounts)
 
-    let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0])
     var location: seq[IVec2]
-    for i in 0 ..< locationRaw.len:
-      location.add(ivec2(
-        locationRaw[i][0].int32,
-        locationRaw[i][1].int32
-      ))
+    if "location" in obj:
+      let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0])
+      for coords in locationRaw:
+        location.add(ivec2(coords[0].int32, coords[1].int32))
+    else:
+      location = @[ivec2(0, 0)]
 
-    var resolvedTypeName = ""
+    var resolvedTypeName = "unknown"
     if "type_name" in obj:
       resolvedTypeName = obj["type_name"].getStr
 
-    if resolvedTypeName.len == 0 and "type_id" in obj:
+    if resolvedTypeName == "unknown" and "type_id" in obj:
       let candidateId = obj["type_id"].getInt
       if candidateId >= 0 and candidateId < replay.typeNames.len:
         resolvedTypeName = replay.typeNames[candidateId]
 
-    doAssert resolvedTypeName.len > 0,
-      "Unknown object type for replay entity"
-
     let entity = Entity(
-      id: obj["id"].getInt,
+      id: obj.getInt("id", 0),
       typeName: resolvedTypeName,
       location: location,
-      orientation: expand[int](obj["orientation"], replay.maxSteps, 0),
+      orientation: obj.getExpandedIntSeq("orientation", replay.maxSteps),
       inventory: inventory,
-      inventoryMax: obj["inventory_max"].getInt,
-      color: expand[int](obj["color"], replay.maxSteps, 0),
+      inventoryMax: obj.getInt("inventory_max", 0),
+      color: obj.getExpandedIntSeq("color", replay.maxSteps),
     )
     if "group_id" in obj:
       entity.groupId = obj["group_id"].getInt
@@ -599,9 +687,11 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     entity.isAgent = resolvedTypeName == "agent"
     if "agent_id" in obj:
       entity.agentId = obj["agent_id"].getInt
-      entity.isFrozen = expand[bool](obj["is_frozen"], replay.maxSteps, false)
+      let frozenField = if "frozen" in obj: obj["frozen"] elif "is_frozen" in obj: obj["is_frozen"] else: newJBool(false)
+      entity.isFrozen = expand[bool](frozenField, replay.maxSteps, false)
       entity.actionId = expand[int](obj["action_id"], replay.maxSteps, 0)
-      entity.actionParameter = expand[int](obj["action_param"], replay.maxSteps, 0)
+      let actionParamField = if "action_parameter" in obj: obj["action_parameter"] elif "action_param" in obj: obj["action_param"] else: newJInt(0)
+      entity.actionParameter = expand[int](actionParamField, replay.maxSteps, 0)
       entity.actionSuccess = expand[bool](obj["action_success"],
           replay.maxSteps, false)
       entity.currentReward = expand[float](obj["current_reward"],
@@ -651,6 +741,9 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       else:
         entity.cooldownTime = 0
 
+    if "protocols" in obj:
+      entity.protocols = fromJson($(obj["protocols"]), seq[Protocol])
+
     replay.objects.add(entity)
 
     # Populate the agents field for agent entities
@@ -671,6 +764,43 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   replay.moveEastActionId = replay.actionNames.find("move_east")
 
   return replay
+
+proc loadImages*(replay: Replay) =
+  ## Load the images for the replay.
+  replay.typeImages = initTable[string, string]()
+  for typeName in replay.typeNames:
+    var imagePath = "objects/" & typeName
+    if imagePath notin bxy:
+      imagePath = "objects/unknown"
+    replay.typeImages[typeName] = imagePath
+
+  replay.actionImages = newSeq[string](replay.actionNames.len)
+  for i in 0 ..< replay.actionNames.len:
+    replay.actionImages[i] = "actions/" & replay.actionNames[i]
+    if replay.actionImages[i] notin bxy:
+      replay.actionImages[i] = "actions/unknown"
+
+  replay.actionAttackImages = newSeq[string](9)
+  for i in 0 ..< 9:
+    replay.actionAttackImages[i] = "actions/attack" & $(i + 1)
+
+  replay.actionIconImages = newSeq[string](replay.actionNames.len)
+  for i in 0 ..< replay.actionNames.len:
+    replay.actionIconImages[i] = "actions/icons/" & replay.actionNames[i]
+    if replay.actionIconImages[i] notin bxy:
+      replay.actionIconImages[i] = "actions/icons/unknown"
+
+  replay.traceImages = newSeq[string](replay.actionNames.len)
+  for i in 0 ..< replay.actionNames.len:
+    replay.traceImages[i] = "trace/" & replay.actionNames[i]
+    if replay.traceImages[i] notin bxy:
+      replay.traceImages[i] = "trace/unknown"
+
+  replay.itemImages = newSeq[string](replay.itemNames.len)
+  for i in 0 ..< replay.itemNames.len:
+    replay.itemImages[i] = "resources/" & replay.itemNames[i]
+    if replay.itemImages[i] notin bxy:
+      replay.itemImages[i] = "resources/unknown"
 
 proc loadReplay*(data: string, fileName: string): Replay =
   ## Load a replay from a string.

@@ -1,4 +1,4 @@
-version     = "0.1.0"
+version     = "0.1.2"
 author      = "Metta Team"
 description = "High-performance tribal-village environment for multi-agent RL"
 license     = "MIT"
@@ -13,29 +13,25 @@ requires "windy"
 
 import std/[os, strformat, strutils]
 
-proc ensureDir(path: string) =
-  if dirExists(path):
-    return
-  when defined(windows):
-    exec "cmd /c mkdir " & quoteShell(path)
-  else:
-    exec "mkdir -p " & quoteShell(path)
+proc buildShared(ext: string) =
+  let cmd = "nim c --app:lib --mm:arc --opt:speed -d:danger --out:libtribal_village." &
+            ext & " src/tribal_village_interface.nim"
+  exec cmd
 
-task buildLib, "Build shared library for PufferLib":
-  echo "Building Tribal Village shared library (ultra-fast direct buffers)..."
-
+task buildLib, "Build shared library for PufferLib (nimby-friendly)":
   let ext = when defined(windows): "dll"
             elif defined(macosx): "dylib"
             else: "so"
-
-  exec "nim c --app:lib --mm:arc --opt:speed -d:danger --out:libtribal_village." & ext & " src/tribal_village_interface.nim"
-  echo "Built libtribal_village." & ext & " with ultra-fast direct buffers"
+  buildShared(ext)
 
 task run, "Run the tribal village game":
   exec "nim c -r tribal_village.nim"
 
 task lib, "Build shared library for PufferLib (alias for buildLib)":
-  exec "nimble buildLib"
+  let ext = when defined(windows): "dll"
+            elif defined(macosx): "dylib"
+            else: "so"
+  buildShared(ext)
 
 task wasm, "Build Tribal Village WASM demo":
   let
@@ -109,7 +105,10 @@ task wasm, "Build Tribal Village WASM demo":
   exec cmdParts.join(" ")
 
 before install:
-  exec "nimble buildLib"
+  let ext = when defined(windows): "dll"
+            elif defined(macosx): "dylib"
+            else: "so"
+  buildShared(ext)
 
 after install:
   echo "Tribal Village installation complete with shared library built!"

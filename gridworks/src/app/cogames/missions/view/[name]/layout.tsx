@@ -5,6 +5,7 @@ import { getMission, getVariants } from "@/lib/api/cogames";
 import { cogamesMissionsRoute } from "@/lib/routes";
 
 import { MissionTabs } from "./MissionTabs";
+import { MissionTitle } from "./MissionTitle";
 
 export default async function ViewMissionLayout({
   params,
@@ -26,12 +27,7 @@ export default async function ViewMissionLayout({
             ← Back to missions list
           </StyledLink>
         </div>
-        <h1 className="font-mono text-2xl font-bold text-gray-700">
-          <span className="text-gray-500">CoGames Mission: </span>
-          {mission.mission.site.name}
-          <span className="text-gray-500">.</span>
-          {mission.mission.name}
-        </h1>
+        <MissionTitle mission={mission} />
         <div className="mt-1 text-sm text-gray-500">
           {mission.mission.description}
         </div>

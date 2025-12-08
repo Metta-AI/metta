@@ -2,15 +2,16 @@ import { FC, Fragment, useContext, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
+import { ReplayViewer, normalizeReplayUrl } from './components/ReplayViewer'
 import {
   LEADERBOARD_ATTEMPTS_TAG,
   LEADERBOARD_DONE_TAG,
   LEADERBOARD_EVAL_CANCELED_VALUE,
   LEADERBOARD_EVAL_DONE_VALUE,
   LEADERBOARD_SIM_NAME_EPISODE_KEY,
-  METTASCOPE_REPLAY_URL_PREFIX,
 } from './constants'
 import type { EpisodeReplay, LeaderboardPolicyEntry } from './repo'
+import { formatPolicyVersion } from './utils/format'
 
 type SectionState = {
   entries: LeaderboardPolicyEntry[]
@@ -18,7 +19,7 @@ type SectionState = {
   error: string | null
 }
 
-type ViewKey = 'public' | 'mine'
+type ViewKey = 'public'
 
 type ViewConfig = {
   sectionKey: ViewKey
@@ -177,6 +178,24 @@ const STYLES = `
   text-decoration: underline;
 }
 
+.policy-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid #cbd5f5;
+  border-radius: 4px;
+  background: #fff;
+  color: #1d4ed8;
+  padding: 4px 8px;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.policy-link-button:hover {
+  background: #eff6ff;
+}
+
 .policy-status-badge {
   display: inline-flex;
   align-items: center;
@@ -270,6 +289,20 @@ const STYLES = `
 
 .replay-link:hover {
   text-decoration: underline;
+}
+
+.replay-button {
+  border: 1px solid #cbd5f5;
+  border-radius: 4px;
+  background: #fff;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+.replay-button:hover {
+  background: #eff6ff;
 }
 
 .tag-list {
@@ -407,13 +440,6 @@ const parseSimulationTag = (
   }
 }
 
-const formatReplayUrl = (replayUrl: string): string => {
-  if (replayUrl.startsWith(METTASCOPE_REPLAY_URL_PREFIX)) {
-    return replayUrl
-  }
-  return `${METTASCOPE_REPLAY_URL_PREFIX}${replayUrl}`
-}
-
 const getEvalStatus = (tags: Record<string, string>): EvalStatusInfo => {
   const attemptValue = tags[LEADERBOARD_ATTEMPTS_TAG]
   const parsedAttempts = attemptValue !== undefined ? Number(attemptValue) : null
@@ -428,6 +454,9 @@ const getEvalStatus = (tags: Record<string, string>): EvalStatusInfo => {
   return { attempts, status: 'pending', label: 'Pending' }
 }
 
+const buildReplayUrl = (replayUrl: string | null | undefined): string | null =>
+  normalizeReplayUrl(replayUrl) ?? replayUrl ?? null
+
 const createInitialSectionState = (): SectionState => ({
   entries: [],
   loading: true,
@@ -435,37 +464,26 @@ const createInitialSectionState = (): SectionState => ({
 })
 
 export const Leaderboard: FC = () => {
-  const { repo, currentUser } = useContext(AppContext)
+  const { repo } = useContext(AppContext)
   const [publicLeaderboard, setPublicLeaderboard] = useState<SectionState>(() => createInitialSectionState())
-  const [personalLeaderboard, setPersonalLeaderboard] = useState<SectionState>(() => createInitialSectionState())
-  const [view, setView] = useState<ViewKey>('public')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set())
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
   const [replayState, setReplayState] = useState<Record<string, ReplayFetchState>>({})
+  const [replayPreviews, setReplayPreviews] = useState<Record<string, { url: string; label: string }>>({})
 
-  const viewConfigs: Record<ViewKey, ViewConfig> = {
-    public: {
-      sectionKey: 'public',
-      label: 'Public',
-      subtitle: 'Published policies submitted to the cogames leaderboard.',
-      emptyMessage: 'No public leaderboard entries yet.',
-    },
-    mine: {
-      sectionKey: 'mine',
-      label: 'Mine',
-      subtitle: `Entries uploaded by ${currentUser}.`,
-      emptyMessage: 'You have not submitted any leaderboard policies yet.',
-    },
+  const viewConfig: ViewConfig = {
+    sectionKey: 'public',
+    label: 'Public',
+    subtitle: 'Published policies submitted to the cogames leaderboard.',
+    emptyMessage: 'No public leaderboard entries yet.',
   }
-  const toggleOptions: ViewKey[] = ['public', 'mine']
-  const activeState = view === 'public' ? publicLeaderboard : personalLeaderboard
-  const activeConfig = viewConfigs[view]
 
   useEffect(() => {
     let ignore = false
     const load = async () => {
       setPublicLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
       try {
+        // Use the new endpoint that returns entries with VOR already computed
         const response = await repo.getPublicLeaderboard()
         if (!ignore) {
           setPublicLeaderboard({ entries: response.entries, loading: false, error: null })
@@ -473,32 +491,6 @@ export const Leaderboard: FC = () => {
       } catch (error: any) {
         if (!ignore) {
           setPublicLeaderboard({ entries: [], loading: false, error: error.message ?? 'Failed to load leaderboard' })
-        }
-      }
-    }
-    load()
-    const intervalId =
-      typeof window !== 'undefined' ? window.setInterval(() => void load(), REFRESH_INTERVAL_MS) : undefined
-    return () => {
-      ignore = true
-      if (typeof window !== 'undefined' && intervalId !== undefined) {
-        window.clearInterval(intervalId)
-      }
-    }
-  }, [repo])
-
-  useEffect(() => {
-    let ignore = false
-    const load = async () => {
-      setPersonalLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
-      try {
-        const response = await repo.getPersonalLeaderboard()
-        if (!ignore) {
-          setPersonalLeaderboard({ entries: response.entries, loading: false, error: null })
-        }
-      } catch (error: any) {
-        if (!ignore) {
-          setPersonalLeaderboard({ entries: [], loading: false, error: error.message ?? 'Failed to load leaderboard' })
         }
       }
     }
@@ -619,6 +611,22 @@ export const Leaderboard: FC = () => {
     }
   }
 
+  const toggleReplayPreview = (policyId: string, label: string, replayUrl: string | null | undefined) => {
+    const normalized = buildReplayUrl(replayUrl)
+    if (!normalized) {
+      return
+    }
+    setReplayPreviews((prev) => {
+      const existing = prev[policyId]
+      if (existing?.url === normalized) {
+        const next = { ...prev }
+        delete next[policyId]
+        return next
+      }
+      return { ...prev, [policyId]: { url: normalized, label } }
+    })
+  }
+
   const renderContent = (state: SectionState, config: ViewConfig) => {
     if (state.loading) {
       return (
@@ -641,33 +649,36 @@ export const Leaderboard: FC = () => {
           <tr>
             <th>Policy</th>
             <th>Policy Created</th>
-            <th>Avg Score</th>
+            <th>Avg score</th>
           </tr>
         </thead>
         <tbody>
           {state.entries.map((entry) => {
             const { policy_version: policyVersion } = entry
             const policyId = policyVersion.id
-            const policyDisplay = `${policyVersion.name}.${policyVersion.version}`
+            const policyDisplay = formatPolicyVersion(policyVersion)
             const createdAt = policyVersion.policy_created_at || policyVersion.created_at
             const rowKey = `${config.sectionKey}-${policyId}`
             const isExpanded = expandedRows.has(rowKey)
             const scoreEntries = Object.entries(entry.scores).sort(([a], [b]) => a.localeCompare(b))
             const tagEntries = Object.entries(policyVersion.tags).sort(([a], [b]) => a.localeCompare(b))
             const evalStatus = getEvalStatus(policyVersion.tags)
+            const policyUri = `metta://policy/${policyVersion.name}:v${policyVersion.version}`
             const evaluateCommand = `./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_version_id=${policyId}`
             const playCommand = `./tools/run.py recipes.experiment.v0_leaderboard.play policy_version_id=${policyId}`
+            const replayPreview = replayPreviews[policyId]
             return (
               <Fragment key={`${config.sectionKey}-${policyId}`}>
                 <tr className="policy-row" onClick={() => toggleRow(rowKey, entry)}>
                   <td>
                     <div className="policy-title-row">
+                      <div className="policy-title">{policyDisplay}</div>
                       <Link
-                        to={`/leaderboard/policy/${policyId}`}
-                        className="policy-title policy-link"
+                        to={`/policies/versions/${policyId}`}
+                        className="policy-link-button"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        {policyDisplay}
+                        {'View Details'}
                       </Link>
                       <span className={`policy-status-badge ${evalStatus.status}`}>{evalStatus.label}</span>
                     </div>
@@ -677,7 +688,7 @@ export const Leaderboard: FC = () => {
                     <div className="policy-meta">{formatDate(createdAt)}</div>
                   </td>
                   <td>
-                    <div className="policy-title">{formatScore(entry.avg_score)}</div>
+                    <div className="policy-title">{formatScore(entry.avg_score ?? null)}</div>
                   </td>
                 </tr>
                 {isExpanded && (
@@ -720,17 +731,39 @@ export const Leaderboard: FC = () => {
                                                 replay.episode_id && replay.episode_id.length > 0
                                                   ? `Episode ${replay.episode_id.slice(0, 8)}`
                                                   : `Replay ${replayIndex + 1}`
+                                              const replayUrl = buildReplayUrl(replay.replay_url)
+                                              if (!replayUrl) {
+                                                return null
+                                              }
                                               return (
-                                                <a
+                                                <div
                                                   key={`${simName}-${replay.episode_id}-${replayIndex}`}
-                                                  href={formatReplayUrl(replay.replay_url)}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                  className="replay-link"
-                                                  onClick={(event) => event.stopPropagation()}
+                                                  className="flex items-center gap-2"
                                                 >
-                                                  {label}
-                                                </a>
+                                                  <a
+                                                    href={replayUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="replay-link"
+                                                    onClick={(event) => event.stopPropagation()}
+                                                  >
+                                                    {label}
+                                                  </a>
+                                                  <button
+                                                    type="button"
+                                                    className="replay-button"
+                                                    onClick={(event) => {
+                                                      event.stopPropagation()
+                                                      toggleReplayPreview(
+                                                        policyId,
+                                                        `${formatSimulationLabel(simName)} • ${label}`,
+                                                        replay.replay_url
+                                                      )
+                                                    }}
+                                                  >
+                                                    Show below
+                                                  </button>
+                                                </div>
                                               )
                                             })}
                                           </div>
@@ -743,6 +776,12 @@ export const Leaderboard: FC = () => {
                             </table>
                           )}
                         </div>
+                        {replayPreview ? (
+                          <div className="detail-block">
+                            <div className="detail-heading">Replay Preview</div>
+                            <ReplayViewer replayUrl={replayPreview.url} label={replayPreview.label} />
+                          </div>
+                        ) : null}
                         {evalStatus.status === 'canceled' && (
                           <div className="detail-block">
                             <div className="detail-heading">Leaderboard Eval Status</div>
@@ -754,10 +793,16 @@ export const Leaderboard: FC = () => {
                         <div className="detail-block">
                           <div className="command-list">
                             <div className="command-item">
-                              {renderCopyableCommand(evaluateCommand, `${policyId}-evaluate`, 'Evaluate')}
+                              <div className="command-item-label">Policy URI</div>
+                              {renderCopyableCommand(policyUri, `${policyId}-uri`, 'Copy')}
                             </div>
                             <div className="command-item">
-                              {renderCopyableCommand(playCommand, `${policyId}-play`, 'Play')}
+                              <div className="command-item-label">Evaluate</div>
+                              {renderCopyableCommand(evaluateCommand, `${policyId}-evaluate`, 'Copy')}
+                            </div>
+                            <div className="command-item">
+                              <div className="command-item-label">Play</div>
+                              {renderCopyableCommand(playCommand, `${policyId}-play`, 'Copy')}
                             </div>
                           </div>
                         </div>
@@ -792,22 +837,8 @@ export const Leaderboard: FC = () => {
           <div>
             <h1 className="leaderboard-title">Leaderboard</h1>
           </div>
-          <div className="leaderboard-toggle">
-            {toggleOptions.map((option) => {
-              const config = viewConfigs[option]
-              return (
-                <button
-                  key={config.sectionKey}
-                  className={`toggle-button ${view === option ? 'active' : ''}`}
-                  onClick={() => setView(option)}
-                >
-                  {config.label}
-                </button>
-              )
-            })}
-          </div>
         </div>
-        {renderContent(activeState, activeConfig)}
+        {renderContent(publicLeaderboard, viewConfig)}
       </div>
     </div>
   )
