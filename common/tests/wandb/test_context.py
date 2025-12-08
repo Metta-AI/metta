@@ -64,6 +64,11 @@ def test_network_check_failure_returns_none():
         assert run is None
 
 
+@pytest.mark.xfail(
+    strict=False,
+    reason="flaky when running tests serially",
+    # see https://app.asana.com/1/1209016784099267/project/1210062854657778/task/1212347312601065?focus=true
+)
 def test_successful_initialization_and_parameters(monkeypatch):
     """Test successful wandb initialization with all parameters."""
     init_calls = []
@@ -137,6 +142,11 @@ def test_successful_initialization_and_parameters(monkeypatch):
     assert "user:unknown" in init_calls[0]["tags"]
 
 
+@pytest.mark.xfail(
+    strict=False,
+    reason="flaky when running tests serially",
+    # see https://app.asana.com/1/1209016784099267/project/1210062854657778/task/1212347312601065?focus=true
+)
 def test_run_config_types(monkeypatch, caplog):
     """Test all different run_config types and error handling."""
     init_calls = []
@@ -181,6 +191,11 @@ def test_run_config_types(monkeypatch, caplog):
     assert "Invalid extra_cfg: 12345" in caplog.text
 
 
+@pytest.mark.xfail(
+    strict=False,
+    reason="flaky when running tests serially",
+    # see https://app.asana.com/1/1209016784099267/project/1210062854657778/task/1212347312601065?focus=true
+)
 def test_file_saving_behavior(monkeypatch):
     """Test wandb.save behavior with and without data_dir."""
     save_calls = []

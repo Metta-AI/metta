@@ -160,7 +160,7 @@ async def main() -> None:
     backend_url = os.environ.get("BACKEND_URL", DEV_STATS_SERVER_URI)
     docker_image = os.environ.get("DOCKER_IMAGE", "metta-policy-evaluator-local:latest")
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
-    task_timeout_minutes = float(os.environ.get("TASK_TIMEOUT_MINUTES", "60"))
+    task_timeout_minutes = float(os.environ.get("TASK_TIMEOUT_MINUTES", "90"))
     machine_token = os.environ["MACHINE_TOKEN"]
 
     task_client = EvalTaskClient(backend_url)
