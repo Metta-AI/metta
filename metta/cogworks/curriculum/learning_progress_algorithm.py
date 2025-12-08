@@ -631,6 +631,34 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return subprobs / total
         return np.ones_like(subprobs) / len(subprobs)
 
+    def _calculate_task_distribution(self) -> None:
+        """Compute a normalized sampling distribution for reporting stats."""
+        if not self._outcomes:
+            self._task_dist = None
+            self._task_success_rate = np.array([])
+            self._stale_dist = False
+            return
+
+        task_ids = sorted(self._outcomes.keys())
+
+        # Success rates for stats (not used for sampling)
+        self._task_success_rate = np.array(
+            [np.mean(self._outcomes[tid]) if self._outcomes[tid] else DEFAULT_SUCCESS_RATE for tid in task_ids],
+            dtype=float,
+        )
+
+        lp = self._learning_progress(reweight=False)
+        if lp.size == 0:
+            self._task_dist = None
+            self._stale_dist = False
+            return
+
+        # Ensure every task has some weight
+        lp = np.maximum(lp, self.hypers.exploration_bonus)
+        total = float(np.sum(lp))
+        self._task_dist = lp / total if total > 0 else np.ones_like(lp) / len(lp)
+        self._stale_dist = False
+
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
         state = {
@@ -643,10 +671,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if hasattr(self, "_outcomes"):
             state.update(
                 {
-                    "outcomes": {k: v for k, v in self._outcomes.items()},
-                    "counter": self._counter,
-                    "per_task_fast": self._per_task_fast,
-                    "per_task_slow": self._per_task_slow,
+                    # Deep-copy mutable state to avoid aliasing while training continues
+                    "outcomes": {k: list(v) for k, v in self._outcomes.items()},
+                    "counter": dict(self._counter),
+                    "per_task_fast": dict(self._per_task_fast),
+                    "per_task_slow": dict(self._per_task_slow),
                     "p_fast": self._p_fast.tolist() if self._p_fast is not None else None,
                     "p_slow": self._p_slow.tolist() if self._p_slow is not None else None,
                     "p_true": self._p_true.tolist() if self._p_true is not None else None,
@@ -655,8 +684,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     "update_mask": self._update_mask.tolist(),
                     "sample_levels": self._sample_levels.tolist(),
                     "task_dist": self._task_dist.tolist() if self._task_dist is not None else None,
-                    "stale_dist": self._stale_dist,
-                    "score_cache": self._score_cache,
+                    "stale_dist": bool(self._stale_dist),
+                    "score_cache": dict(self._score_cache),
                     "cache_valid_tasks": list(self._cache_valid_tasks),
                 }
             )
