@@ -176,8 +176,8 @@ class StateManager:
                     cluster_name=sky_job.get("infra", "managed"),
                     sky_job_id=int(job_id) if job_id.isdigit() else None,
                     command=sky_job.get("entrypoint", ""),
-                    nodes=1,  # Managed jobs handle node info internally
-                    gpus=len(sky_job.get("accelerators", {})),
+                    nodes=sky_job.get("nodes", 1),
+                    gpus=sky_job.get("gpus", 0),
                     status=status,
                     created_at=(
                         datetime.fromtimestamp(sky_job.get("submitted_at", 0))
