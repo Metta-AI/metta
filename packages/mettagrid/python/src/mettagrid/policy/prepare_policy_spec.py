@@ -86,14 +86,20 @@ def _find_module_root(extraction_root: Path, class_path: str) -> Path | None:
     for i in range(len(parts), 0, -1):
         module_path = "/".join(parts[:i]) + ".py"
         matches = list(extraction_root.rglob(module_path))
+        matched_path = module_path
+        if not matches:
+            # Also try as a package directory (e.g., cogames/policy/agents/__init__.py)
+            package_path = "/".join(parts[:i]) + "/__init__.py"
+            matches = list(extraction_root.rglob(package_path))
+            matched_path = package_path
         if matches:
             # Found the module file - compute the root path
-            # e.g., if module_path is "cogames/policy/agents.py" and file is at
+            # e.g., if matched_path is "cogames/policy/agents.py" and file is at
             # "/tmp/x/packages/cogames/src/cogames/policy/agents.py",
             # we need "/tmp/x/packages/cogames/src/"
             match = matches[0]
-            relative_module = Path(module_path)
-            # Walk up from the match by the number of path components in module_path
+            relative_module = Path(matched_path)
+            # Walk up from the match by the number of path components in matched_path
             root = match
             for _ in relative_module.parts:
                 root = root.parent
