@@ -204,7 +204,7 @@ def make_random_maps_curriculum(
     )
 
     # Standard curriculum buckets
-    tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500, 2000, 3000, 4000])
+    tasks.add_bucket("game.max_steps", [2000, 3000, 4000])
 
     tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [3])
 
@@ -248,7 +248,7 @@ def make_random_maps_curriculum(
 
 
 def make_training_eval_suite(
-    num_cogs: int = 20,
+    num_cogs: int = 5,
     max_evals: Optional[int] = 9,
 ) -> list[SimulationConfig]:
     """Create evaluation suite with TrainingVariant applied.
@@ -305,7 +305,7 @@ def make_training_eval_suite(
 
 
 def train(
-    num_cogs: int = 20,
+    num_cogs: int = 5,
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     heart_buckets=False,
@@ -363,7 +363,7 @@ def train(
 
 def evaluate(
     policy_uris: list[str] | str,
-    num_cogs: int = 20,
+    num_cogs: int = 5,
     difficulty: str | None = "standard",
     variants: Optional[Sequence[str]] = None,
 ) -> EvaluateTool:
@@ -390,7 +390,7 @@ def evaluate(
 
 def play_sparse(
     policy_uri: Optional[str] = None,
-    num_cogs: int = 20,
+    num_cogs: int = 5,
     room_size: int = 80,
 ) -> PlayTool:
     """Play on a sparse randomly generated map (minimum objects).
