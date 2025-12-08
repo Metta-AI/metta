@@ -215,10 +215,11 @@ class Evaluator(TrainerComponent):
         # Remote evaluation
         if self._evaluate_remote and self._stats_client and policy_version_id:
             response = evaluate_remotely(
-                policy_version_id,
-                sim_run_configs,
-                self._stats_client,
-                self._git_hash,
+                policy_version_id=policy_version_id,
+                simulations=sim_run_configs,
+                stats_client=self._stats_client,
+                git_hash=self._git_hash,
+                push_metrics_to_wandb=(self._wandb_run is not None),
             )
             logger.info(f"Created remote evaluation task {response}")
 
