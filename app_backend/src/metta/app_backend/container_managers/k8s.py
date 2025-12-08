@@ -57,7 +57,7 @@ class K8sPodManager(AbstractContainerManager):
                         "env": self._get_pod_env(backend_url, pod_name, machine_token),
                         "resources": {
                             "requests": {
-                                "cpu": "3",
+                                "cpu": "4",
                                 "memory": "12Gi",
                             },
                         },
