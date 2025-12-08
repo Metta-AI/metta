@@ -240,12 +240,29 @@ def main():
     parser.add_argument("--all", action="store_true", help="Run all approaches and show comparison summary")
     args = parser.parse_args()
 
+    # Check GPU availability before initializing distributed
+    if args.device == "cuda":
+        num_gpus = torch.cuda.device_count()
+        world_size = int(os.environ.get("WORLD_SIZE", "1"))
+        if num_gpus < world_size:
+            print(f"\n❌ ERROR: Requested {world_size} processes but only {num_gpus} GPU(s) available.")
+            print("   DDP requires 1 GPU per process for proper benchmarking.")
+            print("\n   Options:")
+            print(f"   1. Run with fewer processes: --nproc-per-node={num_gpus}")
+            print("   2. Run on CPU instead: --device=cpu")
+            print(f"   3. Use a machine with {world_size}+ GPUs")
+            if num_gpus == 1:
+                print("\n   Note: With 1 GPU, you can still run but DDP won't actually sync:")
+                print("   torchrun --nproc-per-node=1 scripts/benchmark_ddp_approaches.py --device=cuda")
+            return
+
     # Initialize distributed
     backend = "nccl" if args.device == "cuda" else "gloo"
     if not dist.is_initialized():
         dist.init_process_group(backend=backend)
 
     rank = dist.get_rank()
+    world_size = dist.get_world_size()
     device = torch.device(args.device)
 
     if rank == 0:
@@ -254,11 +271,15 @@ def main():
         print("=" * 70)
         print(f"Backend: {backend}")
         print(f"Device: {args.device}")
-        print(f"World size: {dist.get_world_size()}")
+        print(f"World size: {world_size}")
         if args.device == "cuda":
-            print(f"CUDA devices: {torch.cuda.device_count()}")
-            for i in range(torch.cuda.device_count()):
+            num_gpus = torch.cuda.device_count()
+            print(f"CUDA devices: {num_gpus}")
+            for i in range(num_gpus):
                 print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
+            if world_size == 1:
+                print("\n⚠️  Note: Running with 1 process - DDP sync overhead not measured")
+                print("   For accurate DDP benchmarks, use 2+ GPUs with --nproc-per-node=2+")
 
     # Determine which approaches to run
     if args.approach:
