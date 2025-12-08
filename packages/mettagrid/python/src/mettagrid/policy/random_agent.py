@@ -1,6 +1,7 @@
 """Random policy implementation for CoGames."""
 
 import random
+from typing import Optional
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicyDescriptor
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -26,8 +27,8 @@ class RandomMultiAgentPolicy(MultiAgentPolicy):
 
     short_names = ["random"]
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
+    def __init__(self, policy_env_info: PolicyEnvInterface,  policy_name: Optional[str] = None):
+        super().__init__(policy_env_info, policy_name=policy_name)
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Get an AgentPolicy instance for a specific agent.

@@ -1,5 +1,7 @@
 """Noop policy implementation."""
 
+from typing import Optional
+
 import numpy as np
 
 from mettagrid.mettagrid_c import dtype_actions
@@ -25,8 +27,8 @@ class NoopPolicy(MultiAgentPolicy):
 
     short_names = ["noop"]
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
+    def __init__(self, policy_env_info: PolicyEnvInterface, policy_name: Optional[str] = None):
+        super().__init__(policy_env_info,  policy_name=policy_name)
         self._noop_action_value = dtype_actions.type(policy_env_info.action_names.index("noop"))
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
