@@ -8,7 +8,6 @@ let selectedExperiments = new Set();
 let selectedJobs = new Set();
 let lastSyncTime = Date.now();
 let draggedRow = null;
-let experimentOrder = [];  // Custom order for experiments
 
 // Jobs filters and settings
 let showStoppedJobs = false;
@@ -20,7 +19,6 @@ let lastJobsHash = ''; // Cache hash to prevent unnecessary table rebuilds
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
     await loadJobsSettings();
-    await loadExperimentOrder();
     loadData();
     setInterval(loadData, 5000); // Refresh every 5 seconds
 });
@@ -184,24 +182,8 @@ function updateExperimentsTable(experiments) {
     });
     const flagColumns = Array.from(allFlags).sort();
 
-    // Sort experiments according to custom order if available
-    if (experimentOrder.length > 0) {
-        experiments.sort((a, b) => {
-            const indexA = experimentOrder.indexOf(a.id);
-            const indexB = experimentOrder.indexOf(b.id);
-
-            // If both are in the order, sort by their position
-            if (indexA !== -1 && indexB !== -1) {
-                return indexA - indexB;
-            }
-            // If only A is in the order, it comes first
-            if (indexA !== -1) return -1;
-            // If only B is in the order, it comes first
-            if (indexB !== -1) return 1;
-            // Neither in order, keep original order
-            return 0;
-        });
-    }
+    // Backend already provides experiments sorted by exp_order ASC
+    // No need to re-sort on the frontend
 
     // Update table header and get the actual column order from the tree
     const actualColumnOrder = updateTableHeader(flagColumns);
@@ -618,12 +600,11 @@ function createMainRow(exp, flagColumns) {
         </td>
         <td class="col-id">
             <button class="star-btn ${exp.starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar('${exp.id}', ${!exp.starred}); return false;" title="${exp.starred ? 'Unstar' : 'Star'}">★</button>
-            <button class="copy-btn copy-btn-left" onclick="event.stopPropagation(); copyToClipboard('${exp.id.replace(/'/g, "\\'")}', 'Copied: ${exp.id.replace(/'/g, "\\'")}'); return false;" title="Copy ID">⎘</button>
             <a href="https://wandb.ai/metta-research/metta/runs/${exp.id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in W&B">W&B</a>
             <a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${exp.id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog">log</a>
-            <span style="display: inline-block;">${exp.id}</span>
+            <span style="display: inline-block; cursor: pointer;" onclick="event.stopPropagation(); copyToClipboard('${exp.id.replace(/'/g, "\\'")}', event); return false;" title="Click to copy ID">${exp.id}</span>
         </td>
-        <td class="col-state">${formatStateTransition(exp.desired_state, exp.current_state)}</td>
+        <td class="col-state">${formatStateTransition(exp.current_state, exp.desired_state)}</td>
         <td class="col-epoch">${exp.latest_epoch !== null && exp.latest_epoch !== undefined ? exp.latest_epoch : '—'}</td>
         ${flagColumns.map(flag => {
             const value = exp.flags[flag];
@@ -711,7 +692,6 @@ function createMainRow(exp, flagColumns) {
             const newOrder = Array.from(tbody.children)
                 .filter(r => r.classList.contains('main-row'))
                 .map(r => r.dataset.expId);
-            experimentOrder = newOrder;
             await saveExperimentOrder(newOrder);
         }
     });
@@ -735,9 +715,9 @@ function abbreviateStatus(status) {
     return statusMap[lower] || status.charAt(0).toUpperCase();
 }
 
-function formatStateTransition(desired, current) {
-    const desiredLower = desired.toLowerCase();
+function formatStateTransition(current, desired) {
     const currentLower = current.toLowerCase();
+    const desiredLower = desired.toLowerCase();
 
     const currentAbbrev = abbreviateStatus(currentLower);
     const desiredAbbrev = abbreviateStatus(desiredLower);
@@ -747,8 +727,8 @@ function formatStateTransition(desired, current) {
     const currentTitle = capitalize(current);
     const desiredTitle = capitalize(desired);
 
-    // If desired and current are the same, show single state
-    if (desiredLower === currentLower) {
+    // If current and desired are the same, show single state
+    if (currentLower === desiredLower) {
         return `<span class="status-badge ${currentLower}" title="${currentTitle}">${currentAbbrev}</span>`;
     }
 
@@ -870,10 +850,10 @@ function createExpandedRow(exp, numFlagColumns) {
                 <!-- Second Row: Command Panel -->
                 <div style="display: flex;">
                     <div class="detail-section" style="flex: 1;">
-                        <h3 style="margin: 0 0 8px 0;">
-                            Command
-                            <button class="copy-btn copy-btn-left" onclick="event.stopPropagation(); copyToClipboard('${escapedCommand}', 'Command copied!'); return false;" title="Copy command">⎘</button>
-                        </h3>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <h3 style="margin: 0;">Command</h3>
+                            <button class="copy-btn copy-btn-left" onclick="copyToClipboard('${escapedCommand}', event); return false;" title="Copy command">⎘</button>
+                        </div>
                         <div style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; font-family: 'Monaco', 'Menlo', 'Courier New', monospace; font-size: 12px; overflow-x: auto; text-align: left; white-space: pre-wrap; word-break: break-word;">${fullCommand}</div>
                     </div>
                 </div>
@@ -1030,7 +1010,7 @@ async function loadJobHistory(experimentId) {
                 <tr>
                     <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; white-space: nowrap; cursor: pointer;" onclick="event.stopPropagation(); copyToClipboard('${job.id}', event); return false;" title="Click to copy full ID">${numericId}</td>
                     <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; white-space: nowrap;"><span class="status-badge ${job.status.toLowerCase()}" title="${job.status}">${abbreviateStatus(job.status)}</span></td>
-                    <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; white-space: nowrap;"><a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${job.experiment_id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog">log</a></td>
+                    <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; white-space: nowrap;"><a href="https://app.datadoghq.com/logs?query=skypilot_task_id%3A%2A${job.id}%2A%20metta_run_id%3A%22${job.experiment_id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog">log</a></td>
                 </tr>
             `;
         }).join('');
@@ -1447,7 +1427,7 @@ function updateJobsTable(jobs) {
                     <span onclick="copyToClipboard('${job.id}'); return false;" style="cursor: pointer;" title="Click to copy">${job.id}</span>
                     <a href="https://wandb.ai/metta-research/metta/runs/${job.experiment_id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in W&B" style="margin-left: 6px;">w&b</a>
                     <a href="https://skypilot-api.softmax-research.net/dashboard/jobs/${job.id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in SkyPilot Dashboard" style="margin-left: 6px;">sky</a>
-                    <a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${job.experiment_id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog" style="margin-left: 6px;">log</a>
+                    <a href="https://app.datadoghq.com/logs?query=skypilot_task_id%3A%2A${job.id}%2A%20metta_run_id%3A%22${job.experiment_id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog" style="margin-left: 6px;">log</a>
                 </td>
                 <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; padding: 4px 6px;">
                     <span onclick="copyToClipboard('${job.experiment_id.replace(/'/g, "\\'")}'); return false;" style="cursor: pointer;" title="Click to copy">${job.experiment_id}</span>
@@ -1846,22 +1826,6 @@ async function saveJobsSetting(key, value) {
 }
 
 // Experiment order persistence
-async function loadExperimentOrder() {
-    try {
-        const response = await fetch('/api/settings/experiment-order');
-        if (response.ok) {
-            const data = await response.json();
-            experimentOrder = data.value || [];
-        } else if (response.status === 404) {
-            console.log('No saved experiment order found, using default');
-            experimentOrder = [];
-        }
-    } catch (error) {
-        console.log('Error loading experiment order:', error);
-        experimentOrder = [];
-    }
-}
-
 async function saveExperimentOrder(order) {
     try {
         await fetch('/api/experiments/reorder', {
