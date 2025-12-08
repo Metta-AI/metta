@@ -91,11 +91,9 @@ class Syncer:
             logger.debug("No experiments to sync")
             return
 
-        # Sync checkpoints for each experiment that has a run_name
+        # Sync checkpoints for all experiments
         synced_count = 0
         for exp in experiments:
-            if not exp.run_name:
-                continue
             try:
                 await self._sync_experiment(exp.id)
                 synced_count += 1
@@ -107,16 +105,15 @@ class Syncer:
     async def _sync_experiment(self, experiment_id: str):
         """Sync checkpoints for a single experiment from S3.
 
-        Lists .mpt files from S3: softmax-public/policies/{run_name}/
+        Lists .mpt files from S3: softmax-public/policies/{experiment_id}/
         """
-        # Get experiment to find run_name
+        # Get experiment
         exp = await self.db.get_experiment(experiment_id)
-        if not exp or not exp.run_name:
-            logger.debug(f"Experiment {experiment_id} has no run_name, skipping sync")
+        if not exp:
+            logger.debug(f"Experiment {experiment_id} not found, skipping sync")
             return
 
-        run_name = exp.run_name
-        s3_path = f"s3://softmax-public/policies/{run_name}/"
+        s3_path = f"s3://softmax-public/policies/{experiment_id}/"
 
         try:
             # Run aws s3 ls to list checkpoints

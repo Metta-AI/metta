@@ -139,7 +139,7 @@ thead {
 }
 
 th {
-    padding: 12px 8px;
+    padding: 10px 4px;
     text-align: left;
     font-weight: 600;
     border-bottom: 2px solid #e0e0e0;
@@ -170,7 +170,7 @@ th {
 }
 
 td {
-    padding: 10px 8px;
+    padding: 8px 4px;
     border-bottom: 1px solid #f0f0f0;
     border-right: 1px solid #f0f0f0;
     white-space: nowrap;
@@ -699,4 +699,64 @@ tbody tr.main-row td {
 
 .storage-pill:hover {
     opacity: 0.7;
+}
+
+/* SkyPilot Jobs table - compact layout */
+#jobs-table td,
+#jobs-table th {
+    padding: 4px 6px !important;
+}
+
+#jobs-table th:nth-child(1),
+#jobs-table td:nth-child(1) {
+    /* Checkbox column */
+    width: 30px;
+    max-width: 30px;
+    padding: 4px 2px !important;
+}
+
+#jobs-table th:nth-child(2),
+#jobs-table td:nth-child(2) {
+    /* Job ID column */
+    width: 150px;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#jobs-table th:nth-child(3),
+#jobs-table td:nth-child(3) {
+    /* Name column */
+    width: 180px;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#jobs-table th:nth-child(4),
+#jobs-table td:nth-child(4) {
+    /* Status column */
+    width: 80px;
+    max-width: 80px;
+}
+
+#jobs-table th:nth-child(5),
+#jobs-table td:nth-child(5) {
+    /* Resources column */
+    width: 60px;
+    max-width: 60px;
+}
+
+#jobs-table th:nth-child(6),
+#jobs-table td:nth-child(6) {
+    /* Duration column */
+    width: 80px;
+    max-width: 80px;
+}
+
+#jobs-table th:nth-child(7),
+#jobs-table td:nth-child(7) {
+    /* Started column */
+    width: 120px;
+    max-width: 120px;
 }
