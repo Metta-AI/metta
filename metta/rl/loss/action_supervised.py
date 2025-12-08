@@ -9,6 +9,7 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 from metta.agent.policy import Policy
+from metta.rl.ddp_unused_params.utils import add_dummy_loss_for_unused_params
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
@@ -121,13 +122,7 @@ class ActionSupervised(Loss):
         student_log_probs = student_log_probs.reshape(minibatch.shape[0], minibatch.shape[1])
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
-
-        # Keep all policy parameters participating in backward for DDP.
-        for key in policy_td.keys():
-            if key not in ["full_log_probs", "act_log_prob"] and isinstance(policy_td[key], Tensor):
-                value = policy_td[key]
-                if value.requires_grad:
-                    loss = loss + 0.0 * value.sum()
+        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["full_log_probs", "act_log_prob"])
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
 

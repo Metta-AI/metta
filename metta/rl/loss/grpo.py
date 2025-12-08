@@ -8,6 +8,7 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
+from metta.rl.ddp_unused_params.utils import add_dummy_loss_for_unused_params
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
@@ -246,17 +247,7 @@ class GRPO(Loss):
         )
 
         loss = pg_loss - cfg.ent_coef * entropy_loss
-
-        # This is a hack to ensure all parameters participate in the backward pass for DDP.
-        # Add dummy loss terms for any unused outputs to ensure all parameters
-        # participate in backward pass for DDP. This prevents "unused parameter" errors.
-        # TODO: Find a better way to do this.
-        for key in policy_td.keys():
-            if key not in ["act_log_prob", "entropy"] and isinstance(policy_td[key], Tensor):
-                value = policy_td[key]
-                if value.requires_grad:
-                    # Add zero-weighted term to ensure gradient flow
-                    loss = loss + 0.0 * value.sum()
+        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["act_log_prob", "entropy"])
 
         self._track("policy_loss", pg_loss)
         self._track("entropy", entropy_loss)
