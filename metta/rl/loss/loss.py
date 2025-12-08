@@ -199,11 +199,19 @@ class Loss:
 
         if agent_mask is not None:
             # Preserve leading batch dims, drop non-trainable agents.
-            filtered["sampled_mb"] = mb.select(-1, agent_mask)
+            agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
+
+            # reshape to [-1, agents, ...], index-select agent axis, then reshape back
+            lead = len(mask_shape)
+            rest_shape = mb.shape[lead:]
+            mb_view = mb.reshape(-1, mask_shape[-1], *rest_shape)
+            mb_sel = mb_view.index_select(1, agent_idx)
+            new_shape = (*mask_shape[:-1], agent_idx.numel(), *rest_shape)
+            filtered["sampled_mb"] = mb_sel.reshape(new_shape)
             for key, value in list(filtered.items()):
                 if key == "sampled_mb":
                     continue
-                filtered[key] = self._apply_row_mask(value, mask_shape, agent_mask=agent_mask)
+                filtered[key] = self._apply_row_mask(value, mask_shape, agent_mask=agent_mask, agent_idx=agent_idx)
         else:
             # Mixed mask across batch: flatten and mask.
             mask_flat = mask.flatten()
@@ -224,6 +232,7 @@ class Loss:
         mask_shape: tuple[int, ...],
         mask_flat: torch.Tensor | None = None,
         agent_mask: torch.Tensor | None = None,
+        agent_idx: torch.Tensor | None = None,
     ) -> Any:
         """Apply either a flattened mask or per-agent mask to a value."""
 
@@ -236,13 +245,11 @@ class Loss:
             if t.shape and t.shape[0] == target:
                 return t[mask_flat]
             return t
-
-        agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1) if agent_mask is not None else None
-
         def apply_agent(t: torch.Tensor) -> torch.Tensor:
-            assert agent_mask is not None
+            assert agent_mask is not None and agent_idx is not None
             lead = len(mask_shape)
-            # When agent dim is the last batch dim, we can index-select.
+            if t.dim() < lead:
+                return t  # nothing to mask
             if tuple(t.shape[: lead - 1]) == tuple(mask_shape[:-1]) and t.shape[lead - 1] == mask_shape[-1]:
                 return t.index_select(lead - 1, agent_idx)
             return t
