@@ -157,6 +157,18 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # EMA tracking for each task: task_id -> (ema_score, ema_squared, num_samples)
         self._task_emas: Dict[int, tuple[float, float, int]] = {}
 
+    def _task_ids_and_success_rates(self) -> tuple[list[int], np.ndarray]:
+        if not self._outcomes:
+            return [], np.array([])
+
+        task_ids = sorted(self._outcomes.keys())
+        success_rates = np.array(
+            [np.mean(self._outcomes[tid]) if self._outcomes[tid] else DEFAULT_SUCCESS_RATE for tid in task_ids],
+            dtype=float,
+        )
+        success_rates = np.nan_to_num(success_rates, nan=DEFAULT_SUCCESS_RATE)
+        return task_ids, success_rates
+
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using the configured method (bidirectional by default)."""
         if self.hypers.use_bidirectional:
@@ -323,9 +335,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._counter[task_id] += 1
 
         # === FIX: Update only THIS task's EMAs ===
-        baseline = 0.5  # Fixed baseline, not task-dependent
-        denominator = max(1.0 - baseline, 0.01)
-        normalized = (success_rate - baseline) / denominator
+        normalized = self._normalized_success(success_rate)
 
         # Initialize per-task EMAs if needed
         if task_id not in self._per_task_fast:
@@ -462,23 +472,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if not self._outcomes:
             return
 
-        # Get all tracked task IDs
-        task_ids = sorted(self._outcomes.keys())
-        num_tasks = len(task_ids)
-
-        if num_tasks == 0:
+        task_ids, task_success_rates = self._task_ids_and_success_rates()
+        if not task_ids:
             return
 
-        # Calculate task success rates for stats
-        task_success_rates = np.array(
-            [
-                np.mean(self._outcomes[task_id]) if self._outcomes[task_id] else DEFAULT_SUCCESS_RATE
-                for task_id in task_ids
-            ]
-        )
-
-        # Handle NaN values
-        task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
+        num_tasks = len(task_ids)
 
         # Initialize random baseline if needed
         if self._random_baseline is None or len(self._random_baseline) != num_tasks:
@@ -503,9 +501,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 self._p_slow[idx] = self._per_task_slow[task_id]
             else:
                 # Initialize from normalized success rate if not in per-task dicts
-                baseline = 0.5
-                denominator = max(1.0 - baseline, 0.01)
-                normalized = (task_success_rates[idx] - baseline) / denominator
+                normalized = self._normalized_success(task_success_rates[idx])
                 self._p_fast[idx] = normalized
                 self._p_slow[idx] = normalized
             self._p_true[idx] = task_success_rates[idx]
@@ -520,10 +516,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         Individual task scores use per-task EMAs directly.
         """
         # Ensure arrays are synced from per-task EMAs
-        if not self._outcomes:
-            return np.array([])
-
-        task_ids = sorted(self._outcomes.keys())
+        task_ids, task_success_rates = self._task_ids_and_success_rates()
         if not task_ids:
             return np.array([])
 
@@ -534,22 +527,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if self._p_fast is None or self._p_slow is None:
             return np.array([])
 
-        task_ids = sorted(self._outcomes.keys())
-        if not task_ids:
-            return np.array([])
-
         fast_list: list[float] = []
         slow_list: list[float] = []
-        for task_id in task_ids:
+        for idx, task_id in enumerate(task_ids):
             fast = self._per_task_fast.get(task_id)
             slow = self._per_task_slow.get(task_id)
 
             if fast is None or slow is None:
-                success_vals = self._outcomes.get(task_id, [])
-                success_rate = np.mean(success_vals) if success_vals else DEFAULT_SUCCESS_RATE
-                baseline = 0.5
-                denominator = max(1.0 - baseline, 0.01)
-                normalized = (success_rate - baseline) / denominator
+                normalized = self._normalized_success(task_success_rates[idx])
                 fast = slow = normalized
 
             fast_list.append(fast)
@@ -617,19 +602,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _calculate_task_distribution(self) -> None:
         """Compute a normalized sampling distribution for reporting stats."""
-        if not self._outcomes:
+        task_ids, task_success_rates = self._task_ids_and_success_rates()
+        if not task_ids:
             self._task_dist = None
             self._task_success_rate = np.array([])
             self._stale_dist = False
             return
 
-        task_ids = sorted(self._outcomes.keys())
-
         # Success rates for stats (not used for sampling)
-        self._task_success_rate = np.array(
-            [np.mean(self._outcomes[tid]) if self._outcomes[tid] else DEFAULT_SUCCESS_RATE for tid in task_ids],
-            dtype=float,
-        )
+        self._task_success_rate = task_success_rates
 
         lp = self._learning_progress(reweight=False)
         if lp.size == 0:

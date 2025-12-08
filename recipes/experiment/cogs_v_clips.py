@@ -259,8 +259,8 @@ def make_curriculum(
 
             num_variants_tasks = []
             for variant_combination in variant_combinations:
-                # Use selected variants if any, otherwise use provided variants (or None)
-                variant_list = list(variant_combination) if variant_combination else (variants if variants else None)
+                # Baseline when no variants selected; otherwise use the chosen combination
+                variant_list = None if len(variant_combination) == 0 else list(variant_combination)
                 mission_env = make_training_env(
                     num_cogs=num_cogs,
                     mission=mission_name,
