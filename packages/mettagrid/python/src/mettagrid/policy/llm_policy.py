@@ -996,8 +996,8 @@ The best action is move_east (WRONG - contains extra words)
                 if raw_response is None:
                     raw_response = "noop"
 
-                # Always print LLM response
-                print(f"[LLM] {raw_response}")
+                # Always print LLM response with agent ID
+                print(f"[LLM Agent {self.agent_id}] {raw_response}")
 
                 action_name = raw_response.strip()
 
@@ -1087,8 +1087,8 @@ The best action is move_east (WRONG - contains extra words)
                         )
                     raw_response = "noop"
 
-                # Always print LLM response
-                print(f"[LLM] {raw_response}")
+                # Always print LLM response with agent ID
+                print(f"[LLM Agent {self.agent_id}] {raw_response}")
 
                 action_name = raw_response.strip()
 
@@ -1161,8 +1161,8 @@ The best action is move_east (WRONG - contains extra words)
                         raw_response = block.text
                         break
 
-                # Always print LLM response
-                print(f"[LLM] {raw_response}")
+                # Always print LLM response with agent ID
+                print(f"[LLM Agent {self.agent_id}] {raw_response}")
 
                 action_name = raw_response.strip()
 
