@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import numpy as np
 import pytest
 from gymnasium.spaces import Box, Discrete
@@ -132,7 +130,6 @@ class TestLLMPromptBuilder:
         assert "HEART" in basic_info
 
         # Check key gameplay instructions
-        assert "ADJACENT" in basic_info
         assert "heart_a" in basic_info
         assert "heart_b" in basic_info
 
@@ -264,30 +261,6 @@ class TestLLMPromptBuilder:
         assert ve1 != ve3
         assert ve1 != "not a VisibleElements"
 
-    def test_observation_to_json_structure(self, prompt_builder, sample_observation):
-        """Test that observation is correctly converted to JSON."""
-        # Test without actions (default behavior for non-reset steps)
-        obs_json = prompt_builder._observation_to_json(sample_observation, include_actions=False)
-        assert obs_json["agent_id"] == 0
-        assert "visible_objects" in obs_json
-        assert "available_actions" not in obs_json  # Should not be included
-        assert obs_json["num_visible_objects"] == len(sample_observation.tokens)
-
-        # Test with actions (for first step or reset)
-        obs_json_with_actions = prompt_builder._observation_to_json(sample_observation, include_actions=True)
-        assert obs_json_with_actions["agent_id"] == 0
-        assert "visible_objects" in obs_json_with_actions
-        assert "available_actions" in obs_json_with_actions  # Should be included
-        assert obs_json_with_actions["num_visible_objects"] == len(sample_observation.tokens)
-
-        # Check token structure
-        for token_dict in obs_json["visible_objects"]:
-            assert "feature" in token_dict
-            assert "location" in token_dict
-            assert "value" in token_dict
-            assert "x" in token_dict["location"]
-            assert "y" in token_dict["location"]
-
     def test_custom_context_window_size(self, mock_policy_env_info, sample_observation):
         """Test that custom context window sizes work correctly."""
         builder = LLMPromptBuilder(
@@ -308,26 +281,6 @@ class TestLLMPromptBuilder:
         _, includes_basic = builder.context_prompt(sample_observation)
         assert includes_basic is True
 
-    def test_tag_descriptions_comprehensive(self, prompt_builder):
-        """Test that tag descriptions cover common object types."""
-        # Test descriptions for common tags
-        assert "agent" in prompt_builder._get_tag_description("agent").lower() or "cog" in prompt_builder._get_tag_description("agent").lower()
-        assert "wall" in prompt_builder._get_tag_description("wall").lower()
-        assert "carbon" in prompt_builder._get_tag_description("carbon_extractor").lower()
-        assert "storage" in prompt_builder._get_tag_description("chest").lower() or "deposit" in prompt_builder._get_tag_description("chest").lower()
-
-        # Unknown tag should have fallback
-        unknown_desc = prompt_builder._get_tag_description("unknown_object_type")
-        assert "unknown" in unknown_desc.lower() or "station" in unknown_desc.lower()
-
-    def test_feature_descriptions_comprehensive(self, prompt_builder):
-        """Test that feature descriptions cover common features."""
-        # Test descriptions for common features
-        assert "steps" in prompt_builder._get_feature_description("cooldown_remaining").lower()  # "Steps until..."
-        assert "team" in prompt_builder._get_feature_description("agent:group").lower()
-        assert "frozen" in prompt_builder._get_feature_description("agent:frozen").lower()
-        assert "reward" in prompt_builder._get_feature_description("last_reward").lower()
-
     def test_prompt_builder_handles_empty_observation(self, prompt_builder, mock_policy_env_info):
         """Test that builder handles observations with no tokens."""
         empty_obs = AgentObservation(agent_id=0, tokens=[])
@@ -338,18 +291,6 @@ class TestLLMPromptBuilder:
 
         # Should still have directional awareness structure
         assert "ADJACENT TILES" in observable
-
-    def test_json_serialization_of_observation(self, prompt_builder, sample_observation):
-        """Test that observation JSON is valid and serializable."""
-        obs_json = prompt_builder._observation_to_json(sample_observation)
-
-        # Should be serializable to JSON string
-        json_str = json.dumps(obs_json, indent=2)
-        assert isinstance(json_str, str)
-
-        # Should be deserializable
-        parsed = json.loads(json_str)
-        assert parsed["agent_id"] == obs_json["agent_id"]
 
     # --- Tests merged from test_llm_prompt_compatibility.py ---
 
@@ -592,57 +533,66 @@ class TestLLMPromptBuilder:
         assert "East" in east_prompt, f"East object should show East direction, got: {east_prompt}"
         assert "(6,5)" in east_prompt, f"East object should be at (6,5), got: {east_prompt}"
 
-    def test_spatial_grid_renders_correctly(self, mock_policy_env_info):
-        """Test that spatial grid ASCII rendering places objects correctly.
+    def test_context_window_ab_pattern(self, mock_policy_env_info, sample_observation):
+        """Test that context window produces correct A/B pattern.
 
-        In MettaGrid (SWAPPED):
-        - row() = X (horizontal, East/West)
-        - col() = Y (vertical, North/South)
-        - location tuple is (col, row) = (Y, X)
+        With context_window_size=20:
+        - Step 1: A (full prompt with basic info)
+        - Steps 2-20: B (dynamic prompt, observable only)
+        - Step 21: A (new window, basic info again)
+        - Steps 22-40: B
+        - etc.
 
-        For North: col decreases (y-1)
-        For East: row increases (x+1)
+        So in 20 steps we should see: 1 A, 19 Bs
+        In 40 steps we should see: 2 As, 38 Bs
         """
-        builder = LLMPromptBuilder(policy_env_info=mock_policy_env_info)
-
-        tag_feature = mock_policy_env_info.obs_features[0]  # tag
-
-        # Agent is at center (5, 5)
-        # In MettaGrid: row=5 means x=5, col=5 means y=5
-        agent_x, agent_y = 5, 5
-
-        # Create observation with objects in known positions
-        # location tuple is (col, row) = (Y, X)
-        obs = AgentObservation(
-            agent_id=0,
-            tokens=[
-                # Wall to the NORTH: col - 1 (y decreases), same row (same x)
-                # location = (col=4, row=5) = (y=4, x=5)
-                ObservationToken(
-                    feature=tag_feature,
-                    location=(agent_y - 1, agent_x),  # (col, row) = (y, x)
-                    value=8,  # wall
-                    raw_token=(tag_feature.id, 0, 8),
-                ),
-                # Carbon extractor to the EAST: row + 1 (x increases), same col (same y)
-                # location = (col=5, row=6) = (y=5, x=6)
-                ObservationToken(
-                    feature=tag_feature,
-                    location=(agent_y, agent_x + 1),  # (col, row) = (y, x)
-                    value=2,  # carbon_extractor
-                    raw_token=(tag_feature.id, 0, 2),
-                ),
-            ],
+        context_window_size = 20
+        builder = LLMPromptBuilder(
+            policy_env_info=mock_policy_env_info,
+            context_window_size=context_window_size,
         )
 
-        # Build the spatial grid
-        spatial_grid = builder._build_spatial_grid(obs)
+        results = []
 
-        # The grid keys should be (x, y) where x=row(), y=col()
-        # Wall at North: x=5, y=4 -> key should be (5, 4)
-        # Extractor at East: x=6, y=5 -> key should be (6, 5)
-        assert (agent_x, agent_y - 1) in spatial_grid, f"Wall should be at ({agent_x}, {agent_y - 1}), got {spatial_grid}"
-        assert spatial_grid[(agent_x, agent_y - 1)] == "wall"
+        steps = 20
+        # Run for exactly 20 steps (one full context window)
+        for _ in range(steps):
+            prompt, includes_basic_info = builder.context_prompt(sample_observation)
+            if includes_basic_info:
+                results.append("A")
+            else:
+                results.append("B")
 
-        assert (agent_x + 1, agent_y) in spatial_grid, f"Extractor should be at ({agent_x + 1}, {agent_y}), got {spatial_grid}"
-        assert spatial_grid[(agent_x + 1, agent_y)] == "carbon_extractor"
+        # Count As and Bs
+        a_count = results.count("A")
+        b_count = results.count("B")
+
+        # In 20 steps: 1 A (step 1), 19 Bs (steps 2-20)
+        assert a_count == 1, f"Expected 1 A in 20 steps, got {a_count}. Pattern: {''.join(results)}"
+        assert b_count == 19, f"Expected 19 Bs in 20 steps, got {b_count}. Pattern: {''.join(results)}"
+
+        # Verify the pattern starts with A
+        assert results[0] == "A", f"First step should be A, got {results[0]}"
+
+        # All subsequent steps should be B
+        assert all(r == "B" for r in results[1:]), f"Steps 2-20 should all be B. Pattern: {''.join(results)}"
+
+        # Continue for another 20 steps (second context window)
+        for _ in range(20):
+            prompt, includes_basic_info = builder.context_prompt(sample_observation)
+            if includes_basic_info:
+                results.append("A")
+            else:
+                results.append("B")
+
+        # In 40 steps: 2 As (steps 1 and 21), 38 Bs
+        a_count = results.count("A")
+        b_count = results.count("B")
+
+        assert a_count == 2, f"Expected 2 As in 40 steps, got {a_count}. Pattern: {''.join(results)}"
+        assert b_count == 38, f"Expected 38 Bs in 40 steps, got {b_count}. Pattern: {''.join(results)}"
+
+        # Verify A appears at positions 0 and 20 (steps 1 and 21)
+        assert results[0] == "A", f"Step 1 should be A"
+        assert results[20] == "A", f"Step 21 should be A (new context window)"
+

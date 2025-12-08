@@ -13,7 +13,6 @@ Prompt templates are loaded from markdown files in the 'prompts/' directory:
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -70,12 +69,12 @@ class LLMPromptBuilder:
     """
 
     def __init__(
-        self,
-        policy_env_info: PolicyEnvInterface,
-        context_window_size: int = 20,
-        mg_cfg: MettaGridConfig | None = None,
-        debug_mode: bool = False,
-        agent_id: int = 0,
+            self,
+            policy_env_info: PolicyEnvInterface,
+            context_window_size: int = 20,
+            mg_cfg: MettaGridConfig | None = None,
+            debug_mode: bool = False,
+            agent_id: int = 0,
     ):
         """Initialize prompt builder.
 
@@ -107,7 +106,8 @@ class LLMPromptBuilder:
                     print(f"[LLMPromptBuilder] Loaded chest vibe transfers: {self._chest_vibe_transfers}")
             else:
                 if self._debug_mode:
-                    print(f"[LLMPromptBuilder] No chest vibe transfers found. chest_config={chest_config}, has vibe_transfers={hasattr(chest_config, 'vibe_transfers') if chest_config else 'N/A'}")
+                    print(
+                        f"[LLMPromptBuilder] No chest vibe transfers found. chest_config={chest_config}, has vibe_transfers={hasattr(chest_config, 'vibe_transfers') if chest_config else 'N/A'}")
         else:
             if self._debug_mode:
                 print("[LLMPromptBuilder] No mg_cfg provided, chest vibe transfers will be empty")
@@ -152,30 +152,6 @@ class LLMPromptBuilder:
         template = _load_prompt_template("basic_info")
         return template.replace("{{RECIPES}}", all_recipes_section).replace("{{ID_MAP}}", id_map_section)
 
-    def _build_heart_recipe(self) -> str:
-        """Build heart recipe string from assembler protocols.
-
-        Returns:
-            Human-readable heart crafting recipe
-        """
-        if not self._policy_env_info.assembler_protocols:
-            return "1 HEART = 10 carbon + 10 oxygen + 2 germanium + 30 silicon"
-
-        # Find the first heart protocol (1 heart output)
-        for protocol in self._policy_env_info.assembler_protocols:
-            if protocol.output_resources.get("heart", 0) == 1:
-                # Format: "1 HEART = X carbon + Y oxygen + Z germanium + W silicon"
-                parts = []
-                for resource in ["carbon", "oxygen", "germanium", "silicon", "energy"]:
-                    amount = protocol.input_resources.get(resource, 0)
-                    if amount > 0:
-                        parts.append(f"{amount} {resource}")
-                if parts:
-                    return "1 HEART = " + " + ".join(parts)
-
-        # Fallback to default recipe
-        return "1 HEART = 10 carbon + 10 oxygen + 2 germanium + 30 silicon"
-
     def _build_recipe_summary(self) -> str:
         """Build a short recipe summary for dynamic prompts.
 
@@ -218,7 +194,8 @@ class LLMPromptBuilder:
         for protocol in self._policy_env_info.assembler_protocols:
             # Format inputs
             input_parts = []
-            for resource in ["carbon", "oxygen", "germanium", "silicon", "energy", "heart", "decoder", "modulator", "resonator", "scrambler"]:
+            for resource in ["carbon", "oxygen", "germanium", "silicon", "energy", "heart", "decoder", "modulator",
+                             "resonator", "scrambler"]:
                 amount = protocol.input_resources.get(resource, 0)
                 if amount > 0:
                     input_parts.append(f"{amount} {resource}")
@@ -336,30 +313,6 @@ class LLMPromptBuilder:
 
         return "\n\n".join(sections)
 
-    def _build_spatial_grid(self, obs: AgentObservation) -> dict[tuple[int, int], str]:
-        """Build spatial grid mapping positions to object tags.
-
-        Args:
-            obs: Agent observation
-
-        Returns:
-            Dictionary mapping (x, y) to tag name at that location
-        """
-        grid: dict[tuple[int, int], str] = {}
-
-        for token in obs.tokens:
-            # SWAPPED: In MettaGrid, row() = X (East/West), col() = Y (North/South)
-            x, y = token.row(), token.col()
-
-            # Only care about tag features for the grid
-            if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
-                tag_name = self._policy_env_info.tags[token.value]
-                # Don't overwrite if already have a tag (first one wins)
-                if (x, y) not in grid:
-                    grid[(x, y)] = tag_name
-
-        return grid
-
     def full_prompt(self, obs: AgentObservation) -> str:
         """Build full prompt (basic_info + observable).
 
@@ -385,9 +338,9 @@ class LLMPromptBuilder:
         )
 
     def context_prompt(
-        self,
-        obs: AgentObservation,
-        force_basic_info: bool = False,
+            self,
+            obs: AgentObservation,
+            force_basic_info: bool = False,
     ) -> tuple[str, bool]:
         """Build prompt with smart context window management.
 
@@ -420,7 +373,9 @@ class LLMPromptBuilder:
             # Build common actions list
             common_actions = ["noop", "move_north", "move_south", "move_west", "move_east"]
             # Add vibe actions for resources/hearts
-            vibe_actions = [name for name in self._policy_env_info.action_names if name.startswith("change_vibe_") and any(x in name for x in ["heart", "carbon", "oxygen", "silicon", "germanium", "default"])]
+            vibe_actions = [name for name in self._policy_env_info.action_names if
+                            name.startswith("change_vibe_") and any(
+                                x in name for x in ["heart", "carbon", "oxygen", "silicon", "germanium", "default"])]
             action_list = common_actions + vibe_actions[:10]  # Limit to top 10 vibe actions
 
             # Load template and substitute variables
@@ -466,221 +421,6 @@ class LLMPromptBuilder:
                 visible_tags.add(token.value)
 
         return VisibleElements(tags=visible_tags, features=visible_features)
-
-    def _build_visible_tags_section(self, tags: set[int]) -> str:
-        """Build section describing visible object types.
-
-        Args:
-            tags: Set of visible tag IDs
-
-        Returns:
-            Formatted description of visible objects
-        """
-        lines = [f"=== OBJECTS YOU CAN SEE ({len(tags)} types) ===\n"]
-
-        for tag_id in sorted(tags):
-            tag_name = self._policy_env_info.tags[tag_id]
-            description = self._get_tag_description(tag_name)
-            lines.append(f"Tag {tag_id}: {tag_name}")
-            lines.append(f"  → {description}")
-
-        return "\n".join(lines)
-
-    def _build_visible_features_section(self, features: set[str]) -> str:
-        """Build section describing visible features.
-
-        Args:
-            features: Set of visible feature names
-
-        Returns:
-            Formatted description of visible features
-        """
-        lines = [f"=== FEATURES YOU CAN SEE ({len(features)} features) ===\n"]
-
-        # Group features by type for better organization
-        inventory = [f for f in features if f.startswith("inv:")]
-        protocol_input = [f for f in features if f.startswith("protocol_input:")]
-        protocol_output = [f for f in features if f.startswith("protocol_output:")]
-        agent_features = [f for f in features if f.startswith("agent:")]
-        other = [
-            f for f in features
-            if not any(f.startswith(prefix) for prefix in ["inv:", "protocol_input:", "protocol_output:", "agent:"])
-        ]
-
-        if inventory:
-            lines.append("Your Inventory:")
-            for feature in sorted(inventory):
-                resource = feature[4:]  # Remove "inv:" prefix
-                lines.append(f"  • {feature}: Amount of {resource} you're carrying (0-255)")
-
-        if protocol_input:
-            lines.append("\nObject Requirements (what it needs):")
-            for feature in sorted(protocol_input):
-                resource = feature[15:]  # Remove "protocol_input:" prefix
-                lines.append(f"  • {feature}: {resource} required to use this object")
-
-        if protocol_output:
-            lines.append("\nObject Outputs (what it produces):")
-            for feature in sorted(protocol_output):
-                resource = feature[16:]  # Remove "protocol_output:" prefix
-                lines.append(f"  • {feature}: {resource} produced when using this object")
-
-        if agent_features:
-            lines.append("\nAgent State:")
-            for feature in sorted(agent_features):
-                description = self._get_feature_description(feature)
-                lines.append(f"  • {feature}: {description}")
-
-        if other:
-            lines.append("\nOther Features:")
-            for feature in sorted(other):
-                description = self._get_feature_description(feature)
-                lines.append(f"  • {feature}: {description}")
-
-        return "\n".join(lines)
-
-    def _get_tag_description(self, tag_name: str) -> str:
-        """Get brief description for an object tag.
-
-        Args:
-            tag_name: Name of the tag
-
-        Returns:
-            Human-readable description with actionable mechanics
-        """
-        descriptions = {
-            "agent": "Another COG. Check agent:group (same = teammate). Can share energy by vibing 'energy' when adjacent.",
-            "assembler": "Crafting station. Set vibe, position adjacent, move into it. Consumes resources, produces gear/HEARTs. Check cooldown_remaining. IMMUNE to clipping.",
-            "carbon_extractor": "+2 carbon/use (25 max uses). Position adjacent, move into it. Check remaining_uses and cooldown_remaining.",
-            "oxygen_extractor": "+10 oxygen/use (refills over 100 turns). Can use partially during cooldown. Check cooldown_remaining for charge level.",
-            "germanium_extractor": "+(N+1) germanium for N adjacent cogs (1 use only!). COORDINATE WITH TEAM for max yield. Check remaining_uses.",
-            "silicon_extractor": "+15 silicon/use (COSTS 20 ENERGY!, 10 max uses). Only use if inv:energy >20. Check remaining_uses.",
-            "charger": "Solar array. +50 energy (recharges over 10 turns). Can use partially. Check cooldown_remaining for charge level.",
-            "chest": "Resource storage. Set vibe, move into it. DEPOSIT HEARTs using 'heart_b' vibe. See CHEST VIBE TRANSFERS section.",
-            "wall": "Impassable obstacle. DO NOT move into walls. Navigate around.",
-            "altar": "Ritual site. Costs energy, provides rewards. Has cooldown. Check cooldown_remaining and inv:energy.",
-            "converter": "Resource-to-energy converter. No energy cost, has cooldown. Check cooldown_remaining.",
-            "generator": "Resource harvester. Has cooldown. Check cooldown_remaining.",
-        }
-        return descriptions.get(tag_name, f"Unknown station: {tag_name}. Move adjacent and interact cautiously.")
-
-    def _get_feature_description(self, feature_name: str) -> str:
-        """Get brief description for a feature.
-
-        Args:
-            feature_name: Name of the feature
-
-        Returns:
-            Human-readable description
-        """
-        descriptions = {
-            "tag": "Object type ID (see OBJECTS YOU CAN SEE above)",
-            "cooldown_remaining": "Steps until object is ready (0 = ready now)",
-            "remaining_uses": "Times object can still be used (0 = depleted)",
-            "clipped": "Whether object is clipped (0 = normal, 1 = clipped)",
-            "agent:group": "Team ID (same as yours = ally, different = enemy)",
-            "agent:frozen": "Whether agent can act (0 = can act, 1 = frozen)",
-            "vibe": "Current interaction mode (affects object interactions)",
-            "agent:compass": "Direction to objective (0=N, 1=E, 2=S, 3=W)",
-            "last_action": "Your previous action ID",
-            "last_reward": "Reward from last step (positive = good)",
-            "episode_completion_pct": "Progress through episode (0-255)",
-        }
-        return descriptions.get(feature_name, f"{feature_name} feature")
-
-    def _build_protocols_documentation(self) -> str:
-        """Build documentation for assembler protocols explaining vibe-based crafting.
-
-        Returns:
-            Formatted documentation string explaining how assembler protocols work
-        """
-        if not self._policy_env_info.assembler_protocols:
-            return ""
-
-        lines = ["=== ASSEMBLER PROTOCOLS (CRAFTING) ===", ""]
-        lines.append("Assemblers craft items using protocols activated by VIBES:")
-        lines.append("- Stand next to an assembler")
-        lines.append("- Use change_vibe_* actions to set your vibe")
-        lines.append("- Assembler checks if your vibe matches any protocol requirements")
-        lines.append("- If match found AND you have required resources → item is crafted")
-        lines.append("")
-        lines.append("IMPORTANT MECHANICS:")
-        lines.append("- Some protocols require MULTIPLE agents with matching vibes (check protocol_input:* features)")
-        lines.append("- Assembler has cooldown after crafting (check cooldown_remaining feature)")
-        lines.append("- Resources are CONSUMED from your inventory when crafting")
-        lines.append("")
-
-        # Group protocols by output resource for better organization
-        protocols_by_output: dict[str, list] = {}
-        for protocol in self._policy_env_info.assembler_protocols:
-            # Get the primary output resource (first in output_resources dict)
-            output_items = list(protocol.output_resources.keys())
-            if output_items:
-                primary_output = output_items[0]
-                if primary_output not in protocols_by_output:
-                    protocols_by_output[primary_output] = []
-                protocols_by_output[primary_output].append(protocol)
-
-        lines.append("AVAILABLE PROTOCOLS:")
-        for output_resource, protocols in sorted(protocols_by_output.items()):
-            lines.append(f"\n  Crafting {output_resource.upper()}:")
-            for protocol in protocols:
-                vibes_str = " + ".join(f"'{v}'" for v in protocol.vibes)
-                if not vibes_str:
-                    vibes_str = "no specific vibe"
-
-                # Format inputs
-                inputs_str = ", ".join(f"{amt} {res}" for res, amt in protocol.input_resources.items())
-
-                # Format outputs
-                outputs_str = ", ".join(f"{amt} {res}" for res, amt in protocol.output_resources.items())
-
-                lines.append(f"    Vibe: {vibes_str}")
-                lines.append(f"      Needs: {inputs_str}")
-                lines.append(f"      Makes: {outputs_str}")
-                if protocol.min_agents > 0:
-                    lines.append(f"      Min agents: {protocol.min_agents}")
-
-        return "\n".join(lines)
-
-    def _build_chest_vibes_documentation(self) -> str:
-        """Build documentation for chest vibe transfers explaining deposit/withdraw mechanics.
-
-        Returns:
-            Formatted documentation string explaining how chest vibe transfers work
-        """
-        if not self._chest_vibe_transfers:
-            return ""
-
-        lines = ["=== CHEST VIBE TRANSFERS (STORAGE) ===", ""]
-        lines.append("Chests store resources. Use change_vibe_* to deposit or withdraw:")
-        lines.append("- Stand next to a chest")
-        lines.append("- Use change_vibe_* action to set your vibe")
-        lines.append("- POSITIVE values = DEPOSIT resources into chest")
-        lines.append("- NEGATIVE values = WITHDRAW resources from chest")
-        lines.append("")
-        lines.append("VIBE TRANSFER RULES:")
-
-        for vibe_name, transfers in sorted(self._chest_vibe_transfers.items()):
-            if vibe_name == "default":
-                continue  # Skip default vibe, it's usually very permissive
-
-            deposits = []
-            withdraws = []
-            for resource, delta in transfers.items():
-                if delta > 0:
-                    deposits.append(f"+{delta} {resource}")
-                elif delta < 0:
-                    withdraws.append(f"{delta} {resource}")
-
-            if deposits or withdraws:
-                lines.append(f"\n  Vibe '{vibe_name}':")
-                if deposits:
-                    lines.append(f"    Deposits: {', '.join(deposits)}")
-                if withdraws:
-                    lines.append(f"    Withdraws: {', '.join(withdraws)}")
-
-        return "\n".join(lines)
 
     def _analyze_adjacent_tiles(self, obs: AgentObservation, agent_x: int, agent_y: int) -> dict[str, str]:
         """Analyze what's in each cardinal direction (immediately adjacent).
@@ -785,121 +525,6 @@ class LLMPromptBuilder:
             return f"{vertical}-{horizontal}"
         return vertical or horizontal
 
-    def _find_nearby_objects(self, obs: AgentObservation, agent_x: int, agent_y: int) -> list[dict]:
-        """Find all nearby objects with their directions and distances.
-
-        Args:
-            obs: Agent observation
-            agent_x: Agent's X coordinate
-            agent_y: Agent's Y coordinate
-
-        Returns:
-            List of object info dicts sorted by distance
-        """
-        objects = []
-        seen_locations: set[tuple[int, int]] = set()
-
-        for token in obs.tokens:
-            # SWAPPED: In MettaGrid, row() = X (East/West), col() = Y (North/South)
-            x, y = token.row(), token.col()
-
-            # Skip agent's own location
-            if x == agent_x and y == agent_y:
-                continue
-
-            # Skip already processed locations
-            if (x, y) in seen_locations:
-                continue
-
-            # Only process tag tokens (they identify objects)
-            if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
-                seen_locations.add((x, y))
-                tag_name = self._policy_env_info.tags[token.value]
-                dx = x - agent_x
-                dy = y - agent_y
-                distance = abs(dx) + abs(dy)  # Manhattan distance
-                direction = self._get_direction_name(dx, dy)
-
-                # Collect additional properties
-                properties = []
-                inventory = {}
-                for t in obs.tokens:
-                    # SWAPPED: row() = X, col() = Y
-                    if t.row() == x and t.col() == y:
-                        if t.feature.name == "cooldown_remaining" and t.value > 0:
-                            properties.append(f"cooldown: {t.value}")
-                        elif t.feature.name == "remaining_uses":
-                            properties.append(f"uses: {t.value}")
-                        elif t.feature.name == "agent:group":
-                            properties.append(f"group: {t.value}")
-                        elif t.feature.name.startswith("inv:") and t.value > 0:
-                            # Collect inventory for other agents
-                            resource = t.feature.name[4:]  # Remove "inv:" prefix
-                            inventory[resource] = t.value
-
-                objects.append({
-                    "name": tag_name,
-                    "direction": direction,
-                    "distance": distance,
-                    "properties": properties,
-                    "inventory": inventory,
-                })
-
-        # Sort by distance
-        return sorted(objects, key=lambda x: x["distance"])
-
-    def _build_nearby_objects_section(self, objects: list[dict]) -> str:
-        """Build the nearby objects section for the prompt.
-
-        Args:
-            objects: List of nearby object info dicts
-
-        Returns:
-            Formatted nearby objects section
-        """
-        lines = ["=== NEARBY OBJECTS (what you can see) ==="]
-        for obj in objects:
-            desc = f"  {obj['name']} - {obj['direction']} (distance: {obj['distance']})"
-            if obj["properties"]:
-                desc += f" [{', '.join(obj['properties'])}]"
-            # Show inventory for other agents
-            if obj.get("inventory"):
-                inv_str = ", ".join(f"{k}:{v}" for k, v in sorted(obj["inventory"].items()))
-                desc += f" inv={{" + inv_str + "}}"
-            lines.append(desc)
-        return "\n".join(lines)
-
-    def _build_nearby_agents_section(self, agents: list[dict]) -> str:
-        """Build section showing nearby agents and their inventories.
-
-        Args:
-            agents: List of agent info dicts (filtered from nearby objects)
-
-        Returns:
-            Formatted section showing teammate positions and inventories
-        """
-        lines = ["=== NEARBY AGENTS ==="]
-        for agent in agents:
-            # Determine if ally or enemy based on group
-            group_info = ""
-            for prop in agent["properties"]:
-                if prop.startswith("group:"):
-                    group_info = f" ({prop})"
-                    break
-
-            desc = f"  Agent {agent['direction']} (distance: {agent['distance']}){group_info}"
-
-            # Show their inventory
-            if agent.get("inventory"):
-                inv_parts = []
-                for resource, amount in sorted(agent["inventory"].items()):
-                    inv_parts.append(f"{resource}:{amount}")
-                if inv_parts:
-                    desc += f" - inventory: {', '.join(inv_parts)}"
-            lines.append(desc)
-
-        return "\n".join(lines)
-
     def _extract_inventory(self, obs: AgentObservation, agent_x: int, agent_y: int) -> dict[str, int]:
         """Extract inventory from tokens at agent's position.
 
@@ -949,39 +574,8 @@ class LLMPromptBuilder:
                 essential.append(action_name)
         return essential
 
-    def _observation_to_json(self, obs: AgentObservation, include_actions: bool = False) -> dict:
-        """Convert observation to JSON format for LLM.
-
-        Args:
-            obs: Agent observation
-            include_actions: Whether to include available_actions list (only on first/reset steps)
-
-        Returns:
-            Dictionary with structured observation data
-        """
-        tokens_list = []
-        for token in obs.tokens:
-            token_dict = {
-                "feature": token.feature.name,
-                "location": {"x": token.row(), "y": token.col()},  # SWAPPED: row()=X, col()=Y
-                "value": token.value,
-            }
-            tokens_list.append(token_dict)
-
-        result = {
-            "agent_id": obs.agent_id,
-            "visible_objects": tokens_list,
-            "num_visible_objects": len(tokens_list),
-        }
-
-        # Only include actions list on first step or context window reset
-        if include_actions:
-            result["available_actions"] = self._policy_env_info.action_names
-
-        return result
-
     def _extract_visible_objects_with_coords(
-        self, obs: AgentObservation, agent_x: int, agent_y: int
+            self, obs: AgentObservation, agent_x: int, agent_y: int
     ) -> list[dict]:
         """Extract all visible objects with their absolute coordinates and properties.
 
@@ -1071,9 +665,8 @@ class LLMPromptBuilder:
         agent_x = self._policy_env_info.obs_width // 2
         agent_y = self._policy_env_info.obs_height // 2
 
-        lines = [f"=== VISIBLE OBJECTS (you are at {agent_x},{agent_y}) ==="]
-        lines.append("Grid: 11x11, (0,0)=top-left, x=column(E/W), y=row(N/S)")
-        lines.append("")
+        lines = [f"=== VISIBLE OBJECTS (you are at {agent_x},{agent_y}) ===",
+                 "Grid: 11x11, (0,0)=top-left, x=column(E/W), y=row(N/S)", ""]
 
         for obj in objects:
             # Calculate absolute position from relative
