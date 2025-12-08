@@ -127,6 +127,7 @@ private:
 
   // Static wall cache: cell index -> encoded tokens for walls
   std::vector<std::vector<PartialObservationToken>> _wall_token_cache;
+  std::vector<uint8_t> _is_wall;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
@@ -181,6 +182,9 @@ private:
   std::vector<uint8_t> _goal_token_flags;
   std::vector<size_t> _agent_indices;
   std::vector<ActionType> _executed_actions;
+  std::vector<uint32_t> _goal_generation;
+  uint32_t _goal_gen_counter = 1;
+  uint8_t _compass_location = EmptyTokenByte;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_
