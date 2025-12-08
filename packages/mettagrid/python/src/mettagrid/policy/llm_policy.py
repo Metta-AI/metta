@@ -446,108 +446,6 @@ def ensure_ollama_model(model: str | None = None) -> str:
         raise RuntimeError(f"Failed to pull Ollama model '{model}': {e}") from e
 
 
-def build_game_rules_prompt(policy_env_info: PolicyEnvInterface) -> str:
-    """Build comprehensive game rules prompt with observation format guide.
-
-    Args:
-        policy_env_info: Policy environment interface with feature specs
-
-    Returns:
-        Complete system prompt for LLM
-    """
-    from pathlib import Path
-
-    # Build feature ID reference
-    feature_docs = []
-    for feature in policy_env_info.obs_features:
-        feature_docs.append(f"  {feature.id}: '{feature.name}' (normalization: {feature.normalization})")
-
-    # Build tag ID reference
-    tag_docs = []
-    for tag_id, tag_name in enumerate(policy_env_info.tags):
-        tag_docs.append(f"  {tag_id}: '{tag_name}'")
-
-    # Build action reference
-    action_docs = []
-    for action_id, action_name in enumerate(policy_env_info.action_names):
-        action_docs.append(f"  {action_id}: '{action_name}'")
-
-    # Build action IDs list (for last_action section)
-    action_ids = "\n".join(f"    {action_id} = {action_name}" for action_id, action_name in enumerate(policy_env_info.action_names))
-
-    # Build tag IDs list (for tag section)
-    tag_ids = "\n".join(f"    {tag_id} = {tag_name}" for tag_id, tag_name in enumerate(policy_env_info.tags))
-
-    obs_width = policy_env_info.obs_width
-    obs_height = policy_env_info.obs_height
-    agent_x = obs_width // 2
-    agent_y = obs_height // 2
-
-    # Build inventory features list
-    inv_features = ", ".join([f.name for f in policy_env_info.obs_features if f.name.startswith("inv:")])
-
-    # Build protocol input/output features lists
-    protocol_input_features = ", ".join([f.name for f in policy_env_info.obs_features if f.name.startswith("protocol_input:")])
-    protocol_output_features = ", ".join([f.name for f in policy_env_info.obs_features if f.name.startswith("protocol_output:")])
-
-    # Load template from markdown file
-    template_path = Path(__file__).parent / "prompts" / "game_rules_legacy.md"
-    template = template_path.read_text()
-
-    # Substitute all variables
-    prompt = (
-        template
-        .replace("{{OBS_WIDTH}}", str(obs_width))
-        .replace("{{OBS_HEIGHT}}", str(obs_height))
-        .replace("{{AGENT_X}}", str(agent_x))
-        .replace("{{AGENT_Y}}", str(agent_y))
-        .replace("{{AGENT_X_PLUS_1}}", str(agent_x + 1))
-        .replace("{{AGENT_X_MINUS_1}}", str(agent_x - 1))
-        .replace("{{AGENT_Y_PLUS_1}}", str(agent_y + 1))
-        .replace("{{AGENT_Y_MINUS_1}}", str(agent_y - 1))
-        .replace("{{OBS_WIDTH_MINUS_1}}", str(obs_width - 1))
-        .replace("{{OBS_HEIGHT_MINUS_1}}", str(obs_height - 1))
-        .replace("{{ACTION_IDS}}", action_ids)
-        .replace("{{TAG_IDS}}", tag_ids)
-        .replace("{{INV_FEATURES}}", inv_features)
-        .replace("{{PROTOCOL_INPUT_FEATURES}}", protocol_input_features)
-        .replace("{{PROTOCOL_OUTPUT_FEATURES}}", protocol_output_features)
-        .replace("{{FEATURE_DOCS}}", "\n".join(feature_docs))
-        .replace("{{TAG_DOCS}}", "\n".join(tag_docs))
-        .replace("{{ACTION_DOCS}}", "\n".join(action_docs))
-    )
-
-    return prompt
-
-
-def observation_to_json(obs: AgentObservation, policy_env_info: PolicyEnvInterface) -> dict:
-    """Convert observation tokens to structured JSON for LLM consumption.
-
-    Args:
-        obs: Agent observation containing tokens
-        policy_env_info: Policy environment interface with feature specs
-
-    Returns:
-        Dictionary with structured observation data
-    """
-    tokens_list = []
-
-    for token in obs.tokens:
-        token_dict = {
-            "feature": token.feature.name,
-            "location": {"x": token.col(), "y": token.row()},
-            "value": token.value,
-        }
-        tokens_list.append(token_dict)
-
-    return {
-        "agent_id": obs.agent_id,
-        "visible_objects": tokens_list,
-        "available_actions": policy_env_info.action_names,
-        "num_visible_objects": len(tokens_list),
-    }
-
-
 class LLMAgentPolicy(AgentPolicy):
     """Per-agent LLM policy that queries GPT or Claude for action selection."""
 
@@ -564,7 +462,6 @@ class LLMAgentPolicy(AgentPolicy):
         model: str | None = None,
         temperature: float = 0.7,
         debug_mode: bool = False,
-        use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         summary_interval: int = 5,
         mg_cfg = None,
@@ -578,7 +475,6 @@ class LLMAgentPolicy(AgentPolicy):
             model: Model name (defaults: gpt-4o-mini, claude-3-5-sonnet-20240620, or llama3.2 for ollama)
             temperature: Sampling temperature for LLM
             debug_mode: If True, print human-readable observation debug info (default: True)
-            use_dynamic_prompts: If True, use dynamic prompt builder (default: True)
             context_window_size: Number of steps before resending basic info (default: 20)
             summary_interval: Number of steps between history summaries (default: 5)
             mg_cfg: Optional MettaGridConfig for extracting game-specific info (chest vibes, etc.)
@@ -591,11 +487,6 @@ class LLMAgentPolicy(AgentPolicy):
         self.agent_id = agent_id
         self.last_action: str | None = None
         self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
-        # Handle string "false"/"true" from config system
-        if isinstance(use_dynamic_prompts, str):
-            self.use_dynamic_prompts = use_dynamic_prompts.lower() not in ("false", "0", "no")
-        else:
-            self.use_dynamic_prompts = bool(use_dynamic_prompts)
 
         # Track conversation history for debugging
         self.conversation_history: list[dict] = []
@@ -635,26 +526,18 @@ class LLMAgentPolicy(AgentPolicy):
         # Track inventory for smarter decisions
         self._last_inventory: dict[str, int] = {}
 
-        # Initialize prompt builder (new dynamic approach)
-        if self.use_dynamic_prompts:
-            from mettagrid.policy.llm_prompt_builder import LLMPromptBuilder
+        # Initialize prompt builder
+        from mettagrid.policy.llm_prompt_builder import LLMPromptBuilder
 
-            self.prompt_builder = LLMPromptBuilder(
-                policy_env_info=policy_env_info,
-                context_window_size=context_window_size,
-                mg_cfg=mg_cfg,
-                debug_mode=debug_mode,
-                agent_id=agent_id,
-            )
-            self.game_rules_prompt = None  # Not used with dynamic prompts
-            if self.debug_mode:
-                logger.info(f"Using dynamic prompts with context window size: {context_window_size}")
-        else:
-            # Fallback to old static prompt
-            self.prompt_builder = None
-            self.game_rules_prompt = build_game_rules_prompt(policy_env_info)
-            if self.debug_mode:
-                logger.info("Using static prompts (legacy mode)")
+        self.prompt_builder = LLMPromptBuilder(
+            policy_env_info=policy_env_info,
+            context_window_size=context_window_size,
+            mg_cfg=mg_cfg,
+            debug_mode=debug_mode,
+            agent_id=agent_id,
+        )
+        if self.debug_mode:
+            logger.info(f"Using dynamic prompts with context window size: {context_window_size}")
 
         # Initialize observation debugger if debug mode is enabled
         if self.debug_mode:
@@ -705,7 +588,7 @@ class LLMAgentPolicy(AgentPolicy):
         self._messages.append({"role": role, "content": content})
 
         # Prune to keep only last context_window_size turns (2 messages per turn)
-        max_messages = self.prompt_builder.context_window_size * 2 if self.prompt_builder else 40
+        max_messages = self.prompt_builder.context_window_size * 2
         if len(self._messages) > max_messages:
             # Keep system message (if first) + last N messages
             if self._messages and self._messages[0].get("role") == "system":
@@ -1017,6 +900,28 @@ class LLMAgentPolicy(AgentPolicy):
 
         return visible
 
+    def _get_heart_recipe(self) -> dict[str, int]:
+        """Get the heart crafting recipe requirements from assembler protocols.
+
+        Returns:
+            Dictionary mapping resource names to required amounts.
+            Falls back to default values if no protocol found.
+        """
+        # Try to get recipe from prompt builder's policy env info
+        protocols = self.prompt_builder._policy_env_info.assembler_protocols
+        if protocols:
+            for protocol in protocols:
+                if protocol.output_resources.get("heart", 0) == 1:
+                    return {
+                        "carbon": protocol.input_resources.get("carbon", 0),
+                        "oxygen": protocol.input_resources.get("oxygen", 0),
+                        "germanium": protocol.input_resources.get("germanium", 0),
+                        "silicon": protocol.input_resources.get("silicon", 0),
+                    }
+
+        # Fallback to defaults
+        return {"carbon": 10, "oxygen": 10, "germanium": 2, "silicon": 30}
+
     def _get_strategic_hints(
         self, inventory: dict[str, int], obs: AgentObservation | None = None
     ) -> str:
@@ -1031,6 +936,13 @@ class LLMAgentPolicy(AgentPolicy):
         """
         hints = []
 
+        # Get recipe requirements (dynamic based on mission)
+        recipe = self._get_heart_recipe()
+        req_carbon = recipe["carbon"]
+        req_oxygen = recipe["oxygen"]
+        req_germanium = recipe["germanium"]
+        req_silicon = recipe["silicon"]
+
         # Check for visible extractors that we need (TOP PRIORITY HINT)
         if obs is not None:
             visible_extractors = self._get_visible_extractors(obs)
@@ -1042,13 +954,13 @@ class LLMAgentPolicy(AgentPolicy):
             silicon = inventory.get("silicon", 0)
 
             for ext in visible_extractors:
-                if ext == "carbon_extractor" and carbon < 10:
+                if ext == "carbon_extractor" and carbon < req_carbon:
                     needed_extractors.append("carbon_extractor")
-                elif ext == "oxygen_extractor" and oxygen < 10:
+                elif ext == "oxygen_extractor" and oxygen < req_oxygen:
                     needed_extractors.append("oxygen_extractor")
-                elif ext == "germanium_extractor" and germanium < 2:
+                elif ext == "germanium_extractor" and germanium < req_germanium:
                     needed_extractors.append("germanium_extractor")
-                elif ext == "silicon_extractor" and silicon < 30:
+                elif ext == "silicon_extractor" and silicon < req_silicon:
                     needed_extractors.append("silicon_extractor")
 
             if needed_extractors:
@@ -1094,18 +1006,18 @@ class LLMAgentPolicy(AgentPolicy):
 
         if heart > 0 and "chest" in self._discovered_objects:
             hints.append(f"💡 You have {heart} heart(s)! Go to chest to deposit for reward!")
-        elif carbon >= 10 and oxygen >= 10 and germanium >= 2 and silicon >= 30:
+        elif carbon >= req_carbon and oxygen >= req_oxygen and germanium >= req_germanium and silicon >= req_silicon:
             hints.append("💡 You have all resources for a heart! Find an assembler and use heart_a vibe!")
         else:
             missing = []
-            if carbon < 10:
-                missing.append(f"carbon ({carbon}/10)")
-            if oxygen < 10:
-                missing.append(f"oxygen ({oxygen}/10)")
-            if germanium < 2:
-                missing.append(f"germanium ({germanium}/2)")
-            if silicon < 30:
-                missing.append(f"silicon ({silicon}/30)")
+            if carbon < req_carbon:
+                missing.append(f"carbon ({carbon}/{req_carbon})")
+            if oxygen < req_oxygen:
+                missing.append(f"oxygen ({oxygen}/{req_oxygen})")
+            if germanium < req_germanium:
+                missing.append(f"germanium ({germanium}/{req_germanium})")
+            if silicon < req_silicon:
+                missing.append(f"silicon ({silicon}/{req_silicon})")
             if missing:
                 hints.append(f"📋 Still need: {', '.join(missing)}")
 
@@ -1130,65 +1042,40 @@ class LLMAgentPolicy(AgentPolicy):
         inventory = self._extract_inventory_from_obs(obs)
         self._last_inventory = inventory
 
-        # Build prompt using dynamic or static approach
-        if self.use_dynamic_prompts:
-            # Increment summary step counter
-            self._summary_step_count += 1
+        # Increment summary step counter
+        self._summary_step_count += 1
 
-            # Check if we're at a summary interval boundary (every N steps)
-            is_summary_boundary = self._summary_step_count > 1 and (self._summary_step_count - 1) % self.summary_interval == 0
+        # Check if we're at a summary interval boundary (every N steps)
+        at_boundary = (self._summary_step_count - 1) % self.summary_interval == 0
+        is_summary_boundary = self._summary_step_count > 1 and at_boundary
 
-            # Check if we're about to start a new context window (before incrementing step counter)
-            next_step = self.prompt_builder.step_count + 1
-            is_window_boundary = next_step > 1 and (next_step - 1) % self.prompt_builder.context_window_size == 0
+        # Check if we're about to start a new context window (before incrementing step counter)
+        next_step = self.prompt_builder.step_count + 1
+        is_window_boundary = next_step > 1 and (next_step - 1) % self.prompt_builder.context_window_size == 0
 
-            # At summary boundary, finalize the current interval's summary
-            if is_summary_boundary:
-                self._finalize_window_summary()
+        # At summary boundary, finalize the current interval's summary
+        if is_summary_boundary:
+            self._finalize_window_summary()
 
-            # At context window boundary, also clear conversation messages for fresh window
-            if is_window_boundary:
-                self._messages = []
+        # At context window boundary, also clear conversation messages for fresh window
+        if is_window_boundary:
+            self._messages = []
 
-            user_prompt, includes_basic_info = self.prompt_builder.context_prompt(obs)
+        user_prompt, includes_basic_info = self.prompt_builder.context_prompt(obs)
 
-            # Prepend history summaries to prompts that include basic info
-            if includes_basic_info and self._history_summaries:
-                history_text = self._get_history_summary_text()
-                user_prompt = history_text + "\n" + user_prompt
+        # Prepend history summaries to prompts that include basic info
+        if includes_basic_info and self._history_summaries:
+            history_text = self._get_history_summary_text()
+            user_prompt = history_text + "\n" + user_prompt
 
-            # Add discovered objects and strategic hints to every prompt
-            discovered_text = self._get_discovered_objects_text()
-            strategic_hints = self._get_strategic_hints(inventory, obs)
+        # Add discovered objects and strategic hints to every prompt
+        discovered_text = self._get_discovered_objects_text()
+        strategic_hints = self._get_strategic_hints(inventory, obs)
 
-            if discovered_text:
-                user_prompt = user_prompt + "\n\n" + discovered_text
-            if strategic_hints:
-                user_prompt = user_prompt + "\n\n" + strategic_hints
-
-        else:
-            # Use old static prompt approach
-            obs_json = observation_to_json(obs, self.policy_env_info)
-            user_prompt = f"""Current game state:
-{json.dumps(obs_json, indent=2)}
-
-Based on the visible objects and game rules, choose the BEST action to maximize your rewards.
-
-CRITICAL: Your response must be EXACTLY ONE action name, nothing else.
-Format: action_name
-Do NOT explain your reasoning.
-Do NOT say what actions you won't take.
-Do NOT use sentences.
-
-Example valid responses:
-move_east
-use
-noop
-
-Example INVALID responses:
-I should not move_north, so I'll move_east (WRONG - contains multiple actions)
-The best action is move_east (WRONG - contains extra words)
-"""
+        if discovered_text:
+            user_prompt = user_prompt + "\n\n" + discovered_text
+        if strategic_hints:
+            user_prompt = user_prompt + "\n\n" + strategic_hints
 
         # Query LLM
         try:
@@ -1199,46 +1086,26 @@ The best action is move_east (WRONG - contains extra words)
                 # GPT-5 and o1 models use different parameters and don't support system messages
                 is_gpt5_or_o1 = self.model.startswith("gpt-5") or self.model.startswith("o1")
 
-                if self.use_dynamic_prompts or is_gpt5_or_o1:
-                    # Dynamic prompts or GPT-5/o1: use stateful conversation history
-                    messages = self._get_messages_for_api(user_prompt)
+                # Use stateful conversation history
+                messages = self._get_messages_for_api(user_prompt)
 
-                    completion_params = {
-                        "model": self.model,
-                        "messages": messages,
-                        "max_completion_tokens": 150 if is_gpt5_or_o1 else None,
-                        "max_tokens": None if is_gpt5_or_o1 else 150,
-                        "temperature": None if is_gpt5_or_o1 else self.temperature,
-                    }
-                    # Remove None values
-                    completion_params = {k: v for k, v in completion_params.items() if v is not None}
+                completion_params = {
+                    "model": self.model,
+                    "messages": messages,
+                    "max_completion_tokens": 150 if is_gpt5_or_o1 else None,
+                    "max_tokens": None if is_gpt5_or_o1 else 150,
+                    "temperature": None if is_gpt5_or_o1 else self.temperature,
+                }
+                # Remove None values
+                completion_params = {k: v for k, v in completion_params.items() if v is not None}
 
-                    # Track prompt
-                    self.conversation_history.append({
-                        "step": len(self.conversation_history) + 1,
-                        "prompt": user_prompt,
-                        "num_messages": len(messages),
-                        "response": None,  # Will be filled in below
-                    })
-                else:
-                    # Standard GPT-4 models with static prompts: use system message
-                    completion_params = {
-                        "model": self.model,
-                        "messages": [
-                            {"role": "system", "content": self.game_rules_prompt},
-                            {"role": "user", "content": user_prompt},
-                        ],
-                        "max_tokens": 150,
-                        "temperature": self.temperature,
-                    }
-
-                    # Track prompt (include system message for static prompts)
-                    self.conversation_history.append({
-                        "step": len(self.conversation_history) + 1,
-                        "system": self.game_rules_prompt,
-                        "prompt": user_prompt,
-                        "response": None,
-                    })
+                # Track prompt
+                self.conversation_history.append({
+                    "step": len(self.conversation_history) + 1,
+                    "prompt": user_prompt,
+                    "num_messages": len(messages),
+                    "response": None,  # Will be filled in below
+                })
 
                 response = self.client.chat.completions.create(**completion_params)
                 raw_response = response.choices[0].message.content
@@ -1251,8 +1118,7 @@ The best action is move_east (WRONG - contains extra words)
                 action_name = raw_response.strip()
 
                 # Add assistant response to stateful conversation history
-                if self.use_dynamic_prompts:
-                    self._add_to_messages("assistant", action_name)
+                self._add_to_messages("assistant", action_name)
 
                 # Track response for debugging
                 self.conversation_history[-1]["response"] = action_name
@@ -1279,31 +1145,16 @@ The best action is move_east (WRONG - contains extra words)
             elif self.provider == "ollama":
                 assert self.ollama_client is not None
 
-                if self.use_dynamic_prompts:
-                    # Dynamic prompts: use stateful conversation history
-                    messages = self._get_messages_for_api(user_prompt)
+                # Use stateful conversation history
+                messages = self._get_messages_for_api(user_prompt)
 
-                    # Track prompt
-                    self.conversation_history.append({
-                        "step": len(self.conversation_history) + 1,
-                        "prompt": user_prompt,
-                        "num_messages": len(messages),
-                        "response": None,
-                    })
-                else:
-                    # Static prompts: system + user
-                    messages = [
-                        {"role": "system", "content": self.game_rules_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ]
-
-                    # Track prompt (include system message for static prompts)
-                    self.conversation_history.append({
-                        "step": len(self.conversation_history) + 1,
-                        "system": self.game_rules_prompt,
-                        "prompt": user_prompt,
-                        "response": None,
-                    })
+                # Track prompt
+                self.conversation_history.append({
+                    "step": len(self.conversation_history) + 1,
+                    "prompt": user_prompt,
+                    "num_messages": len(messages),
+                    "response": None,
+                })
 
                 response = self.ollama_client.chat.completions.create(
                     model=self.model,
@@ -1342,8 +1193,7 @@ The best action is move_east (WRONG - contains extra words)
                 action_name = raw_response.strip()
 
                 # Add assistant response to stateful conversation history
-                if self.use_dynamic_prompts:
-                    self._add_to_messages("assistant", action_name)
+                self._add_to_messages("assistant", action_name)
 
                 # Track response for debugging
                 self.conversation_history[-1]["response"] = action_name
@@ -1366,41 +1216,24 @@ The best action is move_east (WRONG - contains extra words)
             elif self.provider == "anthropic":
                 assert self.anthropic_client is not None
 
-                if self.use_dynamic_prompts:
-                    # Dynamic prompts: use stateful conversation history
-                    messages = self._get_messages_for_api(user_prompt)
+                # Use stateful conversation history
+                messages = self._get_messages_for_api(user_prompt)
 
-                    # Track prompt
-                    self.conversation_history.append({
-                        "step": len(self.conversation_history) + 1,
-                        "prompt": user_prompt,
-                        "num_messages": len(messages),
-                        "response": None,
-                    })
+                # Track prompt
+                self.conversation_history.append({
+                    "step": len(self.conversation_history) + 1,
+                    "prompt": user_prompt,
+                    "num_messages": len(messages),
+                    "response": None,
+                })
 
-                    response = self.anthropic_client.messages.create(
-                        model=self.model,
-                        messages=messages,
-                        temperature=self.temperature,
-                        max_tokens=150,
-                    )
-                else:
-                    # Static prompts: system + user
-                    # Track prompt (include system message for static prompts)
-                    self.conversation_history.append({
-                        "step": len(self.conversation_history) + 1,
-                        "system": self.game_rules_prompt,
-                        "prompt": user_prompt,
-                        "response": None,
-                    })
+                response = self.anthropic_client.messages.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=self.temperature,
+                    max_tokens=150,
+                )
 
-                    response = self.anthropic_client.messages.create(
-                        model=self.model,
-                        system=self.game_rules_prompt,
-                        messages=[{"role": "user", "content": user_prompt}],
-                        temperature=self.temperature,
-                        max_tokens=150,
-                    )
                 # Extract text from response content blocks
                 from anthropic.types import TextBlock
 
@@ -1416,8 +1249,7 @@ The best action is move_east (WRONG - contains extra words)
                 action_name = raw_response.strip()
 
                 # Add assistant response to stateful conversation history
-                if self.use_dynamic_prompts:
-                    self._add_to_messages("assistant", action_name)
+                self._add_to_messages("assistant", action_name)
 
                 # Track response for debugging
                 self.conversation_history[-1]["response"] = action_name
@@ -1556,17 +1388,17 @@ The best action is move_east (WRONG - contains extra words)
 
             # Print system message if present (static prompts only)
             if "system" in entry:
-                print(f"\n[SYSTEM MESSAGE]")
+                print("\n[SYSTEM MESSAGE]")
                 print(entry["system"])
                 print()
 
             # Print user prompt
-            print(f"[USER PROMPT]")
+            print("[USER PROMPT]")
             print(entry["prompt"])
             print()
 
             # Print LLM response
-            print(f"[LLM RESPONSE]")
+            print("[LLM RESPONSE]")
             print(entry.get("response", "(no response)"))
             print()
 
@@ -1585,7 +1417,6 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         model: str | None = None,
         temperature: float = 0.7,
         debug_mode: bool = False,
-        use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         summary_interval: int = 5,
         mg_cfg = None,
@@ -1598,7 +1429,6 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             model: Model name (defaults based on provider)
             temperature: Sampling temperature for LLM
             debug_mode: If True, print human-readable observation debug info (default: True)
-            use_dynamic_prompts: If True, use dynamic prompt builder (default: True)
             context_window_size: Number of steps before resending basic info (default: 20)
             summary_interval: Number of steps between history summaries (default: 5)
             mg_cfg: Optional MettaGridConfig for extracting game-specific info (chest vibes, etc.)
@@ -1611,7 +1441,6 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             self.debug_mode = debug_mode.lower() not in ("false", "0", "no", "")
         else:
             self.debug_mode = bool(debug_mode)
-        self.use_dynamic_prompts = use_dynamic_prompts
         self.context_window_size = context_window_size
         self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
         self.mg_cfg = mg_cfg
@@ -1681,7 +1510,6 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             model=self.model,
             temperature=self.temperature,
             debug_mode=self.debug_mode,
-            use_dynamic_prompts=self.use_dynamic_prompts,
             context_window_size=self.context_window_size,
             summary_interval=self.summary_interval,
             mg_cfg=self.mg_cfg,
@@ -1701,7 +1529,6 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
         model: str | None = None,
         temperature: float = 0.7,
         debug_mode: bool = False,
-        use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         summary_interval: int = 5,
         mg_cfg = None,
@@ -1712,7 +1539,6 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
             model=model,
             temperature=temperature,
             debug_mode=debug_mode,
-            use_dynamic_prompts=use_dynamic_prompts,
             context_window_size=context_window_size,
             summary_interval=summary_interval,
             mg_cfg=mg_cfg,
@@ -1730,7 +1556,6 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
         model: str | None = None,
         temperature: float = 0.7,
         debug_mode: bool = False,
-        use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         summary_interval: int = 5,
         mg_cfg = None,
@@ -1741,7 +1566,6 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
             model=model,
             temperature=temperature,
             debug_mode=debug_mode,
-            use_dynamic_prompts=use_dynamic_prompts,
             context_window_size=context_window_size,
             summary_interval=summary_interval,
             mg_cfg=mg_cfg,
@@ -1751,7 +1575,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
 class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
     """Ollama local LLM-based policy for MettaGrid."""
 
-    short_names = ["llm-ollama", "llm-local"]
+    short_names = ["llm-ollama"]
 
     def __init__(
         self,
@@ -1759,7 +1583,6 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
         model: str | None = None,
         temperature: float = 0.7,
         debug_mode: bool = False,
-        use_dynamic_prompts: bool = True,
         context_window_size: int = 20,
         summary_interval: int = 5,
         mg_cfg = None,
@@ -1770,7 +1593,6 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
             model=model,
             temperature=temperature,
             debug_mode=debug_mode,
-            use_dynamic_prompts=use_dynamic_prompts,
             context_window_size=context_window_size,
             summary_interval=summary_interval,
             mg_cfg=mg_cfg,
