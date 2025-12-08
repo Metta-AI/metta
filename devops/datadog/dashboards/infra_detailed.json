@@ -412,7 +412,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:commits.hotfix{*}"
+                "query": "avg:metta.infra.cron.ci.workflow.success{*}"
               }
             ],
             "response_format": "timeseries",
@@ -442,49 +442,6 @@
     {
       "definition": {
         "type": "timeseries",
-        "title": "CI \u2014 Latest state of main \u2014 Latest state of main \u2014 Benchmarks passing (Condition: > 0)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:commits.reverts{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "> 0.0",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 6,
-        "y": 30,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
         "title": "CI \u2014 Latest state of main \u2014 Latest state of main \u2014 Num other workflows whose latest run off main is failing (Condition: < 2|warn< 4)",
         "requests": [
           {
@@ -498,7 +455,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.ci.workflow.other_failing{*}"
+                "query": "avg:metta.infra.cron.ci.workflow.other_failing{*}"
               }
             ],
             "response_format": "timeseries",
@@ -524,8 +481,8 @@
         "show_legend": false
       },
       "layout": {
-        "x": 0,
-        "y": 36,
+        "x": 6,
+        "y": 30,
         "width": 6,
         "height": 6
       }
@@ -546,7 +503,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.ci.github.hotfix.count{*}"
+                "query": "avg:metta.infra.cron.github.hotfix.count{*}"
               }
             ],
             "response_format": "timeseries",
@@ -572,7 +529,7 @@
         "show_legend": false
       },
       "layout": {
-        "x": 6,
+        "x": 0,
         "y": 36,
         "width": 6,
         "height": 6
@@ -594,7 +551,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.ci.github.force_merge.count{*}"
+                "query": "avg:metta.infra.cron.github.force_merge.count{*}"
               }
             ],
             "response_format": "timeseries",
@@ -620,8 +577,8 @@
         "show_legend": false
       },
       "layout": {
-        "x": 0,
-        "y": 42,
+        "x": 6,
+        "y": 36,
         "width": 6,
         "height": 6
       }
@@ -642,7 +599,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.ci.github.reverts.count{*}"
+                "query": "avg:metta.infra.cron.github.reverts.count{*}"
               }
             ],
             "response_format": "timeseries",
@@ -668,7 +625,7 @@
         "show_legend": false
       },
       "layout": {
-        "x": 6,
+        "x": 0,
         "y": 42,
         "width": 6,
         "height": 6
@@ -690,7 +647,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.ci.workflow.duration.p90{*}"
+                "query": "avg:metta.infra.cron.ci.workflow.duration.p90{*}"
               }
             ],
             "response_format": "timeseries",
@@ -716,8 +673,8 @@
         "show_legend": false
       },
       "layout": {
-        "x": 0,
-        "y": 48,
+        "x": 6,
+        "y": 42,
         "width": 6,
         "height": 6
       }
@@ -738,7 +695,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.ci.workflow.cancelled{*}"
+                "query": "avg:metta.infra.cron.ci.workflow.cancelled{*}"
               }
             ],
             "response_format": "timeseries",
@@ -764,7 +721,7 @@
         "show_legend": false
       },
       "layout": {
-        "x": 6,
+        "x": 0,
         "y": 48,
         "width": 6,
         "height": 6
@@ -786,7 +743,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.ci.workflow.flaky_tests{*}"
+                "query": "avg:metta.infra.cron.ci.workflow.flaky_tests{*}"
               }
             ],
             "response_format": "timeseries",
@@ -812,8 +769,8 @@
         "show_legend": false
       },
       "layout": {
-        "x": 0,
-        "y": 54,
+        "x": 6,
+        "y": 48,
         "width": 6,
         "height": 6
       }
@@ -834,7 +791,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.eval.local.success{*}"
+                "query": "avg:metta.infra.cron.eval.local.success{*}"
               }
             ],
             "response_format": "timeseries",
@@ -856,7 +813,7 @@
       },
       "layout": {
         "x": 0,
-        "y": 60,
+        "y": 54,
         "width": 6,
         "height": 6
       }
@@ -877,7 +834,98 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.eval.local.heart_delta_pct{*}"
+                "query": "avg:metta.infra.cron.eval.local.heart_delta_pct{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": "< 10.0",
+            "display_type": "ok"
+          },
+          {
+            "label": "warn",
+            "value": "< 15.0",
+            "display_type": "warning"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 54,
+        "width": 6,
+        "height": 6
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Eval \u2014 Runs remotely meets known bar \u2014 Runs remotely meets known bar \u2014 `./tools/request_eval.py \u2026` succeeds (Condition: > 0)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.remote.success{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": "> 0.0",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 60,
+        "width": 6,
+        "height": 6
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Eval \u2014 Runs remotely meets known bar \u2014 Runs remotely meets known bar \u2014 `./tools/request_eval.py \u2026` avg hearts % diff (Condition: < 10|warn< 15)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.remote.heart_delta_pct{*}"
               }
             ],
             "response_format": "timeseries",
@@ -912,97 +960,6 @@
     {
       "definition": {
         "type": "timeseries",
-        "title": "Eval \u2014 Runs remotely meets known bar \u2014 Runs remotely meets known bar \u2014 `./tools/request_eval.py \u2026` succeeds (Condition: > 0)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.eval.remote.success{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "> 0.0",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 0,
-        "y": 66,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Eval \u2014 Runs remotely meets known bar \u2014 Runs remotely meets known bar \u2014 `./tools/request_eval.py \u2026` avg hearts % diff (Condition: < 10|warn< 15)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.eval.remote.heart_delta_pct{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "< 10.0",
-            "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 15.0",
-            "display_type": "warning"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 6,
-        "y": 66,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
         "title": "Eval \u2014 Runs remotely meets known bar \u2014 Runs remotely meets known bar \u2014 `./tools/request_eval.py \u2026` duration minutes (Condition: <= 5|warn<= 7)",
         "requests": [
           {
@@ -1016,7 +973,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.eval.remote.duration_minutes{*}"
+                "query": "avg:metta.infra.cron.eval.remote.duration_minutes{*}"
               }
             ],
             "response_format": "timeseries",
@@ -1043,7 +1000,7 @@
       },
       "layout": {
         "x": 0,
-        "y": 72,
+        "y": 66,
         "width": 6,
         "height": 6
       }

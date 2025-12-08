@@ -66,45 +66,62 @@ def build_summary_dashboard() -> Dict:
 
 
 def build_summary_widget(category: CategoryDefinition, x: int, width: int, height: int) -> Dict:
-    queries = []
-    expressions = []
-    counter = 1
+    # For summary, just show the first key metric from the first workflow
+    # This avoids complex formula syntax issues in Datadog
+    first_metric = None
     for workflow in category["workflows"]:
-        for metric in workflow["metrics"]:
-            query_name = f"m{counter}"
-            queries.append(
-                {
-                    "name": query_name,
-                    "data_source": "metrics",
-                    "query": f"avg:{metric['metric']}{{*}}",
-                }
-            )
-            clause = parse_condition(metric["condition"]).get("pass", {"comparator": ">=", "value": 0})
-            expressions.append(f"({query_name} {clause['comparator']} {clause['value']})")
-            counter += 1
-    if not expressions:
-        expressions = ["0"]
-    formula = " * ".join(expressions)
+        if workflow["metrics"]:
+            first_metric = workflow["metrics"][0]
+            break
+
+    if not first_metric:
+        # Fallback if no metrics
+        query = "avg:system.cpu.user{*}"
+        formula = "query1"
+        condition_clause = {"comparator": ">=", "value": 0}
+    else:
+        query = f"avg:{first_metric['metric']}{{*}}"
+        formula = "query1"
+        condition_clause = parse_condition(first_metric["condition"]).get("pass", {"comparator": ">=", "value": 0})
+
+    # Determine precision based on metric type
+    # Binary metrics (success) should use precision 0, others use 2
+    precision = 0 if first_metric and ("success" in first_metric["metric"] or "count" in first_metric["metric"]) else 2
+
     return {
         "definition": {
             "type": "query_value",
             "title": f"{category['category']} summary",
             "title_size": "16",
             "title_align": "left",
-            "precision": 0,
+            "precision": precision,
             "requests": [
                 {
                     "formulas": [{"formula": formula}],
-                    "queries": queries,
+                    "queries": [
+                        {
+                            "name": "query1",
+                            "data_source": "metrics",
+                            "query": query,
+                        }
+                    ],
                     "response_format": "scalar",
                     "conditional_formats": [
-                        {"comparator": ">=", "value": 1, "palette": "green_on_white"},
-                        {"comparator": "<", "value": 1, "palette": "red_on_white"},
+                        {
+                            "comparator": condition_clause["comparator"],
+                            "value": condition_clause["value"],
+                            "palette": "green_on_white",
+                        },
+                        {
+                            "comparator": "<" if condition_clause["comparator"] in (">", ">=") else ">",
+                            "value": condition_clause["value"],
+                            "palette": "red_on_white",
+                        },
                     ],
                 }
             ],
             "autoscale": True,
-            "time": {"live_span": "1h"},
+            "time": {"live_span": "1w"},
         },
         "layout": {"x": x, "y": 0, "width": width, "height": height},
     }

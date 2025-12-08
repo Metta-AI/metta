@@ -114,19 +114,13 @@ METRIC_SCHEMA: List[CategoryDefinition] = [
                 "workflow": "Latest state of main",
                 "metrics": [
                     {
-                        "metric": "commits.hotfix",
+                        "metric": "metta.infra.cron.ci.workflow.success",
                         "task": "Latest state of main",
                         "check": "Tests that block merge passing",
                         "condition": "> 0",
                     },
                     {
-                        "metric": "commits.reverts",
-                        "task": "Latest state of main",
-                        "check": "Benchmarks passing",
-                        "condition": "> 0",
-                    },
-                    {
-                        "metric": "metta.infra.ci.workflow.other_failing",
+                        "metric": "metta.infra.cron.ci.workflow.other_failing",
                         "task": "Latest state of main",
                         "check": "Num other workflows whose latest run off main is failing",
                         "condition": "< 2|warn< 4",
@@ -137,19 +131,19 @@ METRIC_SCHEMA: List[CategoryDefinition] = [
                 "workflow": "Commit history",
                 "metrics": [
                     {
-                        "metric": "metta.infra.ci.github.hotfix.count",
+                        "metric": "metta.infra.cron.github.hotfix.count",
                         "task": "Commit history",
                         "check": "Weekly num hotfix commits",
                         "condition": "< 5|warn< 7",
                     },
                     {
-                        "metric": "metta.infra.ci.github.force_merge.count",
+                        "metric": "metta.infra.cron.github.force_merge.count",
                         "task": "Commit history",
                         "check": "Weekly num force merges",
                         "condition": "< 7|warn< 10",
                     },
                     {
-                        "metric": "metta.infra.ci.github.reverts.count",
+                        "metric": "metta.infra.cron.github.reverts.count",
                         "task": "Commit history",
                         "check": "Weekly num reverts",
                         "condition": "< 1|warn< 2",
@@ -160,19 +154,19 @@ METRIC_SCHEMA: List[CategoryDefinition] = [
                 "workflow": "CI smoothness",
                 "metrics": [
                     {
-                        "metric": "metta.infra.ci.workflow.duration.p90",
+                        "metric": "metta.infra.cron.ci.workflow.duration.p90",
                         "task": "CI smoothness",
                         "check": "P90 pre-merge CI checks duration minutes",
                         "condition": "< 5|warn< 8",
                     },
                     {
-                        "metric": "metta.infra.ci.workflow.cancelled",
+                        "metric": "metta.infra.cron.ci.workflow.cancelled",
                         "task": "CI smoothness",
                         "check": "Weekly num jobs canceled due to timeout",
                         "condition": "< 10|warn< 15",
                     },
                     {
-                        "metric": "metta.infra.ci.workflow.flaky_tests",
+                        "metric": "metta.infra.cron.ci.workflow.flaky_tests",
                         "task": "CI smoothness",
                         "check": "Weekly num times a check failed then succeeded",
                         "condition": "< 10|warn< 15",
@@ -188,13 +182,13 @@ METRIC_SCHEMA: List[CategoryDefinition] = [
                 "workflow": "Local runs",
                 "metrics": [
                     {
-                        "metric": "metta.infra.eval.local.success",
+                        "metric": "metta.infra.cron.eval.local.success",
                         "task": "Local runs",
                         "check": "`./tools/run.py …` exits with code 0",
                         "condition": "> 0",
                     },
                     {
-                        "metric": "metta.infra.eval.local.heart_delta_pct",
+                        "metric": "metta.infra.cron.eval.local.heart_delta_pct",
                         "task": "Local runs",
                         "check": "`./tools/run.py …` avg hearts % diff",
                         "condition": "< 10|warn< 15",
@@ -205,19 +199,19 @@ METRIC_SCHEMA: List[CategoryDefinition] = [
                 "workflow": "Runs remotely meets known bar",
                 "metrics": [
                     {
-                        "metric": "metta.infra.eval.remote.success",
+                        "metric": "metta.infra.cron.eval.remote.success",
                         "task": "Runs remotely meets known bar",
                         "check": "`./tools/request_eval.py …` succeeds",
                         "condition": "> 0",
                     },
                     {
-                        "metric": "metta.infra.eval.remote.heart_delta_pct",
+                        "metric": "metta.infra.cron.eval.remote.heart_delta_pct",
                         "task": "Runs remotely meets known bar",
                         "check": "`./tools/request_eval.py …` avg hearts % diff",
                         "condition": "< 10|warn< 15",
                     },
                     {
-                        "metric": "metta.infra.eval.remote.duration_minutes",
+                        "metric": "metta.infra.cron.eval.remote.duration_minutes",
                         "task": "Runs remotely meets known bar",
                         "check": "`./tools/request_eval.py …` duration minutes",
                         "condition": "<= 5|warn<= 7",
