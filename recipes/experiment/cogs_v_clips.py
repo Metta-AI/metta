@@ -8,7 +8,7 @@ recipes should import from here and extend via custom defaults, similar to how
 from __future__ import annotations
 
 import logging
-from typing import Optional, Sequence
+from typing import Literal, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
@@ -27,9 +27,11 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
+from metta.tools.request_remote_eval import RequestRemoteEvalTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -37,11 +39,7 @@ logger = logging.getLogger(__name__)
 
 # Single canonical curriculum list (fixed + procedural)
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    "fixed_30.extractor_hub",
-    "fixed_50.extractor_hub",
-    "fixed_70.extractor_hub",
-    # Fixed-map classics (now listed with their canonical names)
-    "easy_mode",
+    # Core hello_world missions
     "hello_world.easy_hearts",
     "hello_world.oxygen_bottleneck",
     "hello_world.energy_starved",
@@ -278,8 +276,6 @@ def make_curriculum(
     )
 
 
-# How to submit a policy trained here to the CoGames leaderboard:
-#
 # uv run cogames submit \
 #   -p class=mpt,kw.checkpoint_uri=s3://softmax-public/policies/...:v1.mpt \
 #   -n your-policy-name-for-leaderboard \
@@ -302,6 +298,8 @@ def train(
     max_evals: Optional[int] = None,
     bc_policy_uri: Optional[str] = None,
     bc_teacher_lead_prob: float = 1.0,
+    bc_steps: Optional[int] = None,
+    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
     use_lp: bool = True,
     maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
@@ -359,16 +357,78 @@ def train(
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
 
+    # Compute BC window in agent steps (default is 1B when BC is enabled)
+    bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
+    anneal_start = int(bc_total_steps * 0.5)
+
+    scheduler_run_gates: list[LossRunGate] = [
+        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_total_steps),
+        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=bc_total_steps),
+        LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
+        LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=bc_total_steps),
+    ]
+    scheduler_rules: list[HyperUpdateRule] = []
+
     if bc_policy_uri is not None:
-        tt.trainer.losses.supervisor.enabled = True
-        tt.trainer.losses.ppo.enabled = False
-        tt.trainer.losses.ppo_actor.enabled = False
-        tt.trainer.losses.ppo_critic.enabled = True
-        tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
-        tt.trainer.losses.ppo_critic.sample_enabled = False
-        tt.trainer.losses.ppo_critic.train_forward_enabled = False
         tt.training_env.supervisor_policy_uri = bc_policy_uri
-        tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+        losses = tt.trainer.losses
+        losses.ppo.enabled = False
+        losses.ppo_actor.enabled = True
+        losses.ppo_critic.enabled = True
+        losses.ppo_critic.deferred_training_start_step = bc_total_steps
+
+        if bc_mode == "sliced_cloner":
+            losses.sliced_scripted_cloner.enabled = True
+            losses.supervisor.enabled = False
+            loss_instance_name = "sliced_scripted_cloner"
+            bc_rules = [
+                HyperUpdateRule(
+                    loss_instance_name="sliced_scripted_cloner",
+                    attr_path="teacher_led_proportion",
+                    mode="progress",
+                    style="linear",
+                    start_value=0.2,
+                    end_value=0.0,
+                    start_agent_step=0,
+                    end_agent_step=bc_total_steps,
+                )
+            ]
+        else:
+            losses.supervisor.enabled = True
+            losses.sliced_scripted_cloner.enabled = False
+            losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+            loss_instance_name = "supervisor"
+            bc_rules = [
+                HyperUpdateRule(
+                    loss_instance_name="supervisor",
+                    attr_path="action_loss_coef",
+                    mode="progress",
+                    style="linear",
+                    start_value=1.0,
+                    end_value=0.0,
+                    start_agent_step=anneal_start,
+                    end_agent_step=bc_total_steps,
+                ),
+                HyperUpdateRule(
+                    loss_instance_name="supervisor",
+                    attr_path="teacher_lead_prob",
+                    mode="progress",
+                    style="linear",
+                    start_value=bc_teacher_lead_prob,
+                    end_value=0.0,
+                    start_agent_step=anneal_start,
+                    end_agent_step=bc_total_steps,
+                ),
+            ]
+
+        bc_run_gates = [
+            LossRunGate(loss_instance_name=loss_instance_name, phase=phase, end_at_step=bc_total_steps)
+            for phase in ("rollout", "train")
+        ]
+        scheduler_run_gates += bc_run_gates
+        scheduler_rules += bc_rules
+
+    tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
     return tt
 
@@ -452,7 +512,7 @@ def train_single_mission(
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: list[str] | str,
     num_cogs: int = 4,
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
@@ -467,6 +527,28 @@ def evaluate(
             variants=variants,
         ),
         policy_uris=policy_uris,
+    )
+
+
+def evaluate_remote(
+    policy_uri: str | None = None,
+    policy_version_id: str | None = None,
+    num_cogs: int = 4,
+    difficulty: str | None = "standard",
+    subset: Optional[Sequence[str]] = None,
+    variants: Optional[Sequence[str]] = None,
+) -> RequestRemoteEvalTool:
+    """Evaluate policies on CoGs vs Clips missions remotely."""
+    return RequestRemoteEvalTool(
+        simulations=make_eval_suite(
+            num_cogs=num_cogs,
+            difficulty=difficulty,
+            subset=subset,
+            variants=variants,
+        ),
+        policy_uri=policy_uri,
+        policy_version_id=policy_version_id,
+        push_metrics_to_wandb=False,
     )
 
 

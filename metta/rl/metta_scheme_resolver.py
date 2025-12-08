@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import logging
 import uuid
-from pathlib import Path
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.tools.utils.auto_config import auto_stats_server_uri
-from mettagrid.util.uri_resolvers.base import SchemeResolver, _extract_run_and_epoch
+from mettagrid.util.uri_resolvers.base import SchemeResolver
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -31,7 +30,7 @@ def _is_uuid(s: str) -> bool:
         raise ValueError(f"Invalid policy version ID: {s}") from e
 
 
-def _parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
+def _parse_policy_identifier(path: str) -> tuple[str, int | None]:
     """Parse a policy identifier into (name, version).
 
     Supports:
@@ -39,12 +38,13 @@ def _parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
     - policy-name:latest -> (policy-name, None) meaning latest
     - policy-name:vX -> (policy-name, X) meaning specific version
     """
-    if identifier.endswith(":latest"):
-        return identifier[:-7], None
-    info = _extract_run_and_epoch(Path(identifier))
-    if info:
-        return info
-    return identifier, None
+    if path.endswith(":latest"):
+        return path[:-7], None
+    if ":v" in path:
+        run_name, suffix = path.rsplit(":v", 1)
+        if run_name and suffix.isdigit():
+            return (run_name, int(suffix))
+    return path, None
 
 
 class MettaSchemeResolver(SchemeResolver):
@@ -57,20 +57,22 @@ class MettaSchemeResolver(SchemeResolver):
       - metta://policy/<name>:v<N>         (specific version N of named policy)
     """
 
+    def __init__(self, stats_server_uri: str | None = None):
+        self._stats_server_uri = stats_server_uri or auto_stats_server_uri()
+
     @property
     def scheme(self) -> str:
         return "metta"
 
     def _get_stats_client(self) -> StatsClient:
-        stats_server_uri = auto_stats_server_uri()
-        if not stats_server_uri:
+        if not self._stats_server_uri:
             raise ValueError("Cannot resolve metta:// URI: stats server not configured")
-        return StatsClient.create(stats_server_uri)
+        return StatsClient.create(self._stats_server_uri)
 
     def _resolve_policy_version_by_name(
         self, stats_client: StatsClient, name: str, version: int | None
     ) -> PolicyVersionWithName:
-        response = stats_client.get_policies(name_exact=name, version=version, limit=1)
+        response = stats_client.get_policy_versions(name_exact=name, version=version, limit=1)
         if not response.entries:
             version_str = f":v{version}" if version is not None else ""
             raise ValueError(f"No policy found with name '{name}{version_str}'")

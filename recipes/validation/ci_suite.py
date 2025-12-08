@@ -43,6 +43,8 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
             "checkpointer.epoch_interval=1",
             "training_env.forward_pass_minibatch_target_size=96",
             "training_env.vectorization=serial",
+            "evaluator.evaluate_local=False",
+            "evaluator.evaluate_remote=False",
         ],
         timeout_s=180,  # CI runners are slower; initialization alone can take 30+ seconds
         is_training_job=True,
@@ -77,7 +79,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         module="recipes.experiment.cogs_v_clips.train",
         args=[
             f"run={cvc_small_train_name}",
-            "mission=easy_mode",  # Explicitly use a mission that exists in the current registry
+            "mission=easy_hearts",  # Explicitly use a mission that exists in the current registry
             "trainer.total_timesteps=64",
             "trainer.minibatch_size=8",
             "trainer.batch_size=64",

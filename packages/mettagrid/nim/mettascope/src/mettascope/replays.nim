@@ -190,6 +190,14 @@ let EmptyReplay* = Replay(
   fileName: "",
 )
 
+proc getInt*(obj: JsonNode, key: string, default: int = 0): int =
+  ## Get an integer field from JsonNode with a default value if key is missing.
+  if key in obj: obj[key].getInt else: default
+
+proc getString*(obj: JsonNode, key: string, default: string = ""): string =
+  ## Get a string field from JsonNode with a default value if key is missing.
+  if key in obj: obj[key].getStr else: default
+
 proc parseHook*(s: string, i: var int, v: var IVec2) =
   var arr: array[2, int32]
   parseHook(s, i, arr)
@@ -230,6 +238,10 @@ proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
   else:
     # A single value is a valid sequence.
     return @[data.to(T)]
+
+proc getExpandedIntSeq*(obj: JsonNode, key: string, maxSteps: int, default: seq[int] = @[0]): seq[int] =
+  ## Get an expanded integer sequence field from JsonNode with a default if key is missing.
+  if key in obj: expand[int](obj[key], maxSteps, 0) else: default
 
 let drawnAgentActionNames =
   ["attack", "attack_nearest", "put_items", "get_items", "swap"]
@@ -632,43 +644,42 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     replay.config = fromJson($(jsonObj["mg_config"]), Config)
 
   for obj in jsonObj["objects"]:
-    let inventoryRaw = expand[seq[seq[int]]](obj["inventory"], replay.maxSteps, @[])
+
     var inventory: seq[seq[ItemAmount]]
-    for i in 0 ..< inventoryRaw.len:
-      var itemAmounts: seq[ItemAmount]
-      for j in 0 ..< inventoryRaw[i].len:
-        itemAmounts.add(ItemAmount(itemId: inventoryRaw[i][j][0],
-            count: inventoryRaw[i][j][1]))
-      inventory.add(itemAmounts)
+    if "inventory" in obj:
+      let inventoryRaw = expand[seq[seq[int]]](obj["inventory"], replay.maxSteps, @[])
+      for i in 0 ..< inventoryRaw.len:
+        var itemAmounts: seq[ItemAmount]
+        for j in 0 ..< inventoryRaw[i].len:
+          itemAmounts.add(ItemAmount(itemId: inventoryRaw[i][j][0],
+              count: inventoryRaw[i][j][1]))
+        inventory.add(itemAmounts)
 
-    let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0])
     var location: seq[IVec2]
-    for i in 0 ..< locationRaw.len:
-      location.add(ivec2(
-        locationRaw[i][0].int32,
-        locationRaw[i][1].int32
-      ))
+    if "location" in obj:
+      let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0])
+      for coords in locationRaw:
+        location.add(ivec2(coords[0].int32, coords[1].int32))
+    else:
+      location = @[ivec2(0, 0)]
 
-    var resolvedTypeName = ""
+    var resolvedTypeName = "unknown"
     if "type_name" in obj:
       resolvedTypeName = obj["type_name"].getStr
 
-    if resolvedTypeName.len == 0 and "type_id" in obj:
+    if resolvedTypeName == "unknown" and "type_id" in obj:
       let candidateId = obj["type_id"].getInt
       if candidateId >= 0 and candidateId < replay.typeNames.len:
         resolvedTypeName = replay.typeNames[candidateId]
 
-    doAssert resolvedTypeName.len > 0,
-      "Unknown object type for replay entity"
-
     let entity = Entity(
-      id: obj["id"].getInt,
+      id: obj.getInt("id", 0),
       typeName: resolvedTypeName,
       location: location,
-      orientation: expand[int](obj["orientation"], replay.maxSteps, 0),
+      orientation: obj.getExpandedIntSeq("orientation", replay.maxSteps),
       inventory: inventory,
-      inventoryMax: obj["inventory_max"].getInt,
-      color: expand[int](obj["color"], replay.maxSteps, 0),
+      inventoryMax: obj.getInt("inventory_max", 0),
+      color: obj.getExpandedIntSeq("color", replay.maxSteps),
     )
     if "group_id" in obj:
       entity.groupId = obj["group_id"].getInt

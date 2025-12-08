@@ -483,6 +483,7 @@ export const Leaderboard: FC = () => {
     const load = async () => {
       setPublicLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
       try {
+        // Use the new endpoint that returns entries with VOR already computed
         const response = await repo.getPublicLeaderboard()
         if (!ignore) {
           setPublicLeaderboard({ entries: response.entries, loading: false, error: null })
@@ -648,7 +649,7 @@ export const Leaderboard: FC = () => {
           <tr>
             <th>Policy</th>
             <th>Policy Created</th>
-            <th>Avg Score</th>
+            <th>Avg score</th>
           </tr>
         </thead>
         <tbody>
@@ -687,7 +688,7 @@ export const Leaderboard: FC = () => {
                     <div className="policy-meta">{formatDate(createdAt)}</div>
                   </td>
                   <td>
-                    <div className="policy-title">{formatScore(entry.avg_score)}</div>
+                    <div className="policy-title">{formatScore(entry.avg_score ?? null)}</div>
                   </td>
                 </tr>
                 {isExpanded && (
