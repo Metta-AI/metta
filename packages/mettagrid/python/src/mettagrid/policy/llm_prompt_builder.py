@@ -75,6 +75,7 @@ class LLMPromptBuilder:
         context_window_size: int = 20,
         mg_cfg: MettaGridConfig | None = None,
         debug_mode: bool = False,
+        agent_id: int = 0,
     ):
         """Initialize prompt builder.
 
@@ -83,6 +84,7 @@ class LLMPromptBuilder:
             context_window_size: Number of steps before resending basic info (default: 20)
             mg_cfg: Optional MettaGridConfig to extract chest vibe transfers and other game-specific info
             debug_mode: If True, print debug information (default: False)
+            agent_id: Agent ID for role assignment (default: 0)
         """
         self._policy_env_info = policy_env_info
         # Ensure context_window_size is an int (may come as string from config)
@@ -90,6 +92,7 @@ class LLMPromptBuilder:
         self._step_counter = 0
         self._last_visible: VisibleElements | None = None
         self._debug_mode = debug_mode
+        self._agent_id = agent_id
 
         # Store mg_cfg for id_map access
         self._mg_cfg = mg_cfg
@@ -111,6 +114,25 @@ class LLMPromptBuilder:
 
         # Pre-build static content (game rules, coordinate system)
         self._basic_info_cache = self._build_basic_info()
+
+        # Debug: print the recipes being used
+        if self._debug_mode:
+            recipes = self._build_all_recipes()
+            print(f"[LLMPromptBuilder] Recipes:\n{recipes}")
+
+    def _get_role_assignment(self) -> str:
+        """Get role assignment based on agent ID.
+
+        Returns:
+            Role description string for this agent
+        """
+        # Generic role for all agents - gather ALL resources needed for hearts
+        return (
+            "ROLE: Resource gatherer\n"
+            "- Find and use ALL extractors to collect resources\n"
+            "- Check RECIPE above for exact amounts needed\n"
+            "- Craft at ASSEMBLER when you have all resources"
+        )
 
     def _build_basic_info(self) -> str:
         """Build minimal game information prompt.
@@ -153,6 +175,29 @@ class LLMPromptBuilder:
 
         # Fallback to default recipe
         return "1 HEART = 10 carbon + 10 oxygen + 2 germanium + 30 silicon"
+
+    def _build_recipe_summary(self) -> str:
+        """Build a short recipe summary for dynamic prompts.
+
+        Returns:
+            Condensed recipe string like "HEART needs: 1 carbon, 1 oxygen, 1 germanium, 1 silicon, 1 energy"
+        """
+        if not self._policy_env_info.assembler_protocols:
+            return "HEART needs: 10 carbon, 10 oxygen, 2 germanium, 30 silicon"
+
+        # Find the first heart protocol (1 heart output)
+        for protocol in self._policy_env_info.assembler_protocols:
+            if protocol.output_resources.get("heart", 0) == 1:
+                parts = []
+                for resource in ["carbon", "oxygen", "germanium", "silicon", "energy"]:
+                    amount = protocol.input_resources.get(resource, 0)
+                    if amount > 0:
+                        parts.append(f"{amount} {resource}")
+                if parts:
+                    return "HEART needs: " + ", ".join(parts)
+
+        # Fallback
+        return "HEART needs: 10 carbon, 10 oxygen, 2 germanium, 30 silicon"
 
     def _build_all_recipes(self) -> str:
         """Build all assembler recipes/protocols.
@@ -315,68 +360,6 @@ class LLMPromptBuilder:
 
         return grid
 
-    def _build_spatial_grid_section(
-        self, spatial_grid: dict[tuple[int, int], str], agent_x: int, agent_y: int
-    ) -> str:
-        """Build ASCII visualization of spatial grid for LLM.
-
-        Args:
-            spatial_grid: Dictionary mapping (row, col) to tag name
-            agent_x: Agent's row coordinate
-            agent_y: Agent's col coordinate
-
-        Returns:
-            ASCII grid section
-        """
-        obs_width = self._policy_env_info.obs_width
-        obs_height = self._policy_env_info.obs_height
-
-        lines = ["=== MAP (11x11 view, you are @) ==="]
-
-        # Column headers (x-axis = columns)
-        header = "  "
-        for col in range(obs_width):
-            header += f"{col % 10}"
-        lines.append(header)
-
-        # Grid rows (y-axis = rows)
-        # SWAPPED: spatial_grid keys are (x, y) where x=row(), y=col()
-        for row in range(obs_height):
-            row_str = f"{row % 10} "
-            for col in range(obs_width):
-                # SWAPPED: x=row (horizontal), y=col (vertical)
-                # So grid position (col, row) in display = (x=col, y=row) but we store as (row, col)
-                if row == agent_x and col == agent_y:
-                    row_str += "@"  # Agent position
-                elif (row, col) in spatial_grid:
-                    tag = spatial_grid[(row, col)]
-                    # Use distinctive letter for each type
-                    if tag == "wall":
-                        row_str += "W"
-                    elif tag == "agent":
-                        row_str += "P"  # Player (other agent)
-                    elif tag == "charger":
-                        row_str += "+"  # Charger (energy)
-                    elif tag == "chest":
-                        row_str += "H"  # Chest (heart storage)
-                    elif tag == "assembler":
-                        row_str += "A"  # Assembler
-                    elif "extractor" in tag:
-                        # Use first letter of resource for extractor
-                        row_str += tag[0].upper()  # C, O, G, S for carbon, oxygen, etc.
-                    else:
-                        row_str += tag[0].upper()
-                else:
-                    row_str += "."  # Empty
-            lines.append(row_str)
-
-        # Legend
-        lines.append("")
-        lines.append("Legend: @ = You, . = Empty (can walk), W = Wall")
-        lines.append("  + = Charger, A = Assembler, C/O/G/S = Extractors, H = Chest, P = Other agent")
-
-        return "\n".join(lines)
-
     def full_prompt(self, obs: AgentObservation) -> str:
         """Build full prompt (basic_info + observable).
 
@@ -397,6 +380,8 @@ class LLMPromptBuilder:
             template
             .replace("{{BASIC_INFO}}", self.basic_info_prompt())
             .replace("{{OBSERVABLE}}", self.observable_prompt(obs, include_actions=True))
+            .replace("{{AGENT_ID}}", str(self._agent_id))
+            .replace("{{ROLE_ASSIGNMENT}}", self._get_role_assignment())
         )
 
     def context_prompt(
@@ -444,6 +429,9 @@ class LLMPromptBuilder:
                 template
                 .replace("{{OBSERVABLE}}", self.observable_prompt(obs))
                 .replace("{{ACTIONS}}", ", ".join(action_list[:8]) + ", ...")
+                .replace("{{AGENT_ID}}", str(self._agent_id))
+                .replace("{{ROLE_ASSIGNMENT}}", self._get_role_assignment())
+                .replace("{{RECIPE_SUMMARY}}", self._build_recipe_summary())
             )
             includes_basic = False
 
