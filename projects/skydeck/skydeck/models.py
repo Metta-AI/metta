@@ -60,8 +60,6 @@ class Job(BaseModel):
     gpus: int = Field(0, description="Number of GPUs per node")
     instance_type: Optional[str] = Field(None, description="Instance type")
     cloud: Optional[str] = Field(None, description="Cloud provider")
-    region: Optional[str] = Field(None, description="Cloud region")
-    zone: Optional[str] = Field(None, description="Cloud zone")
 
     def is_terminal(self) -> bool:
         """Check if job is in a terminal state."""
@@ -95,7 +93,6 @@ class Experiment(BaseModel):
     git_branch: Optional[str] = Field(None, description="Git branch name")
 
     # Job management
-    current_job_id: Optional[str] = Field(None, description="Currently active job ID")
     cluster_name: Optional[str] = Field(None, description="SkyPilot cluster name")
     latest_epoch: Optional[int] = Field(None, description="Latest checkpoint epoch")
 
@@ -104,8 +101,6 @@ class Experiment(BaseModel):
     gpus: int = Field(0, description="Number of GPUs per node")
     instance_type: Optional[str] = Field(None, description="Instance type")
     cloud: Optional[str] = Field(None, description="Cloud provider (aws, gcp, azure)")
-    region: Optional[str] = Field(None, description="Cloud region")
-    zone: Optional[str] = Field(None, description="Cloud zone")
     spot: bool = Field(False, description="Use spot instances")
 
     # Metadata
@@ -122,6 +117,7 @@ class Experiment(BaseModel):
     # UI State
     is_expanded: bool = Field(False, description="Whether row is expanded in UI")
     starred: bool = Field(False, description="Whether experiment is starred by user")
+    deleted: bool = Field(False, description="Whether experiment is soft-deleted")
 
     def build_command(self) -> str:
         """Construct full command from base_command, gpus, nodes, tool_path, and flags.
@@ -182,8 +178,6 @@ class Cluster(BaseModel):
     num_nodes: int = Field(0, description="Number of nodes")
     instance_type: Optional[str] = Field(None, description="Instance type")
     cloud: Optional[str] = Field(None, description="Cloud provider")
-    region: Optional[str] = Field(None, description="Region")
-    zone: Optional[str] = Field(None, description="Zone")
     created_at: Optional[datetime] = Field(None, description="Creation time")
     last_seen: datetime = Field(default_factory=datetime.utcnow, description="Last time cluster was seen")
 
@@ -204,8 +198,6 @@ class CreateExperimentRequest(BaseModel):
     gpus: int = 0
     instance_type: Optional[str] = None
     cloud: Optional[str] = None
-    region: Optional[str] = None
-    zone: Optional[str] = None
     spot: bool = False
     desired_state: DesiredState = DesiredState.STOPPED
     description: Optional[str] = None
@@ -258,6 +250,7 @@ class Checkpoint(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow, description="When checkpoint was created")
     synced_at: datetime = Field(default_factory=datetime.utcnow, description="When checkpoint was last synced")
     observatory_url: Optional[str] = Field(None, description="Observatory URL for this checkpoint")
+    policy_version: Optional[str] = Field(None, description="Policy version from Observatory")
 
 
 class BackendStaleness(BaseModel):

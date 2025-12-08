@@ -75,8 +75,10 @@ class StateManager:
 
                 # Update experiment current state
                 experiment = await self.db.get_experiment(job.experiment_id)
-                if experiment and experiment.current_job_id == job.id:
-                    await self.db.update_experiment_state(experiment.id, current_state=status, current_job_id=job.id)
+                if experiment:
+                    # Update if job is active
+                    if status in {JobStatus.RUNNING, JobStatus.PENDING, JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED}:
+                        await self.db.update_experiment_state(experiment.id, current_state=status)
 
     async def get_cluster_status(self, cluster_name: str) -> Optional[Cluster]:
         """Get current status of a cluster.
@@ -124,9 +126,9 @@ class StateManager:
 
                 # Update experiment state
                 experiment = await self.db.get_experiment(active_job.experiment_id)
-                if experiment and experiment.current_job_id == active_job.id:
+                if experiment:
                     await self.db.update_experiment_state(
-                        experiment.id, current_state=JobStatus.FAILED, current_job_id=active_job.id
+                        experiment.id, current_state=JobStatus.FAILED
                     )
                     logger.info(f"Updated experiment {experiment.id} current_state to FAILED")
 
@@ -154,11 +156,12 @@ class StateManager:
                     ended_at=existing_job.ended_at,
                 )
 
-                # Update experiment current state if this is the current job
+                # Update experiment current state
                 experiment = await self.db.get_experiment(existing_job.experiment_id)
-                if experiment and experiment.current_job_id == job_id:
-                    await self.db.update_experiment_state(experiment.id, current_state=status, current_job_id=job_id)
-                    logger.debug(f"Updated experiment {experiment.id} current_state to {status}")
+                if experiment:
+                    if status in {JobStatus.RUNNING, JobStatus.PENDING, JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED}:
+                        await self.db.update_experiment_state(experiment.id, current_state=status)
+                        logger.debug(f"Updated experiment {experiment.id} current_state to {status}")
             else:
                 # Create new job record
                 # For managed jobs, we don't have an experiment_id from our system
@@ -239,8 +242,6 @@ class StateManager:
             num_nodes=sky_cluster.get("num_nodes", 1),
             instance_type=sky_cluster.get("instance_type"),
             cloud=sky_cluster.get("cloud"),
-            region=sky_cluster.get("region"),
-            zone=sky_cluster.get("zone"),
             created_at=self._parse_timestamp(sky_cluster.get("launched_at")),
             last_seen=datetime.utcnow(),
         )

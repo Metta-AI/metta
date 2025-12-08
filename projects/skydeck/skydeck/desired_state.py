@@ -43,17 +43,19 @@ class DesiredStateManager:
             name=request.name,
             flags=request.flags,
             base_command=request.base_command,
+            tool_path=request.tool_path,
+            git_branch=request.git_branch,
             nodes=request.nodes,
             gpus=request.gpus,
             instance_type=request.instance_type,
             cloud=request.cloud,
-            region=request.region,
-            zone=request.zone,
             spot=request.spot,
             desired_state=request.desired_state,
             current_state=JobStatus.INIT,
             description=request.description,
             tags=request.tags,
+            group=request.group,
+            order=request.order,
         )
 
         await self.db.save_experiment(experiment)

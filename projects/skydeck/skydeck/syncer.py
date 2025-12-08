@@ -8,6 +8,7 @@ from typing import Optional
 
 from .database import Database
 from .models import Checkpoint
+from .services import ObservatoryService, S3Service
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,17 @@ class Syncer:
         self.running = False
         self.task: Optional[asyncio.Task] = None
         self.last_sync: Optional[datetime] = None
+
+    def _fetch_policy_version(self, experiment_id: str) -> Optional[str]:
+        """Fetch policy version from Observatory API.
+
+        Args:
+            experiment_id: Experiment ID to search for
+
+        Returns:
+            Policy version string if found, None otherwise
+        """
+        return ObservatoryService.fetch_policy_version(experiment_id)
 
     async def start(self):
         """Start the background syncing task."""
@@ -113,7 +125,7 @@ class Syncer:
             logger.debug(f"Experiment {experiment_id} not found, skipping sync")
             return
 
-        s3_path = f"s3://softmax-public/policies/{experiment_id}/"
+        s3_path = S3Service.get_policies_path(experiment_id)
 
         try:
             # Run aws s3 ls to list checkpoints
@@ -210,6 +222,10 @@ class Syncer:
             # Build full S3 path
             model_path = f"{s3_path}{filename}"
 
+            # Build Observatory URL and fetch policy version
+            observatory_url = ObservatoryService.get_policy_api_url(experiment_id, limit=500)
+            policy_version = self._fetch_policy_version(experiment_id)
+
             checkpoint = Checkpoint(
                 experiment_id=experiment_id,
                 epoch=epoch,
@@ -218,6 +234,8 @@ class Syncer:
                 metrics={},
                 created_at=created_at,
                 synced_at=datetime.utcnow(),
+                observatory_url=observatory_url,
+                policy_version=policy_version,
             )
             checkpoints.append(checkpoint)
 

@@ -146,11 +146,10 @@ class Reconciler:
             return
 
         # Check if there's an active job
-        if experiment.current_job_id:
-            job = await self.db.get_job(experiment.current_job_id)
-            if job and job.is_active():
-                logger.debug(f"Experiment {experiment.id} has active job {job.id}")
-                return
+        job = await self.db.get_current_job_for_experiment(experiment.id)
+        if job and job.is_active():
+            logger.debug(f"Experiment {experiment.id} has active job {job.id}")
+            return
 
         # Need to launch new job
         await self._launch_job(experiment)
@@ -162,10 +161,9 @@ class Reconciler:
             experiment: Experiment to reconcile
         """
         # If there's a running job, cancel it
-        if experiment.current_job_id:
-            job = await self.db.get_job(experiment.current_job_id)
-            if job and job.is_active():
-                await self._cancel_job(job)
+        job = await self.db.get_current_job_for_experiment(experiment.id)
+        if job and job.is_active():
+            await self._cancel_job(job)
 
         # If cluster is running, stop it
         if experiment.cluster_name:
@@ -180,17 +178,16 @@ class Reconciler:
             experiment: Experiment to reconcile
         """
         # Cancel any running job
-        if experiment.current_job_id:
-            job = await self.db.get_job(experiment.current_job_id)
-            if job and job.is_active():
-                await self._cancel_job(job)
+        job = await self.db.get_current_job_for_experiment(experiment.id)
+        if job and job.is_active():
+            await self._cancel_job(job)
 
         # Terminate cluster
         if experiment.cluster_name:
             await self._terminate_cluster(experiment.cluster_name)
 
         # Update experiment state
-        await self.db.update_experiment_state(experiment.id, current_state=JobStatus.INIT, current_job_id=None)
+        await self.db.update_experiment_state(experiment.id, current_state=JobStatus.INIT)
 
     async def _launch_job(self, experiment: Experiment):
         """Launch a new job for an experiment.
@@ -230,8 +227,6 @@ class Reconciler:
                 gpus=experiment.gpus,
                 instance_type=experiment.instance_type,
                 cloud=experiment.cloud,
-                region=experiment.region,
-                zone=experiment.zone,
                 submitted_at=datetime.utcnow(),
             )
 
@@ -244,7 +239,7 @@ class Reconciler:
                 # Retry with next job number
                 job.id = f"{experiment.id}-{job_number + 1}"
                 await self.db.save_job(job, allow_update=False)
-            await self.db.update_experiment_state(experiment.id, current_state=JobStatus.PENDING, current_job_id=job.id)
+            await self.db.update_experiment_state(experiment.id, current_state=JobStatus.PENDING)
 
             logger.info(f"Created job {job.id} for experiment {experiment.id}")
 
@@ -256,8 +251,6 @@ class Reconciler:
                 gpus=experiment.gpus,
                 instance_type=experiment.instance_type,
                 cloud=experiment.cloud,
-                region=experiment.region,
-                zone=experiment.zone,
                 spot=experiment.spot,
             )
 
@@ -294,7 +287,7 @@ class Reconciler:
 
             # Update experiment state
             await self.db.update_experiment_state(
-                job.experiment_id, current_state=JobStatus.CANCELLED, current_job_id=None
+                job.experiment_id, current_state=JobStatus.CANCELLED
             )
 
         except Exception as e:
@@ -334,8 +327,6 @@ class Reconciler:
         gpus: int = 0,
         instance_type: Optional[str] = None,
         cloud: Optional[str] = None,
-        region: Optional[str] = None,
-        zone: Optional[str] = None,
         spot: bool = False,
     ) -> Optional[int]:
         """Launch job on SkyPilot.
@@ -347,8 +338,6 @@ class Reconciler:
             gpus: GPUs per node
             instance_type: Instance type
             cloud: Cloud provider
-            region: Region
-            zone: Zone
             spot: Use spot instances
 
         Returns:
@@ -369,10 +358,6 @@ class Reconciler:
                 resources = resources.instance_type(instance_type)
             if gpus:
                 resources = resources.accelerators(f"V100:{gpus}")  # Adjust as needed
-            if region:
-                resources = resources.region(region)
-            if zone:
-                resources = resources.zone(zone)
             if spot:
                 resources = resources.use_spot(True)
 
