@@ -531,7 +531,8 @@ def evaluate(
 
 
 def evaluate_remote(
-    policy_uri: str,
+    policy_uri: str | None = None,
+    policy_version_id: str | None = None,
     num_cogs: int = 4,
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
@@ -546,6 +547,7 @@ def evaluate_remote(
             variants=variants,
         ),
         policy_uri=policy_uri,
+        policy_version_id=policy_version_id,
         push_metrics_to_wandb=False,
     )
 
