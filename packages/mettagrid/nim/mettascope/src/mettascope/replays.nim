@@ -1,4 +1,4 @@
-import std/[json, tables],
+import std/[json, tables, strutils],
   boxy, fidget2/[hybridrender],
   zippy, vmath, jsony,
   ./validation
@@ -246,6 +246,45 @@ proc getExpandedIntSeq*(obj: JsonNode, key: string, maxSteps: int, default: seq[
 let drawnAgentActionNames =
   ["attack", "attack_nearest", "put_items", "get_items", "swap"]
 
+proc inferAgentTypeId(typeNames: JsonNode): int =
+  ## Return the index of the agent type, or -1 if not present.
+  result = -1
+  if typeNames.kind != JArray:
+    return
+  for i, name in typeNames.getElems():
+    if name.kind == JString and name.getStr.toLowerAscii == "agent":
+      result = i
+      break
+
+proc ensureAgentMetadata(data: JsonNode) =
+  ## Legacy replays sometimes omit explicit agent flags/ids.
+  ## Populate missing `agent_id`/`is_agent` when we can infer the agent type.
+  if "objects" notin data or data["objects"].kind != JArray:
+    return
+
+  let agentTypeId = if "type_names" in data: inferAgentTypeId(data["type_names"]) else: -1
+
+  var nextAgentId = 0
+  for obj in data["objects"].getElems():
+    if obj.kind == JObject and "agent_id" in obj and obj["agent_id"].kind == JInt:
+      nextAgentId = max(nextAgentId, obj["agent_id"].getInt + 1)
+
+  for obj in data["objects"].getElems():
+    if obj.kind != JObject:
+      continue
+
+    let typeId = if "type_id" in obj and obj["type_id"].kind == JInt: obj["type_id"].getInt else: -1
+    let typeName = if "type_name" in obj: obj["type_name"].getStr else: ""
+    let flaggedAgent = ("is_agent" in obj and obj["is_agent"].kind == JBool and obj["is_agent"].getBool) or ("agent_id" in obj)
+    let inferredAgent = (agentTypeId >= 0 and typeId == agentTypeId) or (typeName.len > 0 and typeName.toLowerAscii == "agent")
+
+    if flaggedAgent or inferredAgent:
+      if "is_agent" notin obj:
+        obj["is_agent"] = newJBool(true)
+      if "agent_id" notin obj:
+        obj["agent_id"] = newJInt(nextAgentId)
+        inc nextAgentId
+
 proc expandSequenceV2(sequence: JsonNode, numSteps: int): JsonNode =
   ## Expand an array of [step, value] pairs into an array of values per step.
   if sequence.kind != JArray:
@@ -446,6 +485,7 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
     objects.add(obj)
 
   data["objects"] = objects
+  ensureAgentMetadata(data)
   var mapSize = newJArray()
   mapSize.add(newJInt(maxX + 1))
   mapSize.add(newJInt(maxY + 1))
@@ -601,6 +641,7 @@ proc convertReplayV2ToV3*(replayData: JsonNode): JsonNode =
 
       convertInventoryField(obj, "output_resources")
 
+  ensureAgentMetadata(data)
   return data
 
 proc loadReplayString*(jsonData: string, fileName: string): Replay =
