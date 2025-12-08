@@ -175,11 +175,11 @@ class Database:
         await self._conn.execute(
             """
             INSERT OR REPLACE INTO experiments (
-                id, name, desired_state, current_state, flags, base_command, tool_path, run_name, git_branch,
+                id, name, desired_state, current_state, flags, base_command, tool_path, git_branch,
                 current_job_id, cluster_name, nodes, gpus, instance_type, cloud,
                 region, zone, spot, created_at, updated_at, wandb_link, description, tags,
                 exp_group, exp_order, is_expanded
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 experiment.id,
@@ -189,7 +189,6 @@ class Database:
                 json.dumps(experiment.flags),
                 experiment.base_command,
                 experiment.tool_path,
-                experiment.run_name,
                 experiment.git_branch,
                 experiment.current_job_id,
                 experiment.cluster_name,
