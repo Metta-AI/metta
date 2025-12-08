@@ -122,13 +122,6 @@ class ActionSupervised(Loss):
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
 
-        # Keep all policy parameters participating in backward for DDP.
-        for key in policy_td.keys():
-            if key not in ["full_log_probs", "act_log_prob"] and isinstance(policy_td[key], Tensor):
-                value = policy_td[key]
-                if value.requires_grad:
-                    loss = loss + 0.0 * value.sum()
-
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
 
         # --------------------------Add action loss to rewards as per Matt's doc----------------------------------

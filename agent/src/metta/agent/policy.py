@@ -233,14 +233,14 @@ class Policy(MultiAgentPolicy, nn.Module):
 class DistributedPolicy(MultiAgentPolicy, DistributedDataParallel, metaclass=PolicyRegistryABCMeta):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
 
-    def __init__(self, policy: MultiAgentPolicy, device: torch.device):
+    def __init__(self, policy: MultiAgentPolicy, device: torch.device, *, find_unused_parameters: bool = True):
         MultiAgentPolicy.__init__(self, policy.policy_env_info)
 
         # Then initialize DistributedDataParallel
         kwargs = {
             "module": policy,
             "broadcast_buffers": False,
-            "find_unused_parameters": False,
+            "find_unused_parameters": find_unused_parameters,
         }
         if device.type != "cpu" and device.index is not None:
             kwargs.update({"device_ids": [device.index], "output_device": device.index})

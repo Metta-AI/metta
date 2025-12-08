@@ -149,12 +149,17 @@ class DistributedHelper:
             else getattr(trainer_cfg, "forward_pass_minibatch_target_size", "n/a"),
         )
 
-    def wrap_policy(self, policy: MultiAgentPolicy, device: torch.device) -> MultiAgentPolicy:
+    def wrap_policy(
+        self, policy: MultiAgentPolicy, device: torch.device, *, find_unused_parameters: bool = True
+    ) -> MultiAgentPolicy:
         """Wrap policy for distributed training if needed.
 
         Args:
             policy: Policy to wrap
             device: Device to use (defaults to self.config.device)
+            find_unused_parameters: DDP setting for handling unused parameters in backward pass.
+                Set True if your losses don't use all policy outputs (e.g., ppo_actor without ppo_critic).
+                Set False for ~8% perf gain if all outputs are used.
 
         Returns:
             Wrapped policy if distributed, original otherwise
@@ -165,8 +170,8 @@ class DistributedHelper:
         if device is None:
             device = torch.device(self.config.device)
 
-        distributed_policy = DistributedPolicy(policy, device)
-        logger.info(f"Wrapped policy with DDP on rank {self.get_rank()}")
+        distributed_policy = DistributedPolicy(policy, device, find_unused_parameters=find_unused_parameters)
+        logger.info(f"Wrapped policy with DDP on rank {self.get_rank()} (find_unused_parameters={find_unused_parameters})")
         return distributed_policy
 
     def synchronize(self) -> None:

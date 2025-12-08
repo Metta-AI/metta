@@ -62,6 +62,11 @@ class TrainerConfig(Config):
     update_epochs: int = Field(default=1, gt=0)
     scale_batches_by_world_size: bool = False
 
+    # DDP setting: when True, automatically handles losses that don't use all model outputs.
+    # Set to False for a small perf gain (~8%) if your loss setup uses all policy outputs.
+    # Required True for: ppo_actor (without ppo_critic), sliced_scripted_cloner, action_supervised
+    ddp_find_unused_parameters: bool = True
+
     compile: bool = False
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
     detect_anomaly: bool = Field(default=False)

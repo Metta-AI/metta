@@ -68,7 +68,9 @@ class Trainer:
         self._policy.initialize_to_environment(self._env.policy_env_info, self._device)
         self._policy.train()
 
-        self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
+        self._policy = self._distributed_helper.wrap_policy(
+            self._policy, self._device, find_unused_parameters=self._cfg.ddp_find_unused_parameters
+        )
         self._policy.to(self._device)
         losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
         self._policy.train()
