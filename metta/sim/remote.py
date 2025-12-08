@@ -16,7 +16,7 @@ class SimulationList(BaseModel):
 def evaluate_remotely(
     simulations: Sequence[SimulationRunConfig],
     stats_client: StatsClient,
-    policy_version_id: uuid.UUID | None = None,
+    policy_version_id: uuid.UUID | str | None = None,
     policy_uri: str | None = None,
     git_hash: str | None = None,
     push_metrics_to_wandb: bool = True,
