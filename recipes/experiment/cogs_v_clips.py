@@ -546,6 +546,7 @@ def evaluate_remote(
             variants=variants,
         ),
         policy_uri=policy_uri,
+        push_metrics_to_wandb=False,
     )
 
 

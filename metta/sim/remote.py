@@ -19,7 +19,7 @@ def evaluate_remotely(
     policy_version_id: uuid.UUID | None = None,
     policy_uri: str | None = None,
     git_hash: str | None = None,
-    push_metrics_to_wandb: bool = False,
+    push_metrics_to_wandb: bool = True,
 ) -> EvalTaskRow:
     if not bool(policy_version_id) ^ bool(policy_uri):
         raise ValueError("Exactly one of policy_version_id or policy_uri must be provided")
