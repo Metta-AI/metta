@@ -217,12 +217,12 @@ def make_sweep(
     recipe: str,
     train_entrypoint: str,
     eval_entrypoint: str,
-    objective: str,
+    metric_key: str,
     parameters: Union[Dict[str, ParameterSpec], List[Dict[str, ParameterSpec]]],
+    cost_key: Optional[str] = None,
     max_trials: int = 10,
     num_parallel_trials: int = 1,
     eval_overrides: Optional[Dict] = None,
-    cost_key: Optional[str] = None,
     goal: Literal["maximize", "minimize"] = "maximize",
     max_concurrent_evals: Optional[int] = None,
     liar_strategy: Literal["best", "mean", "worst"] = "best",
@@ -235,18 +235,19 @@ def make_sweep(
             recipe: Recipe module path
             train_entrypoint: Training entrypoint function
             eval_entrypoint: Evaluation entrypoint function
-            num_trials: Number of trials
-            num_parallel_trials: Max parallel jobs
-            eval_overrides: Optional overrides for evaluation configuration
+            metric_key: Metric to optimize
             cost_key: Optional metric path to extract cost from run summary.
                 If provided, the cost will be read from summary[cost_key].
                 If not provided, defaults to run.cost (which is 0 if not set).
-            goal: Whether to maximize or minimize the objective metric.
+            num_trials: Number of trials
+            num_parallel_trials: Max parallel jobs
+            eval_overrides: Optional overrides for evaluation configuration
+            goal: Whether to maximize or minimize the metric.
             max_concurrent_evals: Maximum simultaneous evals (defaults to min(2, num_parallel_trials)).
             liar_strategy: Liar strategy for async capped scheduler.
 
         Protein config args:
-            objective: Metric to optimize
+            metric_key: Metric to optimize
             parameters: Parameters to sweep - either dict or list of single-item dicts
 
     Returns:
@@ -280,7 +281,7 @@ def make_sweep(
 
     return SweepTool(
         sweep_name=name,
-        protein_metric=objective,
+        protein_metric=metric_key,
         protein_goal=protein_goal,
         protein_settings=protein_settings,
         search_space=parameters,
@@ -301,7 +302,7 @@ def grid_search(
     recipe: str,
     train_entrypoint: str,
     eval_entrypoint: str,
-    objective: str,
+    metric_key: str,
     parameters: Union[Dict[str, Any], List[Dict[str, Any]]],
     max_trials: int = 10,
     num_parallel_trials: int = 1,
@@ -322,13 +323,13 @@ def grid_search(
             recipe: Recipe module path
             train_entrypoint: Training entrypoint function
             eval_entrypoint: Evaluation entrypoint function
+            metric_key: Metric to optimize (used by evaluation hooks)
             max_trials: Maximum number of trials to schedule (cap on grid size)
             num_parallel_trials: Max parallel jobs
             eval_overrides: Optional overrides for evaluation configuration
             **advanced: Additional SweepTool options
 
         Grid parameters:
-            objective: Metric to optimize (used by evaluation hooks)
             parameters: Nested dict of categorical choices (lists or CategoricalParameterConfig)
 
     Returns:
@@ -364,7 +365,7 @@ def grid_search(
         scheduler_type=scheduler_type,
         eval_overrides=eval_overrides or {},
         grid_parameters=parameters,  # categorical choices
-        grid_metric=objective,
+        grid_metric=metric_key,
         **scheduler_config,
         **advanced,
     )

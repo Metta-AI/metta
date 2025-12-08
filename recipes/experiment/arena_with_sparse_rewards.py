@@ -197,7 +197,7 @@ def sweep(sweep_name: str) -> SweepTool:
         recipe="recipes.experiment.arena_with_sparse_rewards",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
-        objective=f"evaluator/eval_{SWEEP_EVAL_SUITE}/score",
+        metric_key=f"evaluator/eval_{SWEEP_EVAL_SUITE}/score",
         parameters=parameters,
         max_trials=80,
         num_parallel_trials=4,

@@ -20,7 +20,6 @@ from metta.common.wandb.context import WandbConfig
 from metta.sweep.core import CategoricalParameterConfig, ParameterConfig, ParameterSpec
 from metta.sweep.protein_config import ProteinConfig, ProteinSettings
 from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
-from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
@@ -99,7 +98,6 @@ class DispatcherType(StrEnum):
 class SweepSchedulerType(StrEnum):
     """Available scheduler types for sweep orchestration."""
 
-    BATCHED_SYNCED = "batched_synced"
     ASYNC_CAPPED = "async_capped"
     GRID_SEARCH = "grid_search"
 
@@ -135,13 +133,13 @@ class SweepTool(Tool):
 
     # Scheduler configuration
     max_trials: int = 10
-    batch_size: int = 4  # Number of suggestions per batch
+    batch_size: int = 4  # Number of suggestions per batch (async capped batches by capacity)
     recipe_module: str = "recipes.experiment.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
 
     # Scheduler selection and async-specific settings
-    scheduler_type: SweepSchedulerType = SweepSchedulerType.BATCHED_SYNCED
+    scheduler_type: SweepSchedulerType = SweepSchedulerType.ASYNC_CAPPED
     # AsyncCapped-specific knobs
     max_concurrent_evals: int = 1
     liar_strategy: str = "best"  # one of: best | mean | worst
@@ -291,24 +289,7 @@ class SweepTool(Tool):
             raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
 
         # Create scheduler (batched synced or async capped)
-        if self.scheduler_type == SweepSchedulerType.BATCHED_SYNCED:
-            scheduler_config = BatchedSyncedSchedulerConfig(
-                max_trials=self.max_trials,
-                batch_size=self.batch_size,
-                recipe_module=self.recipe_module,
-                train_entrypoint=self.train_entrypoint,
-                eval_entrypoint=self.eval_entrypoint,
-                eval_overrides=self.eval_overrides,
-                stats_server_uri=self.stats_server_uri,
-                gpus=self.gpus,
-                nodes=self.nodes,
-                experiment_id=self.sweep_name,
-                protein_config=protein_config,
-                force_eval=self.force_eval,
-                base_overrides=base_overrides,
-            )
-            scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
-        elif self.scheduler_type == SweepSchedulerType.ASYNC_CAPPED:
+        if self.scheduler_type == SweepSchedulerType.ASYNC_CAPPED:
             scheduler_config = AsyncCappedSchedulerConfig(
                 max_trials=self.max_trials,
                 recipe_module=self.recipe_module,
