@@ -229,8 +229,6 @@ when isMainModule:
     dataDir = dataDir
   )
 
-
-
   while isRunning():
     tickFidget()
     when not defined(emscripten):
