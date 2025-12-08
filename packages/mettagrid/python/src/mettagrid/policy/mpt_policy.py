@@ -39,6 +39,11 @@ class MptPolicy(MultiAgentPolicy):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return self._policy.agent_policy(agent_id)
 
+    def eval(self) -> "MptPolicy":
+        """Ensure wrapped policy enters eval mode for rollout/play compatibility."""
+        self._policy.eval()
+        return self
+
     def save_policy(
         self,
         destination: str | Path,
