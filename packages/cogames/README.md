@@ -223,7 +223,7 @@ from mettagrid import PufferMettaGridEnv
 from mettagrid.simulator import Simulator
 
 # Load a mission configuration
-_, config = get_mission("assembler_2_complex")
+_, config = get_mission("machina_1.open_world")
 
 # Create environment
 simulator = Simulator()
