@@ -62,10 +62,11 @@ class TrainerConfig(Config):
     update_epochs: int = Field(default=1, gt=0)
     scale_batches_by_world_size: bool = False
 
-    # DDP setting: when True, automatically handles losses that don't use all model outputs.
-    # Set to False for a small perf gain (~8%) if your loss setup uses all policy outputs.
-    # Required True for: ppo_actor (without ppo_critic), sliced_scripted_cloner, action_supervised
-    ddp_find_unused_parameters: bool = True
+    # DDP setting: when True, PyTorch auto-detects unused params (has graph traversal overhead).
+    # When False (default), we use the 0.0*sum() hack in loss functions instead.
+    # Benchmark results: False is ~7% faster on GPU, True is ~6% faster on CPU.
+    # Since most training is on GPU, we default to False.
+    ddp_find_unused_parameters: bool = False
 
     compile: bool = False
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"

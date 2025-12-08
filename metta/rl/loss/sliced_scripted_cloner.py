@@ -244,6 +244,14 @@ class SlicedScriptedCloner(Loss):
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
 
+        # Keep all policy parameters participating in backward for DDP.
+        # This is faster than find_unused_parameters=True on GPU (~7% faster).
+        for key in student_td.keys():
+            if key not in ["full_log_probs", "act_log_prob"] and isinstance(student_td[key], Tensor):
+                value = student_td[key]
+                if value.requires_grad:
+                    loss = loss + 0.0 * value.sum()
+
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
         self.loss_tracker["supervised_action_loss_coef"].append(float(self.cfg.action_loss_coef))
         self.loss_tracker["teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
