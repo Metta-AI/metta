@@ -1188,17 +1188,11 @@ GROUP BY pv.id, et.key, et.value
         # These episodes have candidate_count=0 and contain baseline policy performance
         query = f"""
         SELECT
-            et_thinky.value::int AS thinky_count,
-            et_lady.value::int AS ladybug_count,
             epm.value / NULLIF(ep.num_agents, 0) AS avg_reward,
             ep.num_agents
         FROM episodes e
         JOIN episode_tags et_cand
             ON et_cand.episode_id = e.id AND et_cand.key = '{LEADERBOARD_CANDIDATE_COUNT_KEY}'
-        LEFT JOIN episode_tags et_thinky
-            ON et_thinky.episode_id = e.id AND et_thinky.key = '{LEADERBOARD_THINKY_COUNT_KEY}'
-        LEFT JOIN episode_tags et_lady
-            ON et_lady.episode_id = e.id AND et_lady.key = '{LEADERBOARD_LADYBUG_COUNT_KEY}'
         JOIN episode_policies ep ON ep.episode_id = e.id
         JOIN policy_versions pv ON pv.id = ep.policy_version_id
         JOIN episode_policy_metrics epm
@@ -1217,14 +1211,14 @@ GROUP BY pv.id, et.key, et.value
             return None, 0
 
         # Accumulate weighted stats from c0 episodes
+        # Weight by the number of agents for this specific policy in the episode
         stats = RunningStats()
         for row in rows:
             avg_reward = row.get("avg_reward")
             if avg_reward is None:
                 continue
-            thinky_count = int(row.get("thinky_count") or 0)
-            ladybug_count = int(row.get("ladybug_count") or 0)
-            weight = thinky_count + ladybug_count
+            # Use ep.num_agents - the agent count for this specific policy in this episode
+            weight = int(row.get("num_agents") or 0)
             if weight > 0:
                 stats.update(float(avg_reward), weight=weight)
 
