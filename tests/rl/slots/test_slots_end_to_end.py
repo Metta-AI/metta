@@ -171,7 +171,7 @@ def test_advantages_masked_for_constant_agent_mask():
     mask_meta = filtered.get("_applied_mask")
     assert mask_meta is not None
     mask_info = mask_meta.data
-    agent_mask = mask_info["agent_mask"]
+    agent_mask = mask_info.agent_mask
 
     advantages = torch.arange(8, dtype=torch.float32).view(2, 2, 2)
     masked_adv = advantages

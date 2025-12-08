@@ -1,7 +1,7 @@
 import copy
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping, Optional
 
 import torch
 from pydantic import Field
@@ -29,6 +29,13 @@ class LossConfig(Config):
         instance_name: str,
     ) -> "Loss":
         raise NotImplementedError("Subclasses must implement create method")
+
+
+@dataclass(frozen=True)
+class MaskMeta:
+    agent_mask: Optional[torch.Tensor]
+    mask_flat: Optional[torch.Tensor]
+    mask_shape: tuple[int, ...]
 
 
 @dataclass(slots=True)
@@ -172,7 +179,12 @@ class Loss:
         self.policy_experience_spec = experience.buffer.spec  # type: ignore[attr-defined]
 
     def _filter_minibatch(self, shared_loss_data: TensorDict) -> TensorDict:
-        """Filter minibatch rows by slot profile/trainable flags."""
+        """Filter minibatch rows by slot profile/trainable flags.
+
+        Returns a clone of ``shared_loss_data`` with mask metadata attached at
+        ``_applied_mask`` so downstream consumers can apply the same masking to
+        auxiliary tensors (e.g., advantages, priorities).
+        """
 
         mb = shared_loss_data["sampled_mb"]
 
@@ -216,14 +228,13 @@ class Loss:
                 batch_size=new_batch,
                 device=mb.device,
             )
+            mask_meta = MaskMeta(agent_mask=agent_mask, mask_flat=None, mask_shape=mask_shape)
             for key, value in list(filtered.items()):
                 if key == "sampled_mb":
                     continue
-                filtered[key] = self._apply_row_mask(value, mask_shape, agent_mask=agent_mask, agent_idx=agent_idx)
+                filtered[key] = self._apply_row_mask(value, mask_meta)
 
-            filtered["_applied_mask"] = NonTensorData(
-                {"agent_mask": agent_mask, "mask_flat": None, "mask_shape": mask_shape}
-            )
+            filtered["_applied_mask"] = NonTensorData(mask_meta)
         else:
             # Mixed mask across batch: flatten and mask.
             mask_flat = mask.flatten()
@@ -231,33 +242,25 @@ class Loss:
 
             filtered["sampled_mb"] = mb_flat[mask_flat]
 
+            mask_meta = MaskMeta(agent_mask=None, mask_flat=mask_flat, mask_shape=mask_shape)
             for key, value in list(filtered.items()):
                 if key == "sampled_mb":
                     continue
-                filtered[key] = self._apply_row_mask(value, mask_shape, mask_flat=mask_flat)
+                filtered[key] = self._apply_row_mask(value, mask_meta)
 
-            filtered["_applied_mask"] = NonTensorData(
-                {"agent_mask": None, "mask_flat": mask_flat, "mask_shape": mask_shape}
-            )
+            filtered["_applied_mask"] = NonTensorData(mask_meta)
 
         return filtered
 
-    def _apply_row_mask(
-        self,
-        value: Any,
-        mask_shape: tuple[int, ...],
-        mask_flat: torch.Tensor | None = None,
-        agent_mask: torch.Tensor | None = None,
-        agent_idx: torch.Tensor | None = None,
-    ) -> Any:
+    def _apply_row_mask(self, value: Any, mask_meta: MaskMeta) -> Any:
         """Apply either a flattened mask or per-agent mask to a value."""
 
-        def apply_flat(t: torch.Tensor) -> torch.Tensor:
-            """Mask tensors when mask varies within the batch/agent grid.
+        agent_mask = mask_meta.agent_mask
+        mask_flat = mask_meta.mask_flat
+        mask_shape = mask_meta.mask_shape
 
-            We try to keep alignment even for 1D tensors (e.g. replay indices)
-            whose length matches the row dimension but not the flattened size.
-            """
+        def apply_flat(t: torch.Tensor) -> torch.Tensor:
+            """Mask tensors when mask varies within the batch/agent grid."""
 
             assert mask_flat is not None
             target = mask_flat.numel()
@@ -269,16 +272,16 @@ class Loss:
             if t.shape and t.shape[0] == target:
                 return t[mask_flat]
 
-            # Handle row-aligned tensors (e.g. 1D indices) when agents are the
-            # trailing batch dim: repeat per-agent then apply the flattened mask.
             if lead > 1 and t.shape and t.shape[0] == mask_shape[0]:
                 repeat = int(target // t.shape[0])
                 expanded = t.repeat_interleave(repeat, dim=0)
                 return expanded[mask_flat]
 
             return t
+
         def apply_agent(t: torch.Tensor) -> torch.Tensor:
-            assert agent_mask is not None and agent_idx is not None
+            assert agent_mask is not None
+            agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
             lead = len(mask_shape)
             if t.dim() < lead:
                 return t  # nothing to mask
