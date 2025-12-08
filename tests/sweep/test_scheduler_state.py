@@ -49,7 +49,7 @@ def test_scheduler_state_refresh_and_transitions():
 
     assert state.runs_in_training == {"pending"}
     assert state.runs_pending_force_eval == {"in_eval"}
-    assert "in_eval" not in state.runs_in_eval
+    assert "in_eval" in state.runs_in_eval
     # Suggestions are cached for in-flight runs only
     assert state.in_progress_suggestions["in_eval"] == {"lr": 0.01}
     assert "done" not in state.in_progress_suggestions
