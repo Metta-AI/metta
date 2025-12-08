@@ -616,6 +616,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if raw_scores.size == 0:
             return raw_scores
 
+        # Progress smoothing nudges scores toward their mean to damp extremes
+        if self.hypers.progress_smoothing > 0:
+            mean_score = float(np.mean(raw_scores))
+            smoothing = self.hypers.progress_smoothing
+            raw_scores = raw_scores * (1.0 - smoothing) + mean_score * smoothing
+
         # Ensure every task retains some exploration weight so it can still be sampled
         min_weight = max(self.hypers.exploration_bonus, 1e-6)
         raw_scores = np.maximum(raw_scores, min_weight)
