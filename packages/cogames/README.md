@@ -78,7 +78,7 @@ cogames train -m easy_hearts -p class=lstm
 ## Step 4: Learn about missions
 
 Get familiar with different missions in Cogs vs. Clips so you can develop a policy that's able to handle different
-scenarios. =
+scenarios.
 
 Useful commands to explore:
 
