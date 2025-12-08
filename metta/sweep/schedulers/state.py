@@ -58,8 +58,9 @@ class SchedulerState:
                 self.runs_in_training.discard(run_id)
                 self.runs_completed.discard(run_id)
                 if force_eval:
-                    self.runs_pending_force_eval.add(run_id)
-                    self.runs_in_eval.discard(run_id)
+                    if run_id not in self.runs_pending_force_eval and run_id not in self.runs_in_eval:
+                        self.runs_pending_force_eval.add(run_id)
+                    self.runs_in_eval.add(run_id)
                 else:
                     self.runs_in_eval.add(run_id)
                     self.runs_pending_force_eval.discard(run_id)
