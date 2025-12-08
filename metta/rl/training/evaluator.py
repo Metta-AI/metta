@@ -202,7 +202,7 @@ class Evaluator(TrainerComponent):
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
         sim_run_configs = [sim.to_simulation_run_config() for sim in sims]
-        policy_spec = policy_spec_from_uri(policy_uri, device=str(self._device))
+        policy_spec = policy_spec_from_uri(policy_uri, device="cpu")
         policy_version_id: uuid.UUID | None = None
         if self._stats_client:
             policy_version_id = self._create_policy_version(
