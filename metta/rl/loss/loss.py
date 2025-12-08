@@ -185,25 +185,51 @@ class Loss:
             return shared_loss_data
 
         mask_shape = mask.shape
-        mask_flat = mask.flatten()
-        mb_flat = mb.flatten()
+
+        # If the agent mask is constant across env/time, keep the batch structure and
+        # slice only the agent axis; otherwise fall back to flattened selection.
+        mask_2d = mask.reshape(-1, mask_shape[-1])
+        agent_mask = None
+        if mask_2d.shape[0] > 0:
+            first_row = mask_2d[0]
+            if torch.equal(mask_2d, first_row.expand_as(mask_2d)):
+                agent_mask = first_row
 
         filtered = shared_loss_data.clone()
-        filtered["sampled_mb"] = mb_flat[mask_flat]
 
-        for key, value in list(filtered.items()):
-            if key == "sampled_mb":
-                continue
-            filtered[key] = self._apply_row_mask(value, mask_shape, mask_flat)
+        if agent_mask is not None:
+            # Preserve leading batch dims, drop non-trainable agents.
+            filtered["sampled_mb"] = mb.select(-1, agent_mask)
+            for key, value in list(filtered.items()):
+                if key == "sampled_mb":
+                    continue
+                filtered[key] = self._apply_row_mask(value, mask_shape, agent_mask=agent_mask)
+        else:
+            # Mixed mask across batch: flatten and mask.
+            mask_flat = mask.flatten()
+            mb_flat = mb.flatten()
+
+            filtered["sampled_mb"] = mb_flat[mask_flat]
+
+            for key, value in list(filtered.items()):
+                if key == "sampled_mb":
+                    continue
+                filtered[key] = self._apply_row_mask(value, mask_shape, mask_flat=mask_flat)
 
         return filtered
 
-    def _apply_row_mask(self, value: Any, mask_shape: tuple[int, ...], mask_flat: torch.Tensor) -> Any:
-        """Apply mask to tensors that share the leading dims of the mask."""
+    def _apply_row_mask(
+        self,
+        value: Any,
+        mask_shape: tuple[int, ...],
+        mask_flat: torch.Tensor | None = None,
+        agent_mask: torch.Tensor | None = None,
+    ) -> Any:
+        """Apply either a flattened mask or per-agent mask to a value."""
 
-        target = mask_flat.numel()
-
-        def apply(t: torch.Tensor) -> torch.Tensor:
+        def apply_flat(t: torch.Tensor) -> torch.Tensor:
+            assert mask_flat is not None
+            target = mask_flat.numel()
             lead = len(mask_shape)
             if tuple(t.shape[:lead]) == mask_shape:
                 return t.reshape(target, *t.shape[lead:])[mask_flat]
@@ -211,14 +237,26 @@ class Loss:
                 return t[mask_flat]
             return t
 
+        agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1) if agent_mask is not None else None
+
+        def apply_agent(t: torch.Tensor) -> torch.Tensor:
+            assert agent_mask is not None
+            lead = len(mask_shape)
+            # When agent dim is the last batch dim, we can index-select.
+            if tuple(t.shape[: lead - 1]) == tuple(mask_shape[:-1]) and t.shape[lead - 1] == mask_shape[-1]:
+                return t.index_select(lead - 1, agent_idx)
+            return t
+
+        masker = apply_agent if agent_mask is not None else apply_flat
+
         if isinstance(value, NonTensorData):
             data = value.data
-            return NonTensorData(apply(data)) if hasattr(data, "shape") else value
+            return NonTensorData(masker(data)) if hasattr(data, "shape") else value
         if isinstance(value, torch.Tensor):
-            return apply(value)
+            return masker(value)
         if hasattr(value, "batch_size"):
             try:
-                return apply(value)
+                return masker(value)
             except Exception:
                 return value
         return value
