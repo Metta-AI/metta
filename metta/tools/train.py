@@ -9,9 +9,20 @@ import torch
 
 # Configure TF32 early, before any torch.compile calls
 # This must happen before any model compilation to avoid API conflicts
+# We set BOTH old and new APIs to avoid PyTorch's internal conflict detection
+# when torch.compile checks the old API (allow_tf32) internally
 if torch.cuda.is_available() and hasattr(torch.backends, "cuda"):
+    # Set new API
     torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
     torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
+    # Also set old API to match, so torch.compile's internal check doesn't conflict
+    # This prevents the "mix of legacy and new APIs" error
+    try:
+        torch.backends.cuda.matmul.allow_tf32 = True  # type: ignore[attr-defined]
+    except (AttributeError, RuntimeError):
+        # Old API might not be available or might conflict in some PyTorch versions
+        # If it fails, we continue with just the new API
+        pass
 from pydantic import Field
 
 from metta.agent.policies.vit import ViTDefaultConfig
