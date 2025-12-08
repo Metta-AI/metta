@@ -83,7 +83,7 @@ class CogAssemblerConfig(CvCStationConfig):
             name="assembler",
             render_symbol="",
             clip_immune=True,
-            chest_radius=10,
+            chest_search_distance=0,
             protocols=[
                 ProtocolConfig(
                     vibes=["heart"],
