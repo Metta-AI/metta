@@ -377,7 +377,14 @@ class SimulationAgent:
         inv = {}
         obs = self.observation
 
+        # Agent's own tokens are at the center of the observation window
+        c_sim = self._sim._c_sim
+        center = (c_sim.obs_height // 2, c_sim.obs_width // 2)
+
         for token in obs.tokens:
+            # Only look at tokens at the agent's own position (center)
+            if token.location != center:
+                continue
             # Check if this is an inventory feature
             if token.feature.name.startswith("inv:"):
                 # Extract resource name from "inv:resource_name" format
