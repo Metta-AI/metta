@@ -7,7 +7,7 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.ddp_unused_params.utils import add_dummy_loss_for_unused_params
+from metta.rl.utils import add_dummy_loss_for_unused_params
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
