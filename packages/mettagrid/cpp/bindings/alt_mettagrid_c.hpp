@@ -179,7 +179,6 @@ private:
   // Precomputed observation pattern and reusable buffers
   std::vector<PackedOffset> _obs_pattern;
   std::vector<PartialObservationToken> _global_tokens_buffer;
-  std::vector<uint8_t> _goal_token_flags;
   std::vector<size_t> _agent_indices;
   std::vector<ActionType> _executed_actions;
   std::vector<uint32_t> _goal_generation;

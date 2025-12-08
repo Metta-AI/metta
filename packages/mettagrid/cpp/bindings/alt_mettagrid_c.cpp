@@ -93,7 +93,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   }
 
   _goal_generation.assign(resource_names.size(), 0);
-  _goal_token_flags.assign(resource_names.size(), 0);
   _wall_token_cache.clear();
   _is_wall.clear();
   _compass_location = EmptyTokenByte;
@@ -376,11 +375,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     if (_goal_generation.size() < resource_names.size()) {
       _goal_generation.assign(resource_names.size(), 0);
     }
-    if (_goal_token_flags.size() < resource_names.size()) {
-      _goal_token_flags.assign(resource_names.size(), 0);
-    } else {
-      std::fill(_goal_token_flags.begin(), _goal_token_flags.end(), 0);
-    }
     auto& agent = _agents[agent_idx];
     for (const auto& [stat_name, reward_value] : agent->stat_rewards) {
       size_t dot_pos = stat_name.find('.');
@@ -389,9 +383,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       for (size_t i = 0; i < resource_names.size(); i++) {
         if (resource_names[i] != resource_name) continue;
         if (_goal_generation[i] == _goal_gen_counter) break;
-        if (_goal_token_flags[i]) break;
         _goal_generation[i] = _goal_gen_counter;
-        _goal_token_flags[i] = 1;
         ObservationType inventory_feature_id =
             _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
         _global_tokens_buffer.push_back({ObservationFeature::Goal, inventory_feature_id});
