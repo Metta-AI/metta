@@ -25,14 +25,14 @@ logger = logging.getLogger(__name__)
 class GridSearchSchedulerConfig(Config):
     """Configuration for the grid-search scheduler.
 
-    Provide nested categorical parameters via `parameters`. Values may be
+    Provide flat dot-path categorical parameters via `parameters`. Values may be
     `CategoricalParameterConfig` or plain lists of choices.
     """
 
     recipe_module: str = "recipes.experiment.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
-    train_overrides: dict[str, Any] = Field(default_factory=dict)
+    base_overrides: dict[str, Any] = Field(default_factory=dict)
     eval_overrides: dict[str, Any] = Field(default_factory=dict)
     stats_server_uri: str | None = None
     gpus: int = 1
@@ -42,7 +42,7 @@ class GridSearchSchedulerConfig(Config):
     max_trials: int | None = None
     # Max concurrent evaluations; None means unlimited
     max_concurrent_evals: Optional[int] = None
-    # Nested dict of categorical parameters
+    # Flat dict of categorical parameters (dot-path keys)
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -113,7 +113,7 @@ class GridSearchScheduler:
             trial_num = base_trial_num + launched + 1
             run_id = generate_run_id(self.config.experiment_id, trial_num)
 
-            merged_overrides = dict(self.config.train_overrides)
+            merged_overrides = dict(self.config.base_overrides)
             merged_overrides.update(suggestion)
             job = create_training_job(
                 run_id=run_id,
@@ -172,30 +172,18 @@ class GridSearchScheduler:
         return keys
 
     def _flatten_dims(self, params: Dict[str, Any], prefix: str = "") -> Dict[str, List[Any]]:
-        """Extract flattened categorical dimensions from nested params.
-
-        Returns a mapping from dotted parameter name to list of allowed choices.
-        """
+        """Interpret categorical parameters, flattening nested dicts into dot paths."""
         dims: dict[str, list[Any]] = {}
         for key, value in params.items():
             full = f"{prefix}.{key}" if prefix else key
-            if isinstance(value, CategoricalParameterConfig):
-                if not value.choices:
-                    raise ValueError(f"Categorical parameter '{full}' must have at least one choice")
+            if isinstance(value, dict):
+                nested = self._flatten_dims(value, full)
+                dims.update(nested)
+            elif isinstance(value, CategoricalParameterConfig):
                 dims[full] = list(value.choices)
             elif isinstance(value, list):
-                if not value:
-                    raise ValueError(f"Categorical parameter '{full}' must have at least one choice")
                 dims[full] = list(value)
-            elif isinstance(value, dict):
-                dims.update(self._flatten_dims(value, full))
-            else:
-                raise TypeError(
-                    f"GridSearchScheduler only supports categorical parameters (lists or CategoricalParameterConfig). "
-                    f"Got unsupported type at '{full}': {type(value)}"
-                )
-        if not dims:
-            raise ValueError("No categorical parameters provided for grid search")
+            # Ignore unsupported entries by convention
         return dims
 
     def _cartesian_product(self, dims: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
