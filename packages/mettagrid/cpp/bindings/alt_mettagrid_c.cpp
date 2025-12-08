@@ -93,8 +93,10 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   }
 
   _goal_generation.assign(resource_names.size(), 0);
+  _goal_token_flags.assign(resource_names.size(), 0);
   _wall_token_cache.clear();
   _is_wall.clear();
+  _compass_location = EmptyTokenByte;
 
   _stats = std::make_unique<StatsTracker>(&resource_names);
 
@@ -131,8 +133,6 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
   object_type_names.resize(game_config.objects.size());
   _wall_token_cache.assign(static_cast<size_t>(height) * width, {});
   _is_wall.assign(static_cast<size_t>(height) * width, 0);
-  _map_center_r = static_cast<int>(_grid->height) / 2;
-  _map_center_c = static_cast<int>(_grid->width) / 2;
 
   for (const auto& [key, object_cfg] : game_config.objects) {
     TypeId type_id = object_cfg->type_id;
@@ -376,6 +376,11 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     if (_goal_generation.size() < resource_names.size()) {
       _goal_generation.assign(resource_names.size(), 0);
     }
+    if (_goal_token_flags.size() < resource_names.size()) {
+      _goal_token_flags.assign(resource_names.size(), 0);
+    } else {
+      std::fill(_goal_token_flags.begin(), _goal_token_flags.end(), 0);
+    }
     auto& agent = _agents[agent_idx];
     for (const auto& [stat_name, reward_value] : agent->stat_rewards) {
       size_t dot_pos = stat_name.find('.');
@@ -384,7 +389,9 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       for (size_t i = 0; i < resource_names.size(); i++) {
         if (resource_names[i] != resource_name) continue;
         if (_goal_generation[i] == _goal_gen_counter) break;
+        if (_goal_token_flags[i]) break;
         _goal_generation[i] = _goal_gen_counter;
+        _goal_token_flags[i] = 1;
         ObservationType inventory_feature_id =
             _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
         _global_tokens_buffer.push_back({ObservationFeature::Goal, inventory_feature_id});
@@ -415,8 +422,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (_global_obs_config.compass) {
     int step_r = 0;
     int step_c = 0;
-    const int delta_r = _map_center_r - static_cast<int>(observer_row);
-    const int delta_c = _map_center_c - static_cast<int>(observer_col);
+    const int delta_r = (static_cast<int>(_grid->height) / 2) - static_cast<int>(observer_row);
+    const int delta_c = (static_cast<int>(_grid->width) / 2) - static_cast<int>(observer_col);
     if (delta_r != 0) step_r = (delta_r > 0) ? 1 : -1;
     if (delta_c != 0) step_c = (delta_c > 0) ? 1 : -1;
     if (step_r != 0 || step_c != 0) {
@@ -424,7 +431,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       int obs_c = static_cast<int>(obs_width_radius) + step_c;
       if (obs_r >= 0 && obs_r < static_cast<int>(observable_height) && obs_c >= 0 &&
           obs_c < static_cast<int>(observable_width)) {
-        const uint8_t compass_location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
+        const uint8_t compass_location =
+            PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
         ObservationToken* compass_ptr =
             reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
         ObservationTokens compass_tokens(
