@@ -5,18 +5,19 @@ import os
 import uuid
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from cogweb.cogweb_client import CogwebClient
 from metta.adaptive import AdaptiveConfig, AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
 from metta.adaptive.stores import WandbStore
+from pydantic import Field
 from metta.common.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.core import CategoricalParameterConfig, ParameterConfig, ParameterSpec
-from metta.sweep.protein_config import ProteinConfig
+from metta.sweep.protein_config import ProteinConfig, ProteinSettings
 from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
 from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 from metta.tools.utils.auto_config import auto_wandb_config
@@ -125,12 +126,11 @@ class SweepTool(Tool):
         )
     }
 
-    # Optimizer configuration (parameters populated from search_space at runtime)
-    protein_config: ProteinConfig = ProteinConfig(
-        metric="evaluator/eval_arena/score",
-        goal="maximize",
-        parameters={},
-    )
+    # Optimizer configuration seeds (actual parameters are built from search_space at runtime)
+    protein_metric: str = "evaluator/eval_arena/score"
+    protein_goal: Literal["maximize", "minimize"] = "maximize"
+    protein_method: Literal["bayes"] = "bayes"
+    protein_settings: ProteinSettings = Field(default_factory=ProteinSettings)
 
     # Scheduler configuration
     max_trials: int = 10
@@ -245,7 +245,7 @@ class SweepTool(Tool):
 
         # Populate optimizer parameters and fixed overrides from search_space (flat dot paths)
         parameters, base_overrides = self._split_search_space(self.search_space)
-        self.protein_config.parameters = parameters
+        protein_config = self._build_protein_config(parameters)
 
         # Check for resumption using cogweb
         resume = False
@@ -269,15 +269,12 @@ class SweepTool(Tool):
         # Create components
         # Derive evaluator prefix from the configured metric if possible
         # Example: metric "evaluator/eval_sweep/score" -> prefix "evaluator/eval_sweep"
-        evaluator_prefix = None
-        try:
-            metric_path = getattr(self.protein_config, "metric", None)
-            if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and not metric_path:
-                metric_path = self.grid_metric
-            if isinstance(metric_path, str) and "/" in metric_path:
-                evaluator_prefix = metric_path.rsplit("/", 1)[0]
-        except Exception:
-            evaluator_prefix = None
+        metric_path = (
+            self.grid_metric
+            if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and self.grid_metric
+            else protein_config.metric
+        )
+        evaluator_prefix = metric_path.rsplit("/", 1)[0] if isinstance(metric_path, str) and "/" in metric_path else None
 
         store = WandbStore(entity=self.wandb.entity, project=self.wandb.project, evaluator_prefix=evaluator_prefix)
 
@@ -304,7 +301,7 @@ class SweepTool(Tool):
                 gpus=self.gpus,
                 nodes=self.nodes,
                 experiment_id=self.sweep_name,
-                protein_config=self.protein_config,
+                protein_config=protein_config,
                 force_eval=self.force_eval,
                 base_overrides=base_overrides,
             )
@@ -320,7 +317,7 @@ class SweepTool(Tool):
                 gpus=self.gpus,
                 nodes=self.nodes,
                 experiment_id=self.sweep_name,
-                protein_config=self.protein_config,
+                protein_config=protein_config,
                 force_eval=self.force_eval,
                 max_concurrent_evals=self.max_concurrent_evals,
                 liar_strategy=self.liar_strategy,
@@ -390,9 +387,11 @@ class SweepTool(Tool):
 
         try:
             logger.info("[SweepTool] Starting adaptive controller with sweep hooks...")
-            metric_for_hook = getattr(self.protein_config, "metric", None)
-            if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and not metric_for_hook:
-                metric_for_hook = self.grid_metric
+            metric_for_hook = (
+                self.grid_metric
+                if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and self.grid_metric
+                else protein_config.metric
+            )
             logger.info(f"[SweepTool] Optimizing metric: {metric_for_hook}")
             if self.cost_key:
                 logger.info(f"[SweepTool] Cost metric: {self.cost_key}")
@@ -440,7 +439,7 @@ class SweepTool(Tool):
 
             if completed_runs:
                 # Find the best run based on the score
-                if self.protein_config.goal == "maximize":
+                if protein_config.goal == "maximize":
                     best_run = max(completed_runs, key=lambda r: r.summary.get("sweep/score", float("-inf")))  # type: ignore[union-attr]
                 else:
                     best_run = min(completed_runs, key=lambda r: r.summary.get("sweep/score", float("inf")))  # type: ignore[union-attr]
@@ -476,3 +475,13 @@ class SweepTool(Tool):
             else:
                 overrides[k] = v
         return params, overrides
+
+    def _build_protein_config(self, parameters: dict[str, ParameterSpec]) -> ProteinConfig:
+        """Create a ProteinConfig using the configured optimizer settings."""
+        return ProteinConfig(
+            metric=self.protein_metric,
+            goal=self.protein_goal,
+            method=self.protein_method,
+            parameters=dict(parameters),
+            settings=self.protein_settings,
+        )

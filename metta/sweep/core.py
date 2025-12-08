@@ -223,9 +223,9 @@ def make_sweep(
     num_parallel_trials: int = 1,
     eval_overrides: Optional[Dict] = None,
     cost_key: Optional[str] = None,
-    # Catch all for un-exposed tool overrides.
-    # See SweepTool definition for details.
-    **advanced,
+    goal: Literal["maximize", "minimize"] = "maximize",
+    max_concurrent_evals: Optional[int] = None,
+    liar_strategy: Literal["best", "mean", "worst"] = "best",
 ) -> "SweepTool":
     """Create a sweep with minimal configuration.
 
@@ -241,7 +241,9 @@ def make_sweep(
             cost_key: Optional metric path to extract cost from run summary.
                 If provided, the cost will be read from summary[cost_key].
                 If not provided, defaults to run.cost (which is 0 if not set).
-            **advanced: Additional SweepTool options
+            goal: Whether to maximize or minimize the objective metric.
+            max_concurrent_evals: Maximum simultaneous evals (defaults to min(2, num_parallel_trials)).
+            liar_strategy: Liar strategy for async capped scheduler.
 
         Protein config args:
             objective: Metric to optimize
@@ -262,25 +264,25 @@ def make_sweep(
         parameters = flat_params
 
     # Local imports to avoid circular dependencies
-    from metta.sweep.protein_config import ProteinConfig, ProteinSettings
+    from metta.sweep.protein_config import ProteinSettings
     from metta.tools.sweep import SweepSchedulerType, SweepTool
 
-    protein_config = ProteinConfig(
-        metric=objective,
-        goal=advanced.pop("goal", "maximize"),
-        parameters={},  # populated from search_space at runtime
-        settings=ProteinSettings(),
-    )
+    protein_goal = goal
+    protein_settings = ProteinSettings()
 
     scheduler_type = SweepSchedulerType.ASYNC_CAPPED
     scheduler_config = {
-        "max_concurrent_evals": advanced.pop("max_concurrent_evals", min(2, num_parallel_trials)),
-        "liar_strategy": advanced.pop("liar_strategy", "best"),
+        "max_concurrent_evals": (
+            max_concurrent_evals if max_concurrent_evals is not None else min(2, num_parallel_trials)
+        ),
+        "liar_strategy": liar_strategy,
     }
 
     return SweepTool(
         sweep_name=name,
-        protein_config=protein_config,
+        protein_metric=objective,
+        protein_goal=protein_goal,
+        protein_settings=protein_settings,
         search_space=parameters,
         recipe_module=recipe,
         train_entrypoint=train_entrypoint,
@@ -291,7 +293,6 @@ def make_sweep(
         eval_overrides=eval_overrides or {},
         cost_key=cost_key,
         **scheduler_config,
-        **advanced,
     )
 
 
