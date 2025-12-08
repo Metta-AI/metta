@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyDeck Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css?v=22">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SkyDeck Dashboard</h1>
+            <div class="header-right">
+                <div class="health-status" id="health-status">
+                    <span class="status-indicator" id="status-indicator"></span>
+                    <span id="status-text">Loading...</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="controls">
+            <button onclick="toggleCreateExperiment()" class="btn btn-primary" id="new-experiment-btn">+ New Experiment</button>
+            <div class="bulk-actions" id="bulk-actions" style="display: none;">
+                <button onclick="bulkStart()" class="btn btn-primary">Start Selected</button>
+                <button onclick="bulkStop()" class="btn">Stop Selected</button>
+                <button onclick="bulkDuplicate()" class="btn">Duplicate Selected</button>
+                <button onclick="bulkDelete()" class="btn btn-danger">Delete Selected</button>
+            </div>
+            <div style="flex-grow: 1;"></div>
+        </div>
+
+        <!-- Inline Create Experiment Section -->
+        <section id="create-section" class="collapsible-section" style="display: none;">
+            <div class="section-header">
+                <h2>Create New Experiment</h2>
+                <button class="btn btn-small" onclick="hideCreateExperiment()">Cancel</button>
+            </div>
+            <form id="create-form" onsubmit="createExperiment(event)">
+                <div class="form-group">
+                    <label>Experiment ID*</label>
+                    <input type="text" id="exp-id" required placeholder="ppo_4layer">
+                </div>
+                <div class="form-group">
+                    <label>Name*</label>
+                    <input type="text" id="exp-name" required placeholder="PPO 4 Layers">
+                </div>
+                <div class="form-group">
+                    <label>Base Command</label>
+                    <input type="text" id="exp-command" value="lt">
+                </div>
+                <div class="form-group">
+                    <label>Tool</label>
+                    <input type="text" id="exp-tool" value="recipes.experiment.cog_arena.train">
+                </div>
+                <div class="form-group">
+                    <label>Git Branch</label>
+                    <input type="text" id="exp-git-branch" placeholder="main">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nodes</label>
+                        <input type="number" id="exp-nodes" value="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>GPUs</label>
+                        <input type="number" id="exp-gpus" value="0" min="0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Instance Type</label>
+                    <input type="text" id="exp-instance" placeholder="g4dn.xlarge">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Cloud</label>
+                        <select id="exp-cloud">
+                            <option value="">Auto</option>
+                            <option value="aws">AWS</option>
+                            <option value="gcp">GCP</option>
+                            <option value="azure">Azure</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Spot</label>
+                        <input type="checkbox" id="exp-spot">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Flags (JSON)</label>
+                    <textarea id="exp-flags" rows="6" placeholder='{"trainer.losses.ppo.enabled": true}'>{}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="exp-description" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Start Immediately</label>
+                    <input type="checkbox" id="exp-start" checked>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Create</button>
+                    <button type="button" class="btn" onclick="hideCreateExperiment()">Cancel</button>
+                </div>
+            </form>
+        </section>
+
+        <section id="experiments-section">
+            <h2>Experiments</h2>
+            <div class="table-wrapper">
+                <table id="experiments-table">
+                    <thead id="experiments-thead">
+                        <tr>
+                            <th class="col-expand"></th>
+                            <th class="col-id">ID</th>
+                            <th class="col-name">Name</th>
+                            <th class="col-desired">Desired</th>
+                            <th class="col-current">Current</th>
+                            <th class="col-epoch">Epoch</th>
+                            <th class="col-cluster">Cluster</th>
+                            <!-- Dynamic flag columns added here -->
+                            <th class="col-resources">Resources</th>
+                            <th class="col-actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="experiments-tbody">
+                        <tr>
+                            <td colspan="100" class="loading">Loading experiments...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="jobs-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0;">SkyPilot Jobs</h2>
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <label style="display: flex; align-items: center; gap: 5px; font-size: 13px;">
+                        Filter:
+                        <input type="text" id="jobs-filter" placeholder="Search..."
+                               style="width: 150px; padding: 4px;" oninput="filterJobs(this.value)">
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; font-size: 13px;">
+                        <input type="checkbox" id="filter-stopped" onchange="toggleStoppedFilter(this.checked)">
+                        Show Stopped
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; font-size: 13px;">
+                        <input type="checkbox" id="filter-orphaned" onchange="toggleOrphanedFilter(this.checked)">
+                        Orphaned Only
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; font-size: 13px;">
+                        Limit:
+                        <input type="number" id="jobs-limit" value="20" min="1" max="1000"
+                               style="width: 60px; padding: 4px;" onchange="updateJobsLimit(this.value)">
+                    </label>
+                </div>
+            </div>
+            <div class="bulk-actions" id="jobs-bulk-actions" style="display: none; margin-bottom: 10px;">
+                <button onclick="bulkStopJobs()" class="btn btn-danger">Stop Selected</button>
+            </div>
+            <div class="table-wrapper">
+                <table id="jobs-table">
+                    <thead>
+                        <tr>
+                            <th class="col-checkbox"><input type="checkbox" id="select-all-jobs" onchange="toggleSelectAllJobs(this.checked)"></th>
+                            <th>Job ID</th>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Resources</th>
+                            <th>Duration</th>
+                            <th>Started</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobs-tbody">
+                        <tr>
+                            <td colspan="7" class="loading">Loading jobs...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <script src="/static/app.js?v=69"></script>
+</body>
+</html>
