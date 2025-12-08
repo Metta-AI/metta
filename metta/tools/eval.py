@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import multiprocessing
 from typing import Sequence
 
 from pydantic import Field
@@ -42,7 +43,7 @@ class EvaluateTool(Tool):
     stats_server_uri: str | None = Field(default_factory=auto_stats_server_uri)
     verbose: bool = False
     push_metrics_to_wandb: bool = False
-    max_workers: int | None = None
+    max_workers: int | None = multiprocessing.cpu_count()
 
     def _to_simulation_run_configs(self) -> list[SimulationRunConfig]:
         result = []

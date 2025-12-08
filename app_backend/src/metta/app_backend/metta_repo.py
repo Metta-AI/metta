@@ -14,12 +14,11 @@ from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field, field_validator
 
 from metta.app_backend.leaderboard_constants import (
-    LADYBUG_UUID,
     LEADERBOARD_CANDIDATE_COUNT_KEY,
     LEADERBOARD_LADYBUG_COUNT_KEY,
     LEADERBOARD_SCENARIO_KEY,
     LEADERBOARD_THINKY_COUNT_KEY,
-    THINKY_UUID,
+    REPLACEMENT_BASELINE_MEAN,
 )
 from metta.app_backend.migrations import MIGRATIONS
 from metta.app_backend.schema_manager import run_migrations
@@ -94,6 +93,15 @@ class SweepRow(BaseModel):
     user_id: str
     created_at: datetime
     updated_at: datetime
+
+
+class PolicyRow(BaseModel):
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    user_id: str
+    attributes: dict[str, Any]
+    version_count: int
 
 
 class PolicyVersionRow(BaseModel):
@@ -405,30 +413,6 @@ class MettaRepo:
                     (task_id, task_id),
                 )
 
-    async def count_tasks(self, where_clause: str) -> int:
-        async with self.connect() as con:
-            result = await con.execute(
-                f"SELECT COUNT(*) FROM eval_tasks_view WHERE {where_clause}",  # type: ignore
-            )
-            res = await result.fetchone()
-            if res is None:
-                raise RuntimeError(f"Failed to count tasks with where clause {where_clause}")
-            return res[0]
-
-    async def get_avg_runtime(self, where_clause: str) -> float | None:
-        async with self.connect() as con:
-            result = await con.execute(
-                f"""
-                SELECT EXTRACT(EPOCH FROM AVG(finished_at - assigned_at))
-                FROM eval_tasks_view
-                WHERE {where_clause}
-                """,  # type: ignore
-            )
-            res = await result.fetchone()
-            if res is None:
-                raise RuntimeError(f"Failed to get average runtime with where clause {where_clause}")
-            return res[0]
-
     async def create_sweep(self, name: str, project: str, entity: str, wandb_sweep_id: str, user_id: str) -> uuid.UUID:
         """Create a new sweep."""
         async with self.connect() as con:
@@ -738,17 +722,76 @@ class MettaRepo:
                 )
                 return await cur.fetchall()
 
+    async def get_policies(
+        self,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[PolicyRow], int]:
+        async with self.connect() as con:
+            where_conditions: list[str] = []
+            params: list[Any] = []
+
+            if name_exact:
+                where_conditions.append("p.name = %s")
+                params.append(name_exact)
+
+            if name_fuzzy:
+                where_conditions.append("p.name ILIKE %s")
+                params.append(f"%{name_fuzzy}%")
+
+            where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+
+            count_query = f"SELECT COUNT(*) FROM policies p {where_clause}"
+            count_result = await con.execute(count_query, params)
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            params.extend([limit, offset])
+
+            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT
+                        p.id,
+                        p.name,
+                        p.created_at,
+                        p.user_id,
+                        p.attributes,
+                        COALESCE(vc.version_count, 0) AS version_count
+                    FROM policies p
+                    LEFT JOIN (
+                        SELECT policy_id, COUNT(*) AS version_count
+                        FROM policy_versions
+                        GROUP BY policy_id
+                    ) vc ON p.id = vc.policy_id
+                    {where_clause}
+                    ORDER BY p.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    params,
+                )
+                rows = await cur.fetchall()
+
+            return rows, total_count
+
     async def get_policy_versions(
         self,
         name_exact: str | None = None,
         name_fuzzy: str | None = None,
         version: int | None = None,
+        policy_version_ids: list[uuid.UUID] | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[PublicPolicyVersionRow], int]:
         async with self.connect() as con:
             where_conditions: list[str] = []
             params: list[Any] = []
+
+            if policy_version_ids:
+                where_conditions.append("pv.id = ANY(%s)")
+                params.append(policy_version_ids)
 
             if name_exact:
                 where_conditions.append("p.name = %s")
@@ -779,7 +822,7 @@ class MettaRepo:
             async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
                 await cur.execute(
                     f"""
-                    SELECT DISTINCT ON (pv.policy_id)
+                    SELECT
                         pv.id,
                         pv.policy_id,
                         pv.created_at,
@@ -791,7 +834,7 @@ class MettaRepo:
                     FROM policy_versions pv
                     JOIN policies p ON pv.policy_id = p.id
                     {where_clause}
-                    ORDER BY pv.policy_id, pv.version DESC
+                    ORDER BY pv.created_at DESC
                     LIMIT %s OFFSET %s
                     """,
                     params,
@@ -1137,28 +1180,19 @@ GROUP BY pv.id, et.key, et.value
         score_group_episode_tag: str,
     ) -> list[LeaderboardPolicyEntry]:
         """Return leaderboard entries with overall_vor computed for each policy."""
-        # Get base leaderboard entries
         entries = await self.get_leaderboard_policies(
             policy_version_tags=policy_version_tags,
             score_group_episode_tag=score_group_episode_tag,
             user_id=None,
             policy_version_id=None,
         )
-        baseline_vor_stats = await self._get_vor_stats((THINKY_UUID, LADYBUG_UUID))
         candidate_vor_stats = await self._get_vor_stats(tuple(entry.policy_version.id for entry in entries))
 
-        # Combine baseline stats (candidate_count == 0) into replacement_stats
-        replacement_stats = RunningStats()
-        for pv_stats in baseline_vor_stats.values():
-            if 0 in pv_stats:
-                replacement_stats.merge(pv_stats[0])
-
-        # Compute overall_vor for each entry
         for entry in entries:
             pv_id = entry.policy_version.id
             candidate_stats = candidate_vor_stats.get(pv_id, {})
             if candidate_stats:
-                entry.overall_vor = compute_overall_vor_from_stats(candidate_stats, replacement_stats)
+                entry.overall_vor = compute_overall_vor_from_stats(candidate_stats, REPLACEMENT_BASELINE_MEAN)
 
         return entries
 

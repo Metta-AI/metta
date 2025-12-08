@@ -630,6 +630,35 @@ class EmptyBaseVariant(BaseHubVariant):
         node.corner_bundle = "custom"
 
 
+class AssemblerDrawsFromChestsVariant(BaseHubVariant):
+    name: str = "assembler_draws_from_chests"
+    description: str = "Assembler draws from chests."
+
+    # It would be better if this were configurable, but we use variants in places where that's hard.
+    # This needs to not overlap with the default (heart) chest.
+    chest_distance: int = 2
+
+    @override
+    def modify_node(self, node):
+        node.cross_objects = ["chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"]
+        node.cross_bundle = "custom"
+        node.cross_distance = self.chest_distance
+
+    @override
+    def modify_env(self, mission, env):
+        super().modify_env(mission, env)
+        assembler = env.game.objects["assembler"]
+        assert isinstance(assembler, AssemblerConfig)
+        assembler.chest_search_distance = self.chest_distance
+        chest = env.game.objects["chest"]
+        assert isinstance(chest, ChestConfig)
+        chest.vibe_transfers = {
+            "default": {
+                "heart": 255,
+            }
+        }
+
+
 class BalancedCornersVariant(MachinaArenaVariant):
     """Enable corner balancing to ensure fair spawn distances."""
 
@@ -669,6 +698,7 @@ class TraderVariant(MissionVariant):
 
 # TODO - validate that all variant names are unique
 VARIANTS: list[MissionVariant] = [
+    AssemblerDrawsFromChestsVariant(),
     CavesVariant(),
     ChestHeartTuneVariant(),
     CityVariant(),

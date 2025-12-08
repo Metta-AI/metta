@@ -14,10 +14,8 @@
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
+#include "systems/observation_encoder.hpp"
 #include "systems/stats_tracker.hpp"
-
-class ObservationEncoder;
-
 class Chest : public GridObject, public Usable, public HasInventory {
 private:
   // a reference to the game stats tracker
@@ -34,12 +32,14 @@ private:
 
     for (const auto& [resource, delta] : resource_deltas) {
       if (delta > 0) {
-        InventoryDelta transferred = HasInventory::transfer_resources(agent, *this, resource, delta, true);
+        InventoryDelta transferred =
+            HasInventory::transfer_resources(agent.inventory, inventory, resource, delta, true);
         if (transferred > 0) {
           any_transfer = true;
         }
       } else if (delta < 0) {
-        InventoryDelta transferred = HasInventory::transfer_resources(*this, agent, resource, -delta, true);
+        InventoryDelta transferred =
+            HasInventory::transfer_resources(inventory, agent.inventory, resource, -delta, true);
         if (transferred > 0) {
           any_transfer = true;
         }

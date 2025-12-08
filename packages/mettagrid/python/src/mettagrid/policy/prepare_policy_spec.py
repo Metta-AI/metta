@@ -66,7 +66,11 @@ def _resolve_spec_data_path(data_path: Optional[str], extraction_root: Path) -> 
     raise FileNotFoundError(f"Policy data path '{data_path}' not found in submission directory {extraction_root}")
 
 
-def load_policy_spec_from_local_dir(extraction_root: Path) -> PolicySpec:
+def load_policy_spec_from_local_dir(
+    extraction_root: Path,
+    *,
+    device: str | None = None,
+) -> PolicySpec:
     """Load a PolicySpec from policy_spec.json in an extracted submission."""
     policy_spec_path = extraction_root / "policy_spec.json"
     if not policy_spec_path.exists():
@@ -77,6 +81,8 @@ def load_policy_spec_from_local_dir(extraction_root: Path) -> PolicySpec:
 
     spec = PolicySpec.model_validate(raw_spec)
     spec.data_path = _resolve_spec_data_path(spec.data_path, extraction_root)
+    if device is not None and "device" in spec.init_kwargs:
+        spec.init_kwargs["device"] = device
     sys_path_entry = str(extraction_root.resolve())
     if sys_path_entry not in sys.path:
         sys.path.insert(0, sys_path_entry)
@@ -93,6 +99,8 @@ def load_policy_spec_from_s3(
     s3_path: str,
     cache_dir: Optional[Path] = None,
     remove_downloaded_copy_on_exit: bool = False,
+    *,
+    device: str | None = None,
 ) -> PolicySpec:
     """Download a submission archive from S3 and return a PolicySpec ready for loading.
 
@@ -103,6 +111,7 @@ def load_policy_spec_from_s3(
         s3_path: S3 path to the submission archive (e.g., s3://bucket/path/submission.zip)
         cache_dir: Base directory for caching. Defaults to /tmp/mettagrid-policy-cache
         cleanup_on_exit: If True, register an atexit handler to clean up the cache directory
+        device: Override the device in the loaded spec (e.g., "cpu" or "cuda:0")
 
     Returns:
         PolicySpec with paths resolved to the local extraction directory
@@ -121,7 +130,7 @@ def load_policy_spec_from_s3(
 
         marker_file.touch()
 
-    policy_spec = load_policy_spec_from_local_dir(extraction_root)
+    policy_spec = load_policy_spec_from_local_dir(extraction_root, device=device)
 
     if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
         _registered_cleanup_dirs.add(extraction_root)
