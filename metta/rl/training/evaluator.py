@@ -26,9 +26,9 @@ from metta.sim.simulate_and_record import ObservatoryWriter, WandbWriter, simula
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
+from mettagrid.policy.loader import policy_spec_from_string
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.file import write_data
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +202,7 @@ class Evaluator(TrainerComponent):
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
         sim_run_configs = [sim.to_simulation_run_config() for sim in sims]
-        policy_spec = policy_spec_from_uri(policy_uri, device=str(self._device))
+        policy_spec = policy_spec_from_string(policy_uri, device=str(self._device))
         policy_version_id: uuid.UUID | None = None
         if self._stats_client:
             policy_version_id = self._create_policy_version(

@@ -19,11 +19,8 @@ from metta.sim.simulate_and_record import (
 )
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
+from mettagrid.policy.loader import policy_spec_from_string
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.uri_resolvers.schemes import (
-    policy_spec_from_uri,
-    resolve_uri,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +73,7 @@ class EvaluateTool(Tool):
         else:
             policy_uris = list(self.policy_uris)
 
-        policy_specs = [policy_spec_from_uri(resolve_uri(uri)) for uri in policy_uris]
+        policy_specs = [policy_spec_from_string(uri) for uri in policy_uris]
 
         observatory_writer: ObservatoryWriter | None = None
         wandb_writer: WandbWriter | None = None

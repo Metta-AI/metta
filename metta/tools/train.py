@@ -2,7 +2,6 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from pathlib import Path
 from typing import Any, Optional
 
 import torch
@@ -50,9 +49,7 @@ from metta.tools.utils.auto_config import (
     auto_stats_server_uri,
     auto_wandb_config,
 )
-from mettagrid.policy.loader import resolve_policy_class_path
-from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+from mettagrid.policy.loader import policy_spec_from_string
 
 logger = getRankAwareLogger(__name__)
 
@@ -126,18 +123,7 @@ class TrainTool(Tool):
 
         self.training_env.seed += distributed_helper.get_rank()
 
-        sup_uri = self.training_env.supervisor_policy_uri
-        supervisor_policy_spec: PolicySpec | None = None
-        if sup_uri:
-            candidate = Path(sup_uri)
-            looks_like_path = candidate.suffix or os.sep in sup_uri or candidate.parent != Path(".")
-            looks_like_uri = "://" in sup_uri
-
-            if looks_like_uri or looks_like_path:
-                supervisor_policy_spec = policy_spec_from_uri(sup_uri)
-            else:
-                class_path = resolve_policy_class_path(sup_uri)
-                supervisor_policy_spec = PolicySpec(class_path=class_path)
+        supervisor_policy_spec = policy_spec_from_string(self.training_env.supervisor_policy_uri) if self.training_env.supervisor_policy_uri else None
 
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 

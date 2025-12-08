@@ -8,12 +8,13 @@ import os
 import pkgutil
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 
 def initialize_or_load_policy(
@@ -67,6 +68,36 @@ def resolve_policy_class_path(policy: str) -> str:
     # Will raise an error if invalid
     _ = load_symbol(full_path)
     return full_path
+
+
+def policy_spec_from_string(spec: str, **uri_kwargs: Any) -> PolicySpec:
+    """Resolve a policy string which may be a URI, path, or class shorthand.
+
+    This is a unified entry point that handles all common ways to specify a policy:
+    - URIs like "s3://bucket/path" or "metta://policy/name"
+    - File paths like "./train_dir/model.mpt" or "/abs/path.mpt"
+    - Class shorthands like "random", "lstm", "stateless"
+
+    Args:
+        spec: Policy specification string (URI, path, or class shorthand)
+        **uri_kwargs: Passed to policy_spec_from_uri (device, strict, remove_downloaded_copy_on_exit)
+
+    Returns:
+        PolicySpec ready for initialize_or_load_policy
+    """
+    spec_as_path = Path(spec)
+    looks_like_path = any([
+        len(spec_as_path.suffix) > 0,
+        os.sep in spec,
+        spec_as_path.parent != Path("."),
+    ])
+    looks_like_uri = "://" in spec
+
+    if looks_like_uri or looks_like_path:
+        return policy_spec_from_uri(spec, **uri_kwargs)
+    else:
+        class_path = resolve_policy_class_path(spec)
+        return PolicySpec(class_path=class_path)
 
 
 def get_policy_class_shorthand(policy: str) -> Optional[str]:

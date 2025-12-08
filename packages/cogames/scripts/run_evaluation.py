@@ -32,7 +32,7 @@ from typing import Dict, List, Optional
 
 import matplotlib
 
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+from mettagrid.policy.loader import policy_spec_from_string
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -199,15 +199,17 @@ def load_policy(
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
+        policy_spec = policy_spec_from_string(checkpoint_path, device=str(device))
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     if is_s3_uri(policy_path):
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = policy_spec_from_uri(policy_path, device=str(device))
+        policy_spec = policy_spec_from_string(policy_path, device=str(device))
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
-    policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)
+    policy_spec = policy_spec_from_string(policy_path, device=str(device))
+    if checkpoint_path:
+        policy_spec = PolicySpec(class_path=policy_spec.class_path, data_path=checkpoint_path)
     return initialize_or_load_policy(policy_env_info, policy_spec)
 
 
