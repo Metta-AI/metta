@@ -30,7 +30,6 @@ def frozen_time():
 class TestStopwatch:
     """Test suite for Stopwatch class."""
 
-
     @pytest.mark.skip(
         reason="sometimes hangs indefinitely when running tests in parallel"
         # see https://app.asana.com/1/1209016784099267/project/1210062854657778/task/1212347312601061?focus=true
@@ -779,7 +778,7 @@ class TestStopwatchIntegration:
 
     @pytest.mark.xfail(
         strict=False,
-        reason="flaky when running tests in parallel"
+        reason="flaky when running tests in parallel",
         # see https://app.asana.com/1/1209016784099267/project/1210062854657778/task/1212347312601063?focus=true
     )
     def test_logging_scenarios(self, frozen_time, caplog: pytest.LogCaptureFixture):
