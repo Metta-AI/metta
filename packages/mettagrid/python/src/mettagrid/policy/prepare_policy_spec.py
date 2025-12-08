@@ -79,6 +79,12 @@ def _find_module_root(extraction_root: Path, class_path: str) -> Path | None:
         cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy
     Returns:
         extraction_root/packages/cogames/src/
+
+    Note: This modifies sys.path but does not invalidate sys.modules. If the same
+    module was previously imported from a different location (e.g., installed package),
+    Python will use the cached import. This is acceptable for remote evaluation where
+    each task runs in a fresh process, but may cause issues in long-running processes
+    that load multiple submissions with the same class_path.
     """
     # Convert class_path to module path (remove class name at the end)
     parts = class_path.split(".")
@@ -93,13 +99,12 @@ def _find_module_root(extraction_root: Path, class_path: str) -> Path | None:
             matches = list(extraction_root.rglob(package_path))
             matched_path = package_path
         if matches:
-            # Found the module file - compute the root path
-            # e.g., if matched_path is "cogames/policy/agents.py" and file is at
-            # "/tmp/x/packages/cogames/src/cogames/policy/agents.py",
-            # we need "/tmp/x/packages/cogames/src/"
-            match = matches[0]
+            # If multiple matches, prefer the shortest path (closest to extraction root)
+            # This handles cases where there are backup copies in subdirectories
+            match = min(matches, key=lambda p: len(p.parts))
+            # Compute the root path by walking up from the match
+
             relative_module = Path(matched_path)
-            # Walk up from the match by the number of path components in matched_path
             root = match
             for _ in relative_module.parts:
                 root = root.parent
