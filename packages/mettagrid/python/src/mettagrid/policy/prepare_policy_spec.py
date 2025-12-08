@@ -69,16 +69,9 @@ def _resolve_spec_data_path(data_path: Optional[str], extraction_root: Path) -> 
 def _find_module_root(extraction_root: Path, class_path: str) -> Path | None:
     """Find the sys.path entry needed to import a class from within the extraction.
 
-    Given a class_path like 'cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy',
-    searches the extraction directory for the corresponding module file and returns
-    the path that should be added to sys.path.
-
-    For example, if the file is at:
-        extraction_root/packages/cogames/src/cogames/policy/nim_agents/agents.py
-    And class_path is:
-        cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy
-    Returns:
-        extraction_root/packages/cogames/src/
+    Given a class_path like 'mypackage.submodule.MyClass', searches the extraction
+    directory for the corresponding module file and returns the path that should be
+    added to sys.path.
 
     Note: This modifies sys.path but does not invalidate sys.modules. If the same
     module was previously imported from a different location (e.g., installed package),
