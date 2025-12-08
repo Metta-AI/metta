@@ -36,8 +36,8 @@ policy plays with other policies in the pool through running multi-policy, multi
 
 ## Quick Start
 
-Let's walk through playing an easy mission in Cogs vs. Clips, then training a simple starter policy. `easy_mode` uses
-three variants to simplify training:
+Let's install cogames and walk through playing an easy mission in Cogs vs. Clips. Then, we'll train a simple starter
+policy. `easy_hearts` uses three variants to simplify training:
 
 - `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
   energy)
@@ -56,14 +56,14 @@ uv pip install cogames
 # Play an episode yourself
 cogames tutorial
 
-# Play an episode of the easy_mode mission with a scripted policy
-cogames play -m easy_mode -p class=baseline
+# Play an episode of the easy_hearts mission with a scripted policy
+cogames play -m easy_hearts -p class=baseline
 
 # Try the scripted policy on a set of eval missions
 cogames eval -set integrated_evals -p class=baseline
 
-# Train with an LSTM policy on easy_mode
-cogames train -m easy_mode -p class=lstm
+# Train with an LSTM policy on easy_hearts
+cogames train -m easy_hearts -p class=lstm
 ```
 
 Other useful commands:
@@ -96,6 +96,13 @@ cogames leaderboard
 # Show version info for the installed tooling stack
 cogames version
 ```
+
+## Tutorial
+
+### `cogames tutorial`
+
+Play through our tutorial to get familiar with the game! Follow the instructions given in the terminal, while you use
+the GUI to accomplish your first training mission.
 
 ## Play, Train, and Eval
 
@@ -270,10 +277,12 @@ modifications.
 
 **Options:**
 
-- `--agents N`: Number of agents (default: 2)
-- `--width W`: Map width (default: 10)
-- `--height H`: Map height (default: 10)
+- `--cogs N` or `-c N`: Number of cogs
+- `--width W` or `-w W`: Map width
+- `--height H` or `-h H`: Map height
 - `--output PATH`: Save to file
+
+Note: If `--cogs`, `--width`, or `--height` are not specified, the values come from the base mission's configuration.
 
 You will be able to provide your specified `--output` path as the `MISSION` argument to other `cogames` commands.
 

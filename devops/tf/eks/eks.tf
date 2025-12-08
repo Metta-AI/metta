@@ -48,9 +48,7 @@ module "eks" {
   }
 
   cluster_addons = {
-    eks-pod-identity-agent = {
-      before_compute = true
-    }
+    # Pod Identity Agent is included by default for EKS auto mode
     aws-ebs-csi-driver = {
       addon_version = "v1.51.0-eksbuild.1"
     }

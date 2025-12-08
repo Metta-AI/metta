@@ -36,6 +36,7 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
+# Single canonical curriculum list (fixed + procedural)
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "easy_hearts",
     "oxygen_bottleneck",
@@ -48,24 +49,6 @@ COORDINATION_MISSIONS: list[str] = [
     "quadrant_buildings",
     "single_use_swarm",
 ]
-
-PROC_MAP_MISSIONS: tuple[str, ...] = (
-    f"training_facility{MAP_MISSION_DELIMITER}harvest",
-    f"training_facility{MAP_MISSION_DELIMITER}vibe_check",
-    f"training_facility{MAP_MISSION_DELIMITER}repair",
-    f"training_facility{MAP_MISSION_DELIMITER}easy_hearts_training_facility",
-    f"hello_world{MAP_MISSION_DELIMITER}open_world",
-    f"hello_world{MAP_MISSION_DELIMITER}hello_world_unclip",
-    f"hello_world{MAP_MISSION_DELIMITER}oxygen_bottleneck",
-    f"hello_world{MAP_MISSION_DELIMITER}energy_starved",
-    f"hello_world{MAP_MISSION_DELIMITER}distant_resources",
-    f"hello_world{MAP_MISSION_DELIMITER}quadrant_buildings",
-    f"hello_world{MAP_MISSION_DELIMITER}single_use_swarm",
-    f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
-    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
-    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
-    # f"machina_1{MAP_MISSION_DELIMITER}open_world",
-)
 
 
 def _normalize_variant_names(
@@ -337,6 +320,7 @@ def train(
     dr_variants: int = 0,
     dr_rewards: bool = False,
     dr_misc: bool = False,
+    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -358,6 +342,21 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
     )
+    # Inline CVC defaults from the latest sweep (Dec 2025)
+    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
+    trainer_cfg.optimizer.eps = 5.0833278919526e-07
+
+    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
+    trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
+    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
+
+    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
+
+    trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
+    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
+
+    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
+    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
@@ -377,6 +376,9 @@ def train(
         evaluator=evaluator_cfg,
     )
 
+    if maps_cache_size is not None:
+        tt.training_env.maps_cache_size = maps_cache_size
+
     if bc_policy_uri is not None:
         tt.trainer.losses.supervisor.enabled = True
         tt.trainer.losses.ppo.enabled = False
@@ -385,7 +387,7 @@ def train(
         tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
         tt.trainer.losses.ppo_critic.sample_enabled = False
         tt.trainer.losses.ppo_critic.train_forward_enabled = False
-        tt.training_env.supervisor.policy = bc_policy_uri
+        tt.training_env.supervisor_policy_uri = bc_policy_uri
         tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
 
     return tt
@@ -470,7 +472,7 @@ def train_single_mission(
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: list[str] | str,
     num_cogs: int = 4,
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
@@ -540,48 +542,6 @@ def train_coordination(
     )
 
 
-def train_fixed_maps(
-    num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-    maps_cache_size: Optional[int] = 50,
-) -> TrainTool:
-    """Train on fixed-map CoGs vs Clips missions in one curriculum."""
-    tt = train(
-        num_cogs=num_cogs,
-        base_missions=list(DEFAULT_CURRICULUM_MISSIONS),
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-        mission=mission,
-    )
-    tt.training_env.maps_cache_size = maps_cache_size
-    return tt
-
-
-def train_proc_maps(
-    num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-    maps_cache_size: Optional[int] = 50,
-) -> TrainTool:
-    """Train on procedural MachinaArena map missions."""
-    tt = train(
-        num_cogs=num_cogs,
-        base_missions=list(PROC_MAP_MISSIONS),
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-        mission=mission,
-    )
-    tt.training_env.maps_cache_size = maps_cache_size
-    return tt
-
-
 __all__ = [
     "make_eval_suite",
     "make_training_env",
@@ -589,10 +549,8 @@ __all__ = [
     "train",
     "train_variants",
     "train_single_mission",
+    "train_coordination",
     "evaluate",
     "play",
     "play_training_env",
-    "train_coordination",
-    "train_fixed_maps",
-    "train_proc_maps",
 ]

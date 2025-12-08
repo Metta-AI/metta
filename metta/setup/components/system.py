@@ -36,7 +36,7 @@ class SystemSetup(SetupModule):
     always_required = True
 
     def dependencies(self) -> list[str]:
-        return ["core"]
+        return ["bootstrap"]
 
     @property
     @override
@@ -58,6 +58,7 @@ class SystemSetup(SetupModule):
 
     @override
     def check_installed(self) -> bool:
+        # Check optional deps from deps.yaml
         if not self._installer:
             return True
         return self._installer.check_installed(
@@ -73,6 +74,7 @@ class SystemSetup(SetupModule):
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up system dependencies...")
 
+        # Install optional deps from deps.yaml
         if not self._installer:
             warning("""
                 No supported package manager found.

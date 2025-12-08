@@ -136,14 +136,10 @@ private:
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 
-  std::unordered_map<uint8_t, float> _feature_normalizations;
-
   ActionSuccess _action_success;
 
   std::mt19937 _rng;
   unsigned int _seed;
-
-  float _resource_loss_prob;
 
   // Inventory regeneration
   unsigned int _inventory_regen_interval;

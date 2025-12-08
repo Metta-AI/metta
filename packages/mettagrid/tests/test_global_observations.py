@@ -36,9 +36,7 @@ class TestGlobalObservations:
             max_steps=100,
             resource_names=["ore"],
             global_obs=GlobalObsConfig(last_action=True),
-            agent=AgentConfig(
-                default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
-            ),
+            agent=AgentConfig(default_resource_limit=10, freeze_duration=0, rewards=AgentRewards()),
             actions=ActionsConfig(
                 noop=NoopActionConfig(enabled=True),
                 move=MoveActionConfig(enabled=True, required_resources={"ore": 1}),
@@ -91,9 +89,7 @@ class TestGlobalObservations:
             max_steps=100,
             resource_names=["ore"],
             global_obs=GlobalObsConfig(last_action=True),
-            agent=AgentConfig(
-                default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
-            ),
+            agent=AgentConfig(default_resource_limit=10, freeze_duration=0, rewards=AgentRewards()),
             actions=ActionsConfig(
                 noop=NoopActionConfig(enabled=True),
                 move=MoveActionConfig(enabled=True),

@@ -162,11 +162,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return self._score_tasks_basic(task_ids)
 
     def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
-        """Score tasks using bidirectional learning progress."""
-        scores = {}
-        for task_id in task_ids:
-            scores[task_id] = self._get_bidirectional_learning_progress_score(task_id)
-        return scores
+        """Score tasks with per-task LP, then sigmoid + normalize per call."""
+
+        if not task_ids:
+            return {}
+
+        raw_scores = np.array([self._get_bidirectional_learning_progress_score(tid) for tid in task_ids], dtype=float)
+        norm_scores = self._normalize_bidirectional_scores(raw_scores)
+        return {tid: float(score) for tid, score in zip(task_ids, norm_scores, strict=True)}
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using basic EMA variance method."""
@@ -233,11 +236,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if not task_ids:
             return None
 
+        # Use the same scoring signal as sampling; lower score = lower learning progress
         scores = self.score_tasks(task_ids)
 
-        # Find task with minimum learning progress
-        min_task_id = min(task_ids, key=lambda tid: scores.get(tid, 0.0))
-        return min_task_id
+        def _evict_key(tid: int) -> tuple[float, int, int]:
+            task_stats = self.task_tracker.get_task_stats(tid) or {"completion_count": 0}
+            # Fewest presentations is preferred when scores tie; final tie-breaker on task_id for determinism
+            return (scores.get(tid, self.hypers.exploration_bonus), task_stats["completion_count"], tid)
+
+        return min(task_ids, key=_evict_key)
 
     def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
         """Check if a task should be evicted based on criteria."""
@@ -285,7 +292,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._per_task_slow.pop(task_id, None)
             self._score_cache.pop(task_id, None)
             self._cache_valid_tasks.discard(task_id)
-            self._stale_dist = True
         else:
             self._task_emas.pop(task_id, None)
             self._score_cache.pop(task_id, None)
@@ -408,7 +414,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 "num_active_tasks": 0.0,
             }
 
-        self._update_bidirectional_progress()
+        learning_progress_array = self._learning_progress()
+        mean_learning_progress = float(np.mean(learning_progress_array)) if len(learning_progress_array) > 0 else 0.0
+        success_rates = [np.mean(vals) if vals else DEFAULT_SUCCESS_RATE for vals in self._outcomes.values()]
+        mean_task_success_rate = float(np.mean(success_rates)) if success_rates else 0.0
 
         # Always calculate mean_learning_progress from _learning_progress(),
         # independent of _task_dist which may not be initialized
@@ -554,82 +563,80 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if self._p_fast is None or self._p_slow is None:
             return np.array([])
 
-        fast = self._reweight(self._p_fast) if reweight else self._p_fast
-        slow = self._reweight(self._p_slow) if reweight else self._p_slow
+        task_ids = sorted(self._outcomes.keys())
+        if not task_ids:
+            return np.array([])
 
-        # Learning progress is the absolute difference between fast and slow EMAs
-        # This captures variability/change regardless of absolute performance level
-        lp = np.abs(fast - slow)
+        fast_list: list[float] = []
+        slow_list: list[float] = []
+        for task_id in task_ids:
+            fast = self._per_task_fast.get(task_id)
+            slow = self._per_task_slow.get(task_id)
 
-        # Add a small amount based on fast EMA to slightly favor above-baseline tasks
-        # but still prioritize change/variance
-        performance_bonus = np.maximum(fast, 0) * 0.1
+            if fast is None or slow is None:
+                success_vals = self._outcomes.get(task_id, [])
+                success_rate = np.mean(success_vals) if success_vals else DEFAULT_SUCCESS_RATE
+                baseline = 0.5
+                denominator = max(1.0 - baseline, 0.01)
+                normalized = (success_rate - baseline) / denominator
+                fast = slow = normalized
+
+            fast_list.append(fast)
+            slow_list.append(slow)
+
+        fast_arr = np.asarray(fast_list, dtype=float)
+        slow_arr = np.asarray(slow_list, dtype=float)
+
+        if reweight:
+            fast_arr = self._reweight(fast_arr)
+            slow_arr = self._reweight(slow_arr)
+
+        lp = np.abs(fast_arr - slow_arr)
+        performance_bonus = np.maximum(fast_arr, 0) * 0.1
 
         return lp + performance_bonus
 
-    def _reweight(self, probs: np.ndarray) -> np.ndarray:
-        """Apply progress smoothing reweighting to probability values."""
-        numerator = probs * (1.0 - self.hypers.progress_smoothing)
-        denominator = probs + self.hypers.progress_smoothing * (1.0 - 2.0 * probs)
+    def _reweight(self, probs: np.ndarray | float) -> np.ndarray | float:
+        """Apply progress smoothing reweighting to probability values.
 
-        # Handle division by zero
+        Accepts either a scalar or an array and returns the same shape/type.
+        """
+        arr = np.asarray(probs, dtype=float)
+        smoothing = self.hypers.progress_smoothing
+        numerator = arr * (1.0 - smoothing)
+        denominator = arr + smoothing * (1.0 - 2.0 * arr)
+
+        # Prevent divide-by-zero or sign flips; mirror distribution behavior.
         denominator = np.where(denominator <= 0, 1.0, denominator)
         result = numerator / denominator
+
+        if np.ndim(probs) == 0:
+            return float(result)
         return result
 
     def _sigmoid(self, x: np.ndarray) -> np.ndarray:
-        """Apply sigmoid function to array values."""
-        return 1 / (1 + np.exp(-np.clip(x, -500, 500)))  # Clip to prevent overflow
+        """Apply sigmoid function to array values with clipping for stability."""
+        return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
 
-    def _calculate_task_distribution(self):
-        """Calculate task distribution based on bidirectional learning progress."""
-        if not self._outcomes:
-            self._task_dist = np.array([])
-            self._stale_dist = False
-            return
+    def _normalize_bidirectional_scores(self, raw_scores: np.ndarray) -> np.ndarray:
+        """Apply exploration floor, center, sigmoid, and normalize."""
+        if raw_scores.size == 0:
+            return raw_scores
 
-        num_tasks = len(self._outcomes)
-        task_dist = np.ones(num_tasks) / num_tasks
+        # Ensure every task retains some exploration weight so it can still be sampled
+        min_weight = max(self.hypers.exploration_bonus, 1e-6)
+        raw_scores = np.maximum(raw_scores, min_weight)
 
-        learning_progress = self._learning_progress()
+        # Center (but do not standardize) so smoothing magnitude is preserved
+        if len(raw_scores) > 1:
+            raw_scores = raw_scores - np.mean(raw_scores)
 
-        if len(learning_progress) == 0:
-            self._task_dist = task_dist
-            self._stale_dist = False
-            return
+        subprobs = self._sigmoid(raw_scores)
 
-        # Find tasks with positive learning progress (actual learning/change)
-        # Don't just reward any positive performance - focus on learning progress
-        posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0]
-
-        any_progress = len(posidxs) > 0
-        subprobs = learning_progress[posidxs] if any_progress else learning_progress
-
-        # Standardize and apply sigmoid
-        std = np.std(subprobs)
-        if std > 0:
-            subprobs = (subprobs - np.mean(subprobs)) / std
-        else:
-            subprobs = subprobs - np.mean(subprobs)
-
-        subprobs = self._sigmoid(subprobs)
-
-        # Normalize to sum to 1
-        sum_probs = np.sum(subprobs)
-        if sum_probs > 0:
-            subprobs = subprobs / sum_probs
-        else:
-            subprobs = np.ones_like(subprobs) / len(subprobs)
-
-        # Assign probabilities
-        if any_progress:
-            task_dist = np.zeros(len(learning_progress))
-            task_dist[posidxs] = subprobs
-        else:
-            task_dist = subprobs
-
-        self._task_dist = task_dist.astype(np.float32)
-        self._stale_dist = False
+        total = float(np.sum(subprobs))
+        if total > 0:
+            return subprobs / total
+        return np.ones_like(subprobs) / len(subprobs)
 
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
