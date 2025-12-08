@@ -32,6 +32,53 @@ class EpisodeRolloutResult(BaseModel):
     steps: int
     max_steps: int
 
+    def print_agent_stats(self, title: str = "Agent Summary") -> None:
+        """Print agent inventories and stats as a table."""
+        if not self.agent_inventories or not self.resource_names:
+            return
+
+        # Build plain text table (avoids Rich truncation issues)
+        columns = ["Agent", "Reward"] + self.resource_names
+        widths = [max(6, len(c)) for c in columns]
+
+        # Header
+        header = "  ".join(c.rjust(widths[i]) for i, c in enumerate(columns))
+        print(f"\n{title}")
+        print(header)
+        print("-" * len(header))
+
+        # Agent rows
+        resource_totals: dict[str, int] = {}
+        for agent_id, inventory in enumerate(self.agent_inventories):
+            row = [str(agent_id), f"{self.rewards[agent_id]:.2f}"]
+            for resource in self.resource_names:
+                amount = inventory.get(resource, 0)
+                resource_totals[resource] = resource_totals.get(resource, 0) + amount
+                row.append(str(amount))
+            print("  ".join(row[i].rjust(widths[i]) for i in range(len(row))))
+
+        print("-" * len(header))
+
+        # Total row
+        total_row = ["Total", f"{float(self.rewards.sum()):.2f}"]
+        for resource in self.resource_names:
+            total_row.append(str(resource_totals.get(resource, 0)))
+        print("  ".join(total_row[i].rjust(widths[i]) for i in range(len(total_row))))
+
+        # Gained row (from stats)
+        gained_row = ["Gained", ""]
+        for resource in self.resource_names:
+            gained = int(self.stats.get(f"{resource}.gained", 0))
+            gained_row.append(str(gained) if gained else "-")
+        print("  ".join(gained_row[i].rjust(widths[i]) for i in range(len(gained_row))))
+
+        # Lost row (from stats)
+        lost_row = ["Lost", ""]
+        for resource in self.resource_names:
+            lost = int(self.stats.get(f"{resource}.lost", 0))
+            lost_row.append(str(lost) if lost else "-")
+        print("  ".join(lost_row[i].rjust(widths[i]) for i in range(len(lost_row))))
+
 
 class MultiEpisodeRolloutResult(BaseModel):
     episodes: list[EpisodeRolloutResult]

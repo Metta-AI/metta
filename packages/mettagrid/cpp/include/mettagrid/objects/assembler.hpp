@@ -286,6 +286,12 @@ public:
     this->obs_encoder = encoder;
   }
 
+  // Initialize the per-agent tracking array (call after knowing num_agents)
+  // Note: This is a no-op for now since we removed per-agent cooldown, but kept for API compat
+  void init_agent_tracking(unsigned int /*num_agents*/) {
+    // No-op - per-agent cooldown was removed
+  }
+
   // Get the remaining cooldown duration in ticks (0 when ready for use)
   unsigned int cooldown_remaining() const {
     if (!current_timestep_ptr || cooldown_end_timestep <= *current_timestep_ptr) {
@@ -501,7 +507,7 @@ public:
     return true;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  virtual std::vector<PartialObservationToken> obs_features(unsigned int observer_agent_id = UINT_MAX) const override {
     std::vector<PartialObservationToken> features;
 
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
