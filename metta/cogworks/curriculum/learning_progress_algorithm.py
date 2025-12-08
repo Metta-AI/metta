@@ -1,10 +1,3 @@
-"""
-Learning Progress Algorithm with integrated bidirectional scoring.
-
-Provides intelligent task selection based on bidirectional learning progress analysis,
-using fast and slow exponential moving averages to detect learning opportunities.
-"""
-
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -16,11 +9,11 @@ from .task_tracker import TaskTracker
 DEFAULT_SUCCESS_RATE = 0.0
 DEFAULT_WEIGHT = 1.0
 RANDOM_BASELINE_CAP = 0.75
+BASELINE = 0.5
+MIN_DENOM = 0.01
 
 
 class LearningProgressConfig(CurriculumAlgorithmConfig):
-    """Configuration for learning progress with bidirectional scoring as default."""
-
     type: str = "learning_progress"
 
     # Bidirectional learning progress settings (now default)
@@ -48,38 +41,29 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
 
 class LearningProgressAlgorithm(CurriculumAlgorithm):
-    """
-    Learning Progress Algorithm with integrated bidirectional scoring.
-
-    Uses bidirectional learning progress by default, combining fast and slow
-    exponential moving averages to detect learning opportunities and guide
-    intelligent task selection.
-    """
-
     def __init__(self, num_tasks: int, hypers: LearningProgressConfig):
         super().__init__(num_tasks, hypers)
 
         self.num_tasks = num_tasks
         self.hypers: LearningProgressConfig = hypers
 
-        # Initialize task tracker (moved from modules to curriculum folder)
         self.task_tracker = TaskTracker(max_memory_tasks=hypers.max_memory_tasks)
 
-        # Note: slice_analyzer is already initialized in parent class via StatsLogger
-
-        # Initialize shared caches (used by both scoring methods)
         self._score_cache: Dict[int, float] = {}
         self._cache_valid_tasks: set[int] = set()
 
-        # Initialize scoring method (bidirectional by default)
         if hypers.use_bidirectional:
             self._init_bidirectional_scoring()
         else:
             self._init_basic_scoring()
 
-        # Cache for expensive statistics computation
-        self._stats_cache: Dict[str, Any] = {}
-        self._stats_cache_valid = False
+    def _normalized_success(self, score: float) -> float:
+        clamped = max(0.0, min(1.0, score))
+        return (clamped - BASELINE) / max(1.0 - BASELINE, MIN_DENOM)
+
+    def _invalidate_task_cache(self, task_id: int) -> None:
+        self._cache_valid_tasks.discard(task_id)
+        self._score_cache.pop(task_id, None)
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic statistics that all algorithms must provide."""
@@ -172,11 +156,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         return {tid: float(score) for tid, score in zip(task_ids, norm_scores, strict=True)}
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
-        """Score tasks using basic EMA variance method."""
-        scores = {}
-        for task_id in task_ids:
-            scores[task_id] = self._get_basic_learning_progress_score(task_id)
-        return scores
+        return {task_id: self._get_basic_learning_progress_score(task_id) for task_id in task_ids}
 
     def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
         """Calculate bidirectional learning progress score for a task."""
@@ -192,7 +172,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             lp = abs(self._per_task_fast[task_id] - self._per_task_slow[task_id])
             # Small bonus for above-baseline performance
             perf_bonus = max(self._per_task_fast[task_id], 0) * 0.1
-            score = lp + perf_bonus
+            score = max(lp + perf_bonus, self.hypers.exploration_bonus)
 
         # Cache the computed score
         self._score_cache[task_id] = score
@@ -290,12 +270,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._counter.pop(task_id, None)
             self._per_task_fast.pop(task_id, None)
             self._per_task_slow.pop(task_id, None)
-            self._score_cache.pop(task_id, None)
-            self._cache_valid_tasks.discard(task_id)
         else:
             self._task_emas.pop(task_id, None)
-            self._score_cache.pop(task_id, None)
-            self._cache_valid_tasks.discard(task_id)
+        self._invalidate_task_cache(task_id)
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the appropriate scoring method."""
@@ -363,7 +340,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._per_task_slow[task_id] = normalized * slow_ts + self._per_task_slow[task_id] * (1.0 - slow_ts)
 
         self._stale_dist = True
-        self._cache_valid_tasks.discard(task_id)
+        self._invalidate_task_cache(task_id)
 
     def _update_basic_ema(self, task_id: int, score: float) -> None:
         """Update basic EMA tracking for a task with new score."""
@@ -380,7 +357,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._task_emas[task_id] = (new_ema_score, new_ema_squared, num_samples + 1)
 
         # Invalidate cache for this task when EMA is updated
-        self._cache_valid_tasks.discard(task_id)
+        self._invalidate_task_cache(task_id)
 
     def on_task_created(self, task: CurriculumTask) -> None:
         """Handle task creation by tracking it."""

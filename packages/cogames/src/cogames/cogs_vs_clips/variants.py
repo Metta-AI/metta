@@ -314,40 +314,6 @@ class Small50Variant(MissionVariant):
         env.game.map_builder = map_builder.model_copy(update={"width": 50, "height": 50})
 
 
-class CogToolsOnlyVariant(MissionVariant):
-    name: str = "cog_tools_only"
-    description: str = "Gear tools (decoder/modulator/scrambler/resonator) require only the 'gear/cog' vibe."
-
-    @override
-    def modify_env(self, mission, env) -> None:
-        assembler_cfg = env.game.objects["assembler"]
-        if not isinstance(assembler_cfg, AssemblerConfig):
-            raise TypeError("Expected 'assembler' to be AssemblerConfig")
-        gear_outputs = {"decoder", "modulator", "scrambler", "resonator"}
-
-        # Check if a protocol with ["gear"] vibe already exists
-        # If so, don't modify any protocols to avoid creating duplicates
-        has_gear_protocol = any(p.vibes == ["gear"] and p.min_agents == 0 for p in assembler_cfg.protocols)
-
-        if has_gear_protocol:
-            return
-
-        # Collect gear protocols and non-gear protocols separately
-        gear_protocols = []
-        other_protocols = []
-        for protocol in assembler_cfg.protocols:
-            if any(k in protocol.output_resources for k in gear_outputs):
-                gear_protocols.append(protocol)
-            else:
-                other_protocols.append(protocol)
-
-        # If we have gear protocols, modify only the first one to use ["gear"] vibe
-        # and remove the rest to avoid duplicates (they would all have ["gear"] vibe with min_agents=0)
-        if gear_protocols:
-            gear_protocols[0].vibes = ["gear"]
-            assembler_cfg.protocols = other_protocols + [gear_protocols[0]]
-
-
 class InventoryHeartTuneVariant(MissionVariant):
     name: str = "inventory_heart_tune"
     description: str = "Tune starting agent inventory to N hearts worth of inputs; optional heart capacity."

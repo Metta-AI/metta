@@ -251,20 +251,16 @@ def make_curriculum(
         # Filter to compatible variants for this mission
         compatible_available = [v.name for v in VARIANTS if v.name in available_variants and v.compat(mission_template)]
 
-        # Iterate over variant combinations.
-        # dr_variants == 0 should keep legacy behavior: base task + each compatible variant.
-        if dr_variants <= 0:
-            variant_combinations = [()] + [(v,) for v in compatible_available]
-        else:
-            max_variants = min(dr_variants, len(compatible_available))
-            variant_combinations = []
-            for num_variants in range(max_variants + 1):
-                variant_combinations.extend(itertools.combinations(compatible_available, num_variants))
+        # Iterate over all possible num_variants from 0 to dr_variants
+        max_variants = min(dr_variants, len(compatible_available))
+        for num_variants in range(max_variants + 1):
+            # Create a task set for each possible combination of this size
+            variant_combinations = list(itertools.combinations(compatible_available, num_variants))
 
             num_variants_tasks = []
             for variant_combination in variant_combinations:
                 # Use selected variants if any, otherwise use provided variants (or None)
-                variant_list = list(variant_combination) if variant_combination else None
+                variant_list = list(variant_combination) if variant_combination else (variants if variants else None)
                 mission_env = make_training_env(
                     num_cogs=num_cogs,
                     mission=mission_name,
