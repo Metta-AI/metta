@@ -18,12 +18,16 @@ body {
 }
 
 header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
-    margin-bottom: 30px;
-    padding-bottom: 20px;
-    border-bottom: 2px solid #e0e0e0;
+    margin: -20px -20px 20px -20px;
+    padding: 8px 20px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
 }
 
 .header-right {
@@ -70,7 +74,8 @@ h2 {
 
 .bulk-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    align-items: center;
 }
 
 .btn {
@@ -112,6 +117,46 @@ h2 {
     font-size: 12px;
 }
 
+/* Pill buttons - same size as status pills */
+.btn-pill {
+    padding: 4px 10px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-pill:hover {
+    background: #f0f0f0;
+    border-color: #ccc;
+}
+
+.btn-pill-primary {
+    background: #2196f3;
+    color: white;
+    border-color: #2196f3;
+}
+
+.btn-pill-primary:hover {
+    background: #1976d2;
+    border-color: #1976d2;
+}
+
+.btn-pill-danger {
+    background: #f44336;
+    color: white;
+    border-color: #f44336;
+}
+
+.btn-pill-danger:hover {
+    background: #d32f2f;
+    border-color: #d32f2f;
+}
+
 section {
     background: white;
     padding: 20px;
@@ -145,6 +190,7 @@ th {
     border-bottom: 2px solid #e0e0e0;
     border-right: 1px solid #e0e0e0;
     white-space: nowrap;
+    vertical-align: bottom;
 }
 
 .col-flag-group {
@@ -173,10 +219,6 @@ td {
     padding: 8px 4px;
     border-bottom: 1px solid #f0f0f0;
     border-right: 1px solid #f0f0f0;
-    white-space: nowrap;
-}
-
-.col-id {
     white-space: nowrap;
 }
 
@@ -239,27 +281,46 @@ tbody tr.main-row.drag-over-after {
 }
 
 .col-id {
-    min-width: 200px;
+    width: 1%;
+    white-space: nowrap;
     font-family: monospace;
     font-size: 12px;
+    padding-left: 5px;
+    padding-right: 10px;
 }
 
 .col-state {
-    min-width: 80px;
-    max-width: 80px;
+    width: 80px;
     white-space: nowrap;
+    padding-left: 5px;
+    padding-right: 5px;
 }
 
 .col-epoch {
-    min-width: 60px;
-    max-width: 80px;
+    width: 1%;
     white-space: nowrap;
+    text-align: center;
+}
+
+/* Header styling for ID, State, Epoch, and Resources columns to match flag headers */
+th.col-id,
+th.col-state,
+th.col-epoch,
+th.col-resources {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: lowercase;
     text-align: center;
 }
 
 .col-resources {
     min-width: 80px;
     white-space: nowrap;
+    width: 1%;  /* Make column fit to content */
+}
+
+.col-padding {
+    width: 100%;  /* Take up all remaining space */
 }
 
 .col-flag {
@@ -362,7 +423,7 @@ tbody tr.main-row td {
 
 .detail-section {
     background: white;
-    padding: 15px;
+    padding: 20px;
     border-radius: 4px;
     border: 1px solid #e0e0e0;
 }
@@ -631,11 +692,11 @@ tbody tr.main-row td {
 }
 
 .star-btn:hover {
-    color: #ffc107;
+    color: #ffd54f;
 }
 
 .star-btn.starred {
-    color: #ffc107;
+    color: #f9a825;
 }
 
 /* Copy button */
@@ -759,4 +820,12 @@ tbody tr.main-row td {
     /* Started column */
     width: 120px;
     max-width: 120px;
+}
+
+#jobs-table th:nth-child(8),
+#jobs-table td:nth-child(8) {
+    /* Scrollbar spacer column */
+    width: 20px;
+    max-width: 20px;
+    padding: 0 !important;
 }

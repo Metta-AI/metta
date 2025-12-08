@@ -259,11 +259,21 @@ async def update_experiment_starred(experiment_id: str, data: dict):
 
 @app.delete("/api/experiments/{experiment_id}")
 async def delete_experiment(experiment_id: str):
-    """Delete an experiment."""
+    """Soft-delete an experiment."""
     try:
         await desired_state_manager.delete_experiment(experiment_id)
         return {"message": "Experiment deleted"}
     except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@app.post("/api/experiments/{experiment_id}/undelete")
+async def undelete_experiment(experiment_id: str):
+    """Restore a soft-deleted experiment."""
+    try:
+        await db.undelete_experiment(experiment_id)
+        return {"message": "Experiment restored"}
+    except Exception as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
@@ -284,9 +294,8 @@ async def get_experiment_status(experiment_id: str) -> ExperimentStatus:
     if not experiment:
         raise HTTPException(status_code=404, detail="Experiment not found")
 
-    current_job = None
-    if experiment.current_job_id:
-        current_job = await db.get_job(experiment.current_job_id)
+    # Get current active job dynamically
+    current_job = await db.get_current_job_for_experiment(experiment_id)
 
     recent_jobs = await db.get_jobs_for_experiment(experiment_id, limit=10)
 
@@ -321,7 +330,7 @@ async def update_experiment_flags(experiment_id: str, request: UpdateFlagsReques
 @app.get("/api/experiments/{experiment_id}/checkpoints")
 async def get_experiment_checkpoints(experiment_id: str, limit: int = 50):
     """Get checkpoints for an experiment."""
-    from urllib.parse import quote
+    from .services import ObservatoryService
 
     experiment = await desired_state_manager.get_experiment(experiment_id)
     if not experiment:
@@ -332,7 +341,7 @@ async def get_experiment_checkpoints(experiment_id: str, limit: int = 50):
     # Enrich checkpoints with Observatory URLs
     for checkpoint in checkpoints:
         policy_name = f"{experiment_id}.{checkpoint.epoch}"
-        checkpoint.observatory_url = f"https://observatory.softmax-research.net/policy/{quote(policy_name, safe='')}"
+        checkpoint.observatory_url = ObservatoryService.get_policy_web_url(policy_name)
 
     return {"checkpoints": checkpoints}
 

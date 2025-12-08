@@ -209,8 +209,6 @@ class Poller:
                             "job_duration": 0,
                             "resources": resources_str,
                             "cloud": "",
-                            "region": "",
-                            "zone": "",
                             "infra": "managed",
                             "accelerators": {},
                             "entrypoint": "",

@@ -54,8 +54,6 @@ class Database:
                 gpus INTEGER NOT NULL DEFAULT 0,
                 instance_type TEXT,
                 cloud TEXT,
-                region TEXT,
-                zone TEXT,
                 spot INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
@@ -85,8 +83,6 @@ class Database:
                 gpus INTEGER NOT NULL DEFAULT 0,
                 instance_type TEXT,
                 cloud TEXT,
-                region TEXT,
-                zone TEXT,
                 FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
             );
 
@@ -104,8 +100,6 @@ class Database:
                 num_nodes INTEGER NOT NULL DEFAULT 0,
                 instance_type TEXT,
                 cloud TEXT,
-                region TEXT,
-                zone TEXT,
                 created_at TEXT,
                 last_seen TEXT NOT NULL
             );
@@ -168,6 +162,24 @@ class Database:
             await self._conn.execute("ALTER TABLE experiments ADD COLUMN starred INTEGER NOT NULL DEFAULT 0")
             await self._conn.commit()
 
+        # Migration: Add deleted column to experiments table if it doesn't exist
+        if "deleted" not in column_names:
+            await self._conn.execute("ALTER TABLE experiments ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
+            await self._conn.commit()
+
+        # Migration: Add observatory_url and policy_version columns to checkpoints table
+        cursor = await self._conn.execute("PRAGMA table_info(checkpoints)")
+        columns = await cursor.fetchall()
+        checkpoint_columns = [col[1] for col in columns]
+
+        if "observatory_url" not in checkpoint_columns:
+            await self._conn.execute("ALTER TABLE checkpoints ADD COLUMN observatory_url TEXT")
+            await self._conn.commit()
+
+        if "policy_version" not in checkpoint_columns:
+            await self._conn.execute("ALTER TABLE checkpoints ADD COLUMN policy_version TEXT")
+            await self._conn.commit()
+
     # Experiment operations
 
     async def save_experiment(self, experiment: Experiment):
@@ -176,10 +188,10 @@ class Database:
             """
             INSERT OR REPLACE INTO experiments (
                 id, name, desired_state, current_state, flags, base_command, tool_path, git_branch,
-                current_job_id, cluster_name, nodes, gpus, instance_type, cloud,
-                region, zone, spot, created_at, updated_at, wandb_link, description, tags,
+                cluster_name, nodes, gpus, instance_type, cloud,
+                spot, created_at, updated_at, wandb_link, description, tags,
                 exp_group, exp_order, is_expanded
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 experiment.id,
@@ -190,14 +202,11 @@ class Database:
                 experiment.base_command,
                 experiment.tool_path,
                 experiment.git_branch,
-                experiment.current_job_id,
                 experiment.cluster_name,
                 experiment.nodes,
                 experiment.gpus,
                 experiment.instance_type,
                 experiment.cloud,
-                experiment.region,
-                experiment.zone,
                 1 if experiment.spot else 0,
                 experiment.created_at.isoformat(),
                 experiment.updated_at.isoformat(),
@@ -220,27 +229,32 @@ class Database:
         return self._row_to_experiment(row)
 
     async def get_all_experiments(self) -> list[Experiment]:
-        """Get all experiments."""
-        cursor = await self._conn.execute("SELECT * FROM experiments ORDER BY exp_order ASC, created_at DESC")
+        """Get all experiments (excluding deleted ones)."""
+        cursor = await self._conn.execute(
+            "SELECT * FROM experiments WHERE deleted = 0 ORDER BY exp_order ASC, created_at DESC"
+        )
         rows = await cursor.fetchall()
         return [self._row_to_experiment(row) for row in rows]
 
     async def delete_experiment(self, experiment_id: str):
-        """Delete experiment and all its jobs (cascade)."""
-        await self._conn.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
+        """Soft-delete experiment by marking it as deleted."""
+        await self._conn.execute("UPDATE experiments SET deleted = 1 WHERE id = ?", (experiment_id,))
         await self._conn.commit()
 
-    async def update_experiment_state(
-        self, experiment_id: str, current_state: JobStatus, current_job_id: Optional[str] = None
-    ):
-        """Update experiment current state and optionally current job."""
+    async def undelete_experiment(self, experiment_id: str):
+        """Restore a soft-deleted experiment."""
+        await self._conn.execute("UPDATE experiments SET deleted = 0 WHERE id = ?", (experiment_id,))
+        await self._conn.commit()
+
+    async def update_experiment_state(self, experiment_id: str, current_state: JobStatus):
+        """Update experiment current state."""
         await self._conn.execute(
             """
             UPDATE experiments
-            SET current_state = ?, current_job_id = ?, updated_at = ?
+            SET current_state = ?, updated_at = ?
             WHERE id = ?
             """,
-            (current_state.value, current_job_id, datetime.utcnow().isoformat(), experiment_id),
+            (current_state.value, datetime.utcnow().isoformat(), experiment_id),
         )
         await self._conn.commit()
 
@@ -353,8 +367,8 @@ class Database:
                 id, experiment_id, cluster_name, sky_job_id, status,
                 created_at, submitted_at, started_at, ended_at,
                 command, logs_path, exit_code, error_message,
-                nodes, gpus, instance_type, cloud, region, zone
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                nodes, gpus, instance_type, cloud
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job.id,
@@ -374,8 +388,6 @@ class Database:
                 job.gpus,
                 job.instance_type,
                 job.cloud,
-                job.region,
-                job.zone,
             ),
         )
         await self._conn.commit()
@@ -383,6 +395,25 @@ class Database:
     async def get_job(self, job_id: str) -> Optional[Job]:
         """Get job by ID."""
         cursor = await self._conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return self._row_to_job(row)
+
+    async def get_current_job_for_experiment(self, experiment_id: str) -> Optional[Job]:
+        """Get the currently active (RUNNING or PENDING) job for an experiment.
+
+        Returns the most recently created active job, or None if no active jobs exist.
+        """
+        cursor = await self._conn.execute(
+            """
+            SELECT * FROM jobs
+            WHERE experiment_id = ? AND status IN ('PENDING', 'RUNNING')
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (experiment_id,),
+        )
         row = await cursor.fetchone()
         if not row:
             return None
@@ -473,9 +504,9 @@ class Database:
         await self._conn.execute(
             """
             INSERT OR REPLACE INTO clusters (
-                name, status, num_nodes, instance_type, cloud, region, zone,
+                name, status, num_nodes, instance_type, cloud,
                 created_at, last_seen
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 cluster.name,
@@ -483,8 +514,6 @@ class Database:
                 cluster.num_nodes,
                 cluster.instance_type,
                 cluster.cloud,
-                cluster.region,
-                cluster.zone,
                 cluster.created_at.isoformat() if cluster.created_at else None,
                 cluster.last_seen.isoformat(),
             ),
@@ -517,16 +546,12 @@ class Database:
             flags=json.loads(row["flags"]),
             base_command=row["base_command"],
             tool_path=row["tool_path"] if "tool_path" in row.keys() else None,
-            run_name=row["run_name"],
             git_branch=row["git_branch"],
-            current_job_id=row["current_job_id"],
             cluster_name=row["cluster_name"],
             nodes=row["nodes"],
             gpus=row["gpus"],
             instance_type=row["instance_type"],
             cloud=row["cloud"],
-            region=row["region"],
-            zone=row["zone"],
             spot=bool(row["spot"]),
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
@@ -537,6 +562,7 @@ class Database:
             order=row["exp_order"],
             is_expanded=bool(row["is_expanded"]) if "is_expanded" in row.keys() else False,
             starred=bool(row["starred"]) if "starred" in row.keys() else False,
+            deleted=bool(row["deleted"]) if "deleted" in row.keys() else False,
         )
 
     def _row_to_job(self, row: aiosqlite.Row) -> Job:
@@ -559,8 +585,6 @@ class Database:
             gpus=row["gpus"],
             instance_type=row["instance_type"],
             cloud=row["cloud"],
-            region=row["region"],
-            zone=row["zone"],
         )
 
     def _row_to_cluster(self, row: aiosqlite.Row) -> Cluster:
@@ -571,8 +595,6 @@ class Database:
             num_nodes=row["num_nodes"],
             instance_type=row["instance_type"],
             cloud=row["cloud"],
-            region=row["region"],
-            zone=row["zone"],
             created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
             last_seen=datetime.fromisoformat(row["last_seen"]),
         )
@@ -626,13 +648,15 @@ class Database:
             """
             INSERT INTO checkpoints (
                 experiment_id, epoch, model_path, replay_paths, metrics,
-                created_at, synced_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                created_at, synced_at, observatory_url, policy_version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(experiment_id, epoch) DO UPDATE SET
                 model_path = excluded.model_path,
                 replay_paths = excluded.replay_paths,
                 metrics = excluded.metrics,
-                synced_at = excluded.synced_at
+                synced_at = excluded.synced_at,
+                observatory_url = excluded.observatory_url,
+                policy_version = excluded.policy_version
             """,
             (
                 checkpoint.experiment_id,
@@ -642,6 +666,8 @@ class Database:
                 json.dumps(checkpoint.metrics),
                 checkpoint.created_at.isoformat(),
                 now,
+                checkpoint.observatory_url,
+                checkpoint.policy_version,
             ),
         )
         await self._conn.commit()
@@ -694,4 +720,6 @@ class Database:
             metrics=json.loads(row["metrics"]),
             created_at=datetime.fromisoformat(row["created_at"]),
             synced_at=datetime.fromisoformat(row["synced_at"]),
+            observatory_url=row["observatory_url"] if "observatory_url" in row.keys() else None,
+            policy_version=row["policy_version"] if "policy_version" in row.keys() else None,
         )
