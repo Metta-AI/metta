@@ -66,6 +66,41 @@ def _resolve_spec_data_path(data_path: Optional[str], extraction_root: Path) -> 
     raise FileNotFoundError(f"Policy data path '{data_path}' not found in submission directory {extraction_root}")
 
 
+def _find_module_root(extraction_root: Path, class_path: str) -> Path | None:
+    """Find the sys.path entry needed to import a class from within the extraction.
+
+    Given a class_path like 'cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy',
+    searches the extraction directory for the corresponding module file and returns
+    the path that should be added to sys.path.
+
+    For example, if the file is at:
+        extraction_root/packages/cogames/src/cogames/policy/nim_agents/agents.py
+    And class_path is:
+        cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy
+    Returns:
+        extraction_root/packages/cogames/src/
+    """
+    # Convert class_path to module path (remove class name at the end)
+    parts = class_path.split(".")
+    # Try progressively shorter paths to find the module file
+    for i in range(len(parts), 0, -1):
+        module_path = "/".join(parts[:i]) + ".py"
+        matches = list(extraction_root.rglob(module_path))
+        if matches:
+            # Found the module file - compute the root path
+            # e.g., if module_path is "cogames/policy/agents.py" and file is at
+            # "/tmp/x/packages/cogames/src/cogames/policy/agents.py",
+            # we need "/tmp/x/packages/cogames/src/"
+            match = matches[0]
+            relative_module = Path(module_path)
+            # Walk up from the match by the number of path components in module_path
+            root = match
+            for _ in relative_module.parts:
+                root = root.parent
+            return root
+    return None
+
+
 def load_policy_spec_from_local_dir(
     extraction_root: Path,
     *,
@@ -83,9 +118,20 @@ def load_policy_spec_from_local_dir(
     spec.data_path = _resolve_spec_data_path(spec.data_path, extraction_root)
     if device is not None and "device" in spec.init_kwargs:
         spec.init_kwargs["device"] = device
+
+    # Find and add the correct sys.path entry for the class_path in this submission
+    # This handles submissions where files are nested (e.g., packages/cogames/src/cogames/...)
+    module_root = _find_module_root(extraction_root, spec.class_path)
+    if module_root and module_root != extraction_root:
+        sys_path_entry = str(module_root.resolve())
+        if sys_path_entry not in sys.path:
+            sys.path.insert(0, sys_path_entry)
+
+    # Also add extraction root for backward compatibility
     sys_path_entry = str(extraction_root.resolve())
     if sys_path_entry not in sys.path:
         sys.path.insert(0, sys_path_entry)
+
     return spec
 
 
