@@ -646,10 +646,11 @@ tbody tr.main-row td {
     font-size: 28px;
     padding: 2px 4px;
     opacity: 0.6;
-    transition: opacity 0.2s;
+    transition: all 0.2s;
     display: inline-block;
     vertical-align: middle;
     margin-left: 4px;
+    border-radius: 3px;
 }
 
 .copy-btn-left {
@@ -674,12 +675,14 @@ tbody tr.main-row td {
 }
 
 .wandb-link:hover {
-    border-color: #333;
-    color: #333;
+    border-color: #FF6B00;
+    color: white;
+    background: #FF6B00;
 }
 
 .copy-btn:hover {
     opacity: 1;
+    background: #e3f2fd;
 }
 
 /* Storage pills */
