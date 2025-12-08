@@ -18,11 +18,11 @@ Expected behavior:
 - With static_graph=True: works if graph is consistent
 """
 
-import os
 import sys
+
 import torch
-import torch.nn as nn
 import torch.distributed as dist
+import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 
@@ -64,13 +64,13 @@ def test_ddp_unused_params(
     world_size = dist.get_world_size()
 
     if rank == 0:
-        print(f"\n{'='*60}")
-        print(f"Testing DDP with:")
+        print(f"\n{'=' * 60}")
+        print("Testing DDP with:")
         print(f"  find_unused_parameters={find_unused_parameters}")
         print(f"  static_graph={static_graph}")
         print(f"  use_hack={use_hack}")
         print(f"  world_size={world_size}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
     # Create model and wrap in DDP
     model = SimplePolicy()
@@ -114,10 +114,10 @@ def test_ddp_unused_params(
         optimizer.step()
 
         if rank == 0:
-            print(f"  Iteration {i+1}/{num_iterations}: loss={loss.item():.4f}")
+            print(f"  Iteration {i + 1}/{num_iterations}: loss={loss.item():.4f}")
 
     if rank == 0:
-        print(f"\n✅ SUCCESS: Training completed without hanging!\n")
+        print("\n✅ SUCCESS: Training completed without hanging!\n")
 
     dist.barrier()
     return True
@@ -151,4 +151,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

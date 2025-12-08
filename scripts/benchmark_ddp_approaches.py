@@ -6,24 +6,28 @@ Compares:
 2. The 0.0 * value.sum() hack
 3. Baseline with all params used (no unused params)
 
-## Running on CPU (2 processes):
-    uv run torchrun --nproc-per-node=2 --master-port=29510 scripts/benchmark_ddp_approaches.py
-
-## Running on GPU (uses NCCL, requires 2+ GPUs):
-    uv run torchrun --nproc-per-node=2 --master-port=29510 scripts/benchmark_ddp_approaches.py --device=cuda
-
-## Running on GPU cluster (e.g., 4 GPUs):
-    uv run torchrun --nproc-per-node=4 --master-port=29510 scripts/benchmark_ddp_approaches.py --device=cuda --iterations=1000
-
-## Quick single-approach test:
+## Running on GPU (single approach at a time for clean results):
+    # Test find_unused_parameters=True
     uv run torchrun --nproc-per-node=2 scripts/benchmark_ddp_approaches.py --device=cuda --approach=find_unused
 
-## Compare all approaches with summary:
-    uv run torchrun --nproc-per-node=2 scripts/benchmark_ddp_approaches.py --device=cuda --all
+    # Test the hack
+    uv run torchrun --nproc-per-node=2 scripts/benchmark_ddp_approaches.py --device=cuda --approach=hack
+
+    # Test baseline (all params used)
+    uv run torchrun --nproc-per-node=2 scripts/benchmark_ddp_approaches.py --device=cuda --approach=all_used
+
+## Running all approaches (runs each in subprocess for clean state):
+    uv run python scripts/benchmark_ddp_approaches.py --device=cuda --run-all
+
+## CPU testing:
+    uv run torchrun --nproc-per-node=2 scripts/benchmark_ddp_approaches.py --device=cpu --approach=find_unused
 """
 
 import argparse
+import json
 import os
+import subprocess
+import sys
 import time
 from contextlib import contextmanager
 
@@ -111,19 +115,9 @@ def run_benchmark(
     num_iterations: int = 500,
     batch_size: int = 256,
     warmup_iterations: int = 50,
+    output_json: bool = False,
 ) -> dict[str, list[float]]:
-    """Run benchmark for a specific approach.
-
-    Args:
-        approach: One of "find_unused", "hack", "all_used"
-        device: Device to run on (cpu or cuda)
-        num_iterations: Number of training iterations
-        batch_size: Batch size per process
-        warmup_iterations: Iterations to skip for timing
-
-    Returns:
-        Dictionary of timing results
-    """
+    """Run benchmark for a specific approach."""
     rank = dist.get_rank() if dist.is_initialized() else 0
     world_size = dist.get_world_size() if dist.is_initialized() else 1
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -137,31 +131,43 @@ def run_benchmark(
     model = RealisticPolicy().to(device)
     param_count = sum(p.numel() for p in model.parameters())
 
-    # Wrap in DDP
+    # Configure DDP based on approach
     if approach == "find_unused":
-        model = DDP(model, device_ids=[local_rank] if device.type == "cuda" else None, find_unused_parameters=True)
-    else:
-        model = DDP(model, device_ids=[local_rank] if device.type == "cuda" else None, find_unused_parameters=False)
+        # PyTorch's built-in solution
+        find_unused = True
+    elif approach == "hack":
+        # We'll apply the hack manually, so DDP doesn't need to find unused
+        find_unused = False
+    else:  # all_used
+        # All params are used, so no need for either
+        find_unused = False
 
+    ddp_kwargs = {"find_unused_parameters": find_unused}
+    if device.type == "cuda":
+        ddp_kwargs["device_ids"] = [local_rank]
+
+    model = DDP(model, **ddp_kwargs)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     results: dict[str, list[float]] = {}
 
-    if rank == 0:
-        print(f"\n{'='*70}")
+    if rank == 0 and not output_json:
+        print(f"\n{'=' * 70}")
         print(f"Benchmarking: {approach}")
         print(f"  Device: {device}")
         print(f"  Parameters: {param_count:,}")
         print(f"  Batch size: {batch_size} x {world_size} processes = {batch_size * world_size} effective")
         print(f"  Iterations: {num_iterations} (warmup: {warmup_iterations})")
-        print(f"{'='*70}")
+        print(f"  find_unused_parameters: {find_unused}")
+        print(f"{'=' * 70}")
 
     # Extra GPU warmup
     if device.type == "cuda":
         for _ in range(10):
             x = torch.randn(batch_size, 512, device=device)
             outputs = model(x)
-            loss = outputs["logits"].mean()
+            # Use all outputs during warmup to avoid DDP issues
+            loss = sum(v.sum() for v in outputs.values() if isinstance(v, torch.Tensor))
             loss.backward()
             optimizer.zero_grad()
         torch.cuda.synchronize(device)
@@ -178,26 +184,26 @@ def run_benchmark(
             with cuda_timer("forward", results, device) if not is_warmup else nullcontext():
                 outputs = model(x)
 
-            # Compute loss (only using logits, not values/aux)
+            # Compute loss based on approach
             with cuda_timer("loss_compute", results, device) if not is_warmup else nullcontext():
                 if approach == "all_used":
-                    # Use ALL outputs in loss
+                    # Use ALL outputs in loss - baseline
                     loss = (
                         outputs["logits"].mean()
                         + outputs["values"].mean()
                         + outputs["aux1"].mean()
                         + outputs["aux2"].mean()
                     )
-                else:
-                    # Only use logits (like ppo_actor)
+                elif approach == "hack":
+                    # Only use logits, but add hack for unused params
                     loss = outputs["logits"].mean()
-
-                    if approach == "hack":
-                        # The 0.0 * sum hack
-                        for key, value in outputs.items():
-                            if key != "logits" and isinstance(value, torch.Tensor):
-                                if value.requires_grad:
-                                    loss = loss + 0.0 * value.sum()
+                    # The 0.0 * sum hack - add ALL other outputs
+                    for key, value in outputs.items():
+                        if key != "logits" and isinstance(value, torch.Tensor) and value.requires_grad:
+                            loss = loss + 0.0 * value.sum()
+                else:  # find_unused
+                    # Only use logits, let DDP handle unused params
+                    loss = outputs["logits"].mean()
 
             # Backward pass
             with cuda_timer("backward", results, device) if not is_warmup else nullcontext():
@@ -207,20 +213,122 @@ def run_benchmark(
             with cuda_timer("optimizer", results, device) if not is_warmup else nullcontext():
                 optimizer.step()
 
-    dist.barrier()
+    if dist.is_initialized():
+        dist.barrier()
 
     # Compute and print statistics
     if rank == 0:
-        print(f"\nResults for {approach}:")
-        print(f"  {'Phase':<15} {'Mean':>10} {'Std':>10} {'Total':>10}")
-        print(f"  {'-'*15} {'-'*10} {'-'*10} {'-'*10}")
-        for name, times in results.items():
-            mean_ms = sum(times) / len(times) * 1000
-            std_ms = (sum((t - mean_ms / 1000) ** 2 for t in times) / len(times)) ** 0.5 * 1000
-            total_s = sum(times)
-            print(f"  {name:<15} {mean_ms:>8.3f}ms {std_ms:>8.3f}ms {total_s:>8.2f}s")
+        if output_json:
+            # Output JSON for programmatic parsing
+            summary = {}
+            for name, times in results.items():
+                summary[name] = {
+                    "mean_ms": sum(times) / len(times) * 1000,
+                    "std_ms": (sum((t - sum(times) / len(times)) ** 2 for t in times) / len(times)) ** 0.5 * 1000,
+                    "total_s": sum(times),
+                }
+            print(json.dumps({"approach": approach, "results": summary}))
+        else:
+            print(f"\nResults for {approach}:")
+            print(f"  {'Phase':<15} {'Mean':>10} {'Std':>10} {'Total':>10}")
+            print(f"  {'-' * 15} {'-' * 10} {'-' * 10} {'-' * 10}")
+            for name, times in results.items():
+                mean_ms = sum(times) / len(times) * 1000
+                std_ms = (sum((t - sum(times) / len(times)) ** 2 for t in times) / len(times)) ** 0.5 * 1000
+                total_s = sum(times)
+                print(f"  {name:<15} {mean_ms:>8.3f}ms {std_ms:>8.3f}ms {total_s:>8.2f}s")
 
     return results
+
+
+def run_all_approaches(args):
+    """Run all approaches in separate subprocesses for clean state."""
+    print("\n" + "=" * 70)
+    print("RUNNING ALL APPROACHES (each in separate subprocess)")
+    print("=" * 70)
+
+    approaches = ["find_unused", "hack", "all_used"]
+    all_results = {}
+
+    for approach in approaches:
+        print(f"\n>>> Running {approach}...")
+
+        # Build torchrun command
+        nproc = os.environ.get("NPROC", "2")
+        cmd = [
+            sys.executable,
+            "-m",
+            "torch.distributed.run",
+            f"--nproc-per-node={nproc}",
+            "--master-port=29510",
+            __file__,
+            f"--device={args.device}",
+            f"--iterations={args.iterations}",
+            f"--warmup={args.warmup}",
+            f"--batch-size={args.batch_size}",
+            f"--approach={approach}",
+            "--output-json",
+        ]
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if result.returncode != 0:
+                print(f"    ❌ FAILED: {approach}")
+                print(f"    stderr: {result.stderr[:500]}")
+                continue
+
+            # Parse JSON output from last line
+            for line in result.stdout.strip().split("\n"):
+                if line.startswith("{"):
+                    data = json.loads(line)
+                    all_results[approach] = data["results"]
+                    mean_ms = data["results"]["total"]["mean_ms"]
+                    print(f"    ✅ {approach}: {mean_ms:.3f} ms/iter")
+                    break
+        except subprocess.TimeoutExpired:
+            print(f"    ❌ TIMEOUT: {approach}")
+        except Exception as e:
+            print(f"    ❌ ERROR: {approach}: {e}")
+
+    # Print comparison
+    if len(all_results) > 1:
+        print("\n" + "=" * 70)
+        print("SUMMARY COMPARISON")
+        print("=" * 70)
+
+        baseline_key = "find_unused" if "find_unused" in all_results else list(all_results.keys())[0]
+        baseline_mean = all_results[baseline_key]["total"]["mean_ms"]
+
+        print(f"\n{'Approach':<20} {'Mean (ms)':<12} {'Std (ms)':<12} {'vs ' + baseline_key:<20}")
+        print("-" * 64)
+
+        for approach, results in all_results.items():
+            mean_ms = results["total"]["mean_ms"]
+            std_ms = results["total"]["std_ms"]
+            overhead_pct = (mean_ms / baseline_mean - 1) * 100
+            overhead_str = f"{overhead_pct:+.1f}%" if approach != baseline_key else "baseline"
+            print(f"{approach:<20} {mean_ms:<12.3f} {std_ms:<12.3f} {overhead_str:<20}")
+
+        # Recommendation
+        print("\n" + "=" * 70)
+        print("RECOMMENDATION")
+        print("=" * 70)
+        if "find_unused" in all_results and "hack" in all_results:
+            find_unused_mean = all_results["find_unused"]["total"]["mean_ms"]
+            hack_mean = all_results["hack"]["total"]["mean_ms"]
+            if find_unused_mean < hack_mean:
+                faster = "find_unused_parameters=True"
+                pct = (hack_mean / find_unused_mean - 1) * 100
+            else:
+                faster = "the 0.0*sum() hack"
+                pct = (find_unused_mean / hack_mean - 1) * 100
+
+            print(f"\nOn {args.device.upper()}: {faster} is {pct:.1f}% faster")
+            print("\nFor TrainerConfig:")
+            if "find_unused" in faster:
+                print("  ddp_find_unused_parameters: true   # (default, recommended)")
+            else:
+                print("  ddp_find_unused_parameters: false  # (faster on this hardware)")
 
 
 def main():
@@ -235,25 +343,30 @@ def main():
         type=str,
         default=None,
         choices=["find_unused", "hack", "all_used"],
-        help="Run only this approach (default: run all)",
+        help="Run only this approach",
     )
-    parser.add_argument("--all", action="store_true", help="Run all approaches and show comparison summary")
+    parser.add_argument("--run-all", action="store_true", help="Run all approaches in separate subprocesses")
+    parser.add_argument("--output-json", action="store_true", help="Output results as JSON (for --run-all)")
     args = parser.parse_args()
 
-    # Check GPU availability before initializing distributed
+    # If --run-all, spawn subprocesses for each approach
+    if args.run_all:
+        run_all_approaches(args)
+        return
+
+    # Single approach mode - must be run via torchrun
+    if args.approach is None:
+        print("Error: Must specify --approach or use --run-all")
+        print("Example: torchrun --nproc-per-node=2 scripts/benchmark_ddp_approaches.py --approach=find_unused")
+        sys.exit(1)
+
+    # Check GPU availability
     if args.device == "cuda":
         num_gpus = torch.cuda.device_count()
         world_size = int(os.environ.get("WORLD_SIZE", "1"))
         if num_gpus < world_size:
             print(f"\n❌ ERROR: Requested {world_size} processes but only {num_gpus} GPU(s) available.")
-            print("   DDP requires 1 GPU per process for proper benchmarking.")
-            print("\n   Options:")
-            print(f"   1. Run with fewer processes: --nproc-per-node={num_gpus}")
-            print("   2. Run on CPU instead: --device=cpu")
-            print(f"   3. Use a machine with {world_size}+ GPUs")
-            if num_gpus == 1:
-                print("\n   Note: With 1 GPU, you can still run but DDP won't actually sync:")
-                print("   torchrun --nproc-per-node=1 scripts/benchmark_ddp_approaches.py --device=cuda")
+            print(f"   Run with: --nproc-per-node={num_gpus}")
             return
 
     # Initialize distributed
@@ -265,7 +378,7 @@ def main():
     world_size = dist.get_world_size()
     device = torch.device(args.device)
 
-    if rank == 0:
+    if rank == 0 and not args.output_json:
         print("\n" + "=" * 70)
         print("DDP UNUSED PARAMETERS BENCHMARK")
         print("=" * 70)
@@ -279,86 +392,18 @@ def main():
                 print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
             if world_size == 1:
                 print("\n⚠️  Note: Running with 1 process - DDP sync overhead not measured")
-                print("   For accurate DDP benchmarks, use 2+ GPUs with --nproc-per-node=2+")
 
-    # Determine which approaches to run
-    if args.approach:
-        approaches = [args.approach]
-    elif args.all:
-        approaches = ["find_unused", "hack", "all_used"]
-    else:
-        approaches = ["find_unused", "hack", "all_used"]
+    run_benchmark(
+        approach=args.approach,
+        device=device,
+        num_iterations=args.iterations,
+        warmup_iterations=args.warmup,
+        batch_size=args.batch_size,
+        output_json=args.output_json,
+    )
 
-    all_results: dict[str, dict[str, list[float]]] = {}
-
-    for approach in approaches:
-        # Re-init distributed for each approach to get clean state
-        if approach != approaches[0]:
-            dist.barrier()
-
-        results = run_benchmark(
-            approach=approach,
-            device=device,
-            num_iterations=args.iterations,
-            warmup_iterations=args.warmup,
-            batch_size=args.batch_size,
-        )
-        all_results[approach] = results
-
-    # Print comparison summary
-    if rank == 0 and len(all_results) > 1:
-        print("\n" + "=" * 70)
-        print("SUMMARY COMPARISON")
-        print("=" * 70)
-
-        # Use find_unused as baseline if available, otherwise first approach
-        baseline_key = "find_unused" if "find_unused" in all_results else list(all_results.keys())[0]
-        baseline_times = all_results[baseline_key].get("total", [])
-        baseline_mean = sum(baseline_times) / len(baseline_times) if baseline_times else 1
-
-        print(f"\n{'Approach':<20} {'Mean (ms)':<12} {'Std (ms)':<12} {'vs ' + baseline_key:<20}")
-        print("-" * 64)
-
-        for approach, results in all_results.items():
-            total_times = results.get("total", [])
-            if total_times:
-                mean_ms = sum(total_times) / len(total_times) * 1000
-                std_ms = (sum((t - mean_ms / 1000) ** 2 for t in total_times) / len(total_times)) ** 0.5 * 1000
-                mean_s = sum(total_times) / len(total_times)
-                overhead_pct = (mean_s / baseline_mean - 1) * 100
-                overhead_str = f"{overhead_pct:+.1f}%" if approach != baseline_key else "baseline"
-                print(f"{approach:<20} {mean_ms:<12.3f} {std_ms:<12.3f} {overhead_str:<20}")
-
-        # Statistical significance note
-        print("\n" + "-" * 64)
-        n = len(all_results[baseline_key].get("total", []))
-        print(f"Note: {n} iterations measured. Standard error ≈ std/√{n}")
-        print("Results are statistically significant if confidence intervals don't overlap.")
-
-        # Recommendation
-        print("\n" + "=" * 70)
-        print("RECOMMENDATION")
-        print("=" * 70)
-        if "find_unused" in all_results and "hack" in all_results:
-            find_unused_mean = sum(all_results["find_unused"]["total"]) / len(all_results["find_unused"]["total"])
-            hack_mean = sum(all_results["hack"]["total"]) / len(all_results["hack"]["total"])
-            if find_unused_mean < hack_mean:
-                faster = "find_unused_parameters=True"
-                slower = "the 0.0*sum() hack"
-                pct = (hack_mean / find_unused_mean - 1) * 100
-            else:
-                faster = "the 0.0*sum() hack"
-                slower = "find_unused_parameters=True"
-                pct = (find_unused_mean / hack_mean - 1) * 100
-
-            print(f"\nOn {args.device.upper()}: {faster} is {pct:.1f}% faster than {slower}")
-            print("\nFor TrainerConfig:")
-            if "find_unused" in faster:
-                print("  ddp_find_unused_parameters: true   # (default, recommended)")
-            else:
-                print("  ddp_find_unused_parameters: false  # (faster on this hardware)")
-
-    dist.destroy_process_group()
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
 
 if __name__ == "__main__":
