@@ -125,7 +125,8 @@ class PlayTool(Tool):
         # Print summary
         console.print("\n[bold green]Episode Complete![/bold green]")
         console.print(f"Steps: {episode.steps}")
-        console.print(f"Total Rewards: {episode.rewards}")
-        console.print(f"Final Reward Sum: {float(episode.rewards.sum()):.2f}")
+
+        # Print agent inventories table
+        episode.print_agent_stats()
 
         return None

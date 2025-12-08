@@ -12,6 +12,7 @@
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/has_inventory.hpp"
 
 namespace py = pybind11;
 
@@ -82,38 +83,44 @@ public:
     }
 
     const VibeTransferEffect& effect = vibe_it->second;
-    bool any_transfer_occurred = false;
     const std::string& actor_group = actor.group_name;
     const std::string& target_group = target->group_name;
 
-    // Apply target deltas directly to target
-    for (const auto& [resource, delta] : effect.target_deltas) {
-      if (delta != 0) {
-        InventoryDelta actual = target->inventory.update(resource, delta);
-        if (actual != 0) {
-          any_transfer_occurred = true;
-          _log_transfer(actor, resource, actual, "to." + target_group);
-        }
+    // 1. Check if actor has resources for transfer
+    for (const auto& [resource, delta] : effect.actor_deltas) {
+      if (delta < 0 && actor.inventory.amount(resource) < static_cast<InventoryQuantity>(-delta)) {
+        return false;  // Actor doesn't have enough resources to give
       }
     }
 
-    // Apply actor deltas directly to actor
+    // 2. Check if target has resources for transfer
+    for (const auto& [resource, delta] : effect.target_deltas) {
+      if (delta < 0 && target->inventory.amount(resource) < static_cast<InventoryQuantity>(-delta)) {
+        return false;  // Target doesn't have enough resources to give
+      }
+    }
+
+    // 3. Update target and actor resources
     for (const auto& [resource, delta] : effect.actor_deltas) {
       if (delta != 0) {
         InventoryDelta actual = actor.inventory.update(resource, delta);
         if (actual != 0) {
-          any_transfer_occurred = true;
           _log_transfer(actor, resource, actual, "self");
         }
       }
     }
 
-    // Track transfer count
-    if (any_transfer_occurred) {
-      actor.stats.incr(_action_prefix(actor_group) + "count");
+    for (const auto& [resource, delta] : effect.target_deltas) {
+      if (delta != 0) {
+        InventoryDelta actual = target->inventory.update(resource, delta);
+        if (actual != 0) {
+          _log_transfer(actor, resource, actual, "to." + target_group);
+        }
+      }
     }
 
-    return any_transfer_occurred;
+    actor.stats.incr(_action_prefix(actor_group) + "count");
+    return true;
   }
 
 protected:
