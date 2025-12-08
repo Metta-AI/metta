@@ -92,7 +92,6 @@ class Experiment(BaseModel):
     flags: dict[str, Union[str, int, float, bool]] = Field(default_factory=dict, description="Configuration flags")
     base_command: str = Field("lt", description="Base command (before flags)")
     tool_path: Optional[str] = Field(None, description="Tool path (e.g., recipes.experiment.cog_arena.train)")
-    run_name: Optional[str] = Field(None, description="Run name for run=daveey.exp_name")
     git_branch: Optional[str] = Field(None, description="Git branch name")
 
     # Job management
@@ -128,7 +127,7 @@ class Experiment(BaseModel):
         """Construct full command from base_command, gpus, nodes, tool_path, and flags.
 
         Returns:
-            Command string like: "lt --gpus=4 --nodes=4 recipes.experiment.cog_arena.train key1=val1 key2=val2"
+            Command string like: "lt --gpus=4 --nodes=4 --git-ref=branch recipe key=val"
         """
         parts = [self.base_command]
 
@@ -136,9 +135,16 @@ class Experiment(BaseModel):
         parts.append(f"--gpus={self.gpus}")
         parts.append(f"--nodes={self.nodes}")
 
+        # Add git branch if specified (skip invalid values like "-")
+        if self.git_branch and self.git_branch != "-":
+            parts.append(f"--git-ref={self.git_branch}")
+
         # Add tool path
         if self.tool_path:
             parts.append(self.tool_path)
+
+        # Always add run name using experiment ID
+        parts.append(f"run={self.id}")
 
         # Add all flags
         for key, value in sorted(self.flags.items()):
@@ -193,7 +199,6 @@ class CreateExperimentRequest(BaseModel):
     flags: dict[str, Union[str, int, float, bool]] = Field(default_factory=dict)
     base_command: str = "lt"
     tool_path: Optional[str] = None
-    run_name: Optional[str] = None
     git_branch: Optional[str] = None
     nodes: int = 1
     gpus: int = 0

@@ -15,6 +15,7 @@ let showStoppedJobs = false;
 let showOrphanedOnly = false;
 let jobsLimit = 20;
 let jobsFilterText = '';
+let lastJobsHash = ''; // Cache hash to prevent unnecessary table rebuilds
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -800,16 +801,22 @@ function createExpandedRow(exp, numFlagColumns) {
                 <div style="display: flex; gap: 20px; align-items: flex-start; margin-bottom: 20px;">
                     <div class="detail-section" style="width: auto; min-width: 400px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3>Configuration</h3>
-                            <div id="config-buttons-${exp.id}">
-                                <button class="btn btn-small" onclick="toggleConfigEdit('${exp.id}')" id="config-edit-btn-${exp.id}">Edit</button>
-                            </div>
+                            <h3 style="display: flex; align-items: center; gap: 8px;">
+                                Configuration
+                                <span id="config-buttons-${exp.id}">
+                                    ${editingRows.has(exp.id) ? `
+                                        <a onclick="toggleConfigEdit('${exp.id}')" id="config-edit-btn-${exp.id}" class="wandb-link" style="cursor: pointer; margin-left: 0; margin-right: 6px; font-size: 12px; color: #4caf50;" title="Save changes">✓</a>
+                                        <a onclick="cancelConfigEdit('${exp.id}')" class="wandb-link" style="cursor: pointer; margin-left: 0; font-size: 12px; color: #f44336;" title="Cancel">✗</a>
+                                    ` : `
+                                        <a onclick="toggleConfigEdit('${exp.id}')" id="config-edit-btn-${exp.id}" class="wandb-link" style="cursor: pointer; margin-left: 0; font-size: 11px;" title="Edit configuration">✎</a>
+                                    `}
+                                </span>
+                            </h3>
                         </div>
                         <div class="detail-grid" id="config-grid-${exp.id}">
                             <span class="detail-label">Experiment ID:</span>
                             <span class="detail-value">
                                 <span class="config-field" data-field="id">${exp.id}</span>
-                                <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('${exp.id.replace(/'/g, "\\'")}', event); return false;" title="Copy experiment ID">⎘</button>
                                 <a href="https://wandb.ai/metta-research/metta/runs/${exp.id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in W&B">W&B</a>
                                 <a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${exp.id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog">log</a>
                             </span>
@@ -838,7 +845,7 @@ function createExpandedRow(exp, numFlagColumns) {
                         </div>
                     </div>
 
-                    <div class="detail-section" style="width: 200px; flex-shrink: 0;">
+                    <div class="detail-section" style="width: auto; flex-shrink: 0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                             <h3 style="margin: 0;">Jobs</h3>
                             <div style="display: flex; gap: 5px;">
@@ -863,10 +870,10 @@ function createExpandedRow(exp, numFlagColumns) {
                 <!-- Second Row: Command Panel -->
                 <div style="display: flex;">
                     <div class="detail-section" style="flex: 1;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <h3 style="margin: 0;">Command</h3>
-                            <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('${escapedCommand}', 'Command copied!'); return false;" title="Copy command" style="padding: 4px 10px; font-size: 12px;">⎘ Copy</button>
-                        </div>
+                        <h3 style="margin: 0 0 8px 0;">
+                            Command
+                            <button class="copy-btn copy-btn-left" onclick="event.stopPropagation(); copyToClipboard('${escapedCommand}', 'Command copied!'); return false;" title="Copy command">⎘</button>
+                        </h3>
                         <div style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; font-family: 'Monaco', 'Menlo', 'Courier New', monospace; font-size: 12px; overflow-x: auto; text-align: left; white-space: pre-wrap; word-break: break-word;">${fullCommand}</div>
                     </div>
                 </div>
@@ -890,10 +897,18 @@ function buildCommand(exp) {
     parts.push(`--gpus=${exp.gpus}`);
     parts.push(`--nodes=${exp.nodes}`);
 
+    // Add git branch if specified (skip invalid values like "-")
+    if (exp.git_branch && exp.git_branch !== '-') {
+        parts.push(`--git-ref=${exp.git_branch}`);
+    }
+
     // Add tool path
     if (exp.tool_path) {
         parts.push(exp.tool_path);
     }
+
+    // Always add run name using experiment ID
+    parts.push(`run=${exp.id}`);
 
     // Add all flags in sorted order
     const sortedFlags = Object.entries(exp.flags || {}).sort((a, b) => a[0].localeCompare(b[0]));
@@ -1007,23 +1022,33 @@ async function loadJobHistory(experimentId) {
         if (startBtn) startBtn.disabled = hasRunningJob;
         if (stopBtn) stopBtn.disabled = !hasRunningJob;
 
-        if (jobs.length === 0) {
-            container.innerHTML = '<p style="color: #999; font-size: 12px;">No jobs yet</p>';
-            return;
-        }
-
-        // Show all jobs in order
-        const html = jobs.map(job => {
+        // Show all jobs in table format
+        const rows = jobs.map(job => {
+            // Extract numeric ID from full ID (e.g., "daveey.ca4.4x4.mcl_1.0-9482" -> "9482")
+            const numericId = job.id.split('-').pop();
             return `
-            <div class="job-item" style="display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px;">
-                <span style="min-width: 45px; font-weight: 500;">#${job.id}</span>
-                <a href="https://skypilot-api.softmax-research.net/dashboard/jobs/${job.id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in SkyPilot Dashboard" style="font-size: 10px;">sky</a>
-                <a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${job.experiment_id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog" style="font-size: 10px;">log</a>
-                <span class="status-badge ${job.status.toLowerCase()}" title="${job.status}">${abbreviateStatus(job.status)}</span>
-                <span style="color: #666; font-size: 11px;">${formatTime(job.created_at)}</span>
-            </div>
-    `;
+                <tr>
+                    <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; white-space: nowrap; cursor: pointer;" onclick="event.stopPropagation(); copyToClipboard('${job.id}', event); return false;" title="Click to copy full ID">${numericId}</td>
+                    <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; white-space: nowrap;"><span class="status-badge ${job.status.toLowerCase()}" title="${job.status}">${abbreviateStatus(job.status)}</span></td>
+                    <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; white-space: nowrap;"><a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${job.experiment_id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog">log</a></td>
+                </tr>
+            `;
         }).join('');
+
+        const html = `
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <thead>
+                    <tr style="background: #f5f5f5;">
+                        <th style="padding: 4px 6px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0; font-size: 10px; white-space: nowrap;">Job ID</th>
+                        <th style="padding: 4px 6px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0; font-size: 10px; white-space: nowrap;">Status</th>
+                        <th style="padding: 4px 6px; text-align: left; font-weight: 600; border-bottom: 2px solid #e0e0e0; font-size: 10px; white-space: nowrap;">Links</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        `;
 
         container.innerHTML = html;
     } catch (error) {
@@ -1071,7 +1096,7 @@ async function loadCheckpoints(experimentId) {
             return `
                 <tr>
                     <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; white-space: nowrap;">${cp.epoch}</td>
-                    <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; color: #666; white-space: nowrap;">${formatTime(cp.created_at)}</td>
+                    <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; color: #666; white-space: nowrap;">${formatDuration(cp.created_at)}</td>
                     <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; white-space: nowrap;">${s3Pill}${mettaPill}${obsPill}</td>
                     <td style="padding: 4px 6px; font-size: 11px; border-bottom: 1px solid #eee; text-align: center; white-space: nowrap;">${replayCount}</td>
                 </tr>
@@ -1173,13 +1198,12 @@ async function toggleConfigEdit(experimentId) {
     const flagsTable = document.getElementById(`flags-table-${experimentId}`);
     const addFlagBtn = document.getElementById(`add-flag-btn-${experimentId}`);
 
-    if (btn.textContent === 'Edit') {
+    if (btn.textContent === '✎') {
         // Enter edit mode
-        btn.textContent = 'Save';
-        // Add Cancel button
+        // Add Save and Cancel icons
         btnContainer.innerHTML = `
-            <button class="btn btn-small" onclick="toggleConfigEdit('${experimentId}')" id="config-edit-btn-${experimentId}">Save</button>
-            <button class="btn btn-small" onclick="cancelConfigEdit('${experimentId}')">Cancel</button>
+            <a onclick="toggleConfigEdit('${experimentId}')" id="config-edit-btn-${experimentId}" class="wandb-link" style="cursor: pointer; margin-left: 0; margin-right: 6px; font-size: 12px; color: #4caf50;" title="Save changes">✓</a>
+            <a onclick="cancelConfigEdit('${experimentId}')" class="wandb-link" style="cursor: pointer; margin-left: 0; font-size: 12px; color: #f44336;" title="Cancel">✗</a>
         `;
         editingRows.add(experimentId);  // Track that this row is being edited
 
@@ -1187,6 +1211,7 @@ async function toggleConfigEdit(experimentId) {
         fields.forEach(field => {
             const currentValue = field.textContent === '-' ? '' : field.textContent;
             field.dataset.originalValue = currentValue;
+            field.textContent = currentValue; // Clear '-' from display
 
             field.contentEditable = 'true';
             field.style.backgroundColor = '#fff8e1';
@@ -1225,7 +1250,7 @@ async function toggleConfigEdit(experimentId) {
 
     } else {
         // Save mode
-        btnContainer.innerHTML = `<button class="btn btn-small" onclick="toggleConfigEdit('${experimentId}')" id="config-edit-btn-${experimentId}" disabled>Saving...</button>`;
+        btnContainer.innerHTML = `<a class="wandb-link" style="cursor: not-allowed; margin-left: 0; font-size: 12px; color: #999;" title="Saving...">✓</a>`;
         editingRows.delete(experimentId);  // Remove from editing tracking
 
         try {
@@ -1376,6 +1401,22 @@ function updateJobsTable(jobs) {
         );
     }
 
+    // Compute hash to detect changes
+    const jobsHash = JSON.stringify(filteredJobs.map(j => ({
+        id: j.id,
+        status: j.status,
+        experiment_id: j.experiment_id,
+        nodes: j.nodes,
+        gpus: j.gpus,
+        started_at: j.started_at
+    }))) + selectedJobs.size;
+
+    // Only update if data has changed
+    if (jobsHash === lastJobsHash && tbody.children.length > 0) {
+        return;
+    }
+    lastJobsHash = jobsHash;
+
     if (!filteredJobs || filteredJobs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No jobs match the current filters</td></tr>';
         updateJobsBulkActions();
@@ -1399,19 +1440,22 @@ function updateJobsTable(jobs) {
 
         return `
             <tr>
-                <td class="col-checkbox">
+                <td class="col-checkbox" style="padding: 4px 2px;">
                     <input type="checkbox" ${canStop ? '' : 'disabled'} ${isSelected ? 'checked' : ''} onchange="toggleJobSelection('${job.id}', this.checked)">
                 </td>
-                <td style="font-family: monospace; font-size: 12px;">
-                    ${job.id}
+                <td style="font-family: monospace; font-size: 12px; padding: 4px 6px;">
+                    <span onclick="copyToClipboard('${job.id}'); return false;" style="cursor: pointer;" title="Click to copy">${job.id}</span>
+                    <a href="https://wandb.ai/metta-research/metta/runs/${job.experiment_id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in W&B" style="margin-left: 6px;">w&b</a>
                     <a href="https://skypilot-api.softmax-research.net/dashboard/jobs/${job.id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in SkyPilot Dashboard" style="margin-left: 6px;">sky</a>
                     <a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${job.experiment_id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog" style="margin-left: 6px;">log</a>
                 </td>
-                <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;" title="${job.experiment_id}">${job.experiment_id}</td>
-                <td><span class="status-badge ${job.status.toLowerCase()}" title="${job.status}">${abbreviateStatus(job.status)}</span></td>
-                <td style="font-family: monospace; font-size: 11px;">${resources}</td>
-                <td style="font-size: 11px;">${formatDuration(job.started_at)}</td>
-                <td style="font-size: 11px;">${job.started_at ? formatTime(job.started_at) : 'Not started'}</td>
+                <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; padding: 4px 6px;">
+                    <span onclick="copyToClipboard('${job.experiment_id.replace(/'/g, "\\'")}'); return false;" style="cursor: pointer;" title="Click to copy">${job.experiment_id}</span>
+                </td>
+                <td style="padding: 4px 6px;"><span class="status-badge ${job.status.toLowerCase()}" title="${job.status}">${abbreviateStatus(job.status)}</span></td>
+                <td style="font-family: monospace; font-size: 11px; padding: 4px 6px;">${resources}</td>
+                <td style="font-size: 11px; padding: 4px 6px;">${formatDuration(job.started_at)}</td>
+                <td style="font-size: 11px; padding: 4px 6px;">${job.started_at ? formatTime(job.started_at) : 'Not started'}</td>
             </tr>
         `;
     }).join('');
@@ -1541,7 +1585,6 @@ async function duplicateExperiment(experimentId) {
             name: newId,
             base_command: exp.base_command,
             tool_path: exp.tool_path,
-            run_name: exp.run_name,
             git_branch: exp.git_branch,
             nodes: exp.nodes,
             gpus: exp.gpus,
@@ -1829,14 +1872,4 @@ async function saveExperimentOrder(order) {
     } catch (error) {
         console.error('Error saving experiment order:', error);
     }
-}
-
-// Copy to clipboard function
-function copyToClipboard(text, message) {
-    navigator.clipboard.writeText(text).then(() => {
-        showNotification(message || 'Copied to clipboard!', 'success');
-    }).catch (err => {
-        console.error('Failed to copy:', err);
-        showNotification('Failed to copy to clipboard', 'error');
-    });
 }

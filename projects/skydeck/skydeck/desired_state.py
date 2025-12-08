@@ -43,7 +43,6 @@ class DesiredStateManager:
             name=request.name,
             flags=request.flags,
             base_command=request.base_command,
-            run_name=request.id,  # Use experiment ID as run name
             nodes=request.nodes,
             gpus=request.gpus,
             instance_type=request.instance_type,
