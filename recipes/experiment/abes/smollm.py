@@ -50,13 +50,14 @@ def _smollm_config(
     """SmolLM configuration returning policy, trainer, env updates, agent count, and KS loss coefficients."""
     num_agents = 24
 
-    lr = float(learning_rate) if learning_rate is not None else 1e-3
+    lr = float(learning_rate) if learning_rate is not None else 1e-4
 
     policy_config = {
         "model_name": model_name or "HuggingFaceTB/SmolLM-135M",
         "attn_implementation": "flash_attention_2",
         "dtype": "bfloat16",
         "mem_len": int(mem_len) if mem_len is not None else 16,
+        "init_from_pretrained": False,
     }
 
     trainer_updates = {
@@ -87,7 +88,7 @@ def _kickstarter_config(ks_act_loss_coef: float, ks_value_loss_coef: float) -> t
     loss_config.ppo_actor.enabled = False
     loss_config.ppo.enabled = True
     loss_config.kickstarter.enabled = True
-    #loss_config.kickstarter.student_forward = True
+    # loss_config.kickstarter.student_forward = True
     loss_config.kickstarter.action_loss_coef = ks_act_loss_coef
     loss_config.kickstarter.value_loss_coef = ks_value_loss_coef
     loss_config.kickstarter.teacher_lead_prob = 1.0
@@ -102,19 +103,44 @@ def _kickstarter_config(ks_act_loss_coef: float, ks_value_loss_coef: float) -> t
 
     scheduler = SchedulerConfig(
         run_gates=[
-            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_step=1_500_000_000),
+            # Kickstarter exists until 900M, but its coefs go to 0 by 810M.
             LossRunGate(
                 loss_instance_name="kickstarter",
                 phase="rollout",
-                end_at_step=1_500_000_000,
+                end_at_step=900_000_000,
             ),
             LossRunGate(
                 loss_instance_name="kickstarter",
                 phase="train",
-                end_at_step=1_500_000_000,
+                end_at_step=900_000_000,
             ),
+            # PPO starts at 900M, after frozen-student window.
+            LossRunGate(
+                loss_instance_name="ppo",
+                phase="rollout",
+                begin_at_step=900_000_000,
+            ),
+            LossRunGate(
+                loss_instance_name="ppo",
+                phase="train",
+                begin_at_step=900_000_000,
+            ),
+
+
         ],
         rules=[
+            # Phase 1 -> Phase 2 (800M–810M):
+            # Turn off teacher and KS quickly.
+            HyperUpdateRule(
+                loss_instance_name="kickstarter",
+                attr_path="teacher_lead_prob",
+                mode="progress",
+                style="cosine",
+                start_value=1.0,
+                end_value=0.0,
+                start_agent_step=800_000_000,
+                end_agent_step=810_000_000,
+            ),
             HyperUpdateRule(
                 loss_instance_name="kickstarter",
                 attr_path="action_loss_coef",
@@ -123,7 +149,7 @@ def _kickstarter_config(ks_act_loss_coef: float, ks_value_loss_coef: float) -> t
                 start_value=2.0,
                 end_value=0.0,
                 start_agent_step=800_000_000,
-                end_agent_step=1_500_000_000,
+                end_agent_step=810_000_000,
             ),
             HyperUpdateRule(
                 loss_instance_name="kickstarter",
@@ -133,18 +159,13 @@ def _kickstarter_config(ks_act_loss_coef: float, ks_value_loss_coef: float) -> t
                 start_value=1.0,
                 end_value=0.0,
                 start_agent_step=800_000_000,
-                end_agent_step=1_500_000_000,
+                end_agent_step=810_000_000,
             ),
-            HyperUpdateRule(
-                loss_instance_name="kickstarter",
-                attr_path="teacher_lead_prob",
-                mode="progress",
-                style="cosine",
-                start_value=1.0,
-                end_value=0.0,
-                start_agent_step=800_000_000,
-                end_agent_step=1_500_000_000,
-            ),
+            # From 810M to 900M:
+            #   teacher_lead_prob = 0
+            #   action_loss_coef  = 0
+            #   value_loss_coef   = 0
+            #   PPO still off -> frozen student-only behavior.
         ],
     )
 
