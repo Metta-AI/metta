@@ -623,6 +623,18 @@ class LLMAgentPolicy(AgentPolicy):
         # Track all positions ever visited (for breadcrumb)
         self._all_visited_positions: set[tuple[int, int]] = {(0, 0)}
 
+        # Track discovered objects with their global positions
+        # Format: {object_type: (global_x, global_y)}
+        self._discovered_objects: dict[str, tuple[int, int]] = {}
+
+        # Track exploration direction and steps in that direction
+        self._current_direction: str | None = None
+        self._steps_in_direction: int = 0
+        self._direction_change_threshold: int = 8  # Change direction after this many steps
+
+        # Track inventory for smarter decisions
+        self._last_inventory: dict[str, int] = {}
+
         # Initialize prompt builder (new dynamic approach)
         if self.use_dynamic_prompts:
             from mettagrid.policy.llm_prompt_builder import LLMPromptBuilder
@@ -632,6 +644,7 @@ class LLMAgentPolicy(AgentPolicy):
                 context_window_size=context_window_size,
                 mg_cfg=mg_cfg,
                 debug_mode=debug_mode,
+                agent_id=agent_id,
             )
             self.game_rules_prompt = None  # Not used with dynamic prompts
             if self.debug_mode:
@@ -808,6 +821,22 @@ class LLMAgentPolicy(AgentPolicy):
         """
         self._current_window_actions.append({"action": action, "reasoning": reasoning})
 
+        # Track direction changes for exploration strategy
+        direction_map = {
+            "move_north": "north",
+            "move_south": "south",
+            "move_east": "east",
+            "move_west": "west",
+        }
+
+        if action in direction_map:
+            new_direction = direction_map[action]
+            if new_direction == self._current_direction:
+                self._steps_in_direction += 1
+            else:
+                self._current_direction = new_direction
+                self._steps_in_direction = 1
+
         # Update global position based on movement action
         # Note: In MettaGrid, North=Y--, South=Y++, East=X++, West=X--
         if action == "move_north":
@@ -835,7 +864,7 @@ class LLMAgentPolicy(AgentPolicy):
                     self._history_summaries = self._history_summaries[-self._max_history_summaries:]
 
                 # Always print history summary at window boundary
-                print(f"\n[HISTORY] {summary}\n")
+                print(f"\n[HISTORY Agent {self.agent_id}] {summary}\n")
 
         # Reset for next window
         self._current_window_actions = []
@@ -881,6 +910,210 @@ class LLMAgentPolicy(AgentPolicy):
             .replace("{{WINDOW_SUMMARIES}}", window_summaries)
         )
 
+    def _extract_discovered_objects(self, obs: AgentObservation) -> None:
+        """Extract and track discovered objects from observation.
+
+        Updates self._discovered_objects with global positions of important objects.
+
+        Args:
+            obs: Agent observation
+        """
+        agent_x = self.policy_env_info.obs_width // 2
+        agent_y = self.policy_env_info.obs_height // 2
+
+        # Important object types to track
+        important_types = {
+            "charger", "assembler", "chest",
+            "carbon_extractor", "oxygen_extractor",
+            "germanium_extractor", "silicon_extractor",
+        }
+
+        for token in obs.tokens:
+            if token.feature.name == "tag" and token.value < len(self.policy_env_info.tags):
+                tag_name = self.policy_env_info.tags[token.value]
+                if tag_name in important_types:
+                    # Calculate global position
+                    rel_x = token.row() - agent_x
+                    rel_y = token.col() - agent_y
+                    global_x = self._global_x + rel_x
+                    global_y = self._global_y + rel_y
+
+                    # Store with global position (keep closest one if multiple)
+                    if tag_name not in self._discovered_objects:
+                        self._discovered_objects[tag_name] = (global_x, global_y)
+
+    def _extract_inventory_from_obs(self, obs: AgentObservation) -> dict[str, int]:
+        """Extract current inventory from observation.
+
+        Args:
+            obs: Agent observation
+
+        Returns:
+            Dictionary of resource -> amount
+        """
+        agent_x = self.policy_env_info.obs_width // 2
+        agent_y = self.policy_env_info.obs_height // 2
+
+        inventory = {}
+        for token in obs.tokens:
+            if token.row() == agent_x and token.col() == agent_y:
+                if token.feature.name.startswith("inv:"):
+                    resource = token.feature.name[4:]
+                    inventory[resource] = token.value
+                elif token.feature.name == "agent:energy" or token.feature.name == "energy":
+                    inventory["energy"] = token.value
+
+        return inventory
+
+    def _get_discovered_objects_text(self) -> str:
+        """Get formatted text of discovered objects for the prompt.
+
+        Returns:
+            Formatted string listing discovered objects and their locations.
+        """
+        if not self._discovered_objects:
+            return ""
+
+        def pos_to_dir(x: int, y: int) -> str:
+            if x == 0 and y == 0:
+                return "at origin"
+            parts = []
+            if y < 0:
+                parts.append(f"{abs(y)}N")
+            elif y > 0:
+                parts.append(f"{y}S")
+            if x > 0:
+                parts.append(f"{x}E")
+            elif x < 0:
+                parts.append(f"{abs(x)}W")
+            return "".join(parts)
+
+        lines = ["=== DISCOVERED OBJECTS (from exploration) ==="]
+        for obj_type, (gx, gy) in sorted(self._discovered_objects.items()):
+            lines.append(f"  - {obj_type}: {pos_to_dir(gx, gy)}")
+
+        return "\n".join(lines)
+
+    def _get_visible_extractors(self, obs: AgentObservation) -> list[str]:
+        """Get list of extractor types visible in current observation.
+
+        Args:
+            obs: Agent observation
+
+        Returns:
+            List of visible extractor type names
+        """
+        visible = []
+        extractor_types = {
+            "carbon_extractor", "oxygen_extractor",
+            "germanium_extractor", "silicon_extractor",
+        }
+
+        for token in obs.tokens:
+            if token.feature.name == "tag" and token.value < len(self.policy_env_info.tags):
+                tag_name = self.policy_env_info.tags[token.value]
+                if tag_name in extractor_types and tag_name not in visible:
+                    visible.append(tag_name)
+
+        return visible
+
+    def _get_strategic_hints(
+        self, inventory: dict[str, int], obs: AgentObservation | None = None
+    ) -> str:
+        """Generate strategic hints based on current state.
+
+        Args:
+            inventory: Current inventory
+            obs: Optional agent observation to check for visible extractors
+
+        Returns:
+            Strategic hints text to add to prompt
+        """
+        hints = []
+
+        # Check for visible extractors that we need (TOP PRIORITY HINT)
+        if obs is not None:
+            visible_extractors = self._get_visible_extractors(obs)
+            needed_extractors = []
+
+            carbon = inventory.get("carbon", 0)
+            oxygen = inventory.get("oxygen", 0)
+            germanium = inventory.get("germanium", 0)
+            silicon = inventory.get("silicon", 0)
+
+            for ext in visible_extractors:
+                if ext == "carbon_extractor" and carbon < 10:
+                    needed_extractors.append("carbon_extractor")
+                elif ext == "oxygen_extractor" and oxygen < 10:
+                    needed_extractors.append("oxygen_extractor")
+                elif ext == "germanium_extractor" and germanium < 2:
+                    needed_extractors.append("germanium_extractor")
+                elif ext == "silicon_extractor" and silicon < 30:
+                    needed_extractors.append("silicon_extractor")
+
+            if needed_extractors:
+                ext_list = ", ".join(needed_extractors)
+                hints.append(
+                    f"🎯 VISIBLE EXTRACTOR YOU NEED: {ext_list} - "
+                    "PURSUE IT NOW! Navigate around walls if blocked!"
+                )
+
+        # Energy warning
+        energy = inventory.get("energy", 100)
+        if energy < 20:
+            hints.append("⚠️ ENERGY CRITICAL (<20): Find charger IMMEDIATELY!")
+        elif energy < 40:
+            hints.append("⚠️ ENERGY LOW (<40): Head to charger soon!")
+
+        # Direction change suggestion
+        if self._steps_in_direction >= self._direction_change_threshold:
+            opposite = {
+                "north": "south", "south": "north",
+                "east": "west", "west": "east"
+            }
+            suggested = opposite.get(self._current_direction, "different")
+            hints.append(
+                f"⚠️ You've gone {self._current_direction} for {self._steps_in_direction} steps. "
+                f"Consider going {suggested}!"
+            )
+
+        # Distance from origin warning
+        distance = abs(self._global_x) + abs(self._global_y)
+        if distance > 25:
+            hints.append(
+                f"⚠️ You're {distance} tiles from origin. "
+                "Extractors are usually within 20 tiles - try going back!"
+            )
+
+        # Resource gathering hints
+        carbon = inventory.get("carbon", 0)
+        oxygen = inventory.get("oxygen", 0)
+        germanium = inventory.get("germanium", 0)
+        silicon = inventory.get("silicon", 0)
+        heart = inventory.get("heart", 0)
+
+        if heart > 0 and "chest" in self._discovered_objects:
+            hints.append(f"💡 You have {heart} heart(s)! Go to chest to deposit for reward!")
+        elif carbon >= 10 and oxygen >= 10 and germanium >= 2 and silicon >= 30:
+            hints.append("💡 You have all resources for a heart! Find an assembler and use heart_a vibe!")
+        else:
+            missing = []
+            if carbon < 10:
+                missing.append(f"carbon ({carbon}/10)")
+            if oxygen < 10:
+                missing.append(f"oxygen ({oxygen}/10)")
+            if germanium < 2:
+                missing.append(f"germanium ({germanium}/2)")
+            if silicon < 30:
+                missing.append(f"silicon ({silicon}/30)")
+            if missing:
+                hints.append(f"📋 Still need: {', '.join(missing)}")
+
+        if not hints:
+            return ""
+
+        return "=== STRATEGIC HINTS ===\n" + "\n".join(hints)
+
     def step(self, obs: AgentObservation) -> Action:
         """Get action from LLM given observation.
 
@@ -890,6 +1123,13 @@ class LLMAgentPolicy(AgentPolicy):
         Returns:
             Action to take
         """
+        # Extract and track discovered objects from this observation
+        self._extract_discovered_objects(obs)
+
+        # Extract current inventory for strategic hints
+        inventory = self._extract_inventory_from_obs(obs)
+        self._last_inventory = inventory
+
         # Build prompt using dynamic or static approach
         if self.use_dynamic_prompts:
             # Increment summary step counter
@@ -916,6 +1156,15 @@ class LLMAgentPolicy(AgentPolicy):
             if includes_basic_info and self._history_summaries:
                 history_text = self._get_history_summary_text()
                 user_prompt = history_text + "\n" + user_prompt
+
+            # Add discovered objects and strategic hints to every prompt
+            discovered_text = self._get_discovered_objects_text()
+            strategic_hints = self._get_strategic_hints(inventory, obs)
+
+            if discovered_text:
+                user_prompt = user_prompt + "\n\n" + discovered_text
+            if strategic_hints:
+                user_prompt = user_prompt + "\n\n" + strategic_hints
 
         else:
             # Use old static prompt approach
