@@ -367,6 +367,20 @@ class SimulationAgent:
     def last_action_success(self) -> bool:
         return self._sim._c_sim.action_success()[self._agent_id]
 
+    def self_observation(self) -> list[ObservationToken]:
+        """Get observation tokens for the agent itself.
+
+        These are tokens at the agent's center position in the observation window,
+        including inventory, global observations, and other agent-specific features.
+        """
+        obs = self.observation
+
+        # Agent's own tokens are at the center of the observation window
+        c_sim = self._sim._c_sim
+        center = (c_sim.obs_height // 2, c_sim.obs_width // 2)
+
+        return [token for token in obs.tokens if token.location == center]
+
     @property
     def inventory(self) -> Dict[str, int]:
         """Get the agent's current inventory from observations.
@@ -375,16 +389,8 @@ class SimulationAgent:
         Returns a dictionary mapping resource names to their quantities.
         """
         inv = {}
-        obs = self.observation
 
-        # Agent's own tokens are at the center of the observation window
-        c_sim = self._sim._c_sim
-        center = (c_sim.obs_height // 2, c_sim.obs_width // 2)
-
-        for token in obs.tokens:
-            # Only look at tokens at the agent's own position (center)
-            if token.location != center:
-                continue
+        for token in self.self_observation():
             # Check if this is an inventory feature
             if token.feature.name.startswith("inv:"):
                 # Extract resource name from "inv:resource_name" format
