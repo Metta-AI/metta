@@ -163,7 +163,7 @@ members = [
   "softmax",
   "mcp_servers/pr_similarity",
   "mcp_servers/wandb_dashboard",
-  "projects/skydeck",
+  "packages/skydeck",
 ]
 
 [tool.uv.sources]

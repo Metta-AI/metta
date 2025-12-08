@@ -1,0 +1,65 @@
+/* Jobs table specific styles */
+#jobs-table td,
+#jobs-table th {
+  padding: 4px 6px !important;
+}
+
+#jobs-table th:nth-child(1),
+#jobs-table td:nth-child(1) {
+  width: 30px;
+  max-width: 30px;
+}
+
+#jobs-table th:nth-child(2),
+#jobs-table td:nth-child(2) {
+  width: 30px;
+  max-width: 30px;
+  padding: 4px 2px !important;
+}
+
+#jobs-table th:nth-child(3),
+#jobs-table td:nth-child(3) {
+  width: 150px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#jobs-table th:nth-child(4),
+#jobs-table td:nth-child(4) {
+  width: 180px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#jobs-table th:nth-child(5),
+#jobs-table td:nth-child(5) {
+  width: 80px;
+  max-width: 80px;
+}
+
+#jobs-table th:nth-child(6),
+#jobs-table td:nth-child(6) {
+  width: 60px;
+  max-width: 60px;
+}
+
+#jobs-table th:nth-child(7),
+#jobs-table td:nth-child(7) {
+  width: 80px;
+  max-width: 80px;
+}
+
+#jobs-table th:nth-child(8),
+#jobs-table td:nth-child(8) {
+  width: 120px;
+  max-width: 120px;
+}
+
+#jobs-table th:nth-child(9),
+#jobs-table td:nth-child(9) {
+  width: 20px;
+  max-width: 20px;
+  padding: 0 !important;
+}

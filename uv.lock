@@ -2267,7 +2267,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "setuptools", specifier = ">=80.9.0" },
     { name = "simple-term-menu", specifier = ">=1.6.4" },
-    { name = "skydeck", editable = "projects/skydeck" },
+    { name = "skydeck", editable = "packages/skydeck" },
     { name = "skypilot", specifier = "==0.10.3.post2" },
     { name = "softmax", editable = "softmax" },
     { name = "sqlmodel", specifier = ">=0.0.27" },
@@ -4314,7 +4314,7 @@ wheels = [
 [[package]]
 name = "skydeck"
 version = "0.1.0"
-source = { editable = "projects/skydeck" }
+source = { editable = "packages/skydeck" }
 dependencies = [
     { name = "aiosqlite" },
     { name = "fastapi" },
