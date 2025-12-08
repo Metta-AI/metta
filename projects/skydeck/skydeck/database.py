@@ -296,7 +296,7 @@ class Database:
     async def rename_experiment(self, old_id: str, new_id: str):
         """Rename an experiment (change its ID).
 
-        This updates the experiment ID and all references to it in jobs.
+        This updates the experiment ID and all references to it in jobs and checkpoints.
         """
         # Update the experiment ID
         await self._conn.execute(
@@ -312,6 +312,16 @@ class Database:
         await self._conn.execute(
             """
             UPDATE jobs
+            SET experiment_id = ?
+            WHERE experiment_id = ?
+            """,
+            (new_id, old_id),
+        )
+
+        # Update all checkpoints that reference this experiment
+        await self._conn.execute(
+            """
+            UPDATE checkpoints
             SET experiment_id = ?
             WHERE experiment_id = ?
             """,
@@ -527,6 +537,7 @@ class Database:
             group=row["exp_group"],
             order=row["exp_order"],
             is_expanded=bool(row["is_expanded"]) if "is_expanded" in row.keys() else False,
+            starred=bool(row["starred"]) if "starred" in row.keys() else False,
         )
 
     def _row_to_job(self, row: aiosqlite.Row) -> Job:

@@ -806,8 +806,8 @@ function createExpandedRow(exp, numFlagColumns) {
                         </div>
                         <div class="detail-grid" id="config-grid-${exp.id}">
                             <span class="detail-label">Experiment ID:</span>
-                            <span class="detail-value config-field" data-field="id">
-                                ${exp.id}
+                            <span class="detail-value">
+                                <span class="config-field" data-field="id">${exp.id}</span>
                                 <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('${exp.id.replace(/'/g, "\\'")}', event); return false;" title="Copy experiment ID">⎘</button>
                                 <a href="https://wandb.ai/metta-research/metta/runs/${exp.id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in W&B">W&B</a>
                             </span>
