@@ -416,13 +416,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         learning_progress_array = self._learning_progress()
         mean_learning_progress = float(np.mean(learning_progress_array)) if len(learning_progress_array) > 0 else 0.0
-        success_rates = [np.mean(vals) if vals else DEFAULT_SUCCESS_RATE for vals in self._outcomes.values()]
-        mean_task_success_rate = float(np.mean(success_rates)) if success_rates else 0.0
-
-        # Always calculate mean_learning_progress from _learning_progress(),
-        # independent of _task_dist which may not be initialized
-        learning_progress_array = self._learning_progress()
-        mean_learning_progress = float(np.mean(learning_progress_array)) if len(learning_progress_array) > 0 else 0.0
 
         # Ensure task distribution is calculated for distribution stats
         if self._task_dist is None or self._stale_dist:
