@@ -255,6 +255,11 @@ def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
 def policy_spec_from_uri(
     uri: str, *, device: str = "cpu", strict: bool = True, remove_downloaded_copy_on_exit: bool = False
 ):
+    """Load a PolicySpec from a URI or file path.
+
+    Note: Prefer using `mettagrid.policy.loader.policy_spec_from_string` which also
+    supports class shorthands like "random", "lstm", "stateless" in addition to URIs.
+    """
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
 

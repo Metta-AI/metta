@@ -11,12 +11,11 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
-from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.loader import initialize_or_load_policy, policy_spec_from_string
 from mettagrid.util.file import ParsedURI
 from mettagrid.util.uri_resolvers.schemes import (
     checkpoint_filename,
     parse_uri,
-    policy_spec_from_uri,
 )
 
 if TYPE_CHECKING:
@@ -85,7 +84,7 @@ class SLCheckpointedKickstarter(Loss):
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
+        teacher_spec = policy_spec_from_string(self.cfg.teacher_uri, device=str(self.device))
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
@@ -179,7 +178,7 @@ class SLCheckpointedKickstarter(Loss):
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to reload teacher policy")
 
-        teacher_spec = policy_spec_from_uri(new_uri, device=str(self.device))
+        teacher_spec = policy_spec_from_string(new_uri, device=str(self.device))
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
 
         # Detach gradient

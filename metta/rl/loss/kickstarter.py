@@ -11,9 +11,8 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
-from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.loader import initialize_or_load_policy, policy_spec_from_string
 from mettagrid.policy.mpt_policy import MptPolicy
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -64,7 +63,7 @@ class Kickstarter(Loss):
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
+        teacher_spec = policy_spec_from_string(self.cfg.teacher_uri, device=str(self.device))
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
         if isinstance(self.teacher_policy, MptPolicy):
             self.teacher_policy = self.teacher_policy._policy
