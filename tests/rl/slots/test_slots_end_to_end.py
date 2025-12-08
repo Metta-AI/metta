@@ -124,6 +124,33 @@ def test_loss_filtering_2d_and_cuda_indices():
     assert filtered["indices"].data.tolist() == [0]
 
 
+def test_loss_filtering_mixed_agent_masks_keep_indices_aligned():
+    loss = _DummyLoss()
+    mb = TensorDict(
+        {
+            "actions": torch.arange(6).view(3, 2),
+            # mixed mask across agents/time -> exercises flattening path
+            "loss_profile_id": torch.tensor([[1, 0], [0, 1], [0, 1]]),
+            "is_trainable_agent": torch.ones((3, 2), dtype=torch.bool),
+        },
+        batch_size=[3, 2],
+    )
+    shared = TensorDict(
+        {
+            "sampled_mb": mb,
+            "indices": NonTensorData(torch.arange(3)),
+        },
+        batch_size=[],
+    )
+
+    filtered = loss._filter_minibatch(shared)
+
+    # three agent entries survive the mixed mask
+    assert filtered["sampled_mb"].batch_size == torch.Size([3])
+    # indices are expanded/re-masked to stay aligned with the filtered minibatch
+    assert filtered["indices"].data.tolist() == [0, 1, 2]
+
+
 # ---------- Slot controller routing ----------
 
 

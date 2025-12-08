@@ -237,13 +237,29 @@ class Loss:
         """Apply either a flattened mask or per-agent mask to a value."""
 
         def apply_flat(t: torch.Tensor) -> torch.Tensor:
+            """Mask tensors when mask varies within the batch/agent grid.
+
+            We try to keep alignment even for 1D tensors (e.g. replay indices)
+            whose length matches the row dimension but not the flattened size.
+            """
+
             assert mask_flat is not None
             target = mask_flat.numel()
             lead = len(mask_shape)
+
             if tuple(t.shape[:lead]) == mask_shape:
                 return t.reshape(target, *t.shape[lead:])[mask_flat]
+
             if t.shape and t.shape[0] == target:
                 return t[mask_flat]
+
+            # Handle row-aligned tensors (e.g. 1D indices) when agents are the
+            # trailing batch dim: repeat per-agent then apply the flattened mask.
+            if lead > 1 and t.shape and t.shape[0] == mask_shape[0]:
+                repeat = int(target // t.shape[0])
+                expanded = t.repeat_interleave(repeat, dim=0)
+                return expanded[mask_flat]
+
             return t
         def apply_agent(t: torch.Tensor) -> torch.Tensor:
             assert agent_mask is not None and agent_idx is not None
