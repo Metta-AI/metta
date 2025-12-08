@@ -528,7 +528,7 @@ def train(
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: list[str] | str,
     num_cogs: int = 4,
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,

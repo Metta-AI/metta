@@ -1,4 +1,3 @@
-from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.sim.remote import SimulationList
 from metta.tools.eval import EvalWithResultTool
 
@@ -15,7 +14,6 @@ def eval(
     return EvalWithResultTool(
         simulations=task_data.simulations,
         policy_uris=[f"metta://policy/{policy_version_id}"],
-        stats_server_uri=PROD_STATS_SERVER_URI,
         push_metrics_to_wandb=True,
         result_file_path=result_file_path,
     )

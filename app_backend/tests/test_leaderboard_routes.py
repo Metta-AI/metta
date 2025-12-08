@@ -4,7 +4,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.leaderboard_constants import COGAMES_SUBMITTED_PV_KEY, LEADERBOARD_SIM_NAME_EPISODE_KEY
+from metta.app_backend.leaderboard_constants import (
+    COGAMES_SUBMITTED_PV_KEY,
+    LEADERBOARD_SIM_NAME_EPISODE_KEY,
+)
 from metta.app_backend.metta_repo import MettaRepo
 
 

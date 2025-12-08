@@ -123,4 +123,14 @@ MIGRATIONS = [
                ON policy_version_tags (key, value)""",
         ],
     ),
+    SqlMigration(
+        version=2,
+        description="Add indexes on episode_tags for key-value queries",
+        sql_statements=[
+            """CREATE INDEX idx_episode_tags_key_value
+               ON episode_tags (key, value)""",
+            """CREATE INDEX idx_episode_tags_episode_key_value
+               ON episode_tags (episode_id, key, value)""",
+        ],
+    ),
 ]
