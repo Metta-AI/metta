@@ -61,6 +61,7 @@ run_variant() {
   local run_name="${RUN_PREFIX}_${variant}"
   echo "==> Switching to variant: $variant (run=${run_name})"
   set_variant "$variant"
+  echo "Symlink now points to: $(readlink "$BINDINGS_DIR/mettagrid_c.cpp")"
   AWS_PROFILE= AWS_DEFAULT_PROFILE= uv sync --reinstall-package mettagrid
   AWS_PROFILE= AWS_DEFAULT_PROFILE= METTA_TIMER_REPORT=1 uv run "${COMMON_ARGS[@]}" "run=${run_name}"
 }
