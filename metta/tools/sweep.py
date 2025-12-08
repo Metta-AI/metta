@@ -7,11 +7,12 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal, Optional
 
+from pydantic import Field
+
 from cogweb.cogweb_client import CogwebClient
 from metta.adaptive import AdaptiveConfig, AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
 from metta.adaptive.stores import WandbStore
-from pydantic import Field
 from metta.common.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
@@ -273,7 +274,9 @@ class SweepTool(Tool):
             if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and self.grid_metric
             else protein_config.metric
         )
-        evaluator_prefix = metric_path.rsplit("/", 1)[0] if isinstance(metric_path, str) and "/" in metric_path else None
+        evaluator_prefix = (
+            metric_path.rsplit("/", 1)[0] if isinstance(metric_path, str) and "/" in metric_path else None
+        )
 
         store = WandbStore(entity=self.wandb.entity, project=self.wandb.project, evaluator_prefix=evaluator_prefix)
 

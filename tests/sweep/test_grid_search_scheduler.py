@@ -9,8 +9,6 @@ Covers:
 
 from datetime import datetime, timezone
 
-import pytest
-
 from metta.adaptive.models import JobTypes, RunInfo
 from metta.sweep.core import CategoricalParameterConfig
 from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
