@@ -75,7 +75,7 @@ class StatelessPolicy(MultiAgentPolicy):
     short_names = ["stateless"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, device: torch.device | str | None = None):
-        super().__init__(policy_env_info, is_scripted=False)
+        super().__init__(policy_env_info)
         actions_cfg = policy_env_info.actions
         obs_shape = policy_env_info.observation_space.shape
         self._net = StatelessPolicyNet(actions_cfg, obs_shape)

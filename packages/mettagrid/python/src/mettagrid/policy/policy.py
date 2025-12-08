@@ -19,8 +19,6 @@ StateType = TypeVar("StateType")
 
 class PolicyDescriptor(BaseModel):
     name: str
-    is_scripted: bool
-
 
 class AgentPolicy:
     """Base class for per-agent policies.
@@ -30,9 +28,9 @@ class AgentPolicy:
     This is what play.py and evaluation code use directly.
     """
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, policy_descriptor: Optional[PolicyDescriptor] = None):
+    def __init__(self, policy_env_info: PolicyEnvInterface, policy_descriptor: PolicyDescriptor):
         self._policy_env_info = policy_env_info
-        self._policy_descriptor = policy_descriptor or PolicyDescriptor(name="unknown", is_scripted=True)
+        self._policy_descriptor = policy_descriptor
 
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
@@ -78,7 +76,6 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         self,
         policy_env_info: PolicyEnvInterface,
         policy_name: Optional[str] = None,
-        is_scripted: bool = True,
         **kwargs: Any,
     ):
 
@@ -86,7 +83,7 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         self._actions = policy_env_info.actions
         if policy_name is None:
             policy_name = self.short_names[0] if self.short_names else self.__class__.__name__
-        self._policy_descriptor = PolicyDescriptor(name=policy_name, is_scripted=is_scripted)
+        self._policy_descriptor = PolicyDescriptor(name=policy_name)
 
     @abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:

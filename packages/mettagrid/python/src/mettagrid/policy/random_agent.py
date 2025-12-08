@@ -2,7 +2,7 @@
 
 import random
 
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicyDescriptor
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
 
@@ -10,7 +10,7 @@ from mettagrid.simulator import Action, AgentObservation
 class RandomAgentPolicy(AgentPolicy):
     """Per-agent random policy."""
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, policy_descriptor=None):
+    def __init__(self, policy_env_info: PolicyEnvInterface, policy_descriptor: PolicyDescriptor):
         super().__init__(policy_env_info, policy_descriptor)
 
     def step(self, obs: AgentObservation) -> Action:

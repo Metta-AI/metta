@@ -156,7 +156,7 @@ class TokenPolicy(MultiAgentPolicy):
         device: torch.device,
         policy_env_info: PolicyEnvInterface,
     ):
-        super().__init__(policy_env_info, is_scripted=False)
+        super().__init__(policy_env_info)
         self._net = TokenPolicyNet(features, actions_cfg).to(device)
         self._device = device
         self._num_actions = len(actions_cfg.actions())
