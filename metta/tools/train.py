@@ -44,11 +44,7 @@ from metta.rl.training import (
 )
 from metta.rl.training.scheduler import LossScheduler, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import (
-    auto_run_name,
-    auto_stats_server_uri,
-    auto_wandb_config,
-)
+from metta.tools.utils.auto_config import auto_run_name, auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.loader import policy_spec_from_string
 
 logger = getRankAwareLogger(__name__)
@@ -123,7 +119,11 @@ class TrainTool(Tool):
 
         self.training_env.seed += distributed_helper.get_rank()
 
-        supervisor_policy_spec = policy_spec_from_string(self.training_env.supervisor_policy_uri) if self.training_env.supervisor_policy_uri else None
+        supervisor_policy_spec = (
+            policy_spec_from_string(self.training_env.supervisor_policy_uri)
+            if self.training_env.supervisor_policy_uri
+            else None
+        )
 
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 
