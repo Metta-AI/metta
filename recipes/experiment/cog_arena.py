@@ -249,6 +249,7 @@ def make_curriculum(
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
+    arena_tasks.add_bucket("game.max_steps", [1000, 5000, 10000])
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.energy", [7, 8, 9, 10])
     arena_tasks.add_bucket("game.actions.attack.weapon_resources.weapon", [9, 10, 11])
     arena_tasks.add_bucket("game.actions.attack.armor_resources.shield", [12, 13, 14])

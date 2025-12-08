@@ -17,10 +17,11 @@ struct AssemblerConfig : public GridObjectConfig {
   AssemblerConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
       : GridObjectConfig(type_id, type_name, initial_vibe),
         allow_partial_usage(false),
-        max_uses(0),                 // 0 means unlimited uses
-        clip_immune(false),          // Not immune by default
-        start_clipped(false),        // Not clipped at start by default
-        chest_search_distance(0) {}  // 0 means chests are not searched
+        max_uses(0),               // 0 means unlimited uses
+        clip_immune(false),        // Not immune by default
+        start_clipped(false),      // Not clipped at start by default
+        chest_search_distance(0),  // 0 means chests are not searched
+        agent_cooldown(0) {}       // 0 means no per-agent cooldown
 
   // List of protocols - GroupVibe keys will be calculated from each protocol's vibes vector
   std::vector<std::shared_ptr<Protocol>> protocols;
@@ -40,6 +41,10 @@ struct AssemblerConfig : public GridObjectConfig {
   // Distance is measured as Chebyshev distance (max of row and column differences)
   // 0 means chests are not searched
   unsigned int chest_search_distance;
+
+  // Per-agent cooldown duration - number of timesteps before an agent can use this assembler again
+  // 0 means no per-agent cooldown
+  unsigned int agent_cooldown;
 };
 
 namespace py = pybind11;
@@ -59,6 +64,7 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("clip_immune", &AssemblerConfig::clip_immune)
       .def_readwrite("start_clipped", &AssemblerConfig::start_clipped)
       .def_readwrite("chest_search_distance", &AssemblerConfig::chest_search_distance)
+      .def_readwrite("agent_cooldown", &AssemblerConfig::agent_cooldown)
       .def_readwrite("initial_vibe", &AssemblerConfig::initial_vibe);
 }
 

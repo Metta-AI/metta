@@ -386,6 +386,11 @@ class AssemblerConfig(GridObjectConfig):
         ge=0,
         description="Distance within which assembler can use inventories from chests",
     )
+    agent_cooldown: int = Field(
+        default=0,
+        ge=0,
+        description="Per-agent cooldown duration in timesteps before they can use this assembler again",
+    )
 
 
 class ChestConfig(GridObjectConfig):
