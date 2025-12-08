@@ -19,7 +19,7 @@ members = [
     "metta-pr-similarity-mcp",
     "mettagrid",
     "pufferlib-core",
-    "skylight",
+    "skydeck",
     "softmax",
     "wandb-dashboard-mcp",
 ]
@@ -2144,7 +2144,7 @@ dependencies = [
     { name = "scipy" },
     { name = "setuptools" },
     { name = "simple-term-menu" },
-    { name = "skylight" },
+    { name = "skydeck" },
     { name = "skypilot" },
     { name = "softmax" },
     { name = "sqlmodel" },
@@ -2267,7 +2267,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "setuptools", specifier = ">=80.9.0" },
     { name = "simple-term-menu", specifier = ">=1.6.4" },
-    { name = "skylight", editable = "projects/skylight" },
+    { name = "skydeck", editable = "projects/skydeck" },
     { name = "skypilot", specifier = "==0.10.3.post2" },
     { name = "softmax", editable = "softmax" },
     { name = "sqlmodel", specifier = ">=0.0.27" },
@@ -4312,9 +4312,9 @@ wheels = [
 ]
 
 [[package]]
-name = "skylight"
+name = "skydeck"
 version = "0.1.0"
-source = { editable = "projects/skylight" }
+source = { editable = "projects/skydeck" }
 dependencies = [
     { name = "aiosqlite" },
     { name = "fastapi" },
