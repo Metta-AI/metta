@@ -125,24 +125,8 @@ class PlayTool(Tool):
         # Print summary
         console.print("\n[bold green]Episode Complete![/bold green]")
         console.print(f"Steps: {episode.steps}")
-        console.print(f"Total Rewards: {episode.rewards}")
-        console.print(f"Final Reward Sum: {float(episode.rewards.sum()):.2f}")
 
-        # Print agent inventories
-        if episode.agent_inventories and episode.resource_names:
-            console.print("\n[bold cyan]Agent Inventories:[/bold cyan]")
-            for agent_id, inventory in enumerate(episode.agent_inventories):
-                inv_str = ", ".join(f"{k}={v}" for k, v in sorted(inventory.items()) if v > 0)
-                console.print(f"  Agent {agent_id}: {inv_str if inv_str else '(empty)'}")
-
-            # Print resource totals
-            console.print("\n[bold cyan]Resource Totals:[/bold cyan]")
-            resource_totals: dict[str, int] = {}
-            for inventory in episode.agent_inventories:
-                for resource, amount in inventory.items():
-                    resource_totals[resource] = resource_totals.get(resource, 0) + amount
-            for resource in episode.resource_names:
-                total = resource_totals.get(resource, 0)
-                console.print(f"  {resource}: {total}")
+        # Print agent inventories table
+        episode.print_agent_stats()
 
         return None
