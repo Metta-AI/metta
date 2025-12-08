@@ -705,34 +705,38 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Restore bidirectional scoring state
         if "outcomes" in state:
-            self._outcomes = state["outcomes"]
-            self._counter = state["counter"]
+            self._outcomes = state.get("outcomes", {})
+            self._counter = state.get("counter", {})
 
             # Restore per-task EMAs (new format)
             if "per_task_fast" in state and "per_task_slow" in state:
-                self._per_task_fast = state["per_task_fast"]
-                self._per_task_slow = state["per_task_slow"]
+                self._per_task_fast = state.get("per_task_fast", {})
+                self._per_task_slow = state.get("per_task_slow", {})
             else:
                 # Backward compatibility: reconstruct per-task EMAs from arrays
                 self._per_task_fast = {}
                 self._per_task_slow = {}
-                if state["p_fast"] is not None and state["p_slow"] is not None:
+                p_fast_arr = state.get("p_fast")
+                p_slow_arr = state.get("p_slow")
+                if p_fast_arr is not None and p_slow_arr is not None:
                     task_ids = sorted(self._outcomes.keys())
-                    p_fast = np.array(state["p_fast"])
-                    p_slow = np.array(state["p_slow"])
+                    p_fast = np.array(p_fast_arr)
+                    p_slow = np.array(p_slow_arr)
                     for idx, task_id in enumerate(task_ids):
                         if idx < len(p_fast) and idx < len(p_slow):
                             self._per_task_fast[task_id] = float(p_fast[idx])
                             self._per_task_slow[task_id] = float(p_slow[idx])
 
-            self._p_fast = np.array(state["p_fast"]) if state["p_fast"] is not None else None
-            self._p_slow = np.array(state["p_slow"]) if state["p_slow"] is not None else None
-            self._p_true = np.array(state["p_true"]) if state["p_true"] is not None else None
-            self._random_baseline = np.array(state["random_baseline"]) if state["random_baseline"] is not None else None
-            self._task_success_rate = np.array(state["task_success_rate"])
-            self._update_mask = np.array(state["update_mask"])
-            self._sample_levels = np.array(state["sample_levels"])
-            self._task_dist = np.array(state["task_dist"]) if state["task_dist"] is not None else None
-            self._stale_dist = state["stale_dist"]
-            self._score_cache = state["score_cache"]
-            self._cache_valid_tasks = set(state["cache_valid_tasks"])
+            self._p_fast = np.array(state.get("p_fast")) if state.get("p_fast") is not None else None
+            self._p_slow = np.array(state.get("p_slow")) if state.get("p_slow") is not None else None
+            self._p_true = np.array(state.get("p_true")) if state.get("p_true") is not None else None
+            self._random_baseline = (
+                np.array(state.get("random_baseline")) if state.get("random_baseline") is not None else None
+            )
+            self._task_success_rate = np.array(state.get("task_success_rate", []))
+            self._update_mask = np.array(state.get("update_mask", []))
+            self._sample_levels = np.array(state.get("sample_levels", []))
+            self._task_dist = np.array(state.get("task_dist")) if state.get("task_dist") is not None else None
+            self._stale_dist = bool(state.get("stale_dist", True))
+            self._score_cache = dict(state.get("score_cache", {}))
+            self._cache_valid_tasks = set(state.get("cache_valid_tasks", []))
