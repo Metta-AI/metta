@@ -619,6 +619,7 @@ function createMainRow(exp, flagColumns) {
             <button class="star-btn ${exp.starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar('${exp.id}', ${!exp.starred}); return false;" title="${exp.starred ? 'Unstar' : 'Star'}">★</button>
             <button class="copy-btn copy-btn-left" onclick="event.stopPropagation(); copyToClipboard('${exp.id.replace(/'/g, "\\'")}', 'Copied: ${exp.id.replace(/'/g, "\\'")}'); return false;" title="Copy ID">⎘</button>
             <a href="https://wandb.ai/metta-research/metta/runs/${exp.id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in W&B">W&B</a>
+            <a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${exp.id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog">log</a>
             <span style="display: inline-block;">${exp.id}</span>
         </td>
         <td class="col-state">${formatStateTransition(exp.desired_state, exp.current_state)}</td>
@@ -810,6 +811,7 @@ function createExpandedRow(exp, numFlagColumns) {
                                 <span class="config-field" data-field="id">${exp.id}</span>
                                 <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('${exp.id.replace(/'/g, "\\'")}', event); return false;" title="Copy experiment ID">⎘</button>
                                 <a href="https://wandb.ai/metta-research/metta/runs/${exp.id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in W&B">W&B</a>
+                                <a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${exp.id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog">log</a>
                             </span>
 
                             <span class="detail-label">Tool Path:</span>
@@ -1015,6 +1017,8 @@ async function loadJobHistory(experimentId) {
             return `
             <div class="job-item" style="display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px;">
                 <span style="min-width: 45px; font-weight: 500;">#${job.id}</span>
+                <a href="https://skypilot-api.softmax-research.net/dashboard/jobs/${job.id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in SkyPilot Dashboard" style="font-size: 10px;">sky</a>
+                <a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${job.experiment_id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog" style="font-size: 10px;">log</a>
                 <span class="status-badge ${job.status.toLowerCase()}" title="${job.status}">${abbreviateStatus(job.status)}</span>
                 <span style="color: #666; font-size: 11px;">${formatTime(job.created_at)}</span>
             </div>
@@ -1398,7 +1402,11 @@ function updateJobsTable(jobs) {
                 <td class="col-checkbox">
                     <input type="checkbox" ${canStop ? '' : 'disabled'} ${isSelected ? 'checked' : ''} onchange="toggleJobSelection('${job.id}', this.checked)">
                 </td>
-                <td style="font-family: monospace; font-size: 12px;">${job.id}</td>
+                <td style="font-family: monospace; font-size: 12px;">
+                    ${job.id}
+                    <a href="https://skypilot-api.softmax-research.net/dashboard/jobs/${job.id}" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in SkyPilot Dashboard" style="margin-left: 6px;">sky</a>
+                    <a href="https://app.datadoghq.com/logs?query=metta_run_id%3A%22${job.experiment_id}%22" target="_blank" class="wandb-link" onclick="event.stopPropagation();" title="Open in Datadog" style="margin-left: 6px;">log</a>
+                </td>
                 <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;" title="${job.experiment_id}">${job.experiment_id}</td>
                 <td><span class="status-badge ${job.status.toLowerCase()}" title="${job.status}">${abbreviateStatus(job.status)}</span></td>
                 <td style="font-family: monospace; font-size: 11px;">${resources}</td>

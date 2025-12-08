@@ -92,63 +92,147 @@ class Poller:
             logger.debug(f"Updated {len(jobs)} managed jobs")
 
     async def _get_managed_jobs(self) -> list[dict]:
-        """Get managed jobs from SkyPilot using local state database.
+        """Get managed jobs from SkyPilot using CLI.
 
         Returns:
-            List of job dicts from sky.jobs.state.get_managed_jobs()
+            List of job dicts parsed from sky status output
         """
         try:
-            import os
+            import re
+            import subprocess
+            from datetime import datetime, timedelta
 
-            import sky.jobs.state
-
-            # Call get_managed_jobs() to directly read from local database
+            # Run sky status to get managed jobs
             loop = asyncio.get_event_loop()
-            jobs = await loop.run_in_executor(None, lambda: sky.jobs.state.get_managed_jobs(job_id=None))
+            result = await loop.run_in_executor(
+                None, lambda: subprocess.run(["sky", "status"], capture_output=True, text=True, timeout=30)
+            )
 
-            if not jobs:
-                logger.debug("No managed jobs found")
+            if result.returncode != 0:
+                logger.error(f"sky status failed with code {result.returncode}: {result.stderr}")
                 return []
 
-            # Get current username for filtering
-            username = os.getenv("USER") or os.getenv("USERNAME")
+            output = result.stdout
 
-            # Convert job dicts to simplified format for our database
+            # Parse the output to extract managed jobs
+            # Look for the "Managed jobs" section
+            if "Managed jobs" not in output:
+                logger.debug("No managed jobs section in sky status output")
+                return []
+
+            # Split output by sections
+            lines = output.split("\n")
+
+            # Find the managed jobs table
+            in_managed_jobs = False
             job_dicts = []
-            for job in jobs:
-                job_name = job.get("job_name", "unknown")
 
-                # Filter to only jobs that belong to the current user
-                # Jobs typically start with username prefix (e.g., "daveey.experiment")
-                if username and not job_name.startswith(f"{username}."):
+            for _i, line in enumerate(lines):
+                if "Managed jobs" in line:
+                    in_managed_jobs = True
                     continue
 
-                # Extract relevant fields from the managed job dict
-                # The job dict already has the right structure from sky.jobs.state
-                job_dict = {
-                    "id": str(job.get("job_id")),
-                    "name": job_name,
-                    "status": str(job.get("status", "UNKNOWN")).replace("ManagedJobStatus.", ""),
-                    "submitted_at": job.get("submitted_at"),
-                    "start_at": job.get("start_at"),
-                    "end_at": job.get("end_at"),
-                    "job_duration": job.get("job_duration", 0),
-                    "resources": job.get("resources", ""),
-                    "cloud": job.get("cloud", ""),
-                    "region": job.get("region", ""),
-                    "zone": job.get("zone", ""),
-                    "infra": job.get("infra", ""),
-                    "accelerators": job.get("accelerators", {}),
-                    "entrypoint": job.get("entrypoint", ""),
-                }
-                job_dicts.append(job_dict)
+                if in_managed_jobs:
+                    # Check if we've reached the next section
+                    if line.startswith("Services") or line.startswith("Clusters"):
+                        break
 
-            logger.debug(f"Retrieved {len(job_dicts)} managed jobs from local database (filtered by user {username})")
+                    # Skip header and separator lines
+                    if "ID" in line and "TASK" in line:
+                        continue
+                    if not line.strip():
+                        continue
+
+                    # Parse job line (ID TASK NAME REQUESTED SUBMITTED DURATION ... STATUS POOL)
+                    parts = line.split()
+                    if len(parts) < 5:
+                        continue
+
+                    # Try to parse the job line
+                    try:
+                        job_id = parts[0]
+                        # Skip if not a valid job ID (numeric)
+                        if not job_id.isdigit():
+                            continue
+
+                        # Find the job name (look for pattern like daveey.xxx)
+                        name_match = re.search(r"[a-zA-Z_][a-zA-Z0-9_.-]+", line)
+                        job_name = name_match.group(0) if name_match else "unknown"
+
+                        # Find status (typically near the end)
+                        status = "UNKNOWN"
+                        for word in parts:
+                            if word.upper() in ["RUNNING", "PENDING", "FAILED", "SUCCEEDED", "CANCELLED"]:
+                                status = word.upper()
+                                break
+
+                        # Parse resources (REQUESTED column)
+                        # Format examples: "4x[A10G:4, L4:4]" or "1xCPU:4" or "[A10G:4]"
+                        nodes = 1
+                        gpus = 0
+                        resources_str = ""
+
+                        # Look for pattern like "4x[A10G:4]" or just "[A10G:4]"
+                        resource_match = re.search(r"(\d+)?x?\[([^\]]+)\]", line)
+                        if resource_match:
+                            if resource_match.group(1):
+                                nodes = int(resource_match.group(1))
+                            resources_str = resource_match.group(2)
+
+                            # Parse GPU count from patterns like "A10G:4" or "L4:4"
+                            gpu_match = re.search(r"[A-Z0-9]+:(\d+)", resources_str)
+                            if gpu_match:
+                                gpus = int(gpu_match.group(1))
+
+                        # Parse submitted time
+                        submitted_at = None
+                        time_match = re.search(r"(\d+)\s+(hrs?|mins?|days?|secs?)\s+ago", line)
+                        if time_match:
+                            value = int(time_match.group(1))
+                            unit = time_match.group(2)
+                            if "hr" in unit:
+                                submitted_at = (datetime.utcnow() - timedelta(hours=value)).timestamp()
+                            elif "min" in unit:
+                                submitted_at = (datetime.utcnow() - timedelta(minutes=value)).timestamp()
+                            elif "day" in unit:
+                                submitted_at = (datetime.utcnow() - timedelta(days=value)).timestamp()
+                            elif "sec" in unit:
+                                submitted_at = (datetime.utcnow() - timedelta(seconds=value)).timestamp()
+
+                        job_dict = {
+                            "id": job_id,
+                            "name": job_name,
+                            "status": status,
+                            "submitted_at": submitted_at,
+                            "start_at": submitted_at,  # Approximation
+                            "end_at": None if status in ["RUNNING", "PENDING"] else submitted_at,
+                            "job_duration": 0,
+                            "resources": resources_str,
+                            "cloud": "",
+                            "region": "",
+                            "zone": "",
+                            "infra": "managed",
+                            "accelerators": {},
+                            "entrypoint": "",
+                            "nodes": nodes,
+                            "gpus": gpus,
+                        }
+                        job_dicts.append(job_dict)
+                        logger.debug(f"Parsed managed job: {job_id} - {job_name} ({status})")
+
+                    except Exception as e:
+                        logger.warning(f"Failed to parse job line: {line}: {e}")
+                        continue
+
+            logger.debug(f"Retrieved {len(job_dicts)} managed jobs from sky status CLI")
             return job_dicts
 
-        except ImportError:
-            logger.warning("SkyPilot not installed, cannot poll jobs")
+        except subprocess.TimeoutExpired:
+            logger.error("sky status command timed out")
+            return []
+        except FileNotFoundError:
+            logger.warning("sky command not found, cannot poll jobs")
             return []
         except Exception as e:
-            logger.error(f"Error getting managed jobs from SkyPilot: {e}", exc_info=True)
+            logger.error(f"Error getting managed jobs from SkyPilot CLI: {e}", exc_info=True)
             return []
