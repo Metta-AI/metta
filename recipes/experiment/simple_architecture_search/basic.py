@@ -180,7 +180,7 @@ def sweep_architecture(sweep_name: str) -> SweepTool:
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
         metric_key="evaluator/eval_sweep/score",
-        parameters=[architecture_parameter],
+        search_space=[architecture_parameter],
         max_trials=200,
         num_parallel_trials=8,
     )

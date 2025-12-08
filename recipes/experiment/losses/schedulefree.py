@@ -189,7 +189,7 @@ def sweep(sweep_name: str) -> SweepTool:
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
         metric_key="evaluator/eval_sweep/score",
-        parameters=parameters,
+        search_space=parameters,
         max_trials=80,
         num_parallel_trials=4,
     )
