@@ -164,6 +164,7 @@ bool Agent::check_and_apply_damage(std::mt19937& rng) {
     InventoryItem item_to_remove = available_resources[0];
     this->inventory.update(item_to_remove, -1);
     this->stats.incr("damage.items_lost");
+    this->stats.incr("damaged." + this->stats.resource_name(item_to_remove));
   }
 
   // Subtract threshold values from inventory
