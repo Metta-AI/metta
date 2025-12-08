@@ -36,10 +36,11 @@ class RequestRemoteEvalTool(Tool):
         stats_client = StatsClient.create(self.stats_server_uri)
 
         task = evaluate_remotely(
-            self._to_simulation_run_configs(),
-            stats_client,
+            simulations=self._to_simulation_run_configs(),
+            stats_client=stats_client,
             policy_version_id=self.policy_version_id,
             policy_uri=self.policy_uri,
+            git_hash=self.git_hash,
             push_metrics_to_wandb=self.push_metrics_to_wandb,
         )
 
