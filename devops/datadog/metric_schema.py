@@ -1,223 +1,291 @@
 from __future__ import annotations
 
-"""
-Central definition of all metrics that feed the Datadog infrastructure health dashboards.
+from dataclasses import dataclass
+from typing import List, Literal, Sequence
 
-Each entry describes a workflow category, its workflows, and the metrics (with success
-conditions) that populate both the summary and detailed dashboards.
-"""
-
-from typing import List, TypedDict
+Comparator = Literal[">", ">=", "<", "<=", "=="]
+Aggregation = Literal["avg", "sum", "min", "max"]
 
 
-class MetricDefinition(TypedDict):
-    metric: str
+@dataclass(frozen=True)
+class MetricDefinition:
+    display_name: str
+    metric_name: str
     task: str
     check: str
-    condition: str
+    comparator: Comparator
+    threshold: float
+    aggregation: Aggregation = "avg"
+    description: str | None = None
+
+    @property
+    def condition_text(self) -> str:
+        return f"{self.comparator} {self.threshold}"
 
 
-class WorkflowDefinition(TypedDict):
-    workflow: str
-    metrics: List[MetricDefinition]
+@dataclass(frozen=True)
+class WorkflowDefinition:
+    name: str
+    display_name: str
+    metrics: Sequence[MetricDefinition]
 
 
-class CategoryDefinition(TypedDict):
-    category: str
-    workflows: List[WorkflowDefinition]
+@dataclass(frozen=True)
+class CategoryDefinition:
+    name: str
+    display_name: str
+    workflows: Sequence[WorkflowDefinition]
+
+
+def _ci_workflows() -> List[WorkflowDefinition]:
+    latest_state_metrics = [
+        MetricDefinition(
+            display_name="Tests that block merge passing",
+            metric_name="metta.infra.cron.ci.workflow.tests_blocking_merge",
+            task="Tests that block merge passing",
+            check="Workflow passing signal",
+            comparator=">=",
+            threshold=1,
+            aggregation="avg",
+            description="Binary 1/0 metric indicating whether all blocking tests are passing.",
+        ),
+        MetricDefinition(
+            display_name="Benchmarks passing",
+            metric_name="metta.infra.cron.ci.workflow.benchmarks",
+            task="Benchmarks passing",
+            check="Workflow passing signal",
+            comparator=">=",
+            threshold=1,
+            aggregation="avg",
+            description="Binary 1/0 metric indicating benchmark workflow health.",
+        ),
+        MetricDefinition(
+            display_name="Num other workflows failing",
+            metric_name="metta.infra.cron.ci.workflow.other_failing",
+            task="Other workflows failing",
+            check="Count of failing workflows",
+            comparator="<",
+            threshold=2,
+            aggregation="avg",
+            description="Count of workflows on main that are currently failing.",
+        ),
+        MetricDefinition(
+            display_name="Latest state of main success ratio",
+            metric_name="metta.infra.cron.ci.workflow.success",
+            task="Latest state success ratio",
+            check="Binary success signal",
+            comparator=">=",
+            threshold=1,
+            aggregation="avg",
+            description="1 when 100% of runs in the observation window succeed, 0 otherwise.",
+        ),
+        MetricDefinition(
+            display_name="Flaky test reruns",
+            metric_name="metta.infra.cron.ci.workflow.flaky_tests",
+            task="Flaky reruns per window",
+            check="Count of reruns",
+            comparator="<",
+            threshold=10,
+            aggregation="avg",
+            description="Number of workflow reruns triggered by flaky behavior.",
+        ),
+    ]
+
+    commit_history_metrics = [
+        MetricDefinition(
+            display_name="Weekly num hotfix commits",
+            metric_name="metta.infra.cron.github.hotfix.count",
+            task="Weekly hotfix commits",
+            check="Hotfix count",
+            comparator="<",
+            threshold=5,
+            aggregation="avg",
+            description="Merged PRs labeled as hotfixes over the rolling weekly window.",
+        ),
+        MetricDefinition(
+            display_name="Weekly num force merges",
+            metric_name="metta.infra.cron.github.force_merge.count",
+            task="Weekly force merges",
+            check="Force merge count",
+            comparator="<",
+            threshold=7,
+            aggregation="avg",
+            description="Merged PRs that bypassed protections via force merge labels.",
+        ),
+        MetricDefinition(
+            display_name="Weekly num reverts",
+            metric_name="metta.infra.cron.github.reverts.count",
+            task="Weekly reverts",
+            check="Revert count",
+            comparator="<=",
+            threshold=1,
+            aggregation="avg",
+            description="Reverts merged into main over the rolling weekly window.",
+        ),
+    ]
+
+    ci_smoothness_metrics = [
+        MetricDefinition(
+            display_name="P90 pre-merge CI checks duration minutes",
+            metric_name="metta.infra.cron.ci.workflow.duration.p90",
+            task="Pre-merge duration",
+            check="P90 length (minutes)",
+            comparator="<",
+            threshold=5,
+            aggregation="avg",
+            description="P90 runtime of CI workflows in minutes.",
+        ),
+        MetricDefinition(
+            display_name="Weekly num jobs canceled due to timeout",
+            metric_name="metta.infra.cron.ci.workflow.cancelled",
+            task="Jobs cancelled",
+            check="Cancellation count",
+            comparator="<",
+            threshold=10,
+            aggregation="avg",
+            description="Number of CI jobs cancelled during the observation window.",
+        ),
+    ]
+
+    return [
+        WorkflowDefinition(name="latest_state_of_main", display_name="Latest state of main", metrics=latest_state_metrics),
+        WorkflowDefinition(name="commit_history", display_name="Commit history", metrics=commit_history_metrics),
+        WorkflowDefinition(name="ci_smoothness", display_name="CI smoothness", metrics=ci_smoothness_metrics),
+    ]
+
+
+def _training_workflows() -> List[WorkflowDefinition]:
+    core_metrics = [
+        MetricDefinition(
+            display_name="StableSuite SPS",
+            metric_name="metta.infra.stablesuite.sps",
+            task="Throughput",
+            check="Steps per second",
+            comparator=">=",
+            threshold=40000,
+            aggregation="avg",
+            description="Steps per second from StableSuite runs.",
+        ),
+        MetricDefinition(
+            display_name="StableSuite Hearts",
+            metric_name="metta.infra.stablesuite.hearts",
+            task="Hearts",
+            check="Avg hearts",
+            comparator=">=",
+            threshold=0.5,
+            aggregation="avg",
+            description="Mean hearts across agents; must stay above threshold.",
+        ),
+        MetricDefinition(
+            display_name="StableSuite failure ratio",
+            metric_name="metta.infra.stablesuite.failure_ratio",
+            task="Failure ratio",
+            check="Failure ratio",
+            comparator="<",
+            threshold=0.2,
+            aggregation="avg",
+            description="Failure ratio for StableSuite runs; lower is better.",
+        ),
+    ]
+
+    pipeline_metrics = [
+        MetricDefinition(
+            display_name="Training pipeline success",
+            metric_name="metta.infra.stablesuite.training.pipeline.success",
+            task="Pipeline status",
+            check="Binary success",
+            comparator=">=",
+            threshold=1,
+            aggregation="avg",
+            description="1 if the latest training pipeline run succeeded, 0 otherwise.",
+        ),
+        MetricDefinition(
+            display_name="Training pipeline runtime (minutes)",
+            metric_name="metta.infra.stablesuite.training.pipeline.runtime",
+            task="Pipeline runtime",
+            check="Runtime minutes",
+            comparator="<=",
+            threshold=90,
+            aggregation="avg",
+            description="Total runtime of the training pipeline in minutes.",
+        ),
+        MetricDefinition(
+            display_name="Training environment checks passing",
+            metric_name="metta.infra.stablesuite.training.env.checks",
+            task="Environment checks",
+            check="Checks passing",
+            comparator=">=",
+            threshold=1,
+            aggregation="avg",
+            description="Binary signal indicating environment checks are passing.",
+        ),
+    ]
+
+    return [
+        WorkflowDefinition(name="stablesuite_core", display_name="StableSuite core", metrics=core_metrics),
+        WorkflowDefinition(name="training_pipeline", display_name="Training pipeline", metrics=pipeline_metrics),
+    ]
+
+
+def _eval_workflows() -> List[WorkflowDefinition]:
+    eval_metrics = [
+        MetricDefinition(
+            display_name="Remote eval success",
+            metric_name="metta.infra.cron.eval.remote.success",
+            task="Remote eval",
+            check="Success signal",
+            comparator=">=",
+            threshold=1,
+            aggregation="avg",
+            description="Binary success signal for remote eval runs.",
+        ),
+        MetricDefinition(
+            display_name="Remote eval failures",
+            metric_name="metta.infra.cron.eval.remote.failure",
+            task="Remote eval",
+            check="Failure count",
+            comparator="<",
+            threshold=1,
+            aggregation="avg",
+            description="Failures observed in remote eval; should remain zero.",
+        ),
+        MetricDefinition(
+            display_name="Eval score",
+            metric_name="metta.infra.cron.eval.score",
+            task="Eval quality",
+            check="Score",
+            comparator=">=",
+            threshold=0.5,
+            aggregation="avg",
+            description="Evaluation score aggregated across runs.",
+        ),
+        MetricDefinition(
+            display_name="Eval runtime (minutes)",
+            metric_name="metta.infra.cron.eval.runtime",
+            task="Eval runtime",
+            check="Runtime minutes",
+            comparator="<=",
+            threshold=60,
+            aggregation="avg",
+            description="Runtime of eval workflows in minutes.",
+        ),
+    ]
+
+    return [WorkflowDefinition(name="remote_eval", display_name="Remote eval", metrics=eval_metrics)]
 
 
 METRIC_SCHEMA: List[CategoryDefinition] = [
-    {
-        "category": "Training",
-        "workflows": [
-            {
-                "workflow": "Multigpu arena basic easy shaped",
-                "metrics": [
-                    {
-                        "metric": "container.cpu.usage",
-                        "task": "Multigpu arena basic easy shaped",
-                        "check": "Runs successfully",
-                        "condition": "> 0",
-                    },
-                    {
-                        "metric": "container.cpu.limit",
-                        "task": "Multigpu arena basic easy shaped",
-                        "check": "Hearts",
-                        "condition": "> 0.5",
-                    },
-                    {
-                        "metric": "container.cpu.throttled",
-                        "task": "Multigpu arena basic easy shaped",
-                        "check": "SPS",
-                        "condition": "> 40000",
-                    },
-                ],
-            },
-            {
-                "workflow": "Multinode learning progress",
-                "metrics": [
-                    {
-                        "metric": "container.cpu.partial_stall",
-                        "task": "Multinode learning progress",
-                        "check": "Runs successfully",
-                        "condition": "> 0",
-                    },
-                    {
-                        "metric": "container.cpu.system",
-                        "task": "Multinode learning progress",
-                        "check": "Hearts",
-                        "condition": "> 0.5",
-                    },
-                    {
-                        "metric": "container.cpu.throttled.periods",
-                        "task": "Multinode learning progress",
-                        "check": "Shaped",
-                        "condition": "> 40000",
-                    },
-                ],
-            },
-            {
-                "workflow": "Local arena basic easy shaped",
-                "metrics": [
-                    {
-                        "metric": "cri.uptime",
-                        "task": "Local arena basic easy shaped",
-                        "check": "Runs to first checkpoint at 10000 steps",
-                        "condition": "> 0",
-                    },
-                    {
-                        "metric": "datadog.agent.started",
-                        "task": "Local arena basic easy shaped",
-                        "check": "Continues from checkpoint and runs another 10000 steps",
-                        "condition": "> 0",
-                    },
-                ],
-            },
-            {
-                "workflow": "Bugs",
-                "metrics": [
-                    {
-                        "metric": "datadog.agent.running",
-                        "task": "Bugs",
-                        "check": "Num tickets in Bugs project with \"Training\" label",
-                        "condition": "< 1|warn< 3",
-                    },
-                ],
-            },
-        ],
-    },
-    {
-        "category": "CI",
-        "workflows": [
-            {
-                "workflow": "Latest state of main",
-                "metrics": [
-                    {
-                        "metric": "metta.infra.cron.ci.workflow.success",
-                        "task": "Latest state of main",
-                        "check": "Tests that block merge passing",
-                        "condition": "> 0",
-                    },
-                    {
-                        "metric": "metta.infra.cron.ci.workflow.other_failing",
-                        "task": "Latest state of main",
-                        "check": "Num other workflows whose latest run off main is failing",
-                        "condition": "< 2|warn< 4",
-                    },
-                ],
-            },
-            {
-                "workflow": "Commit history",
-                "metrics": [
-                    {
-                        "metric": "metta.infra.cron.github.hotfix.count",
-                        "task": "Commit history",
-                        "check": "Weekly num hotfix commits",
-                        "condition": "< 5|warn< 7",
-                    },
-                    {
-                        "metric": "metta.infra.cron.github.force_merge.count",
-                        "task": "Commit history",
-                        "check": "Weekly num force merges",
-                        "condition": "< 7|warn< 10",
-                    },
-                    {
-                        "metric": "metta.infra.cron.github.reverts.count",
-                        "task": "Commit history",
-                        "check": "Weekly num reverts",
-                        "condition": "< 1|warn< 2",
-                    },
-                ],
-            },
-            {
-                "workflow": "CI smoothness",
-                "metrics": [
-                    {
-                        "metric": "metta.infra.cron.ci.workflow.duration.p90",
-                        "task": "CI smoothness",
-                        "check": "P90 pre-merge CI checks duration minutes",
-                        "condition": "< 5|warn< 8",
-                    },
-                    {
-                        "metric": "metta.infra.cron.ci.workflow.cancelled",
-                        "task": "CI smoothness",
-                        "check": "Weekly num jobs canceled due to timeout",
-                        "condition": "< 10|warn< 15",
-                    },
-                    {
-                        "metric": "metta.infra.cron.ci.workflow.flaky_tests",
-                        "task": "CI smoothness",
-                        "check": "Weekly num times a check failed then succeeded",
-                        "condition": "< 10|warn< 15",
-                    },
-                ],
-            },
-        ],
-    },
-    {
-        "category": "Eval",
-        "workflows": [
-            {
-                "workflow": "Local runs",
-                "metrics": [
-                    {
-                        "metric": "metta.infra.cron.eval.local.success",
-                        "task": "Local runs",
-                        "check": "`./tools/run.py …` exits with code 0",
-                        "condition": "> 0",
-                    },
-                    {
-                        "metric": "metta.infra.cron.eval.local.heart_delta_pct",
-                        "task": "Local runs",
-                        "check": "`./tools/run.py …` avg hearts % diff",
-                        "condition": "< 10|warn< 15",
-                    },
-                ],
-            },
-            {
-                "workflow": "Runs remotely meets known bar",
-                "metrics": [
-                    {
-                        "metric": "metta.infra.cron.eval.remote.success",
-                        "task": "Runs remotely meets known bar",
-                        "check": "`./tools/request_eval.py …` succeeds",
-                        "condition": "> 0",
-                    },
-                    {
-                        "metric": "metta.infra.cron.eval.remote.heart_delta_pct",
-                        "task": "Runs remotely meets known bar",
-                        "check": "`./tools/request_eval.py …` avg hearts % diff",
-                        "condition": "< 10|warn< 15",
-                    },
-                    {
-                        "metric": "metta.infra.cron.eval.remote.duration_minutes",
-                        "task": "Runs remotely meets known bar",
-                        "check": "`./tools/request_eval.py …` duration minutes",
-                        "condition": "<= 5|warn<= 7",
-                    },
-                ],
-            },
-        ],
-    },
+    CategoryDefinition(name="ci", display_name="CI", workflows=_ci_workflows()),
+    CategoryDefinition(name="training", display_name="Training", workflows=_training_workflows()),
+    CategoryDefinition(name="evaluation", display_name="Eval", workflows=_eval_workflows()),
+]
+
+
+__all__ = [
+    "Aggregation",
+    "CategoryDefinition",
+    "Comparator",
+    "METRIC_SCHEMA",
+    "MetricDefinition",
+    "WorkflowDefinition",
 ]

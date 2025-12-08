@@ -7,7 +7,7 @@
     {
       "definition": {
         "type": "timeseries",
-        "title": "Training \u2014 Multigpu arena basic easy shaped \u2014 Multigpu arena basic easy shaped \u2014 Runs successfully (Condition: > 0)",
+        "title": "CI \u2014 Latest state of main \u2014 Tests that block merge passing \u2014 Workflow passing signal (Condition: >= 1)",
         "requests": [
           {
             "display_type": "line",
@@ -20,7 +20,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:container.cpu.usage{*}"
+                "query": "avg:metta.infra.cron.ci.workflow.tests_blocking_merge{*}"
               }
             ],
             "response_format": "timeseries",
@@ -33,8 +33,8 @@
         ],
         "markers": [
           {
-            "label": "pass boundary",
-            "value": "> 0.0",
+            "label": "target",
+            "value": ">= 1",
             "display_type": "ok"
           }
         ],
@@ -44,13 +44,13 @@
         "x": 0,
         "y": 0,
         "width": 6,
-        "height": 6
+        "height": 4
       }
     },
     {
       "definition": {
         "type": "timeseries",
-        "title": "Training \u2014 Multigpu arena basic easy shaped \u2014 Multigpu arena basic easy shaped \u2014 Hearts (Condition: > 0.5)",
+        "title": "CI \u2014 Latest state of main \u2014 Benchmarks passing \u2014 Workflow passing signal (Condition: >= 1)",
         "requests": [
           {
             "display_type": "line",
@@ -63,7 +63,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:container.cpu.limit{*}"
+                "query": "avg:metta.infra.cron.ci.workflow.benchmarks{*}"
               }
             ],
             "response_format": "timeseries",
@@ -76,8 +76,8 @@
         ],
         "markers": [
           {
-            "label": "pass boundary",
-            "value": "> 0.5",
+            "label": "target",
+            "value": ">= 1",
             "display_type": "ok"
           }
         ],
@@ -87,362 +87,13 @@
         "x": 6,
         "y": 0,
         "width": 6,
-        "height": 6
+        "height": 4
       }
     },
     {
       "definition": {
         "type": "timeseries",
-        "title": "Training \u2014 Multigpu arena basic easy shaped \u2014 Multigpu arena basic easy shaped \u2014 SPS (Condition: > 40000)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:container.cpu.throttled{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "> 40000.0",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 0,
-        "y": 6,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Training \u2014 Multinode learning progress \u2014 Multinode learning progress \u2014 Runs successfully (Condition: > 0)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:container.cpu.partial_stall{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "> 0.0",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 6,
-        "y": 6,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Training \u2014 Multinode learning progress \u2014 Multinode learning progress \u2014 Hearts (Condition: > 0.5)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:container.cpu.system{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "> 0.5",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 0,
-        "y": 12,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Training \u2014 Multinode learning progress \u2014 Multinode learning progress \u2014 Shaped (Condition: > 40000)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:container.cpu.throttled.periods{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "> 40000.0",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 6,
-        "y": 12,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Training \u2014 Local arena basic easy shaped \u2014 Local arena basic easy shaped \u2014 Runs to first checkpoint at 10000 steps (Condition: > 0)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:cri.uptime{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "> 0.0",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 0,
-        "y": 18,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Training \u2014 Local arena basic easy shaped \u2014 Local arena basic easy shaped \u2014 Continues from checkpoint and runs another 10000 steps (Condition: > 0)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:datadog.agent.started{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "> 0.0",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 6,
-        "y": 18,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Training \u2014 Bugs \u2014 Bugs \u2014 Num tickets in Bugs project with \"Training\" label (Condition: < 1|warn< 3)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:datadog.agent.running{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "< 1.0",
-            "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 3.0",
-            "display_type": "warning"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 0,
-        "y": 24,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "CI \u2014 Latest state of main \u2014 Latest state of main \u2014 Tests that block merge passing (Condition: > 0)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.success{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "> 0.0",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 0,
-        "y": 30,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "CI \u2014 Latest state of main \u2014 Latest state of main \u2014 Num other workflows whose latest run off main is failing (Condition: < 2|warn< 4)",
+        "title": "CI \u2014 Latest state of main \u2014 Other workflows failing \u2014 Count of failing workflows (Condition: < 2)",
         "requests": [
           {
             "display_type": "line",
@@ -468,77 +119,24 @@
         ],
         "markers": [
           {
-            "label": "pass boundary",
-            "value": "< 2.0",
+            "label": "target",
+            "value": "< 2",
             "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 4.0",
-            "display_type": "warning"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 6,
-        "y": 30,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "CI \u2014 Commit history \u2014 Commit history \u2014 Weekly num hotfix commits (Condition: < 5|warn< 7)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.cron.github.hotfix.count{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "< 5.0",
-            "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 7.0",
-            "display_type": "warning"
           }
         ],
         "show_legend": false
       },
       "layout": {
         "x": 0,
-        "y": 36,
+        "y": 4,
         "width": 6,
-        "height": 6
+        "height": 4
       }
     },
     {
       "definition": {
         "type": "timeseries",
-        "title": "CI \u2014 Commit history \u2014 Commit history \u2014 Weekly num force merges (Condition: < 7|warn< 10)",
+        "title": "CI \u2014 Latest state of main \u2014 Latest state success ratio \u2014 Binary success signal (Condition: >= 1)",
         "requests": [
           {
             "display_type": "line",
@@ -551,7 +149,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.github.force_merge.count{*}"
+                "query": "avg:metta.infra.cron.ci.workflow.success{*}"
               }
             ],
             "response_format": "timeseries",
@@ -564,173 +162,24 @@
         ],
         "markers": [
           {
-            "label": "pass boundary",
-            "value": "< 7.0",
+            "label": "target",
+            "value": ">= 1",
             "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 10.0",
-            "display_type": "warning"
           }
         ],
         "show_legend": false
       },
       "layout": {
         "x": 6,
-        "y": 36,
+        "y": 4,
         "width": 6,
-        "height": 6
+        "height": 4
       }
     },
     {
       "definition": {
         "type": "timeseries",
-        "title": "CI \u2014 Commit history \u2014 Commit history \u2014 Weekly num reverts (Condition: < 1|warn< 2)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.cron.github.reverts.count{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "< 1.0",
-            "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 2.0",
-            "display_type": "warning"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 0,
-        "y": 42,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "CI \u2014 CI smoothness \u2014 CI smoothness \u2014 P90 pre-merge CI checks duration minutes (Condition: < 5|warn< 8)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.duration.p90{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "< 5.0",
-            "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 8.0",
-            "display_type": "warning"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 6,
-        "y": 42,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "CI \u2014 CI smoothness \u2014 CI smoothness \u2014 Weekly num jobs canceled due to timeout (Condition: < 10|warn< 15)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.cancelled{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "< 10.0",
-            "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 15.0",
-            "display_type": "warning"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 0,
-        "y": 48,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "CI \u2014 CI smoothness \u2014 CI smoothness \u2014 Weekly num times a check failed then succeeded (Condition: < 10|warn< 15)",
+        "title": "CI \u2014 Latest state of main \u2014 Flaky reruns per window \u2014 Count of reruns (Condition: < 10)",
         "requests": [
           {
             "display_type": "line",
@@ -756,56 +205,8 @@
         ],
         "markers": [
           {
-            "label": "pass boundary",
-            "value": "< 10.0",
-            "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 15.0",
-            "display_type": "warning"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 6,
-        "y": 48,
-        "width": 6,
-        "height": 6
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Eval \u2014 Local runs \u2014 Local runs \u2014 `./tools/run.py \u2026` exits with code 0 (Condition: > 0)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.local.success{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "pass boundary",
-            "value": "> 0.0",
+            "label": "target",
+            "value": "< 10",
             "display_type": "ok"
           }
         ],
@@ -813,15 +214,15 @@
       },
       "layout": {
         "x": 0,
-        "y": 54,
+        "y": 8,
         "width": 6,
-        "height": 6
+        "height": 4
       }
     },
     {
       "definition": {
         "type": "timeseries",
-        "title": "Eval \u2014 Local runs \u2014 Local runs \u2014 `./tools/run.py \u2026` avg hearts % diff (Condition: < 10|warn< 15)",
+        "title": "CI \u2014 Commit history \u2014 Weekly hotfix commits \u2014 Hotfix count (Condition: < 5)",
         "requests": [
           {
             "display_type": "line",
@@ -834,7 +235,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.local.heart_delta_pct{*}"
+                "query": "avg:metta.infra.cron.github.hotfix.count{*}"
               }
             ],
             "response_format": "timeseries",
@@ -847,29 +248,454 @@
         ],
         "markers": [
           {
-            "label": "pass boundary",
-            "value": "< 10.0",
+            "label": "target",
+            "value": "< 5",
             "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 15.0",
-            "display_type": "warning"
           }
         ],
         "show_legend": false
       },
       "layout": {
         "x": 6,
-        "y": 54,
+        "y": 8,
         "width": 6,
-        "height": 6
+        "height": 4
       }
     },
     {
       "definition": {
         "type": "timeseries",
-        "title": "Eval \u2014 Runs remotely meets known bar \u2014 Runs remotely meets known bar \u2014 `./tools/request_eval.py \u2026` succeeds (Condition: > 0)",
+        "title": "CI \u2014 Commit history \u2014 Weekly force merges \u2014 Force merge count (Condition: < 7)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.force_merge.count{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": "< 7",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 12,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "CI \u2014 Commit history \u2014 Weekly reverts \u2014 Revert count (Condition: <= 1)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.reverts.count{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": "<= 1",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 12,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "CI \u2014 CI smoothness \u2014 Pre-merge duration \u2014 P90 length (minutes) (Condition: < 5)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.duration.p90{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": "< 5",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 16,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "CI \u2014 CI smoothness \u2014 Jobs cancelled \u2014 Cancellation count (Condition: < 10)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.cancelled{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": "< 10",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 16,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 StableSuite core \u2014 Throughput \u2014 Steps per second (Condition: >= 40000)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.sps{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": ">= 40000",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 20,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 StableSuite core \u2014 Hearts \u2014 Avg hearts (Condition: >= 0.5)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.hearts{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": ">= 0.5",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 20,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 StableSuite core \u2014 Failure ratio \u2014 Failure ratio (Condition: < 0.2)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.failure_ratio{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": "< 0.2",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 24,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Training pipeline \u2014 Pipeline status \u2014 Binary success (Condition: >= 1)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.training.pipeline.success{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": ">= 1",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 24,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Training pipeline \u2014 Pipeline runtime \u2014 Runtime minutes (Condition: <= 90)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.training.pipeline.runtime{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": "<= 90",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 28,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Training pipeline \u2014 Environment checks \u2014 Checks passing (Condition: >= 1)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.training.env.checks{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": ">= 1",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 28,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Eval \u2014 Remote eval \u2014 Remote eval \u2014 Success signal (Condition: >= 1)",
         "requests": [
           {
             "display_type": "line",
@@ -895,8 +721,8 @@
         ],
         "markers": [
           {
-            "label": "pass boundary",
-            "value": "> 0.0",
+            "label": "target",
+            "value": ">= 1",
             "display_type": "ok"
           }
         ],
@@ -904,15 +730,15 @@
       },
       "layout": {
         "x": 0,
-        "y": 60,
+        "y": 32,
         "width": 6,
-        "height": 6
+        "height": 4
       }
     },
     {
       "definition": {
         "type": "timeseries",
-        "title": "Eval \u2014 Runs remotely meets known bar \u2014 Runs remotely meets known bar \u2014 `./tools/request_eval.py \u2026` avg hearts % diff (Condition: < 10|warn< 15)",
+        "title": "Eval \u2014 Remote eval \u2014 Remote eval \u2014 Failure count (Condition: < 1)",
         "requests": [
           {
             "display_type": "line",
@@ -925,7 +751,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.remote.heart_delta_pct{*}"
+                "query": "avg:metta.infra.cron.eval.remote.failure{*}"
               }
             ],
             "response_format": "timeseries",
@@ -938,29 +764,24 @@
         ],
         "markers": [
           {
-            "label": "pass boundary",
-            "value": "< 10.0",
+            "label": "target",
+            "value": "< 1",
             "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "< 15.0",
-            "display_type": "warning"
           }
         ],
         "show_legend": false
       },
       "layout": {
         "x": 6,
-        "y": 60,
+        "y": 32,
         "width": 6,
-        "height": 6
+        "height": 4
       }
     },
     {
       "definition": {
         "type": "timeseries",
-        "title": "Eval \u2014 Runs remotely meets known bar \u2014 Runs remotely meets known bar \u2014 `./tools/request_eval.py \u2026` duration minutes (Condition: <= 5|warn<= 7)",
+        "title": "Eval \u2014 Remote eval \u2014 Eval quality \u2014 Score (Condition: >= 0.5)",
         "requests": [
           {
             "display_type": "line",
@@ -973,7 +794,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.remote.duration_minutes{*}"
+                "query": "avg:metta.infra.cron.eval.score{*}"
               }
             ],
             "response_format": "timeseries",
@@ -986,23 +807,61 @@
         ],
         "markers": [
           {
-            "label": "pass boundary",
-            "value": "<= 5.0",
+            "label": "target",
+            "value": ">= 0.5",
             "display_type": "ok"
-          },
-          {
-            "label": "warn",
-            "value": "<= 7.0",
-            "display_type": "warning"
           }
         ],
         "show_legend": false
       },
       "layout": {
         "x": 0,
-        "y": 66,
+        "y": 36,
         "width": 6,
-        "height": 6
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Eval \u2014 Remote eval \u2014 Eval runtime \u2014 Runtime minutes (Condition: <= 60)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.runtime{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "target",
+            "value": "<= 60",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 36,
+        "width": 6,
+        "height": 4
       }
     }
   ]

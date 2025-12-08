@@ -7,34 +7,79 @@
     {
       "definition": {
         "type": "query_value",
-        "title": "Training summary",
+        "title": "CI summary",
         "title_size": "16",
         "title_align": "left",
-        "precision": 2,
+        "precision": 0,
         "requests": [
           {
             "formulas": [
               {
-                "formula": "query1"
+                "formula": "max(default_zero(query1), default_zero(query2), default_zero(query3), default_zero(query4), default_zero(query5), default_zero(query6), default_zero(query7), default_zero(query8), default_zero(query9), default_zero(query10))"
               }
             ],
             "queries": [
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:container.cpu.usage{*}"
+                "query": "avg:metta.infra.cron.ci.workflow.tests_blocking_merge{status:fail}"
+              },
+              {
+                "name": "query2",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.benchmarks{status:fail}"
+              },
+              {
+                "name": "query3",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.other_failing{status:fail}"
+              },
+              {
+                "name": "query4",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.success{status:fail}"
+              },
+              {
+                "name": "query5",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.flaky_tests{status:fail}"
+              },
+              {
+                "name": "query6",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.hotfix.count{status:fail}"
+              },
+              {
+                "name": "query7",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.force_merge.count{status:fail}"
+              },
+              {
+                "name": "query8",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.reverts.count{status:fail}"
+              },
+              {
+                "name": "query9",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.duration.p90{status:fail}"
+              },
+              {
+                "name": "query10",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.cancelled{status:fail}"
               }
             ],
             "response_format": "scalar",
             "conditional_formats": [
               {
-                "comparator": ">",
-                "value": 0.0,
+                "comparator": "<",
+                "value": 1,
                 "palette": "green_on_white"
               },
               {
-                "comparator": "<",
-                "value": 0.0,
+                "comparator": ">=",
+                "value": 1,
                 "palette": "red_on_white"
               }
             ]
@@ -42,7 +87,7 @@
         ],
         "autoscale": true,
         "time": {
-          "live_span": "1w"
+          "live_span": "1h"
         }
       },
       "layout": {
@@ -55,7 +100,7 @@
     {
       "definition": {
         "type": "query_value",
-        "title": "CI summary",
+        "title": "Training summary",
         "title_size": "16",
         "title_align": "left",
         "precision": 0,
@@ -63,26 +108,51 @@
           {
             "formulas": [
               {
-                "formula": "query1"
+                "formula": "max(default_zero(query1), default_zero(query2), default_zero(query3), default_zero(query4), default_zero(query5), default_zero(query6))"
               }
             ],
             "queries": [
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.success{*}"
+                "query": "avg:metta.infra.stablesuite.sps{status:fail}"
+              },
+              {
+                "name": "query2",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.hearts{status:fail}"
+              },
+              {
+                "name": "query3",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.failure_ratio{status:fail}"
+              },
+              {
+                "name": "query4",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.training.pipeline.success{status:fail}"
+              },
+              {
+                "name": "query5",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.training.pipeline.runtime{status:fail}"
+              },
+              {
+                "name": "query6",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.stablesuite.training.env.checks{status:fail}"
               }
             ],
             "response_format": "scalar",
             "conditional_formats": [
               {
-                "comparator": ">",
-                "value": 0.0,
+                "comparator": "<",
+                "value": 1,
                 "palette": "green_on_white"
               },
               {
-                "comparator": "<",
-                "value": 0.0,
+                "comparator": ">=",
+                "value": 1,
                 "palette": "red_on_white"
               }
             ]
@@ -90,7 +160,7 @@
         ],
         "autoscale": true,
         "time": {
-          "live_span": "1w"
+          "live_span": "1h"
         }
       },
       "layout": {
@@ -111,26 +181,41 @@
           {
             "formulas": [
               {
-                "formula": "query1"
+                "formula": "max(default_zero(query1), default_zero(query2), default_zero(query3), default_zero(query4))"
               }
             ],
             "queries": [
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.local.success{*}"
+                "query": "avg:metta.infra.cron.eval.remote.success{status:fail}"
+              },
+              {
+                "name": "query2",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.remote.failure{status:fail}"
+              },
+              {
+                "name": "query3",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.score{status:fail}"
+              },
+              {
+                "name": "query4",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.runtime{status:fail}"
               }
             ],
             "response_format": "scalar",
             "conditional_formats": [
               {
-                "comparator": ">",
-                "value": 0.0,
+                "comparator": "<",
+                "value": 1,
                 "palette": "green_on_white"
               },
               {
-                "comparator": "<",
-                "value": 0.0,
+                "comparator": ">=",
+                "value": 1,
                 "palette": "red_on_white"
               }
             ]
@@ -138,7 +223,7 @@
         ],
         "autoscale": true,
         "time": {
-          "live_span": "1w"
+          "live_span": "1h"
         }
       },
       "layout": {

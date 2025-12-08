@@ -2,60 +2,97 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple, TypedDict
+from typing import Dict, List, Sequence
 
-from devops.datadog.metric_schema import METRIC_SCHEMA, CategoryDefinition, MetricDefinition
+from devops.datadog.metric_schema import (
+    METRIC_SCHEMA,
+    CategoryDefinition,
+    MetricDefinition,
+    WorkflowDefinition,
+)
 
 DASHBOARD_DIR = Path(__file__).parent / "dashboards"
 SUMMARY_PATH = DASHBOARD_DIR / "infra_summary.json"
 DETAILED_PATH = DASHBOARD_DIR / "infra_detailed.json"
+COLLECTOR_DIR = Path(__file__).parent / "collectors"
+
+VALID_AGGREGATIONS = {"avg", "sum", "min", "max"}
+ALLOWED_PREFIXES = (
+    "metta.infra.cron.ci.",
+    "metta.infra.cron.eval.",
+    "metta.infra.stablesuite.",
+)
 
 
-class ConditionClause(TypedDict):
-    label: str
-    comparator: str
-    value: float
+def _format_float(value: float) -> str:
+    if float(value).is_integer():
+        return str(int(value))
+    return f"{value}".rstrip("0").rstrip(".") if isinstance(value, float) else str(value)
 
 
-def parse_condition(condition: str) -> Dict[str, ConditionClause]:
-    """Return clauses keyed by label ('pass', 'warn', 'fail')."""
-    clauses: Dict[str, ConditionClause] = {}
-    parts = [p.strip() for p in (condition or "").split("|") if p.strip()]
-    if not parts:
-        parts = ["> 0"]
-    for raw in parts:
-        label = "pass"
-        lowered = raw.lower()
-        remainder = raw
-        if lowered.startswith("warn"):
-            label = "warn"
-            remainder = raw[4:].strip()
-        elif lowered.startswith("fail"):
-            label = "fail"
-            remainder = raw[4:].strip()
-        comparator, value = _split_comparator(remainder)
-        clauses[label] = {"label": label, "comparator": comparator, "value": value}
-    if "pass" not in clauses and clauses:
-        clauses["pass"] = next(iter(clauses.values()))
-    return clauses
+def _flatten_metrics(workflows: Sequence[WorkflowDefinition]) -> List[MetricDefinition]:
+    metrics: List[MetricDefinition] = []
+    for workflow in workflows:
+        metrics.extend(list(workflow.metrics))
+    return metrics
 
 
-def _split_comparator(text: str) -> Tuple[str, float]:
-    text = text.strip()
-    for op in ("<=", ">=", "==", "!=", "<", ">", "="):
-        if text.startswith(op):
-            value = float(text[len(op) :].strip())
-            return ("=" if op == "==" else op, value)
-    raise ValueError(f"Unable to parse comparator from '{text}'")
+def _load_collector_sources() -> str:
+    contents = []
+    for path in COLLECTOR_DIR.glob("*.py"):
+        contents.append(path.read_text(encoding="utf-8"))
+    return "\n".join(contents)
+
+
+def _metric_defined(metric_name: str, corpus: str) -> bool:
+    if metric_name.startswith(ALLOWED_PREFIXES):
+        return True
+    terms = {metric_name}
+    if "metta." in metric_name:
+        terms.add(metric_name.split("metta.", 1)[1])
+    if "cron." in metric_name:
+        terms.add(metric_name.split("cron.", 1)[1])
+    if "stablesuite." in metric_name:
+        terms.add(metric_name.split("stablesuite.", 1)[1])
+    return any(term and term in corpus for term in terms)
+
+
+def validate_schema(schema: Sequence[CategoryDefinition]) -> None:
+    corpus = _load_collector_sources()
+    if not corpus:
+        raise RuntimeError("Unable to read collector sources for schema validation.")
+    for category in schema:
+        for workflow in category.workflows:
+            for metric in workflow.metrics:
+                if metric.aggregation not in VALID_AGGREGATIONS:
+                    raise ValueError(f"Unsupported aggregation '{metric.aggregation}' for {metric.metric_name}")
+                if not metric.metric_name.startswith("metta."):
+                    raise ValueError(f"Metric names must start with 'metta.': {metric.metric_name}")
+                if not _metric_defined(metric.metric_name, corpus):
+                    raise ValueError(
+                        f"Metric {metric.metric_name} not found in collector sources. "
+                        "Update the schema or emit the metric first."
+                    )
 
 
 def build_summary_dashboard() -> Dict:
     widgets = []
     col_width = 4
     col_height = 2
-    for idx, category in enumerate(METRIC_SCHEMA):
-        widget = build_summary_widget(category, x=idx * col_width, width=col_width, height=col_height)
+    slot = 0
+    for category in METRIC_SCHEMA:
+        metrics = _flatten_metrics(category.workflows)
+        if not metrics:
+            continue
+        widget = build_summary_widget(
+            category=category,
+            metrics=metrics,
+            x=slot * col_width,
+            width=col_width,
+            height=col_height,
+        )
         widgets.append(widget)
+        slot += 1
     return {
         "title": "Metta Infra Health – Summary",
         "description": "Auto-generated summary view of workflow categories.",
@@ -65,63 +102,57 @@ def build_summary_dashboard() -> Dict:
     }
 
 
-def build_summary_widget(category: CategoryDefinition, x: int, width: int, height: int) -> Dict:
-    # For summary, just show the first key metric from the first workflow
-    # This avoids complex formula syntax issues in Datadog
-    first_metric = None
-    for workflow in category["workflows"]:
-        if workflow["metrics"]:
-            first_metric = workflow["metrics"][0]
-            break
+def build_summary_widget(
+    *,
+    category: CategoryDefinition,
+    metrics: Sequence[MetricDefinition],
+    x: int,
+    width: int,
+    height: int,
+) -> Dict:
+    queries = []
+    terms: List[str] = []
+    for idx, metric in enumerate(metrics, start=1):
+        query_name = f"query{idx}"
+        queries.append(
+            {
+                "name": query_name,
+                "data_source": "metrics",
+                "query": f"{metric.aggregation}:{metric.metric_name}{{status:fail}}",
+            }
+        )
+        terms.append(f"default_zero({query_name})")
 
-    if not first_metric:
-        # Fallback if no metrics
-        query = "avg:system.cpu.user{*}"
-        formula = "query1"
-        condition_clause = {"comparator": ">=", "value": 0}
-    else:
-        query = f"avg:{first_metric['metric']}{{*}}"
-        formula = "query1"
-        condition_clause = parse_condition(first_metric["condition"]).get("pass", {"comparator": ">=", "value": 0})
-
-    # Determine precision based on metric type
-    # Binary metrics (success) should use precision 0, others use 2
-    precision = 0 if first_metric and ("success" in first_metric["metric"] or "count" in first_metric["metric"]) else 2
+    fail_expression = "max(" + ", ".join(terms) + ")" if terms else "0"
 
     return {
         "definition": {
             "type": "query_value",
-            "title": f"{category['category']} summary",
+            "title": f"{category.display_name} summary",
             "title_size": "16",
             "title_align": "left",
-            "precision": precision,
+            "precision": 0,
             "requests": [
                 {
-                    "formulas": [{"formula": formula}],
-                    "queries": [
-                        {
-                            "name": "query1",
-                            "data_source": "metrics",
-                            "query": query,
-                        }
-                    ],
+                    "formulas": [{"formula": fail_expression}],
+                    "queries": queries,
                     "response_format": "scalar",
                     "conditional_formats": [
                         {
-                            "comparator": condition_clause["comparator"],
-                            "value": condition_clause["value"],
+                            "comparator": "<",
+                            "value": 1,
                             "palette": "green_on_white",
                         },
                         {
-                            "comparator": "<" if condition_clause["comparator"] in (">", ">=") else ">",
-                            "value": condition_clause["value"],
+                            "comparator": ">=",
+                            "value": 1,
                             "palette": "red_on_white",
                         },
                     ],
                 }
             ],
             "autoscale": True,
-            "time": {"live_span": "1w"},
+            "time": {"live_span": "1h"},
         },
         "layout": {"x": x, "y": 0, "width": width, "height": height},
     }
@@ -132,11 +163,15 @@ def build_detailed_dashboard() -> Dict:
     x = 0
     y = 0
     width = 6
-    height = 6
+    height = 4
     for category in METRIC_SCHEMA:
-        for workflow in category["workflows"]:
-            for metric in workflow["metrics"]:
-                widget = build_timeseries_widget(category["category"], workflow["workflow"], metric)
+        for workflow in category.workflows:
+            for metric in workflow.metrics:
+                widget = build_timeseries_widget(
+                    category=category.display_name,
+                    workflow=workflow.display_name,
+                    metric=metric,
+                )
                 widget["layout"] = {"x": x, "y": y, "width": width, "height": height}
                 widgets.append(widget)
                 x += width
@@ -155,16 +190,26 @@ def build_detailed_dashboard() -> Dict:
     }
 
 
-def build_timeseries_widget(category: str, workflow: str, metric: MetricDefinition) -> Dict:
+def build_timeseries_widget(*, category: str, workflow: str, metric: MetricDefinition) -> Dict:
     queries = [
         {
             "name": "query1",
             "data_source": "metrics",
-            "query": f"avg:{metric['metric']}{{*}}",
+            "query": f"{metric.aggregation}:{metric.metric_name}{{*}}",
         }
     ]
-    markers = build_markers(metric["condition"])
-    title = f"{category} — {workflow} — {metric['task']} — {metric['check']} (Condition: {metric['condition']})"
+    condition_text = f"{metric.comparator} {_format_float(metric.threshold)}"
+    title = (
+        f"{category} — {workflow} — {metric.task} — {metric.check} "
+        f"(Condition: {condition_text})"
+    )
+    markers = [
+        {
+            "label": "target",
+            "value": condition_text,
+            "display_type": "ok",
+        }
+    ]
     return {
         "definition": {
             "type": "timeseries",
@@ -184,30 +229,6 @@ def build_timeseries_widget(category: str, workflow: str, metric: MetricDefiniti
     }
 
 
-def build_markers(condition: str) -> List[Dict]:
-    clauses = parse_condition(condition)
-    markers: List[Dict] = []
-    pass_clause = clauses.get("pass")
-    warn_clause = clauses.get("warn")
-    if pass_clause:
-        markers.append(
-            {
-                "label": "pass boundary",
-                "value": f"{pass_clause['comparator']} {pass_clause['value']}",
-                "display_type": "ok",
-            }
-        )
-    if warn_clause:
-        markers.append(
-            {
-                "label": "warn",
-                "value": f"{warn_clause['comparator']} {warn_clause['value']}",
-                "display_type": "warning",
-            }
-        )
-    return markers
-
-
 def write_dashboard(path: Path, payload: Dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fp:
@@ -216,6 +237,7 @@ def write_dashboard(path: Path, payload: Dict) -> None:
 
 
 def main() -> None:
+    validate_schema(METRIC_SCHEMA)
     summary = build_summary_dashboard()
     detailed = build_detailed_dashboard()
     write_dashboard(SUMMARY_PATH, summary)
