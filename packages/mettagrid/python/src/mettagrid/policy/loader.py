@@ -16,6 +16,19 @@ from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
+_PATH_LIKE_SUFFIXES = {
+    ".mpt",
+    ".pt",
+    ".pth",
+    ".ckpt",
+    ".bin",
+    ".safetensors",
+    ".onnx",
+    ".json",
+    ".yaml",
+    ".yml",
+}
+
 
 def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
@@ -86,11 +99,14 @@ def policy_spec_from_string(spec: str, **uri_kwargs: Any) -> PolicySpec:
         PolicySpec ready for initialize_or_load_policy
     """
     spec_as_path = Path(spec)
-    looks_like_path = any([
-        len(spec_as_path.suffix) > 0,
-        os.sep in spec,
-        spec_as_path.parent != Path("."),
-    ])
+    looks_like_path = any(
+        [
+            spec.startswith(("~", "./", "../", "/")),
+            os.sep in spec,
+            "\\" in spec,  # Allow Windows-style paths when running on POSIX.
+            spec_as_path.suffix.lower() in _PATH_LIKE_SUFFIXES,
+        ]
+    )
     looks_like_uri = "://" in spec
 
     if looks_like_uri or looks_like_path:
