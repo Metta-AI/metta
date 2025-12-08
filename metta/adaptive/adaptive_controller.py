@@ -59,7 +59,9 @@ class AdaptiveController:
                 # 1. Get current state
                 if has_data:
                     interval = (
-                        self.config.initial_monitoring_interval if first_resume_poll else self.config.monitoring_interval
+                        self.config.initial_monitoring_interval
+                        if first_resume_poll
+                        else self.config.monitoring_interval
                     )
                     if interval > 0:
                         time.sleep(interval)
