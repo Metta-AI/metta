@@ -176,48 +176,51 @@ class Loss:
 
         mb = shared_loss_data["sampled_mb"]
 
-        profiles = getattr(self, "loss_profiles", None)
         mask = None
-        if profiles is not None:
-            pid = mb["loss_profile_id"]
-            mask = torch.isin(pid, torch.as_tensor(list(profiles), device=pid.device))
-
+        if (profiles := getattr(self, "loss_profiles", None)) is not None:
+            mask = torch.isin(mb["loss_profile_id"], torch.as_tensor(list(profiles), device=mb.device))
         if getattr(self, "trainable_only", False):
-            train_mask = mb["is_trainable_agent"]
-            mask = train_mask if mask is None else mask & train_mask
-
+            mask = mb["is_trainable_agent"] if mask is None else mask & mb["is_trainable_agent"]
         if mask is None:
             return shared_loss_data
 
-        if mask.dim() == 1:
-            row_mask = mask
-        else:
-            # collapse all trailing dims; keep per-segment structure intact
-            reduce_dims = tuple(range(1, mask.dim()))
-            row_mask = mask.any(dim=reduce_dims)
+        mask_shape = mask.shape
+        mask_flat = mask.flatten()
+        mb_flat = mb.flatten()
 
         filtered = shared_loss_data.clone()
-        filtered["sampled_mb"] = mb[row_mask]
+        filtered["sampled_mb"] = mb_flat[mask_flat]
 
         for key, value in list(filtered.items()):
             if key == "sampled_mb":
                 continue
-            filtered[key] = self._apply_row_mask(value, row_mask)
+            filtered[key] = self._apply_row_mask(value, mask_shape, mask_flat)
 
         return filtered
 
-    def _apply_row_mask(self, value: Any, row_mask: torch.Tensor) -> Any:
+    def _apply_row_mask(self, value: Any, mask_shape: tuple[int, ...], mask_flat: torch.Tensor) -> Any:
+        """Apply mask to tensors that share the leading dims of the mask."""
+
+        target = mask_flat.numel()
+
+        def apply(t: torch.Tensor) -> torch.Tensor:
+            lead = len(mask_shape)
+            if tuple(t.shape[:lead]) == mask_shape:
+                return t.reshape(target, *t.shape[lead:])[mask_flat]
+            if t.shape and t.shape[0] == target:
+                return t[mask_flat]
+            return t
+
         if isinstance(value, NonTensorData):
             data = value.data
-            mask = row_mask.to(device=getattr(data, "device", row_mask.device))
-            return NonTensorData(data[mask])
-
+            return NonTensorData(apply(data)) if hasattr(data, "shape") else value
         if isinstance(value, torch.Tensor):
-            return value[row_mask]
-
+            return apply(value)
         if hasattr(value, "batch_size"):
-            return value[row_mask]
-
+            try:
+                return apply(value)
+            except Exception:
+                return value
         return value
 
     # End utility helpers
