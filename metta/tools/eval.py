@@ -3,6 +3,7 @@ import logging
 import multiprocessing
 from typing import Sequence
 
+import torch
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
@@ -77,7 +78,12 @@ class EvaluateTool(Tool):
         else:
             policy_uris = list(self.policy_uris)
 
-        policy_specs = [policy_spec_from_uri(resolve_uri(uri)) for uri in policy_uris]
+        device = torch.device("cpu")
+        policy_specs = [policy_spec_from_uri(resolve_uri(uri), device=str(device)) for uri in policy_uris]
+        # Override device to CPU (zip archives may have cuda hardcoded in policy_spec.json)
+        for spec in policy_specs:
+            if spec.init_kwargs:
+                spec.init_kwargs["device"] = str(device)
 
         observatory_writer: ObservatoryWriter | None = None
         wandb_writer: WandbWriter | None = None
