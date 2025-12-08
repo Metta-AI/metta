@@ -201,17 +201,29 @@ class Loss:
             # Preserve leading batch dims, drop non-trainable agents.
             agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
 
-            # reshape to [-1, agents, ...], index-select agent axis, then reshape back
-            lead = len(mask_shape)
-            rest_shape = mb.shape[lead:]
-            mb_view = mb.reshape(-1, mask_shape[-1], *rest_shape)
-            mb_sel = mb_view.index_select(1, agent_idx)
-            new_shape = (*mask_shape[:-1], agent_idx.numel(), *rest_shape)
-            filtered["sampled_mb"] = mb_sel.reshape(new_shape)
+            def _mask_agent_tensor(t: torch.Tensor) -> torch.Tensor:
+                # reshape to [-1, agents, ...], index-select agent axis, then reshape back
+                lead = len(mask_shape)
+                rest_shape = t.shape[lead:]
+                t_view = t.reshape(-1, mask_shape[-1], *rest_shape)
+                t_sel = t_view.index_select(1, agent_idx)
+                new_shape = (*mask_shape[:-1], agent_idx.numel(), *rest_shape)
+                return t_sel.reshape(new_shape)
+
+            new_batch = (*mask_shape[:-1], int(agent_idx.numel()))
+            filtered["sampled_mb"] = TensorDict(
+                {k: _mask_agent_tensor(v) for k, v in mb.items()},
+                batch_size=new_batch,
+                device=mb.device,
+            )
             for key, value in list(filtered.items()):
                 if key == "sampled_mb":
                     continue
                 filtered[key] = self._apply_row_mask(value, mask_shape, agent_mask=agent_mask, agent_idx=agent_idx)
+
+            filtered["_applied_mask"] = NonTensorData(
+                {"agent_mask": agent_mask, "mask_flat": None, "mask_shape": mask_shape}
+            )
         else:
             # Mixed mask across batch: flatten and mask.
             mask_flat = mask.flatten()
@@ -223,6 +235,10 @@ class Loss:
                 if key == "sampled_mb":
                     continue
                 filtered[key] = self._apply_row_mask(value, mask_shape, mask_flat=mask_flat)
+
+            filtered["_applied_mask"] = NonTensorData(
+                {"agent_mask": None, "mask_flat": mask_flat, "mask_shape": mask_shape}
+            )
 
         return filtered
 

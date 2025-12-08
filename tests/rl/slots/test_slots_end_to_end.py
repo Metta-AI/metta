@@ -151,6 +151,38 @@ def test_loss_filtering_mixed_agent_masks_keep_indices_aligned():
     assert filtered["indices"].data.tolist() == [0, 1, 2]
 
 
+def test_advantages_masked_for_constant_agent_mask():
+    loss = _DummyLoss()
+    loss.trainable_only = True
+
+    mb = TensorDict(
+        {
+            "actions": torch.zeros(2, 2),
+            "loss_profile_id": torch.ones((2, 2), dtype=torch.int64),
+            "is_trainable_agent": torch.tensor([[True, False], [True, False]]),
+        },
+        batch_size=[2, 2],
+    )
+    shared = TensorDict({"sampled_mb": mb, "indices": NonTensorData(torch.arange(2))}, batch_size=[])
+
+    filtered = loss._filter_minibatch(shared)
+    assert filtered["sampled_mb"].shape == torch.Size([2, 1])  # agent axis reduced
+
+    mask_meta = filtered.get("_applied_mask")
+    assert mask_meta is not None
+    mask_info = mask_meta.data
+    agent_mask = mask_info["agent_mask"]
+
+    advantages = torch.arange(8, dtype=torch.float32).view(2, 2, 2)
+    masked_adv = advantages
+    if agent_mask is not None:
+        masked_adv = masked_adv[..., agent_mask]
+
+    assert masked_adv.shape == torch.Size([2, 2, 1])
+    # confirm we kept the first agent only
+    assert torch.equal(masked_adv.squeeze(-1), torch.tensor([[0.0, 2.0], [4.0, 6.0]]))
+
+
 # ---------- Slot controller routing ----------
 
 

@@ -174,7 +174,24 @@ class PPOCritic(Loss):
             indices = indices.data
         prio_weights = shared_loss_data["prio_weights"]
 
-        shared_loss_data["advantages"] = self.advantages[indices]
+        mask_meta = shared_loss_data.pop("_applied_mask", None)
+        agent_mask = mask_flat = mask_shape = None
+        if isinstance(mask_meta, NonTensorData):
+            mask_meta = mask_meta.data
+        if isinstance(mask_meta, dict):
+            agent_mask = mask_meta.get("agent_mask", None)
+            mask_flat = mask_meta.get("mask_flat", None)
+            mask_shape = mask_meta.get("mask_shape", None)
+
+        advantages = self.advantages[indices]
+        if agent_mask is not None:
+            advantages = advantages[..., agent_mask]
+        elif mask_flat is not None:
+            target = mask_flat.numel()
+            lead = len(mask_shape) if mask_shape is not None else advantages.dim()
+            advantages = advantages.reshape(target, *advantages.shape[lead:])[mask_flat]
+
+        shared_loss_data["advantages"] = advantages
         # Share gamma/lambda with other losses (e.g. actor) to ensure consistency
         batch_size = shared_loss_data.batch_size
         shared_loss_data["gamma"] = torch.full(batch_size, self.cfg.gamma, device=self.device)
