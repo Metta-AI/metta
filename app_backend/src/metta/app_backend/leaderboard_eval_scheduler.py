@@ -134,7 +134,7 @@ AND NOT EXISTS (
         )
         logger.info("Successfully scheduled eval for policy: %s: %s", policy_version_id, eval_task.id)
         eval_task_id = eval_task.id
-        total_attempts = attempts + 1
+        total_attempts = attempts
         self._stats_client.update_policy_version_tags(
             policy_version_id,
             {
@@ -214,16 +214,16 @@ WHERE (
 
         for job in needs_rescheduling:
             try:
-                self._schedule_eval(job.policy_version_id, job.attempts)
+                self._schedule_eval(job.policy_version_id, job.attempts + 1)
             except Exception:
                 logger.error("Failed to reschedule eval for policy: %s", job.policy_version_id, exc_info=True)
                 continue
 
-        for submission in unscheduled:
+        for job in unscheduled:
             try:
-                self._schedule_eval(submission.policy_version_id, submission.attempts)
+                self._schedule_eval(job.policy_version_id, job.attempts)
             except Exception:
-                logger.error("Failed to schedule eval for policy: %s", submission.policy_version_id, exc_info=True)
+                logger.error("Failed to schedule eval for policy: %s", job.policy_version_id, exc_info=True)
                 continue
 
     def run(self) -> None:
