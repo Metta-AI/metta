@@ -92,11 +92,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     feature_id_to_name[id] = name;
   }
 
-  _goal_token_flags.assign(resource_names.size(), 0);
   _goal_generation.assign(resource_names.size(), 0);
   _wall_token_cache.clear();
   _is_wall.clear();
-  _compass_location = EmptyTokenByte;
 
   _stats = std::make_unique<StatsTracker>(&resource_names);
 
@@ -133,6 +131,8 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
   object_type_names.resize(game_config.objects.size());
   _wall_token_cache.assign(static_cast<size_t>(height) * width, {});
   _is_wall.assign(static_cast<size_t>(height) * width, 0);
+  _map_center_r = static_cast<int>(_grid->height) / 2;
+  _map_center_c = static_cast<int>(_grid->width) / 2;
 
   for (const auto& [key, object_cfg] : game_config.objects) {
     TypeId type_id = object_cfg->type_id;
@@ -413,31 +413,28 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
    * should always land inside the observation window, we keep the bounds check as a defensive guard.
    */
   if (_global_obs_config.compass) {
-    if (_compass_location == EmptyTokenByte) {
-      // Precompute compass offset: assembler hub assumed at map center.
-      int step_r = 0;
-      int step_c = 0;
-      const int delta_r = map_center_r - static_cast<int>(observer_row);
-      const int delta_c = map_center_c - static_cast<int>(observer_col);
-      if (delta_r != 0) step_r = (delta_r > 0) ? 1 : -1;
-      if (delta_c != 0) step_c = (delta_c > 0) ? 1 : -1;
+    int step_r = 0;
+    int step_c = 0;
+    const int delta_r = _map_center_r - static_cast<int>(observer_row);
+    const int delta_c = _map_center_c - static_cast<int>(observer_col);
+    if (delta_r != 0) step_r = (delta_r > 0) ? 1 : -1;
+    if (delta_c != 0) step_c = (delta_c > 0) ? 1 : -1;
+    if (step_r != 0 || step_c != 0) {
       int obs_r = static_cast<int>(obs_height_radius) + step_r;
       int obs_c = static_cast<int>(obs_width_radius) + step_c;
       if (obs_r >= 0 && obs_r < static_cast<int>(observable_height) && obs_c >= 0 &&
           obs_c < static_cast<int>(observable_width)) {
-        _compass_location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
+        const uint8_t compass_location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
+        ObservationToken* compass_ptr =
+            reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+        ObservationTokens compass_tokens(
+            compass_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
+        const std::vector<PartialObservationToken> compass_token = {
+            {ObservationFeature::Compass, static_cast<ObservationType>(1)}};
+        attempted_tokens_written +=
+            _obs_encoder->append_tokens_if_room_available(compass_tokens, compass_token, compass_location);
+        tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
       }
-    }
-    if (_compass_location != EmptyTokenByte) {
-      ObservationToken* compass_ptr =
-          reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
-      ObservationTokens compass_tokens(
-          compass_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
-      const std::vector<PartialObservationToken> compass_token = {
-          {ObservationFeature::Compass, static_cast<ObservationType>(1)}};
-      attempted_tokens_written +=
-          _obs_encoder->append_tokens_if_room_available(compass_tokens, compass_token, _compass_location);
-      tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
     }
   }
 
@@ -463,10 +460,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
         reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
     ObservationTokens obs_tokens(
         obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
-
-    // Calculate position within the observation window (agent is at the center)
-    int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
-    int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
 
     // Encode location and add tokens
     uint8_t location = offset.packed;
@@ -525,7 +518,6 @@ void MettaGrid::_step() {
   current_step++;
 
   // Create and shuffle agent indices for randomized action order
-  std::vector<size_t> agent_indices(_agents.size());
   if (_agent_indices.size() != _agents.size()) {
     _agent_indices.resize(_agents.size());
   }
