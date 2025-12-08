@@ -217,16 +217,15 @@ def make_sweep(
     recipe: str,
     train_entrypoint: str,
     eval_entrypoint: str,
-    objective: str,
-    parameters: Union[Dict[str, ParameterSpec], List[Dict[str, ParameterSpec]]],
+    metric_key: str,
+    search_space: Union[Dict[str, ParameterSpec], List[Dict[str, ParameterSpec]]],
+    cost_key: Optional[str] = None,
     max_trials: int = 10,
     num_parallel_trials: int = 1,
-    train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
-    cost_key: Optional[str] = None,
-    # Catch all for un-exposed tool overrides.
-    # See SweepTool definition for details.
-    **advanced,
+    goal: Literal["maximize", "minimize"] = "maximize",
+    max_concurrent_evals: Optional[int] = None,
+    liar_strategy: Literal["best", "mean", "worst"] = "best",
 ) -> "SweepTool":
     """Create a sweep with minimal configuration.
 
@@ -236,64 +235,65 @@ def make_sweep(
             recipe: Recipe module path
             train_entrypoint: Training entrypoint function
             eval_entrypoint: Evaluation entrypoint function
-            num_trials: Number of trials
-            num_parallel_trials: Max parallel jobs
-            train_overrides: Optional overrides for training configuration
-            eval_overrides: Optional overrides for evaluation configuration
+            metric_key: Metric to optimize
             cost_key: Optional metric path to extract cost from run summary.
                 If provided, the cost will be read from summary[cost_key].
                 If not provided, defaults to run.cost (which is 0 if not set).
-            **advanced: Additional SweepTool options
+            num_trials: Number of trials
+            num_parallel_trials: Max parallel jobs
+            eval_overrides: Optional overrides for evaluation configuration
+            goal: Whether to maximize or minimize the metric.
+            max_concurrent_evals: Maximum simultaneous evals (defaults to min(2, num_parallel_trials)).
+            liar_strategy: Liar strategy for async capped scheduler.
 
         Protein config args:
-            objective: Metric to optimize
-            parameters: Parameters to sweep - either dict or list of single-item dicts
+            metric_key: Metric to optimize
+            search_space: Parameters to sweep - either dict or list of single-item dicts
 
     Returns:
         Configured SweepTool
     """
     # Convert list of single-item dicts to flat dict
-    if isinstance(parameters, list):
+    if isinstance(search_space, list):
         flat_params = {}
-        for item in parameters:
+        for item in search_space:
             if not isinstance(item, dict):
                 raise ValueError(f"List items must be dicts, got {type(item)}")
             if len(item) != 1:
                 raise ValueError(f"Each dict in list must have exactly one key-value pair, got {len(item)} keys")
             flat_params.update(item)
-        parameters = flat_params
+        search_space = flat_params
 
     # Local imports to avoid circular dependencies
-    from metta.sweep.protein_config import ProteinConfig, ProteinSettings
+    from metta.sweep.protein_config import ProteinSettings
     from metta.tools.sweep import SweepSchedulerType, SweepTool
 
-    protein_config = ProteinConfig(
-        metric=objective,
-        goal=advanced.pop("goal", "maximize"),
-        parameters=parameters,
-        settings=ProteinSettings(),
-    )
+    protein_goal = goal
+    protein_settings = ProteinSettings()
 
     scheduler_type = SweepSchedulerType.ASYNC_CAPPED
     scheduler_config = {
-        "max_concurrent_evals": advanced.pop("max_concurrent_evals", min(2, num_parallel_trials)),
-        "liar_strategy": advanced.pop("liar_strategy", "best"),
+        "max_concurrent_evals": (
+            max_concurrent_evals if max_concurrent_evals is not None else min(2, num_parallel_trials)
+        ),
+        "liar_strategy": liar_strategy,
     }
 
     return SweepTool(
         sweep_name=name,
-        protein_config=protein_config,
+        protein_metric=metric_key,
+        protein_goal=protein_goal,
+        protein_settings=protein_settings,
+        search_space=search_space,
         recipe_module=recipe,
         train_entrypoint=train_entrypoint,
         eval_entrypoint=eval_entrypoint,
         max_trials=max_trials,
         max_parallel_jobs=num_parallel_trials,
         scheduler_type=scheduler_type,
-        train_overrides=train_overrides or {},
         eval_overrides=eval_overrides or {},
         cost_key=cost_key,
         **scheduler_config,
-        **advanced,
     )
 
 
@@ -302,11 +302,10 @@ def grid_search(
     recipe: str,
     train_entrypoint: str,
     eval_entrypoint: str,
-    objective: str,
-    parameters: Union[Dict[str, Any], List[Dict[str, Any]]],
+    metric_key: str,
+    search_space: Union[Dict[str, Any], List[Dict[str, Any]]],
     max_trials: int = 10,
     num_parallel_trials: int = 1,
-    train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
     # Catch all for un-exposed tool overrides.
     # See SweepTool definition for details.
@@ -324,29 +323,28 @@ def grid_search(
             recipe: Recipe module path
             train_entrypoint: Training entrypoint function
             eval_entrypoint: Evaluation entrypoint function
+            metric_key: Metric to optimize (used by evaluation hooks)
             max_trials: Maximum number of trials to schedule (cap on grid size)
             num_parallel_trials: Max parallel jobs
-            train_overrides: Optional overrides for training configuration
             eval_overrides: Optional overrides for evaluation configuration
             **advanced: Additional SweepTool options
 
         Grid parameters:
-            objective: Metric to optimize (used by evaluation hooks)
-            parameters: Nested dict of categorical choices (lists or CategoricalParameterConfig)
+            search_space: Nested dict of categorical choices (lists or CategoricalParameterConfig)
 
     Returns:
         Configured SweepTool
     """
     # Convert list of single-item dicts to flat dict
-    if isinstance(parameters, list):
+    if isinstance(search_space, list):
         flat_params: Dict[str, Any] = {}
-        for item in parameters:
+        for item in search_space:
             if not isinstance(item, dict):
                 raise ValueError(f"List items must be dicts, got {type(item)}")
             if len(item) != 1:
                 raise ValueError(f"Each dict in list must have exactly one key-value pair, got {len(item)} keys")
             flat_params.update(item)
-        parameters = flat_params
+        search_space = flat_params
 
     # Local imports to avoid circular dependencies
     from metta.tools.sweep import SweepSchedulerType, SweepTool
@@ -365,10 +363,9 @@ def grid_search(
         max_trials=max_trials,
         max_parallel_jobs=num_parallel_trials,
         scheduler_type=scheduler_type,
-        train_overrides=train_overrides or {},
         eval_overrides=eval_overrides or {},
-        grid_parameters=parameters,  # categorical choices
-        grid_metric=objective,
+        grid_parameters=search_space,  # categorical choices
+        grid_metric=metric_key,
         **scheduler_config,
         **advanced,
     )
