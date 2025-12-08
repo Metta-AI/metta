@@ -23,25 +23,8 @@ declare -A VARIANT_HPP=(
 )
 
 COMMON_ARGS=(
-  ./tools/run.py train cogs_v_clips
-  mission=machina_1.open_world
-  system.local_only=true
-  wandb.enabled=false wandb.project=na wandb.entity=na
-  trainer.minibatch_size=512
-  trainer.batch_size=32768
-  trainer.bptt_horizon=8
-  "trainer.total_timesteps=${TOTAL_TIMESTEPS}"
-  training_env.vectorization=serial
-  training_env.num_workers=1
-  training_env.async_factor=1
-  training_env.forward_pass_minibatch_target_size=4096
-  training_env.write_replays=false
-  evaluator.evaluate_local=false
-  evaluator.evaluate_remote=false
-  evaluator.epoch_interval=0
-  checkpointer.epoch_interval=1000
-  torch_profiler.interval_epochs=0
-  stats_server_uri=none
+  ./tools/run_thinky_eval.py
+  --timesteps "${TOTAL_TIMESTEPS}"
 )
 
 set_variant() {
@@ -63,7 +46,7 @@ run_variant() {
   set_variant "$variant"
   echo "Symlink now points to: $(readlink "$BINDINGS_DIR/mettagrid_c.cpp")"
   AWS_PROFILE= AWS_DEFAULT_PROFILE= uv sync --reinstall-package mettagrid
-  AWS_PROFILE= AWS_DEFAULT_PROFILE= METTA_TIMER_REPORT=1 uv run "${COMMON_ARGS[@]}" "run=${run_name}"
+  AWS_PROFILE= AWS_DEFAULT_PROFILE= METTA_TIMER_REPORT=1 uv run "${COMMON_ARGS[@]}"
 }
 
 for variant in alt main; do
