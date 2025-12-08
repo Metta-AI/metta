@@ -42,7 +42,7 @@ class EvaluateTool(Tool):
     stats_server_uri: str | None = Field(default_factory=auto_stats_server_uri)
     verbose: bool = False
     push_metrics_to_wandb: bool = False
-    max_workers: int | None = None
+    max_workers: int | None = 4
 
     def _to_simulation_run_configs(self) -> list[SimulationRunConfig]:
         result = []
