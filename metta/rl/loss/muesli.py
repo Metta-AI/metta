@@ -42,7 +42,11 @@ class MuesliModelConfig(LossConfig):
     # Number of future timesteps to predict (K in paper)
     # Setting this to 1 means predict policy at current timestep only
     # Setting to 5 means predict policies 1-5 steps ahead
-    policy_horizon: int = Field(default=1, ge=1, le=20)
+    policy_horizon: int = Field(default=0, ge=1, le=20)
+
+    @property
+    def enabled(self) -> bool:
+        return self.policy_horizon > 0
 
     def create(
         self,
