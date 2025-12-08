@@ -181,11 +181,6 @@ private:
       if (stats_tracker && distributed > 0) {
         const std::string& resource_name = stats_tracker->resource_name(item);
         stats_tracker->add("assembler." + resource_name + ".created", static_cast<float>(distributed));
-
-        // Debug print for heart construction
-        if (resource_name == "heart") {
-          std::cout << "[ASSEMBLER] Heart constructed! Amount: " << static_cast<int>(distributed) << std::endl;
-        }
       }
     }
   }
