@@ -1,3 +1,10 @@
+"""
+Learning Progress Algorithm with integrated bidirectional scoring.
+
+Provides intelligent task selection based on bidirectional learning progress analysis,
+using fast and slow exponential moving averages to detect learning opportunities.
+"""
+
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -41,6 +48,14 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
 
 class LearningProgressAlgorithm(CurriculumAlgorithm):
+    """
+    Learning Progress Algorithm with integrated bidirectional scoring.
+
+    Uses bidirectional learning progress by default, combining fast and slow
+    exponential moving averages to detect learning opportunities and guide
+    intelligent task selection.
+    """
+
     def __init__(self, num_tasks: int, hypers: LearningProgressConfig):
         super().__init__(num_tasks, hypers)
 
@@ -51,6 +66,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         self._score_cache: Dict[int, float] = {}
         self._cache_valid_tasks: set[int] = set()
+
+        # Cache for expensive statistics computation
+        self._stats_cache: Dict[str, Any] = {}
+        self._stats_cache_valid = False
 
         if hypers.use_bidirectional:
             self._init_bidirectional_scoring()
@@ -147,7 +166,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks with per-task LP, then sigmoid + normalize per call."""
-
         if not task_ids:
             return {}
 
@@ -160,53 +178,36 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
         """Calculate bidirectional learning progress score for a task."""
-        # Return cached score if valid
         if task_id in self._cache_valid_tasks and task_id in self._score_cache:
             return self._score_cache[task_id]
 
-        # Check if we have enough data points (use outcomes length, not counter, since outcomes can be trimmed)
         if task_id not in self._per_task_fast or task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
             score = self.hypers.exploration_bonus
         else:
-            # Learning progress = |fast - slow|
             lp = abs(self._per_task_fast[task_id] - self._per_task_slow[task_id])
-            # Small bonus for above-baseline performance
             perf_bonus = max(self._per_task_fast[task_id], 0) * 0.1
             score = max(lp + perf_bonus, self.hypers.exploration_bonus)
 
-        # Cache the computed score
         self._score_cache[task_id] = score
         self._cache_valid_tasks.add(task_id)
         return score
 
     def _get_basic_learning_progress_score(self, task_id: int) -> float:
         """Calculate basic learning progress score using EMA variance."""
-        # Return cached score if valid
         if task_id in self._cache_valid_tasks and task_id in self._score_cache:
             return self._score_cache[task_id]
 
         task_stats = self.task_tracker.get_task_stats(task_id)
-        if not task_stats or task_stats["completion_count"] < 2:
-            score = self.hypers.exploration_bonus
-        elif task_id not in self._task_emas:
+        if not task_stats or task_stats["completion_count"] < 2 or task_id not in self._task_emas:
             score = self.hypers.exploration_bonus
         else:
             ema_score, ema_squared, num_samples = self._task_emas[task_id]
-
-            # Calculate variance from EMA
             variance = max(0.0, ema_squared - ema_score * ema_score)
-            std_dev = np.sqrt(variance)
-
-            # Learning progress is approximated by variance in performance
-            learning_progress = std_dev
-
-            # Add exploration bonus for tasks with few samples
+            learning_progress = np.sqrt(variance)
             if num_samples < 10:
                 learning_progress += self.hypers.exploration_bonus * (10 - num_samples) / 10
-
             score = learning_progress
 
-        # Cache the computed score
         self._score_cache[task_id] = score
         self._cache_valid_tasks.add(task_id)
         return score

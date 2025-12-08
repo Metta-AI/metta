@@ -121,12 +121,8 @@ class OxygenExtractorConfig(ExtractorConfig):
 
 # Rare regenerates slowly. More cogs increase the amount extracted.
 class GermaniumExtractorConfig(ExtractorConfig):
-    # How much one agent gets.
-    efficiency: int = 2
-    # How much each additional agent gets.
-    synergy: int = 1
-    # Germanium is inherently a single use resource by default.
-    max_uses: int = Field(default=1)
+    max_uses: int = Field(default=5)
+    synergy: int = 50
 
     def station_cfg(self) -> AssemblerConfig:
         # efficiency impacts cooldown, not output
