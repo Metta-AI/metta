@@ -9,6 +9,7 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
+    ChangeVibeActionConfig,
     GameConfig,
     MettaGridConfig,
     MoveActionConfig,
@@ -28,7 +29,7 @@ def make_arena(
 ) -> MettaGridConfig:
     objects = {
         "wall": building.wall,
-        "altar": building.assembler_altar,
+        "assembler": building.assembler_assembler,
         "mine_red": building.assembler_mine_red,
         "generator_red": building.assembler_generator_red,
         "lasery": building.assembler_lasery,
@@ -46,6 +47,7 @@ def make_arena(
                 "armor": 1,
             },
         ),
+        change_vibe=ChangeVibeActionConfig(enabled=False),
     )
 
     if not combat:
@@ -62,7 +64,7 @@ def make_arena(
                 agents=6,
                 objects={
                     "wall": 10,
-                    "altar": 5,
+                    "assembler": 5,
                     "mine_red": 10,
                     "generator_red": 5,
                     "lasery": 1,
@@ -95,8 +97,7 @@ def make_arena(
 
 def make_navigation(num_agents: int) -> MettaGridConfig:
     nav_assembler = building.AssemblerConfig(
-        name="altar",
-        map_char="_",
+        name="assembler",
         render_symbol="🛣️",
         protocols=[building.ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255)],
     )
@@ -104,7 +105,7 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
         game=GameConfig(
             num_agents=num_agents,
             objects={
-                "altar": nav_assembler,
+                "assembler": nav_assembler,
                 "wall": building.wall,
             },
             resource_names=["heart"],
