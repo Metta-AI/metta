@@ -7,7 +7,6 @@ from metta.app_backend.auth import UserOrToken
 from metta.app_backend.leaderboard_constants import (
     COGAMES_SUBMITTED_PV_KEY,
     LEADERBOARD_SIM_NAME_EPISODE_KEY,
-    REPLACEMENT_BASELINE_MEAN,
 )
 from metta.app_backend.metta_repo import LeaderboardPolicyEntry, MettaRepo
 
@@ -23,8 +22,7 @@ class BaselineStatusResponse(BaseModel):
 
     baseline_mean: float | None
     baseline_episodes: int
-    using_fallback: bool
-    fallback_value: float
+    baseline_available: bool
 
 
 def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
@@ -80,17 +78,16 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     async def get_baseline_status(user: UserOrToken) -> BaselineStatusResponse:
         """Get the current replacement baseline status.
 
-        Returns whether the baseline is computed from actual c0 episodes or using
-        the hardcoded fallback value. If using_fallback is True, you should run
-        baseline evaluations via:
+        Returns whether the baseline is computed from actual c0 episodes.
+        If baseline_available is False, VOR endpoints will fail until baseline
+        evaluations are run via:
             ./tools/run.py recipes.experiment.v0_leaderboard.evaluate_baseline
         """
         baseline_mean, baseline_episodes = await metta_repo._get_replacement_baseline()
         return BaselineStatusResponse(
             baseline_mean=baseline_mean,
             baseline_episodes=baseline_episodes,
-            using_fallback=baseline_mean is None,
-            fallback_value=REPLACEMENT_BASELINE_MEAN,
+            baseline_available=baseline_mean is not None,
         )
 
     return router

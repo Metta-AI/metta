@@ -19,7 +19,6 @@ from metta.app_backend.leaderboard_constants import (
     LEADERBOARD_LADYBUG_COUNT_KEY,
     LEADERBOARD_SCENARIO_KEY,
     LEADERBOARD_THINKY_COUNT_KEY,
-    REPLACEMENT_BASELINE_MEAN,
     THINKY_UUID,
 )
 from metta.app_backend.migrations import MIGRATIONS
@@ -1238,20 +1237,18 @@ GROUP BY pv.id, et.key, et.value
         )
         candidate_vor_stats = await self._get_vor_stats(tuple(entry.policy_version.id for entry in entries))
 
-        # Get dynamic replacement baseline from c0 episodes, fall back to hardcoded if none exist
+        # Get dynamic replacement baseline from c0 episodes
         replacement_baseline, baseline_episodes = await self._get_replacement_baseline()
         if replacement_baseline is None:
-            logger.warning(
-                "No c0 baseline episodes found in observatory, using hardcoded baseline %.2f",
-                REPLACEMENT_BASELINE_MEAN,
+            raise RuntimeError(
+                "No c0 baseline episodes found in observatory. "
+                "Run baseline evaluations via: ./tools/run.py recipes.experiment.v0_leaderboard.evaluate_baseline"
             )
-            replacement_baseline = REPLACEMENT_BASELINE_MEAN
-        else:
-            logger.debug(
-                "Using dynamic replacement baseline %.4f from %d c0 episodes",
-                replacement_baseline,
-                baseline_episodes,
-            )
+        logger.debug(
+            "Using replacement baseline %.4f from %d c0 episodes",
+            replacement_baseline,
+            baseline_episodes,
+        )
 
         for entry in entries:
             pv_id = entry.policy_version.id
