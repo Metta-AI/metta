@@ -19,6 +19,7 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import grid_search as grid_search_tool
 from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -208,7 +209,7 @@ def sweep(sweep_name: str) -> SweepTool:
     (otherwise sweep progress will halt when you close your computer).
 
     Running on the remote:
-        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
+        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py new --sweep-controller`, and ssh into it.
         2 - Clean git pollution: `git clean -df && git stash`
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
@@ -252,5 +253,50 @@ def sweep(sweep_name: str) -> SweepTool:
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
+        num_parallel_trials=4,
+    )
+
+
+def grid_search(sweep_name: str) -> SweepTool:
+    """
+    Entrypoint for running a grid search over our infra. 
+    If this is going to be a long running experiment, we recommend booting up  
+    a sweep controller sandbox and running from there (instructions in previous docstring)
+    
+    Example command: 
+
+        # Run with local dispatch for local training (recommended for testing)
+        uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.grid_search \
+            sweep_name="ak.grid_search_local_test.1205.1034" \
+            local_test=True
+
+        # Run with Skypilot dispatch 
+        uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.grid_search \
+            sweep_name="ak.grid_search_local_test.1205.1034"
+
+    """
+    grid_parameters = [
+        SP.categorical("trainer.optimizer.learning_rate", [1e-4, 3e-4]),
+        SP.categorical("trainer.losses.ppo.clip_coef", [0.1, 0.2]),
+        SP.categorical("trainer.losses.ppo.ent_coef", [0.003, 0.01]),
+        SP.categorical("trainer.total_timesteps", [1e4, 2e4, 3e4]),
+        # The following are special parameters (reserved keywords)
+        # they are not path overrides and instead are handled downstream.
+        SP.categorical("nodes", [1, 2]),
+        SP.categorical("gpus", [1, 4]),
+    ]
+
+    return grid_search_tool(
+        name=sweep_name,
+        recipe="recipes.prod.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        # ingore evals for grid sweep
+        # TODO Make sure we can specify evals and they work
+        eval_entrypoint="evaluate_stub",
+        parameters=grid_parameters,
+        # This is just a guad so we don't accidentally launch 1000s of trials
+        # on a huge grid.
+        max_trials=100,
+        # Infrastructure throttling
         num_parallel_trials=4,
     )

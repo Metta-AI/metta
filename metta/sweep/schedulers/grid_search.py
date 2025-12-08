@@ -26,7 +26,9 @@ class GridSearchSchedulerConfig(Config):
     """Configuration for the grid-search scheduler.
 
     Provide nested categorical parameters via `parameters`. Values may be
-    `CategoricalParameterConfig` or plain lists of choices.
+    `CategoricalParameterConfig` or plain lists of choices. Parameter names
+    `gpus` and `nodes` (if present) are treated as per-suggestion resource
+    overrides rather than train overrides.
     """
 
     recipe_module: str = "recipes.experiment.arena"
@@ -113,19 +115,37 @@ class GridSearchScheduler:
             trial_num = base_trial_num + launched + 1
             run_id = generate_run_id(self.config.experiment_id, trial_num)
 
+            # Allow resource dimensions to be part of the grid while keeping them out of train overrides
+            gpus = self.config.gpus
+            nodes = self.config.nodes
+            suggestion_for_metadata = dict(suggestion)
+            if "gpus" in suggestion:
+                try:
+                    gpus = int(suggestion["gpus"])
+                except Exception as e:
+                    raise ValueError(f"Invalid gpus value in grid suggestion: {suggestion['gpus']}") from e
+            if "nodes" in suggestion:
+                try:
+                    nodes = int(suggestion["nodes"])
+                except Exception as e:
+                    raise ValueError(f"Invalid nodes value in grid suggestion: {suggestion['nodes']}") from e
+
+            # Remove resource fields from overrides to avoid leaking into train config
+            overrides_only = {k: v for k, v in suggestion.items() if k not in ("gpus", "nodes")}
             merged_overrides = dict(self.config.train_overrides)
-            merged_overrides.update(suggestion)
+            merged_overrides.update(overrides_only)
             job = create_training_job(
                 run_id=run_id,
                 experiment_id=self.config.experiment_id,
                 recipe_module=self.config.recipe_module,
                 train_entrypoint=self.config.train_entrypoint,
-                gpus=self.config.gpus,
-                nodes=self.config.nodes,
+                gpus=gpus,
+                nodes=nodes,
                 stats_server_uri=self.config.stats_server_uri,
                 train_overrides=merged_overrides,
             )
-            job.metadata["sweep/suggestion"] = suggestion
+            job.metadata["sweep/suggestion"] = suggestion_for_metadata
+            job.metadata["sweep/resources"] = {"gpus": gpus, "nodes": nodes}
             jobs.append(job)
             launched += 1
             logger.info("[GridSearchScheduler] Scheduling training %s", run_id)
