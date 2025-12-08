@@ -32,6 +32,7 @@ from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerC
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
+from metta.tools.request_remote_eval import RequestRemoteEvalTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -550,6 +551,28 @@ def evaluate(
             variants=variants,
         ),
         policy_uris=policy_uris,
+    )
+
+
+def evaluate_remote(
+    policy_uri: str | None = None,
+    policy_version_id: str | None = None,
+    num_cogs: int = 4,
+    difficulty: str | None = "standard",
+    subset: Optional[Sequence[str]] = None,
+    variants: Optional[Sequence[str]] = None,
+) -> RequestRemoteEvalTool:
+    """Evaluate policies on CoGs vs Clips missions remotely."""
+    return RequestRemoteEvalTool(
+        simulations=make_eval_suite(
+            num_cogs=num_cogs,
+            difficulty=difficulty,
+            subset=subset,
+            variants=variants,
+        ),
+        policy_uri=policy_uri,
+        policy_version_id=policy_version_id,
+        push_metrics_to_wandb=False,
     )
 
 
