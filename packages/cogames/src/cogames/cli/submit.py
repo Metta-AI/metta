@@ -526,6 +526,12 @@ def submit_command(
         tag_success = update_submission_tags(policy_version_id, token, server, console)
         if not tag_success:
             console.print("\n[red]Submission succeeded, but updating tags failed.[/red]")
+
+        # Print URL to view policy details
+        frontend_url = login_server.replace("/api", "")
+        policy_url = f"{frontend_url}/alignmentleague/policy/{policy_version_id}"
+        console.print(f"\n[bold green]View your submission:[/bold green]")
+        console.print(f"[cyan]{policy_url}[/cyan]\n")
     finally:
         # Clean up zip file
         if zip_path.exists():
