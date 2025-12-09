@@ -530,7 +530,7 @@ def submit_command(
         # Print URL to view policy details
         frontend_url = login_server.replace("/api", "")
         policy_url = f"{frontend_url}/alignmentleague/policy/{policy_version_id}"
-        console.print(f"\n[bold green]View your submission:[/bold green]")
+        console.print("\n[bold green]View your submission:[/bold green]")
         console.print(f"[cyan]{policy_url}[/cyan]\n")
     finally:
         # Clean up zip file
