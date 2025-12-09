@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import logging
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -14,6 +16,35 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.file import ParsedURI, local_copy, write_file
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
+
+
+def _detect_actor_head_action_count(state_dict: Mapping[str, torch.Tensor]) -> int | None:
+    """Return actor_head action count if found, else None."""
+    for key, tensor in state_dict.items():
+        if "actor_head" in key and "weight" in key:
+            return tensor.shape[0]
+    return None
+
+
+def _pad_actor_head_weights(
+    state_dict: MutableMapping[str, torch.Tensor],
+    checkpoint_actions: int,
+    target_actions: int,
+) -> None:
+    """Pad actor_head weights to match target action count."""
+    pad_size = target_actions - checkpoint_actions
+
+    for key in list(state_dict.keys()):
+        if "actor_head" not in key:
+            continue
+
+        tensor = state_dict[key]
+        if "weight" in key:
+            pad = torch.zeros(pad_size, tensor.shape[1], dtype=tensor.dtype, device=tensor.device)
+            state_dict[key] = torch.cat([tensor, pad], dim=0)
+        elif "bias" in key:
+            pad = torch.full((pad_size,), float("-inf"), dtype=tensor.dtype, device=tensor.device)
+            state_dict[key] = torch.cat([tensor, pad], dim=0)
 
 
 class PolicyArchitectureProtocol(Protocol):
@@ -40,14 +71,38 @@ class MptArtifact:
         device: torch.device | str = "cpu",
         *,
         strict: bool = True,
+        pad_action_space: bool = False,
     ) -> Any:
+        """Instantiate a policy with this state dict."""
         if isinstance(device, str):
             device = torch.device(device)
+
+        # Work on a deep copy so padding does not mutate the artifact across calls.
+        state_dict: MutableMapping[str, torch.Tensor] = copy.deepcopy(self.state_dict)
+
+        env_actions = int(policy_env_info.action_space.n)
+        checkpoint_actions = _detect_actor_head_action_count(state_dict)
+
+        if checkpoint_actions is not None and checkpoint_actions < env_actions:
+            if pad_action_space:
+                logging.warning(
+                    "Action space mismatch: checkpoint has %d actions, environment expects %d. "
+                    "Padding actor_head weights (new actions will have ~0 probability).",
+                    checkpoint_actions,
+                    env_actions,
+                )
+                _pad_actor_head_weights(state_dict, checkpoint_actions, env_actions)
+            else:
+                raise ValueError(
+                    f"Action space mismatch: checkpoint has {checkpoint_actions} actions, "
+                    f"environment expects {env_actions}. "
+                    f"Set pad_action_space=True to pad weights automatically."
+                )
 
         policy = self.architecture.make_policy(policy_env_info)
         policy = policy.to(device)
 
-        missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=strict)
+        missing, unexpected = policy.load_state_dict(dict(state_dict), strict=strict)
         if strict and (missing or unexpected):
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
 
