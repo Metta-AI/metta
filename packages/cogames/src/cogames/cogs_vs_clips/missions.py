@@ -2,7 +2,6 @@ from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.navigation_missions import NAVIGATION_MISSIONS
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
     AssemblerDrawsFromChestsVariant,
@@ -132,7 +131,6 @@ MISSIONS: list[Mission] = [
     Machina1BalancedCornersMission,
     *INTEGRATED_EVAL_MISSIONS,
     *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
-    *NAVIGATION_MISSIONS,
 ]
 
 
