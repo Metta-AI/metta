@@ -33,3 +33,6 @@ from devops.datadog.collectors.eval_collector import EvalCollector  # noqa: E402
 register_collector(CICollector)
 register_collector(TrainingCollector)
 register_collector(EvalCollector)
+
+# Import stable_suite integration modules
+from devops.datadog.collectors import stable_suite_fetcher, stable_suite_mapping, stable_suite_metrics  # noqa: F401

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
-
-import boto3
-from botocore.exceptions import ClientError
+from collections import defaultdict
+from typing import Dict, List
 
 from devops.datadog.collectors.base import BaseCollector
+from devops.datadog.collectors.stable_suite_fetcher import get_latest_job_states
+from devops.datadog.collectors.stable_suite_mapping import is_training_job, map_job_to_workflow
+from devops.datadog.collectors.stable_suite_metrics import extract_training_metrics
 from devops.datadog.models import MetricSample
 
 
@@ -30,106 +30,68 @@ class TrainingCollector(BaseCollector):
     metric_namespace = "metta.infra.cron"
     workflow_category = "training"
 
-    S3_BUCKET = "softmax-train-dir"
-    S3_PREFIX = ".job_metadata/"
-    HEARTBEAT_TIMEOUT_MINUTES = 30
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.s3_client = boto3.client("s3")
-
     def collect(self) -> List[MetricSample]:
         samples: List[MetricSample] = []
 
         try:
-            # Discover training jobs from S3
-            jobs = self._discover_training_jobs()
-            if not jobs:
-                self.logger.warning("No training jobs found in S3")
+            # Get job states from stable_suite database
+            job_states = get_latest_job_states(since_days=1)
+
+            # Filter to training jobs only
+            training_jobs = [js for js in job_states if is_training_job(js.name)]
+
+            if not training_jobs:
+                self.logger.warning("No training jobs found in stable_suite")
                 samples.append(self._build_data_missing_metric(value=1.0))
-                # Emit placeholder zeros when data is missing
                 samples.extend(self._emit_placeholder_metrics())
                 return samples
-
-            # Parse job metadata and infer health
-            job_health = self._parse_job_health(jobs)
 
             # Emit data_missing = 0 since we found data
             samples.append(self._build_data_missing_metric(value=0.0))
 
-            # Map jobs to workflow types and emit metrics
-            samples.extend(self._multigpu_metrics(job_health))
-            samples.extend(self._multinode_metrics(job_health))
-            samples.extend(self._local_arena_metrics(job_health))
-            samples.extend(self._bugs_metrics(job_health))
+            # Group jobs by workflow and extract metrics
+            workflow_metrics: Dict[str, Dict[str, float]] = defaultdict(
+                lambda: {"success": 0.0, "hearts": 0.0, "sps": 0.0, "shaped": 0.0}
+            )
+
+            for job_state in training_jobs:
+                try:
+                    workflow = map_job_to_workflow(job_state.name)
+                    metrics = extract_training_metrics(job_state)
+
+                    # Aggregate: use latest job's metrics (or could average)
+                    # For now, use the most recent job's metrics
+                    workflow_metrics[workflow] = metrics
+                except ValueError as exc:
+                    self.logger.warning("Could not map job %s to workflow: %s", job_state.name, exc)
+                    continue
+
+            # Convert to old format for compatibility with existing metric builders
+            health_data: Dict[str, Dict[str, float]] = {}
+            for workflow, metrics in workflow_metrics.items():
+                if workflow == "multigpu_arena_basic_easy_shaped":
+                    health_data["multigpu"] = metrics
+                elif workflow == "multinode_learning_progress":
+                    health_data["multinode"] = metrics
+                elif workflow == "local_arena_basic_easy_shaped":
+                    health_data["local_arena"] = {"checkpoint1": 0.0, "checkpoint2": 0.0}  # Not available from stable_suite
+                elif workflow == "training_bugs":
+                    health_data["bugs"] = {"count": 0.0}  # Not from stable_suite
+
+            # Emit metrics for each workflow
+            samples.extend(self._multigpu_metrics(health_data))
+            samples.extend(self._multinode_metrics(health_data))
+            samples.extend(self._local_arena_metrics(health_data))
+            samples.extend(self._bugs_metrics(health_data))
 
         except Exception as exc:  # noqa: BLE001
-            self.logger.error("Failed to collect training metrics from S3: %s", exc, exc_info=True)
+            self.logger.error("Failed to collect training metrics from stable_suite: %s", exc, exc_info=True)
             samples.append(self._build_data_missing_metric(value=1.0))
             samples.extend(self._emit_placeholder_metrics())
 
         if not samples:
             self.logger.warning("Training collector produced zero metrics")
         return samples
-
-    def _discover_training_jobs(self) -> List[Dict[str, str]]:
-        """Discover training jobs by listing S3 .job_metadata/ prefix."""
-        jobs: List[Dict[str, str]] = []
-        try:
-            paginator = self.s3_client.get_paginator("list_objects_v2")
-            pages = paginator.paginate(Bucket=self.S3_BUCKET, Prefix=self.S3_PREFIX, Delimiter="/")
-
-            for page in pages:
-                # CommonPrefixes gives us the job directories
-                for prefix_info in page.get("CommonPrefixes", []):
-                    job_prefix = prefix_info["Prefix"]
-                    # Extract job name from prefix like ".job_metadata/ak.20251117.153651/"
-                    job_name = job_prefix.rstrip("/").split("/")[-1]
-                    if job_name:
-                        jobs.append({"name": job_name, "prefix": job_prefix})
-        except ClientError as exc:
-            self.logger.error("Failed to list S3 objects: %s", exc)
-        return jobs
-
-    def _parse_job_health(self, jobs: List[Dict[str, str]]) -> Dict[str, Dict]:
-        """Parse job metadata files to infer health status."""
-        health_data: Dict[str, Dict] = {}
-
-        for job in jobs:
-            job_name = job["name"]
-            prefix = job["prefix"]
-
-            # Try to determine workflow type from job name
-            workflow_type = self._infer_workflow_type(job_name)
-
-            # Read metadata files
-            heartbeat_ts = self._read_heartbeat(prefix)
-            # TODO: Use restart_count in heuristic when implementing instability detection
-            self._read_restart_count(prefix)
-            termination_reason = self._read_termination_reason(prefix)
-
-            # Infer success/failure
-            is_success = self._infer_success(heartbeat_ts, termination_reason)
-
-            # Store health data by workflow type
-            if workflow_type not in health_data:
-                health_data[workflow_type] = {
-                    "success": 0.0,
-                    "hearts": 0.0,
-                    "sps": 0.0,
-                    "checkpoint1": 0.0,
-                    "checkpoint2": 0.0,
-                    "count": 0,
-                }
-
-            # Update with latest job status (simple: last job wins for now)
-            health_data[workflow_type]["success"] = 1.0 if is_success else 0.0
-            health_data[workflow_type]["hearts"] = 1.0 if is_success else 0.0
-            health_data[workflow_type]["sps"] = 0.0  # TODO: Parse from real SPS source when available
-            health_data[workflow_type]["checkpoint1"] = 1.0 if is_success else 0.0
-            health_data[workflow_type]["checkpoint2"] = 1.0 if is_success else 0.0
-
-        return health_data
 
     def _infer_workflow_type(self, job_name: str) -> str:
         """Infer workflow type from job name patterns."""
@@ -214,7 +176,7 @@ class TrainingCollector(BaseCollector):
             value=value,
             workflow_name="training_data_availability",
             task="Data availability",
-            check="S3 data found",
+            check="stable_suite data found",
             condition="< 1",
             status="pass" if value < 1.0 else "fail",
         )

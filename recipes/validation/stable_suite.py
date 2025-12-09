@@ -71,6 +71,10 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         args=[f'policy_uris=["s3://softmax-public/policies/{arena_train_name}:latest"]'],
         dependency_names=[arena_train_name],
         timeout_s=1800,
+        metrics_to_track=["heart_delta_pct"],
+        acceptance_criteria=[
+            AcceptanceCriterion(metric="heart_delta_pct", operator=">=", threshold=0),
+        ],
     )
 
     # ========================================
