@@ -253,7 +253,7 @@ def _enforce_training_vibes(env: MettaGridConfig) -> None:
         vibe_transfers = getattr(chest, "vibe_transfers", None)
         if isinstance(vibe_transfers, dict):
             new_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
-            chest.vibe_transfers = new_transfers
+            setattr(chest, "vibe_transfers", new_transfers)
 
 
 def make_curriculum(
@@ -522,7 +522,7 @@ def train(
     )
 
     trainer_cfg = TrainerConfig(
-        losses=LossesConfig(),
+        losses=LossesConfig(),  # type: ignore[call-arg]
     )
 
     # For evaluation, "all" is treated the same as "no explicit variant filter".
@@ -713,7 +713,7 @@ def experiment(
         cmd.extend(additional_args)
 
     if supervision:
-        cmd.append("bc_policy_uri=thinky bc_mode=sliced_cloner bc_steps=1000000000")
+        cmd.append("training_env.supervisor_policy_uri=thinky")
 
     print(f"Launching training job: {run_name}")
     print(f"Command: {' '.join(cmd)}")

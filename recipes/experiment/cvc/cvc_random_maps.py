@@ -220,7 +220,7 @@ def make_random_maps_curriculum(
             # Bucket over assembler protocols (vibe requirements)
             tasks.add_bucket(
                 "game.objects.assembler.protocols",
-                [
+                [  # type: ignore[arg-type]
                     _make_assembler_protocols(["heart_a"]),  # Hard
                     _make_assembler_protocols(["heart_a", "heart_b"]),  # Medium
                     _make_assembler_protocols(["default", "heart_a", "heart_b"]),  # Easy
@@ -396,7 +396,7 @@ def train(
     )
 
     return TrainTool(
-        trainer=trainer_cfg,
+        trainer=trainer_cfg,  # type: ignore[call-arg]
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
     )
@@ -698,7 +698,7 @@ def experiment(
         cmd.extend(additional_args)
 
     if supervision:
-        cmd.append("bc_policy_uri=thinky bc_mode=sliced_cloner bc_steps=1000000000")
+        cmd.append("training_env.supervisor_policy_uri=thinky")
 
     print(f"Launching random maps training job: {run_name}")
     print(f"  Agents: {num_cogs}")
