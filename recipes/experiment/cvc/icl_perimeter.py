@@ -352,10 +352,10 @@ def make_icl_curriculum(
             env.label = name
 
             tasks = cc.bucketed(env)
-            tasks.add_bucket("game.agent.rewards.inventory.heart", [0.0, 0.1, 1.0])
+            # tasks.add_bucket("game.agent.rewards.inventory.heart", [0.0, 0.1, 1.0])
             tasks.add_bucket("game.map_builder.objects.assembler", [1, 2, 3])
-            tasks.add_bucket("game.map_builder.width", [Span(12, 25)])
-            tasks.add_bucket("game.map_builder.height", [Span(12, 25)])
+            tasks.add_bucket("game.map_builder.width", [Span(8, 16)])
+            tasks.add_bucket("game.map_builder.height", [Span(8, 16)])
 
             all_mission_tasks.append(tasks)
 
