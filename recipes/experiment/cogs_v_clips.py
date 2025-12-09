@@ -375,16 +375,17 @@ def train(
         tt.training_env.supervisor_policy_uri = bc_policy_uri
         losses = tt.trainer.losses
         bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
+        losses.ppo_critic.deferred_training_start_step = bc_total_steps
+        losses.ppo_critic.sample_enabled = False
+        losses.ppo_critic.train_forward_enabled = False
+        scheduler_run_gates = [
+            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
+        ]
 
         if bc_mode == "sliced_cloner":
             losses.sliced_scripted_cloner.enabled = True
-            losses.ppo_critic.deferred_training_start_step = bc_total_steps
             anneal_start = 0
             loss_instance_name = "sliced_scripted_cloner"
-
-            scheduler_run_gates = [
-                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
-            ]
             bc_rules = [
                 HyperUpdateRule(
                     loss_instance_name="sliced_scripted_cloner",
