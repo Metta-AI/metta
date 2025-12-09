@@ -37,7 +37,7 @@ def find_forbidden_imports(file_path: Path) -> list[ast.stmt]:
 
         for module in modules:
             if module.startswith("metta.") and not any(
-                module.startswith(allowed) for allowed in ALLOWED_METTA_PACKAGES
+                module.startswith(f"metta.{allowed}") for allowed in ALLOWED_METTA_PACKAGES
             ):
                 bad_nodes.append(node)
             if module.startswith("recipes."):
