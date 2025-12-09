@@ -83,7 +83,6 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_seed = seed
         self._supervisor_policy_spec = supervisor_policy_spec
         self._supervisor_enabled = True
-        self._agent_step_counter = 0
         self._supervisor_subset_fraction = supervisor_subset_fraction
         self._supervisor_stop_agent_step = supervisor_stop_agent_step
         self._sim: Simulation | None = None
@@ -163,7 +162,6 @@ class MettaGridPufferEnv(PufferEnv):
             self._current_seed = seed
 
         self._new_sim()
-        self._agent_step_counter = 0
         self._supervisor_enabled = True
 
         # Reset supervisor policy state between episodes to avoid accumulation
@@ -215,22 +213,11 @@ class MettaGridPufferEnv(PufferEnv):
             self._buffers.teacher_actions.fill(-1)
             return
 
-        # Keep decay schedule moving forward (agent-steps)
-        self._agent_step_counter += self.num_agents
-
         teacher_actions = self._buffers.teacher_actions
         raw_observations = self._buffers.observations
 
-        # Full-batch supervisor (matches main; no env-side decay/subset)
         subset_frac = self._supervisor_subset_fraction
         if subset_frac is not None and 0.0 < subset_frac < 1.0:
-            # Simple decay tied to stop step: keep full subset until 50% of stop, then linear to 0 at stop
-            if self._supervisor_stop_agent_step and self._supervisor_stop_agent_step > 0:
-                halfway = self._supervisor_stop_agent_step * 0.5
-                if self._agent_step_counter > halfway:
-                    progress = min(1.0, (self._agent_step_counter - halfway) / (self._supervisor_stop_agent_step - halfway))
-                    subset_frac = subset_frac * max(0.0, 1.0 - progress)
-
             mask = np.random.random(size=self.num_agents) < subset_frac
             if not mask.any():
                 teacher_actions.fill(-1)
