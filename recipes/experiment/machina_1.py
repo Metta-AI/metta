@@ -51,7 +51,8 @@ class VibeLogitBias(nn.Module):
 class ViTWithVibeBiasConfig(ViTDefaultConfig):
     """ViT default policy with vibe logits down-weighted at init."""
 
-    components: list[ComponentConfig] = list(ViTDefaultConfig.components) + [VibeLogitBiasConfig()]
+    # Need to instantiate to access Pydantic field defaults
+    components: list[ComponentConfig] = ViTDefaultConfig().components + [VibeLogitBiasConfig()]
 
 
 def train(
