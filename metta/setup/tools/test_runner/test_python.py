@@ -24,6 +24,8 @@ from metta.setup.utils import error, info
 class Package(BaseModel):
     name: str
     target: Path
+    isolated: bool = False
+    isolated_packages: list[str] = []
 
     @property
     def key(self) -> str:
@@ -43,17 +45,60 @@ PACKAGES: tuple[Package, ...] = (
     Package(name="app_backend", target=Path("app_backend/tests")),
     Package(name="common", target=Path("common/tests")),
     Package(name="codebot", target=Path("packages/codebot/tests")),
-    Package(name="cogames", target=Path("packages/cogames/tests")),
+    Package(
+        name="cogames",
+        target=Path("packages/cogames/tests"),
+        isolated=True,
+        isolated_packages=["packages/mettagrid", "packages/cogames"],
+    ),
     Package(name="gitta", target=Path("packages/gitta/tests")),
     Package(name="mettagrid", target=Path("packages/mettagrid/tests")),
     Package(name="cortex", target=Path("packages/cortex/tests")),
 )
 
 
-def _run_command(args: Sequence[str], env: dict[str, str] | None = None) -> int:
+def _run_command(args: Sequence[str], env: dict[str, str] | None = None, cwd: Path | None = None) -> int:
     info(f"→ {' '.join(args)}")
-    completed = subprocess.run(args, cwd=get_repo_root(), check=False, env={**os.environ, **(env or {})})
+    completed = subprocess.run(args, cwd=cwd or get_repo_root(), check=False, env={**os.environ, **(env or {})})
     return completed.returncode
+
+
+def _run_isolated_package(
+    package: Package,
+    test_target: str,
+    extra_args: Sequence[str],
+    env: dict[str, str] | None = None,
+) -> int:
+    root = get_repo_root()
+    with tempfile.TemporaryDirectory(prefix=f"isolated-{package.key}-") as temp_dir:
+        venv_path = Path(temp_dir) / ".venv"
+        dist_path = Path(temp_dir) / "dist"
+        dist_path.mkdir()
+
+        info(f"Creating isolated venv for {package.name}...")
+        subprocess.run(["python", "-m", "venv", str(venv_path)], check=True, cwd=root)
+
+        pip = venv_path / "bin" / "pip"
+        python = venv_path / "bin" / "python"
+
+        info(f"Building wheels for {package.name}...")
+        for pkg_path in package.isolated_packages:
+            subprocess.run(
+                [str(pip), "wheel", "--no-deps", "-w", str(dist_path), str(root / pkg_path)],
+                check=True,
+                cwd=root,
+            )
+
+        info(f"Installing wheels for {package.name}...")
+        wheels = list(dist_path.glob("*.whl"))
+        subprocess.run([str(pip), "install", *[str(w) for w in wheels]], check=True, cwd=root)
+
+        info(f"Installing test dependencies for {package.name}...")
+        subprocess.run([str(pip), "install", "pytest", "pytest-xdist"], check=True, cwd=root)
+
+        info(f"Running isolated tests for {package.name}...")
+        cmd = [str(python), "-m", "pytest", "-n", "auto", test_target, *extra_args]
+        return _run_command(cmd, env=env, cwd=root)
 
 
 def _resolve_package_targets(
@@ -107,11 +152,78 @@ class PackageResult:
     duration: float
 
 
+def _run_isolated_ci_package(
+    package: Package,
+    target: str,
+    extra_args: Sequence[str],
+    report_dir: Path,
+) -> PackageResult:
+    root = get_repo_root()
+    report_file = report_dir / f"{package.key}.json"
+    if report_file.exists():
+        report_file.unlink()
+
+    start = time.perf_counter()
+    with tempfile.TemporaryDirectory(prefix=f"isolated-{package.key}-") as temp_dir:
+        venv_path = Path(temp_dir) / ".venv"
+        dist_path = Path(temp_dir) / "dist"
+        dist_path.mkdir()
+
+        info(f"Creating isolated venv for {package.name}...")
+        subprocess.run(["python", "-m", "venv", str(venv_path)], check=True, cwd=root)
+
+        pip = venv_path / "bin" / "pip"
+        python = venv_path / "bin" / "python"
+
+        info(f"Building wheels for {package.name}...")
+        for pkg_path in package.isolated_packages:
+            subprocess.run(
+                [str(pip), "wheel", "--no-deps", "-w", str(dist_path), str(root / pkg_path)],
+                check=True,
+                cwd=root,
+            )
+
+        info(f"Installing wheels for {package.name}...")
+        wheels = list(dist_path.glob("*.whl"))
+        subprocess.run([str(pip), "install", *[str(w) for w in wheels]], check=True, cwd=root)
+
+        info(f"Installing test dependencies for {package.name}...")
+        subprocess.run(
+            [str(pip), "install", "pytest", "pytest-xdist", "pytest-json-report"],
+            check=True,
+            cwd=root,
+        )
+
+        info(f"Running isolated tests for {package.name}...")
+        cmd = [
+            str(python),
+            "-m",
+            "pytest",
+            "-n",
+            "4",
+            target,
+            "--json-report",
+            f"--json-report-file={report_file}",
+            *extra_args,
+        ]
+        returncode = _run_command(cmd, env={"DD_SERVICE": package.name}, cwd=root)
+
+    duration = time.perf_counter() - start
+    return PackageResult(
+        package=package,
+        target=target,
+        returncode=returncode,
+        report_file=report_file,
+        duration=duration,
+    )
+
+
 def _execute_ci_packages(
     packages: Sequence[Package],
     targets: Sequence[str],
     base_cmd: Sequence[str],
     report_dir: Path,
+    extra_args: Sequence[str],
 ) -> list[PackageResult]:
     index_map = {package.key: index for index, package in enumerate(packages)}
     futures = []
@@ -142,7 +254,10 @@ def _execute_ci_packages(
 
     with ThreadPoolExecutor(max_workers=len(targets)) as pool:
         for package, target in zip(packages, targets, strict=True):
-            futures.append(pool.submit(_run_ci_package, package, target, base_cmd, report_dir))
+            if package.isolated:
+                futures.append(pool.submit(_run_isolated_ci_package, package, target, extra_args, report_dir))
+            else:
+                futures.append(pool.submit(_run_ci_package, package, target, base_cmd, report_dir))
 
         for future in as_completed(futures):
             results.append(future.result())
@@ -224,7 +339,7 @@ def run(
 
         with tempfile.TemporaryDirectory(prefix="pytest-json-") as temp_dir:
             report_dir = Path(temp_dir)
-            results = _execute_ci_packages(selected, resolved_targets, base_cmd, report_dir)
+            results = _execute_ci_packages(selected, resolved_targets, base_cmd, report_dir, extra_args)
             summaries = summarize_test_results(results)
             log_results(summaries)
             report_failures(summaries)
@@ -245,5 +360,18 @@ def run(
     if changed:
         cmd.append("--testmon")
     cmd.extend(extra_args)
-    cmd.extend(resolved_targets)
-    raise typer.Exit(_run_command(cmd))
+
+    isolated_packages = [p for p in selected if p.isolated]
+    regular_packages = [p for p in selected if not p.isolated]
+    regular_targets = _collect_package_targets(regular_packages) if regular_packages else []
+
+    exit_codes: list[int] = []
+
+    if regular_targets:
+        exit_codes.append(_run_command([*cmd, *regular_targets]))
+
+    for package in isolated_packages:
+        target = str(package.target_path.relative_to(get_repo_root()))
+        exit_codes.append(_run_isolated_package(package, target, extra_args))
+
+    raise typer.Exit(max(exit_codes, default=0))
