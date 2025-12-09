@@ -357,6 +357,7 @@ def train(
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
+        evaluate_local=True,  # Enable local evals to record replays on wandb
     )
 
     tt = TrainTool(

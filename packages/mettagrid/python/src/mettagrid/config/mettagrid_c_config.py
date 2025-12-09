@@ -41,8 +41,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         game_config = GameConfig(**config_dict)
 
     # Ensure runtime object has consistent vibes.
-    game_config.actions.change_vibe.number_of_vibes = game_config.actions.change_vibe.number_of_vibes or len(VIBES)
-    game_config.vibe_names = [vibe.name for vibe in VIBES[: game_config.actions.change_vibe.number_of_vibes]]
+    # If vibe_names is already set and matches number_of_vibes, respect it (e.g., TRAINING_VIBES).
+    # Otherwise, fall back to VIBES for backward compatibility.
+    num_vibes = game_config.actions.change_vibe.number_of_vibes or len(VIBES)
+    game_config.actions.change_vibe.number_of_vibes = num_vibes
+
+    if game_config.vibe_names and len(game_config.vibe_names) == num_vibes:
+        # Use the config's vibe_names (supports custom vibe sets like TRAINING_VIBES)
+        config_vibe_names = game_config.vibe_names
+    else:
+        # Fall back to VIBES for backward compatibility
+        config_vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
+        game_config.vibe_names = config_vibe_names
 
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
@@ -52,11 +62,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     type_names_sorted = sorted(game_config.objects.keys())
     type_id_by_type_name = {name: (i + 1) for i, name in enumerate(type_names_sorted)}  # 0 reserved for agents
 
-    # Set up vibe mappings from the change_vibe action config.
+    # Set up vibe mappings from the config's vibe_names.
     # The C++ bindings expect dense uint8 identifiers, so keep a name->id lookup.
-    num_vibes = game_config.actions.change_vibe.number_of_vibes
-    supported_vibes = VIBES[:num_vibes]
-    vibe_name_to_id = {vibe.name: i for i, vibe in enumerate(supported_vibes)}
+    vibe_name_to_id = {name: i for i, name in enumerate(config_vibe_names)}
 
     objects_cpp_params = {}  # params for CppWallConfig
 
