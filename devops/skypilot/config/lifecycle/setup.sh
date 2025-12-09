@@ -1,7 +1,26 @@
 #!/usr/bin/env bash
 
 set -e
-cd /workspace/metta
+REPO_DIR="/workspace/metta"
+mkdir -p /workspace
+
+# Ensure repo exists (AMI doesn't include it by default)
+if [ ! -d "${REPO_DIR}/.git" ]; then
+  if [ -d "${REPO_DIR}" ]; then
+    echo "[SETUP] Found ${REPO_DIR} without a git repo; refusing to proceed. Please clean up the directory."
+    exit 1
+  fi
+
+  echo "[SETUP] Cloning ${GITHUB_REPOSITORY} into ${REPO_DIR}..."
+  cd /workspace
+  if [ -n "${GITHUB_PAT:-}" ]; then
+    git clone "https://${GITHUB_PAT}@github.com/${GITHUB_REPOSITORY}.git" metta
+  else
+    git clone "https://github.com/${GITHUB_REPOSITORY}.git" metta
+  fi
+fi
+
+cd "${REPO_DIR}"
 
 git config advice.detachedHead false
 
