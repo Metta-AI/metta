@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Install system dependencies (minimal)
 RUN apt-get update && apt-get install -y \
@@ -27,8 +27,9 @@ RUN pip install --no-cache-dir \
 # These are needed for datadog_client.py imports and stable_suite integration
 # Install main metta package (contains metta.jobs, metta.common)
 # Install mettagrid (required by metta.jobs.job_config)
+# Install cortex (provides cortexcore dependency)
 # Install common and softmax packages
-RUN pip install --no-cache-dir -e . -e ./common -e ./softmax -e ./packages/mettagrid || \
+RUN pip install --no-cache-dir -e . -e ./common -e ./softmax -e ./packages/mettagrid -e ./packages/cortex || \
     (echo "Warning: Could not install workspace packages, ensure PYTHONPATH includes /app" && \
      echo "Continuing anyway - imports may fail at runtime")
 
