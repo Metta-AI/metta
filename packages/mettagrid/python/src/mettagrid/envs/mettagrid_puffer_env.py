@@ -81,6 +81,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_seed = seed
         self._supervisor_policy_spec = supervisor_policy_spec
         self._supervisor_enabled = True
+        self._agent_step_counter = 0
         self._sim: Simulation | None = None
 
         # Initialize shared buffers FIRST (before super().__init__)
