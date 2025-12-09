@@ -62,8 +62,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.num_tasks = num_tasks
         self.hypers: LearningProgressConfig = hypers
 
+        # Initialize task tracker (moved from modules to curriculum folder)
         self.task_tracker = TaskTracker(max_memory_tasks=hypers.max_memory_tasks)
 
+        # Note: slice_analyzer is already initialized in parent class via StatsLogger
+
+        # Initialize shared caches (used by both scoring methods)
         self._score_cache: Dict[int, float] = {}
         self._cache_valid_tasks: set[int] = set()
 
@@ -71,6 +75,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._stats_cache: Dict[str, Any] = {}
         self._stats_cache_valid = False
 
+        # Initialize scoring method (bidirectional by default)
         if hypers.use_bidirectional:
             self._init_bidirectional_scoring()
         else:
