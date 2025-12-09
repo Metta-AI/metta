@@ -148,9 +148,21 @@ def _ci_workflows() -> List[WorkflowDefinition]:
     ]
 
     return [
-        WorkflowDefinition(name="latest_state_of_main", display_name="Latest state of main", metrics=latest_state_metrics),
-        WorkflowDefinition(name="commit_history", display_name="Commit history", metrics=commit_history_metrics),
-        WorkflowDefinition(name="ci_smoothness", display_name="CI smoothness", metrics=ci_smoothness_metrics),
+        WorkflowDefinition(
+            name="latest_state_of_main",
+            display_name="Latest state of main",
+            metrics=latest_state_metrics,
+        ),
+        WorkflowDefinition(
+            name="commit_history",
+            display_name="Commit history",
+            metrics=commit_history_metrics,
+        ),
+        WorkflowDefinition(
+            name="ci_smoothness",
+            display_name="CI smoothness",
+            metrics=ci_smoothness_metrics,
+        ),
     ]
 
 
