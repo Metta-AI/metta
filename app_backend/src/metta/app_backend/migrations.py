@@ -157,6 +157,64 @@ MIGRATIONS = [
             """CREATE INDEX idx_job_requests_created ON job_requests (created_at DESC)""",
             """CREATE INDEX idx_job_requests_status ON job_requests (status)""",
             """CREATE INDEX idx_job_requests_user_id ON job_requests (user_id)""",
+    ),
+    SqlMigration(
+        version=4,
+        description="Add tournament tables: seasons, pools, pool_players, matches, match_players",
+        sql_statements=[
+            """CREATE TABLE seasons (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                name TEXT NOT NULL UNIQUE,
+                commissioner_class TEXT NOT NULL,
+                scorer_class TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                attributes JSONB DEFAULT '{}'::jsonb
+            )""",
+            """CREATE TABLE pools (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                season_id UUID REFERENCES seasons(id) ON DELETE CASCADE,
+                name TEXT,
+                referee_class TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                attributes JSONB DEFAULT '{}'::jsonb
+            )""",
+            """CREATE INDEX idx_pools_season_id ON pools(season_id)""",
+            """CREATE TABLE pool_players (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                policy_version_id UUID NOT NULL REFERENCES policy_versions(id) ON DELETE CASCADE,
+                pool_id UUID NOT NULL REFERENCES pools(id) ON DELETE CASCADE,
+                added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                removed_at TIMESTAMP,
+                retired BOOLEAN NOT NULL DEFAULT FALSE,
+                attributes JSONB DEFAULT '{}'::jsonb,
+                UNIQUE (policy_version_id, pool_id)
+            )""",
+            """CREATE INDEX idx_pool_players_pool_id ON pool_players(pool_id)""",
+            """CREATE INDEX idx_pool_players_policy_version_id ON pool_players(policy_version_id)""",
+            """CREATE TABLE matches (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                pool_id UUID NOT NULL REFERENCES pools(id) ON DELETE CASCADE,
+                environment_config JSONB NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                started_at TIMESTAMP,
+                finished_at TIMESTAMP,
+                result JSONB,
+                attributes JSONB DEFAULT '{}'::jsonb
+            )""",
+            """CREATE INDEX idx_matches_pool_id ON matches(pool_id)""",
+            """CREATE INDEX idx_matches_status ON matches(status)""",
+            """CREATE TABLE match_players (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+                policy_version_id UUID NOT NULL REFERENCES policy_versions(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL,
+                score FLOAT,
+                attributes JSONB DEFAULT '{}'::jsonb,
+                UNIQUE (match_id, position)
+            )""",
+            """CREATE INDEX idx_match_players_match_id ON match_players(match_id)""",
+            """CREATE INDEX idx_match_players_policy_version_id ON match_players(policy_version_id)""",
         ],
     ),
 ]
