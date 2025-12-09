@@ -21,7 +21,6 @@ from recipes.experiment.cogs_v_clips import (
     train_single_mission,
 )
 
-
 TRAINING_VIBE_NAMES: list[str] = [vibe.name for vibe in vibes.TRAINING_VIBES]
 
 
