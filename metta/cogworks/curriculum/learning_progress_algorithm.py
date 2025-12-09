@@ -422,20 +422,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             "mean_learning_progress": mean_learning_progress,
         }
 
-        if self._task_dist is not None and len(self._task_dist) > 0:
-            stats.update(
-                {
-                    "mean_sample_prob": float(np.mean(self._task_dist)),
-                    "num_zeros_lp_dist": float(np.sum(self._task_dist == 0)),
-                }
-            )
-        else:
-            stats.update(
-                {
-                    "mean_sample_prob": 0.0,
-                    "num_zeros_lp_dist": 0.0,
-                }
-            )
+        has_dist = self._task_dist is not None and len(self._task_dist) > 0
+        stats.update(
+            {
+                "mean_sample_prob": float(np.mean(self._task_dist)) if has_dist else 0.0,
+                "num_zeros_lp_dist": float(np.sum(self._task_dist == 0)) if has_dist else 0.0,
+            }
+        )
 
         return stats
 

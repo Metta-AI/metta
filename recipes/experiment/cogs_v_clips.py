@@ -40,10 +40,26 @@ logger = logging.getLogger(__name__)
 
 # Single canonical curriculum list (fixed + procedural)
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    "easy_hearts",
-    "oxygen_bottleneck",
-    "energy_starved",
-    # "machina_1.open_world",
+    # Core hello_world missions
+    "hello_world.easy_hearts",
+    "hello_world.oxygen_bottleneck",
+    "hello_world.energy_starved",
+    "hello_world.distant_resources",
+    "hello_world.quadrant_buildings",
+    "hello_world.single_use_swarm",
+    "hello_world.vibe_check",
+    # Training facility curriculum
+    "training_facility.harvest",
+    "training_facility.vibe_check",
+    "training_facility.repair",
+    "training_facility.easy_hearts_training_facility",
+    # Additional fixed/procedural maps
+    "hello_world.hello_world_unclip",
+    "hello_world.open_world",
+    "hello_world.easy_hearts_hello_world",
+    # Machina maps
+    "machina_1.open_world",
+    "machina_1.balanced_corners",
 ]
 
 COORDINATION_MISSIONS: list[str] = [
