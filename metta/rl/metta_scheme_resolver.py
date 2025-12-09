@@ -5,7 +5,7 @@ import uuid
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
-from metta.tools.utils.auto_config import auto_stats_server_uri
+from metta.common.util.constants import PROD_STATS_SERVER_URI
 from mettagrid.util.uri_resolvers.base import SchemeResolver
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
@@ -58,7 +58,7 @@ class MettaSchemeResolver(SchemeResolver):
     """
 
     def __init__(self, stats_server_uri: str | None = None):
-        self._stats_server_uri = stats_server_uri or auto_stats_server_uri()
+        self._stats_server_uri = stats_server_uri or PROD_STATS_SERVER_URI
 
     @property
     def scheme(self) -> str:
