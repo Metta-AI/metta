@@ -823,7 +823,34 @@ def validate_policy_cmd(
         ...,
         help=f"Policy specification: {policy_arg_example}",
     ),
+    setup_script: Optional[str] = typer.Option(
+        None,
+        "--setup-script",
+        help="Path to a Python setup script to run before loading the policy",
+    ),
 ) -> None:
+    if setup_script:
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        script_path = Path(setup_script)
+        if not script_path.exists():
+            console.print(f"[red]Setup script not found: {setup_script}[/red]")
+            raise typer.Exit(1)
+        console.print(f"[yellow]Running setup script: {setup_script}[/yellow]")
+        result = subprocess.run(
+            [sys.executable, str(script_path)],
+            cwd=Path.cwd(),
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if result.returncode != 0:
+            console.print(f"[red]Setup script failed:[/red]\n{result.stderr}")
+            raise typer.Exit(1)
+        console.print("[green]Setup script completed[/green]")
+
     policy_spec = get_policy_spec(ctx, policy)
     validate_policy_spec(policy_spec)
     console.print("[green]Policy validated successfully[/green]")

@@ -132,6 +132,7 @@ def validate_policy_in_isolation(
     policy_spec: PolicySpec,
     include_files: list[Path],
     console: Console,
+    setup_script: str | None = None,
 ) -> bool:
     """Validate policy works in isolated environment.
 
@@ -186,15 +187,17 @@ def validate_policy_in_isolation(
         result = _run_from_tmp_dir(["uv", "run", "cogames", "version"])
         console.print(f"[dim]Cogames version: {result.stdout.strip()}[/dim]")
 
-        result = _run_from_tmp_dir(
-            [
-                "uv",
-                "run",
-                "cogames",
-                "validate-policy",
-                policy_arg,
-            ]
-        )
+        validate_cmd = [
+            "uv",
+            "run",
+            "cogames",
+            "validate-policy",
+            policy_arg,
+        ]
+        if setup_script:
+            validate_cmd.extend(["--setup-script", setup_script])
+
+        result = _run_from_tmp_dir(validate_cmd)
 
         console.print(f"[dim]Validation result: {result.stdout.strip()}[/dim]")
 
@@ -487,7 +490,7 @@ def submit_command(
 
     # Validate policy in isolated environment (unless skipped)
     if not skip_validation:
-        if not validate_policy_in_isolation(policy_spec, validated_paths, console):
+        if not validate_policy_in_isolation(policy_spec, validated_paths, console, setup_script=setup_script):
             console.print("\n[red]Submission aborted due to validation failure.[/red]")
             return
     else:
