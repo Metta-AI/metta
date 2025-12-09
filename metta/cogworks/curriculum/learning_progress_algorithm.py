@@ -73,15 +73,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._score_cache: Dict[int, float] = {}
         self._cache_valid_tasks: set[int] = set()
 
-        # Cache for expensive statistics computation
-        self._stats_cache: Dict[str, Any] = {}
-        self._stats_cache_valid = False
-
         # Initialize scoring method (bidirectional by default)
         if hypers.use_bidirectional:
             self._init_bidirectional_scoring()
         else:
             self._init_basic_scoring()
+
+        # Cache for expensive statistics computation
+        self._stats_cache: Dict[str, Any] = {}
+        self._stats_cache_valid = False
 
     def _normalized_success(self, score: float) -> float:
         clamped = max(0.0, min(1.0, score))
@@ -182,6 +182,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks with per-task LP, then sigmoid + normalize per call."""
+
         if not task_ids:
             return {}
 
@@ -191,13 +192,18 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using basic EMA variance method."""
-        return {task_id: self._get_basic_learning_progress_score(task_id) for task_id in task_ids}
+        scores = {}
+        for task_id in task_ids:
+            scores[task_id] = self._get_basic_learning_progress_score(task_id)
+        return scores
 
     def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
         """Calculate bidirectional learning progress score for a task."""
+        # Return cached score if valid
         if task_id in self._cache_valid_tasks and task_id in self._score_cache:
             return self._score_cache[task_id]
 
+        # Check if we have enough data points (use outcomes length, not counter, since outcomes can be trimmed)
         if task_id not in self._per_task_fast or task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
             score = self.hypers.exploration_bonus
         else:
@@ -211,6 +217,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _get_basic_learning_progress_score(self, task_id: int) -> float:
         """Calculate basic learning progress score using EMA variance."""
+        # Return cached score if valid
         if task_id in self._cache_valid_tasks and task_id in self._score_cache:
             return self._score_cache[task_id]
 
@@ -219,8 +226,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             score = self.hypers.exploration_bonus
         else:
             ema_score, ema_squared, num_samples = self._task_emas[task_id]
+            # Calculate variance from EMA
             variance = max(0.0, ema_squared - ema_score * ema_score)
+            # Learning progress is approximated by variance in performance
             learning_progress = np.sqrt(variance)
+            # Add exploration bonus for tasks with few samples
             if num_samples < 10:
                 learning_progress += self.hypers.exploration_bonus * (10 - num_samples) / 10
             score = learning_progress
