@@ -9,6 +9,7 @@ This replaces both variants_curriculum.py and full_curriculum.py.
 
 from __future__ import annotations
 
+import subprocess
 import time
 from typing import NamedTuple, Optional, Sequence
 
@@ -73,7 +74,6 @@ S3_SUCCESFUL_VARIANTS = [
     "clipped_oxygen",
     "clipped_silicon",
     "clipping_chaos",
-    "cog_tools_only",
     "compass",
     "cyclical_unclip",
     "dark_side",
@@ -721,7 +721,7 @@ def experiment(
 
     print(f"Command: {' '.join(cmd)}")
 
-    # subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True)
     print(f"✓ Successfully launched job: {run_name}")
 
 
