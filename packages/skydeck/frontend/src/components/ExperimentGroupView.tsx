@@ -34,23 +34,6 @@ interface ExperimentGroupViewProps {
 }
 
 // Utility functions
-function abbreviateStatus(status: string): string {
-  const statusMap: Record<string, string> = {
-    running: 'R',
-    stopped: 'S',
-    pending: 'P',
-    starting: 'P',   // Pending (starting up)
-    failed: 'F',
-    succeeded: 'D',  // Done
-    init: 'S',       // Stopped
-    terminated: 'T',
-    cancelled: 'S',  // Stopped
-    unknown: '?',
-  };
-  const lower = status.toLowerCase();
-  return statusMap[lower] || status.charAt(0).toUpperCase();
-}
-
 function formatLargeNumber(value: number): string {
   const absValue = Math.abs(value);
   if (absValue >= 1_000_000_000) {
@@ -235,13 +218,14 @@ function StateTransition({ current, desired, experimentId, onSetDesiredState }: 
     );
   }
 
-  const currentAbbrev = abbreviateStatus(currentLower);
-  const desiredAbbrev = abbreviateStatus(desiredLower);
+  // Use full status text with smaller font
+  const currentText = currentLower;
+  const desiredText = desiredLower;
 
   if (currentLower === desiredLower) {
     return (
       <span onClick={handleClick} style={{ cursor: 'pointer' }}>
-        <span className={`status-badge ${currentLower}`} title={current}>{currentAbbrev}</span>
+        <span className={`status-badge ${currentLower}`} style={{ fontSize: '10px' }} title={current}>{currentText}</span>
       </span>
     );
   }
@@ -249,16 +233,16 @@ function StateTransition({ current, desired, experimentId, onSetDesiredState }: 
   if (currentLower === 'failed' && desiredLower === 'stopped') {
     return (
       <span onClick={handleClick} style={{ cursor: 'pointer' }}>
-        <span className={`status-badge ${currentLower}`} title={current}>{currentAbbrev}</span>
+        <span className={`status-badge ${currentLower}`} style={{ fontSize: '10px' }} title={current}>{currentText}</span>
       </span>
     );
   }
 
   return (
     <span onClick={handleClick} style={{ cursor: 'pointer' }}>
-      <span className={`status-badge ${currentLower}`} title={current}>{currentAbbrev}</span>
+      <span className={`status-badge ${currentLower}`} style={{ fontSize: '10px' }} title={current}>{currentText}</span>
       {' → '}
-      <span className={`status-badge ${desiredLower}`} title={desired}>{desiredAbbrev}</span>
+      <span className={`status-badge ${desiredLower}`} style={{ fontSize: '10px' }} title={desired}>{desiredText}</span>
     </span>
   );
 }
@@ -304,6 +288,8 @@ export function ExperimentGroupView({
   const [flagDefinitions, setFlagDefinitions] = useState<Array<{ flag: string; type: string; default: unknown; required: boolean }>>([]);
   const [editingResource, setEditingResource] = useState<'nodes' | 'gpus' | null>(null);
   const [editedResourceValue, setEditedResourceValue] = useState<string>('');
+  const [isEditingNamePrefix, setIsEditingNamePrefix] = useState(false);
+  const [editedNamePrefix, setEditedNamePrefix] = useState<string>('');
   const [isEditingToolPath, setIsEditingToolPath] = useState(false);
   const [editedToolPath, setEditedToolPath] = useState<string>('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -424,6 +410,22 @@ export function ExperimentGroupView({
       showNotification('Error updating tool_path', 'error');
     }
   }, [experiments, apiCall, showNotification, onRefreshData]);
+
+  // Update group name_prefix
+  const updateGroupNamePrefix = useCallback(async (value: string) => {
+    if (!group) return;
+    try {
+      await apiCall(`/groups/${group.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name_prefix: value || null }),
+      });
+      showNotification(`Updated name prefix for group`, 'success');
+      onRefreshData();
+    } catch (error) {
+      console.error('Error updating name prefix:', error);
+      showNotification('Error updating name prefix', 'error');
+    }
+  }, [group, apiCall, showNotification, onRefreshData]);
 
   // Delete a flag from all experiments in the group
   const deleteFlagForAll = useCallback(async (flagKey: string) => {
@@ -790,7 +792,109 @@ export function ExperimentGroupView({
         {/* Common flags display - editable */}
         {(Object.keys(commonFlags).length > 0 || commonNodes !== null || commonGpus !== null || commonToolPath !== null || !isUngrouped) && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginLeft: '8px', alignItems: 'center' }}>
-            {/* Tool path first - editable */}
+            {/* Name prefix - editable */}
+            {!isUngrouped && group && (
+              isEditingNamePrefix ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 8px',
+                    backgroundColor: '#fff',
+                    border: '1px solid #ff9800',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={editedNamePrefix}
+                    onChange={e => setEditedNamePrefix(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        updateGroupNamePrefix(editedNamePrefix);
+                        setIsEditingNamePrefix(false);
+                        setEditedNamePrefix('');
+                      }
+                      if (e.key === 'Escape') { setIsEditingNamePrefix(false); setEditedNamePrefix(''); }
+                    }}
+                    autoFocus
+                    placeholder="name prefix"
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      width: '150px',
+                      fontSize: '11px',
+                      fontFamily: 'monospace',
+                      padding: '2px 4px',
+                      backgroundColor: '#f5f5f5',
+                      borderRadius: '2px',
+                    }}
+                  />
+                  <span
+                    onClick={() => {
+                      updateGroupNamePrefix(editedNamePrefix);
+                      setIsEditingNamePrefix(false);
+                      setEditedNamePrefix('');
+                    }}
+                    style={{ cursor: 'pointer', color: '#4CAF50', fontWeight: 'bold', padding: '0 2px' }}
+                    title="Save"
+                  >
+                    ✓
+                  </span>
+                  <span
+                    onClick={() => { setIsEditingNamePrefix(false); setEditedNamePrefix(''); }}
+                    style={{ cursor: 'pointer', color: '#999', padding: '0 2px' }}
+                    title="Cancel"
+                  >
+                    ✕
+                  </span>
+                </span>
+              ) : group.name_prefix ? (
+                <span
+                  onClick={() => { setIsEditingNamePrefix(true); setEditedNamePrefix(group.name_prefix || ''); }}
+                  style={{
+                    display: 'inline-block',
+                    padding: '6px 10px',
+                    backgroundColor: '#fff3e0',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontFamily: 'monospace',
+                    color: '#e65100',
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#ffe0b2')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#fff3e0')}
+                  title="Click to edit name prefix"
+                >
+                  prefix: {group.name_prefix}
+                </span>
+              ) : (
+                <span
+                  onClick={() => { setIsEditingNamePrefix(true); setEditedNamePrefix(''); }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '6px 10px',
+                    backgroundColor: '#fff3e0',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    color: '#ff9800',
+                    cursor: 'pointer',
+                    fontStyle: 'italic',
+                  }}
+                  title="Add name prefix"
+                >
+                  + prefix
+                </span>
+              )
+            )}
+            {/* Tool path - editable */}
             {commonToolPath !== null && !isUngrouped && (
               isEditingToolPath ? (
                 <span

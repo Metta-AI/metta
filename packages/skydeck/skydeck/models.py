@@ -71,6 +71,31 @@ class Job(BaseModel):
         return self.status in {JobStatus.PENDING, JobStatus.STARTING, JobStatus.RUNNING}
 
 
+class OperationType(str, Enum):
+    """Type of operation performed."""
+
+    START = "START"  # Started an experiment
+    STOP = "STOP"  # Stopped an experiment
+    CANCEL = "CANCEL"  # Canceled a job
+    DELETE = "DELETE"  # Deleted an experiment
+    CREATE = "CREATE"  # Created an experiment
+
+
+class OperationLog(BaseModel):
+    """Log entry for operations performed on experiments/jobs."""
+
+    id: Optional[int] = Field(None, description="Auto-generated log ID")
+    timestamp: datetime = Field(..., description="When the operation occurred")
+    operation_type: OperationType = Field(..., description="Type of operation")
+    experiment_id: Optional[int] = Field(None, description="Experiment ID (if applicable)")
+    experiment_name: Optional[str] = Field(None, description="Experiment name for display")
+    job_id: Optional[str] = Field(None, description="Job ID (if applicable)")
+    success: bool = Field(True, description="Whether the operation succeeded")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    output: Optional[str] = Field(None, description="Command output (stdout/stderr)")
+    user: Optional[str] = Field(None, description="User who performed the operation")
+
+
 class Experiment(BaseModel):
     """Configuration template that spawns jobs.
 
@@ -241,6 +266,7 @@ class ExperimentGroup(BaseModel):
 
     id: str = Field(..., description="Unique group ID")
     name: str = Field(..., description="Display name for the group")
+    name_prefix: Optional[str] = Field(None, description="Prefix to prepend to experiment names in this group")
     flags: list[str] = Field(default_factory=list, description="Flag columns to display for this group")
     order: int = Field(0, description="Display order of the group")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="When group was created")
@@ -263,6 +289,7 @@ class CreateGroupRequest(BaseModel):
     """Request to create a new experiment group."""
 
     name: str
+    name_prefix: Optional[str] = None
     flags: list[str] = Field(default_factory=list)
 
 
@@ -270,6 +297,7 @@ class UpdateGroupRequest(BaseModel):
     """Request to update a group."""
 
     name: Optional[str] = None
+    name_prefix: Optional[str] = None
     flags: Optional[list[str]] = None
     order: Optional[int] = None
     collapsed: Optional[bool] = None

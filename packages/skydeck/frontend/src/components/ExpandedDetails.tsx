@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Experiment, Checkpoint, Job } from '../types';
+import type { Experiment, Checkpoint, Job, HealthData } from '../types';
 import { useApi } from '../hooks/useApi';
 import { useNotifications } from '../hooks/useNotifications';
 import { ScrollPanel } from './ScrollPanel';
@@ -8,6 +8,7 @@ interface ExpandedDetailsProps {
   experiment: Experiment;
   onSetEditingConfig: (id: string, editing: boolean) => void;
   onRefreshData: () => void;
+  health?: HealthData | null;
 }
 
 function abbreviateStatus(status: string): string {
@@ -27,15 +28,21 @@ function abbreviateStatus(status: string): string {
   return statusMap[lower] || status.charAt(0).toUpperCase();
 }
 
-function formatDuration(startedAt: string | null): string {
+function formatDuration(startedAt: string | null, endedAt: string | null): string {
   if (!startedAt) return '-';
   const start = new Date(startedAt);
-  const now = new Date();
-  const diffMs = now.getTime() - start.getTime();
+  // Use ended_at if available (completed jobs), otherwise use now (running jobs)
+  const end = endedAt ? new Date(endedAt) : new Date();
+  const diffMs = end.getTime() - start.getTime();
+
+  if (diffMs < 0) return '-';
+
   const hours = Math.floor(diffMs / 3600000);
   const mins = Math.floor((diffMs % 3600000) / 60000);
+
   if (hours > 0) return `${hours}h ${mins}m`;
-  return `${mins}m`;
+  if (mins > 0) return `${mins}m`;
+  return '<1m';
 }
 
 function formatAge(timestamp: string | null): string {
@@ -54,6 +61,19 @@ function formatAge(timestamp: string | null): string {
 
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+function formatStaleness(seconds: number | null): string | null {
+  if (seconds === null || seconds <= 30) return null;
+
+  const mins = Math.floor(seconds / 60);
+  if (mins < 60) return `${mins}m`;
+
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
 }
 
 function buildCommand(exp: Experiment): string {
@@ -79,7 +99,7 @@ function buildCommand(exp: Experiment): string {
   return parts.join(' ');
 }
 
-export function ExpandedDetails({ experiment, onSetEditingConfig, onRefreshData }: ExpandedDetailsProps) {
+export function ExpandedDetails({ experiment, onSetEditingConfig, onRefreshData, health }: ExpandedDetailsProps) {
   const { apiCall } = useApi();
   const { showNotification } = useNotifications();
 
@@ -484,7 +504,14 @@ export function ExpandedDetails({ experiment, onSetEditingConfig, onRefreshData 
 
         {/* Jobs Panel */}
         <div className="detail-section" style={{ width: 'auto', flexShrink: 0 }}>
-          <h3>Jobs</h3>
+          <h3>
+            Jobs
+            {health?.skypilot && formatStaleness(health.skypilot.staleness_seconds) && (
+              <span style={{ marginLeft: '8px', fontSize: '11px', color: '#999', fontWeight: 'normal' }}>
+                (stale: {formatStaleness(health.skypilot.staleness_seconds)})
+              </span>
+            )}
+          </h3>
           <ScrollPanel deps={[jobs]} maxHeight={300}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
               <thead>
@@ -515,7 +542,7 @@ export function ExpandedDetails({ experiment, onSetEditingConfig, onRefreshData 
                         {formatAge(job.started_at || job.created_at)}
                       </td>
                       <td style={{ padding: '4px 6px', fontSize: '11px', borderBottom: '1px solid #eee', color: '#666' }}>
-                        {formatDuration(job.started_at)}
+                        {formatDuration(job.started_at, job.ended_at)}
                       </td>
                       <td style={{ padding: '4px 6px', fontSize: '11px', borderBottom: '1px solid #eee' }}>
                         <a href={`https://skypilot-api.softmax-research.net/dashboard/jobs/${job.id}`} target="_blank" className="wandb-link" rel="noreferrer">sky</a>
@@ -535,7 +562,14 @@ export function ExpandedDetails({ experiment, onSetEditingConfig, onRefreshData 
 
         {/* Checkpoints Panel */}
         <div className="detail-section" style={{ flexShrink: 0 }}>
-          <h3>Checkpoints</h3>
+          <h3>
+            Checkpoints
+            {health?.s3 && formatStaleness(health.s3.staleness_seconds) && (
+              <span style={{ marginLeft: '8px', fontSize: '11px', color: '#999', fontWeight: 'normal' }}>
+                (stale: {formatStaleness(health.s3.staleness_seconds)})
+              </span>
+            )}
+          </h3>
           <ScrollPanel deps={[checkpoints]} maxHeight={300}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
               <thead>
@@ -551,7 +585,7 @@ export function ExpandedDetails({ experiment, onSetEditingConfig, onRefreshData 
                 {checkpoints.map(cp => (
                   <tr key={`${cp.epoch}-${cp.created_at}`}>
                     <td style={{ padding: '4px 6px', borderBottom: '1px solid #eee' }}>{cp.epoch}</td>
-                    <td style={{ padding: '4px 6px', borderBottom: '1px solid #eee', color: '#666' }}>{formatDuration(cp.created_at)}</td>
+                    <td style={{ padding: '4px 6px', borderBottom: '1px solid #eee', color: '#666' }}>{formatAge(cp.created_at)}</td>
                     <td style={{ padding: '4px 6px', borderBottom: '1px solid #eee', color: '#666' }}>{cp.policy_version || '-'}</td>
                     <td style={{ padding: '4px 6px', borderBottom: '1px solid #eee' }}>
                       {cp.model_path && (

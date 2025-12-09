@@ -8,6 +8,7 @@ import { ExperimentGroupView } from './components/ExperimentGroupView';
 import { ExpandedDetails } from './components/ExpandedDetails';
 import { JobsTable } from './components/JobsTable';
 import { Notifications } from './components/Notifications';
+import { OperationsLogPanel } from './components/OperationsLogPanel';
 import './App.css';
 
 const MY_USER_ID = 'daveey';
@@ -26,6 +27,7 @@ function AppContent() {
   const [expandedExperiments, setExpandedExperiments] = useState<Set<string>>(new Set());
   const [selectedExperiments, setSelectedExperiments] = useState<Set<string>>(new Set());
   const [editingConfigs, setEditingConfigs] = useState<Set<string>>(new Set());
+  const [isOperationsLogOpen, setIsOperationsLogOpen] = useState(false);
 
   // Jobs filters
   const [showStoppedJobs, setShowStoppedJobs] = useState(false);
@@ -616,6 +618,7 @@ function AppContent() {
           });
         }}
         onRefreshData={loadData}
+        health={health}
       />
     ),
   };
@@ -624,6 +627,26 @@ function AppContent() {
     <div className="container">
       <header>
         <div className="header-right">
+          <button
+            onClick={() => setIsOperationsLogOpen(true)}
+            style={{
+              padding: '6px 12px',
+              marginRight: '12px',
+              backgroundColor: '#2196F3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'background-color 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#1976D2')}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#2196F3')}
+            title="View operations log"
+          >
+            Operations Log
+          </button>
           <HealthStatus health={health} backendStaleness={backendStaleness} />
         </div>
       </header>
@@ -677,6 +700,11 @@ function AppContent() {
       </section>
 
       <Notifications />
+
+      <OperationsLogPanel
+        isOpen={isOperationsLogOpen}
+        onClose={() => setIsOperationsLogOpen(false)}
+      />
     </div>
   );
 }

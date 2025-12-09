@@ -52,6 +52,7 @@ export interface Checkpoint {
 export interface ExperimentGroup {
   id: string;
   name: string;
+  name_prefix: string | null;
   flags: string[];  // Flag columns to display
   order: number;
   collapsed: boolean;
@@ -76,4 +77,17 @@ export interface NotificationData {
   message: string;
   type: 'info' | 'success' | 'error' | 'warning';
   undoCallback?: () => void;
+}
+
+export interface OperationLog {
+  id: number;
+  timestamp: string;
+  operation_type: 'START' | 'STOP' | 'CANCEL' | 'DELETE' | 'CREATE';
+  experiment_id: number | null;
+  experiment_name: string | null;
+  job_id: string | null;
+  success: boolean;
+  error_message: string | null;
+  output: string | null;
+  user: string | null;
 }

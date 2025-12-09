@@ -166,12 +166,28 @@ class Database:
                 FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS operation_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                operation_type TEXT NOT NULL,
+                experiment_id INTEGER,
+                experiment_name TEXT,
+                job_id TEXT,
+                success INTEGER NOT NULL DEFAULT 1,
+                error_message TEXT,
+                output TEXT,
+                user TEXT,
+                FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE SET NULL
+            );
+
             -- Create indexes
             CREATE INDEX IF NOT EXISTS idx_jobs_experiment_id ON jobs(experiment_id);
             CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
             CREATE INDEX IF NOT EXISTS idx_experiments_desired_state ON experiments(desired_state);
             CREATE INDEX IF NOT EXISTS idx_checkpoints_experiment_id ON checkpoints(experiment_id);
             CREATE INDEX IF NOT EXISTS idx_group_members_experiment ON experiment_group_members(experiment_id);
+            CREATE INDEX IF NOT EXISTS idx_operation_logs_timestamp ON operation_logs(timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_operation_logs_experiment_id ON operation_logs(experiment_id);
             """
         )
         await self._conn.commit()
@@ -401,6 +417,15 @@ class Database:
             await self._conn.commit()
 
             logger.info(f"Migration complete. Migrated {len(id_map)} experiments to INTEGER ids.")
+
+        # Migration: Add name_prefix column to experiment_groups table if it doesn't exist
+        cursor = await self._conn.execute("PRAGMA table_info(experiment_groups)")
+        columns = await cursor.fetchall()
+        group_columns = [col[1] for col in columns]
+
+        if "name_prefix" not in group_columns:
+            await self._conn.execute("ALTER TABLE experiment_groups ADD COLUMN name_prefix TEXT")
+            await self._conn.commit()
 
     # Experiment operations
 
@@ -980,6 +1005,63 @@ class Database:
             policy_version_id=row["policy_version_id"] if "policy_version_id" in row.keys() else None,
         )
 
+    # Operation log methods
+
+    async def save_operation_log(self, log: "OperationLog"):
+        """Save an operation log entry."""
+
+        await self._conn.execute(
+            """
+            INSERT INTO operation_logs (
+                timestamp, operation_type, experiment_id, experiment_name,
+                job_id, success, error_message, output, user
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                log.timestamp.isoformat(),
+                log.operation_type.value,
+                log.experiment_id,
+                log.experiment_name,
+                log.job_id,
+                1 if log.success else 0,
+                log.error_message,
+                log.output,
+                log.user,
+            ),
+        )
+        await self._conn.commit()
+
+    async def get_operation_logs(self, limit: int = 100) -> list["OperationLog"]:
+        """Get recent operation logs."""
+
+        cursor = await self._conn.execute(
+            """
+            SELECT * FROM operation_logs
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_operation_log(row) for row in rows]
+
+    def _row_to_operation_log(self, row) -> "OperationLog":
+        """Convert database row to OperationLog object."""
+        from .models import OperationLog, OperationType
+
+        return OperationLog(
+            id=row["id"],
+            timestamp=datetime.fromisoformat(row["timestamp"]),
+            operation_type=OperationType(row["operation_type"]),
+            experiment_id=row["experiment_id"],
+            experiment_name=row["experiment_name"],
+            job_id=row["job_id"],
+            success=bool(row["success"]),
+            error_message=row["error_message"],
+            output=row["output"] if "output" in row.keys() else None,
+            user=row["user"],
+        )
+
     # Experiment group methods
 
     async def save_group(self, group: ExperimentGroup):
@@ -987,12 +1069,13 @@ class Database:
         await self._conn.execute(
             """
             INSERT OR REPLACE INTO experiment_groups (
-                id, name, flags, group_order, collapsed, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                id, name, name_prefix, flags, group_order, collapsed, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 group.id,
                 group.name,
+                group.name_prefix,
                 json.dumps(group.flags),
                 group.order,
                 1 if group.collapsed else 0,
@@ -1033,9 +1116,17 @@ class Database:
 
     def _row_to_group(self, row) -> ExperimentGroup:
         """Convert database row to ExperimentGroup object."""
+        # Handle name_prefix field which may not exist in older databases
+        name_prefix = None
+        try:
+            name_prefix = row["name_prefix"]
+        except (KeyError, IndexError):
+            pass
+
         return ExperimentGroup(
             id=row["id"],
             name=row["name"],
+            name_prefix=name_prefix,
             flags=json.loads(row["flags"]),
             order=row["group_order"],
             collapsed=bool(row["collapsed"]),

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import re
 from datetime import datetime
 from typing import Optional
@@ -124,6 +125,9 @@ class Syncer:
 
         try:
             # Run aws s3 ls to list checkpoints
+            # Explicitly pass environment variables to ensure AWS credentials are available
+            env = os.environ.copy()
+
             process = await asyncio.create_subprocess_exec(
                 "aws",
                 "s3",
@@ -131,6 +135,7 @@ class Syncer:
                 s3_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=env,
             )
             stdout, stderr = await process.communicate()
 

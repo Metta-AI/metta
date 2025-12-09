@@ -301,8 +301,8 @@ async def launch_experiment(experiment):
         command = experiment.build_command()
 
         # Replace 'lt' with './devops/skypilot/launch.py' and add --skip-git-check
-        if command.startswith('lt '):
-            command = './devops/skypilot/launch.py --skip-git-check ' + command[3:]
+        if command.startswith("lt "):
+            command = "./devops/skypilot/launch.py --skip-git-check " + command[3:]
 
         logger.info(f"Launching experiment {experiment.name} with command: {command}")
 
@@ -316,7 +316,7 @@ async def launch_experiment(experiment):
                 cwd=os.path.expanduser("~/code/metta"),  # Run from metta directory
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-            )
+            ),
         )
 
         logger.info(f"Successfully launched experiment {experiment.name}")
@@ -344,6 +344,7 @@ async def stop_experiment(experiment):
 
             def cancel_job():
                 import sky
+
                 sky.cancel(active_job.id)
 
             await loop.run_in_executor(None, cancel_job)
@@ -359,14 +360,73 @@ async def stop_experiment(experiment):
 async def update_desired_state(experiment_id: str, request: UpdateDesiredStateRequest):
     """Update experiment desired state."""
     try:
+        # Get current experiment to check if state is already set
+        experiment = await desired_state_manager.get_experiment(experiment_id)
+        if not experiment:
+            raise ValueError(f"Experiment '{experiment_id}' not found")
+
+        # If already in the desired state, do nothing
+        if experiment.desired_state == request.desired_state:
+            logger.info(f"Experiment {experiment.name} already in desired_state={request.desired_state}, skipping")
+            return {"experiment": experiment}
+
+        # Update desired state
         experiment = await desired_state_manager.update_desired_state(experiment_id, request.desired_state)
 
         # If setting to RUNNING, launch the experiment
         if request.desired_state == DesiredState.RUNNING:
-            await launch_experiment(experiment)
+            try:
+                await launch_experiment(experiment)
+                # Log successful start
+                from .models import OperationLog, OperationType
+                log = OperationLog(
+                    timestamp=datetime.utcnow(),
+                    operation_type=OperationType.START,
+                    experiment_id=experiment.id,
+                    experiment_name=experiment.name,
+                    success=True,
+                )
+                await db.save_operation_log(log)
+            except Exception as e:
+                # Log failed start
+                from .models import OperationLog, OperationType
+                log = OperationLog(
+                    timestamp=datetime.utcnow(),
+                    operation_type=OperationType.START,
+                    experiment_id=experiment.id,
+                    experiment_name=experiment.name,
+                    success=False,
+                    error_message=str(e),
+                )
+                await db.save_operation_log(log)
+                raise
         # If setting to STOPPED, cancel the running job
         elif request.desired_state == DesiredState.STOPPED:
-            await stop_experiment(experiment)
+            try:
+                await stop_experiment(experiment)
+                # Log successful stop
+                from .models import OperationLog, OperationType
+                log = OperationLog(
+                    timestamp=datetime.utcnow(),
+                    operation_type=OperationType.STOP,
+                    experiment_id=experiment.id,
+                    experiment_name=experiment.name,
+                    success=True,
+                )
+                await db.save_operation_log(log)
+            except Exception as e:
+                # Log failed stop
+                from .models import OperationLog, OperationType
+                log = OperationLog(
+                    timestamp=datetime.utcnow(),
+                    operation_type=OperationType.STOP,
+                    experiment_id=experiment.id,
+                    experiment_name=experiment.name,
+                    success=False,
+                    error_message=str(e),
+                )
+                await db.save_operation_log(log)
+                raise
 
         return {"experiment": experiment}
     except ValueError as e:
@@ -458,6 +518,7 @@ async def cancel_job(job_id: str):
 
         def cancel():
             import sky
+
             sky.cancel(job_id)
 
         await loop.run_in_executor(None, cancel)
@@ -469,10 +530,51 @@ async def cancel_job(job_id: str):
         if experiment:
             await desired_state_manager.update_desired_state(experiment.id, DesiredState.STOPPED)
 
+        # Log successful cancel
+        from .models import OperationLog, OperationType
+        log = OperationLog(
+            timestamp=datetime.utcnow(),
+            operation_type=OperationType.CANCEL,
+            experiment_id=experiment.id if experiment else None,
+            experiment_name=job.experiment_id,
+            job_id=job_id,
+            success=True,
+        )
+        await db.save_operation_log(log)
+
         return {"message": "Job canceled"}
     except Exception as e:
         logger.error(f"Error canceling job {job_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to cancel job: {str(e)}")
+
+        # Log failed cancel
+        from .models import OperationLog, OperationType
+        experiment = await desired_state_manager.get_experiment_by_name(job.experiment_id)
+        log = OperationLog(
+            timestamp=datetime.utcnow(),
+            operation_type=OperationType.CANCEL,
+            experiment_id=experiment.id if experiment else None,
+            experiment_name=job.experiment_id,
+            job_id=job_id,
+            success=False,
+            error_message=str(e),
+        )
+        await db.save_operation_log(log)
+
+        raise HTTPException(status_code=500, detail=f"Failed to cancel job: {str(e)}") from e
+
+
+# Operation logs endpoint
+
+
+@app.get("/api/operation-logs")
+async def get_operation_logs(limit: int = 100):
+    """Get recent operation logs.
+
+    Args:
+        limit: Maximum number of log entries to return (default 100)
+    """
+    logs = await db.get_operation_logs(limit=limit)
+    return {"logs": logs}
 
 
 # SkyPilot jobs endpoint
@@ -620,6 +722,7 @@ async def create_group(request: CreateGroupRequest):
     group = ExperimentGroup(
         id=str(uuid.uuid4())[:8],
         name=request.name,
+        name_prefix=request.name_prefix,
         flags=request.flags,
         order=max_order,
         created_at=datetime.utcnow(),
@@ -654,6 +757,8 @@ async def update_group(group_id: str, request: UpdateGroupRequest):
 
     if request.name is not None:
         group.name = request.name
+    if request.name_prefix is not None:
+        group.name_prefix = request.name_prefix
     if request.flags is not None:
         group.flags = request.flags
     if request.order is not None:
