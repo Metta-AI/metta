@@ -232,7 +232,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
             for protocol_config in reversed(object_config.protocols):
                 # Convert vibe names to IDs
-                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
+                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes if vibe in vibe_name_to_id])
                 # Check for duplicate vibes
                 if (vibe_ids, protocol_config.min_agents) in seen_vibes_and_min_agents:
                     raise ValueError(
@@ -272,6 +272,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.max_uses = object_config.max_uses
             cpp_assembler_config.clip_immune = object_config.clip_immune
             cpp_assembler_config.start_clipped = object_config.start_clipped
+            cpp_assembler_config.chest_search_distance = object_config.chest_search_distance
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):

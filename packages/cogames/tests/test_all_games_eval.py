@@ -13,6 +13,9 @@ runner = CliRunner()
 @pytest.mark.timeout(60)
 def test_mission_eval(mission_name: str):
     """Test that 'cogames eval' works for small games with random policy."""
+    if "navigation" in mission_name:
+        pytest.skip("Navigation missions require S3 access (AWS credentials not available)")
+
     result = runner.invoke(
         app,
         [

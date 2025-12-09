@@ -1,22 +1,26 @@
-import json
-
-from metta.sim.runner import SimulationRunConfig
+from metta.sim.remote import SimulationList
 from metta.tools.eval import EvalWithResultTool
 
 
 # Used by eval_task_worker.py
 def eval(
-    policy_version_id: str,
     task_data_path: str,
     result_file_path: str,
+    policy_version_id: str | None = None,
+    policy_uri: str | None = None,
 ) -> EvalWithResultTool:
     with open(task_data_path, "rb") as f:
-        simulations_json = f.read()
-    sim_json_array = json.loads(simulations_json)["simulations"]
-    simulations = [SimulationRunConfig.model_validate(sim) for sim in sim_json_array]
+        task_data = SimulationList.model_validate_json(f.read())
+
+    if not bool(policy_version_id) ^ bool(policy_uri):
+        raise ValueError("Exactly one of policy_version_id or policy_uri must be provided")
+    policy_uri = f"metta://policy/{policy_version_id}" if policy_version_id else policy_uri
+    if not policy_uri:
+        raise ValueError("policy_uri is required")
 
     return EvalWithResultTool(
-        simulations=simulations,
-        policy_uris=[f"metta://policy/{policy_version_id}"],
+        simulations=task_data.simulations,
+        policy_uris=[policy_uri],
+        push_metrics_to_wandb=True,
         result_file_path=result_file_path,
     )
