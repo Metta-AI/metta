@@ -25,11 +25,15 @@ RUN pip install --no-cache-dir \
 
 # Install workspace packages in editable mode so imports work
 # These are needed for datadog_client.py imports and stable_suite integration
-# Install main metta package (contains metta.jobs, metta.common)
-# Install mettagrid (required by metta.jobs.job_config)
-# Install cortex (provides cortexcore dependency)
-# Install common and softmax packages
-RUN pip install --no-cache-dir -e . -e ./common -e ./softmax -e ./packages/mettagrid -e ./packages/cortex || \
+# Install workspace packages first (gitta, cortex, mettagrid), then main packages
+# This ensures dependencies are available when metta package is installed
+RUN pip install --no-cache-dir \
+    -e ./packages/gitta \
+    -e ./packages/cortex \
+    -e ./packages/mettagrid \
+    -e ./common \
+    -e ./softmax \
+    -e . || \
     (echo "Warning: Could not install workspace packages, ensure PYTHONPATH includes /app" && \
      echo "Continuing anyway - imports may fail at runtime")
 
