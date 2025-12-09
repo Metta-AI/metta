@@ -206,8 +206,35 @@ class MettaGridPufferEnv(PufferEnv):
         teacher_actions = self._buffers.teacher_actions
         raw_observations = self._buffers.observations
 
-        # Compute teacher actions for all agents
-        self._env_supervisor.step_batch(raw_observations, teacher_actions)
+        # If decay is requested (sliced BC), compute only a subset of agents; otherwise full batch.
+        if self._teacher_decay and self._teacher_end_step:
+            proportion = max(
+                0.0,
+                self._teacher_start * (1.0 - (self._agent_step_counter / self._teacher_end_step)),
+            )
+
+            if proportion <= 0.0:
+                teacher_actions.fill(-1)
+                return
+
+            mask = np.random.random(size=self.num_agents) < proportion
+            if not mask.any():
+                teacher_actions.fill(-1)
+                return
+
+            agent_ids = np.nonzero(mask)[0].astype(np.int32)
+            obs_subset = raw_observations[agent_ids]
+            actions_subset = np.full(agent_ids.shape[0], fill_value=-1, dtype=dtype_actions)
+
+            if hasattr(self._env_supervisor, "step_batch_subset"):
+                self._env_supervisor.step_batch_subset(agent_ids, obs_subset, actions_subset)
+                teacher_actions.fill(-1)
+                teacher_actions[agent_ids] = actions_subset
+            else:
+                self._env_supervisor.step_batch(raw_observations, teacher_actions)
+        else:
+            # Full-batch supervisor
+            self._env_supervisor.step_batch(raw_observations, teacher_actions)
 
     @property
     def observations(self) -> np.ndarray:
