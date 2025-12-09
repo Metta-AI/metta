@@ -206,6 +206,7 @@ class TestAdaptiveController:
         # Verify eval started flag was set (no init_run for evals)
         mock_store.init_run.assert_not_called()
         mock_store.update_run_summary.assert_called_once_with("test_run_001", {"has_started_eval": True})
+
     def test_resume_skips_initial_wait(self, controller, mock_scheduler, mock_store, monkeypatch):
         """Ensure resumed runs can skip the initial monitoring interval."""
         controller.config.resume = True
