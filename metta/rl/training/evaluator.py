@@ -27,6 +27,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME
 from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
@@ -139,10 +140,10 @@ class Evaluator(TrainerComponent):
         return epoch % interval == 0
 
     def _create_submission_zip(self, policy_spec: PolicySpec) -> bytes:
-        """Create a submission zip containing policy-spec.json."""
+        """Create a submission zip containing policy_spec.json."""
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr("policy_spec.json", policy_spec.model_dump_json())
+            zipf.writestr(POLICY_SPEC_FILENAME, policy_spec.model_dump_json())
         return buffer.getvalue()
 
     def _upload_submission_zip(self, policy_spec: PolicySpec) -> str | None:
