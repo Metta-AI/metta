@@ -135,3 +135,16 @@ class Checkpointer(TrainerComponent):
             self.context.latest_saved_policy_epoch = epoch
         except AttributeError:
             logger.debug("Component context missing latest_saved_policy_epoch attribute")
+
+        # Log latest checkpoint URI to wandb if available
+        stats_reporter = getattr(self.context, "stats_reporter", None)
+        wandb_run = getattr(stats_reporter, "wandb_run", None) if stats_reporter is not None else None
+        if wandb_run is not None:
+            wandb_run.log(
+                {
+                    "checkpoint/latest_uri": uri,
+                    "checkpoint/latest_epoch": float(epoch),
+                },
+                step=self.context.agent_step,
+            )
+            logger.info(f"Logged checkpoint URI to wandb: {uri}")

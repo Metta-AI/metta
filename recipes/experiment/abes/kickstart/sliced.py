@@ -113,7 +113,7 @@ def train(
     losses_config.sliced_kickstarter.enabled = True
 
     losses_config.sliced_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
+        "s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt"
     )
     ks_end_step = 1_000_000_000
     losses_config.ppo_critic.sample_enabled = False
