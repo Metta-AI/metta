@@ -7,6 +7,436 @@
     {
       "definition": {
         "type": "timeseries",
+        "title": "Training \u2014 Training data availability \u2014 Data availability \u2014 S3 data found (Condition: < 1)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.data_missing{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": "< 1",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Multigpu arena basic easy shaped \u2014 Runs successfully \u2014 Binary success (Condition: >= 1)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.multigpu.runs_success{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": ">= 1",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 0,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Multigpu arena basic easy shaped \u2014 Hearts \u2014 Avg hearts (Condition: >= 0.5)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.multigpu.hearts{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": ">= 0.5",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 4,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Multigpu arena basic easy shaped \u2014 SPS \u2014 Steps per second (Condition: >= 40000)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.multigpu.sps{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": ">= 40000",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 4,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Multinode learning progress \u2014 Runs successfully \u2014 Binary success (Condition: >= 1)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.multinode.runs_success{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": ">= 1",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 8,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Multinode learning progress \u2014 Hearts \u2014 Avg hearts (Condition: >= 0.5)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.multinode.hearts{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": ">= 0.5",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 8,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Multinode learning progress \u2014 Shaped \u2014 Shaped SPS (Condition: >= 40000)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.multinode.shaped{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": ">= 40000",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 12,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Local arena basic easy shaped \u2014 Runs to first checkpoint \u2014 Binary success (Condition: >= 1)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.local_arena.first_checkpoint{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": ">= 1",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 12,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Local arena basic easy shaped \u2014 Continues from checkpoint \u2014 Binary success (Condition: >= 1)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.local_arena.continues{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": ">= 1",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 0,
+        "y": 16,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Training \u2014 Bugs \u2014 Bugs tickets \u2014 Count (Condition: < 1)",
+        "requests": [
+          {
+            "display_type": "line",
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.bugs.count{*}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ],
+        "markers": [
+          {
+            "label": "pass boundary",
+            "value": "< 1",
+            "display_type": "ok"
+          }
+        ],
+        "show_legend": false
+      },
+      "layout": {
+        "x": 6,
+        "y": 16,
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
         "title": "CI \u2014 Latest state of main \u2014 Tests that block merge passing \u2014 Workflow passing signal (Condition: >= 1)",
         "requests": [
           {
@@ -33,7 +463,7 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": ">= 1",
             "display_type": "ok"
           }
@@ -42,7 +472,7 @@
       },
       "layout": {
         "x": 0,
-        "y": 0,
+        "y": 20,
         "width": 6,
         "height": 4
       }
@@ -76,7 +506,7 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": ">= 1",
             "display_type": "ok"
           }
@@ -85,7 +515,7 @@
       },
       "layout": {
         "x": 6,
-        "y": 0,
+        "y": 20,
         "width": 6,
         "height": 4
       }
@@ -119,7 +549,7 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": "< 2",
             "display_type": "ok"
           }
@@ -128,7 +558,7 @@
       },
       "layout": {
         "x": 0,
-        "y": 4,
+        "y": 24,
         "width": 6,
         "height": 4
       }
@@ -162,7 +592,7 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": ">= 1",
             "display_type": "ok"
           }
@@ -171,7 +601,7 @@
       },
       "layout": {
         "x": 6,
-        "y": 4,
+        "y": 24,
         "width": 6,
         "height": 4
       }
@@ -205,7 +635,7 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": "< 10",
             "display_type": "ok"
           }
@@ -214,7 +644,7 @@
       },
       "layout": {
         "x": 0,
-        "y": 8,
+        "y": 28,
         "width": 6,
         "height": 4
       }
@@ -248,7 +678,7 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": "< 5",
             "display_type": "ok"
           }
@@ -257,7 +687,7 @@
       },
       "layout": {
         "x": 6,
-        "y": 8,
+        "y": 28,
         "width": 6,
         "height": 4
       }
@@ -291,7 +721,7 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": "< 7",
             "display_type": "ok"
           }
@@ -300,7 +730,7 @@
       },
       "layout": {
         "x": 0,
-        "y": 12,
+        "y": 32,
         "width": 6,
         "height": 4
       }
@@ -334,7 +764,7 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": "<= 1",
             "display_type": "ok"
           }
@@ -343,7 +773,7 @@
       },
       "layout": {
         "x": 6,
-        "y": 12,
+        "y": 32,
         "width": 6,
         "height": 4
       }
@@ -377,16 +807,21 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": "< 5",
             "display_type": "ok"
+          },
+          {
+            "label": "warn",
+            "value": "< 8",
+            "display_type": "warning"
           }
         ],
         "show_legend": false
       },
       "layout": {
         "x": 0,
-        "y": 16,
+        "y": 36,
         "width": 6,
         "height": 4
       }
@@ -420,7 +855,7 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": "< 10",
             "display_type": "ok"
           }
@@ -429,7 +864,7 @@
       },
       "layout": {
         "x": 6,
-        "y": 16,
+        "y": 36,
         "width": 6,
         "height": 4
       }
@@ -437,7 +872,7 @@
     {
       "definition": {
         "type": "timeseries",
-        "title": "Training \u2014 StableSuite core \u2014 Throughput \u2014 Steps per second (Condition: >= 40000)",
+        "title": "Eval \u2014 Eval data availability \u2014 Data availability \u2014 S3 eval artifacts found (Condition: < 1)",
         "requests": [
           {
             "display_type": "line",
@@ -450,7 +885,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.sps{*}"
+                "query": "avg:metta.infra.cron.eval.data_missing{*}"
               }
             ],
             "response_format": "timeseries",
@@ -463,8 +898,8 @@
         ],
         "markers": [
           {
-            "label": "target",
-            "value": ">= 40000",
+            "label": "pass boundary",
+            "value": "< 1",
             "display_type": "ok"
           }
         ],
@@ -472,7 +907,7 @@
       },
       "layout": {
         "x": 0,
-        "y": 20,
+        "y": 40,
         "width": 6,
         "height": 4
       }
@@ -480,7 +915,7 @@
     {
       "definition": {
         "type": "timeseries",
-        "title": "Training \u2014 StableSuite core \u2014 Hearts \u2014 Avg hearts (Condition: >= 0.5)",
+        "title": "Eval \u2014 Remote eval \u2014 Local eval \u2014 Success signal (Condition: >= 1)",
         "requests": [
           {
             "display_type": "line",
@@ -493,7 +928,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.hearts{*}"
+                "query": "avg:metta.infra.cron.eval.local.success{*}"
               }
             ],
             "response_format": "timeseries",
@@ -506,93 +941,7 @@
         ],
         "markers": [
           {
-            "label": "target",
-            "value": ">= 0.5",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 6,
-        "y": 20,
-        "width": 6,
-        "height": 4
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Training \u2014 StableSuite core \u2014 Failure ratio \u2014 Failure ratio (Condition: < 0.2)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.failure_ratio{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "target",
-            "value": "< 0.2",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 0,
-        "y": 24,
-        "width": 6,
-        "height": 4
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Training \u2014 Training pipeline \u2014 Pipeline status \u2014 Binary success (Condition: >= 1)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.training.pipeline.success{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "target",
+            "label": "pass boundary",
             "value": ">= 1",
             "display_type": "ok"
           }
@@ -601,7 +950,7 @@
       },
       "layout": {
         "x": 6,
-        "y": 24,
+        "y": 40,
         "width": 6,
         "height": 4
       }
@@ -609,7 +958,7 @@
     {
       "definition": {
         "type": "timeseries",
-        "title": "Training \u2014 Training pipeline \u2014 Pipeline runtime \u2014 Runtime minutes (Condition: <= 90)",
+        "title": "Eval \u2014 Remote eval \u2014 Local eval \u2014 Heart delta pct (Condition: >= 0)",
         "requests": [
           {
             "display_type": "line",
@@ -622,7 +971,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.training.pipeline.runtime{*}"
+                "query": "avg:metta.infra.cron.eval.local.heart_delta_pct{*}"
               }
             ],
             "response_format": "timeseries",
@@ -635,8 +984,8 @@
         ],
         "markers": [
           {
-            "label": "target",
-            "value": "<= 90",
+            "label": "pass boundary",
+            "value": ">= 0",
             "display_type": "ok"
           }
         ],
@@ -644,50 +993,7 @@
       },
       "layout": {
         "x": 0,
-        "y": 28,
-        "width": 6,
-        "height": 4
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Training \u2014 Training pipeline \u2014 Environment checks \u2014 Checks passing (Condition: >= 1)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.training.env.checks{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "target",
-            "value": ">= 1",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
-        "x": 6,
-        "y": 28,
+        "y": 44,
         "width": 6,
         "height": 4
       }
@@ -721,7 +1027,7 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": ">= 1",
             "display_type": "ok"
           }
@@ -729,51 +1035,8 @@
         "show_legend": false
       },
       "layout": {
-        "x": 0,
-        "y": 32,
-        "width": 6,
-        "height": 4
-      }
-    },
-    {
-      "definition": {
-        "type": "timeseries",
-        "title": "Eval \u2014 Remote eval \u2014 Remote eval \u2014 Failure count (Condition: < 1)",
-        "requests": [
-          {
-            "display_type": "line",
-            "formulas": [
-              {
-                "formula": "query1"
-              }
-            ],
-            "queries": [
-              {
-                "name": "query1",
-                "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.remote.failure{*}"
-              }
-            ],
-            "response_format": "timeseries",
-            "style": {
-              "palette": "dog_classic",
-              "line_type": "solid",
-              "line_width": "normal"
-            }
-          }
-        ],
-        "markers": [
-          {
-            "label": "target",
-            "value": "< 1",
-            "display_type": "ok"
-          }
-        ],
-        "show_legend": false
-      },
-      "layout": {
         "x": 6,
-        "y": 32,
+        "y": 44,
         "width": 6,
         "height": 4
       }
@@ -781,7 +1044,7 @@
     {
       "definition": {
         "type": "timeseries",
-        "title": "Eval \u2014 Remote eval \u2014 Eval quality \u2014 Score (Condition: >= 0.5)",
+        "title": "Eval \u2014 Remote eval \u2014 Remote eval \u2014 Heart delta pct (Condition: >= 0)",
         "requests": [
           {
             "display_type": "line",
@@ -794,7 +1057,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.score{*}"
+                "query": "avg:metta.infra.cron.eval.remote.heart_delta_pct{*}"
               }
             ],
             "response_format": "timeseries",
@@ -807,8 +1070,8 @@
         ],
         "markers": [
           {
-            "label": "target",
-            "value": ">= 0.5",
+            "label": "pass boundary",
+            "value": ">= 0",
             "display_type": "ok"
           }
         ],
@@ -816,7 +1079,7 @@
       },
       "layout": {
         "x": 0,
-        "y": 36,
+        "y": 48,
         "width": 6,
         "height": 4
       }
@@ -824,7 +1087,7 @@
     {
       "definition": {
         "type": "timeseries",
-        "title": "Eval \u2014 Remote eval \u2014 Eval runtime \u2014 Runtime minutes (Condition: <= 60)",
+        "title": "Eval \u2014 Remote eval \u2014 Remote eval \u2014 Runtime minutes (Condition: <= 60)",
         "requests": [
           {
             "display_type": "line",
@@ -837,7 +1100,7 @@
               {
                 "name": "query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.runtime{*}"
+                "query": "avg:metta.infra.cron.eval.remote.duration_minutes{*}"
               }
             ],
             "response_format": "timeseries",
@@ -850,16 +1113,21 @@
         ],
         "markers": [
           {
-            "label": "target",
+            "label": "pass boundary",
             "value": "<= 60",
             "display_type": "ok"
+          },
+          {
+            "label": "warn",
+            "value": "<= 90",
+            "display_type": "warning"
           }
         ],
         "show_legend": false
       },
       "layout": {
         "x": 6,
-        "y": 36,
+        "y": 48,
         "width": 6,
         "height": 4
       }

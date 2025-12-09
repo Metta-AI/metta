@@ -20,6 +20,7 @@ VALID_AGGREGATIONS = {"avg", "sum", "min", "max"}
 ALLOWED_PREFIXES = (
     "metta.infra.cron.ci.",
     "metta.infra.cron.eval.",
+    "metta.infra.cron.training.",
     "metta.infra.stablesuite.",
 )
 
@@ -110,20 +111,42 @@ def build_summary_widget(
     width: int,
     height: int,
 ) -> Dict:
+    # Query all metrics (no status filter) to show both pass and fail
+    # Use two queries per metric: one for pass, one for fail
     queries = []
-    terms: List[str] = []
+    pass_terms: List[str] = []
+    fail_terms: List[str] = []
+
     for idx, metric in enumerate(metrics, start=1):
-        query_name = f"query{idx}"
+        # Query for passing metrics
+        pass_query_name = f"pass_query{idx}"
         queries.append(
             {
-                "name": query_name,
+                "name": pass_query_name,
+                "data_source": "metrics",
+                "query": f"{metric.aggregation}:{metric.metric_name}{{status:pass}}",
+            }
+        )
+        pass_terms.append(f"default_zero({pass_query_name})")
+
+        # Query for failing metrics
+        fail_query_name = f"fail_query{idx}"
+        queries.append(
+            {
+                "name": fail_query_name,
                 "data_source": "metrics",
                 "query": f"{metric.aggregation}:{metric.metric_name}{{status:fail}}",
             }
         )
-        terms.append(f"default_zero({query_name})")
+        fail_terms.append(f"default_zero({fail_query_name})")
 
-    fail_expression = "max(" + ", ".join(terms) + ")" if terms else "0"
+    # Calculate total pass and fail counts
+    pass_expression = "sum(" + ", ".join(pass_terms) + ")" if pass_terms else "0"
+    fail_expression = "sum(" + ", ".join(fail_terms) + ")" if fail_terms else "0"
+
+    # Display: show fail count, but color based on whether there are any failures
+    # Formula: if fail_count > 0, show fail_count in red, else show 0 in green
+    display_formula = f"if({fail_expression} > 0, {fail_expression}, 0)"
 
     return {
         "definition": {
@@ -134,7 +157,7 @@ def build_summary_widget(
             "precision": 0,
             "requests": [
                 {
-                    "formulas": [{"formula": fail_expression}],
+                    "formulas": [{"formula": display_formula}],
                     "queries": queries,
                     "response_format": "scalar",
                     "conditional_formats": [
@@ -202,11 +225,19 @@ def build_timeseries_widget(*, category: str, workflow: str, metric: MetricDefin
     title = f"{category} — {workflow} — {metric.task} — {metric.check} (Condition: {condition_text})"
     markers = [
         {
-            "label": "target",
+            "label": "pass boundary",
             "value": condition_text,
             "display_type": "ok",
         }
     ]
+    if metric.warn_threshold is not None:
+        markers.append(
+            {
+                "label": "warn",
+                "value": f"{metric.comparator} {_format_float(metric.warn_threshold)}",
+                "display_type": "warning",
+            }
+        )
     return {
         "definition": {
             "type": "timeseries",

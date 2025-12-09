@@ -7,7 +7,7 @@
     {
       "definition": {
         "type": "query_value",
-        "title": "CI summary",
+        "title": "Training summary",
         "title_size": "16",
         "title_align": "left",
         "precision": 0,
@@ -15,59 +15,109 @@
           {
             "formulas": [
               {
-                "formula": "max(default_zero(query1), default_zero(query2), default_zero(query3), default_zero(query4), default_zero(query5), default_zero(query6), default_zero(query7), default_zero(query8), default_zero(query9), default_zero(query10))"
+                "formula": "if(sum(default_zero(fail_query1), default_zero(fail_query2), default_zero(fail_query3), default_zero(fail_query4), default_zero(fail_query5), default_zero(fail_query6), default_zero(fail_query7), default_zero(fail_query8), default_zero(fail_query9), default_zero(fail_query10)) > 0, sum(default_zero(fail_query1), default_zero(fail_query2), default_zero(fail_query3), default_zero(fail_query4), default_zero(fail_query5), default_zero(fail_query6), default_zero(fail_query7), default_zero(fail_query8), default_zero(fail_query9), default_zero(fail_query10)), 0)"
               }
             ],
             "queries": [
               {
-                "name": "query1",
+                "name": "pass_query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.tests_blocking_merge{status:fail}"
+                "query": "avg:metta.infra.cron.training.data_missing{status:pass}"
               },
               {
-                "name": "query2",
+                "name": "fail_query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.benchmarks{status:fail}"
+                "query": "avg:metta.infra.cron.training.data_missing{status:fail}"
               },
               {
-                "name": "query3",
+                "name": "pass_query2",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.other_failing{status:fail}"
+                "query": "avg:metta.infra.cron.training.multigpu.runs_success{status:pass}"
               },
               {
-                "name": "query4",
+                "name": "fail_query2",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.success{status:fail}"
+                "query": "avg:metta.infra.cron.training.multigpu.runs_success{status:fail}"
               },
               {
-                "name": "query5",
+                "name": "pass_query3",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.flaky_tests{status:fail}"
+                "query": "avg:metta.infra.cron.training.multigpu.hearts{status:pass}"
               },
               {
-                "name": "query6",
+                "name": "fail_query3",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.github.hotfix.count{status:fail}"
+                "query": "avg:metta.infra.cron.training.multigpu.hearts{status:fail}"
               },
               {
-                "name": "query7",
+                "name": "pass_query4",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.github.force_merge.count{status:fail}"
+                "query": "avg:metta.infra.cron.training.multigpu.sps{status:pass}"
               },
               {
-                "name": "query8",
+                "name": "fail_query4",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.github.reverts.count{status:fail}"
+                "query": "avg:metta.infra.cron.training.multigpu.sps{status:fail}"
               },
               {
-                "name": "query9",
+                "name": "pass_query5",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.duration.p90{status:fail}"
+                "query": "avg:metta.infra.cron.training.multinode.runs_success{status:pass}"
               },
               {
-                "name": "query10",
+                "name": "fail_query5",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.ci.workflow.cancelled{status:fail}"
+                "query": "avg:metta.infra.cron.training.multinode.runs_success{status:fail}"
+              },
+              {
+                "name": "pass_query6",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.multinode.hearts{status:pass}"
+              },
+              {
+                "name": "fail_query6",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.multinode.hearts{status:fail}"
+              },
+              {
+                "name": "pass_query7",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.multinode.shaped{status:pass}"
+              },
+              {
+                "name": "fail_query7",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.multinode.shaped{status:fail}"
+              },
+              {
+                "name": "pass_query8",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.local_arena.first_checkpoint{status:pass}"
+              },
+              {
+                "name": "fail_query8",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.local_arena.first_checkpoint{status:fail}"
+              },
+              {
+                "name": "pass_query9",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.local_arena.continues{status:pass}"
+              },
+              {
+                "name": "fail_query9",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.local_arena.continues{status:fail}"
+              },
+              {
+                "name": "pass_query10",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.bugs.count{status:pass}"
+              },
+              {
+                "name": "fail_query10",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.training.bugs.count{status:fail}"
               }
             ],
             "response_format": "scalar",
@@ -100,7 +150,7 @@
     {
       "definition": {
         "type": "query_value",
-        "title": "Training summary",
+        "title": "CI summary",
         "title_size": "16",
         "title_align": "left",
         "precision": 0,
@@ -108,39 +158,109 @@
           {
             "formulas": [
               {
-                "formula": "max(default_zero(query1), default_zero(query2), default_zero(query3), default_zero(query4), default_zero(query5), default_zero(query6))"
+                "formula": "if(sum(default_zero(fail_query1), default_zero(fail_query2), default_zero(fail_query3), default_zero(fail_query4), default_zero(fail_query5), default_zero(fail_query6), default_zero(fail_query7), default_zero(fail_query8), default_zero(fail_query9), default_zero(fail_query10)) > 0, sum(default_zero(fail_query1), default_zero(fail_query2), default_zero(fail_query3), default_zero(fail_query4), default_zero(fail_query5), default_zero(fail_query6), default_zero(fail_query7), default_zero(fail_query8), default_zero(fail_query9), default_zero(fail_query10)), 0)"
               }
             ],
             "queries": [
               {
-                "name": "query1",
+                "name": "pass_query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.sps{status:fail}"
+                "query": "avg:metta.infra.cron.ci.workflow.tests_blocking_merge{status:pass}"
               },
               {
-                "name": "query2",
+                "name": "fail_query1",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.hearts{status:fail}"
+                "query": "avg:metta.infra.cron.ci.workflow.tests_blocking_merge{status:fail}"
               },
               {
-                "name": "query3",
+                "name": "pass_query2",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.failure_ratio{status:fail}"
+                "query": "avg:metta.infra.cron.ci.workflow.benchmarks{status:pass}"
               },
               {
-                "name": "query4",
+                "name": "fail_query2",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.training.pipeline.success{status:fail}"
+                "query": "avg:metta.infra.cron.ci.workflow.benchmarks{status:fail}"
               },
               {
-                "name": "query5",
+                "name": "pass_query3",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.training.pipeline.runtime{status:fail}"
+                "query": "avg:metta.infra.cron.ci.workflow.other_failing{status:pass}"
               },
               {
-                "name": "query6",
+                "name": "fail_query3",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.stablesuite.training.env.checks{status:fail}"
+                "query": "avg:metta.infra.cron.ci.workflow.other_failing{status:fail}"
+              },
+              {
+                "name": "pass_query4",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.success{status:pass}"
+              },
+              {
+                "name": "fail_query4",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.success{status:fail}"
+              },
+              {
+                "name": "pass_query5",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.flaky_tests{status:pass}"
+              },
+              {
+                "name": "fail_query5",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.flaky_tests{status:fail}"
+              },
+              {
+                "name": "pass_query6",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.hotfix.count{status:pass}"
+              },
+              {
+                "name": "fail_query6",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.hotfix.count{status:fail}"
+              },
+              {
+                "name": "pass_query7",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.force_merge.count{status:pass}"
+              },
+              {
+                "name": "fail_query7",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.force_merge.count{status:fail}"
+              },
+              {
+                "name": "pass_query8",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.reverts.count{status:pass}"
+              },
+              {
+                "name": "fail_query8",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.github.reverts.count{status:fail}"
+              },
+              {
+                "name": "pass_query9",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.duration.p90{status:pass}"
+              },
+              {
+                "name": "fail_query9",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.duration.p90{status:fail}"
+              },
+              {
+                "name": "pass_query10",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.cancelled{status:pass}"
+              },
+              {
+                "name": "fail_query10",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.ci.workflow.cancelled{status:fail}"
               }
             ],
             "response_format": "scalar",
@@ -181,29 +301,69 @@
           {
             "formulas": [
               {
-                "formula": "max(default_zero(query1), default_zero(query2), default_zero(query3), default_zero(query4))"
+                "formula": "if(sum(default_zero(fail_query1), default_zero(fail_query2), default_zero(fail_query3), default_zero(fail_query4), default_zero(fail_query5), default_zero(fail_query6)) > 0, sum(default_zero(fail_query1), default_zero(fail_query2), default_zero(fail_query3), default_zero(fail_query4), default_zero(fail_query5), default_zero(fail_query6)), 0)"
               }
             ],
             "queries": [
               {
-                "name": "query1",
+                "name": "pass_query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.data_missing{status:pass}"
+              },
+              {
+                "name": "fail_query1",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.data_missing{status:fail}"
+              },
+              {
+                "name": "pass_query2",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.local.success{status:pass}"
+              },
+              {
+                "name": "fail_query2",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.local.success{status:fail}"
+              },
+              {
+                "name": "pass_query3",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.local.heart_delta_pct{status:pass}"
+              },
+              {
+                "name": "fail_query3",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.local.heart_delta_pct{status:fail}"
+              },
+              {
+                "name": "pass_query4",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.remote.success{status:pass}"
+              },
+              {
+                "name": "fail_query4",
                 "data_source": "metrics",
                 "query": "avg:metta.infra.cron.eval.remote.success{status:fail}"
               },
               {
-                "name": "query2",
+                "name": "pass_query5",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.remote.failure{status:fail}"
+                "query": "avg:metta.infra.cron.eval.remote.heart_delta_pct{status:pass}"
               },
               {
-                "name": "query3",
+                "name": "fail_query5",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.score{status:fail}"
+                "query": "avg:metta.infra.cron.eval.remote.heart_delta_pct{status:fail}"
               },
               {
-                "name": "query4",
+                "name": "pass_query6",
                 "data_source": "metrics",
-                "query": "avg:metta.infra.cron.eval.runtime{status:fail}"
+                "query": "avg:metta.infra.cron.eval.remote.duration_minutes{status:pass}"
+              },
+              {
+                "name": "fail_query6",
+                "data_source": "metrics",
+                "query": "avg:metta.infra.cron.eval.remote.duration_minutes{status:fail}"
               }
             ],
             "response_format": "scalar",
