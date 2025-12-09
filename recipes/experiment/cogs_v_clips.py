@@ -329,7 +329,18 @@ def train(
     if mission is not None:
         training_missions = [mission]
 
-    cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
+    cur_alg = (
+        LearningProgressConfig(
+            use_bidirectional=True,
+            ema_timescale=0.05,
+            exploration_bonus=0.1,
+            max_memory_tasks=100,
+            max_slice_axes=4,
+            enable_detailed_slice_logging=True,
+        )
+        if use_lp
+        else DiscreteRandomConfig()
+    )
     curriculum = curriculum or make_curriculum(
         num_cogs=num_cogs,
         missions=training_missions,
@@ -340,7 +351,7 @@ def train(
         dr_rewards=dr_rewards,
         dr_misc=dr_misc,
     )
-
+    curriculum.min_presentations_for_eviction = 50
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
     )
@@ -455,59 +466,6 @@ def train(
     tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
     return tt
-
-
-def train_variants(
-    num_cogs: int = 4,
-    base_missions: Optional[list[str]] = None,
-    enable_detailed_slice_logging: bool = False,
-    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-) -> TrainTool:
-    """Create a training tool with curriculum tasks for all variants.
-
-    Loads all available variants and creates a curriculum task for each one,
-    merging them into a single curriculum.
-    """
-    if base_missions is None:
-        base_missions = list(DEFAULT_CURRICULUM_MISSIONS)
-
-    # Create tasks for each variant
-    all_variant_tasks = []
-    for variant in VARIANTS:
-        for mission_name in base_missions:
-            mission = _resolve_mission_template(mission_name)
-            if not variant.compat(mission):
-                continue
-            mission_env = mission.make_env()
-            mission_tasks = cc.bucketed(mission_env)
-            all_variant_tasks.append(mission_tasks)
-
-    # Merge all variant tasks
-    merged_tasks = cc.merge(all_variant_tasks)
-
-    if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,
-            ema_timescale=0.001,
-            exploration_bonus=0.1,
-            max_memory_tasks=2000,
-            max_slice_axes=4,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-        )
-
-    curriculum = merged_tasks.to_curriculum(
-        num_active_tasks=1500,
-        algorithm_config=algorithm_config,
-    )
-
-    return train(
-        num_cogs=num_cogs,
-        curriculum=curriculum,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-    )
 
 
 def train_single_mission(
@@ -633,7 +591,6 @@ __all__ = [
     "make_training_env",
     "make_curriculum",
     "train",
-    "train_variants",
     "train_single_mission",
     "train_coordination",
     "evaluate",
