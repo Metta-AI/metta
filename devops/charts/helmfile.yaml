@@ -215,39 +215,43 @@ releases:
           - name: CI_BENCHMARKS_WORKFLOWS
             value: "159541672"
 
-  - name: training-health-cronjob
-    <<: *cronjob_template
-    values:
-      - schedule: "0 * * * *"  # Hourly
-      - image:
-          tag: latest-dashboard
-      - datadog:
-          service: training-health-collector
-      - command:
-          - python
-          - -m
-          - devops.datadog.cli
-      - args:
-          - collect
-          - training
-          - --push
-
-  - name: eval-health-cronjob
-    <<: *cronjob_template
-    values:
-      - schedule: "0 * * * *"  # Hourly for evals
-      - image:
-          tag: latest-dashboard
-      - datadog:
-          service: eval-health-collector
-      - command:
-          - python
-          - -m
-          - devops.datadog.cli
-      - args:
-          - collect
-          - eval
-          - --push
+  # DISABLED: These CronJobs are obsolete - training/eval metrics are now collected
+  # via stable_suite integration in the main dashboard-cronjob.
+  # They were causing crash loops and alert noise.
+  #
+  # - name: training-health-cronjob
+  #   <<: *cronjob_template
+  #   values:
+  #     - schedule: "0 * * * *"  # Hourly
+  #     - image:
+  #         tag: latest-dashboard
+  #     - datadog:
+  #         service: training-health-collector
+  #     - command:
+  #         - python
+  #         - -m
+  #         - devops.datadog.cli
+  #     - args:
+  #         - collect
+  #         - training
+  #         - --push
+  #
+  # - name: eval-health-cronjob
+  #   <<: *cronjob_template
+  #   values:
+  #     - schedule: "0 * * * *"  # Hourly for evals
+  #     - image:
+  #         tag: latest-dashboard
+  #     - datadog:
+  #         service: eval-health-collector
+  #     - command:
+  #         - python
+  #         - -m
+  #         - devops.datadog.cli
+  #     - args:
+  #         - collect
+  #         - eval
+  #         - --push
 
   # Dev cronjob deployments (see devops/charts/CRONJOB_DEV_WORKFLOW.md for instructions)
   # Uncomment the release you want to deploy for dev testing:
