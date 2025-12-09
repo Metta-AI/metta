@@ -141,6 +141,9 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
+        sim = cast(Simulation, self._sim)
+        self.num_agents = sim.num_agents
+
         if self._supervisor_policy_spec is not None:
             self._env_supervisor = initialize_or_load_policy(
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),
@@ -196,7 +199,7 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _compute_supervisor_actions(self) -> None:
-        if self._env_supervisor is None or not self._supervisor_enabled:
+        if self._env_supervisor is None or not self._supervisor_enabled or not hasattr(self, "num_agents"):
             self._buffers.teacher_actions.fill(-1)
             return
 
