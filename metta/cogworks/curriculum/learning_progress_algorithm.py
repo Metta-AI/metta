@@ -21,6 +21,8 @@ MIN_DENOM = 0.01
 
 
 class LearningProgressConfig(CurriculumAlgorithmConfig):
+    """Configuration for learning progress with bidirectional scoring as default."""
+
     type: str = "learning_progress"
 
     # Bidirectional learning progress settings (now default)
@@ -188,6 +190,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         return {tid: float(score) for tid, score in zip(task_ids, norm_scores, strict=True)}
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
+        """Score tasks using basic EMA variance method."""
         return {task_id: self._get_basic_learning_progress_score(task_id) for task_id in task_ids}
 
     def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
