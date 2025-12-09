@@ -176,27 +176,26 @@ expectations.
 
 ### Gymnasium vector envs (AsyncVectorEnv)
 
-- Wrap `MettaGridPufferEnv` with `pufferlib.emulation.GymnasiumPufferEnv` so Gymnasium sees a standard `Env`
-  (includes `metadata`, which `AsyncVectorEnv` requires).
-- Gymnasium vectorization is single-agent; the wrapper exposes the joint obs/action for all agents as a single Gym
-  space, so your policy must already expect that shape.
+Use the Gymnasium wrapper so the vector worker can read `metadata`:
 
 ```python
 from gymnasium.vector import AsyncVectorEnv
 from pufferlib.emulation import GymnasiumPufferEnv
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.simulator import Simulator
-from mettagrid.config.mettagrid_config import MettaGridConfig  # or load via cogames if you have missions
-
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 def make_env():
-    sim = Simulator()
-    cfg = MettaGridConfig(...)  # load or construct your mission config
-    return GymnasiumPufferEnv(env_creator=MettaGridPufferEnv, env_kwargs={"simulator": sim, "cfg": cfg})
+    return GymnasiumPufferEnv(
+        env_creator=MettaGridPufferEnv,
+        env_kwargs={"simulator": Simulator(), "cfg": MettaGridConfig(...)},
+    )
 
-
-vec_env = AsyncVectorEnv([make_env for _ in range(4)])
+vec_env = AsyncVectorEnv([make_env] * 4)
 ```
+
+Note: Gymnasium’s vector API is single-agent; the wrapper flattens joint obs/actions into one Gym space, so your policy
+must already handle that shape.
 
 ### Debug Commands
 
