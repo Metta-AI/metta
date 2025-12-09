@@ -87,26 +87,40 @@ class DatadogAgentSetup(SetupModule):
         except Exception as e:
             warning(f"Could not create Datadog log config: {e}")
 
-    def _enable_logs_in_config(self) -> None:
+    def _configure_agent(self) -> None:
         config_file = "/etc/datadog-agent/datadog.yaml"
         if not os.path.exists(config_file):
             return
         try:
             with open(config_file) as f:
                 lines = f.readlines()
-            has_logs_enabled = any(line.strip().startswith("logs_enabled:") for line in lines)
-            has_hostname = any(line.strip().startswith("hostname:") for line in lines)
+
+            def has_key(key: str) -> bool:
+                return any(line.strip().startswith(f"{key}:") for line in lines)
+
             additions = []
-            if not has_logs_enabled:
+            if not has_key("logs_enabled"):
                 additions.append("logs_enabled: true")
-            if not has_hostname:
+            if not has_key("hostname"):
                 hostname = socket.gethostname() or "skypilot-node"
                 additions.append(f"hostname: {hostname}")
+
+            # Disable infrastructure metrics on ephemeral hosts to reduce billing
+            if not has_key("enable_payloads"):
+                additions.append("enable_payloads:")
+                additions.append("  series: false")
+                additions.append("  events: false")
+                additions.append("  service_checks: false")
+            if not has_key("process_config"):
+                additions.append("process_config:")
+                additions.append("  process_collection:")
+                additions.append("    enabled: false")
+
             if additions:
                 with open(config_file, "a") as f:
                     f.write("\n" + "\n".join(additions) + "\n")
         except Exception as e:
-            warning(f"Could not enable logs in DD config: {e}")
+            warning(f"Could not configure DD agent: {e}")
 
     def _stop_agent(self) -> None:
         subprocess.run(["pkill", "-f", AGENT_BINARY], capture_output=True)
@@ -153,12 +167,6 @@ class DatadogAgentSetup(SetupModule):
         env["DD_TRACE_ENABLED"] = os.environ.get("DD_TRACE_ENABLED", "true")
         env["DD_LOGS_ENABLED"] = os.environ.get("DD_LOGS_ENABLED", "true")
 
-        # Disable infrastructure metrics on ephemeral hosts to reduce billing
-        env["DD_ENABLE_PAYLOADS_SERIES"] = os.environ.get("DD_ENABLE_PAYLOADS_SERIES", "false")
-        env["DD_ENABLE_PAYLOADS_EVENTS"] = os.environ.get("DD_ENABLE_PAYLOADS_EVENTS", "false")
-        env["DD_ENABLE_PAYLOADS_SERVICE_CHECKS"] = os.environ.get("DD_ENABLE_PAYLOADS_SERVICE_CHECKS", "false")
-        env["DD_PROCESS_AGENT_ENABLED"] = os.environ.get("DD_PROCESS_AGENT_ENABLED", "false")
-
         tags = [t for t in env.get("DD_TAGS", "").split(" ") if t.strip()]
         tags.extend(self._build_tags())
         if tags:
@@ -166,7 +174,7 @@ class DatadogAgentSetup(SetupModule):
 
         if self.check_installed():
             info("Datadog agent already installed.")
-            self._enable_logs_in_config()
+            self._configure_agent()
             self._setup_log_config()
             self._start_agent()
             return
@@ -185,7 +193,7 @@ class DatadogAgentSetup(SetupModule):
             error("Datadog agent binary not found after install")
             return
 
-        self._enable_logs_in_config()
+        self._configure_agent()
         self._setup_log_config()
         self._start_agent()
         success("Datadog agent installed successfully.")
