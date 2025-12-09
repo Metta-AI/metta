@@ -269,6 +269,8 @@ def policy_spec_from_uri(
             },
         )
     if path_to_spec.startswith("s3://"):
-        return load_policy_spec_from_s3(path_to_spec, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit)
+        return load_policy_spec_from_s3(
+            path_to_spec, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
+        )
     else:
-        return load_policy_spec_from_local_dir(Path(path_to_spec))
+        return load_policy_spec_from_local_dir(Path(path_to_spec), device=device)

@@ -295,8 +295,8 @@ def sweep(sweep_name: str) -> SweepTool:
         # training and scoring will lead to key conflicts that will lock the sweep.
         eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
-        objective="experience/rewards",
-        parameters=parameters,
+        metric_key="experience/rewards",
+        search_space=parameters,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
