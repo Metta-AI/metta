@@ -68,34 +68,56 @@ def _select_command(choices: Dict[str, argparse.ArgumentParser]) -> Optional[str
 
 
 def _interactive_prediction_config(args: argparse.Namespace) -> Optional[argparse.Namespace]:
-    """Asks the user to confirm or change prediction timestep settings."""
+    """Asks the user to confirm or change prediction settings."""
     if getattr(args, "num_future_timesteps", None) is None:
         args.num_future_timesteps = 1
 
-    print("\n--- Prediction Timestep Configuration ---")
+    # Ensure prediction_types has a default
+    if not hasattr(args, "prediction_types") or args.prediction_types is None:
+        args.prediction_types = ["location", "inventory"]
+
+    print("\n--- Prediction Configuration ---")
+    print(f"  - Prediction Types            : {args.prediction_types}")
     print(f"  - Future Timesteps to Predict : {args.num_future_timesteps}")
     print(f"  - Past Timesteps to Predict   : {args.num_past_timesteps}")
+    print(f"  - Granularity                 : {args.granularity}")
     print("-" * 39)
 
     proceed = input("Proceed with these settings? (y/n): ").lower()
     if proceed in ["", "y", "yes"]:
         return args
 
-    print("Enter new values or press Enter to keep the default.")
-    new_future = _prompt_for_value("Future Timesteps", int, args.num_future_timesteps)
-    if new_future is None:
-        return None
-    args.num_future_timesteps = new_future
+    print("\nEnter new values or press Enter to keep the default.")
 
-    new_past = _prompt_for_value("Past Timesteps", int, args.num_past_timesteps)
-    if new_past is None:
-        return None
-    args.num_past_timesteps = new_past
+    # Prediction types selection (first)
+    print("\nSelect prediction types:")
+    print("  [1] location only")
+    print("  [2] inventory only")
+    print("  [3] both (default)")
+    type_choice = input("Enter choice (1/2/3): ").strip()
+    if type_choice == "1":
+        args.prediction_types = ["location"]
+    elif type_choice == "2":
+        args.prediction_types = ["inventory"]
+    else:
+        args.prediction_types = ["location", "inventory"]
 
-    new_granularity = _prompt_for_value("Granularity (exact, quadrant)", str, args.granularity)
-    if new_granularity is None:
-        return None
-    args.granularity = new_granularity
+    # Only ask about timesteps if location prediction is enabled
+    if "location" in args.prediction_types:
+        new_future = _prompt_for_value("Future Timesteps", int, args.num_future_timesteps)
+        if new_future is None:
+            return None
+        args.num_future_timesteps = new_future
+
+        new_past = _prompt_for_value("Past Timesteps", int, args.num_past_timesteps)
+        if new_past is None:
+            return None
+        args.num_past_timesteps = new_past
+
+        new_granularity = _prompt_for_value("Granularity (exact, quadrant)", str, args.granularity)
+        if new_granularity is None:
+            return None
+        args.granularity = new_granularity
 
     print("\nPrediction settings updated.")
     return args
@@ -363,34 +385,42 @@ def run_sweep_trial(
     config: Dict[str, Any],
     args: argparse.Namespace,
     device: str,
-    data_loaders: tuple,
+    prepared_data: Any,  # PreparedData
+    prediction_types: List[str],
 ) -> Dict[str, Any]:
     """Runs a single trial of the sweep."""
     print("\n" + "=" * 50)
     print(f"  TRIAL {trial_idx + 1}/{num_trials} | Config: {config}")
     print("=" * 50)
 
-    train_loader, val_loader, test_loader, input_dim = data_loaders
-    assert input_dim is not None, "Input dimension cannot be None for sweep trial."
+    assert prepared_data.input_dim is not None, "Input dimension cannot be None for sweep trial."
 
     model_config = config.copy()
     trial_lr = model_config.pop("lr", 0.001)
     trial_batch_size = model_config.pop("batch_size", 32)
 
-    model_params = {
-        "input_dim": input_dim,
+    model_params: Dict[str, Any] = {
+        "input_dim": prepared_data.input_dim,
         "num_future_timesteps": args.num_future_timesteps,
         "num_past_timesteps": args.num_past_timesteps,
+        "prediction_types": prediction_types,
         **model_config,
     }
+
+    # Add inventory params if needed
+    if "inventory" in prediction_types and prepared_data.inventory_num_items:
+        model_params["inventory_num_items"] = prepared_data.inventory_num_items
+
     model = DoxascopeNet(**model_params).to(device)
     trainer = DoxascopeTrainer(model, device=device)
 
-    train_loader = DataLoader(train_loader.dataset, batch_size=trial_batch_size, shuffle=True)
-    if val_loader:
-        val_loader = DataLoader(val_loader.dataset, batch_size=trial_batch_size, shuffle=False)
-    if test_loader:
-        test_loader = DataLoader(test_loader.dataset, batch_size=trial_batch_size, shuffle=False)
+    train_loader = DataLoader(prepared_data.train_loader.dataset, batch_size=trial_batch_size, shuffle=True)
+    val_loader = None
+    test_loader = None
+    if prepared_data.val_loader:
+        val_loader = DataLoader(prepared_data.val_loader.dataset, batch_size=trial_batch_size, shuffle=False)
+    if prepared_data.test_loader:
+        test_loader = DataLoader(prepared_data.test_loader.dataset, batch_size=trial_batch_size, shuffle=False)
 
     start_time = time.time()
     training_result = trainer.train(
@@ -406,7 +436,8 @@ def run_sweep_trial(
 
     # Evaluate on test set if available, otherwise use default metrics
     if test_loader is not None:
-        _, test_acc_per_step = trainer._run_epoch(test_loader, is_training=False)
+        test_metrics = trainer._run_epoch(test_loader, is_training=False)
+        test_acc_per_step = test_metrics.location_acc_per_step
         test_acc_avg = sum(test_acc_per_step) / len(test_acc_per_step) if test_acc_per_step else 0
     else:
         test_acc_per_step = []
@@ -581,8 +612,13 @@ def handle_train_command(args: argparse.Namespace):
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Saving results to: {output_dir}")
 
+    # Determine prediction types
+    prediction_types = args.prediction_types
+    include_inventory = "inventory" in prediction_types
+
     print("\n--- Preparing Data for Main Model ---")
-    data_loaders = prepare_data(
+    print(f"Prediction types: {prediction_types}")
+    prepared_data = prepare_data(
         raw_data_dir=policy_data_dir,
         output_dir=output_dir,
         batch_size=args.batch_size,
@@ -592,28 +628,35 @@ def handle_train_command(args: argparse.Namespace):
         num_past_timesteps=args.num_past_timesteps,
         data_split_seed=42,
         granularity=args.granularity,
+        include_inventory=include_inventory,
     )
 
-    if not data_loaders or data_loaders[0] is None:
+    if prepared_data.train_loader is None:
         print("Failed to create data loaders. Aborting.")
         return
 
-    train_loader, val_loader, test_loader, input_dim = data_loaders
-    if input_dim is None:
+    if prepared_data.input_dim is None:
         print("Error: input_dim is None. Cannot determine model input size.")
         return
+
+    # Check if inventory data is available
+    resource_names = prepared_data.resource_names
+    if include_inventory and not resource_names:
+        print("Warning: No inventory data found in raw data. Disabling inventory prediction.")
+        prediction_types = ["location"]
+        include_inventory = False
 
     # Load granularity from the preprocessed data if it exists
     granularity = args.granularity
     preprocessed_meta_file = output_dir / "preprocessed_data" / "train.npz"
     if preprocessed_meta_file.exists():
-        with np.load(preprocessed_meta_file) as data:
+        with np.load(preprocessed_meta_file, allow_pickle=True) as data:
             if "granularity" in data:
                 granularity = str(data["granularity"])
                 print(f"Loaded granularity '{granularity}' from preprocessed data.")
 
-    model_params = {
-        "input_dim": input_dim,
+    model_params: Dict[str, Any] = {
+        "input_dim": prepared_data.input_dim,
         "num_future_timesteps": args.num_future_timesteps,
         "num_past_timesteps": args.num_past_timesteps,
         "hidden_dim": args.hidden_dim,
@@ -622,7 +665,12 @@ def handle_train_command(args: argparse.Namespace):
         "main_net_depth": args.main_net_depth,
         "processor_depth": args.processor_depth,
         "granularity": granularity,
+        "prediction_types": prediction_types,
     }
+
+    if include_inventory and prepared_data.inventory_num_items:
+        model_params["inventory_num_items"] = prepared_data.inventory_num_items
+        print(f"Inventory prediction enabled with {prepared_data.inventory_num_items} item types: {resource_names}")
 
     model = DoxascopeNet(**model_params).to(device)
     trainer = DoxascopeTrainer(model, device=device)
@@ -630,29 +678,29 @@ def handle_train_command(args: argparse.Namespace):
     print(f"Model Parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
 
     main_run_artifacts = trainer.train_and_evaluate(
-        train_loader=train_loader,
-        val_loader=val_loader,
-        test_loader=test_loader,
+        train_loader=prepared_data.train_loader,
+        val_loader=prepared_data.val_loader,
+        test_loader=prepared_data.test_loader,
         num_epochs=args.num_epochs,
         lr=args.learning_rate,
         patience=args.patience,
         output_dir=output_dir,
         policy_name=policy_name,
         is_baseline=False,
+        resource_names=resource_names,
     )
 
+    baseline_model = None
     if args.train_random_baseline:
         print("\n--- Preparing Data for Baseline Model (using randomized inputs) ---")
         preprocessed_dir = output_dir / "preprocessed_data"
-        baseline_data_loaders = create_baseline_data(preprocessed_dir, args.batch_size)
+        baseline_data = create_baseline_data(preprocessed_dir, args.batch_size)
 
-        if baseline_data_loaders[0] is None:
+        if baseline_data.train_loader is None:
             print("Failed to create data loaders for the baseline model. Aborting baseline training.")
             return
 
-        train_loader_base, val_loader_base, test_loader_base, input_dim_base = baseline_data_loaders
-        assert train_loader_base is not None
-        if input_dim_base is None:
+        if baseline_data.input_dim is None:
             print("Error: input_dim is None for baseline. Cannot determine model input size.")
             return
 
@@ -661,18 +709,19 @@ def handle_train_command(args: argparse.Namespace):
         print("\n--- Starting Training (Baseline) ---")
         print(f"Model Parameters: {sum(p.numel() for p in model_base.parameters() if p.requires_grad):,}")
 
-        assert isinstance(train_loader_base, DataLoader)
         trainer_base.train_and_evaluate(
-            train_loader=train_loader_base,  # type: ignore
-            val_loader=val_loader_base,
-            test_loader=test_loader_base,
+            train_loader=baseline_data.train_loader,
+            val_loader=baseline_data.val_loader,
+            test_loader=baseline_data.test_loader,
             num_epochs=args.num_epochs,
             lr=args.learning_rate,
             patience=args.patience,
             output_dir=output_dir,
             policy_name=policy_name,
             is_baseline=True,
+            resource_names=resource_names,
         )
+        baseline_model = model_base
 
     if main_run_artifacts and main_run_artifacts["test_loader"]:
         print("\n--- Generating Analysis Plots ---")
@@ -684,6 +733,8 @@ def handle_train_command(args: argparse.Namespace):
             test_results=main_run_artifacts["test_results"],
             test_loader=main_run_artifacts["test_loader"],
             is_baseline=False,
+            resource_names=main_run_artifacts.get("resource_names"),
+            baseline_model=baseline_model,
         )
 
 
@@ -793,7 +844,12 @@ def handle_sweep_command(args: argparse.Namespace):
             policy_data_dir = selected_policy_path
         else:
             policy_data_dir = args.raw_data_dir / policy_name
-    data_loaders = prepare_data(
+
+    # Determine prediction types for sweep
+    prediction_types = getattr(args, "prediction_types", ["location", "inventory"])
+    include_inventory = "inventory" in prediction_types
+
+    prepared_data = prepare_data(
         policy_data_dir,
         sweep_output_dir,  # Use sweep dir for preprocessed data cache
         args.batch_size,
@@ -802,21 +858,18 @@ def handle_sweep_command(args: argparse.Namespace):
         args.num_future_timesteps,
         args.num_past_timesteps,
         granularity=args.granularity,
+        include_inventory=include_inventory,
     )
-    if data_loaders[0] is None:
+    if prepared_data.train_loader is None:
         print("❌ Failed to prepare data. Aborting sweep.")
         return
-
-    # Unpack data loaders
-    train_loader, val_loader, test_loader, input_dim = data_loaders
-    data_loaders_for_sweep = (train_loader, val_loader, test_loader, input_dim)
 
     search_space = get_search_space(args.sweep_type)
     all_results = []
 
     for i in range(args.num_configs):
         config = sample_config(search_space)
-        result = run_sweep_trial(i, args.num_configs, config, args, device, data_loaders_for_sweep)
+        result = run_sweep_trial(i, args.num_configs, config, args, device, prepared_data, prediction_types)
         all_results.append(result)
 
     results_df = pd.DataFrame([res for res in all_results if res["success"]])
@@ -906,6 +959,14 @@ def main():
     parser_train.add_argument("--activation_fn", type=str, default="gelu", help="Activation function for the model.")
     parser_train.add_argument("--main_net_depth", type=int, default=3, help="Depth of the main network.")
     parser_train.add_argument("--processor_depth", type=int, default=1, help="Depth of the state processors.")
+    parser_train.add_argument(
+        "--prediction-types",
+        type=str,
+        nargs="+",
+        default=["location", "inventory"],
+        choices=["location", "inventory"],
+        help="What to predict: location, inventory, or both (default: both).",
+    )
     parser_train.set_defaults(func=handle_train_command)
 
     # --- Compare Command ---

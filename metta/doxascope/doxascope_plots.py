@@ -219,6 +219,167 @@ def plot_accuracy_heatmaps_per_timestep(
         plt.close(fig)
 
 
+def _compute_inventory_accuracy_by_time(
+    model: "DoxascopeNet",
+    test_loader: DataLoader,
+    device: str,
+) -> Tuple[Dict[int, Tuple[int, int]], np.ndarray]:
+    """
+    Compute inventory prediction accuracy per time-to-change bucket.
+
+    Returns:
+        accuracy_stats: Dict mapping time_to_change -> (correct, total)
+        time_to_change: Array of all time_to_change values
+    """
+    num_location_heads = len(model.head_timesteps)
+
+    all_predictions = []
+    all_targets = []
+    all_time_to_change = []
+
+    model.eval()
+    with torch.no_grad():
+        for batch in test_loader:
+            batch_x = batch["X"].to(device)
+            outputs = model(batch_x)
+
+            inv_output = outputs[num_location_heads]
+            inv_pred = inv_output.argmax(dim=1).cpu().numpy()
+
+            all_predictions.append(inv_pred)
+            all_targets.append(batch["y_inventory"].numpy())
+            if "time_to_change" in batch:
+                all_time_to_change.append(batch["time_to_change"].numpy())
+
+    if not all_predictions or not all_time_to_change:
+        return {}, np.array([])
+
+    predictions = np.concatenate(all_predictions, axis=0)
+    targets = np.concatenate(all_targets, axis=0)
+    time_to_change = np.concatenate(all_time_to_change, axis=0)
+
+    unique_times = sorted(set(time_to_change))
+    accuracy_stats: Dict[int, Tuple[int, int]] = {}
+
+    for t in unique_times:
+        mask = time_to_change == t
+        preds_t = predictions[mask]
+        targets_t = targets[mask]
+        correct = (preds_t == targets_t).sum()
+        total = len(preds_t)
+        accuracy_stats[t] = (int(correct), int(total))
+
+    return accuracy_stats, time_to_change
+
+
+def plot_inventory_accuracy_by_time_to_change(
+    model: "DoxascopeNet",
+    test_loader: DataLoader,
+    device: str,
+    resource_names: List[str],
+    output_path: Path,
+    baseline_model: Optional["DoxascopeNet"] = None,
+):
+    """
+    Generates a plot of inventory prediction accuracy vs time-to-change.
+
+    This is a single-class prediction task: given a memory vector, predict which
+    item will change next. Accuracy = % of samples where predicted class matches true class.
+
+    Expected behavior: higher accuracy for imminent changes (t=1,2,3), lower for distant ones.
+
+    Y-axis: accuracy (%)
+    X-axis: timesteps until the predicted change occurs
+    """
+    if "inventory" not in model.prediction_types:
+        return
+
+    # Compute main model accuracy
+    accuracy_stats, time_to_change = _compute_inventory_accuracy_by_time(model, test_loader, device)
+
+    if len(time_to_change) == 0:
+        print("No time_to_change data available for inventory accuracy plot.")
+        return
+
+    unique_times = sorted(set(time_to_change))
+
+    # Create the plot
+    plt.figure(figsize=(12, 7))
+
+    # Plot main model accuracy curve
+    times = []
+    accuracies = []
+    sample_counts = []
+
+    for t in unique_times:
+        if t in accuracy_stats:
+            correct, total = accuracy_stats[t]
+            if total > 0:
+                times.append(t)
+                accuracies.append(100.0 * correct / total)
+                sample_counts.append(total)
+
+    if times:
+        plt.plot(
+            times,
+            accuracies,
+            marker="o",
+            linestyle="-",
+            color="steelblue",
+            linewidth=2,
+            markersize=6,
+            label="Main Model",
+        )
+
+    # Plot baseline model accuracy if available
+    if baseline_model is not None:
+        baseline_stats, _ = _compute_inventory_accuracy_by_time(baseline_model, test_loader, device)
+
+        baseline_times = []
+        baseline_accuracies = []
+
+        for t in unique_times:
+            if t in baseline_stats:
+                correct, total = baseline_stats[t]
+                if total > 0:
+                    baseline_times.append(t)
+                    baseline_accuracies.append(100.0 * correct / total)
+
+        if baseline_times:
+            plt.plot(
+                baseline_times,
+                baseline_accuracies,
+                marker="x",
+                linestyle="--",
+                color="red",
+                linewidth=1.5,
+                markersize=5,
+                label="Baseline (random inputs)",
+            )
+
+    num_items = len(resource_names)
+    plt.xlabel("Timesteps Until Inventory Change")
+    plt.ylabel("Accuracy (%)")
+    plt.title(
+        "Inventory Change Prediction: Accuracy vs Time to Change\n"
+        f"(Predicting which of {num_items} items will change next)"
+    )
+    plt.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.7)
+    plt.legend(loc="best", framealpha=0.9)
+
+    # Limit x-axis to reasonable range (trim sparse high-time regions)
+    if times:
+        good_times = [t for t, n in zip(times, sample_counts, strict=False) if n >= 10]
+        if good_times:
+            plt.xlim(0, max(good_times) + 5)
+
+    plt.ylim(0, 105)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150)
+    plt.close()
+    print(f"Inventory accuracy plot saved to {output_path}")
+
+
 def generate_all_plots(
     output_dir: Path,
     device: str,
@@ -227,6 +388,8 @@ def generate_all_plots(
     test_results: Dict,
     test_loader: DataLoader,
     is_baseline: bool = False,
+    resource_names: Optional[List[str]] = None,
+    baseline_model: Optional["DoxascopeNet"] = None,
 ):
     """Generates all analysis plots for a training run."""
     if is_baseline:
@@ -237,12 +400,12 @@ def generate_all_plots(
     print(f"Generating analysis plots in: {analysis_dir}")
 
     # Extract test data from loader for heatmaps
-    X_test_list, y_test_list = [], []
-    for batch_x, batch_y in test_loader:
-        X_test_list.append(batch_x.cpu().numpy())
-        y_test_list.append(batch_y.cpu().numpy())
+    X_test_list, y_location_list = [], []
+    for batch in test_loader:
+        X_test_list.append(batch["X"].cpu().numpy())
+        y_location_list.append(batch["y_location"].cpu().numpy())
     X_test = np.concatenate(X_test_list, axis=0)
-    y_test = np.concatenate(y_test_list, axis=0)
+    y_location = np.concatenate(y_location_list, axis=0)
 
     # Plot training history for the main model
     plot_training_history(history, analysis_dir / "training_history.png")
@@ -259,6 +422,19 @@ def generate_all_plots(
         baseline_results=baseline_results,
     )
 
-    # Plot heatmaps for the main model
-    plot_accuracy_heatmaps_per_timestep(model, X_test, y_test, device, analysis_dir)
+    # Plot heatmaps for the main model (location predictions only)
+    if "location" in model.prediction_types:
+        plot_accuracy_heatmaps_per_timestep(model, X_test, y_location, device, analysis_dir)
+
+    # Plot inventory accuracy by time-to-change
+    if "inventory" in model.prediction_types and resource_names:
+        plot_inventory_accuracy_by_time_to_change(
+            model,
+            test_loader,
+            device,
+            resource_names,
+            analysis_dir / "inventory_accuracy_by_time.png",
+            baseline_model=baseline_model,
+        )
+
     print(f"Successfully generated plots for run in {output_dir.name}")
