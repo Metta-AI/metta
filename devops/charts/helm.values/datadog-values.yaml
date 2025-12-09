@@ -22,10 +22,10 @@ datadog:
     enabled: true
     containerCollectAll: true
 
-  # Process monitoring
+  # Process monitoring - disabled to reduce billing on ephemeral hosts
   processAgent:
-    enabled: true
-    processCollection: true
+    enabled: false
+    processCollection: false
 
   # Kubernetes orchestrator explorer
   orchestratorExplorer:
@@ -35,9 +35,10 @@ datadog:
   tags:
     - "env:production"
 
-  # Only collect infrastructure metrics from pods with the dd-metrics-enabled label
-  # This excludes ephemeral eval workers by default, reducing billing
-  containerIncludeMetrics: "kube_label_dd_metrics_enabled:true"
+  # Exclude ephemeral eval workers from infrastructure metrics to reduce billing
+  # Logs and APM traces are still collected for all containers
+  # https://docs.datadoghq.com/containers/guide/container-discovery-management/
+  containerExcludeMetrics: "kube_namespace:orchestrator kube_namespace:monitoring"
 
 # DaemonSet agent configuration
 clusterAgent:
