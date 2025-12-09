@@ -20,7 +20,8 @@ RUN pip install --no-cache-dir \
     datadog-api-client \
     requests \
     pydantic \
-    pydantic-settings
+    pydantic-settings \
+    sqlmodel
 
 # Install workspace packages in editable mode so imports work
 # These are needed for datadog_client.py imports
