@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from gymnasium.vector import AsyncVectorEnv
 
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
@@ -15,6 +16,7 @@ from mettagrid.config.mettagrid_config import (
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.policy.policy import PolicySpec
+from pufferlib.emulation import GymnasiumPufferEnv
 from mettagrid.simulator import Simulator
 
 
@@ -79,6 +81,26 @@ class TestMettaGridPufferEnvCreation:
         assert isinstance(env.metadata, dict)
         assert "render_modes" in env.metadata
         assert "ansi" in env.metadata["render_modes"]
+
+
+class TestMettaGridPufferEnvGymnasiumVector:
+    """Tests for Gymnasium vector compatibility."""
+
+    def test_async_vector_env_constructs(self, puffer_sim_config):
+        """Gymnasium AsyncVectorEnv should reset/step without metadata errors."""
+
+        def make_env():
+            sim = Simulator()
+            return GymnasiumPufferEnv(env_creator=MettaGridPufferEnv, env_kwargs={"simulator": sim, "cfg": puffer_sim_config})
+
+        vec = AsyncVectorEnv([make_env])
+        obs, info = vec.reset()
+        assert obs.shape[0] == 1
+
+        actions = np.zeros((1, puffer_sim_config.game.num_agents), dtype=np.int32)
+        obs, reward, term, trunc, info = vec.step(actions)
+        assert reward.shape == (1,)
+        vec.close()
 
 
 class TestMettaGridPufferEnvReset:
