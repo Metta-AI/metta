@@ -368,30 +368,23 @@ def train(
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
 
-    # Compute BC window in agent steps (default is 1B when BC is enabled)
-    bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
-    anneal_start = int(bc_total_steps * 0.5)
-
-    scheduler_run_gates: list[LossRunGate] = [
-        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_step=bc_total_steps),
-        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=bc_total_steps),
-        LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
-        LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=bc_total_steps),
-    ]
+    scheduler_run_gates: list[LossRunGate] = []
     scheduler_rules: list[HyperUpdateRule] = []
 
     if bc_policy_uri is not None:
         tt.training_env.supervisor_policy_uri = bc_policy_uri
         losses = tt.trainer.losses
-        losses.ppo.enabled = False
-        losses.ppo_actor.enabled = True
-        losses.ppo_critic.enabled = True
-        losses.ppo_critic.deferred_training_start_step = bc_total_steps
+        bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
 
         if bc_mode == "sliced_cloner":
             losses.sliced_scripted_cloner.enabled = True
-            losses.supervisor.enabled = False
+            losses.ppo_critic.deferred_training_start_step = bc_total_steps
+            anneal_start = 0
             loss_instance_name = "sliced_scripted_cloner"
+
+            scheduler_run_gates = [
+                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
+            ]
             bc_rules = [
                 HyperUpdateRule(
                     loss_instance_name="sliced_scripted_cloner",
@@ -400,14 +393,14 @@ def train(
                     style="linear",
                     start_value=0.2,
                     end_value=0.0,
-                    start_agent_step=0,
+                    start_agent_step=anneal_start,
                     end_agent_step=bc_total_steps,
                 )
             ]
         else:
             losses.supervisor.enabled = True
-            losses.sliced_scripted_cloner.enabled = False
             losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+            anneal_start = int(bc_total_steps * 0.5)
             loss_instance_name = "supervisor"
             bc_rules = [
                 HyperUpdateRule(
