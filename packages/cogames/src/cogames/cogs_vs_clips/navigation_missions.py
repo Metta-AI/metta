@@ -17,7 +17,6 @@ from cogames.cogs_vs_clips.stations import (
     OxygenExtractorConfig,
     SiliconExtractorConfig,
 )
-from metta.map.terrain_from_numpy import NavigationFromNumpy
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.mapgen import MapGen
@@ -242,4 +241,8 @@ for map_dir in _maps:
     # map_dir e.g. "varied_terrain/dense_large"
     # Name it "navigation_dense_large"
     short_name = map_dir.replace("varied_terrain/", "")
+    try:
+        from metta.map.terrain_from_numpy import NavigationFromNumpy
+    except ImportError:
+        continue
     NAVIGATION_MISSIONS.append(NavigationDenseMission(name=f"navigation_{short_name}", terrain_dir=map_dir))
