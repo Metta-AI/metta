@@ -66,12 +66,11 @@ def _resolve_spec_data_path(data_path: Optional[str], extraction_root: Path) -> 
     raise FileNotFoundError(f"Policy data path '{data_path}' not found in submission directory {extraction_root}")
 
 
-def _find_module_root(extraction_root: Path, class_path: str) -> Path | None:
-    """Find the sys.path entry needed to import a class from within the extraction.
+def _find_package_source_root(extraction_root: Path, class_path: str) -> Path | None:
+    """Find the source root by locating the top-level package directory.
 
-    Given a class_path like 'mypackage.submodule.MyClass', searches the extraction
-    directory for the corresponding module file and returns the path that should be
-    added to sys.path.
+    Given a class_path like 'mypackage.submodule.MyClass', finds a directory named
+    'mypackage' that contains Python code, and returns its parent (the source root).
 
     Note: This modifies sys.path but does not invalidate sys.modules. If the same
     module was previously imported from a different location (e.g., installed package),
@@ -79,29 +78,19 @@ def _find_module_root(extraction_root: Path, class_path: str) -> Path | None:
     each task runs in a fresh process, but may cause issues in long-running processes
     that load multiple submissions with the same class_path.
     """
-    # Convert class_path to module path (remove class name at the end)
-    parts = class_path.split(".")
-    # Try progressively shorter paths to find the module file
-    for i in range(len(parts), 0, -1):
-        module_path = "/".join(parts[:i]) + ".py"
-        matches = list(extraction_root.rglob(module_path))
-        matched_path = module_path
-        if not matches:
-            # Also try as a package directory (e.g., cogames/policy/agents/__init__.py)
-            package_path = "/".join(parts[:i]) + "/__init__.py"
-            matches = list(extraction_root.rglob(package_path))
-            matched_path = package_path
-        if matches:
-            # If multiple matches, prefer the shortest path (closest to extraction root)
-            # This handles cases where there are backup copies in subdirectories
-            match = min(matches, key=lambda p: len(p.parts))
-            # Compute the root path by walking up from the match
+    top_package = class_path.split(".")[0]
 
-            relative_module = Path(matched_path)
-            root = match
-            for _ in relative_module.parts:
-                root = root.parent
-            return root
+    # Find any __init__.py inside a directory named after the top package
+    # e.g., for "cogames.policy.module", find "**/cogames/**/__init__.py"
+    for init_file in extraction_root.rglob("__init__.py"):
+        if "__pycache__" in str(init_file):
+            continue
+        # Check if any ancestor directory is named after the top package
+        for parent in init_file.parents:
+            if parent.name == top_package and parent != extraction_root:
+                # Found it - source root is the parent of the package directory
+                return parent.parent
+
     return None
 
 
@@ -124,8 +113,8 @@ def load_policy_spec_from_local_dir(
         spec.init_kwargs["device"] = device
 
     # Find and add the correct sys.path entry for the class_path in this submission
-    # This handles submissions where files are nested (e.g., packages/cogames/src/cogames/...)
-    module_root = _find_module_root(extraction_root, spec.class_path)
+    # This handles submissions where files are nested (e.g., packages/foo/src/foo/...)
+    module_root = _find_package_source_root(extraction_root, spec.class_path)
     if module_root and module_root != extraction_root:
         sys_path_entry = str(module_root.resolve())
         if sys_path_entry not in sys.path:
