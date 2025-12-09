@@ -53,6 +53,7 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
   const drawer = useDrawer();
 
   const [hoveredCell, setHoveredCell] = useState<Cell | undefined>();
+  const [prevHoveredCell, setPrevHoveredCell] = useState<Cell | undefined>();
 
   const [scale, setScale] = useState(0);
 
@@ -79,7 +80,7 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       y: (canvas.height - grid.height * scale) / (2 * dpr),
     });
     setZoom(1);
-  }, [grid.width, grid.height]);
+  }, [dpr, grid.width, grid.height, setPan, setZoom]);
 
   useEffect(() => {
     initCanvas();
@@ -93,7 +94,7 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       x: (canvas.width - grid.width * scale) / (2 * dpr),
       y: (canvas.height - grid.height * scale) / (2 * dpr),
     });
-  }, [scale, setPan, setZoom]);
+  }, [dpr, grid.width, grid.height, scale, setPan, setZoom]);
 
   const transform = useMemo(() => {
     if (!canvasRef.current) return new DOMMatrixReadOnly();
@@ -107,23 +108,22 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       .scale(scale);
   }, [zoom, pan, scale, dpr]);
 
-  const draw = useCallback(() => {
+  const drawGridOnly = useCallback(() => {
     if (!drawer || !canvasRef.current) return;
-
     const canvas = canvasRef.current;
-
     const context = canvas.getContext("2d");
     if (!context) return;
 
+    context.save();
     context.resetTransform();
     context.fillStyle = "#eee";
     context.fillRect(0, 0, canvas.width, canvas.height);
+    context.restore();
 
     context.setTransform(transform);
 
     try {
       drawer.drawGrid(context, grid);
-
       drawExtra?.(context);
     } catch (e) {
       context.resetTransform();
@@ -136,8 +136,23 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       console.error(e);
       return;
     }
+  }, [drawer, grid, transform, drawExtra]);
 
+  const drawHoverOverlay = useCallback(() => {
+    if (!drawer || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const context = canvas.getContext("2d");
+
+    if (!context) return;
+
+    context.save();
+    context.setTransform(transform);
     context.lineWidth = 0.03;
+
+    if (prevHoveredCell && grid.cellInGrid(prevHoveredCell)) {
+      context.clearRect(prevHoveredCell.c, prevHoveredCell.r, 1, 1);
+    }
 
     if (hoveredCell && grid.cellInGrid(hoveredCell)) {
       context.strokeStyle = "white";
@@ -157,13 +172,20 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       context.roundRect(selectedCell.c, selectedCell.r, 1, 1, 0.1);
       context.stroke();
     }
-  }, [drawer, grid, transform, hoveredCell, selectedCell, drawExtra]);
+  }, [drawer, grid, transform, hoveredCell, prevHoveredCell, selectedCell]);
 
   useCallOnWindowResize(initCanvas);
   useCallOnElementResize(canvasRef.current, initCanvas);
 
   // TODO - avoid rendering if not visible
-  useEffect(draw, [draw]);
+  useEffect(() => {
+    drawGridOnly();
+    setPrevHoveredCell(undefined);
+  }, [drawGridOnly]);
+
+  useEffect(() => {
+    drawHoverOverlay();
+  }, [drawHoverOverlay]);
 
   // Benchmark: uncomment to redraw 60 frames per second when the canvas is visible on screen
   // useStressTest(draw, canvasRef.current);
@@ -183,17 +205,22 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       }
       return cell;
     },
-    [transform, grid]
+    [transform, grid, dpr]
   );
 
   const onMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const cell = cellFromMouseEvent(e);
 
+      // Do not redraw if hovering the same cell
+      if (hoveredCell?.r === cell?.r && hoveredCell?.c === cell?.c) {
+        return;
+      }
+
       setHoveredCell(cell);
       onCellHover?.(cell);
     },
-    [zoom, grid, onCellHover, cellFromMouseEvent]
+    [hoveredCell, cellFromMouseEvent, onCellHover]
   );
 
   const onMouseClick = useCallback(
@@ -203,7 +230,7 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       const cell = cellFromMouseEvent(e);
       onCellSelect(cell);
     },
-    [zoom, grid, onCellSelect, cellFromMouseEvent]
+    [onCellSelect, cellFromMouseEvent]
   );
 
   const { showDebugInfo, showHoverInfo } = use(MapViewerContext);
