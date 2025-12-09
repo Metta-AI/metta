@@ -24,10 +24,12 @@ RUN pip install --no-cache-dir \
     sqlmodel
 
 # Install workspace packages in editable mode so imports work
-# These are needed for datadog_client.py imports
-RUN pip install --no-cache-dir -e ./softmax -e ./common || \
+# These are needed for datadog_client.py imports and stable_suite integration
+# Install main metta package (contains metta.jobs, metta.common)
+# Install common and softmax packages
+RUN pip install --no-cache-dir -e . -e ./common -e ./softmax || \
     (echo "Warning: Could not install workspace packages, ensure PYTHONPATH includes /app" && \
-     pip install --no-cache-dir -e . || true)
+     echo "Continuing anyway - imports may fail at runtime")
 
 ENV PYTHONPATH="/app:/app/softmax/src:/app/common/src"
 
