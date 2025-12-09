@@ -190,7 +190,7 @@ def _apply_overrides(
         )
     ]
     # Slow down evals for long runs
-    tt.evaluator.epoch_interval = 5000
+    tt.evaluator.epoch_interval = 3000
     return tt
 
 
