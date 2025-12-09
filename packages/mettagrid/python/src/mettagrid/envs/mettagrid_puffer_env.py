@@ -74,6 +74,8 @@ class MettaGridPufferEnv(PufferEnv):
         supervisor_policy_spec: Optional[PolicySpec] = None,
         buf: Any = None,
         seed: int = 0,
+        supervisor_subset_fraction: Optional[float] = None,
+        supervisor_stop_agent_step: Optional[int] = None,
     ):
         # Support both Simulation and MettaGridConfig for backwards compatibility
         self._simulator = simulator
@@ -82,6 +84,8 @@ class MettaGridPufferEnv(PufferEnv):
         self._supervisor_policy_spec = supervisor_policy_spec
         self._supervisor_enabled = True
         self._agent_step_counter = 0
+        self._supervisor_subset_fraction = supervisor_subset_fraction
+        self._supervisor_stop_agent_step = supervisor_stop_agent_step
         self._sim: Simulation | None = None
 
         # Initialize shared buffers FIRST (before super().__init__)
@@ -204,7 +208,32 @@ class MettaGridPufferEnv(PufferEnv):
         raw_observations = self._buffers.observations
 
         # Full-batch supervisor (matches main; no env-side decay/subset)
-        self._env_supervisor.step_batch(raw_observations, teacher_actions)
+        subset_frac = self._supervisor_subset_fraction
+        if subset_frac is not None and 0.0 < subset_frac < 1.0:
+            # Anneal subset in lockstep with BC window if provided
+            if self._supervisor_stop_agent_step and self._supervisor_stop_agent_step > 0:
+                progress = min(1.0, self._agent_step_counter / float(self._supervisor_stop_agent_step))
+                subset_frac = subset_frac * max(0.0, 1.0 - progress)
+
+            if subset_frac <= 0.0:
+                teacher_actions.fill(-1)
+                return
+
+            mask = np.random.random(size=self.num_agents) < subset_frac
+            if not mask.any():
+                teacher_actions.fill(-1)
+                return
+            agent_ids = np.nonzero(mask)[0].astype(np.int32)
+            obs_subset = raw_observations[agent_ids]
+            actions_subset = np.full(agent_ids.shape[0], fill_value=-1, dtype=dtype_actions)
+            if hasattr(self._env_supervisor, "step_batch_subset"):
+                self._env_supervisor.step_batch_subset(agent_ids, obs_subset, actions_subset)
+                teacher_actions.fill(-1)
+                teacher_actions[agent_ids] = actions_subset
+            else:
+                self._env_supervisor.step_batch(raw_observations, teacher_actions)
+        else:
+            self._env_supervisor.step_batch(raw_observations, teacher_actions)
 
     @property
     def observations(self) -> np.ndarray:

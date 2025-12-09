@@ -73,6 +73,7 @@ class TrainingEnvironmentConfig(Config):
 
     # Supervisor control
     supervisor_stop_agent_step: Optional[int] = Field(default=None)
+    supervisor_subset_fraction: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
     maps_cache_size: Optional[int] = Field(default=None, ge=1)
     """Number of maps to cache in shared memory. None for unlimited."""
@@ -186,6 +187,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             self._curriculum,
             cfg.vectorization,
             supervisor_policy_spec=supervisor_policy_spec,
+            supervisor_subset_fraction=cfg.supervisor_subset_fraction,
+            supervisor_stop_agent_step=cfg.supervisor_stop_agent_step,
             num_envs=self._num_envs,
             batch_size=self._batch_size,
             num_workers=num_workers,

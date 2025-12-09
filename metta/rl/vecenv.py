@@ -23,6 +23,8 @@ logger = logging.getLogger("vecenv")
 def make_env_func(
     curriculum: Curriculum,
     supervisor_policy_spec: Optional[PolicySpec] = None,
+    supervisor_subset_fraction: Optional[float] = None,
+    supervisor_stop_agent_step: Optional[int] = None,
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayLogWriter] = None,
     run_dir: str | None = None,
@@ -45,6 +47,8 @@ def make_env_func(
         sim,
         curriculum.get_task().get_env_cfg(),
         supervisor_policy_spec=supervisor_policy_spec,
+        supervisor_subset_fraction=supervisor_subset_fraction,
+        supervisor_stop_agent_step=supervisor_stop_agent_step,
         buf=buf,
     )
     env = CurriculumEnv(env, curriculum)
@@ -64,6 +68,8 @@ def make_vecenv(
     replay_writer: ReplayLogWriter | None = None,
     run_dir: str | None = None,
     supervisor_policy_spec: PolicySpec | None = None,
+    supervisor_subset_fraction: Optional[float] = None,
+    supervisor_stop_agent_step: Optional[int] = None,
     **kwargs,
 ) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
@@ -86,6 +92,8 @@ def make_vecenv(
         "replay_writer": replay_writer,
         "run_dir": run_dir,
         "supervisor_policy_spec": supervisor_policy_spec,
+        "supervisor_subset_fraction": supervisor_subset_fraction,
+        "supervisor_stop_agent_step": supervisor_stop_agent_step,
         "maps_cache_size": maps_cache_size,
     }
 
