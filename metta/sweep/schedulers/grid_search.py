@@ -17,6 +17,7 @@ from pydantic import Field
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
 from metta.sweep.core import CategoricalParameterConfig
+from metta.sweep.schedulers.state import SchedulerState
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ class GridSearchScheduler:
 
     def __init__(self, config: GridSearchSchedulerConfig):
         self.config = config
+        self.state = SchedulerState()
         # Precompute full grid suggestions
         dims = self._flatten_dims(config.parameters)
         self._dim_names: list[str] = list(dims.keys())
@@ -61,13 +63,14 @@ class GridSearchScheduler:
     def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
         jobs: list[JobDefinition] = []
 
+        self.state.refresh(runs)
+
         # 1) Schedule evals for any runs with training done (throttled)
-        in_eval = [r for r in runs if r.status == JobStatus.IN_EVAL]
         eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
 
         eval_capacity: Optional[int] = None
         if self.config.max_concurrent_evals is not None:
-            eval_capacity = max(0, self.config.max_concurrent_evals - len(in_eval))
+            eval_capacity = self.state.eval_capacity(self.config.max_concurrent_evals)
 
         if eval_candidates:
             to_schedule = eval_candidates if eval_capacity is None else eval_candidates[:eval_capacity]
@@ -81,6 +84,7 @@ class GridSearchScheduler:
                     eval_overrides=self.config.eval_overrides,
                 )
                 jobs.append(job)
+                self.state.mark_eval_scheduled(run.run_id)
                 logger.info("[GridSearchScheduler] Scheduling evaluation for %s", run.run_id)
 
         # 2) Respect training capacity
@@ -127,6 +131,7 @@ class GridSearchScheduler:
             )
             job.metadata["sweep/suggestion"] = suggestion
             jobs.append(job)
+            self.state.mark_training_scheduled(run_id, suggestion)
             launched += 1
             logger.info("[GridSearchScheduler] Scheduling training %s", run_id)
 
@@ -148,11 +153,7 @@ class GridSearchScheduler:
 
     # ---------- Helpers ----------
     def _extract_suggestion(self, run: RunInfo) -> dict[str, Any] | None:
-        if run.summary and isinstance(run.summary, dict):
-            sg = run.summary.get("sweep/suggestion")
-            if isinstance(sg, dict):
-                return dict(sg)
-        return None
+        return SchedulerState._extract_suggestion(run)
 
     def _suggestion_key(self, suggestion: dict[str, Any]) -> Tuple[Any, ...]:
         # Build a key tuple ordered by dimension names
@@ -169,6 +170,11 @@ class GridSearchScheduler:
             except Exception:
                 continue
             keys.add(key)
+        for sg in self.state.in_progress_suggestions.values():
+            try:
+                keys.add(self._suggestion_key(sg))
+            except Exception:
+                continue
         return keys
 
     def _flatten_dims(self, params: Dict[str, Any], prefix: str = "") -> Dict[str, List[Any]]:
