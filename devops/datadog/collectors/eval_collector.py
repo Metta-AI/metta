@@ -144,25 +144,25 @@ class EvalCollector(BaseCollector):
         sample = self._build(
             metric="eval.local.success",
             value=float(payload.get("success", 0.0)),
-                    workflow_name=wf,
-                    task="Local eval",
-                    check="Success signal",
-                    condition=">= 1",
-                )
+            workflow_name=wf,
+            task="Local eval",
+            check="Success signal",
+            condition=">= 1",
+        )
         assert sample.name == "metta.infra.cron.eval.local.success", f"Expected fully-qualified name, got {sample.name}"
         samples.append(sample)
 
         sample = self._build(
             metric="eval.local.heart_delta_pct",
             value=float(payload.get("heart_delta_pct", 0.0)),
-                    workflow_name=wf,
-                    task="Local eval",
-                    check="Heart delta pct",
-                    condition=">= 0",
-                )
+            workflow_name=wf,
+            task="Local eval",
+            check="Heart delta pct",
+            condition=">= 0",
+        )
         assert sample.name == "metta.infra.cron.eval.local.heart_delta_pct", (
             f"Expected fully-qualified name, got {sample.name}"
-            )
+        )
         samples.append(sample)
         return samples
 
@@ -173,11 +173,11 @@ class EvalCollector(BaseCollector):
         sample = self._build(
             metric="eval.remote.success",
             value=float(payload.get("success", 0.0)),
-                    workflow_name=wf,
-                    task="Remote eval",
-                    check="Success signal",
-                    condition=">= 1",
-                )
+            workflow_name=wf,
+            task="Remote eval",
+            check="Success signal",
+            condition=">= 1",
+        )
         assert sample.name == "metta.infra.cron.eval.remote.success", (
             f"Expected fully-qualified name, got {sample.name}"
         )
@@ -186,11 +186,11 @@ class EvalCollector(BaseCollector):
         sample = self._build(
             metric="eval.remote.heart_delta_pct",
             value=float(payload.get("heart_delta_pct", 0.0)),
-                    workflow_name=wf,
-                    task="Remote eval",
-                    check="Heart delta pct",
-                    condition=">= 0",
-                )
+            workflow_name=wf,
+            task="Remote eval",
+            check="Heart delta pct",
+            condition=">= 0",
+        )
         assert sample.name == "metta.infra.cron.eval.remote.heart_delta_pct", (
             f"Expected fully-qualified name, got {sample.name}"
         )
@@ -199,14 +199,14 @@ class EvalCollector(BaseCollector):
         sample = self._build(
             metric="eval.remote.duration_minutes",
             value=float(payload.get("duration_minutes", 0.0)),
-                    workflow_name=wf,
-                    task="Remote eval",
-                    check="Runtime minutes",
-                    condition="<= 60",
-                    warn_threshold=90,
-                )
+            workflow_name=wf,
+            task="Remote eval",
+            check="Runtime minutes",
+            condition="<= 60",
+            warn_threshold=90,
+        )
         assert sample.name == "metta.infra.cron.eval.remote.duration_minutes", (
             f"Expected fully-qualified name, got {sample.name}"
-            )
+        )
         samples.append(sample)
         return samples

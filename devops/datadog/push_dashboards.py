@@ -22,7 +22,12 @@ def push_dashboard(file_path: Path, site: str, api_key: str, app_key: str) -> No
     payload = json.loads(file_path.read_text(encoding="utf-8"))
     # Construct API URL: DD_SITE should be like "datadoghq.com" or "datadoghq.eu"
     # API endpoint is at api.{site}
-    site_clean = site.rstrip('/').lstrip('https://').lstrip('http://')
+    # Clean site URL: remove trailing slash and protocol prefixes
+    site_clean = site.rstrip("/")
+    if site_clean.startswith("https://"):
+        site_clean = site_clean[8:]
+    elif site_clean.startswith("http://"):
+        site_clean = site_clean[7:]
     url = f"https://api.{site_clean}/api/v1/dashboard"
     response = requests.post(
         url,

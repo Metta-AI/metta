@@ -27,12 +27,16 @@ def available_collectors() -> List[str]:
 
 # Import collectors so they self-register
 from devops.datadog.collectors.ci_collector import CICollector  # noqa: E402
-from devops.datadog.collectors.training_collector import TrainingCollector  # noqa: E402
 from devops.datadog.collectors.eval_collector import EvalCollector  # noqa: E402
+from devops.datadog.collectors.training_collector import TrainingCollector  # noqa: E402
 
 register_collector(CICollector)
-register_collector(TrainingCollector)
 register_collector(EvalCollector)
+register_collector(TrainingCollector)
 
-# Import stable_suite integration modules
-from devops.datadog.collectors import stable_suite_fetcher, stable_suite_mapping, stable_suite_metrics  # noqa: F401
+# Import stable_suite integration modules (for side effects)
+from devops.datadog.collectors import (  # noqa: E402, F401
+    stable_suite_fetcher,
+    stable_suite_mapping,
+    stable_suite_metrics,
+)

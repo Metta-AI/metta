@@ -140,8 +140,7 @@ def build_summary_widget(
         )
         fail_terms.append(f"default_zero({fail_query_name})")
 
-    # Calculate total pass and fail counts
-    pass_expression = "sum(" + ", ".join(pass_terms) + ")" if pass_terms else "0"
+    # Calculate total fail count
     fail_expression = "sum(" + ", ".join(fail_terms) + ")" if fail_terms else "0"
 
     # Display: show fail count, but color based on whether there are any failures

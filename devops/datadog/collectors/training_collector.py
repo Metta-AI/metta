@@ -14,16 +14,10 @@ class TrainingCollector(BaseCollector):
     """
     Collector for training health metrics used by the infra dashboard.
 
-    Parses S3 metadata directly from s3://softmax-train-dir/.job_metadata/*/
-    to infer training job health using heuristics:
-    - heartbeat_file: last heartbeat timestamp
-    - restart_count: instability indicator
-    - termination_reason: success/failure signal
-
-    Heuristic success logic:
-    - Success if termination_reason contains "0" or "completed"
-    - Failure if "1" or "error" or missing heartbeat for > 30 minutes
-    - Placeholder values: hearts=1.0 if success else 0.0, sps=0 (until real source available)
+    Reads job metrics from stable_suite's JobState database:
+    - devops/stable/state/{version}/jobs.sqlite
+    - Extracts success, hearts, sps, and shaped metrics from JobState
+    - Maps jobs to workflows using stable_suite_mapping
     """
 
     slug = "training"
@@ -74,7 +68,8 @@ class TrainingCollector(BaseCollector):
                 elif workflow == "multinode_learning_progress":
                     health_data["multinode"] = metrics
                 elif workflow == "local_arena_basic_easy_shaped":
-                    health_data["local_arena"] = {"checkpoint1": 0.0, "checkpoint2": 0.0}  # Not available from stable_suite
+                    # Not available from stable_suite
+                    health_data["local_arena"] = {"checkpoint1": 0.0, "checkpoint2": 0.0}
                 elif workflow == "training_bugs":
                     health_data["bugs"] = {"count": 0.0}  # Not from stable_suite
 
@@ -92,82 +87,6 @@ class TrainingCollector(BaseCollector):
         if not samples:
             self.logger.warning("Training collector produced zero metrics")
         return samples
-
-    def _infer_workflow_type(self, job_name: str) -> str:
-        """Infer workflow type from job name patterns."""
-        job_lower = job_name.lower()
-        if "multinode" in job_lower or "4x4" in job_lower or "8x" in job_lower:
-            return "multinode"
-        elif "multigpu" in job_lower or "arena" in job_lower:
-            return "multigpu"
-        elif "local" in job_lower or "1x1" in job_lower:
-            return "local_arena"
-        else:
-            # Default to multigpu for unknown patterns
-            return "multigpu"
-
-    def _read_heartbeat(self, prefix: str) -> Optional[datetime]:
-        """Read heartbeat timestamp from S3."""
-        try:
-            key = f"{prefix}heartbeat_file"
-            response = self.s3_client.get_object(Bucket=self.S3_BUCKET, Key=key)
-            content = response["Body"].read().decode("utf-8").strip()
-            # Heartbeat file typically contains a timestamp
-            try:
-                # Try parsing as ISO format or Unix timestamp
-                if content.isdigit():
-                    return datetime.fromtimestamp(int(content), tz=timezone.utc)
-                else:
-                    # Try ISO format
-                    return datetime.fromisoformat(content.replace("Z", "+00:00"))
-            except (ValueError, TypeError):
-                self.logger.warning("Could not parse heartbeat timestamp: %s", content)
-                return None
-        except ClientError:
-            return None
-
-    def _read_restart_count(self, prefix: str) -> int:
-        """Read restart count from S3."""
-        try:
-            key = f"{prefix}restart_count"
-            response = self.s3_client.get_object(Bucket=self.S3_BUCKET, Key=key)
-            content = response["Body"].read().decode("utf-8").strip()
-            return int(content) if content.isdigit() else 0
-        except (ClientError, ValueError):
-            return 0
-
-    def _read_termination_reason(self, prefix: str) -> Optional[str]:
-        """Read termination reason from S3."""
-        try:
-            key = f"{prefix}termination_reason"
-            response = self.s3_client.get_object(Bucket=self.S3_BUCKET, Key=key)
-            return response["Body"].read().decode("utf-8").strip()
-        except ClientError:
-            return None
-
-    def _infer_success(self, heartbeat_ts: Optional[datetime], termination_reason: Optional[str]) -> bool:
-        """Infer job success from metadata heuristics."""
-        # Check termination reason
-        if termination_reason:
-            reason_lower = termination_reason.lower()
-            # Success indicators
-            if "0" in termination_reason or "completed" in reason_lower or "success" in reason_lower:
-                return True
-            # Failure indicators
-            if "1" in termination_reason or "error" in reason_lower or "fail" in reason_lower:
-                return False
-
-        # Check heartbeat timeout
-        if heartbeat_ts:
-            now = datetime.now(timezone.utc)
-            age = now - heartbeat_ts
-            if age > timedelta(minutes=self.HEARTBEAT_TIMEOUT_MINUTES):
-                return False
-            # Recent heartbeat suggests active/successful
-            return True
-
-        # No data available - assume failure for safety
-        return False
 
     def _build_data_missing_metric(self, value: float) -> MetricSample:
         """Emit a sentinel metric indicating whether training data is missing."""

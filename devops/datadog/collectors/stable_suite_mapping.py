@@ -6,7 +6,6 @@ Mapping is hard-coded based on Nishad's confirmed mapping.
 
 from __future__ import annotations
 
-
 # Hard-coded mapping based on Nishad's confirmation
 JOB_TO_WORKFLOW_MAP = {
     "arena_single_gpu_100m": "multigpu_arena_basic_easy_shaped",
@@ -47,10 +46,7 @@ def map_job_to_workflow(job_name: str) -> str:
         if job_pattern in job_suffix or job_suffix in job_pattern:
             return workflow
 
-    raise ValueError(
-        f"Unknown job name: {job_name}. "
-        f"Known jobs: {list(JOB_TO_WORKFLOW_MAP.keys())}"
-    )
+    raise ValueError(f"Unknown job name: {job_name}. Known jobs: {list(JOB_TO_WORKFLOW_MAP.keys())}")
 
 
 def is_training_job(job_name: str) -> bool:

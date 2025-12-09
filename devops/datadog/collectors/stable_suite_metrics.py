@@ -6,7 +6,7 @@ and maps them to Datadog schema metrics.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Dict
 
 from metta.jobs.job_state import JobState
 
