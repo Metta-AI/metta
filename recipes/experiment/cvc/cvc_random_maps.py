@@ -646,6 +646,7 @@ def experiment(
     heart_buckets: bool = False,
     resource_buckets: bool = False,
     initial_inventory_buckets: bool = False,
+    supervision: bool = False,
 ) -> None:
     """Submit a training job on AWS with 4 GPUs.
 
@@ -695,6 +696,9 @@ def experiment(
 
     if additional_args:
         cmd.extend(additional_args)
+
+    if supervision:
+        cmd.append("bc_policy_uri=thinky bc_mode=sliced_cloner bc_steps=1000000000")
 
     print(f"Launching random maps training job: {run_name}")
     print(f"  Agents: {num_cogs}")
