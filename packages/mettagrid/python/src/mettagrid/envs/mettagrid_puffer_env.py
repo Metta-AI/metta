@@ -65,6 +65,8 @@ class MettaGridPufferEnv(PufferEnv):
       https://github.com/PufferAI/PufferLib/blob/main/pufferlib/environments.py
     """
 
+    metadata = {"render_modes": ["ansi"]}
+
     def __init__(
         self,
         simulator: Simulator,

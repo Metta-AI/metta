@@ -26,6 +26,8 @@ class TribalVillageEnv(pufferlib.PufferEnv):
     that Nim reads/writes directly.
     """
 
+    metadata = {"render_modes": ["rgb_array", "ansi"]}
+
     def __init__(self, config: Optional[Dict[str, Any]] = None, buf=None):
         self.config = config or {}
         self.max_steps = self.config.get("max_steps", 1_000)
