@@ -264,6 +264,10 @@ class AttackActionConfig(ActionConfig):
         default_factory=dict,
         description="Per-vibe armor bonus. Maps vibe name to bonus amount.",
     )
+    vibes: list[str] = Field(
+        default_factory=list,
+        description="Vibe names that trigger attack on move (e.g., ['weapon'])",
+    )
 
     def _actions(self) -> list[Action]:
         # Attack only triggers via move, no standalone actions
