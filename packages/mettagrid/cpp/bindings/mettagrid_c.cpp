@@ -88,8 +88,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   // Pre-compute goal_obs tokens for each agent
   if (_global_obs_config.goal_obs) {
-    _agent_goal_obs_tokens.resize(num_agents);
-    for (size_t i = 0; i < num_agents; i++) {
+    _agent_goal_obs_tokens.resize(_agents.size());
+    for (size_t i = 0; i < _agents.size(); i++) {
       _compute_agent_goal_obs_tokens(i);
     }
   }
