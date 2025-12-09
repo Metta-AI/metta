@@ -204,10 +204,6 @@ def _init_console_logging() -> None:
     # Set default level
     root_logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 
-    # set env COLUMNS if we are in a batch job
-    if os.environ.get("AWS_BATCH_JOB_ID") or os.environ.get("SKYPILOT_TASK_ID"):
-        os.environ["COLUMNS"] = "200"
-
     rich.traceback.install(show_locals=False)
 
 
