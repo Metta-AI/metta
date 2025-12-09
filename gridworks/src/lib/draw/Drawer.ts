@@ -1,14 +1,22 @@
 import { Cell, MettaGrid, MettaObject } from "../MettaGrid";
-import {
-  loadMettaTileSets,
-  TILE_NAMES,
-  WALL_E,
-  WALL_N,
-  WALL_NAMES,
-  WALL_S,
-  WALL_W,
-} from "./mettaTileSets";
+import { loadMettaTileSets, TILE_NAMES } from "./mettaTileSets";
 import { TileSetCollection } from "./TileSetCollection";
+
+const wallPatternToTile = [
+  18, 17, 4, 4, 12, 22, 4, 4, 30, 13, 41, 41, 30, 13, 41, 41, 19, 23, 5, 5, 37,
+  9, 5, 5, 30, 13, 41, 41, 30, 13, 41, 41, 24, 43, 39, 39, 44, 45, 39, 39, 48,
+  32, 46, 46, 48, 32, 46, 46, 24, 43, 39, 39, 44, 45, 39, 39, 48, 32, 46, 46,
+  48, 32, 46, 46, 36, 10, 3, 3, 16, 40, 3, 3, 20, 27, 6, 6, 20, 27, 6, 6, 25,
+  15, 2, 2, 26, 38, 2, 2, 20, 27, 6, 6, 20, 27, 6, 6, 24, 43, 39, 39, 44, 45,
+  39, 39, 48, 32, 46, 46, 48, 32, 46, 46, 24, 43, 39, 39, 44, 45, 39, 39, 48,
+  32, 46, 46, 48, 32, 46, 46, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33, 33,
+  7, 7, 35, 35, 31, 31, 14, 14, 31, 31, 33, 33, 7, 7, 33, 33, 7, 7, 47, 47, 1,
+  1, 42, 42, 1, 1, 34, 34, 0, 0, 34, 34, 0, 0, 47, 47, 1, 1, 42, 42, 1, 1, 34,
+  34, 0, 0, 34, 34, 0, 0, 28, 28, 8, 8, 21, 21, 8, 8, 33, 33, 7, 7, 33, 33, 7,
+  7, 35, 35, 31, 31, 14, 14, 31, 31, 33, 33, 7, 7, 33, 33, 7, 7, 47, 47, 1, 1,
+  42, 42, 1, 1, 34, 34, 0, 0, 34, 34, 0, 0, 47, 47, 1, 1, 42, 42, 1, 1, 34, 34,
+  0, 0, 34, 34, 0, 0,
+];
 
 // based on mettascope's colorFromId
 function colorFromId(agentId: number) {
@@ -121,59 +129,52 @@ export class Drawer {
   drawWalls(ctx: CanvasRenderingContext2D, grid: MettaGrid, walls: Cell[]) {
     // Ported from worldmap.nim in mettascope
     const wallsGrid: boolean[][] = Array.from({ length: grid.width }, () =>
-      Array.from({ length: grid.height }, () => false)
+      Array.from({ length: grid.height }, () => true)
     );
     for (const wall of walls) {
-      wallsGrid[wall.c][wall.r] = true;
+      wallsGrid[wall.c][wall.r] = false;
     }
 
-    const wallFills: Cell[] = [];
-
-    const hasWall = (x: number, y: number) =>
-      x >= 0 && x < grid.width && y >= 0 && y < grid.height && wallsGrid[x][y];
+    const checkWall = (x: number, y: number) => {
+      if (x < 0 || y < 0 || x >= grid.width || y >= grid.height) {
+        return 0;
+      }
+      return wallsGrid[x][y] ? 1 : 0;
+    };
 
     for (let x = 0; x < grid.width; x++) {
       for (let y = 0; y < grid.height; y++) {
-        if (!wallsGrid[x][y]) {
+        if (wallsGrid[x][y]) {
+          this.drawTile({
+            ctx,
+            // Mettascope actuall uses random between 49 and 55
+            // but we just use 49 for simplicity
+            tile: "wall.49",
+            c: x,
+            r: y,
+          });
           continue;
         }
-        let tile = 0;
-        if (hasWall(x, y + 1)) tile = tile | WALL_S;
-        if (hasWall(x + 1, y)) tile = tile | WALL_E;
-        if (hasWall(x, y - 1)) tile = tile | WALL_N;
-        if (hasWall(x - 1, y)) tile = tile | WALL_W;
-        if (
-          (tile & (WALL_S | WALL_E)) === (WALL_S | WALL_E) &&
-          hasWall(x + 1, y + 1)
-        ) {
-          wallFills.push({ c: x, r: y });
-          if (
-            (tile & (WALL_N | WALL_W)) === (WALL_N | WALL_W) &&
-            hasWall(x - 1, y - 1) &&
-            hasWall(x - 1, y + 1) &&
-            hasWall(x + 1, y - 1)
-          ) {
-            continue;
-          }
-        }
+
+        const pattern =
+          1 * checkWall(x - 1, y - 1) + // NW
+          2 * checkWall(x, y - 1) + // N
+          4 * checkWall(x + 1, y - 1) + // NE
+          8 * checkWall(x + 1, y) + // E
+          16 * checkWall(x + 1, y + 1) + // SE
+          32 * checkWall(x, y + 1) + // S
+          64 * checkWall(x - 1, y + 1) + // SW
+          128 * checkWall(x - 1, y); // W
+
+        const tile = wallPatternToTile[pattern];
+
         this.drawTile({
           ctx,
-          tile: WALL_NAMES[tile],
+          tile: `wall.${tile}`,
           c: x,
           r: y,
-          scale: 256 / 200,
         });
       }
-    }
-
-    for (const fill of wallFills) {
-      this.drawTile({
-        ctx,
-        tile: "wall.fill",
-        c: fill.c + 0.5,
-        r: fill.r + 0.3,
-        scale: 256 / 200,
-      });
     }
   }
 
