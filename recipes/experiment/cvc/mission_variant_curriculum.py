@@ -23,6 +23,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -483,6 +484,8 @@ def train(
     variants: Optional[Sequence[str] | str] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    bc_policy_uri: Optional[str] = None,
+    bc_steps: Optional[int] = None,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips with mission-variant curriculum.
 
@@ -501,6 +504,8 @@ def train(
             - A list or comma-separated string of specific variant names
         eval_variants: Optional mission variants to apply during evaluation
         eval_difficulty: Difficulty variant for evaluation
+        bc_policy_uri: Optional policy URI for behavioral cloning supervision
+        bc_steps: Number of steps for BC phase (default: 300M if bc_policy_uri is set)
 
     Returns:
         A TrainTool configured with the mission-variant curriculum
@@ -524,6 +529,34 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),  # type: ignore[call-arg]
     )
+    scheduler = None
+
+    # Configure behavioral cloning if supervisor policy is provided
+    if bc_policy_uri is not None:
+        bc_total_steps = bc_steps if bc_steps is not None else 1_000_000_000
+
+        losses = trainer_cfg.losses
+        losses.ppo_critic.sample_enabled = False
+        losses.ppo_critic.train_forward_enabled = False
+        losses.sliced_scripted_cloner.enabled = True
+
+        scheduler = SchedulerConfig(
+            run_gates=[
+                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
+            ],
+            rules=[
+                HyperUpdateRule(
+                    loss_instance_name="sliced_scripted_cloner",
+                    attr_path="teacher_led_proportion",
+                    mode="progress",
+                    style="linear",
+                    start_value=0.2,
+                    end_value=0.0,
+                    start_agent_step=0,
+                    end_agent_step=bc_total_steps,
+                ),
+            ],
+        )
 
     # For evaluation, "all" is treated the same as "no explicit variant filter".
     # Only use specific variants if provided, otherwise use eval_variants or None.
@@ -543,8 +576,12 @@ def train(
 
     return TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=resolved_curriculum,
+            supervisor_policy_uri=bc_policy_uri,
+        ),
         evaluator=evaluator_cfg,
+        scheduler=scheduler,
     )
 
 
@@ -660,6 +697,8 @@ def experiment(
     variants: Optional[list[str] | str] = None,
     additional_args: Optional[list[str]] = None,
     supervision: bool = False,
+    bc_policy_uri: Optional[str] = None,
+    bc_steps: Optional[int] = None,
 ) -> None:
     """Submit a training job on AWS with 4 GPUs.
 
@@ -677,6 +716,9 @@ def experiment(
             - "all" / ["all"]: All variants applied (creates separate tasks for each mission-variant combination)
             - A list of specific variant names
         additional_args: Additional arguments to pass to the training command.
+        supervision: If True, use "thinky" as the BC policy (shorthand for bc_policy_uri=thinky).
+        bc_policy_uri: Optional policy URI for behavioral cloning supervision.
+        bc_steps: Number of steps for BC phase (default: 300M if bc_policy_uri is set).
     """
     # Normalize variants so naming and CLI wiring are consistent with training.
     resolved_variants = _resolve_variants_arg(variants)
@@ -712,8 +754,12 @@ def experiment(
     if additional_args:
         cmd.extend(additional_args)
 
-    if supervision:
-        cmd.append("training_env.supervisor_policy_uri=thinky")
+    # Handle BC supervision - supervision=True is shorthand for bc_policy_uri=thinky
+    effective_bc_policy_uri = bc_policy_uri if bc_policy_uri is not None else ("thinky" if supervision else None)
+    if effective_bc_policy_uri is not None:
+        cmd.append(f"bc_policy_uri={effective_bc_policy_uri}")
+    if bc_steps is not None:
+        cmd.append(f"bc_steps={bc_steps}")
 
     print(f"Launching training job: {run_name}")
     print(f"Command: {' '.join(cmd)}")
@@ -740,13 +786,13 @@ __all__ = [
 if __name__ == "__main__":
     date = time.strftime(".%m%d")
 
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"no_variants_base_{date}", skip_git_check=True, variants=None)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"variants_base_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"all_variants_base_{date}", skip_git_check=True, variants="all")
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_{date}", skip_git_check=True, variants=None)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_with_variants_{date}", skip_git_check=True, variants="all")
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_{date}", skip_git_check=True, variants=None)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_with_variants_{date}", skip_git_check=True, variants="all")
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"no_variants_base_{date}", skip_git_check=True, variants=None)
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"variants_base_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS)
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"all_variants_base_{date}", skip_git_check=True, variants="all")
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_{date}", skip_git_check=True, variants=None)
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_with_variants_{date}", skip_git_check=True, variants="all")
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_{date}", skip_git_check=True, variants=None)
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_with_variants_{date}", skip_git_check=True, variants="all")
 
     #with supervision
 

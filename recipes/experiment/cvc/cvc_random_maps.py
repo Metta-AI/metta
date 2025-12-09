@@ -24,6 +24,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -349,9 +350,11 @@ def train(
     num_cogs: int = 5,
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    heart_buckets=False,
-    resource_buckets=False,
-    initial_inventory_buckets=False,
+    heart_buckets: bool = False,
+    resource_buckets: bool = False,
+    initial_inventory_buckets: bool = False,
+    bc_policy_uri: Optional[str] = None,
+    bc_steps: Optional[int] = None,
 ) -> TrainTool:
     """Create a training tool for random maps curriculum.
 
@@ -362,6 +365,8 @@ def train(
         heart_buckets: Enable bucketing over heart inventory rewards
         resource_buckets: Enable bucketing over resource stat rewards
         initial_inventory_buckets: Enable bucketing over agent's initial inventory
+        bc_policy_uri: Optional policy URI for behavioral cloning supervision
+        bc_steps: Number of steps for BC phase (default: 300M if bc_policy_uri is set)
 
     Returns:
         A TrainTool configured with the random maps curriculum
@@ -375,6 +380,9 @@ def train(
 
         Train with initial inventory bucketing:
             uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.train initial_inventory_buckets=True
+
+        Train with behavioral cloning:
+            uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.train bc_policy_uri=thinky
     """
     resolved_curriculum = curriculum or make_random_maps_curriculum(
         num_cogs=num_cogs,
@@ -387,6 +395,34 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
     )
+    scheduler = None
+
+    # Configure behavioral cloning if supervisor policy is provided
+    if bc_policy_uri is not None:
+        bc_total_steps = bc_steps if bc_steps is not None else 1_000_000_000
+
+        losses = trainer_cfg.losses
+        losses.ppo_critic.sample_enabled = False
+        losses.ppo_critic.train_forward_enabled = False
+        losses.sliced_scripted_cloner.enabled = True
+
+        scheduler = SchedulerConfig(
+            run_gates=[
+                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
+            ],
+            rules=[
+                HyperUpdateRule(
+                    loss_instance_name="sliced_scripted_cloner",
+                    attr_path="teacher_led_proportion",
+                    mode="progress",
+                    style="linear",
+                    start_value=0.2,
+                    end_value=0.0,
+                    start_agent_step=0,
+                    end_agent_step=bc_total_steps,
+                ),
+            ],
+        )
 
     # Use custom eval suite with TrainingVariant applied (matching 18-action space)
     eval_suite = make_training_eval_suite(num_cogs=num_cogs)
@@ -397,8 +433,12 @@ def train(
 
     return TrainTool(
         trainer=trainer_cfg,  # type: ignore[call-arg]
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=resolved_curriculum,
+            supervisor_policy_uri=bc_policy_uri,
+        ),
         evaluator=evaluator_cfg,
+        scheduler=scheduler,
     )
 
 
@@ -647,6 +687,8 @@ def experiment(
     resource_buckets: bool = False,
     initial_inventory_buckets: bool = False,
     supervision: bool = False,
+    bc_policy_uri: Optional[str] = None,
+    bc_steps: Optional[int] = None,
 ) -> None:
     """Submit a training job on AWS with 4 GPUs.
 
@@ -659,6 +701,9 @@ def experiment(
         heart_buckets: Enable bucketing over heart inventory rewards
         resource_buckets: Enable bucketing over resource stat rewards
         initial_inventory_buckets: Enable bucketing over agent's initial inventory
+        supervision: If True, use "thinky" as the BC policy (shorthand for bc_policy_uri=thinky).
+        bc_policy_uri: Optional policy URI for behavioral cloning supervision.
+        bc_steps: Number of steps for BC phase (default: 300M if bc_policy_uri is set).
 
     Examples:
         Submit training:
@@ -671,6 +716,10 @@ def experiment(
         Submit with initial inventory bucketing:
             uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.experiment \\
                 initial_inventory_buckets=True
+
+        Submit with behavioral cloning:
+            uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.experiment \\
+                bc_policy_uri=thinky
     """
     if run_name is None:
         timestamp = time.strftime("%Y-%m-%d_%H%M%S")
@@ -697,8 +746,12 @@ def experiment(
     if additional_args:
         cmd.extend(additional_args)
 
-    if supervision:
-        cmd.append("training_env.supervisor_policy_uri=thinky")
+    # Handle BC supervision - supervision=True is shorthand for bc_policy_uri=thinky
+    effective_bc_policy_uri = bc_policy_uri if bc_policy_uri is not None else ("thinky" if supervision else None)
+    if effective_bc_policy_uri is not None:
+        cmd.append(f"bc_policy_uri={effective_bc_policy_uri}")
+    if bc_steps is not None:
+        cmd.append(f"bc_steps={bc_steps}")
 
     print(f"Launching random maps training job: {run_name}")
     print(f"  Agents: {num_cogs}")
