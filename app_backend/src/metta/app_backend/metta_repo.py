@@ -244,6 +244,16 @@ class MatchWithPlayers(BaseModel):
     players: list[MatchPlayerRow]
 
 
+class MatchWithEvalStatus(BaseModel):
+    id: uuid.UUID
+    pool_id: uuid.UUID
+    eval_task_id: int | None
+    created_at: datetime
+    players: list[MatchPlayerRow]
+    eval_status: TaskStatus | None = None
+    eval_is_finished: bool = False
+
+
 logger = logging.getLogger(name="metta_repo")
 
 
@@ -1643,6 +1653,52 @@ ORDER BY e.created_at DESC
                 )
                 return await cur.fetchall()
 
+    async def get_matches_for_pool_with_eval_status(
+        self,
+        pool_id: uuid.UUID,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[MatchWithEvalStatus]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        m.id, m.pool_id, m.eval_task_id, m.created_at,
+                        t.status AS eval_status, t.is_finished AS eval_is_finished
+                    FROM matches m
+                    LEFT JOIN eval_tasks_view t ON m.eval_task_id = t.id
+                    WHERE m.pool_id = %s
+                    ORDER BY m.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (pool_id, limit, offset),
+                )
+                match_rows = await cur.fetchall()
+
+            results = []
+            for row in match_rows:
+                async with con.cursor(row_factory=class_row(MatchPlayerRow)) as cur:
+                    await cur.execute(
+                        "SELECT * FROM match_players WHERE match_id = %s ORDER BY position",
+                        (row["id"],),
+                    )
+                    players = await cur.fetchall()
+
+                results.append(
+                    MatchWithEvalStatus(
+                        id=row["id"],
+                        pool_id=row["pool_id"],
+                        eval_task_id=row["eval_task_id"],
+                        created_at=row["created_at"],
+                        players=players,
+                        eval_status=row["eval_status"],
+                        eval_is_finished=row["eval_is_finished"] or False,
+                    )
+                )
+
+            return results
+
     async def get_unscheduled_matches(self, limit: int = 100) -> list[MatchWithPlayers]:
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(MatchRow)) as cur:
@@ -1666,6 +1722,47 @@ ORDER BY e.created_at DESC
                     )
                     players = await cur.fetchall()
                 results.append(MatchWithPlayers(match=match, players=players))
+
+            return results
+
+    async def get_matches_needing_reschedule(self, limit: int = 100) -> list[MatchWithEvalStatus]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        m.id, m.pool_id, m.eval_task_id, m.created_at,
+                        t.status AS eval_status, t.is_finished AS eval_is_finished
+                    FROM matches m
+                    JOIN eval_tasks_view t ON m.eval_task_id = t.id
+                    WHERE t.status IN ('error', 'canceled', 'system_error')
+                    ORDER BY m.created_at ASC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                match_rows = await cur.fetchall()
+
+            results = []
+            for row in match_rows:
+                async with con.cursor(row_factory=class_row(MatchPlayerRow)) as cur:
+                    await cur.execute(
+                        "SELECT * FROM match_players WHERE match_id = %s ORDER BY position",
+                        (row["id"],),
+                    )
+                    players = await cur.fetchall()
+
+                results.append(
+                    MatchWithEvalStatus(
+                        id=row["id"],
+                        pool_id=row["pool_id"],
+                        eval_task_id=row["eval_task_id"],
+                        created_at=row["created_at"],
+                        players=players,
+                        eval_status=row["eval_status"],
+                        eval_is_finished=row["eval_is_finished"] or False,
+                    )
+                )
 
             return results
 
