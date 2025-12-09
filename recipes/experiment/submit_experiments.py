@@ -1,7 +1,7 @@
 import time
 
-from recipes.experiment.navigation_missions import NAVIGATION_MISSIONS
 from recipes.experiment.cvc import mission_variant_curriculum
+from recipes.experiment.navigation_missions import NAVIGATION_MISSIONS
 
 # Missions where S3 policies got reward > 0 (from evaluation results)
 # Based on evaluation results showing environments where S3 policies succeeded
