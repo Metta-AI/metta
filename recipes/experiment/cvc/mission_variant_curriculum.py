@@ -58,10 +58,6 @@ PROC_GEN_MISSIONS: tuple[str, ...] = (
 
 FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
     *cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS,  # Base curriculum missions (includes machina_1.open_world)
-    # Additional procedural generation missions
-    "hello_world.open_world",
-    "machina_1.balanced_corners",
-    "hello_world_unclip",
     # Training facility missions we currently support in this repo
     "harvest",
     "vibe_check",
@@ -71,6 +67,31 @@ FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
     *DIAGNOSTIC_MISSIONS,  # Diagnostic missions
 )
 
+S3_SUCCESFUL_VARIANTS = [
+    "chest_heart_tune",
+    "clip_period_on",
+    "clipped_oxygen",
+    "clipped_silicon",
+    "clipping_chaos",
+    "cog_tools_only",
+    "compass",
+    "cyclical_unclip",
+    "dark_side",
+    "energized",
+    "energy_crisis",
+    "extractor_heart_tune",
+    "heart_chorus",
+    "inventory_heart_tune",
+    "lonely_heart",
+    "pack_rat",
+    "resource_bottleneck",
+    "rough_terrain",
+    "small_50",
+    "super_charged",
+    "tiny_heart_protocols",
+    "vibe_check_min_2",
+    "trader",
+]
 
 def get_all_variant_names() -> list[str]:
     """Get all variant names from VARIANTS."""
@@ -638,6 +659,7 @@ def experiment(
     skip_git_check: bool = True,
     variants: Optional[list[str] | str] = None,
     additional_args: Optional[list[str]] = None,
+    supervision: bool = False,
 ) -> None:
     """Submit a training job on AWS with 4 GPUs.
 
@@ -690,6 +712,9 @@ def experiment(
     if additional_args:
         cmd.extend(additional_args)
 
+    if supervision:
+        cmd.append("bc_policy_uri=thinky bc_mode=sliced_cloner bc_steps=1000000000")
+
     print(f"Launching training job: {run_name}")
     print(f"Command: {' '.join(cmd)}")
     print("=" * 50)
@@ -711,3 +736,25 @@ __all__ = [
     "TRAINING_FACILITY_MISSIONS",
     "PROC_GEN_MISSIONS",
 ]
+
+if __name__ == "__main__":
+    date = time.strftime(".%m%d")
+
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"no_variants_base_{date}", skip_git_check=True, variants=None)
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"variants_base_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS)
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"all_variants_base_{date}", skip_git_check=True, variants="all")
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_{date}", skip_git_check=True, variants=None)
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_with_variants_{date}", skip_git_check=True, variants="all")
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_{date}", skip_git_check=True, variants=None)
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_with_variants_{date}", skip_git_check=True, variants="all")
+
+    #with supervision
+
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"no_variants_base_supervised_{date}", skip_git_check=True, variants=None, supervision=True)
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"variants_base_supervised_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS, supervision=True)
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"all_variants_base_supervised_{date}", skip_git_check=True, variants="all", supervision=True)
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_supervised_{date}", skip_git_check=True, variants=None, supervision=True)
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_with_variants_supervised_{date}", skip_git_check=True, variants="all", supervision=True)
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_supervised_{date}", skip_git_check=True, variants=None, supervision=True)
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_with_variants_supervised_{date}", skip_git_check=True, variants="all", supervision=True)
+
