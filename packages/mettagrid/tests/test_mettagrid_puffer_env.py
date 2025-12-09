@@ -16,8 +16,8 @@ from mettagrid.config.mettagrid_config import (
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.policy.policy import PolicySpec
-from pufferlib.emulation import GymnasiumPufferEnv
 from mettagrid.simulator import Simulator
+from pufferlib.emulation import GymnasiumPufferEnv
 
 
 @pytest.fixture
@@ -91,7 +91,10 @@ class TestMettaGridPufferEnvGymnasiumVector:
 
         def make_env():
             sim = Simulator()
-            return GymnasiumPufferEnv(env_creator=MettaGridPufferEnv, env_kwargs={"simulator": sim, "cfg": puffer_sim_config})
+            return GymnasiumPufferEnv(
+                env_creator=MettaGridPufferEnv,
+                env_kwargs={"simulator": sim, "cfg": puffer_sim_config},
+            )
 
         vec = AsyncVectorEnv([make_env])
         obs, info = vec.reset()
