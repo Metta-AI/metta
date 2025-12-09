@@ -196,7 +196,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     Example usage:
         `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
-            sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+            sweep_name="ak.baes.10081528" -- gpus=4 nodes=2 dispatcher_type=skypilot`
 
     We recommend running using local_test=True before running the sweep on the remote:
         `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
@@ -208,7 +208,7 @@ def sweep(sweep_name: str) -> SweepTool:
     (otherwise sweep progress will halt when you close your computer).
 
     Running on the remote:
-        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
+        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py new --sweep-controller`, and ssh into it.
         2 - Clean git pollution: `git clean -df && git stash`
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
@@ -219,7 +219,7 @@ def sweep(sweep_name: str) -> SweepTool:
         7 - Detach when you want: CTRL+B then d
         8 - Attach to look at status/output: `tmux attach -t sweep_configs`
 
-    Please tag Axel (akerbec@softmax.ai) on any bug report.
+    Please tag Axel (akerbec@softmax.com) on any bug report.
     """
 
     # Common parameters are accessible via SP (SweepParameters).
