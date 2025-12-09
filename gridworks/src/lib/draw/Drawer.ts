@@ -36,7 +36,7 @@ type ObjectLayer = {
 type ObjectDrawer = ObjectLayer[];
 
 const objectDrawers: Record<string, ObjectDrawer> = {
-  empty: [],
+  empty: [{ tile: "wall.49" }], // empty spaces act as terrain flooring
   wall: [{ tile: "wall" }], // unused by Drawer but used by AsciiEditor
   ...Object.fromEntries(
     TILE_NAMES.map((tile) => [tile, [{ tile }] as ObjectDrawer])
@@ -145,14 +145,6 @@ export class Drawer {
     for (let x = 0; x < grid.width; x++) {
       for (let y = 0; y < grid.height; y++) {
         if (wallsGrid[x][y]) {
-          this.drawTile({
-            ctx,
-            // Mettascope actuall uses random between 49 and 55
-            // but we just use 49 for simplicity
-            tile: "wall.49",
-            c: x,
-            r: y,
-          });
           continue;
         }
 
@@ -207,6 +199,14 @@ export class Drawer {
 
     this.drawWalls(ctx, grid, walls);
     for (const object of objects) {
+      // First draw the flooring layer
+      this.drawTile({
+        ctx,
+        tile: "wall.49",
+        c: object.c,
+        r: object.r,
+      });
+      // Draw the object itself
       this.drawObject(ctx, object);
     }
 
