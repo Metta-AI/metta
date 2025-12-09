@@ -194,23 +194,16 @@ MIGRATIONS = [
             """CREATE TABLE matches (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 pool_id UUID NOT NULL REFERENCES pools(id) ON DELETE CASCADE,
-                environment_config JSONB NOT NULL,
-                status TEXT NOT NULL DEFAULT 'pending',
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                started_at TIMESTAMP,
-                finished_at TIMESTAMP,
-                result JSONB,
-                attributes JSONB DEFAULT '{}'::jsonb
+                eval_task_id INTEGER REFERENCES eval_tasks(id) ON DELETE SET NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )""",
             """CREATE INDEX idx_matches_pool_id ON matches(pool_id)""",
-            """CREATE INDEX idx_matches_status ON matches(status)""",
+            """CREATE INDEX idx_matches_eval_task_id ON matches(eval_task_id)""",
             """CREATE TABLE match_players (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
                 policy_version_id UUID NOT NULL REFERENCES policy_versions(id) ON DELETE CASCADE,
                 position INTEGER NOT NULL,
-                score FLOAT,
-                attributes JSONB DEFAULT '{}'::jsonb,
                 UNIQUE (match_id, position)
             )""",
             """CREATE INDEX idx_match_players_match_id ON match_players(match_id)""",

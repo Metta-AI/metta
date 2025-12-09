@@ -212,19 +212,11 @@ class PoolPlayerRow(BaseModel):
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 
-MatchStatus = Literal["pending", "running", "completed", "canceled", "error"]
-
-
 class MatchRow(BaseModel):
     id: uuid.UUID
     pool_id: uuid.UUID
-    environment_config: dict[str, Any]
-    status: MatchStatus
+    eval_task_id: int | None
     created_at: datetime
-    started_at: datetime | None
-    finished_at: datetime | None
-    result: dict[str, Any] | None
-    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class MatchPlayerRow(BaseModel):
@@ -232,8 +224,6 @@ class MatchPlayerRow(BaseModel):
     match_id: uuid.UUID
     policy_version_id: uuid.UUID
     position: int
-    score: float | None
-    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class PoolPlayerWithPolicy(BaseModel):
@@ -1474,12 +1464,6 @@ ORDER BY e.created_at DESC
                 )
                 return await cur.fetchall()
 
-    async def get_academy_pool(self) -> PoolRow | None:
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(PoolRow)) as cur:
-                await cur.execute("SELECT * FROM pools WHERE season_id IS NULL AND name = 'academy' LIMIT 1")
-                return await cur.fetchone()
-
     async def add_pool_player(
         self,
         policy_version_id: uuid.UUID,
@@ -1575,18 +1559,17 @@ ORDER BY e.created_at DESC
     async def create_match(
         self,
         pool_id: uuid.UUID,
-        environment_config: dict[str, Any],
         policy_version_ids: list[uuid.UUID],
-        attributes: dict[str, Any] | None = None,
+        eval_task_id: int | None = None,
     ) -> uuid.UUID:
         async with self.connect() as con:
             result = await con.execute(
                 """
-                INSERT INTO matches (pool_id, environment_config, attributes)
-                VALUES (%s, %s, %s)
+                INSERT INTO matches (pool_id, eval_task_id)
+                VALUES (%s, %s)
                 RETURNING id
                 """,
-                (pool_id, Jsonb(environment_config), Jsonb(attributes or {})),
+                (pool_id, eval_task_id),
             )
             row = await result.fetchone()
             if row is None:
@@ -1621,40 +1604,52 @@ ORDER BY e.created_at DESC
 
             return MatchWithPlayers(match=match, players=players)
 
+    async def get_match_by_eval_task(self, eval_task_id: int) -> MatchWithPlayers | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(MatchRow)) as cur:
+                await cur.execute(
+                    "SELECT * FROM matches WHERE eval_task_id = %s",
+                    (eval_task_id,),
+                )
+                match = await cur.fetchone()
+                if match is None:
+                    return None
+
+            async with con.cursor(row_factory=class_row(MatchPlayerRow)) as cur:
+                await cur.execute(
+                    "SELECT * FROM match_players WHERE match_id = %s ORDER BY position",
+                    (match.id,),
+                )
+                players = await cur.fetchall()
+
+            return MatchWithPlayers(match=match, players=players)
+
     async def get_matches_for_pool(
         self,
         pool_id: uuid.UUID,
-        status: MatchStatus | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[MatchRow]:
-        async with self.connect() as con:
-            params: list[Any] = [pool_id]
-            status_clause = ""
-            if status:
-                status_clause = "AND status = %s"
-                params.append(status)
-            params.extend([limit, offset])
-
-            async with con.cursor(row_factory=class_row(MatchRow)) as cur:
-                await cur.execute(
-                    f"""
-                    SELECT * FROM matches
-                    WHERE pool_id = %s {status_clause}
-                    ORDER BY created_at DESC
-                    LIMIT %s OFFSET %s
-                    """,
-                    params,
-                )
-                return await cur.fetchall()
-
-    async def get_pending_matches(self, limit: int = 100) -> list[MatchWithPlayers]:
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(MatchRow)) as cur:
                 await cur.execute(
                     """
                     SELECT * FROM matches
-                    WHERE status = 'pending'
+                    WHERE pool_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (pool_id, limit, offset),
+                )
+                return await cur.fetchall()
+
+    async def get_unscheduled_matches(self, limit: int = 100) -> list[MatchWithPlayers]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(MatchRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT * FROM matches
+                    WHERE eval_task_id IS NULL
                     ORDER BY created_at ASC
                     LIMIT %s
                     """,
@@ -1674,44 +1669,14 @@ ORDER BY e.created_at DESC
 
             return results
 
-    async def start_match(self, match_id: uuid.UUID) -> None:
+    async def set_match_eval_task(self, match_id: uuid.UUID, eval_task_id: int) -> None:
         async with self.connect() as con:
             await con.execute(
                 """
-                UPDATE matches
-                SET status = 'running', started_at = CURRENT_TIMESTAMP
-                WHERE id = %s AND status = 'pending'
+                UPDATE matches SET eval_task_id = %s WHERE id = %s
                 """,
-                (match_id,),
+                (eval_task_id, match_id),
             )
-
-    async def finish_match(
-        self,
-        match_id: uuid.UUID,
-        status: MatchStatus,
-        result: dict[str, Any] | None = None,
-        player_scores: dict[uuid.UUID, float] | None = None,
-    ) -> None:
-        async with self.connect() as con:
-            await con.execute(
-                """
-                UPDATE matches
-                SET status = %s, finished_at = CURRENT_TIMESTAMP, result = %s
-                WHERE id = %s
-                """,
-                (status, Jsonb(result) if result else None, match_id),
-            )
-
-            if player_scores:
-                for pv_id, score in player_scores.items():
-                    await con.execute(
-                        """
-                        UPDATE match_players
-                        SET score = %s
-                        WHERE match_id = %s AND policy_version_id = %s
-                        """,
-                        (score, match_id, pv_id),
-                    )
 
     async def get_match_history_for_policy(
         self,
