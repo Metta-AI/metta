@@ -153,6 +153,12 @@ class DatadogAgentSetup(SetupModule):
         env["DD_TRACE_ENABLED"] = os.environ.get("DD_TRACE_ENABLED", "true")
         env["DD_LOGS_ENABLED"] = os.environ.get("DD_LOGS_ENABLED", "true")
 
+        # Disable infrastructure metrics on ephemeral hosts to reduce billing
+        env["DD_ENABLE_PAYLOADS_SERIES"] = os.environ.get("DD_ENABLE_PAYLOADS_SERIES", "false")
+        env["DD_ENABLE_PAYLOADS_EVENTS"] = os.environ.get("DD_ENABLE_PAYLOADS_EVENTS", "false")
+        env["DD_ENABLE_PAYLOADS_SERVICE_CHECKS"] = os.environ.get("DD_ENABLE_PAYLOADS_SERVICE_CHECKS", "false")
+        env["DD_PROCESS_AGENT_ENABLED"] = os.environ.get("DD_PROCESS_AGENT_ENABLED", "false")
+
         tags = [t for t in env.get("DD_TAGS", "").split(" ") if t.strip()]
         tags.extend(self._build_tags())
         if tags:
