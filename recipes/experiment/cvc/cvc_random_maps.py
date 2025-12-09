@@ -244,7 +244,7 @@ def make_random_maps_curriculum(
 
             # Standard buckets
             tasks.add_bucket("game.max_steps", [1000, 1500, 2000, 2500, 3000, 4000])
-            tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [3])
+            tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [1])
 
             if resource_buckets:
                 tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.0, 0.001])
@@ -253,7 +253,7 @@ def make_random_maps_curriculum(
                 tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.0, 0.001])
 
             if heart_buckets:
-                tasks.add_bucket("game.agent.rewards.stats.heart.gained", [0.1, 0.333, 0.5, 1.0])
+                tasks.add_bucket("game.agent.rewards.stats.heart.gained", [0.1, 0.333, 0.5])
                 stats_max_cap = 0.5
                 tasks.add_bucket("game.agent.rewards.stats_max.carbon.gained", [stats_max_cap])
                 tasks.add_bucket("game.agent.rewards.stats_max.oxygen.gained", [stats_max_cap])
