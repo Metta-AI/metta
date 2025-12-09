@@ -139,14 +139,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._per_task_fast: Dict[int, float] = {}
         self._per_task_slow: Dict[int, float] = {}
 
-        # Legacy arrays kept for compatibility with distribution calculation
+        # Arrays used for distribution calculation
         self._p_fast: Optional[np.ndarray] = None
         self._p_slow: Optional[np.ndarray] = None
-        self._p_true: Optional[np.ndarray] = None
-        self._random_baseline: Optional[np.ndarray] = None
         self._task_success_rate: np.ndarray = np.array([])
         self._update_mask: np.ndarray = np.array([])
-        self._sample_levels: np.ndarray = np.array([])
 
         # Cache for task distribution and scores
         self._task_dist: Optional[np.ndarray] = None
@@ -478,10 +475,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         num_tasks = len(task_ids)
 
-        # Initialize random baseline if needed
-        if self._random_baseline is None or len(self._random_baseline) != num_tasks:
-            self._random_baseline = np.full(num_tasks, 0.5)
-
         # Create update mask for tasks with sufficient data
         self._update_mask = np.array([len(self._outcomes[task_id]) >= 2 for task_id in task_ids])
 
@@ -489,10 +482,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if self._p_fast is None or len(self._p_fast) != num_tasks:
             self._p_fast = np.zeros(num_tasks)
             self._p_slow = np.zeros(num_tasks)
-            self._p_true = np.zeros(num_tasks)
 
         # Ensure arrays are initialized (type checker guard)
-        assert self._p_fast is not None and self._p_slow is not None and self._p_true is not None
+        assert self._p_fast is not None and self._p_slow is not None
 
         # Sync per-task EMAs to arrays
         for idx, task_id in enumerate(task_ids):
@@ -504,8 +496,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 normalized = self._normalized_success(task_success_rates[idx])
                 self._p_fast[idx] = normalized
                 self._p_slow[idx] = normalized
-            self._p_true[idx] = task_success_rates[idx]
-
         self._task_success_rate = task_success_rates
         self._stale_dist = True
 
@@ -643,11 +633,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     "per_task_slow": dict(self._per_task_slow),
                     "p_fast": self._p_fast.tolist() if self._p_fast is not None else None,
                     "p_slow": self._p_slow.tolist() if self._p_slow is not None else None,
-                    "p_true": self._p_true.tolist() if self._p_true is not None else None,
-                    "random_baseline": self._random_baseline.tolist() if self._random_baseline is not None else None,
                     "task_success_rate": self._task_success_rate.tolist(),
                     "update_mask": self._update_mask.tolist(),
-                    "sample_levels": self._sample_levels.tolist(),
                     "task_dist": self._task_dist.tolist() if self._task_dist is not None else None,
                     "stale_dist": bool(self._stale_dist),
                     "score_cache": dict(self._score_cache),
@@ -667,34 +654,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._outcomes = state.get("outcomes", {})
             self._counter = state.get("counter", {})
 
-            # Restore per-task EMAs (new format)
-            if "per_task_fast" in state and "per_task_slow" in state:
-                self._per_task_fast = state.get("per_task_fast", {})
-                self._per_task_slow = state.get("per_task_slow", {})
-            else:
-                # Backward compatibility: reconstruct per-task EMAs from arrays
-                self._per_task_fast = {}
-                self._per_task_slow = {}
-                p_fast_arr = state.get("p_fast")
-                p_slow_arr = state.get("p_slow")
-                if p_fast_arr is not None and p_slow_arr is not None:
-                    task_ids = sorted(self._outcomes.keys())
-                    p_fast = np.array(p_fast_arr)
-                    p_slow = np.array(p_slow_arr)
-                    for idx, task_id in enumerate(task_ids):
-                        if idx < len(p_fast) and idx < len(p_slow):
-                            self._per_task_fast[task_id] = float(p_fast[idx])
-                            self._per_task_slow[task_id] = float(p_slow[idx])
+            # Restore per-task EMAs (current format)
+            self._per_task_fast = state.get("per_task_fast", {})
+            self._per_task_slow = state.get("per_task_slow", {})
 
             self._p_fast = np.array(state.get("p_fast")) if state.get("p_fast") is not None else None
             self._p_slow = np.array(state.get("p_slow")) if state.get("p_slow") is not None else None
-            self._p_true = np.array(state.get("p_true")) if state.get("p_true") is not None else None
-            self._random_baseline = (
-                np.array(state.get("random_baseline")) if state.get("random_baseline") is not None else None
-            )
             self._task_success_rate = np.array(state.get("task_success_rate", []))
             self._update_mask = np.array(state.get("update_mask", []))
-            self._sample_levels = np.array(state.get("sample_levels", []))
             self._task_dist = np.array(state.get("task_dist")) if state.get("task_dist") is not None else None
             self._stale_dist = bool(state.get("stale_dist", True))
             self._score_cache = dict(state.get("score_cache", {}))
