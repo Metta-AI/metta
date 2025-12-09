@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import subprocess
 import time
-from typing import NamedTuple, Optional, Sequence
+from typing import Literal, NamedTuple, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.variants import VARIANTS
@@ -20,17 +20,15 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
+
+# Re-export from cogs_v_clips
+from recipes.experiment.cogs_v_clips import evaluate  # noqa: F401
 
 # Diagnostic missions where scripted agents can get reward
 DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
@@ -485,9 +483,16 @@ def train(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     bc_policy_uri: Optional[str] = None,
+    bc_teacher_lead_prob: float = 1.0,
     bc_steps: Optional[int] = None,
+    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
+    use_lp: bool = True,
+    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips with mission-variant curriculum.
+
+    This is a thin wrapper around cogs_v_clips.train() that uses our custom
+    make_curriculum() with FULL_CURRICULUM_MISSIONS and specific bucketing.
 
     Args:
         base_missions: Mission names to include. Can be:
@@ -505,7 +510,11 @@ def train(
         eval_variants: Optional mission variants to apply during evaluation
         eval_difficulty: Difficulty variant for evaluation
         bc_policy_uri: Optional policy URI for behavioral cloning supervision
-        bc_steps: Number of steps for BC phase (default: 300M if bc_policy_uri is set)
+        bc_teacher_lead_prob: Teacher lead probability for supervisor mode
+        bc_steps: Number of steps for BC phase (default: 1B if bc_policy_uri is set)
+        bc_mode: BC mode - "sliced_cloner" or "supervisor"
+        use_lp: Whether to use learning progress algorithm
+        maps_cache_size: Number of maps to cache in shared memory
 
     Returns:
         A TrainTool configured with the mission-variant curriculum
@@ -518,6 +527,7 @@ def train(
     # If we have any variants, use 0.5 (curriculum mode); otherwise 1.0 (full curriculum mode).
     stats_max_cap = 0.5 if has_variants else 1.0
 
+    # Build our custom curriculum if not provided
     resolved_curriculum = curriculum or make_curriculum(
         base_missions=base_missions,
         num_cogs=num_cogs,
@@ -526,81 +536,25 @@ def train(
         stats_max_cap=stats_max_cap,
     )
 
-    trainer_cfg = TrainerConfig(
-        losses=LossesConfig(),  # type: ignore[call-arg]
-    )
-    scheduler = None
-
-    # Configure behavioral cloning if supervisor policy is provided
-    if bc_policy_uri is not None:
-        bc_total_steps = bc_steps if bc_steps is not None else 1_000_000_000
-
-        losses = trainer_cfg.losses
-        losses.ppo_critic.sample_enabled = False
-        losses.ppo_critic.train_forward_enabled = False
-        losses.sliced_scripted_cloner.enabled = True
-
-        scheduler = SchedulerConfig(
-            run_gates=[
-                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
-            ],
-            rules=[
-                HyperUpdateRule(
-                    loss_instance_name="sliced_scripted_cloner",
-                    attr_path="teacher_led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=0.2,
-                    end_value=0.0,
-                    start_agent_step=0,
-                    end_agent_step=bc_total_steps,
-                ),
-            ],
-        )
-
     # For evaluation, "all" is treated the same as "no explicit variant filter".
     # Only use specific variants if provided, otherwise use eval_variants or None.
-    eval_train_variants: Optional[Sequence[str] | str] = None
+    eval_train_variants: Optional[Sequence[str]] = None
     if has_variants and not resolved_variants.is_all:
         eval_train_variants = resolved_variants.names
-    resolved_eval_variants = cogs_v_clips._resolve_eval_variants(eval_train_variants, eval_variants)
-    eval_suite = cogs_v_clips.make_eval_suite(
+
+    # Delegate to cogs_v_clips.train() with our custom curriculum
+    return cogs_v_clips.train(
         num_cogs=num_cogs,
-        difficulty=eval_difficulty,
-        variants=resolved_eval_variants,
-    )
-
-    evaluator_cfg = EvaluatorConfig(
-        simulations=eval_suite,
-    )
-
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(
-            curriculum=resolved_curriculum,
-            supervisor_policy_uri=bc_policy_uri,
-        ),
-        evaluator=evaluator_cfg,
-        scheduler=scheduler,
-    )
-
-
-def evaluate(
-    policy_uris: list[str] | str,
-    num_cogs: int = 4,
-    difficulty: str | None = "standard",
-    subset: Optional[Sequence[str]] = None,
-    variants: Optional[Sequence[str]] = None,
-) -> EvaluateTool:
-    """Evaluate policies on CoGs vs Clips missions."""
-    return EvaluateTool(
-        simulations=cogs_v_clips.make_eval_suite(
-            num_cogs=num_cogs,
-            difficulty=difficulty,
-            subset=subset,
-            variants=variants,
-        ),
-        policy_uris=policy_uris,
+        curriculum=resolved_curriculum,
+        variants=eval_train_variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+        bc_policy_uri=bc_policy_uri,
+        bc_teacher_lead_prob=bc_teacher_lead_prob,
+        bc_steps=bc_steps,
+        bc_mode=bc_mode,
+        use_lp=use_lp,
+        maps_cache_size=maps_cache_size,
     )
 
 
