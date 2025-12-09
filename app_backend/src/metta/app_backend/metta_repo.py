@@ -701,9 +701,7 @@ class MettaRepo:
                 )
                 return await cur.fetchone()
 
-    async def get_public_policy_version_by_id(
-        self, policy_version_id: uuid.UUID
-    ) -> PublicPolicyVersionRow | None:
+    async def get_public_policy_version_by_id(self, policy_version_id: uuid.UUID) -> PublicPolicyVersionRow | None:
         """Get a single policy version with public fields by ID.
 
         Returns None if the policy version does not exist.
