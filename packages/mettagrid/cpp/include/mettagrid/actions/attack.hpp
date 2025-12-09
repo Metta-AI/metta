@@ -22,12 +22,17 @@
 struct AttackActionConfig : public ActionConfig {
   std::unordered_map<InventoryItem, InventoryQuantity> defense_resources;
   bool enabled;
+  std::vector<ObservationType> vibes;  // Vibes that trigger this action on move
 
   AttackActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources,
                      const std::unordered_map<InventoryItem, InventoryQuantity>& consumed_resources,
                      const std::unordered_map<InventoryItem, InventoryQuantity>& defense_resources,
-                     bool enabled = true)
-      : ActionConfig(required_resources, consumed_resources), defense_resources(defense_resources), enabled(enabled) {}
+                     bool enabled = true,
+                     const std::vector<ObservationType>& vibes = {})
+      : ActionConfig(required_resources, consumed_resources),
+        defense_resources(defense_resources),
+        enabled(enabled),
+        vibes(vibes) {}
 };
 
 class Attack : public ActionHandler {
@@ -38,8 +43,14 @@ public:
       : ActionHandler(cfg, action_name),
         _defense_resources(cfg.defense_resources),
         _game_config(game_config),
-        _enabled(cfg.enabled) {
+        _enabled(cfg.enabled),
+        _vibes(cfg.vibes) {
     priority = 1;
+  }
+
+  // Get vibes that trigger this action on move
+  const std::vector<ObservationType>& get_vibes() const {
+    return _vibes;
   }
 
   std::vector<Action> create_actions() override {
@@ -53,10 +64,40 @@ public:
     return actions;
   }
 
+  // Expose to Move class - attack decides if target is valid
+  bool try_attack(Agent& actor, GridObject* target_object) {
+    if (!target_object) return false;
+
+    Agent* target = dynamic_cast<Agent*>(target_object);
+    if (!target) return false;  // Can only attack agents
+
+    // Check if actor has required resources for attack
+    for (const auto& [item, amount] : _consumed_resources) {
+      if (actor.inventory.amount(item) < amount) {
+        return false;  // Can't afford attack
+      }
+    }
+
+    bool success = _handle_target(actor, *target);
+
+    // Consume resources on success
+    if (success) {
+      for (const auto& [item, amount] : _consumed_resources) {
+        if (amount > 0) {
+          InventoryDelta delta = static_cast<InventoryDelta>(-static_cast<int>(amount));
+          actor.inventory.update(item, delta);
+        }
+      }
+    }
+
+    return success;
+  }
+
 protected:
   std::unordered_map<InventoryItem, InventoryQuantity> _defense_resources;
   const GameConfig* _game_config;
   bool _enabled;
+  std::vector<ObservationType> _vibes;
 
   bool _handle_action(Agent& actor, ActionArg arg) override {
     Agent* last_agent = nullptr;
@@ -199,13 +240,16 @@ inline void bind_attack_action_config(py::module& m) {
       .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
-                    bool>(),
+                    bool,
+                    const std::vector<ObservationType>&>(),
            py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("defense_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
-           py::arg("enabled") = true)
+           py::arg("enabled") = true,
+           py::arg("vibes") = std::vector<ObservationType>())
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources)
-      .def_readwrite("enabled", &AttackActionConfig::enabled);
+      .def_readwrite("enabled", &AttackActionConfig::enabled)
+      .def_readwrite("vibes", &AttackActionConfig::vibes);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ATTACK_HPP_

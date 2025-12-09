@@ -449,6 +449,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     else:
         action_params["defense_resources"] = {}
     action_params["enabled"] = actions_config.attack.enabled
+    # Convert vibes from names to IDs
+    action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in actions_config.attack.vibes if vibe in vibe_name_to_id]
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
     # Process transfer - vibes are derived from vibe_transfers keys in C++
