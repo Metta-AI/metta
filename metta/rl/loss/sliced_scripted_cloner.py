@@ -258,8 +258,7 @@ class SlicedScriptedCloner(Loss):
         teacher_actions = teacher_actions[valid_mask]
 
         # get the student's logprob for the action that the teacher chose
-        student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1))
-        student_log_probs = student_log_probs.reshape(minibatch.shape[0])
+        student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1)).squeeze(-1)
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
         loss = add_dummy_loss_for_unused_params(loss, td=student_td, used_keys=["full_log_probs", "act_log_prob"])
