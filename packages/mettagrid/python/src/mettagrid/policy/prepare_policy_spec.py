@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import atexit
 import hashlib
-import json
+import logging
 import shutil
 import stat
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
 from typing import Optional
 
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.file import local_copy
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_POLICY_CACHE_DIR = Path("/tmp/mettagrid-policy-cache")
 
@@ -94,20 +98,61 @@ def _find_package_source_root(extraction_root: Path, class_path: str) -> Path | 
     return None
 
 
+def _run_setup_script(setup_script_path: Path, extraction_root: Path) -> None:
+    """Run a setup script from the submission archive.
+
+    The script is executed with the extraction root as the working directory.
+    """
+    if not setup_script_path.exists():
+        raise FileNotFoundError(f"Setup script not found: {setup_script_path}")
+
+    if not setup_script_path.suffix == ".py":
+        raise ValueError(f"Setup script must be a .py file: {setup_script_path}")
+
+    logger.info("Running setup script: %s", setup_script_path)
+
+    result = subprocess.run(
+        [sys.executable, str(setup_script_path)],
+        cwd=extraction_root,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Setup script failed with exit code {result.returncode}:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+    logger.info("Setup script completed successfully")
+
+
+_executed_setup_scripts: set[Path] = set()
+
+
 def load_policy_spec_from_local_dir(
     extraction_root: Path,
     *,
     device: str | None = None,
 ) -> PolicySpec:
     """Load a PolicySpec from policy_spec.json in an extracted submission."""
-    policy_spec_path = extraction_root / "policy_spec.json"
+    policy_spec_path = extraction_root / POLICY_SPEC_FILENAME
     if not policy_spec_path.exists():
-        raise FileNotFoundError(f"policy_spec.json not found in extracted submission: {extraction_root}")
+        raise FileNotFoundError(f"{POLICY_SPEC_FILENAME} not found in extracted submission: {extraction_root}")
 
-    with policy_spec_path.open() as f:
-        raw_spec = json.load(f)
+    submission_spec = SubmissionPolicySpec.model_validate_json(policy_spec_path.read_text())
 
-    spec = PolicySpec.model_validate(raw_spec)
+    # Run setup script if specified (only once per extraction root)
+    if submission_spec.setup_script and extraction_root not in _executed_setup_scripts:
+        setup_script_path = extraction_root / submission_spec.setup_script
+        _run_setup_script(setup_script_path, extraction_root)
+        _executed_setup_scripts.add(extraction_root)
+
+    spec = PolicySpec(
+        class_path=submission_spec.class_path,
+        data_path=submission_spec.data_path,
+        init_kwargs=submission_spec.init_kwargs,
+    )
     spec.data_path = _resolve_spec_data_path(spec.data_path, extraction_root)
     if device is not None and "device" in spec.init_kwargs:
         spec.init_kwargs["device"] = device

@@ -886,6 +886,11 @@ def submit_cmd(
         "--skip-validation",
         help="Skip policy validation in isolated environment",
     ),
+    setup_script: Optional[str] = typer.Option(
+        None,
+        "--setup-script",
+        help="Path to a Python setup script to run before loading the policy",
+    ),
 ) -> None:
     """Submit a policy to CoGames competitions.
 
@@ -911,6 +916,7 @@ def submit_cmd(
         dry_run=dry_run,
         skip_validation=skip_validation,
         init_kwargs=init_kwargs if init_kwargs else None,
+        setup_script=setup_script,
     )
 
 
