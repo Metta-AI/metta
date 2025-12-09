@@ -19,6 +19,7 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.config.vibes import VIBES
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.simulator.rollout import Rollout
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
@@ -131,6 +132,7 @@ def validate_policy_in_isolation(
     policy_spec: PolicySpec,
     include_files: list[Path],
     console: Console,
+    setup_script: str | None = None,
 ) -> bool:
     """Validate policy works in isolated environment.
 
@@ -185,15 +187,17 @@ def validate_policy_in_isolation(
         result = _run_from_tmp_dir(["uv", "run", "cogames", "version"])
         console.print(f"[dim]Cogames version: {result.stdout.strip()}[/dim]")
 
-        result = _run_from_tmp_dir(
-            [
-                "uv",
-                "run",
-                "cogames",
-                "validate-policy",
-                policy_arg,
-            ]
-        )
+        validate_cmd = [
+            "uv",
+            "run",
+            "cogames",
+            "validate-policy",
+            policy_arg,
+        ]
+        if setup_script:
+            validate_cmd.extend(["--setup-script", setup_script])
+
+        result = _run_from_tmp_dir(validate_cmd)
 
         console.print(f"[dim]Validation result: {result.stdout.strip()}[/dim]")
 
@@ -213,7 +217,12 @@ def validate_policy_in_isolation(
             console.print("[dim]Cleaned up validation environment[/dim]")
 
 
-def create_submission_zip(include_files: list[Path], policy_spec: PolicySpec, console: Console) -> Path:
+def create_submission_zip(
+    include_files: list[Path],
+    policy_spec: PolicySpec,
+    console: Console,
+    setup_script: str | None = None,
+) -> Path:
     """Create a zip file containing all include-files.
 
     Maintains directory structure exactly as provided.
@@ -225,9 +234,15 @@ def create_submission_zip(include_files: list[Path], policy_spec: PolicySpec, co
 
     console.print("[yellow]Creating submission zip...[/yellow]")
 
+    submission_spec = SubmissionPolicySpec(
+        class_path=policy_spec.class_path,
+        data_path=policy_spec.data_path,
+        init_kwargs=policy_spec.init_kwargs,
+        setup_script=setup_script,
+    )
+
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-        # Write policy spec as a json file
-        zipf.writestr(data=policy_spec.model_dump_json(), zinfo_or_arcname="policy_spec.json")
+        zipf.writestr(data=submission_spec.model_dump_json(), zinfo_or_arcname=POLICY_SPEC_FILENAME)
 
         for file_path in include_files:
             if file_path.is_dir():
@@ -383,6 +398,7 @@ def submit_command(
     init_kwargs: dict[str, str] | None = None,
     dry_run: bool = False,
     skip_validation: bool = False,
+    setup_script: str | None = None,
 ) -> None:
     """Submit a policy to CoGames competitions.
 
@@ -401,6 +417,7 @@ def submit_command(
         server: Submission server URL
         dry_run: If True, run validation only without submitting
         skip_validation: If True, skip policy validation in isolated environment
+        setup_script: Optional path to a Python setup script to run before loading the policy
     """
     if dry_run:
         console.print("[bold]CoGames Policy Submission (DRY RUN)[/bold]\n")
@@ -450,6 +467,10 @@ def submit_command(
     if policy_spec.data_path:
         files_to_include.append(policy_spec.data_path)
 
+    # Include setup script if specified
+    if setup_script:
+        files_to_include.append(setup_script)
+
     # Add user-specified include files
     if include_files:
         files_to_include.extend(include_files)
@@ -469,7 +490,7 @@ def submit_command(
 
     # Validate policy in isolated environment (unless skipped)
     if not skip_validation:
-        if not validate_policy_in_isolation(policy_spec, validated_paths, console):
+        if not validate_policy_in_isolation(policy_spec, validated_paths, console, setup_script=setup_script):
             console.print("\n[red]Submission aborted due to validation failure.[/red]")
             return
     else:
@@ -477,7 +498,7 @@ def submit_command(
 
     # Create submission zip
     try:
-        zip_path = create_submission_zip(validated_paths, policy_spec, console)
+        zip_path = create_submission_zip(validated_paths, policy_spec, console, setup_script=setup_script)
     except Exception as e:
         console.print(f"[red]Error creating zip:[/red] {e}")
         return
