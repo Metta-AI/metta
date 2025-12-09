@@ -63,6 +63,7 @@ class EvalTaskRow(BaseModel):
     started_at: datetime | None = None
     finished_at: datetime | None = None
     output_log_path: str | None = None
+    attempt_git_hash: str | None = None
 
 
 class TaskAttemptRow(BaseModel):
@@ -80,6 +81,7 @@ class TaskAttemptRow(BaseModel):
     output_log_path: str | None
     status: TaskStatus
     status_details: dict[str, Any] | None
+    git_hash: str | None
 
 
 class SweepRow(BaseModel):
@@ -340,15 +342,15 @@ class MettaRepo:
                     )
                 return await cur.fetchall()
 
-    async def start_task(self, task_id: int) -> None:
+    async def start_task(self, task_id: int, git_hash: str | None = None) -> None:
         async with self.connect() as con:
             await con.execute(
                 """
                 UPDATE task_attempts
-                SET status = 'running', started_at = NOW()
+                SET status = 'running', started_at = NOW(), git_hash = %s
                 WHERE id = (SELECT latest_attempt_id FROM eval_tasks WHERE id = %s)
                 """,
-                (task_id,),
+                (git_hash, task_id),
             )
 
     async def finish_task(

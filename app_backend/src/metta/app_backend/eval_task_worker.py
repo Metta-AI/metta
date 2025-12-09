@@ -29,6 +29,7 @@ from datetime import datetime
 import boto3
 from ddtrace.trace import tracer
 
+import gitta as git
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.metta_repo import EvalTaskRow, FinishedTaskStatus
 from metta.app_backend.routes.eval_task_routes import TaskFinishRequest
@@ -37,7 +38,7 @@ from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.tool.tool import ToolResult
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
-from metta.common.util.git_repo import REPO_URL
+from metta.common.util.git_repo import REPO_SLUG, REPO_URL
 from mettagrid.util.file import local_copy
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ class TaskResult:
 
 class AbstractTaskExecutor(ABC):
     @abstractmethod
-    async def execute_task(self, task: EvalTaskRow) -> TaskResult:
+    async def execute_task(self, task: EvalTaskRow, git_hash: str) -> TaskResult:
         pass
 
 
@@ -171,12 +172,10 @@ class SimTaskExecutor(AbstractTaskExecutor):
     async def execute_task(
         self,
         task: EvalTaskRow,
+        git_hash: str,
     ) -> TaskResult:
-        if not task.git_hash:
-            raise RuntimeError(f"Git reference not found for task {task.id}")
-
         # Note: git_hash field can contain either a commit SHA or branch name
-        self._setup_versioned_checkout(task.git_hash)
+        self._setup_versioned_checkout(git_hash)
 
         cmd = task.command.split(" ")
 
@@ -290,7 +289,14 @@ class EvalTaskWorker:
     @trace("worker.attempt_task")
     async def attempt_task(self, task: EvalTaskRow) -> None:
         logger.info(f"Processing task {task.id}")
-        self._client.start_task(task.id)
+
+        resolved_git_hash = task.git_hash
+        if resolved_git_hash is None:
+            logger.info(f"Task {task.id} has no git_hash, resolving to latest main")
+            resolved_git_hash = await git.get_latest_commit(REPO_SLUG, branch="main")
+            logger.info(f"Resolved git_hash to {resolved_git_hash}")
+
+        self._client.start_task(task.id, git_hash=resolved_git_hash)
         span = tracer.current_span()
         if span:
             span.set_tags(
@@ -300,10 +306,11 @@ class EvalTaskWorker:
                     if key in ["id", "policy_id", "policy_uri", "policy_name", "git_hash", "user_id", "assignee"]
                 }
             )
+            span.set_tag("task.resolved_git_hash", resolved_git_hash)
             span.resource = str(task.id)
 
         try:
-            task_result = await self._task_executor.execute_task(task)
+            task_result = await self._task_executor.execute_task(task, resolved_git_hash)
             status: FinishedTaskStatus = "done" if task_result.success else "error"
 
             logger.info(f"Task {task.id} completed with status {status}")

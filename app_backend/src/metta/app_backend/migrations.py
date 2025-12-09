@@ -133,4 +133,22 @@ MIGRATIONS = [
                ON episode_tags (episode_id, key, value)""",
         ],
     ),
+    SqlMigration(
+        version=3,
+        description="Add git_hash to task_attempts for tracking executed commit per attempt",
+        sql_statements=[
+            """ALTER TABLE task_attempts ADD COLUMN git_hash TEXT""",
+            """DROP VIEW IF EXISTS eval_tasks_view""",
+            """CREATE VIEW eval_tasks_view AS
+                SELECT
+                    t.id, t.command, t.data_uri, t.git_hash, t.attributes,
+                    t.user_id, t.created_at, t.is_finished, t.latest_attempt_id,
+                    a.attempt_number, a.status, a.status_details, a.assigned_at,
+                    a.assignee, a.started_at, a.finished_at, a.output_log_path,
+                    a.git_hash AS attempt_git_hash
+                FROM eval_tasks t
+                LEFT JOIN task_attempts a ON t.latest_attempt_id = a.id
+            """,
+        ],
+    ),
 ]
