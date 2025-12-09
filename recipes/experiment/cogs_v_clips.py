@@ -32,8 +32,13 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.request_remote_eval import RequestRemoteEvalTool
+from metta.tools.stub import StubTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from metta.sweep.core import Distribution as D
+from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import make_sweep
 
 logger = logging.getLogger(__name__)
 
@@ -320,21 +325,6 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
     )
-    # Inline CVC defaults from the latest sweep (Dec 2025)
-    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
-    trainer_cfg.optimizer.eps = 5.0833278919526e-07
-
-    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
-    trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
-
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
-
-    trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
-
-    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
@@ -427,6 +417,22 @@ def train(
         ]
         scheduler_run_gates += bc_run_gates
         scheduler_rules += bc_rules
+
+    # Inline CVC defaults from the latest sweep (Dec 2025)
+    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
+    trainer_cfg.optimizer.eps = 5.0833278919526e-07
+
+    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
+    trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
+    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
+
+    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
+
+    trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
+    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
+
+    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
+    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
 
     tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
@@ -604,6 +610,72 @@ def train_coordination(
     )
 
 
+def train_sweep(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+    mission: str | None = None,
+) -> TrainTool:
+    """Train with heart_chorus baked in (CLI-friendly for sweeps)."""
+    base_variants = ["heart_chorus"]
+    if variants:
+        for v in variants:
+            if v not in base_variants:
+                base_variants.append(v)
+
+    return train(
+        num_cogs=num_cogs,
+        base_missions=None,
+        variants=base_variants,
+        eval_variants=eval_variants or base_variants,
+        eval_difficulty=eval_difficulty,
+        mission=mission,
+    )
+
+
+def evaluate_stub(*args, **kwargs) -> StubTool:
+    """No-op evaluator for sweeps (avoids dispatching eval jobs)."""
+    return StubTool()
+
+
+def sweep(
+    sweep_name: str,
+    num_cogs: int = 4,
+    eval_difficulty: str | None = "standard",
+    max_trials: int = 80,
+    num_parallel_trials: int = 4,
+) -> SweepTool:
+    """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
+
+    search_space = {
+        **SP.LEARNING_RATE,
+        **SP.PPO_CLIP_COEF,
+        **SP.PPO_GAE_LAMBDA,
+        **SP.PPO_VF_COEF,
+        **SP.ADAM_EPS,
+        **SP.param(
+            "trainer.total_timesteps",
+            D.INT_UNIFORM,
+            min=5e8,
+            max=2e9,
+            search_center=1e9,
+        ),
+    }
+
+    return make_sweep(
+        name=sweep_name,
+        recipe="recipes.experiment.cogs_v_clips",
+        train_entrypoint="train_sweep",
+        eval_entrypoint="evaluate_stub",
+        metric_key="env_agent/heart.gained",
+        search_space=search_space,
+        cost_key="metric/total_time",
+        max_trials=max_trials,
+        num_parallel_trials=num_parallel_trials,
+    )
+
+
 __all__ = [
     "make_eval_suite",
     "make_training_env",
@@ -612,6 +684,9 @@ __all__ = [
     "train_variants",
     "train_single_mission",
     "train_coordination",
+    "train_sweep",
+    "evaluate_stub",
+    "sweep",
     "evaluate",
     "play",
     "play_training_env",

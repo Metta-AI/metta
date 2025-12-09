@@ -1,4 +1,4 @@
-"""Train only on the Machina v1 open world map with vibe-biased init."""
+"""Machina v1 open-world recipe with vibe bias and sweep helpers."""
 
 from __future__ import annotations
 
@@ -10,12 +10,17 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.stub import StubTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
+from metta.sweep.core import Distribution as D
+from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import make_sweep
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from recipes.experiment.cogs_v_clips import make_training_env, train_single_mission
 
@@ -54,7 +59,6 @@ class VibeLogitBias(nn.Module):
 class ViTWithVibeBiasConfig(ViTDefaultConfig):
     """ViT default policy with vibe logits down-weighted at init."""
 
-    # Need to instantiate to access Pydantic field defaults
     components: list[ComponentConfig] = ViTDefaultConfig().components + [VibeLogitBiasConfig()]
 
 
@@ -65,7 +69,7 @@ def train(
     eval_difficulty: str | None = "standard",
     policy_architecture: PolicyArchitecture | None = None,
 ) -> TrainTool:
-    """Entrypoint that locks training to ``machina_1.open_world`` with CVC defaults and adds a matching eval."""
+    """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
 
     tt = train_single_mission(
         mission="machina_1.open_world",
@@ -75,7 +79,89 @@ def train(
         eval_difficulty=eval_difficulty,
     )
 
-    # Apply CVC sweep defaults to the trainer (mirrors recipes.experiment.cogs_v_clips)
+    return _apply_overrides(
+        tt=tt,
+        num_cogs=num_cogs,
+        eval_variants=eval_variants,
+        policy_architecture=policy_architecture,
+    )
+
+
+def train_sweep(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+    policy_architecture: PolicyArchitecture | None = None,
+) -> TrainTool:
+    """Sweep-friendly train with heart_chorus baked in."""
+
+    base_variants = ["heart_chorus"]
+    if variants:
+        for v in variants:
+            if v not in base_variants:
+                base_variants.append(v)
+
+    return train(
+        num_cogs=num_cogs,
+        variants=base_variants,
+        eval_variants=eval_variants or base_variants,
+        eval_difficulty=eval_difficulty,
+        policy_architecture=policy_architecture,
+    )
+
+
+def evaluate_stub(*args, **kwargs) -> StubTool:
+    """No-op evaluator for sweeps."""
+
+    return StubTool()
+
+
+def sweep(
+    sweep_name: str,
+    num_cogs: int = 4,
+    eval_difficulty: str | None = "standard",
+    max_trials: int = 80,
+    num_parallel_trials: int = 4,
+) -> SweepTool:
+    """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
+
+    search_space = {
+        **SP.LEARNING_RATE,
+        **SP.PPO_CLIP_COEF,
+        **SP.PPO_GAE_LAMBDA,
+        **SP.PPO_VF_COEF,
+        **SP.ADAM_EPS,
+        **SP.param(
+            "trainer.total_timesteps",
+            D.INT_UNIFORM,
+            min=5e8,
+            max=2e9,
+            search_center=1e9,
+        ),
+    }
+
+    return make_sweep(
+        name=sweep_name,
+        recipe="recipes.experiment.machina_1",
+        train_entrypoint="train_sweep",
+        eval_entrypoint="evaluate_stub",
+        metric_key="env_agent/heart.gained",
+        search_space=search_space,
+        cost_key="metric/total_time",
+        max_trials=max_trials,
+        num_parallel_trials=num_parallel_trials,
+    )
+
+
+def _apply_overrides(
+    *,
+    tt: TrainTool,
+    num_cogs: int,
+    eval_variants: Optional[Sequence[str]],
+    policy_architecture: PolicyArchitecture | None,
+) -> TrainTool:
+    # Apply CVC sweep defaults
     trainer_cfg = TrainerConfig(losses=LossesConfig())
     trainer_cfg.optimizer.learning_rate = 0.00737503357231617
     trainer_cfg.optimizer.eps = 5.0833278919526e-07
@@ -93,10 +179,8 @@ def train(
     trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
 
     tt.trainer = trainer_cfg
-
     tt.policy_architecture = policy_architecture or ViTWithVibeBiasConfig()
 
-    # Replace eval suite with a single machina_1.open_world eval
     eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
     tt.evaluator.simulations = [
         SimulationConfig(
@@ -105,7 +189,14 @@ def train(
             env=eval_env,
         )
     ]
+    # Slow down evals for long runs
+    tt.evaluator.epoch_interval = 5000
     return tt
 
 
-__all__ = ["train"]
+__all__ = [
+    "train",
+    "train_sweep",
+    "evaluate_stub",
+    "sweep",
+]
