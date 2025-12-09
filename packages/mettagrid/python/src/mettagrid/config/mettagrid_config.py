@@ -48,6 +48,28 @@ class ResourceLimitsConfig(Config):
 
     limit: int
     resources: list[str]
+    modifiers: dict[str, int] = Field(
+        default_factory=dict,
+        description="Modifiers that increase the limit. Maps item name to bonus per item held.",
+    )
+
+
+class DamageConfig(Config):
+    """Damage configuration for agents.
+
+    When an agent's inventory items reach or exceed all threshold values, one random
+    resource from the resources map is removed from inventory (if above minimum) and the
+    threshold amounts are subtracted from inventory.
+    """
+
+    threshold: dict[str, int] = Field(
+        default_factory=dict,
+        description="Map of resource names to threshold values. All must be reached to trigger damage.",
+    )
+    resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Map of resource names to minimum values. Resources at or below minimum are excluded from removal.",
+    )
 
 
 # TODO: this should probably subclass GridObjectConfig
@@ -62,22 +84,36 @@ class AgentConfig(Config):
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     initial_inventory: dict[str, int] = Field(default_factory=dict)
+    inventory_order: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Order in which to add initial inventory items. Items listed here are added first (in order), "
+            "then remaining items. Use this when some items modify limits for others "
+            "(e.g., ['gear', 'battery'] ensures gear is added before battery, and battery before energy)."
+        ),
+    )
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
     )
-    inventory_regen_amounts: dict[str, int] = Field(
-        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
+    inventory_regen_amounts: dict[str, dict[str, int]] = Field(
+        default_factory=dict,
+        description=(
+            "Vibe-dependent inventory regeneration. Maps vibe name to resource amounts. "
+            "Use 'default' for fallback when agent's vibe isn't specified. "
+            "Example: {'default': {'energy': 1}, 'weapon': {'energy': 2}}"
+        ),
     )
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
     )
-    vibe_transfers: dict[str, dict[str, int]] = Field(
-        default_factory=dict, description="Maps vibe name to resource deltas for agent-to-agent sharing"
-    )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
+    damage: Optional[DamageConfig] = Field(
+        default=None,
+        description="Damage config: when all threshold stats are reached, remove one random resource from inventory",
+    )
 
     def get_limit_for_resource(self, resource_name: str) -> int:
         """Get the resource limit for a given resource name.
@@ -88,6 +124,25 @@ class AgentConfig(Config):
             if resource_name in resource_limit.resources:
                 return resource_limit.limit
         return self.default_resource_limit
+
+
+class VibeTransfer(Config):
+    """Configuration for resource transfers triggered by a specific vibe.
+
+    When an agent with this vibe interacts with another agent or object,
+    the specified resource deltas are applied to both the actor and target.
+
+    Example:
+        VibeTransfer(
+            vibe="plug",
+            target={"energy": 10},      # target gains 10 energy
+            actor={"energy": -10, "heart": -1}  # actor loses 10 energy and 1 heart
+        )
+    """
+
+    vibe: str
+    target: dict[str, int] = Field(default_factory=dict)
+    actor: dict[str, int] = Field(default_factory=dict)
 
 
 class ActionConfig(Config):
@@ -125,6 +180,7 @@ class MoveActionConfig(ActionConfig):
 
     action_handler: str = Field(default="move")
     allowed_directions: list[Direction] = Field(default_factory=lambda: CardinalDirections)
+    vibe_specific_action_overrides: dict[str, str] = Field(default_factory=dict)
 
     def _actions(self) -> list[Action]:
         return [self.Move(direction) for direction in self.allowed_directions]
@@ -138,8 +194,13 @@ class ChangeVibeActionConfig(ActionConfig):
 
     action_handler: str = Field(default="change_vibe")
     number_of_vibes: int = Field(default=0, ge=0, le=255)
+    vibes: Optional[list[Vibe]] = Field(
+        default=None, description="Specific vibes to use. If None, uses the first number_of_vibes from global VIBES."
+    )
 
     def _actions(self) -> list[Action]:
+        if self.vibes is not None:
+            return [self.ChangeVibe(vibe) for vibe in self.vibes]
         return [self.ChangeVibe(vibe) for vibe in VIBES[: self.number_of_vibes]]
 
     def ChangeVibe(self, vibe: Vibe) -> Action:
@@ -151,8 +212,24 @@ class AttackActionConfig(ActionConfig):
 
     action_handler: str = Field(default="attack")
     defense_resources: dict[str, int] = Field(default_factory=dict)
+    armor_resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources on target that reduce damage. Maps resource name to weight.",
+    )
+    weapon_resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources on attacker that increase damage. Maps resource name to weight.",
+    )
+    loot: Optional[list[str]] = Field(
+        default=None,
+        description="List of resources to steal. If None, steal all resources. If empty list, steal nothing.",
+    )
     target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
         default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    )
+    vibes: list[str] = Field(
+        default_factory=list,
+        description="Vibe names that trigger attack on move (e.g., ['weapon'])",
     )
 
     def _actions(self) -> list[Action]:
@@ -160,6 +237,28 @@ class AttackActionConfig(ActionConfig):
 
     def Attack(self, location: Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]) -> Action:
         return Action(name=f"attack_{location}")
+
+
+class TransferActionConfig(ActionConfig):
+    """Python transfer action configuration.
+
+    Transfer is triggered by move when the agent's vibe is in the vibes list.
+    The vibe_transfers list specifies what happens for each vibe.
+    """
+
+    action_handler: str = Field(default="transfer")
+    vibe_transfers: list[VibeTransfer] = Field(
+        default_factory=list,
+        description="List of vibe transfer configs specifying actor/target resource effects",
+    )
+    vibes: list[str] = Field(
+        default_factory=list,
+        description="Vibe names that trigger transfer on move (e.g., ['battery'])",
+    )
+
+    def _actions(self) -> list[Action]:
+        # Transfer doesn't create standalone actions - it's triggered by move
+        return []
 
 
 class ActionsConfig(Config):
@@ -172,11 +271,12 @@ class ActionsConfig(Config):
     noop: NoopActionConfig = Field(default_factory=lambda: NoopActionConfig())
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
+    transfer: TransferActionConfig = Field(default_factory=lambda: TransferActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
 
     def actions(self) -> list[Action]:
         return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe]],
+            [action.actions() for action in [self.noop, self.move, self.attack, self.transfer, self.change_vibe]],
             [],
         )
 
@@ -243,6 +343,16 @@ class ProtocolConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
+    sigmoid: int = Field(
+        default=0,
+        ge=0,
+        description="Number of discounted uses. Cost scales linearly from 0 (free) to 1 (full price) over these uses.",
+    )
+    inflation: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Compound rate for exponential cost. Cost = base * (1+inflation)^(n - sigmoid).",
+    )
 
 
 class AssemblerConfig(GridObjectConfig):
@@ -276,6 +386,11 @@ class AssemblerConfig(GridObjectConfig):
         ge=0,
         description="Distance within which assembler can use inventories from chests",
     )
+    agent_cooldown: int = Field(
+        default=0,
+        ge=0,
+        description="Per-agent cooldown duration in timesteps before they can use this assembler again",
+    )
 
 
 class ChestConfig(GridObjectConfig):
@@ -287,7 +402,7 @@ class ChestConfig(GridObjectConfig):
     pydantic_type: Literal["chest"] = "chest"
     name: str = Field(default="chest")
 
-    # Vibe-based transfers: vibe -> resource -> delta
+    # Vibe-based transfers: vibe -> resource -> delta (positive = deposit, negative = withdraw)
     vibe_transfers: dict[str, dict[str, int]] = Field(
         default_factory=dict,
         description=(
@@ -416,12 +531,6 @@ class GameConfig(Config):
     )
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
-
-    @model_validator(mode="after")
-    def _compute_feature_ids(self) -> "GameConfig":
-        self.actions.change_vibe.number_of_vibes = self.actions.change_vibe.number_of_vibes or len(VIBES)
-        self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
-        return self
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""

@@ -8,10 +8,13 @@ from .mettagrid_config import (
     AttackActionConfig,
     ChangeVibeActionConfig,
     ClipperConfig,
+    DamageConfig,
     GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
     ProtocolConfig,
+    TransferActionConfig,
+    VibeTransfer,
     WallConfig,
 )
 
@@ -24,10 +27,13 @@ __all__ = [
     "AttackActionConfig",
     "ChangeVibeActionConfig",
     "convert_to_cpp_game_config",
+    "DamageConfig",
     "GameConfig",
     "GlobalObsConfig",
     "MettaGridConfig",
     "ClipperConfig",
     "ProtocolConfig",
+    "TransferActionConfig",
+    "VibeTransfer",
     "WallConfig",
 ]
