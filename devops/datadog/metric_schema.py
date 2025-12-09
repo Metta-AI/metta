@@ -17,6 +17,7 @@ class MetricDefinition:
     threshold: float
     aggregation: Aggregation = "avg"
     description: str | None = None
+    warn_threshold: float | None = None
 
     @property
     def condition_text(self) -> str:
@@ -132,6 +133,7 @@ def _ci_workflows() -> List[WorkflowDefinition]:
             check="P90 length (minutes)",
             comparator="<",
             threshold=5,
+            warn_threshold=8,
             aggregation="avg",
             description="P90 runtime of CI workflows in minutes.",
         ),
@@ -167,80 +169,185 @@ def _ci_workflows() -> List[WorkflowDefinition]:
 
 
 def _training_workflows() -> List[WorkflowDefinition]:
-    core_metrics = [
+    data_availability_metrics = [
         MetricDefinition(
-            display_name="StableSuite SPS",
-            metric_name="metta.infra.stablesuite.sps",
-            task="Throughput",
-            check="Steps per second",
-            comparator=">=",
-            threshold=40000,
+            display_name="Training data missing",
+            metric_name="metta.infra.cron.training.data_missing",
+            task="Data availability",
+            check="S3 data found",
+            comparator="<",
+            threshold=1,
             aggregation="avg",
-            description="Steps per second from StableSuite runs.",
+            description="Sentinel metric: 1 when training data is missing from S3, 0 when data is available.",
+        ),
+    ]
+
+    multigpu_metrics = [
+        MetricDefinition(
+            display_name="Runs successfully",
+            metric_name="metta.infra.cron.training.multigpu.runs_success",
+            task="Runs successfully",
+            check="Binary success",
+            comparator=">=",
+            threshold=1,
+            aggregation="avg",
+            description="Multigpu arena basic easy shaped run success signal.",
         ),
         MetricDefinition(
-            display_name="StableSuite Hearts",
-            metric_name="metta.infra.stablesuite.hearts",
+            display_name="Hearts",
+            metric_name="metta.infra.cron.training.multigpu.hearts",
             task="Hearts",
             check="Avg hearts",
             comparator=">=",
             threshold=0.5,
             aggregation="avg",
-            description="Mean hearts across agents; must stay above threshold.",
+            description="Average hearts for multigpu run.",
         ),
         MetricDefinition(
-            display_name="StableSuite failure ratio",
-            metric_name="metta.infra.stablesuite.failure_ratio",
-            task="Failure ratio",
-            check="Failure ratio",
-            comparator="<",
-            threshold=0.2,
+            display_name="SPS",
+            metric_name="metta.infra.cron.training.multigpu.sps",
+            task="SPS",
+            check="Steps per second",
+            comparator=">=",
+            threshold=40000,
             aggregation="avg",
-            description="Failure ratio for StableSuite runs; lower is better.",
+            description="Throughput (steps per second) for multigpu run.",
         ),
     ]
 
-    pipeline_metrics = [
+    multinode_metrics = [
         MetricDefinition(
-            display_name="Training pipeline success",
-            metric_name="metta.infra.stablesuite.training.pipeline.success",
-            task="Pipeline status",
+            display_name="Runs successfully",
+            metric_name="metta.infra.cron.training.multinode.runs_success",
+            task="Runs successfully",
             check="Binary success",
             comparator=">=",
             threshold=1,
             aggregation="avg",
-            description="1 if the latest training pipeline run succeeded, 0 otherwise.",
+            description="Multinode learning progress run success signal.",
         ),
         MetricDefinition(
-            display_name="Training pipeline runtime (minutes)",
-            metric_name="metta.infra.stablesuite.training.pipeline.runtime",
-            task="Pipeline runtime",
-            check="Runtime minutes",
-            comparator="<=",
-            threshold=90,
+            display_name="Hearts",
+            metric_name="metta.infra.cron.training.multinode.hearts",
+            task="Hearts",
+            check="Avg hearts",
+            comparator=">=",
+            threshold=0.5,
             aggregation="avg",
-            description="Total runtime of the training pipeline in minutes.",
+            description="Average hearts for multinode run.",
         ),
         MetricDefinition(
-            display_name="Training environment checks passing",
-            metric_name="metta.infra.stablesuite.training.env.checks",
-            task="Environment checks",
-            check="Checks passing",
+            display_name="Shaped",
+            metric_name="metta.infra.cron.training.multinode.shaped",
+            task="Shaped",
+            check="Shaped SPS",
+            comparator=">=",
+            threshold=40000,
+            aggregation="avg",
+            description="Shaped throughput for multinode run.",
+        ),
+    ]
+
+    local_arena_metrics = [
+        MetricDefinition(
+            display_name="Runs to first checkpoint at 10000 steps",
+            metric_name="metta.infra.cron.training.local_arena.first_checkpoint",
+            task="Runs to first checkpoint",
+            check="Binary success",
             comparator=">=",
             threshold=1,
             aggregation="avg",
-            description="Binary signal indicating environment checks are passing.",
+            description="Local arena basic easy shaped reaches first checkpoint.",
+        ),
+        MetricDefinition(
+            display_name="Continues from checkpoint and runs another 10000 steps",
+            metric_name="metta.infra.cron.training.local_arena.continues",
+            task="Continues from checkpoint",
+            check="Binary success",
+            comparator=">=",
+            threshold=1,
+            aggregation="avg",
+            description="Local arena continues after checkpoint.",
+        ),
+    ]
+
+    bugs_metrics = [
+        MetricDefinition(
+            display_name='Num tickets in Bugs project with "Training" as workflow label',
+            metric_name="metta.infra.cron.training.bugs.count",
+            task="Bugs tickets",
+            check="Count",
+            comparator="<",
+            threshold=1,
+            aggregation="avg",
+            description='Tickets in Bugs project labeled "Training".',
         ),
     ]
 
     return [
-        WorkflowDefinition(name="stablesuite_core", display_name="StableSuite core", metrics=core_metrics),
-        WorkflowDefinition(name="training_pipeline", display_name="Training pipeline", metrics=pipeline_metrics),
+        WorkflowDefinition(
+            name="training_data_availability",
+            display_name="Training data availability",
+            metrics=data_availability_metrics,
+        ),
+        WorkflowDefinition(
+            name="multigpu_arena_basic_easy_shaped",
+            display_name="Multigpu arena basic easy shaped",
+            metrics=multigpu_metrics,
+        ),
+        WorkflowDefinition(
+            name="multinode_learning_progress",
+            display_name="Multinode learning progress",
+            metrics=multinode_metrics,
+        ),
+        WorkflowDefinition(
+            name="local_arena_basic_easy_shaped",
+            display_name="Local arena basic easy shaped",
+            metrics=local_arena_metrics,
+        ),
+        WorkflowDefinition(
+            name="training_bugs",
+            display_name="Bugs",
+            metrics=bugs_metrics,
+        ),
     ]
 
 
 def _eval_workflows() -> List[WorkflowDefinition]:
+    data_availability_metrics = [
+        MetricDefinition(
+            display_name="Eval data missing",
+            metric_name="metta.infra.cron.eval.data_missing",
+            task="Data availability",
+            check="S3 eval artifacts found",
+            comparator="<",
+            threshold=1,
+            aggregation="avg",
+            description="Sentinel metric: 1 when eval data is missing from S3, 0 when data is available.",
+        ),
+    ]
+
     eval_metrics = [
+        MetricDefinition(
+            display_name="Local eval success",
+            metric_name="metta.infra.cron.eval.local.success",
+            task="Local eval",
+            check="Success signal",
+            comparator=">=",
+            threshold=1,
+            aggregation="avg",
+            description="Binary success signal for local eval runs.",
+        ),
+        MetricDefinition(
+            display_name="Local eval heart delta pct",
+            metric_name="metta.infra.cron.eval.local.heart_delta_pct",
+            task="Local eval",
+            check="Heart delta pct",
+            comparator=">=",
+            threshold=0,
+            aggregation="avg",
+            description="Heart delta percentage for local eval.",
+        ),
         MetricDefinition(
             display_name="Remote eval success",
             metric_name="metta.infra.cron.eval.remote.success",
@@ -252,43 +359,41 @@ def _eval_workflows() -> List[WorkflowDefinition]:
             description="Binary success signal for remote eval runs.",
         ),
         MetricDefinition(
-            display_name="Remote eval failures",
-            metric_name="metta.infra.cron.eval.remote.failure",
+            display_name="Remote eval heart delta pct",
+            metric_name="metta.infra.cron.eval.remote.heart_delta_pct",
             task="Remote eval",
-            check="Failure count",
-            comparator="<",
-            threshold=1,
-            aggregation="avg",
-            description="Failures observed in remote eval; should remain zero.",
-        ),
-        MetricDefinition(
-            display_name="Eval score",
-            metric_name="metta.infra.cron.eval.score",
-            task="Eval quality",
-            check="Score",
+            check="Heart delta pct",
             comparator=">=",
-            threshold=0.5,
+            threshold=0,
             aggregation="avg",
-            description="Evaluation score aggregated across runs.",
+            description="Heart delta percentage for remote eval.",
         ),
         MetricDefinition(
-            display_name="Eval runtime (minutes)",
-            metric_name="metta.infra.cron.eval.runtime",
-            task="Eval runtime",
+            display_name="Remote eval duration minutes",
+            metric_name="metta.infra.cron.eval.remote.duration_minutes",
+            task="Remote eval",
             check="Runtime minutes",
             comparator="<=",
             threshold=60,
+            warn_threshold=90,
             aggregation="avg",
-            description="Runtime of eval workflows in minutes.",
+            description="Runtime of remote eval workflows in minutes.",
         ),
     ]
 
-    return [WorkflowDefinition(name="remote_eval", display_name="Remote eval", metrics=eval_metrics)]
+    return [
+        WorkflowDefinition(
+            name="eval_data_availability",
+            display_name="Eval data availability",
+            metrics=data_availability_metrics,
+        ),
+        WorkflowDefinition(name="remote_eval", display_name="Remote eval", metrics=eval_metrics),
+    ]
 
 
 METRIC_SCHEMA: List[CategoryDefinition] = [
-    CategoryDefinition(name="ci", display_name="CI", workflows=_ci_workflows()),
     CategoryDefinition(name="training", display_name="Training", workflows=_training_workflows()),
+    CategoryDefinition(name="ci", display_name="CI", workflows=_ci_workflows()),
     CategoryDefinition(name="evaluation", display_name="Eval", workflows=_eval_workflows()),
 ]
 
