@@ -88,8 +88,19 @@ class SlicedScriptedCloner(Loss):
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
-            if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
-                self._create_slices(td.batch_size.numel())
+            teacher_actions = td.get("teacher_actions")
+
+            # If teacher_actions are provided with sentinel -1 for non-supervised rows,
+            # derive masks from them; otherwise fall back to internal sampling.
+            if teacher_actions is not None and teacher_actions.numel() > 0:
+                teacher_mask = teacher_actions >= 0
+                self.teacher_mask = teacher_mask
+                self.stud_mask = torch.zeros_like(teacher_mask)
+                self.ppo_mask = ~teacher_mask
+                self.rollout_batch_size = td.batch_size.numel()
+            else:
+                if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
+                    self._create_slices(td.batch_size.numel())
 
             # Inject synthetic observation tokens for student-led and teacher-led
             # slices so the student policy can see which regime produced each step.
