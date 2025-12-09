@@ -22,18 +22,11 @@ resources:
     - region: us-west-2
       accelerators: "A10G:1"
   cpus: 8+
-  image_id: docker:metta:latest
+  # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-09)
+  image_id: ami-0ebd2b5422ef02377
   job_recovery:
     strategy: EAGER_NEXT_REGION
     max_restarts_on_errors: 3
-
-config:
-  docker:
-    run_options:
-      - --cap-add=IPC_LOCK
-      - --ulimit memlock=-1:-1
-      - --ipc=host
-      - --userns=host
 
 file_mounts:
   /mnt/s3/softmax-public:
@@ -60,10 +53,6 @@ envs:
 
   # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
   DATA_DIR: /mnt/s3/train_dir
-  SKYPILOT_DOCKER_USERNAME: ""
-  SKYPILOT_DOCKER_PASSWORD: ""
-  SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
-
 secrets:
   # configured by launch script based on local credentials
   WANDB_PASSWORD: ""
