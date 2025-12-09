@@ -65,11 +65,6 @@ class PufferEnv:
         ):
             raise APIUsageError("Native action_space must be a Discrete, MultiDiscrete, or Box")
 
-        # Gymnasium-style vector envs expect `metadata` to always be present
-        # (they copy it from a dummy env before spawning workers).
-        base_metadata = getattr(self, "metadata", None) or {"render_modes": []}
-        self.metadata = dict(base_metadata)
-
         set_buffers(self, buf)
 
         self.action_space = pufferlib.spaces.joint_space(self.single_action_space, self.num_agents)
