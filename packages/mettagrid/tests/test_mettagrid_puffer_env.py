@@ -72,6 +72,14 @@ class TestMettaGridPufferEnvCreation:
         # Should have at least noop and move actions
         assert action_space.n >= 5  # noop + 4 cardinal directions
 
+    def test_metadata_present(self, simulator, puffer_sim_config):
+        """Ensure Gymnasium vector wrappers can read env metadata."""
+        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+
+        assert isinstance(env.metadata, dict)
+        assert "render_modes" in env.metadata
+        assert "ansi" in env.metadata["render_modes"]
+
 
 class TestMettaGridPufferEnvReset:
     """Test reset functionality."""
