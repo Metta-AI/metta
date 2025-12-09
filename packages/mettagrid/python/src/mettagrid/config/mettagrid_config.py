@@ -420,7 +420,9 @@ class GameConfig(Config):
     @model_validator(mode="after")
     def _compute_feature_ids(self) -> "GameConfig":
         self.actions.change_vibe.number_of_vibes = self.actions.change_vibe.number_of_vibes or len(VIBES)
-        self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
+        # Only set vibe_names from VIBES if not already set (preserves custom vibe sets like TRAINING_VIBES)
+        if not self.vibe_names:
+            self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
         return self
 
     def id_map(self) -> "IdMap":

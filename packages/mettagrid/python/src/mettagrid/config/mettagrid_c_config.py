@@ -34,8 +34,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if "obs" in config_dict and "features" in config_dict["obs"]:
             config_dict["obs"] = config_dict["obs"].copy()
             config_dict["obs"].pop("features", None)
-        # Keep vibe_names in sync with number_of_vibes; favor the explicit count.
-        config_dict.pop("vibe_names", None)
+        # NOTE: Do NOT pop vibe_names - we need to preserve custom vibe sets like TRAINING_VIBES
+        # that include vibes (like red-heart) at specific positions
         change_vibe_cfg = config_dict.setdefault("actions", {}).setdefault("change_vibe", {})
         change_vibe_cfg["number_of_vibes"] = change_vibe_cfg.get("number_of_vibes") or len(VIBES)
         game_config = GameConfig(**config_dict)
@@ -240,7 +240,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
             for protocol_config in reversed(object_config.protocols):
                 # Convert vibe names to IDs
-                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes if vibe in vibe_name_to_id])
+                # NOTE: Do NOT filter with "if vibe in vibe_name_to_id" - this silently drops
+                # vibes and causes duplicate protocol errors when multiple protocols collapse to []
+                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
                 # Check for duplicate vibes
                 if (vibe_ids, protocol_config.min_agents) in seen_vibes_and_min_agents:
                     raise ValueError(
