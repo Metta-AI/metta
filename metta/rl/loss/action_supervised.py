@@ -104,6 +104,15 @@ class ActionSupervised(Loss):
 
         minibatch = shared_loss_data["sampled_mb"]
 
+        # Use only rows with valid teacher actions (-1 denotes no teacher)
+        teacher_actions = minibatch["teacher_actions"]
+        valid_mask = teacher_actions >= 0
+        if not valid_mask.any():
+            return self._zero(), shared_loss_data, False
+
+        minibatch = minibatch[valid_mask]
+        teacher_actions = teacher_actions[valid_mask]
+
         if self.train_forward_enabled:
             policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
             flat_actions = minibatch["actions"].reshape(B * TT, -1)
@@ -115,10 +124,8 @@ class ActionSupervised(Loss):
             policy_td = shared_loss_data["policy_td"]
 
         policy_full_log_probs = policy_td["full_log_probs"].reshape(minibatch.shape[0], minibatch.shape[1], -1)
-        teacher_actions = minibatch["teacher_actions"]
         # get the student's logprob for the action that the teacher chose
-        student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1))
-        student_log_probs = student_log_probs.reshape(minibatch.shape[0], minibatch.shape[1])
+        student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1)).squeeze(-1)
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
         loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["full_log_probs", "act_log_prob"])
