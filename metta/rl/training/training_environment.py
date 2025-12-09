@@ -71,6 +71,12 @@ class TrainingEnvironmentConfig(Config):
 
     supervisor_policy_uri: Optional[str] = Field(default=None)
 
+    # Supervisor control
+    supervisor_stop_agent_step: Optional[int] = Field(default=None)
+    supervisor_teacher_start: float = Field(default=1.0)
+    supervisor_teacher_end_step: Optional[int] = Field(default=None)
+    supervisor_teacher_decay: bool = Field(default=False)
+
     maps_cache_size: Optional[int] = Field(default=None, ge=1)
     """Number of maps to cache in shared memory. None for unlimited."""
 
@@ -128,12 +134,15 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
     ):
         """Initialize training environment."""
         super().__init__()
+        self._cfg = cfg
         self._id = uuid.uuid4().hex[:12]
         self._num_agents = 0
         self._batch_size = 0
         self._num_envs = 0
         self._target_batch_size = 0
         self._num_workers = 0
+        self._agent_step_counter = 0
+        self._supervisor_enabled = True
         self._curriculum = None
         self._vecenv = None
 
@@ -180,6 +189,9 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             self._curriculum,
             cfg.vectorization,
             supervisor_policy_spec=supervisor_policy_spec,
+            supervisor_teacher_start=cfg.supervisor_teacher_start,
+            supervisor_teacher_end_step=cfg.supervisor_teacher_end_step,
+            supervisor_teacher_decay=cfg.supervisor_teacher_decay,
             num_envs=self._num_envs,
             batch_size=self._batch_size,
             num_workers=num_workers,
@@ -258,6 +270,12 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         mask = torch.as_tensor(mask)
         num_steps = int(mask.sum().item())
 
+        # Track agent steps to enable supervisor auto-disable
+        self._agent_step_counter += num_steps
+        if self._cfg.supervisor_stop_agent_step is not None and self._supervisor_enabled:
+            if self._agent_step_counter >= self._cfg.supervisor_stop_agent_step:
+                self.disable_supervisor()
+
         # Convert to tensors
         o = torch.as_tensor(o)
         if o.ndim == 2:
@@ -273,3 +291,14 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         if actions.dtype != dtype_actions:
             actions = actions.astype(dtype_actions, copy=False)
         self._vecenv.send(actions)
+
+    # ---------------- Supervisor control -----------------
+    def disable_supervisor(self) -> None:
+        self._supervisor_enabled = False
+        driver = getattr(self._vecenv, "driver_env", None)
+        if driver is not None and hasattr(driver, "disable_supervisor"):
+            driver.disable_supervisor()
+
+    @property
+    def supervisor_enabled(self) -> bool:
+        return self._supervisor_enabled
