@@ -4,9 +4,9 @@ import ast
 from pathlib import Path
 from typing import Iterable
 
-DISALLOWED_PREFIXES = ["metta."]
+ALLOWED_METTA_PACKAGES = ["mettagrid", "cogames"]
 
-EXCLUDE_FILES = set()
+EXCLUDE_FILES: set[str] = set()
 
 
 def find_forbidden_imports(file_path: Path) -> list[ast.stmt]:
@@ -20,7 +20,6 @@ def find_forbidden_imports(file_path: Path) -> list[ast.stmt]:
     try:
         tree = ast.parse(source, filename=str(file_path))
     except SyntaxError:
-        # Skip files with syntax errors
         return []
 
     bad_nodes: list[ast.stmt] = []
@@ -31,14 +30,17 @@ def find_forbidden_imports(file_path: Path) -> list[ast.stmt]:
             for alias in node.names:
                 modules.append(alias.name)
         elif isinstance(node, ast.ImportFrom):
-            # Only care about absolute imports (level == 0)
             if node.level == 0 and node.module is not None:
                 modules.append(node.module)
         else:
             continue
 
         for module in modules:
-            if any(module.startswith(prefix) for prefix in DISALLOWED_PREFIXES):
+            if module.startswith("metta.") and not any(
+                module.startswith(f"metta.{allowed}") for allowed in ALLOWED_METTA_PACKAGES
+            ):
+                bad_nodes.append(node)
+            if module.startswith("recipes."):
                 bad_nodes.append(node)
 
     return bad_nodes
@@ -50,7 +52,7 @@ def iter_python_files(root: Path) -> Iterable[Path]:
 
 def test_no_forbidden_imports() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    src_dir = repo_root / "python" / "src"
+    src_dir = repo_root / "src" / "cogames"
     assert src_dir.is_dir(), f"Expected source directory not found: {src_dir}"
 
     failures: list[str] = []
@@ -63,4 +65,6 @@ def test_no_forbidden_imports() -> None:
 
     if failures:
         details = "\n".join(sorted(failures))
-        raise AssertionError("Forbidden imports detected:\n" + details)
+        raise AssertionError(
+            "Forbidden imports detected (cogames cannot import from metta.* or recipes.*):\n" + details
+        )

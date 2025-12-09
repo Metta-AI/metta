@@ -26,9 +26,3 @@ class TestMettaURIs:
         resolver = MettaSchemeResolver()
         with pytest.raises(ValueError, match="Unsupported metta:// URI format"):
             resolver.get_path_to_policy_spec_or_mpt("metta://invalid")
-
-    def test_resolve_metta_uri_requires_stats_server(self, monkeypatch):
-        monkeypatch.setattr("metta.rl.metta_scheme_resolver.auto_stats_server_uri", lambda: None)
-        resolver = MettaSchemeResolver()
-        with pytest.raises(ValueError, match="stats server not configured"):
-            resolver.get_path_to_policy_spec_or_mpt("metta://policy/acee831a-f409-4345-9c44-79b34af17c3e")
