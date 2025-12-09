@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.metta_repo import (
     MatchRow,
+    MatchWithEvalStatus,
     MatchWithPlayers,
     MettaRepo,
     PoolPlayerWithPolicy,
@@ -75,6 +76,10 @@ class MatchResponse(BaseModel):
 
 class MatchesResponse(BaseModel):
     matches: list[MatchRow]
+
+
+class MatchesWithEvalStatusResponse(BaseModel):
+    matches: list[MatchWithEvalStatus]
 
 
 class UnscheduledMatchesResponse(BaseModel):
@@ -209,6 +214,12 @@ def create_tournament_router(repo: MettaRepo) -> APIRouter:
         matches = await repo.get_unscheduled_matches(limit=limit)
         return UnscheduledMatchesResponse(matches=matches)
 
+    @router.get("/matches/needing-reschedule")
+    @timed_http_handler
+    async def get_matches_needing_reschedule(limit: int = 100) -> MatchesWithEvalStatusResponse:
+        matches = await repo.get_matches_needing_reschedule(limit=limit)
+        return MatchesWithEvalStatusResponse(matches=matches)
+
     @router.get("/pools/{pool_id}/matches")
     @timed_http_handler
     async def get_matches_for_pool(
@@ -222,6 +233,20 @@ def create_tournament_router(repo: MettaRepo) -> APIRouter:
             offset=offset,
         )
         return MatchesResponse(matches=matches)
+
+    @router.get("/pools/{pool_id}/matches/with-eval-status")
+    @timed_http_handler
+    async def get_matches_for_pool_with_eval_status(
+        pool_id: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> MatchesWithEvalStatusResponse:
+        matches = await repo.get_matches_for_pool_with_eval_status(
+            pool_id=uuid.UUID(pool_id),
+            limit=limit,
+            offset=offset,
+        )
+        return MatchesWithEvalStatusResponse(matches=matches)
 
     @router.post("/matches/{match_id}/eval-task")
     @timed_http_handler

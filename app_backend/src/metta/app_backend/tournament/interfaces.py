@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
+
+TaskStatus = Literal["unprocessed", "running", "canceled", "done", "error", "system_error"]
 
 
 @dataclass
@@ -48,18 +50,33 @@ class PoolPlayer:
 
 
 @dataclass
-class Match:
-    id: UUID
-    pool_id: UUID
-    eval_task_id: int | None
-    created_at: datetime
-
-
-@dataclass
 class MatchPlayer:
     match_id: UUID
     policy_version_id: UUID
     position: int
+
+
+@dataclass
+class MatchWithEvalStatus:
+    id: UUID
+    pool_id: UUID
+    eval_task_id: int | None
+    created_at: datetime
+    players: list[MatchPlayer]
+    eval_status: TaskStatus | None = None
+    eval_is_finished: bool = False
+
+    @property
+    def is_completed(self) -> bool:
+        return self.eval_status == "done" and self.eval_is_finished
+
+    @property
+    def is_pending(self) -> bool:
+        return self.eval_task_id is None or self.eval_status in ("unprocessed", "running")
+
+    @property
+    def needs_reschedule(self) -> bool:
+        return self.eval_status in ("error", "canceled", "system_error")
 
 
 @dataclass
@@ -121,8 +138,7 @@ class SeasonScorerInterface(ABC):
         self,
         pool: Pool,
         pool_players: list[PoolPlayer],
-        match_history: list[Match],
-        match_players: dict[UUID, list[MatchPlayer]],
+        match_history: list[MatchWithEvalStatus],
     ) -> list[tuple[PolicyVersion, float]]:
         pass
 
@@ -132,8 +148,7 @@ class SeasonScorerInterface(ABC):
         season: Season,
         pools: list[Pool],
         all_pool_players: list[PoolPlayer],
-        all_matches: list[Match],
-        all_match_players: dict[UUID, list[MatchPlayer]],
+        all_matches: list[MatchWithEvalStatus],
     ) -> list[tuple[PolicyVersion, float]]:
         pass
 
@@ -144,7 +159,6 @@ class RefereeInterface(ABC):
         self,
         pool: Pool,
         pool_players: list[PoolPlayer],
-        match_history: list[Match],
-        match_players: dict[UUID, list[MatchPlayer]],
+        match_history: list[MatchWithEvalStatus],
     ) -> list[MatchRequest]:
         pass
