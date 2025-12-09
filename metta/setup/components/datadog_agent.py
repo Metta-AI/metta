@@ -87,40 +87,25 @@ class DatadogAgentSetup(SetupModule):
         except Exception as e:
             warning(f"Could not create Datadog log config: {e}")
 
-    def _configure_agent(self) -> None:
-        config_file = "/etc/datadog-agent/datadog.yaml"
-        if not os.path.exists(config_file):
-            return
+    def _configure_agent(self, api_key: str) -> None:
+        defaults_path = self.repo_root / "devops" / "datadog" / "defaults.yaml"
         try:
-            with open(config_file) as f:
-                lines = f.readlines()
-
-            def has_key(key: str) -> bool:
-                return any(line.strip().startswith(f"{key}:") for line in lines)
-
-            additions = []
-            if not has_key("logs_enabled"):
-                additions.append("logs_enabled: true")
-            if not has_key("hostname"):
-                hostname = socket.gethostname() or "skypilot-node"
-                additions.append(f"hostname: {hostname}")
-
-            # Disable infrastructure metrics on ephemeral hosts to reduce billing
-            if not has_key("enable_payloads"):
-                additions.append("enable_payloads:")
-                additions.append("  series: false")
-                additions.append("  events: false")
-                additions.append("  service_checks: false")
-            if not has_key("process_config"):
-                additions.append("process_config:")
-                additions.append("  process_collection:")
-                additions.append("    enabled: false")
-
-            if additions:
-                with open(config_file, "a") as f:
-                    f.write("\n" + "\n".join(additions) + "\n")
+            with open(defaults_path) as f:
+                config = yaml.safe_load(f)
         except Exception as e:
-            warning(f"Could not configure DD agent: {e}")
+            warning(f"Could not load DD defaults from {defaults_path}: {e}")
+            config = {}
+
+        config["api_key"] = api_key
+        config["hostname"] = socket.gethostname() or "skypilot-node"
+
+        config_file = "/etc/datadog-agent/datadog.yaml"
+        try:
+            with open(config_file, "w") as f:
+                yaml.safe_dump(config, f, default_flow_style=False)
+            info(f"Wrote DD config to {config_file}")
+        except Exception as e:
+            warning(f"Could not write DD config: {e}")
 
     def _stop_agent(self) -> None:
         subprocess.run(["pkill", "-f", AGENT_BINARY], capture_output=True)
@@ -174,7 +159,7 @@ class DatadogAgentSetup(SetupModule):
 
         if self.check_installed():
             info("Datadog agent already installed.")
-            self._configure_agent()
+            self._configure_agent(api_key)
             self._setup_log_config()
             self._start_agent()
             return
@@ -193,7 +178,7 @@ class DatadogAgentSetup(SetupModule):
             error("Datadog agent binary not found after install")
             return
 
-        self._configure_agent()
+        self._configure_agent(api_key)
         self._setup_log_config()
         self._start_agent()
         success("Datadog agent installed successfully.")
