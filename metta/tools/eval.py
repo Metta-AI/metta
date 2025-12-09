@@ -150,7 +150,7 @@ class EvaluateTool(Tool):
         return rollout_results
 
 
-class EvalWithResultTool(EvaluateTool, ToolWithResult):
+class EvalWithResultTool(ToolWithResult, EvaluateTool):
     def run_job(self) -> ToolResult:
         try:
             self.run_eval()
