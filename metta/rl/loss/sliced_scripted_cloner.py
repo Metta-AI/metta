@@ -249,6 +249,14 @@ class SlicedScriptedCloner(Loss):
         policy_full_log_probs = student_td["full_log_probs"].reshape(sliced_b * sliced_tt, -1)
         teacher_actions = minibatch["teacher_actions"]
 
+        # Guard against invalid teacher actions (e.g., -1 sentinel); skip those rows
+        valid_mask = (teacher_actions >= 0) & (teacher_actions < policy_full_log_probs.shape[-1])
+        if not valid_mask.any():
+            return self._zero_tensor, shared_loss_data, False
+
+        policy_full_log_probs = policy_full_log_probs[valid_mask]
+        teacher_actions = teacher_actions[valid_mask]
+
         # get the student's logprob for the action that the teacher chose
         student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1))
         student_log_probs = student_log_probs.reshape(minibatch.shape[0])
