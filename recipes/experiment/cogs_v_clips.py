@@ -386,6 +386,7 @@ def train(
             tt.training_env.supervisor_teacher_decay = True
             losses.ppo_critic.sample_enabled = False
             losses.ppo_critic.train_forward_enabled = False
+            losses.ppo_critic.deferred_training_start_step = bc_total_steps
             losses.sliced_scripted_cloner.enabled = True
             anneal_start = 0
             loss_instance_name = "sliced_scripted_cloner"
