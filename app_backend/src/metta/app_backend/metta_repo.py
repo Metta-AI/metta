@@ -701,6 +701,33 @@ class MettaRepo:
                 )
                 return await cur.fetchone()
 
+    async def get_public_policy_version_by_id(
+        self, policy_version_id: uuid.UUID
+    ) -> PublicPolicyVersionRow | None:
+        """Get a single policy version with public fields by ID.
+
+        Returns None if the policy version does not exist.
+        """
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    WHERE pv.id = %s
+                    """,
+                    (policy_version_id,),
+                )
+                return await cur.fetchone()
+
     async def get_user_policy_versions(self, user_id: str) -> list[PublicPolicyVersionRow]:
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
