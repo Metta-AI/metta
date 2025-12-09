@@ -740,21 +740,23 @@ __all__ = [
 if __name__ == "__main__":
     date = time.strftime(".%m%d")
 
-    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"no_variants_base_{date}", skip_git_check=True, variants=None)
-    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"variants_base_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS)
-    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"all_variants_base_{date}", skip_git_check=True, variants="all")
-    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_{date}", skip_git_check=True, variants=None)
-    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_with_variants_{date}", skip_git_check=True, variants="all")
-    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_{date}", skip_git_check=True, variants=None)
-    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_with_variants_{date}", skip_git_check=True, variants="all")
+    # === RESUBMIT FAILED JOBS (were "SUCCEEDED" = failed due to red-heart vibe bug) ===
 
-    #with supervision
+    # Non-supervised variants (failed)
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"no_variants_base_{date}", skip_git_check=True, variants=None)  # Was RUNNING
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"variants_base_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS)  # RESUBMIT - was 9731
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"all_variants_base_{date}", skip_git_check=True, variants="all")  # RESUBMIT - was 9732
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_{date}", skip_git_check=True, variants=None)  # Was RUNNING
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_with_variants_{date}", skip_git_check=True, variants="all")  # RESUBMIT - was 9734
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_{date}", skip_git_check=True, variants=None)  # Was RUNNING
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_with_variants_{date}", skip_git_check=True, variants="all")  # RESUBMIT - was 9736
 
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"no_variants_base_supervised_{date}", skip_git_check=True, variants=None, supervision=True)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"variants_base_supervised_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS, supervision=True)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"all_variants_base_supervised_{date}", skip_git_check=True, variants="all", supervision=True)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_supervised_{date}", skip_git_check=True, variants=None, supervision=True)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_with_variants_supervised_{date}", skip_git_check=True, variants="all", supervision=True)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_supervised_{date}", skip_git_check=True, variants=None, supervision=True)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_with_variants_supervised_{date}", skip_git_check=True, variants="all", supervision=True)
+    # Supervised variants (failed)
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"no_variants_base_supervised_{date}", skip_git_check=True, variants=None, supervision=True)  # RUNNING - 9737
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"variants_base_supervised_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS, supervision=True)  # RESUBMIT - was 9738
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"all_variants_base_supervised_{date}", skip_git_check=True, variants="all", supervision=True)  # RESUBMIT - was 9739
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_supervised_{date}", skip_git_check=True, variants=None, supervision=True)  # RUNNING - 9740
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_with_variants_supervised_{date}", skip_git_check=True, variants="all", supervision=True)  # RESUBMIT - was 9741
+    # experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_supervised_{date}", skip_git_check=True, variants=None, supervision=True)  # RUNNING - 9742
+    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"procgen_missions_diagnostic_with_variants_supervised_{date}", skip_git_check=True, variants="all", supervision=True)  # RESUBMIT - was 9743
 
