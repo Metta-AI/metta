@@ -26,8 +26,8 @@ class PolicyEnvInterface(BaseModel):
     def serialize_observation_space(self, v: gym.spaces.Box) -> dict[str, Any]:
         # gym.spaces.Box doesn't have a json serializer, so this attempts to implement it
         return {
-            "low": float(v.low.flat[0]),
-            "high": float(v.high.flat[0]),
+            "low": v.low.tolist(),
+            "high": v.high.tolist(),
             "shape": list(v.shape),
             "dtype": str(v.dtype),
         }
@@ -41,9 +41,8 @@ class PolicyEnvInterface(BaseModel):
             # gym.spaces.Box doesn't have a json deserializer, so this attempts to implement it
             dtype = np.dtype(v["dtype"]) if isinstance(v["dtype"], str) else v["dtype"]
             return gym.spaces.Box(
-                low=v["low"],
-                high=v["high"],
-                shape=tuple(v["shape"]),
+                low=np.array(v["low"]),
+                high=np.array(v["high"]),
                 dtype=dtype,  # type: ignore[arg-type]
             )
         raise ValueError(f"Cannot convert {type(v)} to gym.spaces.Box")
