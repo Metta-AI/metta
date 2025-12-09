@@ -49,6 +49,15 @@ if [[ "$IS_MASTER" == "true" ]]; then
   fi
 fi
 
+# TEMP: Clear Python cache again right before running (in case it was recreated)
+# TODO: Remove after arch_type issue is resolved
+echo "[RUN] Clearing Python cache before execution (temporary fix)..."
+find . -type d -name __pycache__ -exec rm -r {} + 2> /dev/null || true
+find . -name "*.pyc" -delete 2> /dev/null || true
+find .venv -type d -name __pycache__ -exec rm -r {} + 2> /dev/null || true
+find .venv -name "*.pyc" -delete 2> /dev/null || true
+# END TEMP
+
 # Setup environment (all nodes)
 bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 source "$METTA_ENV_FILE"
