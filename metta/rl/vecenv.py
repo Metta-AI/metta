@@ -8,10 +8,10 @@ import pufferlib
 import pufferlib.vector
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
-from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.envs.stats_tracker import StatsTracker
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator import Simulator
 from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.util.stats_writer import NoopStatsWriter, StatsWriter
@@ -22,7 +22,7 @@ logger = logging.getLogger("vecenv")
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: Curriculum,
-    env_supervisor_cfg: Optional[EnvSupervisorConfig] = None,
+    supervisor_policy_spec: Optional[PolicySpec] = None,
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayLogWriter] = None,
     run_dir: str | None = None,
@@ -33,8 +33,6 @@ def make_env_func(
     if run_dir is not None:
         init_logging(run_dir=Path(run_dir))
 
-    env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig()
-
     sim = Simulator(maps_cache_size=maps_cache_size)
     # Replay writer is added first so it can complete the replay_url for stats tracker
     if replay_writer is not None:
@@ -43,7 +41,9 @@ def make_env_func(
     sim.add_event_handler(StatsTracker(stats_writer))
     sim.add_event_handler(EarlyResetHandler())
 
-    env = MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), env_supervisor_cfg=env_supervisor_cfg, buf=buf)
+    env = MettaGridPufferEnv(
+        sim, curriculum.get_task().get_env_cfg(), supervisor_policy_spec=supervisor_policy_spec, buf=buf
+    )
     env = CurriculumEnv(env, curriculum)
 
     return env
@@ -60,7 +60,7 @@ def make_vecenv(
     stats_writer: StatsWriter | None = None,
     replay_writer: ReplayLogWriter | None = None,
     run_dir: str | None = None,
-    env_supervisor_cfg: EnvSupervisorConfig | None = None,
+    supervisor_policy_spec: PolicySpec | None = None,
     **kwargs,
 ) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
@@ -82,7 +82,7 @@ def make_vecenv(
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
         "run_dir": run_dir,
-        "env_supervisor_cfg": env_supervisor_cfg,
+        "supervisor_policy_spec": supervisor_policy_spec,
         "maps_cache_size": maps_cache_size,
     }
 

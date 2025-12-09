@@ -243,7 +243,7 @@ def test_logger_agent_alignment():
 
     # Setup logger
     logger = DoxascopeLogger(enabled=True, simulation_id="simtest")
-    logger.configure(policy_uri="test://policy_a", object_type_names=["agent"])  # agent type id = 0
+    logger.configure(policy_uri="file:///tmp/test_policy_a", object_type_names=["agent"])  # agent type id = 0
 
     # Single env with 2 agents
     num_agents = 2

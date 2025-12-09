@@ -60,8 +60,13 @@ from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator import Simulator
 
-# Always add current directory to Python path
+# Always add current directory to Python path so optional plugins in the repo are discoverable.
 sys.path.insert(0, ".")
+
+try:  # Optional plugin
+    from tribal_village_env.cogames import register_cli as register_tribal_cli
+except ImportError:  # pragma: no cover - plugin optional
+    register_tribal_cli = None
 
 
 logger = logging.getLogger("cogames.main")
@@ -96,6 +101,9 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
     callback=lambda: discover_and_register_policies("cogames.policy"),
 )
+
+if register_tribal_cli is not None:
+    register_tribal_cli(app)
 
 
 @app.command(name="tutorial", help="Print instructions on how to play CvC and runs cogames play --mission tutorial")
@@ -427,7 +435,7 @@ def replay_cmd(
 def make_mission(
     ctx: typer.Context,
     base_mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Base mission to start configuring from"),
-    num_agents: Optional[int] = typer.Option(None, "--agents", "-a", help="Number of agents", min=1),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)", min=1),
     width: Optional[int] = typer.Option(None, "--width", "-w", help="Map width", min=1),
     height: Optional[int] = typer.Option(None, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
@@ -450,8 +458,8 @@ def make_mission(
             else:
                 env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
 
-        if num_agents is not None:
-            env_cfg.game.num_agents = num_agents
+        if cogs is not None:
+            env_cfg.game.num_agents = cogs
 
         # Validate the environment configuration
 

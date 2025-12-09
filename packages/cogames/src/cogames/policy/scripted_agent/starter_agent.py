@@ -120,7 +120,7 @@ class StarterCogPolicyImpl(StatefulPolicyImpl[StarterCogState]):
 
 
 class StarterPolicy(MultiAgentPolicy):
-    short_names = ["starter", "cvc_starter", "scripted_starter"]
+    short_names = ["scripted_starter"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)

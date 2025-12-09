@@ -12,7 +12,7 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
-from metta.rl.utils import prepare_policy_forward_td
+from metta.rl.utils import add_dummy_loss_for_unused_params, prepare_policy_forward_td
 
 
 class ActionSupervisedConfig(LossConfig):
@@ -33,12 +33,9 @@ class ActionSupervisedConfig(LossConfig):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "ActionSupervised":
         """Create ActionSupervised loss instance."""
-        return ActionSupervised(
-            policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config
-        )
+        return ActionSupervised(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class ActionSupervised(Loss):
@@ -55,12 +52,9 @@ class ActionSupervised(Loss):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any = None,
+        cfg: "ActionSupervisedConfig",
     ):
-        # Get loss config from trainer_cfg if not provided
-        if loss_config is None:
-            loss_config = getattr(trainer_cfg.losses, instance_name, None)
-        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         # unpack config into slots
         self.rollout_forward_enabled = self.cfg.rollout_forward_enabled
         self.train_forward_enabled = self.cfg.train_forward_enabled
@@ -127,6 +121,7 @@ class ActionSupervised(Loss):
         student_log_probs = student_log_probs.reshape(minibatch.shape[0], minibatch.shape[1])
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
+        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["full_log_probs", "act_log_prob"])
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
 

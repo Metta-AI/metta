@@ -7,10 +7,9 @@ from metta.app_backend.metta_repo import EvalTaskRow
 from metta.app_backend.routes.eval_task_routes import (
     GitHashesRequest,
     GitHashesResponse,
-    TaskAvgRuntimeResponse,
+    TaskAttemptsResponse,
     TaskClaimRequest,
     TaskClaimResponse,
-    TaskCountResponse,
     TaskCreateRequest,
     TaskFilterParams,
     TaskFinishRequest,
@@ -60,10 +59,5 @@ class EvalTaskClient(BaseAppBackendClient):
             TasksResponse, "GET", "/tasks/all", params=filters.model_dump(mode="json", exclude_none=True)
         )
 
-    def count_tasks(self, where_clause: str) -> TaskCountResponse:
-        return self._make_request(TaskCountResponse, "GET", "/tasks/count", params={"where_clause": where_clause})
-
-    def get_avg_runtime(self, where_clause: str) -> TaskAvgRuntimeResponse:
-        return self._make_request(
-            TaskAvgRuntimeResponse, "GET", "/tasks/avg-runtime", params={"where_clause": where_clause}
-        )
+    def get_task_attempts(self, task_id: int) -> TaskAttemptsResponse:
+        return self._make_request(TaskAttemptsResponse, "GET", f"/tasks/{task_id}/attempts")

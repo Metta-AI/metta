@@ -151,6 +151,9 @@ class StatsClient:
     def get_leaderboard_policies_v2(self) -> LeaderboardPoliciesResponse:
         return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2")
 
+    def get_leaderboard_policies_with_vor(self) -> LeaderboardPoliciesResponse:
+        return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2/vor")
+
     def get_my_policy_versions(self) -> MyPolicyVersionsResponse:
         return self._make_sync_request(
             MyPolicyVersionsResponse,
@@ -158,10 +161,11 @@ class StatsClient:
             "/stats/policies/my-versions",
         )
 
-    def get_policies(
+    def get_policy_versions(
         self,
         name_exact: str | None = None,
         name_fuzzy: str | None = None,
+        version: int | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> PolicyVersionsResponse:
@@ -169,11 +173,12 @@ class StatsClient:
             {
                 "name_exact": name_exact,
                 "name_fuzzy": name_fuzzy,
+                "version": version,
                 "limit": limit,
                 "offset": offset,
             }
         )
-        return self._make_sync_request(PolicyVersionsResponse, "GET", "/stats/policies", params=params)
+        return self._make_sync_request(PolicyVersionsResponse, "GET", "/stats/policy-versions", params=params)
 
     def get_versions_for_policy(
         self,

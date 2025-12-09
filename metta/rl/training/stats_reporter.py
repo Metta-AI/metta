@@ -113,7 +113,7 @@ class StatsReporterConfig(Config):
     """Threshold for considering a neuron dormant based on mean absolute weight magnitude."""
     rolling_window: int = Field(default=5, ge=1, description="Number of epochs for metric rolling averages")
     default_zero_metrics: tuple[str, ...] = Field(
-        default_factory=lambda: ("env_agent/heart.gained",),
+        default_factory=lambda: ("env_game/assembler.heart.created",),
         description="Environment metrics that should be logged as 0 when missing.",
     )
 
@@ -330,7 +330,7 @@ class StatsReporter(TrainerComponent):
             trainer_config=trainer_cfg,
         )
 
-        # Ensure certain env metrics always exist (e.g., env_agent/heart.gained) so rolling
+        # Ensure certain env metrics always exist (e.g., env_game/assembler.heart.created) so rolling
         # averages and wandb logs see zeros instead of missing keys.
         env_stats = processed.setdefault("environment_stats", {})
         if isinstance(env_stats, dict):
@@ -389,7 +389,9 @@ class StatsReporter(TrainerComponent):
                 continue
             history.append(scalar)
             env_stats.setdefault(key, scalar)
-            env_stats[f"{key}.avg"] = sum(history) / len(history)
+            # Skip creating .avg versions for env_per_label metrics
+            if not (key.startswith("env_per_label_rewards/") or key.startswith("env_per_label_chest_deposits/")):
+                env_stats[f"{key}.avg"] = sum(history) / len(history)
 
     def _normalize_steps_per_second(self, timing_info: dict[str, Any], agent_step: int) -> None:
         """Adjust SPS to account for agent steps accumulated before a resume."""
