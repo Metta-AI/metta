@@ -53,8 +53,6 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
   const drawer = useDrawer();
 
   const [hoveredCell, setHoveredCell] = useState<Cell | undefined>();
-  const [prevHoveredCell, setPrevHoveredCell] = useState<Cell | undefined>();
-
   const [scale, setScale] = useState(0);
 
   // measure cell size and set canvas dimensions
@@ -150,10 +148,6 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
     context.setTransform(transform);
     context.lineWidth = 0.03;
 
-    if (prevHoveredCell && grid.cellInGrid(prevHoveredCell)) {
-      context.clearRect(prevHoveredCell.c, prevHoveredCell.r, 1, 1);
-    }
-
     if (hoveredCell && grid.cellInGrid(hoveredCell)) {
       context.strokeStyle = "white";
       const margin = 0.03;
@@ -172,7 +166,8 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       context.roundRect(selectedCell.c, selectedCell.r, 1, 1, 0.1);
       context.stroke();
     }
-  }, [drawer, grid, transform, hoveredCell, prevHoveredCell, selectedCell]);
+    context.restore();
+  }, [drawer, grid, transform, hoveredCell, selectedCell]);
 
   useCallOnWindowResize(initCanvas);
   useCallOnElementResize(canvasRef.current, initCanvas);
@@ -180,7 +175,6 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
   // TODO - avoid rendering if not visible
   useEffect(() => {
     drawGridOnly();
-    setPrevHoveredCell(undefined);
   }, [drawGridOnly]);
 
   useEffect(() => {
