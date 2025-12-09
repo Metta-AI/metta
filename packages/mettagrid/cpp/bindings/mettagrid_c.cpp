@@ -279,18 +279,24 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   for (const auto& action : attack->actions()) {
     _action_handlers.push_back(action);
   }
-  _action_handler_impl.push_back(std::move(attack));
 
   // Transfer
-  auto transfer_config = std::static_pointer_cast<const TransferActionConfig>(game_config.actions.at("transfer"));
+  auto transfer_config =
+      std::static_pointer_cast<const TransferActionConfig>(game_config.actions.at("transfer"));
   auto transfer = std::make_unique<Transfer>(*transfer_config, &game_config);
   transfer->init(_grid.get(), &_rng);
   if (transfer->priority > _max_action_priority) _max_action_priority = transfer->priority;
   for (const auto& action : transfer->actions()) {
     _action_handlers.push_back(action);
   }
-  // Register Transfer handler with Move handler
-  move_ptr->set_transfer_handler(transfer.get());
+
+  // Register Attack and Transfer handlers with Move handler
+  std::unordered_map<std::string, ActionHandler*> handlers;
+  handlers["attack"] = attack.get();
+  handlers["transfer"] = transfer.get();
+  move_ptr->set_action_handlers(handlers);
+
+  _action_handler_impl.push_back(std::move(attack));
   _action_handler_impl.push_back(std::move(transfer));
 
   // ChangeVibe
