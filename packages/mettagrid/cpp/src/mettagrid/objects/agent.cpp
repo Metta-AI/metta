@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <unordered_set>
 
 #include "config/observation_features.hpp"
 #include "systems/observation_encoder.hpp"
@@ -39,7 +40,7 @@ Agent::Agent(GridCoord r,
     }
   }
 
-  populate_initial_inventory(config.initial_inventory);
+  populate_initial_inventory(config.initial_inventory, config.inventory_deps);
   GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
 }
 
@@ -47,8 +48,25 @@ void Agent::init(RewardType* reward_ptr) {
   this->reward = reward_ptr;
 }
 
-void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory) {
+void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory,
+                                       const std::vector<InventoryItem>& inventory_deps) {
+  // First, add items from inventory_deps in the specified order.
+  // User specifies order to ensure modifiers are added before items that depend on them.
+  // Example: ["gear", "battery"] ensures gear is added first (modifies battery limit),
+  // then battery (modifies energy limit), then everything else.
+  std::unordered_set<InventoryItem> added;
+
+  for (const InventoryItem& item : inventory_deps) {
+    auto it = initial_inventory.find(item);
+    if (it != initial_inventory.end()) {
+      this->inventory.update(item, it->second);
+      added.insert(item);
+    }
+  }
+
+  // Then add remaining items (not in inventory_deps)
   for (const auto& [item, amount] : initial_inventory) {
+    if (added.count(item)) continue;
     this->inventory.update(item, amount);
   }
 }

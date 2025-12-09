@@ -15,14 +15,29 @@ Inventory::Inventory(const InventoryConfig& cfg,
                      const std::vector<std::string>* resource_names,
                      const std::unordered_map<std::string, ObservationType>* feature_ids)
     : _inventory(), _limits(), _owner(owner) {
-  for (const auto& limit_pair : cfg.limits) {
-    const auto& resources = limit_pair.first;
-    const auto& limit_value = limit_pair.second;
-    SharedInventoryLimit* limit = new SharedInventoryLimit();
-    limit->amount = 0;
-    limit->limit = limit_value;
-    for (const auto& resource : resources) {
-      this->_limits[resource] = limit;
+  // Prefer new limit_defs format if available, fall back to legacy limits
+  if (!cfg.limit_defs.empty()) {
+    for (const auto& limit_def : cfg.limit_defs) {
+      SharedInventoryLimit* limit = new SharedInventoryLimit();
+      limit->amount = 0;
+      limit->base_limit = limit_def.base_limit;
+      limit->modifiers = limit_def.modifiers;
+      for (const auto& resource : limit_def.resources) {
+        this->_limits[resource] = limit;
+      }
+    }
+  } else {
+    // Legacy format for backward compatibility
+    for (const auto& limit_pair : cfg.limits) {
+      const auto& resources = limit_pair.first;
+      const auto& limit_value = limit_pair.second;
+      SharedInventoryLimit* limit = new SharedInventoryLimit();
+      limit->amount = 0;
+      limit->base_limit = limit_value;
+      // No modifiers in legacy format
+      for (const auto& resource : resources) {
+        this->_limits[resource] = limit;
+      }
     }
   }
 }
@@ -48,9 +63,11 @@ InventoryDelta Inventory::update(InventoryItem item, InventoryDelta attempted_de
   SharedInventoryLimit* limit = nullptr;
   if (this->_limits.count(item) > 0) {
     limit = this->_limits.at(item);
-    // The max is the total limit, minus whatever's used. But don't count this specific
+    // Use effective_limit which accounts for modifiers based on current inventory
+    InventoryQuantity effective = limit->effective_limit(this->_inventory);
+    // The max is the effective limit, minus whatever's used. But don't count this specific
     // resource.
-    max = limit->limit - (limit->amount - initial_amount);
+    max = effective - (limit->amount - initial_amount);
   }
 
   InventoryQuantity clamped_amount = static_cast<InventoryQuantity>(std::clamp<int>(new_amount, min, max));
@@ -92,7 +109,8 @@ InventoryQuantity Inventory::free_space(InventoryItem item) const {
   SharedInventoryLimit* limit = this->_limits.at(item);
 
   InventoryQuantity used = limit->amount;
-  InventoryQuantity total_limit = limit->limit;
+  // Use effective_limit which accounts for modifiers based on current inventory
+  InventoryQuantity total_limit = limit->effective_limit(this->_inventory);
 
   return total_limit - used;
 }
