@@ -199,10 +199,7 @@ def build_timeseries_widget(*, category: str, workflow: str, metric: MetricDefin
         }
     ]
     condition_text = f"{metric.comparator} {_format_float(metric.threshold)}"
-    title = (
-        f"{category} — {workflow} — {metric.task} — {metric.check} "
-        f"(Condition: {condition_text})"
-    )
+    title = f"{category} — {workflow} — {metric.task} — {metric.check} (Condition: {condition_text})"
     markers = [
         {
             "label": "target",
