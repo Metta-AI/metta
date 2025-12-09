@@ -140,7 +140,7 @@ export const ObjectsPanel: FC<{
     mine: /mine_(\w+)/,
     generator: /generator_(\w+)/,
     chest: /chest_(\w+)/,
-    clipped_extractor: /clipped_(\w+)_extractor/,
+    clipped_extractor: /(\w+)_extractor.clipped/,
     extractor: /(\w+)_extractor/,
     ex_dep: /(\w+)_ex_dep/,
   };
