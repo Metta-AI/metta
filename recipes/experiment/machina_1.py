@@ -12,8 +12,6 @@ from tensordict import TensorDict
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -22,7 +20,11 @@ from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from recipes.experiment.cogs_v_clips import make_training_env, train_single_mission
+from recipes.experiment.cogs_v_clips import (
+    apply_cvc_sweep_defaults,
+    make_training_env,
+    train_single_mission,
+)
 
 
 class VibeLogitBiasConfig(ComponentConfig):
@@ -79,12 +81,20 @@ def train(
         eval_difficulty=eval_difficulty,
     )
 
-    return _apply_overrides(
-        tt=tt,
-        num_cogs=num_cogs,
-        eval_variants=eval_variants,
-        policy_architecture=policy_architecture,
-    )
+    apply_cvc_sweep_defaults(tt.trainer)
+    tt.policy_architecture = policy_architecture or ViTWithVibeBiasConfig()
+
+    eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
+    tt.evaluator.simulations = [
+        SimulationConfig(
+            suite="cogs_vs_clips",
+            name=f"machina_1_open_world_{num_cogs}cogs",
+            env=eval_env,
+        )
+    ]
+    # Slow down evals for long runs
+    tt.evaluator.epoch_interval = 3000
+    return tt
 
 
 def train_sweep(
@@ -152,46 +162,6 @@ def sweep(
         max_trials=max_trials,
         num_parallel_trials=num_parallel_trials,
     )
-
-
-def _apply_overrides(
-    *,
-    tt: TrainTool,
-    num_cogs: int,
-    eval_variants: Optional[Sequence[str]],
-    policy_architecture: PolicyArchitecture | None,
-) -> TrainTool:
-    # Apply CVC sweep defaults
-    trainer_cfg = TrainerConfig(losses=LossesConfig())
-    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
-    trainer_cfg.optimizer.eps = 5.0833278919526e-07
-
-    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
-    trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
-
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
-
-    trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
-
-    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
-
-    tt.trainer = trainer_cfg
-    tt.policy_architecture = policy_architecture or ViTWithVibeBiasConfig()
-
-    eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
-    tt.evaluator.simulations = [
-        SimulationConfig(
-            suite="cogs_vs_clips",
-            name=f"machina_1_open_world_{num_cogs}cogs",
-            env=eval_env,
-        )
-    ]
-    # Slow down evals for long runs
-    tt.evaluator.epoch_interval = 3000
-    return tt
 
 
 __all__ = [
