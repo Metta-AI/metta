@@ -20,7 +20,10 @@ def load_env(var: str) -> str:
 
 def push_dashboard(file_path: Path, site: str, api_key: str, app_key: str) -> None:
     payload = json.loads(file_path.read_text(encoding="utf-8"))
-    url = f"https://{site.rstrip('/')}/api/v1/dashboard"
+    # Construct API URL: DD_SITE should be like "datadoghq.com" or "datadoghq.eu"
+    # API endpoint is at api.{site}
+    site_clean = site.rstrip('/').lstrip('https://').lstrip('http://')
+    url = f"https://api.{site_clean}/api/v1/dashboard"
     response = requests.post(
         url,
         headers={

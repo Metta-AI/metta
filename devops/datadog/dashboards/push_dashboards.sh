@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "${REPO_ROOT}"
 
 # 1. Generate JSON payloads from metric_schema.py
-python3 -m devops.datadog.generate_dashboards
+uv run python -m devops.datadog.generate_dashboards
 
 # 2. Push both dashboards to Datadog
-python3 -m devops.datadog.push_dashboards
+uv run python -m devops.datadog.push_dashboards

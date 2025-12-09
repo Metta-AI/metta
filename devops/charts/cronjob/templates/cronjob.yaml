@@ -17,9 +17,39 @@ spec:
           labels:
             {{- include "cronjob.selectorLabels" . | nindent 12 }}
         spec:
-        
+
           serviceAccountName: {{ include "cronjob.serviceAccountName" . }}
           restartPolicy: {{ .Values.restartPolicy }}
+          {{- if .Values.initContainers }}
+          initContainers:
+            {{- range .Values.initContainers }}
+            - name: {{ .name }}
+              image: "{{ if $.Values.image.registry }}{{ $.Values.image.registry }}/{{ end }}{{ $.Values.image.name }}:{{ required "tag is required" $.Values.image.tag }}"
+              imagePullPolicy: {{ $.Values.image.pullPolicy }}
+              {{- if .command }}
+              command:
+                {{- toYaml .command | nindent 16 }}
+              {{- end }}
+              {{- if .args }}
+              args:
+                {{- toYaml .args | nindent 16 }}
+              {{- end }}
+              {{- if .env }}
+              env:
+                {{- range .env }}
+                - name: {{ required "env entries require name" .name }}
+                  value: {{ required (printf "env entry for %s requires value" .name) .value | quote }}
+                {{- end }}
+              {{- end }}
+              {{- if .resources }}
+              resources:
+                {{- toYaml .resources | nindent 16 }}
+              {{- else }}
+              resources:
+                {{- toYaml $.Values.resources | nindent 16 }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
           containers:
           - name: {{ .Chart.Name }}
             image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"

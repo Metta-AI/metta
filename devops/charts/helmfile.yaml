@@ -223,6 +223,15 @@ releases:
           tag: latest-dashboard
       - datadog:
           service: training-health-collector
+      - initContainers:
+          - name: generate-training-health
+            command:
+              - python
+              - -m
+              - devops.datadog.scripts.generate_training_health
+            env:
+              - name: TRAINING_SUMMARY_FILE
+                value: "/app/devops/datadog/data/training_health.json"
       - command:
           - python
           - -m
@@ -231,6 +240,9 @@ releases:
           - collect
           - training
           - --push
+      - extraEnv:
+          - name: TRAINING_SUMMARY_FILE
+            value: "/app/devops/datadog/data/training_health.json"
 
   - name: eval-health-cronjob
     <<: *cronjob_template
@@ -240,6 +252,15 @@ releases:
           tag: latest-dashboard
       - datadog:
           service: eval-health-collector
+      - initContainers:
+          - name: generate-eval-health
+            command:
+              - python
+              - -m
+              - devops.datadog.scripts.generate_eval_health
+            env:
+              - name: EVAL_SUMMARY_FILE
+                value: "/app/devops/datadog/data/eval_health.json"
       - command:
           - python
           - -m
@@ -248,6 +269,9 @@ releases:
           - collect
           - eval
           - --push
+      - extraEnv:
+          - name: EVAL_SUMMARY_FILE
+            value: "/app/devops/datadog/data/eval_health.json"
 
   # Dev cronjob deployments (see devops/charts/CRONJOB_DEV_WORKFLOW.md for instructions)
   # Uncomment the release you want to deploy for dev testing:
