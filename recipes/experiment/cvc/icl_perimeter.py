@@ -551,4 +551,12 @@ def experiment(
 
 
 if __name__ == "__main__":
-    experiment()
+    #single agent
+    experiment(num_cogs=1)
+
+    #2 agents
+    experiment(num_cogs=2)
+
+    #4 agents
+    experiment(num_cogs=4)
+
