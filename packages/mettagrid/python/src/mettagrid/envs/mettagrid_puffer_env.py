@@ -199,7 +199,7 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _compute_supervisor_actions(self) -> None:
-        if self._env_supervisor is None or not self._supervisor_enabled or not hasattr(self, "num_agents"):
+        if self._env_supervisor is None or not self._supervisor_enabled:
             self._buffers.teacher_actions.fill(-1)
             return
 
