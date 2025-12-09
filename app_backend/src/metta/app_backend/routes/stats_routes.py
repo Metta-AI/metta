@@ -16,7 +16,7 @@ from metta.app_backend.metta_repo import (
     PolicyVersionWithName,
     PublicPolicyVersionRow,
 )
-from metta.app_backend.route_logger import timed_http_handler
+from metta.app_backend.route_logger import timed_http_handler, timed_route
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
 
@@ -119,7 +119,7 @@ class PolicyListItem(BaseModel):
     tags: dict[str, str] = Field(default_factory=dict)
 
 
-class PoliciesResponse(BaseModel):
+class PoliciesSearchResponse(BaseModel):
     policies: list[PolicyListItem]
 
 
@@ -425,7 +425,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         policy_type: Optional[str] = None,
         tags: Optional[list[str]] = Query(default=None),
         user_id: Optional[str] = None,
-    ) -> PolicyVersionsResponse | PoliciesResponse:
+    ) -> PolicyVersionsResponse | PoliciesSearchResponse:
         """Get policies or policy versions. Default returns versions; use format=policies for filtered policies."""
         # Determine mode: policies mode if format=policies OR any new filter is provided
         use_policies_mode = format == "policies" or policy_type is not None or tags is not None or user_id is not None
@@ -443,7 +443,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                     offset=offset,
                 )
                 policies = [PolicyListItem(**p) for p in policies_data]
-                return PoliciesResponse(policies=policies)
+                return PoliciesSearchResponse(policies=policies)
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
         else:
