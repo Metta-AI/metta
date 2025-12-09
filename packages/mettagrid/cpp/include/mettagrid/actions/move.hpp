@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
+#include "actions/attack.hpp"
 #include "actions/move_config.hpp"
 #include "actions/orientation.hpp"
 #include "actions/transfer.hpp"
@@ -45,12 +46,26 @@ public:
     return actions;
   }
 
-  void set_transfer_handler(Transfer* transfer) {
-    _transfer_handler = transfer;
-    // Build vibe->handler map from transfer's vibes
-    if (transfer) {
-      for (ObservationType vibe : transfer->get_vibes()) {
-        _vibe_handlers[vibe] = transfer;
+  void set_action_handlers(const std::unordered_map<std::string, ActionHandler*>& handlers) {
+    _handlers = handlers;
+
+    // Build vibe->handler map from handlers' vibes fields
+    _vibe_handlers.clear();
+    for (const auto& [name, handler] : handlers) {
+      if (name == "attack") {
+        Attack* attack = dynamic_cast<Attack*>(handler);
+        if (attack) {
+          for (ObservationType vibe : attack->get_vibes()) {
+            _vibe_handlers[vibe] = handler;
+          }
+        }
+      } else if (name == "transfer") {
+        Transfer* transfer = dynamic_cast<Transfer*>(handler);
+        if (transfer) {
+          for (ObservationType vibe : transfer->get_vibes()) {
+            _vibe_handlers[vibe] = handler;
+          }
+        }
       }
     }
   }
@@ -81,22 +96,27 @@ protected:
       return false;
     }
 
-    // If location is empty, move the agent
-    if (_grid->is_empty(target_location.r, target_location.c)) {
-      return _grid->move_object(actor, target_location);
-    }
-
-    // Target location is occupied - check what's there
+    // Get target object (may be nullptr if empty)
     GridObject* target_object = _grid->object_at(target_location);
-    assert(target_object && "is_empty returned false but no object at location");
 
-    // Check if vibe-specific transfer action applies
+    // Check if vibe-specific action override applies (from handler's vibes)
     auto vibe_handler_it = _vibe_handlers.find(actor.vibe);
     if (vibe_handler_it != _vibe_handlers.end()) {
-      Transfer* transfer_handler = vibe_handler_it->second;
+      ActionHandler* handler = vibe_handler_it->second;
+      // Let the handler decide if target is valid
+      Attack* attack_handler = dynamic_cast<Attack*>(handler);
+      if (attack_handler && attack_handler->try_attack(actor, target_object)) {
+        return true;
+      }
+      Transfer* transfer_handler = dynamic_cast<Transfer*>(handler);
       if (transfer_handler && transfer_handler->try_transfer(actor, target_object)) {
         return true;
       }
+    }
+
+    // If location is empty, move
+    if (_grid->is_empty(target_location.r, target_location.c)) {
+      return _grid->move_object(actor, target_location);
     }
 
     // Swap with frozen agents (must check before usable since Agent is Usable)
@@ -109,12 +129,12 @@ protected:
       return swapped;
     }
 
-    // `Move` is actually `MoveOrUse`, so check if the object is usable.
-    // In the future, we may want to split 'Move' and 'MoveOrUse', if we want to allow agents to run into usable
-    // objects without using them.
-    Usable* usable_object = dynamic_cast<Usable*>(target_object);
-    if (usable_object) {
-      return usable_object->onUse(actor, arg);
+    // Try to use the object at target location
+    if (target_object) {
+      Usable* usable_object = dynamic_cast<Usable*>(target_object);
+      if (usable_object) {
+        return usable_object->onUse(actor, arg);
+      }
     }
 
     return false;
@@ -128,8 +148,8 @@ protected:
 private:
   std::vector<std::string> _allowed_directions;
   std::unordered_map<std::string, Orientation> _direction_map;
-  Transfer* _transfer_handler = nullptr;
-  std::unordered_map<ObservationType, Transfer*> _vibe_handlers;  // vibe -> transfer handler map
+  std::unordered_map<std::string, ActionHandler*> _handlers;
+  std::unordered_map<ObservationType, ActionHandler*> _vibe_handlers;  // vibe -> handler map
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_
