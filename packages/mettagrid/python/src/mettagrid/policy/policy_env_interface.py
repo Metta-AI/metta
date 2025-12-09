@@ -1,10 +1,11 @@
 """Policy environment interface for providing environment information to policies."""
 
 import json
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import gymnasium as gym
-from pydantic import BaseModel, ConfigDict
+import numpy as np
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
@@ -20,6 +21,43 @@ class PolicyEnvInterface(BaseModel):
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_serializer("observation_space")
+    def serialize_observation_space(self, v: gym.spaces.Box) -> dict[str, Any]:
+        return {
+            "low": float(v.low.flat[0]),
+            "high": float(v.high.flat[0]),
+            "shape": list(v.shape),
+            "dtype": str(v.dtype),
+        }
+
+    @field_serializer("action_space")
+    def serialize_action_space(self, v: gym.spaces.Discrete) -> dict[str, Any]:
+        return {"n": int(v.n)}
+
+    @field_validator("observation_space", mode="before")
+    @classmethod
+    def validate_observation_space(cls, v: Any) -> gym.spaces.Box:
+        if isinstance(v, gym.spaces.Box):
+            return v
+        if isinstance(v, dict):
+            dtype = np.dtype(v["dtype"]) if isinstance(v["dtype"], str) else v["dtype"]
+            return gym.spaces.Box(
+                low=v["low"],
+                high=v["high"],
+                shape=tuple(v["shape"]),
+                dtype=dtype,
+            )
+        raise ValueError(f"Cannot convert {type(v)} to gym.spaces.Box")
+
+    @field_validator("action_space", mode="before")
+    @classmethod
+    def validate_action_space(cls, v: Any) -> gym.spaces.Discrete:
+        if isinstance(v, gym.spaces.Discrete):
+            return v
+        if isinstance(v, dict):
+            return gym.spaces.Discrete(n=v["n"])
+        raise ValueError(f"Cannot convert {type(v)} to gym.spaces.Discrete")
 
     obs_features: list[ObservationFeatureSpec]
     tags: list[str]
