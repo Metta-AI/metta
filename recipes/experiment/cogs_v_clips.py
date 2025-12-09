@@ -381,6 +381,7 @@ def train(
         ]
 
         if bc_mode == "sliced_cloner":
+            tt.training_env.supervisor_subset_fraction = 0.2
             losses.ppo_critic.sample_enabled = False
             losses.ppo_critic.train_forward_enabled = False
             losses.ppo_critic.deferred_training_start_step = bc_total_steps
