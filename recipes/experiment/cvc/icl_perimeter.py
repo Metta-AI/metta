@@ -356,6 +356,7 @@ def make_icl_curriculum(
             tasks.add_bucket("game.map_builder.objects.assembler", [1, 2, 3])
             tasks.add_bucket("game.map_builder.width", [Span(8, 12)])
             tasks.add_bucket("game.map_builder.height", [Span(8, 12)])
+            tasks.add_bucket("game.max_steps", [250, 350, 500, 600])
 
             all_mission_tasks.append(tasks)
 
@@ -371,7 +372,7 @@ def make_icl_curriculum(
         )
 
     return merged_tasks.to_curriculum(
-        num_active_tasks=500,
+        num_active_tasks=1500,
         algorithm_config=algorithm_config,
     )
 
