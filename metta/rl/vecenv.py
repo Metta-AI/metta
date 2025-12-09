@@ -23,9 +23,6 @@ logger = logging.getLogger("vecenv")
 def make_env_func(
     curriculum: Curriculum,
     supervisor_policy_spec: Optional[PolicySpec] = None,
-    supervisor_teacher_start: float = 1.0,
-    supervisor_teacher_end_step: Optional[int] = None,
-    supervisor_teacher_decay: bool = False,
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayLogWriter] = None,
     run_dir: str | None = None,
@@ -48,9 +45,6 @@ def make_env_func(
         sim,
         curriculum.get_task().get_env_cfg(),
         supervisor_policy_spec=supervisor_policy_spec,
-        teacher_start=supervisor_teacher_start,
-        teacher_end_step=supervisor_teacher_end_step,
-        teacher_decay=supervisor_teacher_decay,
         buf=buf,
     )
     env = CurriculumEnv(env, curriculum)
@@ -70,9 +64,6 @@ def make_vecenv(
     replay_writer: ReplayLogWriter | None = None,
     run_dir: str | None = None,
     supervisor_policy_spec: PolicySpec | None = None,
-    supervisor_teacher_start: float = 1.0,
-    supervisor_teacher_end_step: Optional[int] = None,
-    supervisor_teacher_decay: bool = False,
     **kwargs,
 ) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
@@ -95,9 +86,6 @@ def make_vecenv(
         "replay_writer": replay_writer,
         "run_dir": run_dir,
         "supervisor_policy_spec": supervisor_policy_spec,
-        "supervisor_teacher_start": supervisor_teacher_start,
-        "supervisor_teacher_end_step": supervisor_teacher_end_step,
-        "supervisor_teacher_decay": supervisor_teacher_decay,
         "maps_cache_size": maps_cache_size,
     }
 
