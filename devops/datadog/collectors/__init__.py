@@ -27,9 +27,9 @@ def available_collectors() -> List[str]:
 
 # Import collectors so they self-register
 from devops.datadog.collectors.ci_collector import CICollector  # noqa: E402
-from devops.datadog.collectors.eval_health_collector import EvalHealthCollector  # noqa: E402
-from devops.datadog.collectors.training_health_collector import TrainingHealthCollector  # noqa: E402
+from devops.datadog.collectors.training_collector import TrainingCollector  # noqa: E402
+from devops.datadog.collectors.eval_collector import EvalCollector  # noqa: E402
 
 register_collector(CICollector)
-register_collector(TrainingHealthCollector)
-register_collector(EvalHealthCollector)
+register_collector(TrainingCollector)
+register_collector(EvalCollector)
