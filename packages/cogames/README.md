@@ -34,15 +34,11 @@ Once your policy is successfully assembling hearts, submit it to our Alignment L
 policy plays with other policies in the pool through running multi-policy, multi-agent games. Our focal metric is VORP
 (Value Over Replacement Policy), an estimate of how much your agent improves team performance in scoring hearts.
 
-## Quick Start
+# Get Started
 
-Let's install cogames and walk through playing an easy mission in Cogs vs. Clips. Then, we'll train a simple starter
-policy. `easy_hearts` uses three variants to simplify training:
+## Step 1: Set up and install
 
-- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
-  energy)
-- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
-- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
+Install [cogames](https://pypi.org/project/cogames/) as a Python package.
 
 ```bash
 # We recommend using a virtual env
@@ -52,10 +48,23 @@ source .venv/bin/activate
 
 # Install cogames
 uv pip install cogames
+```
 
-# Play an episode yourself
-cogames tutorial
+## Step 2: Game tutorial
 
+Play an easy mission in Cogs vs. Clips using `cogames tutorial`. Follow the instructions given in the terminal, while
+you use the GUI to accomplish your first training mission.
+
+## Step 3: Train a simple policy
+
+We'll train a simple starter policy. `easy_hearts` uses three variants to simplify training:
+
+- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
+  energy)
+- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
+- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
+
+```bash
 # Play an episode of the easy_hearts mission with a scripted policy
 cogames play -m easy_hearts -p class=baseline
 
@@ -66,7 +75,12 @@ cogames eval -set integrated_evals -p class=baseline
 cogames train -m easy_hearts -p class=lstm
 ```
 
-Other useful commands:
+## Step 4: Learn about missions
+
+Get familiar with different missions in Cogs vs. Clips so you can develop a policy that's able to handle different
+scenarios.
+
+Useful commands to explore:
 
 ```bash
 # List available missions
@@ -92,17 +106,9 @@ cogames submissions
 
 # Show current leaderboard
 cogames leaderboard
-
-# Show version info for the installed tooling stack
-cogames version
 ```
 
-## Tutorial
-
-### `cogames tutorial`
-
-Play through our tutorial to get familiar with the game! Follow the instructions given in the terminal, while you use
-the GUI to accomplish your first training mission.
+# Develop a Policy
 
 ## Play, Train, and Eval
 
@@ -133,7 +139,7 @@ other agents moving around! Just provide a different policy, like `random`.
 
 **Options:**
 
-- `--steps N`: Number of steps (default: 1000)
+- `--steps N`: Number of steps (default: 10000)
 - `--render MODE`: 'gui' or 'text' (default: gui)
 - `--non-interactive`: Non-interactive mode (default: false)
 
@@ -217,7 +223,7 @@ from mettagrid import PufferMettaGridEnv
 from mettagrid.simulator import Simulator
 
 # Load a mission configuration
-_, config = get_mission("assembler_2_complex")
+_, config = get_mission("machina_1.open_world")
 
 # Create environment
 simulator = Simulator()
@@ -227,7 +233,7 @@ env = PufferMettaGridEnv(simulator, config)
 obs, info = env.reset()
 
 # Game loop
-for step in range(1000):
+for step in range(10000):
     # Your policy computes actions for all agents
     actions = policy.get_actions(obs)  # Dict[agent_id, action]
 
