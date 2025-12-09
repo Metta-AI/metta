@@ -154,12 +154,57 @@ class AttackActionConfig(ActionConfig):
     target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
         default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
     )
+    vibes: list[str] = Field(
+        default_factory=list,
+        description="Vibe names that trigger attack on move (e.g., ['weapon'])",
+    )
 
     def _actions(self) -> list[Action]:
         return [self.Attack(location) for location in self.target_locations]
 
     def Attack(self, location: Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]) -> Action:
         return Action(name=f"attack_{location}")
+
+
+class VibeTransfer(Config):
+    """Configuration for resource transfers triggered by a specific vibe.
+
+    When an agent with this vibe interacts with another agent,
+    the specified resource deltas are applied to both the actor and target.
+
+    Example:
+        VibeTransfer(
+            vibe="plug",
+            target={"energy": 10},      # target gains 10 energy
+            actor={"energy": -10, "heart": -1}  # actor loses 10 energy and 1 heart
+        )
+    """
+
+    vibe: str
+    target: dict[str, int] = Field(default_factory=dict)
+    actor: dict[str, int] = Field(default_factory=dict)
+
+
+class TransferActionConfig(ActionConfig):
+    """Python transfer action configuration.
+
+    Transfer is triggered by move when the agent's vibe is in the vibes list.
+    The vibe_transfers list specifies what happens for each vibe.
+    """
+
+    action_handler: str = Field(default="transfer")
+    vibe_transfers: list[VibeTransfer] = Field(
+        default_factory=list,
+        description="List of vibe transfer configs specifying actor/target resource effects",
+    )
+    vibes: list[str] = Field(
+        default_factory=list,
+        description="Vibe names that trigger transfer on move (e.g., ['battery'])",
+    )
+
+    def _actions(self) -> list[Action]:
+        # Transfer doesn't create standalone actions - it's triggered by move
+        return []
 
 
 class ActionsConfig(Config):
@@ -172,11 +217,12 @@ class ActionsConfig(Config):
     noop: NoopActionConfig = Field(default_factory=lambda: NoopActionConfig())
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
+    transfer: TransferActionConfig = Field(default_factory=lambda: TransferActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
 
     def actions(self) -> list[Action]:
         return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe]],
+            [action.actions() for action in [self.noop, self.move, self.attack, self.transfer, self.change_vibe]],
             [],
         )
 
