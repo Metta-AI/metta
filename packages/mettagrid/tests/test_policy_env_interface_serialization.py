@@ -42,6 +42,7 @@ def test_policy_env_interface_round_trip_serialization():
     assert np.array_equal(restored.observation_space.high, original.observation_space.high)
 
     assert restored.action_space.n == original.action_space.n
+    assert restored.action_space.start == original.action_space.start
 
     assert len(restored.obs_features) == len(original.obs_features)
     for r, o in zip(restored.obs_features, original.obs_features, strict=True):

@@ -24,6 +24,7 @@ class PolicyEnvInterface(BaseModel):
 
     @field_serializer("observation_space")
     def serialize_observation_space(self, v: gym.spaces.Box) -> dict[str, Any]:
+        # gym.spaces.Box doesn't have a json serializer, so this attempts to implement it
         return {
             "low": float(v.low.flat[0]),
             "high": float(v.high.flat[0]),
@@ -31,24 +32,26 @@ class PolicyEnvInterface(BaseModel):
             "dtype": str(v.dtype),
         }
 
-    @field_serializer("action_space")
-    def serialize_action_space(self, v: gym.spaces.Discrete) -> dict[str, Any]:
-        return {"n": int(v.n)}
-
     @field_validator("observation_space", mode="before")
     @classmethod
     def validate_observation_space(cls, v: Any) -> gym.spaces.Box:
         if isinstance(v, gym.spaces.Box):
             return v
         if isinstance(v, dict):
+            # gym.spaces.Box doesn't have a json deserializer, so this attempts to implement it
             dtype = np.dtype(v["dtype"]) if isinstance(v["dtype"], str) else v["dtype"]
             return gym.spaces.Box(
                 low=v["low"],
                 high=v["high"],
                 shape=tuple(v["shape"]),
-                dtype=dtype,
+                dtype=dtype,  # type: ignore[arg-type]
             )
         raise ValueError(f"Cannot convert {type(v)} to gym.spaces.Box")
+
+    @field_serializer("action_space")
+    def serialize_action_space(self, v: gym.spaces.Discrete) -> dict[str, Any]:
+        # gym.spaces.Discrete doesn't have a json serializer, so this attempts to implement it
+        return {"n": int(v.n), "start": int(v.start)}
 
     @field_validator("action_space", mode="before")
     @classmethod
@@ -56,7 +59,8 @@ class PolicyEnvInterface(BaseModel):
         if isinstance(v, gym.spaces.Discrete):
             return v
         if isinstance(v, dict):
-            return gym.spaces.Discrete(n=v["n"])
+            # gym.spaces.Discrete doesn't have a json deserializer, so this attempts to implement it
+            return gym.spaces.Discrete(n=v["n"], start=v.get("start", 0))
         raise ValueError(f"Cannot convert {type(v)} to gym.spaces.Discrete")
 
     obs_features: list[ObservationFeatureSpec]
@@ -114,6 +118,7 @@ class PolicyEnvInterface(BaseModel):
 
     def to_json(self) -> str:
         """Convert PolicyEnvInterface to JSON."""
+        # TODO: Andre: replace this with `.model_dump(mode="json")`, now that it supports all fields
         payload = self.model_dump(mode="json", include={"num_agents", "obs_width", "obs_height", "tags"})
         payload["actions"] = self.action_names
         payload["obs_features"] = [feature.model_dump(mode="json") for feature in self.obs_features]
