@@ -2,7 +2,7 @@
 
 ## S3-Based Architecture
 
-The training and eval collectors now derive metrics directly from S3 metadata instead of requiring JSON summary files.
+The training and eval collectors derive metrics directly from S3 metadata. There is no JSON file dependency.
 
 ### Training Collector
 

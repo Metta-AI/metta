@@ -148,7 +148,7 @@ class EvalCollector(BaseCollector):
 
     def _local_metrics(self, payload: Dict) -> List[MetricSample]:
         samples: List[MetricSample] = []
-        wf = "local_eval"
+        wf = "remote_eval"
 
         sample = self._build(
             metric="eval.local.success",

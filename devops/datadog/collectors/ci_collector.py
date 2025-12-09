@@ -180,7 +180,7 @@ class CICollector(BaseCollector):
                 workflow_name="latest_state_of_main",
                 task="tests_blocking_merge",
                 check="success_ratio",
-                condition="=1.0",
+                condition=">= 1",
                 status="pass" if success_ratio == 1.0 else "fail",
             )
         )
