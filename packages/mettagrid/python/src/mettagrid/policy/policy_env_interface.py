@@ -43,6 +43,7 @@ class PolicyEnvInterface(BaseModel):
             return gym.spaces.Box(
                 low=np.array(v["low"]),
                 high=np.array(v["high"]),
+                shape=tuple(v["shape"]),
                 dtype=dtype,  # type: ignore[arg-type]
             )
         raise ValueError(f"Cannot convert {type(v)} to gym.spaces.Box")
