@@ -10,7 +10,7 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
-from metta.rl.utils import prepare_policy_forward_td
+from metta.rl.utils import add_dummy_loss_for_unused_params, prepare_policy_forward_td
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
@@ -253,13 +253,7 @@ class SlicedScriptedCloner(Loss):
         student_log_probs = student_log_probs.reshape(minibatch.shape[0])
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
-
-        # Keep all policy parameters participating in backward for DDP.
-        for key in student_td.keys():
-            if key not in ["full_log_probs", "act_log_prob"] and isinstance(student_td[key], Tensor):
-                value = student_td[key]
-                if value.requires_grad:
-                    loss = loss + 0.0 * value.sum()
+        loss = add_dummy_loss_for_unused_params(loss, td=student_td, used_keys=["full_log_probs", "act_log_prob"])
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
         self.loss_tracker["supervised_action_loss_coef"].append(float(self.cfg.action_loss_coef))
