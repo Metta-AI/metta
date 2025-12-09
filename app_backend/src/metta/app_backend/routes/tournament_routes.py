@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.metta_repo import (
     MatchRow,
-    MatchStatus,
     MatchWithPlayers,
     MettaRepo,
     PoolPlayerWithPolicy,
@@ -67,9 +66,7 @@ class SubmitToSeasonRequest(BaseModel):
 
 class MatchCreate(BaseModel):
     pool_id: uuid.UUID
-    environment_config: dict[str, Any]
     policy_version_ids: list[uuid.UUID]
-    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class MatchResponse(BaseModel):
@@ -80,28 +77,12 @@ class MatchesResponse(BaseModel):
     matches: list[MatchRow]
 
 
-class PendingMatchesResponse(BaseModel):
+class UnscheduledMatchesResponse(BaseModel):
     matches: list[MatchWithPlayers]
 
 
-class FinishMatchRequest(BaseModel):
-    status: MatchStatus
-    result: dict[str, Any] | None = None
-    player_scores: dict[str, float] | None = None
-
-
-class UploadPolicyRequest(BaseModel):
-    name: str
-    s3_path: str | None = None
-    git_hash: str | None = None
-    policy_spec: dict[str, Any] = Field(default_factory=dict)
-    attributes: dict[str, Any] = Field(default_factory=dict)
-
-
-class UploadPolicyResponse(BaseModel):
-    policy_id: uuid.UUID
-    policy_version_id: uuid.UUID
-    academy_pool_player_id: uuid.UUID | None
+class SetMatchEvalTaskRequest(BaseModel):
+    eval_task_id: int
 
 
 def create_tournament_router(repo: MettaRepo) -> APIRouter:
@@ -165,14 +146,6 @@ def create_tournament_router(repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail="Pool not found")
         return PoolResponse(pool=pool)
 
-    @router.get("/pools/academy")
-    @timed_http_handler
-    async def get_academy_pool() -> PoolResponse:
-        pool = await repo.get_academy_pool()
-        if pool is None:
-            raise HTTPException(status_code=404, detail="Academy pool not found")
-        return PoolResponse(pool=pool)
-
     @router.get("/pools/{pool_id}/players")
     @timed_http_handler
     async def get_pool_players(pool_id: str, include_removed: bool = False) -> PoolPlayersResponse:
@@ -210,9 +183,7 @@ def create_tournament_router(repo: MettaRepo) -> APIRouter:
     async def create_match(request: MatchCreate, user: UserOrToken) -> UUIDResponse:
         match_id = await repo.create_match(
             pool_id=request.pool_id,
-            environment_config=request.environment_config,
             policy_version_ids=request.policy_version_ids,
-            attributes=request.attributes,
         )
         return UUIDResponse(id=match_id)
 
@@ -224,45 +195,38 @@ def create_tournament_router(repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail="Match not found")
         return MatchResponse(match=match)
 
-    @router.get("/matches/pending")
+    @router.get("/matches/by-eval-task/{eval_task_id}")
     @timed_http_handler
-    async def get_pending_matches(limit: int = 100) -> PendingMatchesResponse:
-        matches = await repo.get_pending_matches(limit=limit)
-        return PendingMatchesResponse(matches=matches)
+    async def get_match_by_eval_task(eval_task_id: int) -> MatchResponse:
+        match = await repo.get_match_by_eval_task(eval_task_id)
+        if match is None:
+            raise HTTPException(status_code=404, detail="Match not found")
+        return MatchResponse(match=match)
+
+    @router.get("/matches/unscheduled")
+    @timed_http_handler
+    async def get_unscheduled_matches(limit: int = 100) -> UnscheduledMatchesResponse:
+        matches = await repo.get_unscheduled_matches(limit=limit)
+        return UnscheduledMatchesResponse(matches=matches)
 
     @router.get("/pools/{pool_id}/matches")
     @timed_http_handler
     async def get_matches_for_pool(
         pool_id: str,
-        status: MatchStatus | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> MatchesResponse:
         matches = await repo.get_matches_for_pool(
             pool_id=uuid.UUID(pool_id),
-            status=status,
             limit=limit,
             offset=offset,
         )
         return MatchesResponse(matches=matches)
 
-    @router.post("/matches/{match_id}/start")
+    @router.post("/matches/{match_id}/eval-task")
     @timed_http_handler
-    async def start_match(match_id: str, user: UserOrToken) -> None:
-        await repo.start_match(uuid.UUID(match_id))
-
-    @router.post("/matches/{match_id}/finish")
-    @timed_http_handler
-    async def finish_match(match_id: str, request: FinishMatchRequest, user: UserOrToken) -> None:
-        player_scores = None
-        if request.player_scores:
-            player_scores = {uuid.UUID(k): v for k, v in request.player_scores.items()}
-        await repo.finish_match(
-            match_id=uuid.UUID(match_id),
-            status=request.status,
-            result=request.result,
-            player_scores=player_scores,
-        )
+    async def set_match_eval_task(match_id: str, request: SetMatchEvalTaskRequest, user: UserOrToken) -> None:
+        await repo.set_match_eval_task(uuid.UUID(match_id), request.eval_task_id)
 
     @router.get("/policies/{policy_version_id}/matches")
     @timed_http_handler
@@ -270,43 +234,13 @@ def create_tournament_router(repo: MettaRepo) -> APIRouter:
         policy_version_id: str,
         pool_id: str | None = None,
         limit: int = 100,
-    ) -> PendingMatchesResponse:
+    ) -> UnscheduledMatchesResponse:
         matches = await repo.get_match_history_for_policy(
             policy_version_id=uuid.UUID(policy_version_id),
             pool_id=uuid.UUID(pool_id) if pool_id else None,
             limit=limit,
         )
-        return PendingMatchesResponse(matches=matches)
-
-    @router.post("/policies/upload")
-    @timed_http_handler
-    async def upload_policy(request: UploadPolicyRequest, user: UserOrToken) -> UploadPolicyResponse:
-        policy_id = await repo.upsert_policy(
-            name=request.name,
-            user_id=user,
-            attributes=request.attributes,
-        )
-        policy_version_id = await repo.create_policy_version(
-            policy_id=policy_id,
-            s3_path=request.s3_path,
-            git_hash=request.git_hash,
-            policy_spec=request.policy_spec,
-            attributes=request.attributes,
-        )
-
-        academy_pool = await repo.get_academy_pool()
-        academy_pool_player_id = None
-        if academy_pool:
-            academy_pool_player_id = await repo.add_pool_player(
-                policy_version_id=policy_version_id,
-                pool_id=academy_pool.id,
-            )
-
-        return UploadPolicyResponse(
-            policy_id=policy_id,
-            policy_version_id=policy_version_id,
-            academy_pool_player_id=academy_pool_player_id,
-        )
+        return UnscheduledMatchesResponse(matches=matches)
 
     @router.post("/seasons/submit")
     @timed_http_handler

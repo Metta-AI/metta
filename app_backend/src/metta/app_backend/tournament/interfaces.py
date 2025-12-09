@@ -51,13 +51,8 @@ class PoolPlayer:
 class Match:
     id: UUID
     pool_id: UUID
-    environment_config: dict[str, Any]
-    status: str
+    eval_task_id: int | None
     created_at: datetime
-    started_at: datetime | None
-    finished_at: datetime | None
-    result: dict[str, Any] | None
-    attributes: dict[str, Any]
 
 
 @dataclass
@@ -65,14 +60,11 @@ class MatchPlayer:
     match_id: UUID
     policy_version_id: UUID
     position: int
-    score: float | None
 
 
 @dataclass
 class MatchRequest:
-    environment_config: dict[str, Any]
     policy_version_ids: list[UUID]
-    attributes: dict[str, Any] | None = None
 
 
 @dataclass
