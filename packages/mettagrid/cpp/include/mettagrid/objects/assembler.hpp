@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -416,9 +417,27 @@ public:
       scaled_protocol.output_resources[resource] = scaled_amount;
     }
 
-    // Keep the same cooldown and vibes
+    // Keep the same cooldown, vibes, and sigmoid pricing settings
     scaled_protocol.cooldown = original_protocol.cooldown;
     scaled_protocol.vibes = original_protocol.vibes;
+    scaled_protocol.sigmoid = original_protocol.sigmoid;
+    scaled_protocol.inflation = original_protocol.inflation;
+    scaled_protocol.activation_count = original_protocol.activation_count;
+
+    return scaled_protocol;
+  }
+
+  // Apply sigmoid pricing cost multiplier to protocol input resources
+  // Returns a new protocol with scaled input costs (outputs unchanged)
+  static Protocol apply_cost_multiplier(const Protocol& protocol) {
+    Protocol scaled_protocol = protocol;
+    float multiplier = protocol.get_cost_multiplier();
+
+    // Scale input resources by the cost multiplier (round up)
+    for (auto& [resource, amount] : scaled_protocol.input_resources) {
+      float scaled = static_cast<float>(amount) * multiplier;
+      amount = static_cast<InventoryQuantity>(std::ceil(scaled));
+    }
 
     return scaled_protocol;
   }
@@ -459,6 +478,9 @@ public:
       }
     }
 
+    // Apply sigmoid pricing cost multiplier to input costs
+    protocol_to_use = apply_cost_multiplier(protocol_to_use);
+
     std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
     // Extract Inventory* pointers from agents for resource operations
     std::vector<Inventory*> input_inventories;
@@ -495,6 +517,8 @@ public:
       become_unclipped();
     } else {
       uses_count++;
+      // Increment the protocol's activation count for sigmoid pricing
+      original_protocol->activation_count++;
     }
     return true;
   }
