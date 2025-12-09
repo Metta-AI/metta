@@ -169,23 +169,23 @@ class ICLExtractorVariant(MissionVariant):
         if "carbon" in self.missing_resources:
             efficiency = (per_heart["carbon"] * 100) // 2  # 2 is default output
             mission.carbon_extractor = CarbonExtractorConfig(
-                efficiency=min(500, efficiency), max_uses=self.max_uses, cooldown=self.cooldown
+                efficiency=min(500, efficiency), max_uses=self.max_uses
             )
 
         if "oxygen" in self.missing_resources:
             mission.oxygen_extractor = OxygenExtractorConfig(
-                efficiency=100, max_uses=self.max_uses, cooldown=self.cooldown
+                efficiency=100, max_uses=self.max_uses
             )
 
         if "germanium" in self.missing_resources:
             mission.germanium_extractor = GermaniumExtractorConfig(
-                efficiency=100, max_uses=self.max_uses, cooldown=self.cooldown
+                efficiency=100, max_uses=self.max_uses
             )
 
         if "silicon" in self.missing_resources:
             efficiency = (per_heart["silicon"] * 100) // 15  # 15 is default output
             mission.silicon_extractor = SiliconExtractorConfig(
-                efficiency=min(500, efficiency), max_uses=self.max_uses, cooldown=self.cooldown
+                efficiency=min(500, efficiency), max_uses=self.max_uses
             )
 
 
@@ -354,8 +354,8 @@ def make_icl_curriculum(
             tasks = cc.bucketed(env)
             # tasks.add_bucket("game.agent.rewards.inventory.heart", [0.0, 0.1, 1.0])
             tasks.add_bucket("game.map_builder.objects.assembler", [1, 2, 3])
-            tasks.add_bucket("game.map_builder.width", [Span(8, 16)])
-            tasks.add_bucket("game.map_builder.height", [Span(8, 16)])
+            tasks.add_bucket("game.map_builder.width", [Span(8, 12)])
+            tasks.add_bucket("game.map_builder.height", [Span(8, 12)])
 
             all_mission_tasks.append(tasks)
 
@@ -500,7 +500,7 @@ def evaluate(
 
 def experiment(
     run_name: Optional[str] = None,
-    num_cogs: int = 4,
+    num_cogs: int = 1,
     heartbeat_timeout: int = 3600,
     skip_git_check: bool = True,
     additional_args: Optional[list[str]] = None,

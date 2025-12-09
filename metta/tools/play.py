@@ -58,7 +58,8 @@ class PlayTool(Tool):
         policy: MettaPolicy = initialize_or_load_policy(policy_env_info, policy_spec)
         if hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(policy_env_info, device)
-        policy.eval()
+        if hasattr(policy, "eval"):
+            policy.eval()
         return policy
 
     @model_validator(mode="after")
