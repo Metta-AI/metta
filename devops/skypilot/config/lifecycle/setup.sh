@@ -21,6 +21,9 @@ echo "[SETUP] Clearing Python bytecode cache (temporary fix)..."
 find . -type d -name __pycache__ -exec rm -r {} + 2> /dev/null || true
 find . -name "*.pyc" -delete 2> /dev/null || true
 find . -name "*.pyo" -delete 2> /dev/null || true
+# Also clear Python's import cache by removing .pyc files in site-packages if they exist
+find .venv -type d -name __pycache__ -exec rm -r {} + 2> /dev/null || true
+find .venv -name "*.pyc" -delete 2> /dev/null || true
 # END TEMP
 
 echo "[SETUP] Installing system dependencies..."
