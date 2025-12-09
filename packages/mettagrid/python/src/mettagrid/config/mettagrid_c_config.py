@@ -14,6 +14,7 @@ from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
+from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
@@ -169,6 +170,23 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             resource_deltas_cpp = {resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()}
             vibe_transfers_map[vibe_id] = resource_deltas_cpp
 
+        # Build damage config if present
+        damage_config_py = agent_props.get("damage")
+        cpp_damage_config = CppDamageConfig()
+        if damage_config_py is not None:
+            # Convert threshold resource names to IDs
+            cpp_damage_config.threshold = {
+                resource_name_to_id[resource_name]: threshold_value
+                for resource_name, threshold_value in damage_config_py.get("threshold", {}).items()
+                if resource_name in resource_name_to_id
+            }
+            # Convert resources map (name -> minimum) to IDs
+            cpp_damage_config.resources = {
+                resource_name_to_id[resource_name]: minimum_value
+                for resource_name, minimum_value in damage_config_py.get("resources", {}).items()
+                if resource_name in resource_name_to_id
+            }
+
         # Build inventory config with support for grouped limits
         limits_list = []
 
@@ -201,6 +219,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             inventory_regen_amounts=inventory_regen_amounts,
             diversity_tracked_resources=diversity_tracked_resources,
             vibe_transfers=vibe_transfers_map,
+            damage_config=cpp_damage_config,
         )
         cpp_agent_config.tag_ids = tag_ids
 

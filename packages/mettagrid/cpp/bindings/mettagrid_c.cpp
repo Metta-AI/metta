@@ -548,6 +548,11 @@ void MettaGrid::_step() {
     }
   }
 
+  // Check and apply damage for all agents (randomized order for fairness)
+  for (const auto& agent_idx : agent_indices) {
+    _agents[agent_idx]->check_and_apply_damage(_rng);
+  }
+
   // Apply global systems
   if (_clipper) {
     _clipper->maybe_clip_new_assembler();

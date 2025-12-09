@@ -6,6 +6,9 @@
 #include "config/observation_features.hpp"
 #include "systems/observation_encoder.hpp"
 
+// For std::shuffle
+#include <random>
+
 Agent::Agent(GridCoord r,
              GridCoord c,
              const AgentConfig& config,
@@ -27,6 +30,7 @@ Agent::Agent(GridCoord r,
       prev_location(r, c),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
+      damage_config(config.damage_config),
       resource_names(resource_names),
       diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
@@ -113,6 +117,48 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
     *this->reward += reward_delta;
     this->current_stat_reward = new_stat_reward;
   }
+}
+
+bool Agent::check_and_apply_damage(std::mt19937& rng) {
+  if (!damage_config.enabled()) {
+    return false;
+  }
+
+  // Check if all threshold inventory items are at or above their threshold values
+  for (const auto& [item, threshold_value] : damage_config.threshold) {
+    InventoryQuantity amount = this->inventory.amount(item);
+    if (amount < static_cast<InventoryQuantity>(threshold_value)) {
+      return false;  // Not all thresholds met
+    }
+  }
+
+  // Find which resources from the damage map the agent has above their minimum
+  std::vector<InventoryItem> available_resources;
+  for (const auto& [item, minimum] : damage_config.resources) {
+    InventoryQuantity amount = this->inventory.amount(item);
+    if (amount > static_cast<InventoryQuantity>(minimum)) {
+      available_resources.push_back(item);
+    }
+  }
+
+  // If no resources available to remove, just subtract thresholds
+  if (!available_resources.empty()) {
+    // Shuffle available resources to ensure random selection
+    std::shuffle(available_resources.begin(), available_resources.end(), rng);
+    // Remove the first item after shuffle
+    InventoryItem item_to_remove = available_resources[0];
+    this->inventory.update(item_to_remove, -1);
+    this->stats.incr("damage.items_lost");
+    this->stats.incr("damaged." + this->stats.resource_name(item_to_remove));
+  }
+
+  // Subtract threshold values from inventory
+  for (const auto& [item, threshold_value] : damage_config.threshold) {
+    this->inventory.update(item, -static_cast<InventoryDelta>(threshold_value));
+  }
+
+  this->stats.incr("damage.triggered");
+  return true;
 }
 
 bool Agent::onUse(Agent& actor, ActionArg arg) {

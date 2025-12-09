@@ -50,6 +50,24 @@ class ResourceLimitsConfig(Config):
     resources: list[str]
 
 
+class DamageConfig(Config):
+    """Damage configuration for agents.
+
+    When an agent's inventory items reach or exceed all threshold values, one random
+    resource from the resources map is removed from inventory (if above minimum) and the
+    threshold amounts are subtracted from inventory.
+    """
+
+    threshold: dict[str, int] = Field(
+        default_factory=dict,
+        description="Map of resource names to threshold values. All must be reached to trigger damage.",
+    )
+    resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Map of resource names to minimum values. Resources at or below minimum are excluded from removal.",
+    )
+
+
 # TODO: this should probably subclass GridObjectConfig
 class AgentConfig(Config):
     """Python agent configuration."""
@@ -78,6 +96,10 @@ class AgentConfig(Config):
         default_factory=dict, description="Maps vibe name to resource deltas for agent-to-agent sharing"
     )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
+    damage: Optional[DamageConfig] = Field(
+        default=None,
+        description="Damage config: when all threshold stats are reached, remove one random resource from inventory",
+    )
 
     def get_limit_for_resource(self, resource_name: str) -> int:
         """Get the resource limit for a given resource name.
