@@ -55,7 +55,7 @@ class ViTWithVibeBiasConfig(ViTDefaultConfig):
 
 
 def train(
-    num_cogs: int = 20,
+    num_cogs: int = 4,
     variants: Optional[Sequence[str]] = ("heart_chorus",),
     eval_variants: Optional[Sequence[str]] = ("heart_chorus",),
     eval_difficulty: str | None = "standard",
