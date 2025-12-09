@@ -10,17 +10,17 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.policy import PolicyArchitecture
 from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policy import PolicyArchitecture
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.stub import StubTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
+from metta.tools.stub import StubTool
+from metta.tools.sweep import SweepTool
+from metta.tools.train import TrainTool
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from recipes.experiment.cogs_v_clips import make_training_env, train_single_mission
 
