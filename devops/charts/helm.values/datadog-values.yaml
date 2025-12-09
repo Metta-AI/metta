@@ -35,6 +35,10 @@ datadog:
   tags:
     - "env:production"
 
+  # Only collect infrastructure metrics from pods with the dd-metrics-enabled label
+  # This excludes ephemeral eval workers by default, reducing billing
+  containerIncludeMetrics: "kube_label_dd_metrics_enabled:true"
+
 # DaemonSet agent configuration
 clusterAgent:
   replicas: 2

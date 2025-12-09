@@ -13,6 +13,7 @@ spec:
     metadata:
       labels:
         {{- include "orchestrator.selectorLabels" . | nindent 8 }}
+        dd-metrics-enabled: "true"
     spec:
       serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}
       containers:

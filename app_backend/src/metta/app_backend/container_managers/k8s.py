@@ -100,15 +100,7 @@ class K8sPodManager(AbstractContainerManager):
                 "DD_TAGS",
             )
         }
-        dd_env.update(
-            {
-                "DD_SERVICE": "eval-worker",
-                # Disable infrastructure metrics on ephemeral workers to reduce billing
-                "DD_ENABLE_PAYLOADS_SERIES": "false",
-                "DD_ENABLE_PAYLOADS_EVENTS": "false",
-                "DD_ENABLE_PAYLOADS_SERVICE_CHECKS": "false",
-            }
-        )
+        dd_env.update({"DD_SERVICE": "eval-worker"})
 
         # Add Datadog values; DD_AGENT_HOST is valueFrom, others are strings
         env.extend([{"name": key, "value": value} for key, value in dd_env.items()])

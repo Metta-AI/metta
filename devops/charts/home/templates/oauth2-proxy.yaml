@@ -11,6 +11,7 @@ spec:
     metadata:
       labels:
         k8s-app: home-oauth2-proxy
+        dd-metrics-enabled: "true"
     spec:
       containers:
         - name: oauth2-proxy
