@@ -9,6 +9,7 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
+    ChangeVibeActionConfig,
     GameConfig,
     MettaGridConfig,
     MoveActionConfig,
@@ -46,6 +47,7 @@ def make_arena(
                 "armor": 1,
             },
         ),
+        change_vibe=ChangeVibeActionConfig(enabled=False),
     )
 
     if not combat:
