@@ -126,7 +126,7 @@ def evaluate_stub(*args, **kwargs) -> StubTool:
 
     return StubTool()
 
-
+def train_sweep(**kwargs, temperature_alpha: float = 0.021, etc....)
 def sweep(
     sweep_name: str,
     num_cogs: int = 4,
@@ -149,6 +149,13 @@ def sweep(
             max=2e9,
             search_center=1e9,
         ),
+        **SP.param(
+            "temperature_alpha", 
+            D.UNIFORM, 
+            min=0.000001, 
+            max=0.5,
+            search_center=0.021
+        )
     }
 
     return make_sweep(

@@ -26,6 +26,40 @@ def _detect_actor_head_action_count(state_dict: Mapping[str, torch.Tensor]) -> i
     return None
 
 
+def _detect_cortex_cell_type(state_dict: Mapping[str, torch.Tensor]) -> str | None:
+    """Detect cortex cell type from checkpoint weights.
+
+    Returns:
+        "L" for LSTM cells, "A" for Axon cells, None if not detected.
+    """
+    for key in state_dict.keys():
+        # LSTM signature: cell.net.weight_ih_l0, weight_hh_l0, etc.
+        if "cell.net.weight_ih_l0" in key or "cell.net.weight_hh_l0" in key:
+            return "L"
+        # Axon signature: cell.nu_log, cell.theta_log, etc.
+        if "cell.nu_log" in key or "cell.theta_log" in key:
+            return "A"
+    return None
+
+
+def _detect_cortex_post_norm(state_dict: Mapping[str, torch.Tensor]) -> bool | None:
+    """Detect whether checkpoint was trained with post_norm (final layer norm).
+
+    Returns:
+        True if post_norm weights found, False if cortex weights exist but no post_norm,
+        None if no cortex weights detected.
+    """
+    has_cortex = False
+    for key in state_dict.keys():
+        if "cortex" in key:
+            has_cortex = True
+            # Check for stack.norm which indicates post_norm=True
+            if "stack.norm.weight" in key or "stack.norm.bias" in key:
+                return True
+    # If we found cortex weights but no stack.norm, post_norm was False
+    return False if has_cortex else None
+
+
 def _pad_actor_head_weights(
     state_dict: MutableMapping[str, torch.Tensor],
     checkpoint_actions: int,
@@ -99,7 +133,38 @@ class MptArtifact:
                     f"Set pad_action_space=True to pad weights automatically."
                 )
 
-        policy = self.architecture.make_policy(policy_env_info)
+        # Auto-detect and fix cortex architecture mismatches
+        arch = self.architecture
+        arch_updates: dict[str, Any] = {}
+
+        # Detect cell type mismatch (LSTM vs Axon)
+        if hasattr(arch, "core_resnet_pattern"):
+            detected_cell_type = _detect_cortex_cell_type(state_dict)
+            if detected_cell_type is not None and detected_cell_type != arch.core_resnet_pattern:
+                logging.warning(
+                    "Cortex cell type mismatch: checkpoint uses '%s', architecture specifies '%s'. "
+                    "Overriding architecture to match checkpoint.",
+                    detected_cell_type,
+                    arch.core_resnet_pattern,
+                )
+                arch_updates["core_resnet_pattern"] = detected_cell_type
+
+        # Detect post_norm mismatch (layer norm at end of cortex stack)
+        if hasattr(arch, "core_use_layer_norm"):
+            detected_post_norm = _detect_cortex_post_norm(state_dict)
+            if detected_post_norm is not None and detected_post_norm != arch.core_use_layer_norm:
+                logging.warning(
+                    "Cortex post_norm mismatch: checkpoint uses %s, architecture specifies %s. "
+                    "Overriding architecture to match checkpoint.",
+                    detected_post_norm,
+                    arch.core_use_layer_norm,
+                )
+                arch_updates["core_use_layer_norm"] = detected_post_norm
+
+        if arch_updates:
+            arch = arch.model_copy(update=arch_updates)
+
+        policy = arch.make_policy(policy_env_info)
         policy = policy.to(device)
 
         missing, unexpected = policy.load_state_dict(dict(state_dict), strict=strict)
