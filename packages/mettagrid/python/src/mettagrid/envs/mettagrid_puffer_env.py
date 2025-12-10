@@ -74,15 +74,12 @@ class MettaGridPufferEnv(PufferEnv):
         supervisor_policy_spec: Optional[PolicySpec] = None,
         buf: Any = None,
         seed: int = 0,
-        supervisor_stop_agent_step: Optional[int] = None,
     ):
         # Support both Simulation and MettaGridConfig for backwards compatibility
         self._simulator = simulator
         self._current_cfg = cfg
         self._current_seed = seed
         self._supervisor_policy_spec = supervisor_policy_spec
-        self._supervisor_enabled = True
-        self._supervisor_stop_agent_step = supervisor_stop_agent_step
         self._sim: Simulation | None = None
 
         # Initialize shared buffers FIRST (before super().__init__)
@@ -136,18 +133,11 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
-        sim = cast(Simulation, self._sim)
-        self.num_agents = sim.num_agents
-
         if self._supervisor_policy_spec is not None:
             self._env_supervisor = initialize_or_load_policy(
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),
                 self._supervisor_policy_spec,
             )
-
-            # Ensure supervisor state is fresh each simulation
-            if hasattr(self._env_supervisor, "reset"):
-                self._env_supervisor.reset()
 
             self._compute_supervisor_actions()
 
@@ -157,17 +147,8 @@ class MettaGridPufferEnv(PufferEnv):
             self._current_seed = seed
 
         self._new_sim()
-        # Keep existing supervisor_enabled state (outer trainer owns toggling). If enabled and reset() exists, call it.
-        if self._supervisor_enabled and self._env_supervisor is not None and hasattr(self._env_supervisor, "reset"):
-            self._env_supervisor.reset()
 
         return self._buffers.observations, {}
-
-    # ---------------- Supervisor control -----------------
-    def disable_supervisor(self) -> None:
-        self._supervisor_enabled = False
-        self._env_supervisor = None
-        self._buffers.teacher_actions.fill(-1)
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
@@ -185,10 +166,8 @@ class MettaGridPufferEnv(PufferEnv):
         sim.step()
 
         # Do this after step() so that the trainer can use it if needed
-        if self._supervisor_policy_spec is not None and self._supervisor_enabled:
+        if self._supervisor_policy_spec is not None:
             self._compute_supervisor_actions()
-        else:
-            self._buffers.teacher_actions.fill(-1)
 
         return (
             self._buffers.observations,
@@ -199,12 +178,12 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _compute_supervisor_actions(self) -> None:
-        if self._env_supervisor is None or not self._supervisor_enabled:
-            self._buffers.teacher_actions.fill(-1)
+        if self._env_supervisor is None:
             return
 
-        # Full-batch supervisor (behavior controlled solely by bc_teacher_lead_prob in the loss)
-        self._env_supervisor.step_batch(self._buffers.observations, self._buffers.teacher_actions)
+        teacher_actions = self._buffers.teacher_actions
+        raw_observations = self._buffers.observations
+        self._env_supervisor.step_batch(raw_observations, teacher_actions)
 
     @property
     def observations(self) -> np.ndarray:

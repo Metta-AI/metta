@@ -8,7 +8,7 @@ recipes should import from here and extend via custom defaults, similar to how
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal, Optional, Sequence
+from typing import Literal, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
@@ -325,7 +325,7 @@ def train(
     bc_steps: Optional[int] = None,
     bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
     use_lp: bool = True,
-    maps_cache_size: Optional[int] = 30,
+    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -375,7 +375,6 @@ def train(
         tt.training_env.supervisor_policy_uri = bc_policy_uri
         losses = tt.trainer.losses
         bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
-        tt.training_env.supervisor_stop_agent_step = bc_total_steps
         scheduler_run_gates = [
             LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
         ]
@@ -399,7 +398,6 @@ def train(
                 )
             ]
         else:
-            # Teacher usage controlled solely by bc_teacher_lead_prob (loss anneal); env runs full batch
             losses.supervisor.enabled = True
             losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
             anneal_start = int(bc_total_steps * 0.5)
@@ -498,7 +496,6 @@ def train_single_mission(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
-    **train_kwargs: Any,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
     env = make_training_env(
@@ -515,7 +512,6 @@ def train_single_mission(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
-        **train_kwargs,
     )
 
 
