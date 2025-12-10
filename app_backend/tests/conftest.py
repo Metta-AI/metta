@@ -21,10 +21,15 @@ from metta.common.test_support import docker_client_fixture, isolated_test_schem
 docker_client = docker_client_fixture()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def mock_debug_user_email():
-    """Set DEBUG_USER_EMAIL for all tests to bypass authentication."""
-    with mock.patch("metta.app_backend.config.settings.DEBUG_USER_EMAIL", "test@example.com"):
+@pytest.fixture(scope="class", autouse=True)
+def mock_settings():
+    """Mock settings for all tests - enables migrations and sets debug user."""
+    with (
+        mock.patch("metta.app_backend.metta_repo.settings") as mock_repo_settings,
+        mock.patch("metta.app_backend.config.settings") as mock_config_settings,
+    ):
+        mock_repo_settings.RUN_MIGRATIONS = True
+        mock_config_settings.DEBUG_USER_EMAIL = "test@example.com"
         yield
 
 
