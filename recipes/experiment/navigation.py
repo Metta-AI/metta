@@ -11,9 +11,14 @@ from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import NavigationFromNumpy
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.core import Distribution as D
+from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.stub import StubTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import AsciiMapBuilder, MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -205,3 +210,45 @@ def play(policy_uri: Optional[str] = None) -> PlayTool:
 
 def replay(policy_uri: Optional[str] = None) -> ReplayTool:
     return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+
+
+def evaluate_stub(*args, **kwargs) -> StubTool:
+    """Stub evaluation for sweep (using training metrics instead)."""
+    return StubTool()
+
+
+def sweep(sweep_name: str) -> SweepTool:
+    """Learning Progress hyperparameter sweep for navigation.
+
+    Sweeps over 4 key LP parameters:
+    1. lp_gain (z-score gain)
+    2. ema_timescale (sets the low-frequency component)
+    3. slow_timescale_factor (width of the frequency window)
+    4. progress_smoothing (score transformation)
+
+    Usage:
+        uv run tools/run.py recipes.experiment.navigation.sweep \
+            sweep_name="prashant.lp_sweep.12_10" -- gpus=4 nodes=1
+
+    Sweep results (prashant.lp_sweep.12_10_2, 80 trials):
+        - ema_timescale 0.005-0.008 showed ~2x improvement vs default 0.001
+        - Other params showed no clear pattern
+    """
+    parameters = [
+        SP.param("lp_gain", D.LOG_NORMAL, min=0.01, max=0.5, search_center=0.1),
+        SP.param("ema_timescale", D.LOG_NORMAL, min=0.0001, max=0.01, search_center=0.001),
+        SP.param("slow_timescale_factor", D.UNIFORM, min=0.05, max=0.5, search_center=0.2),
+        SP.param("progress_smoothing", D.UNIFORM, min=0.01, max=0.2, search_center=0.05),
+        {"trainer.total_timesteps": 150_000_000},  # 150M fixed
+    ]
+
+    return make_sweep(
+        name=sweep_name,
+        recipe="recipes.experiment.navigation",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_stub",
+        metric_key="experience/rewards",
+        search_space=parameters,
+        max_trials=80,
+        num_parallel_trials=4,
+    )
