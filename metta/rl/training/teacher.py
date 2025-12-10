@@ -26,8 +26,8 @@ class TeacherConfig(Config):
     policy_uri: str | None = None
     mode: TeacherMode = "sliced_cloner"
     steps: int | None = None
-    teacher_led_proportion: float = Field(default=1.0, ge=0.0, le=1.0)
-    student_led_proportion: float = Field(default=0.0, ge=0.0, le=1.0)
+    led_proportion: float = Field(default=1.0, ge=0.0, le=1.0)
+    student_proportion: float = Field(default=0.0, ge=0.0, le=1.0)
 
     @property
     def enabled(self) -> bool:
@@ -62,8 +62,8 @@ def apply_teacher_phase(
 
         slicer = losses.sliced_scripted_cloner
         slicer.enabled = True
-        slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
-        slicer.student_led_proportion = teacher_cfg.student_led_proportion
+        slicer.led_proportion = teacher_cfg.led_proportion
+        slicer.student_proportion = teacher_cfg.student_proportion
 
         _append_bc_run_gates(
             scheduler_run_gates,
@@ -74,14 +74,14 @@ def apply_teacher_phase(
         _append_teacher_share_rule(
             scheduler_rules,
             loss_name="sliced_scripted_cloner",
-            start_value=teacher_cfg.teacher_led_proportion,
+            start_value=teacher_cfg.led_proportion,
             total_steps=total_steps,
         )
 
     elif teacher_cfg.mode == "supervisor":
         supervisor = losses.supervisor
         supervisor.enabled = True
-        supervisor.teacher_led_proportion = teacher_cfg.teacher_led_proportion
+        supervisor.led_proportion = teacher_cfg.led_proportion
 
         _append_bc_run_gates(
             scheduler_run_gates,
@@ -91,7 +91,7 @@ def apply_teacher_phase(
         _append_teacher_share_rule(
             scheduler_rules,
             loss_name="supervisor",
-            start_value=teacher_cfg.teacher_led_proportion,
+            start_value=teacher_cfg.led_proportion,
             total_steps=total_steps,
         )
         if total_steps:
@@ -117,8 +117,8 @@ def apply_teacher_phase(
         sliced_kick = losses.sliced_kickstarter
         sliced_kick.enabled = True
         sliced_kick.teacher_uri = teacher_cfg.policy_uri
-        sliced_kick.teacher_led_proportion = teacher_cfg.teacher_led_proportion
-        sliced_kick.student_led_proportion = teacher_cfg.student_led_proportion
+        sliced_kick.led_proportion = teacher_cfg.led_proportion
+        sliced_kick.student_proportion = teacher_cfg.student_proportion
 
         _append_bc_run_gates(
             scheduler_run_gates,
@@ -129,7 +129,7 @@ def apply_teacher_phase(
         _append_teacher_share_rule(
             scheduler_rules,
             loss_name="sliced_kickstarter",
-            start_value=teacher_cfg.teacher_led_proportion,
+            start_value=teacher_cfg.led_proportion,
             total_steps=total_steps,
         )
 
@@ -138,7 +138,7 @@ def apply_teacher_phase(
         ks = losses.kickstarter
         ks.enabled = True
         ks.teacher_uri = teacher_cfg.policy_uri
-        ks.teacher_led_proportion = teacher_cfg.teacher_led_proportion
+        ks.led_proportion = teacher_cfg.led_proportion
 
         _append_bc_run_gates(
             scheduler_run_gates,
@@ -149,7 +149,7 @@ def apply_teacher_phase(
         _append_teacher_share_rule(
             scheduler_rules,
             loss_name="kickstarter",
-            start_value=teacher_cfg.teacher_led_proportion,
+            start_value=teacher_cfg.led_proportion,
             total_steps=total_steps,
         )
 
@@ -158,7 +158,7 @@ def apply_teacher_phase(
         logit = losses.logit_kickstarter
         logit.enabled = True
         logit.teacher_uri = teacher_cfg.policy_uri
-        logit.teacher_led_proportion = teacher_cfg.teacher_led_proportion
+        logit.led_proportion = teacher_cfg.led_proportion
 
         _append_bc_run_gates(
             scheduler_run_gates,
@@ -169,7 +169,7 @@ def apply_teacher_phase(
         _append_teacher_share_rule(
             scheduler_rules,
             loss_name="logit_kickstarter",
-            start_value=teacher_cfg.teacher_led_proportion,
+            start_value=teacher_cfg.led_proportion,
             total_steps=total_steps,
         )
 
@@ -227,7 +227,7 @@ def _append_teacher_share_rule(
     rules.append(
         HyperUpdateRule(
             loss_instance_name=loss_name,
-            attr_path="teacher_led_proportion",
+            attr_path="led_proportion",
             mode="progress",
             style="linear",
             start_value=start_value,

@@ -30,8 +30,8 @@ class SlicedKickstarterConfig(LossConfig):
     student_forward: bool = Field(default=True)  # probably always true for sliced_kickstarter
 
     # PPO consumes whatever portion of the batch isn't claimed by these slices
-    student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
-    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    student_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    led_proportion: float = Field(default=0.0, ge=0, le=1.0)
 
     def create(
         self,
@@ -305,8 +305,8 @@ class SlicedKickstarter(Loss):
         self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
         self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
         self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
-        self.loss_tracker["ks_teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
-        self.loss_tracker["ks_student_led_proportion"].append(float(self.cfg.student_led_proportion))
+        self.loss_tracker["ks_led_proportion"].append(float(self.cfg.led_proportion))
+        self.loss_tracker["ks_student_proportion"].append(float(self.cfg.student_proportion))
 
         return loss, shared_loss_data, False
 
@@ -319,8 +319,8 @@ class SlicedKickstarter(Loss):
 
         rand_assignments = torch.rand(B, device=self.device)
 
-        stud_threshold = self.cfg.student_led_proportion
-        teacher_threshold = stud_threshold + self.cfg.teacher_led_proportion
+        stud_threshold = self.cfg.student_proportion
+        teacher_threshold = stud_threshold + self.cfg.led_proportion
 
         self.stud_mask = rand_assignments < stud_threshold
         self.teacher_mask = (rand_assignments >= stud_threshold) & (rand_assignments < teacher_threshold)

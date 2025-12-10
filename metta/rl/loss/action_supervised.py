@@ -20,7 +20,7 @@ class ActionSupervisedConfig(LossConfig):
     sample_enabled: bool = True  # True means sequentially sample from the buffer during train in this loss
     rollout_forward_enabled: bool = True  # Control the rollout. If true, ensure ppo_critic is not also running rollout
     train_forward_enabled: bool = True  # Forward policy during training. Same as above re PPO concurency collisions.
-    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    led_proportion: float = Field(default=0.0, ge=0, le=1.0)
 
     # Controls whether to add the imitation loss to the environment rewards.
     add_action_loss_to_rewards: bool = Field(default=False)
@@ -84,7 +84,7 @@ class ActionSupervised(Loss):
         assert self.replay is not None
         self.replay.store(data_td=td, env_id=env_slice)
 
-        if torch.rand(1) < self.cfg.teacher_led_proportion:
+        if torch.rand(1) < self.cfg.led_proportion:
             # Save td["action"] into the td that goes to the replay buffer but then overwrite it with teacher actions
             # when sending to the environment. After it gets sent to env it is no longer used.
             # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
