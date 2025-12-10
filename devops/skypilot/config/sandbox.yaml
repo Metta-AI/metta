@@ -40,6 +40,7 @@ run: |
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta
+  METTA_GIT_REF: main
 
   # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""
