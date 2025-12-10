@@ -24,6 +24,7 @@ class SmolLLMConfig(PolicyArchitecture):
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
+    num_layers: Optional[int] = None
     model_name: str = "HuggingFaceTB/SmolLM2-135M"
     max_sequence_length: int = 32
     dtype: Literal["float32", "float16", "bfloat16"] = "bfloat16"
@@ -61,6 +62,7 @@ class SmolLLMConfig(PolicyArchitecture):
                 trust_remote_code=True,
                 dtype=self._resolve_dtype(),
                 attn_implementation=self.attn_implementation,
+                num_layers=self.num_layers,
                 mem_len=int(self.mem_len),
                 compile_blocks=False,
             )
@@ -70,6 +72,7 @@ class SmolLLMConfig(PolicyArchitecture):
                 trust_remote_code=True,
                 dtype=self._resolve_dtype(),
                 attn_implementation=self.attn_implementation,
+                num_layers=self.num_layers,
                 mem_len=int(self.mem_len),
                 compile_blocks=False,
             )
@@ -135,6 +138,7 @@ def _build_hf_stack_config_from_scratch(
     trust_remote_code: bool = False,
     dtype: Optional[torch.dtype] = None,
     attn_implementation: Optional[str] = None,
+    num_layers: Optional[int] = None,
     mem_len: int = 0,
     compile_blocks: bool = False,
 ) -> object:
@@ -155,5 +159,8 @@ def _build_hf_stack_config_from_scratch(
     if model_type != "llama":
         msg = f"_build_hf_stack_config_from_scratch currently supports LLaMA; got model_type={model_type}"
         raise NotImplementedError(msg)
+
+    if num_layers is not None and num_layers > 0:
+        model.model.layers = model.model.layers[:num_layers]  # type: ignore[attr-defined]
 
     return build_llama_stack_config_from_model(model, mem_len=mem_len, compile_blocks=compile_blocks)
