@@ -20,6 +20,8 @@ from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import LimitDef as CppLimitDef
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
+from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
+from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
@@ -454,6 +456,28 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         action_params["defense_resources"] = {}
     action_params["enabled"] = actions_config.attack.enabled
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
+
+    # Process transfer - always add to map (can be triggered via vibes)
+    transfer_cfg = actions_config.transfer
+    vibe_transfers_cpp = {}
+    for vt in transfer_cfg.vibe_transfers:
+        vibe_id = vibe_name_to_id[vt.vibe]
+        target_deltas = {resource_name_to_id[k]: v for k, v in vt.target.items()}
+        actor_deltas = {resource_name_to_id[k]: v for k, v in vt.actor.items()}
+        vibe_transfers_cpp[vibe_id] = CppVibeTransferEffect(target_deltas, actor_deltas)
+    # Convert vibe names to IDs
+    transfer_vibes = []
+    for vibe_name in transfer_cfg.vibes:
+        if vibe_name not in vibe_name_to_id:
+            raise ValueError(f"Unknown vibe name '{vibe_name}' in transfer.vibes")
+        transfer_vibes.append(vibe_name_to_id[vibe_name])
+    actions_cpp_params["transfer"] = CppTransferActionConfig(
+        required_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.required_resources.items()},
+        consumed_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.consumed_resources.items()},
+        vibe_transfers=vibe_transfers_cpp,
+        enabled=transfer_cfg.enabled,
+        vibes=transfer_vibes,
+    )
 
     # Process change_vibe - always add to map
     action_params = process_action_config("change_vibe", actions_config.change_vibe)
