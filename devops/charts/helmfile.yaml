@@ -92,6 +92,14 @@ releases:
     version: 3.12.2
     namespace: metrics-server
 
+  - name: prometheus
+    chart: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
+    version: 80.2.0
+    disableValidation: true
+    namespace: monitoring
+    values:
+      - ./helm.values/prometheus-values.yaml
+
   - name: datadog
     chart: datadog/datadog
     version: 3.75.0
