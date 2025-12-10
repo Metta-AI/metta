@@ -230,7 +230,11 @@ class MettaGridPufferEnv(PufferEnv):
                 teacher_actions.fill(-1)
                 teacher_actions[agent_ids] = actions_subset
             else:
-                self._env_supervisor.step_batch(raw_observations, teacher_actions)
+                # Fallback: run full batch but keep only the subset outputs
+                temp_actions = np.full(self.num_agents, fill_value=-1, dtype=dtype_actions)
+                self._env_supervisor.step_batch(raw_observations, temp_actions)
+                teacher_actions.fill(-1)
+                teacher_actions[agent_ids] = temp_actions[agent_ids]
         else:
             self._env_supervisor.step_batch(raw_observations, teacher_actions)
 
