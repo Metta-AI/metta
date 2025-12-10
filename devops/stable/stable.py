@@ -71,6 +71,23 @@ def write_github_summary(runner: Runner) -> None:
         f.write("\n".join(lines))
 
 
+def write_discord_summary(runner: Runner, state_dir: Path) -> None:
+    succeeded = [j for j in runner.jobs.values() if j.status.value == "succeeded"]
+    failed = [j for j in runner.jobs.values() if j.status.value == "failed"]
+    skipped = [j for j in runner.jobs.values() if j.status.value == "skipped"]
+
+    lines = [f"**Jobs**: {len(succeeded)} passed, {len(failed)} failed, {len(skipped)} skipped", ""]
+
+    for job in runner.jobs.values():
+        icon = {"succeeded": "✅", "failed": "❌", "skipped": "⏭️"}.get(job.status.value, "❓")
+        name = job.name.split(".")[-1]
+        duration = f"({job.duration_s:.0f}s)" if job.duration_s else ""
+        lines.append(f"{icon} {name} {duration}")
+
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "discord_summary.txt").write_text("\n".join(lines))
+
+
 @app.command()
 def release(
     version: str = typer.Option(None, help="Version string (default: timestamp)"),
@@ -105,6 +122,7 @@ def release(
     runner.run_all()
     success = print_summary(runner.jobs)
     write_github_summary(runner)
+    write_discord_summary(runner, state_dir)
 
     sys.exit(0 if success else 1)
 
