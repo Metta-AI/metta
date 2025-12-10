@@ -74,9 +74,7 @@ class FileSchemeResolver(SchemeResolver):
             if self._can_find_latest(parsed):
                 latest = self._get_latest_checkpoint_uri(parsed)
                 if latest:
-                    latest_parsed = self.parse(latest)
-                    assert latest_parsed.path is not None
-                    return latest_parsed.path
+                    return latest
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
@@ -84,12 +82,9 @@ class FileSchemeResolver(SchemeResolver):
         if self._can_find_latest(parsed) and not uri.endswith(".mpt"):
             latest = self._get_latest_checkpoint_uri(parsed)
             if latest:
-                latest_parsed = self.parse(latest)
-                assert latest_parsed.path is not None
-                return latest_parsed.path
+                return latest
 
-        assert parsed.path is not None
-        return parsed.path
+        return parsed.canonical
 
 
 class S3SchemeResolver(FileSchemeResolver):
@@ -238,6 +233,11 @@ def parse_uri(uri: str, allow_none: bool = False, **kwargs) -> ParsedScheme | No
 
 
 def resolve_uri(uri: str) -> str:
+    """Resolve a URI to its canonical form, finding :latest checkpoints if needed.
+
+    Returns a URI string (e.g., "s3://bucket/key" or "file:///path").
+    Use parse_uri() on the result to extract components like local_path.
+    """
     resolver = _get_resolver(uri)
     if not resolver:
         raise ValueError("Unsupported URI")
@@ -263,7 +263,12 @@ def policy_spec_from_uri(
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
 
-    path_to_spec = resolve_uri(uri)
+    resolved_uri = resolve_uri(uri)
+    parsed = parse_uri(resolved_uri, allow_none=False)
+    if parsed.local_path:
+        path_to_spec = str(parsed.local_path)
+    else:
+        path_to_spec = resolved_uri
     if path_to_spec.endswith(".mpt"):
         return PolicySpec(
             class_path="mettagrid.policy.mpt_policy.MptPolicy",
