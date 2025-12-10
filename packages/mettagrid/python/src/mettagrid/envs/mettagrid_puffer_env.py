@@ -147,10 +147,7 @@ class MettaGridPufferEnv(PufferEnv):
 
             # Ensure supervisor state is fresh each simulation
             if hasattr(self._env_supervisor, "reset"):
-                try:
-                    self._env_supervisor.reset()
-                except Exception:
-                    logger.exception("Supervisor reset failed; continuing with fresh instance")
+                self._env_supervisor.reset()
 
             self._compute_supervisor_actions()
 
@@ -162,10 +159,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._new_sim()
         # Keep existing supervisor_enabled state (outer trainer owns toggling). If enabled and reset() exists, call it.
         if self._supervisor_enabled and self._env_supervisor is not None and hasattr(self._env_supervisor, "reset"):
-            try:
-                self._env_supervisor.reset()
-            except Exception:
-                logger.exception("Supervisor reset failed during env reset")
+            self._env_supervisor.reset()
 
         return self._buffers.observations, {}
 

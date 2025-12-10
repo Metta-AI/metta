@@ -88,19 +88,8 @@ class SlicedScriptedCloner(Loss):
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
-            teacher_actions = td.get("teacher_actions")
-
-            # If teacher_actions are provided with sentinel -1 for non-supervised rows,
-            # derive masks from them; otherwise fall back to internal sampling.
-            if teacher_actions is not None and teacher_actions.numel() > 0:
-                teacher_mask = teacher_actions >= 0
-                self.teacher_mask = teacher_mask
-                self.stud_mask = torch.zeros_like(teacher_mask)
-                self.ppo_mask = ~teacher_mask
-                self.rollout_batch_size = td.batch_size.numel()
-            else:
-                if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
-                    self._create_slices(td.batch_size.numel())
+            if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
+                self._create_slices(td.batch_size.numel())
 
             # Inject synthetic observation tokens for student-led and teacher-led
             # slices so the student policy can see which regime produced each step.
@@ -249,16 +238,9 @@ class SlicedScriptedCloner(Loss):
         policy_full_log_probs = student_td["full_log_probs"].reshape(sliced_b * sliced_tt, -1)
         teacher_actions = minibatch["teacher_actions"]
 
-        # Guard against invalid teacher actions (e.g., -1 sentinel); skip those rows
-        valid_mask = (teacher_actions >= 0) & (teacher_actions < policy_full_log_probs.shape[-1])
-        if not valid_mask.any():
-            return self._zero_tensor, shared_loss_data, False
-
-        policy_full_log_probs = policy_full_log_probs[valid_mask]
-        teacher_actions = teacher_actions[valid_mask]
-
         # get the student's logprob for the action that the teacher chose
-        student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1)).squeeze(-1)
+        student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1))
+        student_log_probs = student_log_probs.reshape(minibatch.shape[0])
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
         loss = add_dummy_loss_for_unused_params(loss, td=student_td, used_keys=["full_log_probs", "act_log_prob"])
