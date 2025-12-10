@@ -402,7 +402,7 @@ def train(
             ]
         else:
             # Run teacher on a fraction equal to initial lead prob (simple perf knob; loss still anneals)
-            tt.training_env.supervisor_subset_fraction = bc_teacher_lead_prob
+            tt.training_env.supervisor_subset_fraction = None  # full-batch teacher to match supervisor expectations
             losses.supervisor.enabled = True
             losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
             anneal_start = int(bc_total_steps * 0.5)
