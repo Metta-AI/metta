@@ -171,8 +171,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-logs
-          path: |
-            devops/stable/state/*.log
-            devops/stable/state/*.json
-            devops/stable/release-notes/*.md
+          path: devops/stable/state/*/logs/*.log
           retention-days: 30

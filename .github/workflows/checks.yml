@@ -266,7 +266,7 @@ jobs:
           uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
 
   recipe-tests:
-    name: "Tests - Recipes (recipes.validation.ci_suite.py)"
+    name: "Tests - Recipes"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
