@@ -18,6 +18,7 @@
 #include "actions/move.hpp"
 #include "actions/move_config.hpp"
 #include "actions/noop.hpp"
+#include "actions/transfer.hpp"
 #include "config/observation_features.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
@@ -266,6 +267,8 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   for (const auto& action : move->actions()) {
     _action_handlers.push_back(action);
   }
+  // Capture the raw pointer to pass to other handlers
+  Move* move_ptr = move.get();
   _action_handler_impl.push_back(std::move(move));
 
   // Attack
@@ -277,6 +280,18 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
     _action_handlers.push_back(action);
   }
   _action_handler_impl.push_back(std::move(attack));
+
+  // Transfer
+  auto transfer_config = std::static_pointer_cast<const TransferActionConfig>(game_config.actions.at("transfer"));
+  auto transfer = std::make_unique<Transfer>(*transfer_config, &game_config);
+  transfer->init(_grid.get(), &_rng);
+  if (transfer->priority > _max_action_priority) _max_action_priority = transfer->priority;
+  for (const auto& action : transfer->actions()) {
+    _action_handlers.push_back(action);
+  }
+  // Register Transfer handler with Move handler
+  move_ptr->set_transfer_handler(transfer.get());
+  _action_handler_impl.push_back(std::move(transfer));
 
   // ChangeVibe
   auto change_vibe_config =
@@ -999,6 +1014,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_chest_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
+  bind_vibe_transfer_effect(m);
+  bind_transfer_action_config(m);
   bind_change_vibe_action_config(m);
   bind_move_action_config(m);
   bind_global_obs_config(m);
