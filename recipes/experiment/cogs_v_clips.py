@@ -376,7 +376,11 @@ def train(
         losses = tt.trainer.losses
         bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
         if bc_mode == "sliced_cloner":
-            # Keep PPO running; slice proportions control which rows are supervised.
+            # Let the slicer drive sampling during BC so PPO sees only the ppo_mask rows,
+            # then hand sampling back to PPO once BC ends.
+            losses.ppo_critic.sample_enabled = False
+            losses.ppo_critic.train_forward_enabled = False
+            losses.ppo_critic.deferred_training_start_step = bc_total_steps
             losses.sliced_scripted_cloner.enabled = True
             anneal_start = 0
             loss_instance_name = "sliced_scripted_cloner"
@@ -491,6 +495,11 @@ def train_single_mission(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    bc_policy_uri: Optional[str] = None,
+    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
+    bc_steps: Optional[int] = None,
+    bc_teacher_lead_prob: float = 1.0,
+    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
     env = make_training_env(
@@ -507,6 +516,11 @@ def train_single_mission(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        bc_policy_uri=bc_policy_uri,
+        bc_mode=bc_mode,
+        bc_steps=bc_steps,
+        bc_teacher_lead_prob=bc_teacher_lead_prob,
+        maps_cache_size=maps_cache_size,
     )
 
 
