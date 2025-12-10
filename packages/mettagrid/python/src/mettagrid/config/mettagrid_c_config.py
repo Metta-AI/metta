@@ -441,15 +441,35 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Process attack - always add to map
     action_params = process_action_config("attack", actions_config.attack)
-    if actions_config.attack.enabled:
+    attack_cfg = actions_config.attack
+    if attack_cfg.enabled:
         action_params["defense_resources"] = {
-            resource_name_to_id[k]: v for k, v in actions_config.attack.defense_resources.items()
+            resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()
         }
+        action_params["armor_resources"] = {
+            resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()
+        }
+        action_params["weapon_resources"] = {
+            resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()
+        }
+        # Convert loot list from names to IDs if specified
+        if attack_cfg.loot is not None:
+            loot_ids = []
+            for name in attack_cfg.loot:
+                if name not in resource_name_to_id:
+                    raise ValueError(f"Loot resource '{name}' not found in resource_names")
+                loot_ids.append(resource_name_to_id[name])
+            action_params["loot"] = loot_ids
+        else:
+            action_params["loot"] = None
     else:
         action_params["defense_resources"] = {}
-    action_params["enabled"] = actions_config.attack.enabled
+        action_params["armor_resources"] = {}
+        action_params["weapon_resources"] = {}
+        action_params["loot"] = None
+    action_params["enabled"] = attack_cfg.enabled
     # Convert vibes from names to IDs
-    action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in actions_config.attack.vibes if vibe in vibe_name_to_id]
+    action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in attack_cfg.vibes if vibe in vibe_name_to_id]
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
     # Process transfer - vibes are derived from vibe_transfers keys in C++
