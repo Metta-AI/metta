@@ -174,8 +174,16 @@ class PufferPolicy(Policy):
         lstm_input = encoded_obs.unsqueeze(0)
         batch_size = encoded_obs.shape[0]
 
-        # Initialize state if None
-        if self._hidden_state is None or self._cell_state is None or self._hidden_state.shape[1] != batch_size:
+        # Initialize state if None or batch size changed
+        # During training, state is reset at the start of each minibatch via reset_memory(),
+        # so state should be None here. During rollout, state persists across steps.
+        if self._hidden_state is None or self._cell_state is None:
+            device = encoded_obs.device
+            self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
+            self._cell_state = torch.zeros(1, batch_size, 512, device=device)
+        elif self._hidden_state.shape[1] != batch_size:
+            # Batch size changed (e.g., different minibatch size during training)
+            # Reinitialize state for the new batch size
             device = encoded_obs.device
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)
