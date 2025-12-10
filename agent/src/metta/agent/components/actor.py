@@ -227,13 +227,48 @@ class ActorHead(nn.Module):
         self.config = config
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
-        num_actions = int(env.action_space.n)
+        self.num_actions = int(env.action_space.n)
 
         linear = pufferlib.pytorch.layer_init(
-            nn.Linear(self.config.input_dim, num_actions),
+            nn.Linear(self.config.input_dim, self.num_actions),
             std=self.config.layer_init_std,
         )
         self._module = TDM(linear, in_keys=[self.in_key], out_keys=[self.out_key])
+
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        """Pad actor_head weights/bias if checkpoint has fewer actions than env."""
+        weight_key = prefix + "_module.module.weight"
+        bias_key = prefix + "_module.module.bias"
+
+        weight = state_dict.get(weight_key)
+        bias = state_dict.get(bias_key)
+
+        if weight is not None and bias is not None and weight.shape[0] < self.num_actions:
+            pad = self.num_actions - weight.shape[0]
+            # Pad weights with zeros; pad biases with -inf to keep zero prob.
+            weight_pad = torch.zeros(pad, weight.shape[1], dtype=weight.dtype, device=weight.device)
+            bias_pad = torch.full((pad,), -1e9, dtype=bias.dtype, device=bias.device)
+            state_dict[weight_key] = torch.cat([weight, weight_pad], dim=0)
+            state_dict[bias_key] = torch.cat([bias, bias_pad], dim=0)
+
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
 
     def forward(self, td: TensorDict) -> TensorDict:
         return self._module(td)
