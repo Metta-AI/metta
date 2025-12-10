@@ -80,8 +80,7 @@ protected:
     GridObject* target_object = _grid->object_at(target_location);
     assert(target_object && "is_empty returned false but no object at location");
 
-    // Check if target is a frozen agent - allow swapping positions
-    // (check before usable since Agent inherits Usable)
+    // Swap with frozen agents (must check before usable since Agent is Usable)
     Agent* target_agent = dynamic_cast<Agent*>(target_object);
     if (target_agent && target_agent->frozen > 0) {
       bool swapped = _grid->swap_objects(actor, *target_agent);

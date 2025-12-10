@@ -220,18 +220,14 @@ def test_swap_increments_stat(make_sim, adjacent_agents_map):
     assert attack_result["success"], "Attack should succeed"
 
     # Get stats before swap
-    stats_before = sim.agent(0).stats
+    swap_count_before = sim.episode_stats["agent"][0].get("actions.swap", 0)
 
     # Move onto frozen agent (swap)
     move_result = move(sim, Orientation.EAST, agent_idx=0)
     assert move_result["success"], "Swap should succeed"
 
-    # Get stats after swap
-    stats_after = sim.agent(0).stats
-
     # Check that actions.swap was incremented
-    swap_count_before = stats_before.get("actions.swap", 0)
-    swap_count_after = stats_after.get("actions.swap", 0)
+    swap_count_after = sim.episode_stats["agent"][0].get("actions.swap", 0)
     assert swap_count_after == swap_count_before + 1, (
         f"actions.swap should be incremented. Before: {swap_count_before}, After: {swap_count_after}"
     )
