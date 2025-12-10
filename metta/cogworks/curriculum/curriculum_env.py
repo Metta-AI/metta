@@ -80,7 +80,7 @@ class CurriculumEnv(PufferEnv):
         obs, info = self._env.reset(*args, **kwargs)
 
         # Signal task change in info dict for LSTM state reset during rollout
-        if task_changed:
+        if task_changed and isinstance(info, dict):
             info["_task_changed"] = True
 
         # Invalidate stats cache on reset
@@ -120,9 +120,13 @@ class CurriculumEnv(PufferEnv):
 
             # Signal task change in info dict for LSTM state reset during rollout
             if task_changed:
-                # infos is a list of dicts (one per agent), add flag to all
-                for info in infos:
-                    info["_task_changed"] = True
+                # infos can be a list of dicts or a dict, handle both cases
+                if isinstance(infos, list):
+                    for info in infos:
+                        if isinstance(info, dict):
+                            info["_task_changed"] = True
+                elif isinstance(infos, dict):
+                    infos["_task_changed"] = True
 
             # Invalidate stats cache when task changes
             self._stats_cache_valid = False
