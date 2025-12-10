@@ -27,6 +27,7 @@ from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
 from metta.common.tool.recipe_registry import recipe_registry
+from metta.common.tool.schema import get_pydantic_field_info
 from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
 from metta.common.tool.tool_registry import tool_registry
 from metta.common.util.log_config import init_logging, init_mettagrid_system_environment
@@ -188,65 +189,6 @@ def type_parse(value: Any, annotation: Any) -> Any:
         return value
     adapter = TypeAdapter(annotation)
     return adapter.validate_python(value)
-
-
-def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> list[tuple[str, str, Any, bool]]:
-    """Recursively get field information from a Pydantic model.
-    Returns list of (path, type_str, default, required) tuples.
-    """
-    fields_info = []
-
-    for field_name, field in model_class.model_fields.items():
-        field_path = f"{prefix}.{field_name}" if prefix else field_name
-        annotation = field.annotation
-
-        # Get the origin type if it's a generic
-        origin = getattr(annotation, "__origin__", None)
-
-        # Handle Optional types
-        if origin is type(None):
-            actual_type = annotation
-        elif hasattr(annotation, "__args__"):
-            # For Optional[X], Union[X, None], etc.
-            args = getattr(annotation, "__args__", ())
-            non_none_types = [arg for arg in args if arg is not type(None)]
-            if non_none_types:
-                actual_type = non_none_types[0] if len(non_none_types) == 1 else annotation
-            else:
-                actual_type = annotation
-        else:
-            actual_type = annotation
-
-        # Check if it's a nested Pydantic model
-        try:
-            if inspect.isclass(actual_type) and issubclass(actual_type, BaseModel):
-                # Add the parent field first (before nested fields for better ordering)
-                type_name = actual_type.__name__
-                # Don't show the full default object representation for complex models
-                if field.default is not None and not callable(field.default):
-                    default_val = f"<{type_name} instance>"
-                else:
-                    default_val = field.default_factory if field.default_factory else None
-                is_required = field.is_required() if hasattr(field, "is_required") else (default_val is None)
-                fields_info.append((field_path, type_name, default_val, is_required))
-
-                # Then recursively get nested fields
-                nested_fields = get_pydantic_field_info(actual_type, field_path)
-                fields_info.extend(nested_fields)
-            else:
-                # Regular field
-                type_name = getattr(actual_type, "__name__", str(actual_type))
-                default_val = field.default if field.default is not None else field.default_factory
-                is_required = field.is_required() if hasattr(field, "is_required") else (default_val is None)
-                fields_info.append((field_path, type_name, default_val, is_required))
-        except (TypeError, AttributeError):
-            # For complex types that can't be inspected
-            type_name = str(annotation).replace("typing.", "")
-            default_val = field.default if field.default is not None else field.default_factory
-            is_required = field.is_required() if hasattr(field, "is_required") else (default_val is None)
-            fields_info.append((field_path, type_name, default_val, is_required))
-
-    return fields_info
 
 
 def list_tool_arguments(tool_maker: Any, console: Console) -> None:
