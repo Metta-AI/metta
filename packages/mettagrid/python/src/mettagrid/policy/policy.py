@@ -17,6 +17,10 @@ from mettagrid.simulator import Action, AgentObservation, Simulation
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
 
+class PolicyDescriptor(BaseModel):
+    name: str
+    is_scripted: bool
+
 
 class AgentPolicy:
     """Base class for per-agent policies.
@@ -26,12 +30,17 @@ class AgentPolicy:
     This is what play.py and evaluation code use directly.
     """
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: PolicyEnvInterface, policy_descriptor: Optional[PolicyDescriptor] = None):
         self._policy_env_info = policy_env_info
+        self._policy_descriptor = policy_descriptor or PolicyDescriptor(name="unknown", is_scripted=True)
 
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
         return self._policy_env_info
+
+    @property
+    def policy_descriptor(self) -> PolicyDescriptor:
+        return self._policy_descriptor
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action given an observation.
@@ -64,14 +73,27 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     short_names: list[str] | None = None
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, **kwargs: Any):
+    def __init__(
+    self,
+    policy_env_info: PolicyEnvInterface,
+    policy_name: Optional[str] = None,
+    is_scripted: bool = True,
+    **kwargs: Any,
+    ):
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
+        if policy_name is None:
+            policy_name = self.short_names[0] if self.short_names else self.__class__.__name__
+        self._policy_descriptor = PolicyDescriptor(name=policy_name, is_scripted=is_scripted)
 
     @abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Get an AgentPolicy instance for a specific agent."""
-        ...
+
+    @property
+    def policy_descriptor(self) -> PolicyDescriptor:
+        return self._policy_descriptor
+
 
     def load_policy_data(self, policy_data_path: str) -> None:
         """Load policy data from a file.
@@ -230,6 +252,7 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         base_policy: "StatefulPolicyImpl[StateType]",
         policy_env_info: PolicyEnvInterface,
         agent_id: Optional[int] = None,
+        policy_descriptor: Optional[PolicyDescriptor] = None,
     ):
         """Initialize stateful wrapper.
 
@@ -237,7 +260,7 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
             base_policy: The underlying stateful policy implementation
             policy_env_info: The policy environment information
         """
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, policy_descriptor)
         self._base_policy = base_policy
         self._state: Optional[StateType] = None
         self._agent_id = agent_id
