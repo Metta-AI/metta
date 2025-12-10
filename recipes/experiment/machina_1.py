@@ -6,6 +6,7 @@ from typing import Optional, Sequence
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
+from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -20,7 +21,6 @@ from recipes.experiment.cogs_v_clips import (
     make_training_env,
     train_single_mission,
 )
-from metta.rl.training.teacher import TeacherConfig
 
 FULL_VIBE_NAMES: list[str] = [vibe.name for vibe in vibes.VIBES]
 
