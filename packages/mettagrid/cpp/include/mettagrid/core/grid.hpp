@@ -82,6 +82,17 @@ public:
     return true;
   }
 
+  inline bool swap_objects(GridObject& obj1, GridObject& obj2) {
+    GridLocation loc1 = obj1.location;
+    GridLocation loc2 = obj2.location;
+
+    grid[loc1.r][loc1.c] = &obj2;
+    grid[loc2.r][loc2.c] = &obj1;
+    obj1.location = loc2;
+    obj2.location = loc1;
+    return true;
+  }
+
   inline GridObject* object(GridObjectId obj_id) const {
     assert(obj_id < objects.size() && "Invalid object ID");
     return objects[obj_id].get();
