@@ -18,11 +18,7 @@ if [ ! -d "${REPO_DIR}/.git" ]; then
 
   echo "[SETUP] Cloning ${GITHUB_REPOSITORY} into ${REPO_DIR}..."
   cd /workspace
-  if [ -n "${GITHUB_PAT:-}" ]; then
-    git clone "https://${GITHUB_PAT}@github.com/${GITHUB_REPOSITORY}.git" metta
-  else
-    git clone "https://github.com/${GITHUB_REPOSITORY}.git" metta
-  fi
+  git clone "https://github.com/${GITHUB_REPOSITORY}.git" metta
 fi
 
 cd "${REPO_DIR}"
