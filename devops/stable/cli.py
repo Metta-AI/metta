@@ -2,9 +2,9 @@
 """Stable release validation CLI.
 
 Usage:
-    ./stable.py release                    # Run full validation
-    ./stable.py release --version=v1.0.0   # Use specific version
-    ./stable.py --job arena                # Filter jobs by name
+    ./cli.py                         # Run full validation
+    ./cli.py --version=v1.0.0        # Use specific version
+    ./cli.py --job arena             # Filter jobs by name
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import typer
 from devops.stable.runner import Runner, print_summary
 from devops.stable.suite import get_all_jobs
 
-app = typer.Typer(add_completion=False)
+app = typer.Typer(add_completion=False, invoke_without_command=True)
 
 
 def get_state_dir(version: str) -> Path:
@@ -88,7 +88,7 @@ def write_discord_summary(runner: Runner, state_dir: Path) -> None:
     (state_dir / "discord_summary.txt").write_text("\n".join(lines))
 
 
-@app.command()
+@app.callback()
 def release(
     version: str = typer.Option(None, help="Version string (default: timestamp)"),
     job: str = typer.Option(None, help="Filter jobs by name pattern"),
