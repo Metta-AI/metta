@@ -122,16 +122,6 @@ class MettaGridPufferEnv(PufferEnv):
 
     def get_episode_rewards(self) -> np.ndarray:
         episode_rewards = cast(Simulation, self._sim).episode_rewards
-        # DEBUG: Log when episode rewards are retrieved
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.warning(
-            f"[REWARD_DEBUG] get_episode_rewards() called - "
-            f"returning: {episode_rewards}, "
-            f"sum: {episode_rewards.sum():.4f}, "
-            f"current_step: {self._sim.current_step}"
-        )
         return episode_rewards
 
     @property
@@ -165,18 +155,9 @@ class MettaGridPufferEnv(PufferEnv):
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
         sim = cast(Simulation, self._sim)
 
-        # DEBUG: Check if we're resetting before reading rewards
+        # Check if episode is done and reset if needed
         was_done = sim._c_sim.terminals().all() or sim._c_sim.truncations().all()
         if was_done:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            pre_reset_episode_rewards = sim._c_sim.get_episode_rewards()
-            logger.warning(
-                f"[REWARD_DEBUG] Episode was done, about to reset - "
-                f"episode_rewards before reset: {pre_reset_episode_rewards}, "
-                f"sum: {pre_reset_episode_rewards.sum():.4f}"
-            )
             self._new_sim()
             sim = cast(Simulation, self._sim)
 
@@ -186,17 +167,6 @@ class MettaGridPufferEnv(PufferEnv):
         np.copyto(self._buffers.actions, actions_to_copy, casting="safe")
 
         sim.step()
-
-        # DEBUG: Log step rewards
-        step_rewards = self._buffers.rewards
-        if step_rewards.sum() != 0:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                f"[REWARD_DEBUG] Step rewards: {step_rewards}, sum: {step_rewards.sum():.4f}, "
-                f"current_step: {sim.current_step}"
-            )
 
         # Do this after step() so that the trainer can use it if needed
         if self._supervisor_policy_spec is not None:

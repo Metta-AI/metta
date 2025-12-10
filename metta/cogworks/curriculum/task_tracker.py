@@ -269,16 +269,6 @@ class TaskTracker:
             scorer: BidirectionalLPScorer instance (optional, for bidirectional EMAs)
             success_threshold: Success threshold for binary classification
         """
-        # DEBUG: Log score updates
-        import logging
-
-        logger = logging.getLogger(__name__)
-        if score == 0.0:
-            logger.warning(
-                f"[REWARD_DEBUG] TaskTracker: update_task_performance_with_bidirectional_emas - "
-                f"task_id: {task_id}, score: {score:.4f} (ZERO!)"
-            )
-
         # Create task if needed (outside the main lock to avoid deadlock)
         if task_id not in self._task_id_to_index:
             self.track_task_creation(task_id, success_threshold=success_threshold or 0.5)
