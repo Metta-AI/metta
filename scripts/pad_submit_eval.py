@@ -59,7 +59,7 @@ def _find_latest_mpt_key(s3, run: str) -> str:
         if not key.endswith(".mpt"):
             continue
         # Expect ...:v<number>.mpt
-        match = re.search(r":v(\\d+)\\.mpt$", key)
+        match = re.search(r":v(\d+)\.mpt$", key)
         if not match:
             continue
         v = int(match.group(1))
