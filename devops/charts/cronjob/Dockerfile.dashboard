@@ -1,10 +1,15 @@
 FROM python:3.12-slim
 
-# Install system dependencies (minimal + C++ compiler)
+# Install system dependencies (minimal + C++ compiler + Bazel)
 RUN apt-get update && apt-get install -y \
     git \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Bazel via bazelisk (required for mettagrid C++ compilation)
+RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    && chmod +x /usr/local/bin/bazel
 
 WORKDIR /app
 COPY . .
