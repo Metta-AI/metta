@@ -466,6 +466,7 @@ def cmd_publish(
     ] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview actions without tagging")] = False,
     no_repo: Annotated[bool, typer.Option("--no-repo", help="Don't push the github repo")] = False,
+    repo_only: Annotated[bool, typer.Option("--repo-only", help="Only push to child repo, skip tagging")] = False,
     remote: Annotated[str, typer.Option("--remote", help="Git remote to push the tag to")] = "origin",
     force: Annotated[bool, typer.Option("--force", help="Bypass branch and clean checks")] = False,
 ):
@@ -473,6 +474,16 @@ def cmd_publish(
     if package not in _get_all_package_names():
         error(f"Unsupported package '{package}'. Supported packages: {', '.join(sorted(_get_all_package_names()))}.")
         raise typer.Exit(1)
+
+    if repo_only:
+        info(f"Pushing {package} to child repo (--repo-only, skipping tag creation)...")
+        try:
+            subprocess.run([f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"], check=True)
+            success(f"Pushed {package} to child repo.")
+        except subprocess.CalledProcessError as exc:
+            error(f"Failed to push child repo: {exc}")
+            raise typer.Exit(exc.returncode) from exc
+        return
 
     prefix = f"{package}-v"
     try:
@@ -584,6 +595,7 @@ def cmd_publish(
             version_override=None,
             dry_run=False,
             no_repo=no_repo,
+            repo_only=False,
             remote=remote,
             force=force,
         )
