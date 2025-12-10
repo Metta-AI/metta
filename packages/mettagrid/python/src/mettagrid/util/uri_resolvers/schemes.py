@@ -232,16 +232,13 @@ def parse_uri(uri: str, allow_none: bool = False, **kwargs) -> ParsedScheme | No
     return resolver.parse(uri)
 
 
-def resolve_uri(uri: str) -> str:
-    """Resolve a URI to its canonical form, finding :latest checkpoints if needed.
-
-    Returns a URI string (e.g., "s3://bucket/key" or "file:///path").
-    Use parse_uri() on the result to extract components like local_path.
-    """
+def resolve_uri(uri: str) -> ParsedScheme:
+    """Resolve a URI to its canonical form, finding :latest checkpoints if needed."""
     resolver = _get_resolver(uri)
     if not resolver:
         raise ValueError("Unsupported URI")
-    return resolver.get_path_to_policy_spec_or_mpt(uri)
+    resolved_uri_str = resolver.get_path_to_policy_spec_or_mpt(uri)
+    return parse_uri(resolved_uri_str, allow_none=False)
 
 
 def checkpoint_filename(run_name: str, epoch: int) -> str:
@@ -249,12 +246,11 @@ def checkpoint_filename(run_name: str, epoch: int) -> str:
 
 
 def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
-    resolved = resolve_uri(uri)
-    parsed = parse_uri(resolved, allow_none=False)
+    parsed = resolve_uri(uri)
     info = parsed.checkpoint_info
     if not info:
         raise ValueError(f"Could not extract checkpoint metadata from {uri}")
-    return CheckpointMetadata(run_name=info[0], epoch=info[1], uri=resolved)
+    return CheckpointMetadata(run_name=info[0], epoch=info[1], uri=parsed.canonical)
 
 
 def policy_spec_from_uri(
@@ -263,24 +259,25 @@ def policy_spec_from_uri(
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
 
-    resolved_uri = resolve_uri(uri)
-    parsed = parse_uri(resolved_uri, allow_none=False)
-    if parsed.local_path:
-        path_to_spec = str(parsed.local_path)
-    else:
-        path_to_spec = resolved_uri
-    if path_to_spec.endswith(".mpt"):
+    parsed = resolve_uri(uri)
+
+    if parsed.canonical.endswith(".mpt"):
+        checkpoint_path = str(parsed.local_path) if parsed.local_path else parsed.canonical
         return PolicySpec(
             class_path="mettagrid.policy.mpt_policy.MptPolicy",
             init_kwargs={
-                "checkpoint_uri": path_to_spec,
+                "checkpoint_uri": checkpoint_path,
                 "device": device,
                 "strict": strict,
             },
         )
-    if path_to_spec.startswith("s3://"):
+
+    if parsed.scheme == "s3":
         return load_policy_spec_from_s3(
-            path_to_spec, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
+            parsed.canonical, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
         )
-    else:
-        return load_policy_spec_from_local_dir(Path(path_to_spec), device=device)
+
+    if parsed.local_path:
+        return load_policy_spec_from_local_dir(parsed.local_path, device=device)
+
+    raise ValueError(f"Cannot load policy spec from URI: {uri}")

@@ -118,4 +118,4 @@ class MettaSchemeResolver(SchemeResolver):
         if not mpt_file_path.endswith(".mpt"):
             raise ValueError(f"Invalid mpt file path: {mpt_file_path}")
         logger.info(f"Metta scheme resolver: {uri} resolved to mpt checkpoint: {mpt_file_path}")
-        return resolve_uri(mpt_file_path)
+        return resolve_uri(mpt_file_path).canonical
