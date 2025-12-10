@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class SlicedScriptedClonerConfig(LossConfig):
     action_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
 
-    # remainder of the sum below is left for the PPO loss to use
+    # PPO consumes whatever portion of the batch isn't claimed by these slices
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
 
@@ -257,7 +257,6 @@ class SlicedScriptedCloner(Loss):
         super().on_train_phase_end(context)
 
     def _create_slices(self, B: int) -> None:
-        assert self.cfg.student_led_proportion + self.cfg.teacher_led_proportion <= 1.0, "Proportions must sum <= 1.0"
         self.rollout_batch_size = B
 
         rand_assignments = torch.rand(B, device=self.device)

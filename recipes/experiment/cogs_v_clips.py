@@ -321,7 +321,7 @@ def train(
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
     bc_policy_uri: Optional[str] = None,
-    bc_teacher_lead_prob: float = 1.0,
+    bc_teacher_led_proportion: float = 1.0,
     bc_steps: Optional[int] = None,
     bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
     use_lp: bool = True,
@@ -398,7 +398,7 @@ def train(
             ]
         else:
             losses.supervisor.enabled = True
-            losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
+            losses.supervisor.teacher_led_proportion = bc_teacher_led_proportion
             anneal_start = int(bc_total_steps * 0.5)
             loss_instance_name = "supervisor"
             bc_rules = [
@@ -414,10 +414,10 @@ def train(
                 ),
                 HyperUpdateRule(
                     loss_instance_name="supervisor",
-                    attr_path="teacher_lead_prob",
+                    attr_path="teacher_led_proportion",
                     mode="progress",
                     style="linear",
-                    start_value=bc_teacher_lead_prob,
+                    start_value=bc_teacher_led_proportion,
                     end_value=0.0,
                     start_agent_step=anneal_start,
                     end_agent_step=bc_total_steps,
@@ -498,7 +498,7 @@ def train_single_mission(
     bc_policy_uri: Optional[str] = None,
     bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
     bc_steps: Optional[int] = None,
-    bc_teacher_lead_prob: float = 1.0,
+    bc_teacher_led_proportion: float = 1.0,
     maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
@@ -519,7 +519,7 @@ def train_single_mission(
         bc_policy_uri=bc_policy_uri,
         bc_mode=bc_mode,
         bc_steps=bc_steps,
-        bc_teacher_lead_prob=bc_teacher_lead_prob,
+        bc_teacher_led_proportion=bc_teacher_led_proportion,
         maps_cache_size=maps_cache_size,
     )
 

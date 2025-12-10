@@ -45,7 +45,7 @@ def train(
     bc_policy_uri: str | None = None,
     bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
     bc_steps: int | None = None,
-    bc_teacher_lead_prob: float = 1.0,
+    bc_teacher_led_proportion: float = 1.0,
     maps_cache_size: int = 30,
 ) -> TrainTool:
     """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
@@ -59,7 +59,7 @@ def train(
         bc_policy_uri=bc_policy_uri,
         bc_mode=bc_mode,
         bc_steps=bc_steps,
-        bc_teacher_lead_prob=bc_teacher_lead_prob,
+        bc_teacher_led_proportion=bc_teacher_led_proportion,
         maps_cache_size=maps_cache_size,
     )
 
@@ -92,7 +92,7 @@ def train_sweep(
     bc_policy_uri: str | None = None,
     bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
     bc_steps: int | None = None,
-    bc_teacher_lead_prob: float = 1.0,
+    bc_teacher_led_proportion: float = 1.0,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
 
@@ -111,7 +111,7 @@ def train_sweep(
         bc_policy_uri=bc_policy_uri,
         bc_mode=bc_mode,
         bc_steps=bc_steps,
-        bc_teacher_lead_prob=bc_teacher_lead_prob,
+        bc_teacher_led_proportion=bc_teacher_led_proportion,
     )
 
 
