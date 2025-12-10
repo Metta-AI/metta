@@ -2,15 +2,18 @@ import clsx from 'clsx'
 import { FC, Fragment, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import type { components } from '../api-types'
 import { TaskBadge } from '../components/TaskBadge'
-import { EvalTask, PublicPolicyVersionRow, Repo, TaskAttempt } from '../repo'
+import { Repo } from '../repo'
 import { formatDate, formatDurationBetween } from '../utils/datetime'
 import { parsePolicyVersionId } from './TasksTable'
 
+type Schemas = components['schemas']
+
 type DatadogLogsParams = {
-  assignee: string | null
-  assigned_at: string | null
-  finished_at: string | null
+  assignee?: string | null
+  assigned_at?: string | null
+  finished_at?: string | null
 }
 
 const getDatadogLogsUrl = (params: DatadogLogsParams): string | null => {
@@ -45,9 +48,9 @@ const getDatadogLogsUrl = (params: DatadogLogsParams): string | null => {
 }
 
 type TaskRowProps = {
-  task: EvalTask
+  task: Schemas['EvalTaskRow']
   repo: Repo
-  policyInfoMap: Record<string, PublicPolicyVersionRow>
+  policyInfoMap: Record<string, Schemas['PublicPolicyVersionRow']>
   attemptedPolicyIds: Set<string>
 }
 
@@ -73,7 +76,7 @@ export const TaskRow: FC<TaskRowProps> = ({ task, repo, policyInfoMap, attempted
   const [isExpanded, setIsExpanded] = useState(false)
 
   // UI state
-  const [attempts, setAttempts] = useState<TaskAttempt[]>([])
+  const [attempts, setAttempts] = useState<Schemas['TaskAttemptRow'][]>([])
   const [isLoadingAttempts, setIsLoadingAttempts] = useState(false)
 
   const toggleTaskExpansion = async () => {

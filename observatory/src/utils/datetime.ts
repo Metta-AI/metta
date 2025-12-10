@@ -1,4 +1,4 @@
-export const parseDatetime = (value: string | null): Date | null => {
+export const parseDatetime = (value: string | null | undefined): Date | null => {
   if (!value) {
     return null
   }
@@ -48,7 +48,10 @@ export const formatRelativeTime = (value: string | null): string => {
   return `${diffYears}y ago`
 }
 
-export const formatDurationBetween = (from: string | null, to: string | null): string | null => {
+export const formatDurationBetween = (
+  from: string | null | undefined,
+  to: string | null | undefined
+): string | null => {
   const fromDate = parseDatetime(from)
   const toDate = parseDatetime(to)
   if (!fromDate || !toDate) return null

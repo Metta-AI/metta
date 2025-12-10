@@ -235,6 +235,28 @@ def _run_cleanup_cancelled_runs(*, verbose: bool = False, extra_args: Sequence[s
     return CheckResult("Cleanup Cancelled Runs", passed)
 
 
+def _run_api_codegen_sync(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
+    """Check that generated API clients are in sync with the OpenAPI spec."""
+    _ensure_no_extra_args("api-codegen-sync", extra_args)
+    _print_header("API Codegen Sync Check")
+
+    cmd = ["uv", "run", "metta", "api-codegen", "generate"]
+    passed = _run_command(cmd, "Generate API clients", verbose=verbose)
+    if not passed:
+        return CheckResult("API Codegen Sync", False)
+
+    import subprocess
+
+    result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, cwd=get_repo_root())
+    if result.stdout.strip():
+        error("Generated API clients are out of sync. Run 'metta api-codegen generate' and commit the changes.")
+        info(f"Changed files:\n{result.stdout}")
+        return CheckResult("API Codegen Sync", False)
+
+    success("Generated API clients are in sync")
+    return CheckResult("API Codegen Sync", True)
+
+
 def _run_recipe_tests(
     *, verbose: bool = False, name_filter: str | None = None, no_interactive: bool = False, max_local_jobs: int = 2
 ) -> CheckResult:
@@ -325,6 +347,7 @@ stages: dict[str, StageRunner] = {
     "nim-tests": lambda v, args, name, _: _run_nim_tests(verbose=v, extra_args=args),
     "recipe-tests": lambda v, args, name, ni: _run_recipe_tests(verbose=v, name_filter=name, no_interactive=ni),
     "cleanup-cancelled-runs": lambda v, args, name, _: _run_cleanup_cancelled_runs(verbose=v, extra_args=args),
+    "api-codegen-sync": lambda v, args, name, _: _run_api_codegen_sync(verbose=v, extra_args=args),
 }
 
 # Stages that run by default when `metta ci` is called without --stage

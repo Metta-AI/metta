@@ -1,8 +1,11 @@
 import clsx from 'clsx'
 import { FC } from 'react'
 
-import { EvalTask, TaskAttempt, TaskStatus } from '../repo'
+import type { components } from '../api-types'
 import { Tooltip } from './Tooltip'
+
+type Schemas = components['schemas']
+type TaskStatus = Schemas['EvalTaskRow']['status']
 
 function getStatusColor(status: TaskStatus) {
   switch (status) {
@@ -22,11 +25,11 @@ function getStatusColor(status: TaskStatus) {
   }
 }
 
-export const TaskBadge: FC<{ task: EvalTask | TaskAttempt; size?: 'small' | 'medium' }> = ({
+export const TaskBadge: FC<{ task: Schemas['EvalTaskRow'] | Schemas['TaskAttemptRow']; size?: 'small' | 'medium' }> = ({
   task,
   size = 'medium',
 }) => {
-  const errorReason = task.status_details?.error_reason
+  const errorReason = task.status_details?.error_reason as string | undefined
   const result = (
     <span
       className={clsx(

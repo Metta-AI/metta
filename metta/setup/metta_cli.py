@@ -23,6 +23,7 @@ from metta.common.util.fs import get_repo_root
 from metta.common.util.log_config import init_logging
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
+from metta.setup.tools.api_codegen import app as api_codegen_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.tools.ci_runner import cmd_ci
 from metta.setup.tools.clean import cmd_clean
@@ -820,6 +821,7 @@ app.command(
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True, "allow_interspersed_args": False},
 )(cmd_ci)
 app.add_typer(code_formatters_app, name="lint")
+app.add_typer(api_codegen_app, name="api-codegen", help="Generate API clients from OpenAPI spec.")
 
 
 def main() -> None:

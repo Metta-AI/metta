@@ -1,14 +1,16 @@
 import { FC, useContext, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import type { components } from './api-types'
 import { AppContext } from './AppContext'
 import { CopyableUri } from './components/CopyableUri'
 import { ReplayViewer, normalizeReplayUrl } from './components/ReplayViewer'
 import { LEADERBOARD_SIM_NAME_EPISODE_KEY } from './constants'
 import { TasksTable } from './EvalTasks/TasksTable'
-import type { EpisodeWithTags, LeaderboardPolicyEntry, PolicyVersionWithName } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
 import { formatPolicyVersion } from './utils/format'
+
+type Schemas = components['schemas']
 
 type LoadState<T> = {
   data: T
@@ -33,15 +35,15 @@ export const PolicyVersionPage: FC = () => {
   const { policyVersionId } = useParams<{ policyVersionId: string }>()
   const { repo } = useContext(AppContext)
 
-  const [policyState, setPolicyState] = useState<LoadState<LeaderboardPolicyEntry | null>>(() =>
-    createInitialState<LeaderboardPolicyEntry | null>(null)
+  const [policyState, setPolicyState] = useState<LoadState<Schemas['LeaderboardPolicyEntry'] | null>>(() =>
+    createInitialState<Schemas['LeaderboardPolicyEntry'] | null>(null)
   )
-  const [policyVersionInfo, setPolicyVersionInfo] = useState<LoadState<PolicyVersionWithName | null>>(() =>
-    createInitialState<PolicyVersionWithName | null>(null)
+  const [policyVersionInfo, setPolicyVersionInfo] = useState<LoadState<Schemas['PolicyVersionWithName'] | null>>(() =>
+    createInitialState<Schemas['PolicyVersionWithName'] | null>(null)
   )
   const [taskError, setTaskError] = useState<string | null>(null)
-  const [episodesState, setEpisodesState] = useState<LoadState<EpisodeWithTags[]>>(() =>
-    createInitialState<EpisodeWithTags[]>([])
+  const [episodesState, setEpisodesState] = useState<LoadState<Schemas['EpisodeWithTags'][]>>(() =>
+    createInitialState<Schemas['EpisodeWithTags'][]>([])
   )
   const [episodeReplayPreview, setEpisodeReplayPreview] = useState<{ url: string; label: string } | null>(null)
 
@@ -140,17 +142,17 @@ export const PolicyVersionPage: FC = () => {
     document.title = policyDisplay ? `${policyDisplay} | Observatory` : 'Policy Version | Observatory'
   }, [policyDisplay])
 
-  const getPolicyAvgReward = (episode: EpisodeWithTags): number | undefined => {
-    if (policyVersionId && episode.avg_rewards[policyVersionId] !== undefined) {
+  const getPolicyAvgReward = (episode: Schemas['EpisodeWithTags']): number | undefined => {
+    if (policyVersionId && episode.avg_rewards?.[policyVersionId] !== undefined) {
       return episode.avg_rewards[policyVersionId]
     }
-    if (episode.primary_pv_id && episode.avg_rewards[episode.primary_pv_id] !== undefined) {
+    if (episode.primary_pv_id && episode.avg_rewards?.[episode.primary_pv_id] !== undefined) {
       return episode.avg_rewards[episode.primary_pv_id]
     }
     return undefined
   }
 
-  const getLeaderboardTagDisplay = (episode: EpisodeWithTags): { value: string; tooltip: string } => {
+  const getLeaderboardTagDisplay = (episode: Schemas['EpisodeWithTags']): { value: string; tooltip: string } => {
     const tags = episode.tags || {}
     const leaderboardValue = tags[LEADERBOARD_SIM_NAME_EPISODE_KEY] ?? '—'
     const otherTags = Object.entries(tags).filter(([key]) => key !== LEADERBOARD_SIM_NAME_EPISODE_KEY)
@@ -159,7 +161,7 @@ export const PolicyVersionPage: FC = () => {
     return { value: leaderboardValue, tooltip }
   }
 
-  const toggleEpisodeReplayPreview = (episode: EpisodeWithTags) => {
+  const toggleEpisodeReplayPreview = (episode: Schemas['EpisodeWithTags']) => {
     const normalized = normalizeReplayUrl(episode.replay_url)
     if (!normalized) {
       return
