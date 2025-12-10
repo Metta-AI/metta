@@ -77,10 +77,10 @@ action = agent.step(obs[0])
 
 ```bash
 # Single agent
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 1
+uv run cogames play --mission evals.diagnostic_radial -p scripted_baseline --cogs 1
 
 # Multi-agent
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 4
+uv run cogames play --mission evals.diagnostic_radial -p scripted_baseline --cogs 4
 ```
 
 ### 2. UnclippingAgent
@@ -120,11 +120,11 @@ policy = UnclippingPolicy(env)
 **CLI**:
 
 ```bash
-# Test with clipped oxygen (single agent)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 1
+# Test with unclipping diagnostic (single agent)
+uv run cogames play --mission evals.diagnostic_unclip_craft -p scripted_unclipping --cogs 1
 
-# Test with clipped oxygen (multi-agent)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 4
+# Test with unclipping diagnostic (multi-agent)
+uv run cogames play --mission evals.diagnostic_unclip_craft -p scripted_unclipping --cogs 2
 ```
 
 ### 3. StarterAgent
@@ -141,7 +141,7 @@ uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --va
 **Usage (good README snippet)**:
 
 ```bash
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_starter --steps 600 --cogs 1
+uv run cogames play --mission evals.diagnostic_radial -p scripted_starter --steps 600 --cogs 1
 ```
 
 **Why it exists**: Shows the simplest possible if/else controller that still completes missions, ideal for external
@@ -196,54 +196,44 @@ class ExtractorInfo:
 
 ### Quick Tests
 
-#### BaselineAgent (Non-Clipping)
+#### BaselineAgent (Diagnostic Missions)
 
 ```bash
-# Default difficulty (single agent)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 1 --steps 1000
+# Basic diagnostic (single agent)
+uv run cogames play --mission evals.diagnostic_radial -p scripted_baseline --cogs 1 --steps 1000
 
-# Story mode (easy)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --variant story_mode --cogs 1 --steps 1000
+# Chest navigation
+uv run cogames play --mission evals.diagnostic_chest_navigation1 -p scripted_baseline --cogs 1 --steps 1000
 
-# Standard difficulty
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --variant standard --cogs 1 --steps 1500
+# Resource extraction
+uv run cogames play --mission evals.diagnostic_extract_missing_oxygen -p scripted_baseline --cogs 1 --steps 1000
 
-# Hard difficulty
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --variant hard --cogs 1 --steps 2000
+# Hard version
+uv run cogames play --mission evals.diagnostic_radial_hard -p scripted_baseline --cogs 1 --steps 2000
 
-# Multi-agent (2, 4, 8 agents)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 2 --steps 1500
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 4 --steps 2000
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 8 --steps 2500
+# Multi-agent (2, 4 agents)
+uv run cogames play --mission evals.diagnostic_radial -p scripted_baseline --cogs 2 --steps 1500
+uv run cogames play --mission evals.diagnostic_radial -p scripted_baseline --cogs 4 --steps 2000
 
-# Different mission
-uv run cogames play --mission evals.oxygen_bottleneck -p scripted_baseline --cogs 1 --steps 1000
+# Assembly test
+uv run cogames play --mission evals.diagnostic_assembler_search -p scripted_baseline --cogs 1 --steps 1000
 ```
 
-#### UnclippingAgent (Clipping Variants)
+#### UnclippingAgent (Unclipping Diagnostics)
 
 ```bash
-# Clipped oxygen (single agent)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 1 --steps 2000
+# Unclipping craft diagnostic
+uv run cogames play --mission evals.diagnostic_unclip_craft -p scripted_unclipping --cogs 1 --steps 2000
 
-# Clipped carbon
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_carbon --cogs 1 --steps 2000
+# Unclipping with pre-seeded inventory
+uv run cogames play --mission evals.diagnostic_unclip_preseed -p scripted_unclipping --cogs 1 --steps 2000
 
-# Clipped germanium
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_germanium --cogs 1 --steps 2000
+# Multi-agent unclipping
+uv run cogames play --mission evals.diagnostic_unclip_craft -p scripted_unclipping --cogs 2 --steps 2000
 
-# Clipped silicon
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_silicon --cogs 1 --steps 2000
-
-# Hard + clipped oxygen (combined difficulty)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant hard_clipped_oxygen --cogs 1 --steps 3000
-
-# Clipping chaos (random clipping)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipping_chaos --cogs 1 --steps 2000
-
-# Multi-agent with clipping
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 2 --steps 2000
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --variant clipped_oxygen --cogs 4 --steps 2500
+# Note: For testing clipping variants on procedural maps, use training_facility or hello_world sites
+# Example with variants:
+uv run cogames play --mission training_facility.harvest --variant clip_hub_stations --cogs 1 --steps 2000
 ```
 
 ### Comprehensive Evaluation

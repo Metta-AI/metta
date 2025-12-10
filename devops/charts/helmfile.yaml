@@ -20,7 +20,6 @@ templates:
     version: 0.1.0
     namespace: monitoring
 
-
 releases:
   ########## System configurations ##########
   - name: system
@@ -95,7 +94,8 @@ releases:
 
   - name: prometheus
     chart: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
-    version: 75.15.1
+    version: 80.2.0
+    disableValidation: true
     namespace: monitoring
     values:
       - ./helm.values/prometheus-values.yaml
@@ -158,11 +158,6 @@ releases:
         args: ["create", "namespace", "home", "--dry-run=client"]
   # Note: Observatory is deployed automatically by Github Actions.
 
-  - name: library
-    chart: ./library
-    version: 0.1.0
-    namespace: library
-
   ########## Cronjobs ##########
   # Shared cronjob template for all periodic tasks
   # All cronjobs get broad read-only cluster permissions (see cronjob/templates/rbac.yaml).
@@ -182,76 +177,11 @@ releases:
   - name: pr-similarity-cache-cronjob
     <<: *cronjob_template
     values:
-      - schedule: "0 0 * * *"  # Daily at midnight
+      - schedule: "0 0 * * *" # Daily at midnight
       - image:
-          tag: latest-pr-similarity  # Workflow overrides with sha-abc123-pr-similarity
+          tag: latest-pr-similarity # Workflow overrides with sha-abc123-pr-similarity
       - datadog:
           service: pr-similarity-cache-refresh
-
-  - name: dashboard-cronjob
-    <<: *cronjob_template
-    values:
-      - schedule: "*/10 * * * *"  # Every 10 minutes
-      - image:
-          tag: latest-dashboard  # Workflow overrides with sha-abc123-dashboard
-      - datadog:
-          service: dashboard-collector
-      - command:
-          - python
-          - -m
-          - devops.datadog.cli
-      - args:
-          - collect
-          - ci
-          - --push
-      - extraEnv:
-          # Workflow IDs for CI checks (per Nishad's plan)
-          # 163901189 = "Test and Benchmark"
-          # 159707309 = "Python"
-          # 159704559 = "C++"
-          # 159541672 = Benchmark workflow
-          - name: CI_TESTS_BLOCKING_MERGE_WORKFLOWS
-            value: "163901189,159707309,159704559"
-          - name: CI_BENCHMARKS_WORKFLOWS
-            value: "159541672"
-
-  # DISABLED: These CronJobs are obsolete - training/eval metrics are now collected
-  # via stable_suite integration in the main dashboard-cronjob.
-  # They were causing crash loops and alert noise.
-  #
-  # - name: training-health-cronjob
-  #   <<: *cronjob_template
-  #   values:
-  #     - schedule: "0 * * * *"  # Hourly
-  #     - image:
-  #         tag: latest-dashboard
-  #     - datadog:
-  #         service: training-health-collector
-  #     - command:
-  #         - python
-  #         - -m
-  #         - devops.datadog.cli
-  #     - args:
-  #         - collect
-  #         - training
-  #         - --push
-  #
-  # - name: eval-health-cronjob
-  #   <<: *cronjob_template
-  #   values:
-  #     - schedule: "0 * * * *"  # Hourly for evals
-  #     - image:
-  #         tag: latest-dashboard
-  #     - datadog:
-  #         service: eval-health-collector
-  #     - command:
-  #         - python
-  #         - -m
-  #         - devops.datadog.cli
-  #     - args:
-  #         - collect
-  #         - eval
-  #         - --push
 
   # Dev cronjob deployments (see devops/charts/CRONJOB_DEV_WORKFLOW.md for instructions)
   # Uncomment the release you want to deploy for dev testing:
@@ -263,15 +193,6 @@ releases:
   #     - datadog:
   #         service: pr-similarity-cache-refresh-dev
   #         env: dev
-  #
-  # - name: dashboard-cronjob-dev
-  #   <<: *cronjob_template
-  #   values:
-  #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
-  #     - datadog:
-  #         service: dashboard-collector-dev
-  #         env: dev
-
 # Helpful commands:
 #   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
 #   Inspect cronjob definition: kubectl get cronjobs -n monitoring

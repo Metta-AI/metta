@@ -2,19 +2,10 @@ import { FC, useContext, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
-import type { PublicPolicyVersionRow } from './repo'
+import type { PolicyRow } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
 
 const DEBOUNCE_MS = 300
-
-type Policy = {
-  id: string
-  name: string
-  user_id: string
-  created_at: string
-  latest_version: number
-  version_count: number
-}
 
 type LoadState<T> = {
   data: T
@@ -22,22 +13,9 @@ type LoadState<T> = {
   error: string | null
 }
 
-const groupPolicyVersions = (versions: PublicPolicyVersionRow[]): Policy[] => {
-  const policies = versions.map((pv) => ({
-    id: pv.policy_id,
-    name: pv.name,
-    user_id: pv.user_id,
-    created_at: pv.policy_created_at,
-    latest_version: pv.version,
-    version_count: pv.version_count ?? 1,
-  }))
-  policies.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-  return policies
-}
-
 export const PoliciesPage: FC = () => {
   const { repo } = useContext(AppContext)
-  const [policiesState, setPoliciesState] = useState<LoadState<Policy[]>>({
+  const [policiesState, setPoliciesState] = useState<LoadState<PolicyRow[]>>({
     data: [],
     loading: true,
     error: null,
@@ -72,8 +50,7 @@ export const PoliciesPage: FC = () => {
           name_fuzzy: debouncedFilter || undefined,
         })
         if (isMounted) {
-          const policies = groupPolicyVersions(response.entries)
-          setPoliciesState({ data: policies, loading: false, error: null })
+          setPoliciesState({ data: response.entries, loading: false, error: null })
         }
       } catch (error: any) {
         if (isMounted) {
