@@ -13,23 +13,22 @@ Flags:
 Notes:
   - Padding adds zero weights and very negative bias (-1e9) for extra actions,
     so padded actions stay effectively disabled.
-  - Submissions use file:// URIs; nothing in core code changes.
+  - Submissions upload padded checkpoints to S3 and submit using the S3 URI.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, Tuple
 
 import boto3
-from botocore.config import Config
 import torch
+from botocore.config import Config
 
 from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
 
@@ -103,8 +102,10 @@ def pad_checkpoint(src_uri: str, out_path: Path) -> Path:
     return Path(saved_uri.replace("file://", ""))
 
 
-def submit_checkpoint(path: Path, name: str) -> None:
-    uri = f"file://{path}"
+def submit_checkpoint(path_or_uri: str | Path, name: str) -> None:
+    # CoGames submit accepts URIs; add file:// for local paths.
+    path_str = str(path_or_uri)
+    uri = path_str if "://" in path_str else f"file://{path_str}"
     cmd = ["uv", "run", "cogames", "submit", "-p", uri, "-n", name]
     subprocess.run(cmd, check=True)
 
@@ -122,23 +123,36 @@ def local_eval(path: Path, seed: int = 50) -> None:
     subprocess.run(cmd, check=True)
 
 
+def upload_padded_checkpoint(s3, local_path: Path, run: str, version: str) -> str:
+    key = f"{S3_PREFIX}/{run}/{run}:v{version}.padded_neginf.mpt"
+    dest_uri = f"s3://{S3_BUCKET}/{key}"
+    print(f"[{run}] uploading padded checkpoint to {dest_uri}")
+    s3.upload_file(str(local_path), S3_BUCKET, key)
+    return dest_uri
+
+
 def main(runs: Iterable[str], do_submit: bool, do_eval: bool) -> None:
     s3 = boto3.client("s3", config=Config(signature_version="s3v4"))
     workdir = Path(tempfile.mkdtemp(prefix="padded_mpt_"))
 
     for run in runs:
-        key = _find_latest_mpt_key(s3, run)
+        try:
+            key = _find_latest_mpt_key(s3, run)
+        except RuntimeError as e:
+            print(f"[{run}] skipping: {e}", file=sys.stderr)
+            continue
         src_uri = f"s3://{S3_BUCKET}/{key}"
         version = key.split(":v")[-1].split(".mpt")[0]
         out_path = workdir / f"{run}.v{version}.padded_neginf.mpt"
 
         print(f"[{run}] latest: {src_uri} -> padding to {out_path}")
         padded = pad_checkpoint(src_uri, out_path)
+        padded_s3_uri = upload_padded_checkpoint(s3, padded, run, version) if do_submit else None
 
         if do_submit:
             name = f"{run}-neginf"
             print(f"[{run}] submitting as {name}")
-            submit_checkpoint(padded, name)
+            submit_checkpoint(padded_s3_uri or padded, name)
 
         if do_eval:
             print(f"[{run}] running local eval")
@@ -150,7 +164,11 @@ def main(runs: Iterable[str], do_submit: bool, do_eval: bool) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--submit", action="store_true", help="Submit each padded checkpoint")
-    parser.add_argument("--eval", action="store_true", help="Run local v0_leaderboard evaluate on each padded checkpoint")
+    parser.add_argument(
+        "--eval",
+        action="store_true",
+        help="Run local v0_leaderboard evaluate on each padded checkpoint",
+    )
     parser.add_argument("--runs", nargs="*", default=DEFAULT_RUNS, help="Run names to process")
     args = parser.parse_args()
 
