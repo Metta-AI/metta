@@ -1,5 +1,5 @@
 import {
-  to = "kubernetes_namespace.monitoring"
+  to = kubernetes_namespace.monitoring
   id = "monitoring"
 }
 
