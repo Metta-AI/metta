@@ -476,6 +476,9 @@ def cmd_publish(
         raise typer.Exit(1)
 
     if repo_only:
+        if dry_run:
+            info(f"Dry run: would push {package} to child repo (--repo-only).")
+            return
         info(f"Pushing {package} to child repo (--repo-only, skipping tag creation)...")
         try:
             subprocess.run([f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"], check=True)
