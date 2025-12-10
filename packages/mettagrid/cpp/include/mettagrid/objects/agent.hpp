@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <climits>
 #include <random>
 #include <string>
 #include <vector>
@@ -65,7 +66,7 @@ public:
   // Implementation of Usable interface
   bool onUse(Agent& actor, ActionArg arg) override;
 
-  std::vector<PartialObservationToken> obs_features() const override;
+  std::vector<PartialObservationToken> obs_features(unsigned int observer_agent_id = UINT_MAX) const override;
 
   // Set observation encoder for inventory feature ID lookup
   void set_obs_encoder(const ObservationEncoder* encoder) {

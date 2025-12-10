@@ -499,7 +499,8 @@ public:
     return true;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  virtual std::vector<PartialObservationToken> obs_features(
+      unsigned int /*observer_agent_id*/ = UINT_MAX) const override {
     std::vector<PartialObservationToken> features;
 
     unsigned int remaining = std::min(cooldown_remaining(), 255u);

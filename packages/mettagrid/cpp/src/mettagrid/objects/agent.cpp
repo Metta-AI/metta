@@ -184,7 +184,7 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
   return false;
 }
 
-std::vector<PartialObservationToken> Agent::obs_features() const {
+std::vector<PartialObservationToken> Agent::obs_features(unsigned int /*observer_agent_id*/) const {
   if (!this->obs_encoder) {
     throw std::runtime_error("Observation encoder not set for agent");
   }

@@ -4,6 +4,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <climits>
 #include <string>
 #include <vector>
 
@@ -23,7 +24,7 @@ public:
     GridObject::init(cfg, GridLocation(r, c));
   }
 
-  std::vector<PartialObservationToken> obs_features() const override {
+  std::vector<PartialObservationToken> obs_features(unsigned int /*observer_agent_id*/ = UINT_MAX) const override {
     std::vector<PartialObservationToken> features;
     features.reserve(1 + tag_ids.size() + (this->vibe != 0 ? 1 : 0));
 
