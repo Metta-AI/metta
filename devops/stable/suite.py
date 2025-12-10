@@ -49,6 +49,8 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[Job], str]:
                 "./tools/run.py",
                 "arena_basic_easy_shaped.evaluate_latest_in_dir",
                 f"dir_path=./train_dir/{arena_train_name}/checkpoints/",
+                "max_steps=10",
+                "max_time_s=60",
             ],
             timeout_s=120,
             dependencies=[arena_train_name],

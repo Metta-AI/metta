@@ -122,7 +122,7 @@ def evaluate(policy_uris: list[str] | str) -> EvaluateTool:
     return EvaluateTool(simulations=simulations(), policy_uris=policy_uris)
 
 
-def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
+def evaluate_latest_in_dir(dir_path: Path, max_steps: int = 10000, max_time_s: int = 120) -> EvaluateTool:
     """Evaluate the latest policy on arena simulations."""
     checkpoints = dir_path.glob("*.mpt")
     policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
@@ -130,8 +130,10 @@ def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
         raise ValueError(f"No policies found in {dir_path}")
     policy_uri = policy_uri[-1]
     sim = mettagrid(num_agents=6)
+    sim.game.max_steps = max_steps
     return EvaluateTool(
-        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
+        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim, max_time_s=max_time_s)],
+        policy_uris=[policy_uri],
     )
 
 
