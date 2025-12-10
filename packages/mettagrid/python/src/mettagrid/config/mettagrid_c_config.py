@@ -10,6 +10,7 @@ from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
+from mettagrid.mettagrid_c import BuildActionConfig as CppBuildActionConfig
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
@@ -21,6 +22,7 @@ from mettagrid.mettagrid_c import LimitDef as CppLimitDef
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
+from mettagrid.mettagrid_c import VibeBuildEffect as CppVibeBuildEffect
 from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
@@ -494,6 +496,27 @@ def convert_to_cpp_game_config(game_config: GameConfig):
         vibe_transfers=vibe_transfers_cpp,
         enabled=transfer_cfg.enabled,
         vibes=transfer_vibes,
+    )
+
+    # Process build - build vibe_builds from object configs that have build config
+    vibe_builds_cpp = {}
+    build_vibes = []
+    for object_key, object_config in game_config.objects.items():
+        if object_config.build is not None:
+            build_config = object_config.build
+            if build_config.vibe not in vibe_name_to_id:
+                raise ValueError(f"Unknown vibe name '{build_config.vibe}' in objects.{object_key}.build")
+            vibe_id = vibe_name_to_id[build_config.vibe]
+            cost = {resource_name_to_id[k]: int(v) for k, v in build_config.cost.items()}
+            vibe_builds_cpp[vibe_id] = CppVibeBuildEffect(cost, object_key)
+            build_vibes.append(vibe_id)
+    # Build is enabled if any objects have build configs
+    actions_cpp_params["build"] = CppBuildActionConfig(
+        required_resources={},
+        consumed_resources={},
+        vibe_builds=vibe_builds_cpp,
+        enabled=len(vibe_builds_cpp) > 0,
+        vibes=build_vibes,
     )
 
     # Process change_vibe - always add to map
