@@ -230,25 +230,6 @@ class MoveActionConfig(ActionConfig):
     ) -> None: ...
     allowed_directions: list[str]
 
-class VibeTransferEffect:
-    def __init__(
-        self,
-        target_deltas: dict[int, int] = {},
-        actor_deltas: dict[int, int] = {},
-    ) -> None: ...
-    target_deltas: dict[int, int]
-    actor_deltas: dict[int, int]
-
-class TransferActionConfig(ActionConfig):
-    def __init__(
-        self,
-        required_resources: dict[int, int] = {},
-        vibe_transfers: dict[int, VibeTransferEffect] = {},
-        enabled: bool = True,
-    ) -> None: ...
-    vibe_transfers: dict[int, VibeTransferEffect]
-    enabled: bool
-
 class ChangeVibeActionConfig(ActionConfig):
     def __init__(
         self,
