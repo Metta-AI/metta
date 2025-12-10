@@ -48,7 +48,8 @@ public:
 
   void init(RewardType* reward_ptr);
 
-  void populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory);
+  void populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory,
+                                  const std::vector<InventoryItem>& inventory_deps);
 
   void set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory);
 

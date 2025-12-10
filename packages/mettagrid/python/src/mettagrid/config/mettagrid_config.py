@@ -48,6 +48,10 @@ class ResourceLimitsConfig(Config):
 
     limit: int
     resources: list[str]
+    modifiers: dict[str, int] = Field(
+        default_factory=dict,
+        description="Modifiers that increase the limit. Maps item name to bonus per item held.",
+    )
 
 
 # TODO: this should probably subclass GridObjectConfig
@@ -62,6 +66,14 @@ class AgentConfig(Config):
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     initial_inventory: dict[str, int] = Field(default_factory=dict)
+    inventory_order: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Order in which to add initial inventory items. Items listed here are added first (in order), "
+            "then remaining items. Use this when some items modify limits for others "
+            "(e.g., ['gear', 'battery'] ensures gear is added before battery, and battery before energy)."
+        ),
+    )
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
     soul_bound_resources: list[str] = Field(
