@@ -8,7 +8,7 @@ recipes should import from here and extend via custom defaults, similar to how
 from __future__ import annotations
 
 import logging
-from typing import Literal, Optional, Sequence
+from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
@@ -28,6 +28,7 @@ from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -320,10 +321,7 @@ def train(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
-    bc_policy_uri: Optional[str] = None,
-    bc_teacher_led_proportion: float = 1.0,
-    bc_steps: Optional[int] = None,
-    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
+    teacher: TeacherConfig | None = None,
     use_lp: bool = True,
     maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
@@ -371,65 +369,14 @@ def train(
     scheduler_run_gates: list[LossRunGate] = []
     scheduler_rules: list[HyperUpdateRule] = []
 
-    if bc_policy_uri is not None:
-        tt.training_env.supervisor_policy_uri = bc_policy_uri
-        losses = tt.trainer.losses
-        bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
-        if bc_mode == "sliced_cloner":
-            # Let the slicer drive sampling during BC so PPO sees only the ppo_mask rows,
-            # then hand sampling back to PPO once BC ends.
-            losses.ppo_critic.sample_enabled = False
-            losses.ppo_critic.train_forward_enabled = False
-            losses.ppo_critic.deferred_training_start_step = bc_total_steps
-            losses.sliced_scripted_cloner.enabled = True
-            anneal_start = 0
-            loss_instance_name = "sliced_scripted_cloner"
-            bc_rules = [
-                HyperUpdateRule(
-                    loss_instance_name="sliced_scripted_cloner",
-                    attr_path="teacher_led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=0.2,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=bc_total_steps,
-                )
-            ]
-        else:
-            losses.supervisor.enabled = True
-            losses.supervisor.teacher_led_proportion = bc_teacher_led_proportion
-            anneal_start = int(bc_total_steps * 0.5)
-            loss_instance_name = "supervisor"
-            bc_rules = [
-                HyperUpdateRule(
-                    loss_instance_name="supervisor",
-                    attr_path="action_loss_coef",
-                    mode="progress",
-                    style="linear",
-                    start_value=1.0,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=bc_total_steps,
-                ),
-                HyperUpdateRule(
-                    loss_instance_name="supervisor",
-                    attr_path="teacher_led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=bc_teacher_led_proportion,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=bc_total_steps,
-                ),
-            ]
-
-        bc_run_gates = [
-            LossRunGate(loss_instance_name=loss_instance_name, phase=phase, end_at_step=bc_total_steps)
-            for phase in ("rollout", "train")
-        ]
-        scheduler_run_gates += bc_run_gates
-        scheduler_rules += bc_rules
+    if teacher and teacher.enabled:
+        apply_teacher_phase(
+            trainer_cfg=tt.trainer,
+            training_env_cfg=tt.training_env,
+            scheduler_rules=scheduler_rules,
+            scheduler_run_gates=scheduler_run_gates,
+            teacher_cfg=teacher,
+        )
 
     tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
@@ -443,6 +390,7 @@ def train_variants(
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Create a training tool with curriculum tasks for all variants.
 
@@ -486,6 +434,7 @@ def train_variants(
         curriculum=curriculum,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        teacher=teacher,
     )
 
 
@@ -495,10 +444,7 @@ def train_single_mission(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
-    bc_policy_uri: Optional[str] = None,
-    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
-    bc_steps: Optional[int] = None,
-    bc_teacher_led_proportion: float = 1.0,
+    teacher: TeacherConfig | None = None,
     maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
@@ -516,10 +462,7 @@ def train_single_mission(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
-        bc_policy_uri=bc_policy_uri,
-        bc_mode=bc_mode,
-        bc_steps=bc_steps,
-        bc_teacher_led_proportion=bc_teacher_led_proportion,
+        teacher=teacher,
         maps_cache_size=maps_cache_size,
     )
 

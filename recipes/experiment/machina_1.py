@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional, Sequence
+from typing import Optional, Sequence
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
@@ -20,6 +20,7 @@ from recipes.experiment.cogs_v_clips import (
     make_training_env,
     train_single_mission,
 )
+from metta.rl.training.teacher import TeacherConfig
 
 FULL_VIBE_NAMES: list[str] = [vibe.name for vibe in vibes.VIBES]
 
@@ -42,10 +43,7 @@ def train(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     policy_architecture: PolicyArchitecture | None = None,
-    bc_policy_uri: str | None = None,
-    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
-    bc_steps: int | None = None,
-    bc_teacher_led_proportion: float = 1.0,
+    teacher: TeacherConfig | None = None,
     maps_cache_size: int = 30,
 ) -> TrainTool:
     """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
@@ -56,10 +54,7 @@ def train(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
-        bc_policy_uri=bc_policy_uri,
-        bc_mode=bc_mode,
-        bc_steps=bc_steps,
-        bc_teacher_led_proportion=bc_teacher_led_proportion,
+        teacher=teacher,
         maps_cache_size=maps_cache_size,
     )
 
@@ -89,10 +84,7 @@ def train_sweep(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     policy_architecture: PolicyArchitecture | None = None,
-    bc_policy_uri: str | None = None,
-    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
-    bc_steps: int | None = None,
-    bc_teacher_led_proportion: float = 1.0,
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
 
@@ -108,10 +100,7 @@ def train_sweep(
         eval_variants=eval_variants or base_variants,
         eval_difficulty=eval_difficulty,
         policy_architecture=policy_architecture,
-        bc_policy_uri=bc_policy_uri,
-        bc_mode=bc_mode,
-        bc_steps=bc_steps,
-        bc_teacher_led_proportion=bc_teacher_led_proportion,
+        teacher=teacher,
     )
 
 
