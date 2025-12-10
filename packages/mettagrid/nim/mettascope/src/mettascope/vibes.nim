@@ -62,14 +62,18 @@ proc updateVibePanel*() =
   let buttonTemplate = rowTemplate.find("Button").copy()
   rowTemplate.removeChildren()
   panel.removeChildren()
+  let elementsPerRow = 10
   var row: Node
   for id, vibe in replay.config.game.vibeNames:
-    if id mod 10 == 0:
+    if id mod elementsPerRow == 0:
       row = rowTemplate.copy()
       panel.addChild(row)
     let button = buttonTemplate.copy()
     var path = "../../vibe" / vibe
     button.find("**/Icon").fills[0].imageRef = path
+    if playMode == Historical:
+      # Gray out the vibes for historical mode.
+      button.find("**/Icon").fills[0].opacity = 0.4
     row.addChild(button)
   vibePanel.node.removeChildren()
   vibePanel.node.addChild(panel)

@@ -32,6 +32,7 @@ def get_map(map_name: str) -> MapBuilderConfig:
     # Wrap AsciiMapBuilderConfig in MapGen.Config to match standard get_map() behavior
     return MapGen.Config(
         instance=MapBuilderConfig.from_uri(str(map_path)),
+        instances=1,  # Force single instance - use spawn points from ASCII map directly
         fixed_spawn_order=False,
         instance_border_width=0,  # Don't add border - maps already have borders built in
     )

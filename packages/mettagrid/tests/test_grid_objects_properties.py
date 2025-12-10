@@ -189,7 +189,6 @@ class TestAssemblerProperties:
             # Check basic properties exist
             assert "cooldown_remaining" in assembler
             assert "cooldown_duration" in assembler
-            assert "cooldown_progress" in assembler
             assert "is_clipped" in assembler
             assert "is_clip_immune" in assembler
             assert "uses_count" in assembler

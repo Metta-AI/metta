@@ -11,6 +11,7 @@ import {
   LEADERBOARD_SIM_NAME_EPISODE_KEY,
 } from './constants'
 import type { EpisodeReplay, LeaderboardPolicyEntry } from './repo'
+import { formatPolicyVersion } from './utils/format'
 
 type SectionState = {
   entries: LeaderboardPolicyEntry[]
@@ -18,7 +19,7 @@ type SectionState = {
   error: string | null
 }
 
-type ViewKey = 'public' | 'mine'
+type ViewKey = 'public'
 
 type ViewConfig = {
   sectionKey: ViewKey
@@ -463,38 +464,26 @@ const createInitialSectionState = (): SectionState => ({
 })
 
 export const Leaderboard: FC = () => {
-  const { repo, currentUser } = useContext(AppContext)
+  const { repo } = useContext(AppContext)
   const [publicLeaderboard, setPublicLeaderboard] = useState<SectionState>(() => createInitialSectionState())
-  const [personalLeaderboard, setPersonalLeaderboard] = useState<SectionState>(() => createInitialSectionState())
-  const [view, setView] = useState<ViewKey>('public')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set())
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
   const [replayState, setReplayState] = useState<Record<string, ReplayFetchState>>({})
   const [replayPreviews, setReplayPreviews] = useState<Record<string, { url: string; label: string }>>({})
 
-  const viewConfigs: Record<ViewKey, ViewConfig> = {
-    public: {
-      sectionKey: 'public',
-      label: 'Public',
-      subtitle: 'Published policies submitted to the cogames leaderboard.',
-      emptyMessage: 'No public leaderboard entries yet.',
-    },
-    mine: {
-      sectionKey: 'mine',
-      label: 'Mine',
-      subtitle: `Entries uploaded by ${currentUser}.`,
-      emptyMessage: 'You have not submitted any leaderboard policies yet.',
-    },
+  const viewConfig: ViewConfig = {
+    sectionKey: 'public',
+    label: 'Public',
+    subtitle: 'Published policies submitted to the cogames leaderboard.',
+    emptyMessage: 'No public leaderboard entries yet.',
   }
-  const toggleOptions: ViewKey[] = ['public', 'mine']
-  const activeState = view === 'public' ? publicLeaderboard : personalLeaderboard
-  const activeConfig = viewConfigs[view]
 
   useEffect(() => {
     let ignore = false
     const load = async () => {
       setPublicLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
       try {
+        // Use the new endpoint that returns entries with VOR already computed
         const response = await repo.getPublicLeaderboard()
         if (!ignore) {
           setPublicLeaderboard({ entries: response.entries, loading: false, error: null })
@@ -502,32 +491,6 @@ export const Leaderboard: FC = () => {
       } catch (error: any) {
         if (!ignore) {
           setPublicLeaderboard({ entries: [], loading: false, error: error.message ?? 'Failed to load leaderboard' })
-        }
-      }
-    }
-    load()
-    const intervalId =
-      typeof window !== 'undefined' ? window.setInterval(() => void load(), REFRESH_INTERVAL_MS) : undefined
-    return () => {
-      ignore = true
-      if (typeof window !== 'undefined' && intervalId !== undefined) {
-        window.clearInterval(intervalId)
-      }
-    }
-  }, [repo])
-
-  useEffect(() => {
-    let ignore = false
-    const load = async () => {
-      setPersonalLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
-      try {
-        const response = await repo.getPersonalLeaderboard()
-        if (!ignore) {
-          setPersonalLeaderboard({ entries: response.entries, loading: false, error: null })
-        }
-      } catch (error: any) {
-        if (!ignore) {
-          setPersonalLeaderboard({ entries: [], loading: false, error: error.message ?? 'Failed to load leaderboard' })
         }
       }
     }
@@ -686,20 +649,21 @@ export const Leaderboard: FC = () => {
           <tr>
             <th>Policy</th>
             <th>Policy Created</th>
-            <th>Avg Score</th>
+            <th>Avg score</th>
           </tr>
         </thead>
         <tbody>
           {state.entries.map((entry) => {
             const { policy_version: policyVersion } = entry
             const policyId = policyVersion.id
-            const policyDisplay = `${policyVersion.name}.${policyVersion.version}`
+            const policyDisplay = formatPolicyVersion(policyVersion)
             const createdAt = policyVersion.policy_created_at || policyVersion.created_at
             const rowKey = `${config.sectionKey}-${policyId}`
             const isExpanded = expandedRows.has(rowKey)
             const scoreEntries = Object.entries(entry.scores).sort(([a], [b]) => a.localeCompare(b))
             const tagEntries = Object.entries(policyVersion.tags).sort(([a], [b]) => a.localeCompare(b))
             const evalStatus = getEvalStatus(policyVersion.tags)
+            const policyUri = `metta://policy/${policyVersion.name}:v${policyVersion.version}`
             const evaluateCommand = `./tools/run.py recipes.experiment.v0_leaderboard.evaluate policy_version_id=${policyId}`
             const playCommand = `./tools/run.py recipes.experiment.v0_leaderboard.play policy_version_id=${policyId}`
             const replayPreview = replayPreviews[policyId]
@@ -710,7 +674,7 @@ export const Leaderboard: FC = () => {
                     <div className="policy-title-row">
                       <div className="policy-title">{policyDisplay}</div>
                       <Link
-                        to={`/leaderboard/policy/${policyId}`}
+                        to={`/policies/versions/${policyId}`}
                         className="policy-link-button"
                         onClick={(event) => event.stopPropagation()}
                       >
@@ -724,7 +688,7 @@ export const Leaderboard: FC = () => {
                     <div className="policy-meta">{formatDate(createdAt)}</div>
                   </td>
                   <td>
-                    <div className="policy-title">{formatScore(entry.avg_score)}</div>
+                    <div className="policy-title">{formatScore(entry.avg_score ?? null)}</div>
                   </td>
                 </tr>
                 {isExpanded && (
@@ -829,10 +793,16 @@ export const Leaderboard: FC = () => {
                         <div className="detail-block">
                           <div className="command-list">
                             <div className="command-item">
-                              {renderCopyableCommand(evaluateCommand, `${policyId}-evaluate`, 'Evaluate')}
+                              <div className="command-item-label">Policy URI</div>
+                              {renderCopyableCommand(policyUri, `${policyId}-uri`, 'Copy')}
                             </div>
                             <div className="command-item">
-                              {renderCopyableCommand(playCommand, `${policyId}-play`, 'Play')}
+                              <div className="command-item-label">Evaluate</div>
+                              {renderCopyableCommand(evaluateCommand, `${policyId}-evaluate`, 'Copy')}
+                            </div>
+                            <div className="command-item">
+                              <div className="command-item-label">Play</div>
+                              {renderCopyableCommand(playCommand, `${policyId}-play`, 'Copy')}
                             </div>
                           </div>
                         </div>
@@ -867,22 +837,8 @@ export const Leaderboard: FC = () => {
           <div>
             <h1 className="leaderboard-title">Leaderboard</h1>
           </div>
-          <div className="leaderboard-toggle">
-            {toggleOptions.map((option) => {
-              const config = viewConfigs[option]
-              return (
-                <button
-                  key={config.sectionKey}
-                  className={`toggle-button ${view === option ? 'active' : ''}`}
-                  onClick={() => setView(option)}
-                >
-                  {config.label}
-                </button>
-              )
-            })}
-          </div>
         </div>
-        {renderContent(activeState, activeConfig)}
+        {renderContent(publicLeaderboard, viewConfig)}
       </div>
     </div>
   )

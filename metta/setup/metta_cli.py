@@ -294,7 +294,7 @@ def cmd_install(
     elif profile or not profile_exists:
         cmd_configure(profile=profile, non_interactive=non_interactive, component=None)
 
-    always_required_components = ["core", "system"]
+    always_required_components = ["bootstrap", "system", "uv"]
     modules = _get_selected_modules((always_required_components + components) if components else None)
 
     if not modules:

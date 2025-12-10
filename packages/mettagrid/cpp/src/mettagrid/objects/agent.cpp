@@ -18,7 +18,6 @@ Agent::Agent(GridCoord r,
       freeze_duration(config.freeze_duration),
       stat_rewards(config.stat_rewards),
       stat_reward_max(config.stat_reward_max),
-      action_failure_penalty(config.action_failure_penalty),
       group_name(config.group_name),
       soul_bound_resources(config.soul_bound_resources),
       agent_id(0),
@@ -26,7 +25,6 @@ Agent::Agent(GridCoord r,
       current_stat_reward(0),
       reward(nullptr),
       prev_location(r, c),
-      prev_action_name(""),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
       resource_names(resource_names),
@@ -51,7 +49,7 @@ void Agent::init(RewardType* reward_ptr) {
 
 void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory) {
   for (const auto& [item, amount] : initial_inventory) {
-    this->update_inventory(item, amount);
+    this->inventory.update(item, amount);
   }
 }
 
@@ -72,13 +70,11 @@ void Agent::set_inventory(const std::unordered_map<InventoryItem, InventoryQuant
 
   // Then, set provided items to their specified amounts
   for (const auto& [item, amount] : inventory) {
-    // Go through update_inventory to handle limits, deal with rewards, etc.
-    this->update_inventory(item, amount - this->inventory.amount(item));
+    this->inventory.update(item, amount - this->inventory.amount(item));
   }
 }
 
-InventoryDelta Agent::update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
-  const InventoryDelta delta = this->inventory.update(item, attempted_delta);
+void Agent::on_inventory_change(InventoryItem item, InventoryDelta delta) {
   const InventoryQuantity amount = this->inventory.amount(item);
   if (delta != 0) {
     if (delta > 0) {
@@ -89,8 +85,6 @@ InventoryDelta Agent::update_inventory(InventoryItem item, InventoryDelta attemp
     this->stats.set(this->stats.resource_name(item) + ".amount", amount);
   }
   update_inventory_diversity_stats(item, amount);
-
-  return delta;
 }
 
 void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
@@ -137,8 +131,8 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
       InventoryQuantity actor_amount = actor.inventory.amount(resource);
       InventoryQuantity share_attempted_amount = std::min(static_cast<InventoryQuantity>(amount), actor_amount);
       if (share_attempted_amount > 0) {
-        InventoryDelta successful_share_amount = this->update_inventory(resource, share_attempted_amount);
-        actor.update_inventory(resource, -successful_share_amount);
+        InventoryDelta successful_share_amount = this->inventory.update(resource, share_attempted_amount);
+        actor.inventory.update(resource, -successful_share_amount);
         if (successful_share_amount > 0) {
           any_transfer_occurred = true;
         }

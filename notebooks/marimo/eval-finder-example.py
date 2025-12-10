@@ -132,14 +132,25 @@ async def _(client):
         # Get available policies and training runs
         try:
             print("🔗 Testing connection to backend...")
-            policies_response = await client.get_policies()
-            all_policies = policies_response.policies
+            policies_response = await client.get_policy_versions()
+            all_policies = getattr(policies_response, "entries", None) or getattr(
+                policies_response, "policies", []
+            )
+
+            def _policy_type(policy):
+                tags = getattr(policy, "tags", {}) or {}
+                return (
+                    getattr(policy, "type", None)
+                    or tags.get("type")
+                    or tags.get("policy_type")
+                    or "training_run"
+                )
 
             # Separate training runs and run-free policies
             training_run_policies = [
-                p for p in all_policies if p.type == "training_run"
+                p for p in all_policies if _policy_type(p) == "training_run"
             ]
-            run_free_policies = [p for p in all_policies if p.type == "policy"]
+            run_free_policies = [p for p in all_policies if _policy_type(p) == "policy"]
 
             print(
                 f"📊 Found {len(training_run_policies)} training runs and {len(run_free_policies)} standalone policies"

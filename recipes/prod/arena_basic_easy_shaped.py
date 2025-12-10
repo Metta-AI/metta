@@ -3,7 +3,7 @@ This recipe is automatically validated in CI and release processes.
 """
 
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -114,15 +114,15 @@ def train(
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=300),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
 
 
-def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
+def evaluate(policy_uris: list[str] | str) -> EvaluateTool:
     """Evaluate policies on arena simulations."""
-    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
+    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris)
 
 
 def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
@@ -199,7 +199,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     Example usage:
         `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
-            sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+            sweep_name="ak.baes.10081528" -- gpus=4 nodes=2 dispatcher_type=skypilot`
 
     We recommend running using local_test=True before running the sweep on the remote:
         `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
@@ -211,7 +211,7 @@ def sweep(sweep_name: str) -> SweepTool:
     (otherwise sweep progress will halt when you close your computer).
 
     Running on the remote:
-        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
+        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py new --sweep-controller`, and ssh into it.
         2 - Clean git pollution: `git clean -df && git stash`
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
@@ -222,7 +222,7 @@ def sweep(sweep_name: str) -> SweepTool:
         7 - Detach when you want: CTRL+B then d
         8 - Attach to look at status/output: `tmux attach -t sweep_configs`
 
-    Please tag Axel (akerbec@softmax.ai) on any bug report.
+    Please tag Axel (akerbec@softmax.com) on any bug report.
     """
 
     # Common parameters are accessible via SP (SweepParameters).
@@ -250,8 +250,8 @@ def sweep(sweep_name: str) -> SweepTool:
         # training and scoring will lead to key conflicts that will lock the sweep.
         eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
-        objective="experience/rewards",
-        parameters=parameters,
+        metric_key="experience/rewards",
+        search_space=parameters,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.

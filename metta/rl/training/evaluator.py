@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import logging
+import os
 import uuid
+import zipfile
 from typing import Any, Optional
 
 import torch
@@ -11,11 +14,10 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
-from metta.common.util.git_helpers import GitError, get_task_commit_hash
+from metta.common.util.git_helpers import GitError, get_current_git_branch, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.context import WandbRun
-from metta.rl.policy_artifact import policy_spec_from_uri
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.handle_results import render_eval_summary
@@ -25,6 +27,9 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME
+from mettagrid.util.file import write_data
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +38,20 @@ class EvaluatorConfig(Config):
     """Configuration for evaluation."""
 
     epoch_interval: int = 100  # 0 to disable
-    evaluate_local: bool = True
-    evaluate_remote: bool = False
+    evaluate_local: bool = Field(
+        default_factory=lambda: os.getenv("SKYPILOT_TASK_ID") is None,
+        description="Run evals locally. Defaults to True locally, False on SkyPilot.",
+    )
+    evaluate_remote: bool = Field(
+        default_factory=lambda: os.getenv("SKYPILOT_TASK_ID") is not None,
+        description="Run evals remotely via Observatory. Defaults to False locally, True on SkyPilot.",
+    )
     num_training_tasks: int = 2
+    parallel_evals: int = Field(
+        default=9,
+        description="Max number of simulations to run in parallel during eval; set to 1 to keep sequential",
+        ge=1,
+    )
     simulations: list[SimulationConfig] = Field(default_factory=list)
     training_replay_envs: list[SimulationConfig] = Field(
         default_factory=list,
@@ -48,6 +64,10 @@ class EvaluatorConfig(Config):
     replay_dir: Optional[str] = None
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
+    use_branch_checkout: bool = Field(
+        default=False,
+        description="Use git branch name instead of commit SHA for remote eval checkout (useful for rewritten history)",
+    )
     verbose: bool = Field(default=False)
     allow_eval_without_stats: bool = Field(
         default=False,
@@ -89,10 +109,27 @@ class Evaluator(TrainerComponent):
         self._git_hash = config.git_hash
         if self._evaluate_remote and not self._git_hash:
             try:
-                self._git_hash = get_task_commit_hash(
-                    target_repo=REPO_SLUG,
-                    skip_git_check=config.skip_git_check,
-                )
+                if config.use_branch_checkout:
+                    # Use branch name instead of commit SHA
+                    branch_name = get_current_git_branch(
+                        target_repo=REPO_SLUG,
+                        skip_git_check=config.skip_git_check,
+                    )
+                    if branch_name:
+                        logger.info(f"Using branch-based checkout: {branch_name}")
+                        self._git_hash = branch_name
+                    else:
+                        logger.warning("Could not determine branch, falling back to commit hash")
+                        self._git_hash = get_task_commit_hash(
+                            target_repo=REPO_SLUG,
+                            skip_git_check=config.skip_git_check,
+                        )
+                else:
+                    # Use commit SHA (default behavior)
+                    self._git_hash = get_task_commit_hash(
+                        target_repo=REPO_SLUG,
+                        skip_git_check=config.skip_git_check,
+                    )
             except GitError as e:
                 raise GitError(f"{e}\n\nYou can skip this check with evaluator.skip_git_check=true") from e
 
@@ -102,6 +139,25 @@ class Evaluator(TrainerComponent):
             return False
         return epoch % interval == 0
 
+    def _create_submission_zip(self, policy_spec: PolicySpec) -> bytes:
+        """Create a submission zip containing policy_spec.json."""
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+            zipf.writestr(POLICY_SPEC_FILENAME, policy_spec.model_dump_json())
+        return buffer.getvalue()
+
+    def _upload_submission_zip(self, policy_spec: PolicySpec) -> str | None:
+        """Upload a submission zip to S3 and return the s3_path."""
+        checkpoint_uri = policy_spec.init_kwargs.get("checkpoint_uri")
+        if not checkpoint_uri or not checkpoint_uri.startswith("s3://"):
+            return None
+
+        submission_path = checkpoint_uri.replace(".mpt", "-submission.zip")
+        zip_data = self._create_submission_zip(policy_spec)
+        write_data(submission_path, zip_data, content_type="application/zip")
+        logger.info("Uploaded submission zip to %s", submission_path)
+        return submission_path
+
     def _create_policy_version(
         self,
         *,
@@ -110,7 +166,7 @@ class Evaluator(TrainerComponent):
         epoch: int,
         agent_step: int,
     ) -> uuid.UUID:
-        """Write evaluation results to the observatory by creating a DuckDB and uploading it."""
+        """Create a policy version in Observatory with a submission zip."""
 
         # Create or get policy
         policy_id = stats_client.create_policy(
@@ -119,12 +175,16 @@ class Evaluator(TrainerComponent):
             is_system_policy=False,
         )
 
+        # Upload submission zip to S3
+        s3_path = self._upload_submission_zip(policy_spec)
+
         # Create policy version
         policy_version_id = stats_client.create_policy_version(
             policy_id=policy_id.id,
             git_hash=self._git_hash,
             policy_spec=policy_spec.model_dump(mode="json"),
             attributes={"epoch": epoch, "agent_step": agent_step},
+            s3_path=s3_path,
         )
 
         return policy_version_id.id
@@ -142,7 +202,8 @@ class Evaluator(TrainerComponent):
 
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
-        policy_spec = self._build_policy_spec(policy_uri)
+        sim_run_configs = [sim.to_simulation_run_config() for sim in sims]
+        policy_spec = policy_spec_from_uri(policy_uri, device=str(self._device))
         policy_version_id: uuid.UUID | None = None
         if self._stats_client:
             policy_version_id = self._create_policy_version(
@@ -155,7 +216,11 @@ class Evaluator(TrainerComponent):
         # Remote evaluation
         if self._evaluate_remote and self._stats_client and policy_version_id:
             response = evaluate_remotely(
-                policy_version_id, [sim.to_simulation_run_config() for sim in sims], self._stats_client, self._git_hash
+                policy_version_id=policy_version_id,
+                simulations=sim_run_configs,
+                stats_client=self._stats_client,
+                git_hash=self._git_hash,
+                push_metrics_to_wandb=(self._wandb_run is not None),
             )
             logger.info(f"Created remote evaluation task {response}")
 
@@ -186,9 +251,10 @@ class Evaluator(TrainerComponent):
 
             rollout_results = simulate_and_record(
                 policy_specs=[policy_spec],
-                simulations=[sim.to_simulation_run_config() for sim in sims],
+                simulations=sim_run_configs,
                 replay_dir=self._replay_dir,
                 seed=self._seed,
+                max_workers=self._config.parallel_evals,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
                 on_progress=on_progress,
@@ -196,9 +262,6 @@ class Evaluator(TrainerComponent):
             render_eval_summary(
                 rollout_results, policy_names=[self._spec_display_name(policy_spec)], verbose=self._config.verbose
             )
-
-    def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
-        return policy_spec_from_uri(policy_uri, device=self._device)
 
     @staticmethod
     def _spec_display_name(policy_spec: PolicySpec) -> str:

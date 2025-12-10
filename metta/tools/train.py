@@ -2,6 +2,7 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, Optional
 
 import torch
@@ -36,8 +37,7 @@ from metta.rl.training import (
     TorchProfiler,
     TrainerComponent,
     TrainingEnvironmentConfig,
-    Uploader,
-    UploaderConfig,
+    UpdateEpochAutoTuner,
     VectorizedTrainingEnvironment,
     WandbAborter,
     WandbAborterConfig,
@@ -50,6 +50,9 @@ from metta.tools.utils.auto_config import (
     auto_stats_server_uri,
     auto_wandb_config,
 )
+from mettagrid.policy.loader import resolve_policy_class_path
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = getRankAwareLogger(__name__)
 
@@ -61,7 +64,6 @@ class TrainTool(Tool):
     training_env: TrainingEnvironmentConfig
     policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
     initial_policy_uri: Optional[str] = None
-    uploader: UploaderConfig = Field(default_factory=UploaderConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     gradient_reporter: GradientReporterConfig = Field(default_factory=GradientReporterConfig)
 
@@ -123,20 +125,43 @@ class TrainTool(Tool):
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()
-        env = VectorizedTrainingEnvironment(self.training_env)
+
+        sup_uri = self.training_env.supervisor_policy_uri
+        supervisor_policy_spec: PolicySpec | None = None
+        if sup_uri:
+            candidate = Path(sup_uri)
+            looks_like_path = candidate.suffix or os.sep in sup_uri or candidate.parent != Path(".")
+            looks_like_uri = "://" in sup_uri
+
+            if looks_like_uri or looks_like_path:
+                supervisor_policy_spec = policy_spec_from_uri(sup_uri)
+            else:
+                class_path = resolve_policy_class_path(sup_uri)
+                supervisor_policy_spec = PolicySpec(class_path=class_path)
+
+        env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 
         self._configure_torch_backends()
 
-        checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
-
-        # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
-        if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
-            raise ValueError("without a remote prefix we cannot use remote evaluation")
+        checkpoint_manager = CheckpointManager(
+            run=self.run or "default",
+            system_cfg=self.system,
+            require_remote_enabled=self.evaluator.evaluate_remote,
+        )
 
         init_logging(run_dir=checkpoint_manager.run_dir)
         record_heartbeat()
 
-        policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
+        checkpointer = Checkpointer(
+            config=self.checkpointer,
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
+            policy_architecture=self.policy_architecture,
+        )
+        policy = checkpointer.load_or_create_policy(
+            env.policy_env_info,
+            policy_uri=self.initial_policy_uri,
+        )
         trainer = self._initialize_trainer(env, policy, distributed_helper)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
@@ -151,7 +176,7 @@ class TrainTool(Tool):
                     distributed_helper=distributed_helper,
                     checkpoint_manager=checkpoint_manager,
                     stats_client=stats_client,
-                    policy_checkpointer=policy_checkpointer,
+                    policy_checkpointer=checkpointer,
                     run_name=self.run,
                     wandb_run=wandb_run,
                 )
@@ -179,24 +204,6 @@ class TrainTool(Tool):
             if sdpa_stack is not None:
                 sdpa_stack.close()
                 self._sdpa_context_stack = None
-
-    def _load_or_create_policy(
-        self,
-        checkpoint_manager: CheckpointManager,
-        distributed_helper: DistributedHelper,
-        env: VectorizedTrainingEnvironment,
-    ) -> tuple[Checkpointer, Policy]:
-        policy_checkpointer = Checkpointer(
-            config=self.checkpointer,
-            checkpoint_manager=checkpoint_manager,
-            distributed_helper=distributed_helper,
-            policy_architecture=self.policy_architecture,
-        )
-        policy = policy_checkpointer.load_or_create_policy(
-            env.policy_env_info,
-            policy_uri=self.initial_policy_uri,
-        )
-        return policy_checkpointer, policy
 
     def _initialize_trainer(
         self,
@@ -235,6 +242,10 @@ class TrainTool(Tool):
         if heartbeat_cfg is not None:
             components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
 
+        autotune_cfg = getattr(self.trainer, "update_epochs_autotune", None)
+        if autotune_cfg and getattr(autotune_cfg, "enabled", False):
+            components.append(UpdateEpochAutoTuner(autotune_cfg))
+
         stats_component: TrainerComponent | None = None
 
         if distributed_helper.is_master():
@@ -262,15 +273,6 @@ class TrainTool(Tool):
                     seed=self.system.seed,
                     run_name=run_name,
                     stats_client=stats_client,
-                    wandb_run=wandb_run,
-                )
-            )
-
-            components.append(
-                Uploader(
-                    config=self.uploader,
-                    checkpoint_manager=checkpoint_manager,
-                    distributed_helper=distributed_helper,
                     wandb_run=wandb_run,
                 )
             )
@@ -319,11 +321,7 @@ class TrainTool(Tool):
         if not torch.cuda.is_available():
             return
 
-        try:
-            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
-            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
-        except Exception as exc:  # pragma: no cover - diagnostic only
-            logger.debug("Skipping CUDA matmul backend configuration: %s", exc)
+        torch.set_float32_matmul_precision("high")
 
         # Opportunistically enable flash attention when available
         if os.environ.get("FLASH_ATTENTION") is None:
@@ -390,7 +388,6 @@ class TrainTool(Tool):
             self.training_env.forward_pass_minibatch_target_size, 4
         )
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
-        self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
 
     def _apply_sandbox_config(self) -> None:
@@ -420,6 +417,3 @@ class TrainTool(Tool):
         ]
         # Clear any additional simulations - only run the quick training validation
         self.evaluator.simulations = []
-
-        # Upload checkpoints more frequently in sandbox mode
-        self.uploader.epoch_interval = 1

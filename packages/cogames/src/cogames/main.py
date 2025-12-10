@@ -60,8 +60,13 @@ from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator import Simulator
 
-# Always add current directory to Python path
+# Always add current directory to Python path so optional plugins in the repo are discoverable.
 sys.path.insert(0, ".")
+
+try:  # Optional plugin
+    from tribal_village_env.cogames import register_cli as register_tribal_cli
+except ImportError:  # pragma: no cover - plugin optional
+    register_tribal_cli = None
 
 
 logger = logging.getLogger("cogames.main")
@@ -96,6 +101,9 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
     callback=lambda: discover_and_register_policies("cogames.policy"),
 )
+
+if register_tribal_cli is not None:
+    register_tribal_cli(app)
 
 
 @app.command(name="tutorial", help="Print instructions on how to play CvC and runs cogames play --mission tutorial")
@@ -427,7 +435,7 @@ def replay_cmd(
 def make_mission(
     ctx: typer.Context,
     base_mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Base mission to start configuring from"),
-    num_agents: Optional[int] = typer.Option(None, "--agents", "-a", help="Number of agents", min=1),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)", min=1),
     width: Optional[int] = typer.Option(None, "--width", "-w", help="Map width", min=1),
     height: Optional[int] = typer.Option(None, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
@@ -450,8 +458,8 @@ def make_mission(
             else:
                 env_cfg.game.map_builder.height = height  # type: ignore[attr-defined]
 
-        if num_agents is not None:
-            env_cfg.game.num_agents = num_agents
+        if cogs is not None:
+            env_cfg.game.num_agents = cogs
 
         # Validate the environment configuration
 
@@ -815,7 +823,34 @@ def validate_policy_cmd(
         ...,
         help=f"Policy specification: {policy_arg_example}",
     ),
+    setup_script: Optional[str] = typer.Option(
+        None,
+        "--setup-script",
+        help="Path to a Python setup script to run before loading the policy",
+    ),
 ) -> None:
+    if setup_script:
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        script_path = Path(setup_script)
+        if not script_path.exists():
+            console.print(f"[red]Setup script not found: {setup_script}[/red]")
+            raise typer.Exit(1)
+        console.print(f"[yellow]Running setup script: {setup_script}[/yellow]")
+        result = subprocess.run(
+            [sys.executable, str(script_path)],
+            cwd=Path.cwd(),
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if result.returncode != 0:
+            console.print(f"[red]Setup script failed:[/red]\n{result.stderr}")
+            raise typer.Exit(1)
+        console.print("[green]Setup script completed[/green]")
+
     policy_spec = get_policy_spec(ctx, policy)
     validate_policy_spec(policy_spec)
     console.print("[green]Policy validated successfully[/green]")
@@ -878,6 +913,11 @@ def submit_cmd(
         "--skip-validation",
         help="Skip policy validation in isolated environment",
     ),
+    setup_script: Optional[str] = typer.Option(
+        None,
+        "--setup-script",
+        help="Path to a Python setup script to run before loading the policy",
+    ),
 ) -> None:
     """Submit a policy to CoGames competitions.
 
@@ -903,6 +943,7 @@ def submit_cmd(
         dry_run=dry_run,
         skip_validation=skip_validation,
         init_kwargs=init_kwargs if init_kwargs else None,
+        setup_script=setup_script,
     )
 
 

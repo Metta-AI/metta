@@ -308,7 +308,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Per-epoch tracking (for gini calculation and epoch-level metrics)
         self._label_evictions: Dict[str, int] = {}  # label -> evictions
-        self._label_sampling_counts: Dict[str, int] = {}  # label -> samples
 
         # Track which labels are currently active (have tasks in pool)
         self._active_labels: set[str] = set()
@@ -439,7 +438,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """
         # Track sampling counts per label (both cumulative and per-epoch)
         label = self.task_tracker.get_task_label(task_id)
-        self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
         self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
 
     def get_evictions(self) -> Dict[str, int]:

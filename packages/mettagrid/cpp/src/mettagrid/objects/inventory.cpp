@@ -7,11 +7,14 @@
 #include <unordered_map>
 #include <vector>
 
+#include "objects/has_inventory.hpp"
+
 // Constructor implementation
 Inventory::Inventory(const InventoryConfig& cfg,
+                     HasInventory* owner,
                      const std::vector<std::string>* resource_names,
                      const std::unordered_map<std::string, ObservationType>* feature_ids)
-    : _inventory(), _limits() {
+    : _inventory(), _limits(), _owner(owner) {
   for (const auto& limit_pair : cfg.limits) {
     const auto& resources = limit_pair.first;
     const auto& limit_value = limit_pair.second;
@@ -63,6 +66,12 @@ InventoryDelta Inventory::update(InventoryItem item, InventoryDelta attempted_de
   }
 
   InventoryDelta clamped_delta = clamped_amount - initial_amount;
+
+  // Notify owner if inventory actually changed
+  if (_owner && clamped_delta != 0) {
+    _owner->on_inventory_change(item, clamped_delta);
+  }
+
   return clamped_delta;
 }
 

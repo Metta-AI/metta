@@ -26,9 +26,11 @@ class TribalVillageEnv(pufferlib.PufferEnv):
     that Nim reads/writes directly.
     """
 
+    metadata = {"render_modes": ["rgb_array", "ansi"]}
+
     def __init__(self, config: Optional[Dict[str, Any]] = None, buf=None):
         self.config = config or {}
-        self.max_steps = self.config.get("max_steps", 512)
+        self.max_steps = self.config.get("max_steps", 1_000)
         self._render_mode = self.config.get("render_mode", "rgb_array")
 
         # Load the optimized Nim library - cross-platform

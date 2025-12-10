@@ -18,7 +18,7 @@ on:
 
 jobs:
   stable-release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-8core
     permissions:
       contents: write # Needed to create tags and push to stable branch
       issues: write # Needed for Asana integration (if used)

@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -78,7 +78,7 @@ def train(
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(
-            simulations=simulations(), evaluate_remote=True, evaluate_local=True, skip_git_check=True
+            simulations=simulations(),
         ),
     )
 
@@ -115,7 +115,7 @@ def train_shaped(rewards: bool = True) -> TrainTool:
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: list[str] | str,
 ) -> EvaluateTool:
     return EvaluateTool(
         simulations=simulations(),

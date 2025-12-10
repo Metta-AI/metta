@@ -108,7 +108,11 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Frontend URLs
+        allow_origins=[
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "https://observatory.softmax-research.net",
+        ],  # Frontend URLs
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -136,15 +140,15 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
 
 if __name__ == "__main__":
-    from metta.app_backend.config import host, port, stats_db_uri
+    from metta.app_backend.config import settings
 
-    stats_repo = MettaRepo(stats_db_uri)
+    stats_repo = MettaRepo(settings.STATS_DB_URI)
     app = create_app(stats_repo)
 
     # Start the updater in an async context
     async def main():
         # Run uvicorn in a way that doesn't block
-        config = uvicorn.Config(app, host=host, port=port)
+        config = uvicorn.Config(app, host=settings.HOST, port=settings.PORT)
         server = uvicorn.Server(config)
         await server.serve()
 
