@@ -91,12 +91,35 @@ class EvalTaskOrchestrator:
                 logger.info(f"Killing idle worker {worker.name}")
                 self._worker_manager.cleanup_worker(worker.name)
 
+    def _compute_num_cpus(self, parallelism: int) -> int:
+        """Compute the number of CPUs to request for a given parallelism. Our instances have 4, 8, 12, or 16 CPUs,
+        but in practice somewhat less than max is schedulable, so we request 3, 7, 11, or 15.
+        """
+        if parallelism <= 4:
+            return 3
+        elif parallelism <= 8:
+            return 7
+        elif parallelism <= 12:
+            return 11
+        else:
+            return 15
+
+    def _compute_memory_request(self, parallelism: int) -> int:
+        """Compute the memory to request for a given parallelism. We request 3GB per parallel process."""
+        if parallelism <= 16:
+            return parallelism * 3
+        else:
+            return 16 * 3
+
     def _spawn_workers_for_tasks(self) -> None:
         """Create one worker per unassigned task and claim the task for that worker."""
         available_tasks = self._task_client.get_available_tasks()
 
         for task in available_tasks.tasks:
-            worker_name = self._worker_manager.start_worker()
+            num_cpus = self._compute_num_cpus(task.parallelism)
+            memory_request = self._compute_memory_request(task.parallelism)
+
+            worker_name = self._worker_manager.start_worker(num_cpus_request=num_cpus, memory_request=memory_request)
             logger.info(f"Started worker {worker_name} for task {task.id}")
 
             claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker_name)

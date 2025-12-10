@@ -53,6 +53,7 @@ class EvalTaskRow(BaseModel):
     created_at: datetime
     is_finished: bool
     latest_attempt_id: int | None
+    parallelism: int
 
     # Fields from the latest attempt (populated via JOIN)
     # Note: attempt_number will be 0 for new tasks, status will be 'unprocessed'
@@ -231,16 +232,17 @@ class MettaRepo:
         attributes: dict[str, Any],
         git_hash: str | None = None,
         data_uri: str | None = None,
+        parallelism: int = 1,
     ) -> EvalTaskRow:
         async with self.connect() as con:
             # Insert the task
             result = await con.execute(
                 """
-                INSERT INTO eval_tasks (command, data_uri, git_hash, attributes, user_id)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO eval_tasks (command, data_uri, git_hash, attributes, user_id, parallelism)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (command, data_uri, git_hash, Jsonb(attributes), user_id),
+                (command, data_uri, git_hash, Jsonb(attributes), user_id, parallelism),
             )
             row = await result.fetchone()
             if row is None:
