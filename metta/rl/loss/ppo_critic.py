@@ -138,35 +138,10 @@ class PPOCritic(Loss):
                 self.device,
             )
 
-        # sample from the buffer if called for
-        if self.sample_enabled:
-            minibatch, indices, prio_weights = prio_sample(
-                buffer=self.replay,
-                mb_idx=mb_idx,
-                epoch=context.epoch,
-                total_timesteps=self.trainer_cfg.total_timesteps,
-                batch_size=self.trainer_cfg.batch_size,
-                prio_alpha=self.cfg.prio_alpha,
-                prio_beta0=self.cfg.prio_beta0,
-                advantages=self.advantages,
-            )
-            # mb data should have been computed with policy under torch.no_grad()
-            shared_loss_data["sampled_mb"] = minibatch
-            shared_loss_data["indices"] = NonTensorData(indices)  # this may break compile if we ever use it again
-            shared_loss_data["prio_weights"] = prio_weights
-        else:
-            minibatch = shared_loss_data["sampled_mb"]
-            indices = shared_loss_data["indices"]
-            if isinstance(indices, NonTensorData):
-                indices = indices.data
-
-            if "prio_weights" not in shared_loss_data:
-                # just in case ppo_actor runs after this and is expecting
-                shared_loss_data["prio_weights"] = torch.ones(
-                    (minibatch.shape[0], minibatch.shape[1]),
-                    device=self.device,
-                    dtype=torch.float32,
-                )
+        minibatch = shared_loss_data["sampled_mb"]
+        indices = shared_loss_data["indices"]
+        if isinstance(indices, NonTensorData):
+            indices = indices.data
 
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
@@ -176,15 +151,6 @@ class PPOCritic(Loss):
         batch_size = shared_loss_data.batch_size
         shared_loss_data["gamma"] = torch.full(batch_size, self.cfg.gamma, device=self.device)
         shared_loss_data["gae_lambda"] = torch.full(batch_size, self.cfg.gae_lambda, device=self.device)
-
-        # forward the policy if called for
-        if self.train_forward_enabled:
-            policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
-            flat_actions = minibatch["actions"].reshape(B * TT, -1)
-            self.policy.reset_memory()
-            policy_td = self.policy.forward(policy_td, action=flat_actions)
-            policy_td = policy_td.reshape(B, TT)
-            shared_loss_data["policy_td"] = policy_td
 
         # compute value loss
         old_values = minibatch["values"]
