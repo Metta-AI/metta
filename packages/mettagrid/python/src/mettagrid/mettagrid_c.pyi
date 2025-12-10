@@ -130,6 +130,46 @@ class Protocol:
     output_resources: dict[int, int]
     cooldown: int
 
+class InventoryConfig:
+    def __init__(
+        self,
+        limits: list[tuple[list[int], int]] = [],
+    ) -> None: ...
+    limits: list[tuple[list[int], int]]
+
+class AssemblerConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        initial_vibe: int = 0,
+    ) -> None: ...
+    type_id: int
+    type_name: str
+    tag_ids: list[int]
+    protocols: list[Protocol]
+    allow_partial_usage: bool
+    max_uses: int
+    clip_immune: bool
+    start_clipped: bool
+    chest_search_distance: int
+    initial_vibe: int
+
+class ChestConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        initial_vibe: int = 0,
+    ) -> None: ...
+    type_id: int
+    type_name: str
+    tag_ids: list[int]
+    vibe_transfers: dict[int, dict[int, int]]
+    initial_inventory: dict[int, int]
+    inventory_config: InventoryConfig
+    initial_vibe: int
+
 class ClipperConfig:
     def __init__(self) -> None: ...
     unclipping_protocols: list[Protocol]
@@ -144,9 +184,20 @@ class AttackActionConfig(ActionConfig):
         consumed_resources: dict[int, int] = {},
         defense_resources: dict[int, int] = {},
         enabled: bool = True,
+        vibes: list[int] = [],
     ) -> None: ...
     defense_resources: dict[int, int]
     enabled: bool
+    vibes: list[int]
+
+class MoveActionConfig(ActionConfig):
+    def __init__(
+        self,
+        allowed_directions: list[str] = ["north", "south", "west", "east"],
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+    ) -> None: ...
+    allowed_directions: list[str]
 
 class VibeTransferEffect:
     def __init__(
