@@ -19,7 +19,7 @@ import signal
 import sys
 import tempfile
 import traceback
-from typing import Any
+from typing import Any, get_type_hints
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
@@ -597,6 +597,8 @@ constructor/function vs configuration overrides based on introspection.
         else:
             # Tool maker function that returns a Tool instance
             sig = inspect.signature(tool_maker)
+            # Resolve forward refs / string annotations (PEP563) so TypeAdapter can validate them.
+            resolved_hints = get_type_hints(tool_maker)
             func_kwargs: dict[str, Any] = {}
             consumed_keys: set[str] = set()
 
@@ -622,7 +624,7 @@ constructor/function vs configuration overrides based on introspection.
                     data = base if base is not None else provided
 
                     # If annotated as a Pydantic model class, validate against it.
-                    ann = p.annotation
+                    ann = resolved_hints.get(name, p.annotation)
                     try:
                         if inspect.isclass(ann) and issubclass(ann, BaseModel):
                             val = ann.model_validate(data)
@@ -650,7 +652,8 @@ constructor/function vs configuration overrides based on introspection.
 
                 # Check for direct parameter match in flat CLI args
                 if name in cli_args:
-                    val = type_parse(cli_args[name], p.annotation)
+                    ann = resolved_hints.get(name, p.annotation)
+                    val = type_parse(cli_args[name], ann)
                     func_kwargs[name] = val
                     consumed_keys.add(name)
                     if known_args.verbose:

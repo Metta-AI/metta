@@ -44,7 +44,7 @@ def train(
     eval_difficulty: str | None = "standard",
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
-    maps_cache_size: int = 30,
+    map_seed: int = 50,
 ) -> TrainTool:
     """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
 
@@ -55,8 +55,10 @@ def train(
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
         teacher=teacher,
-        maps_cache_size=maps_cache_size,
     )
+
+    tt.training_env.maps_cache_size = 1
+    tt.training_env.seed = map_seed
 
     training_env_cfg = tt.training_env.curriculum.task_generator.env
     _ensure_full_vibe_actions(training_env_cfg)
