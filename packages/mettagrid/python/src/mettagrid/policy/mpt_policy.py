@@ -27,13 +27,19 @@ class MptPolicy(MultiAgentPolicy):
         checkpoint_uri: str,
         device: str | torch.device = "cpu",
         strict: bool = True,
+        pad_action_space: bool = False,
     ):
         super().__init__(policy_env_info)
 
         artifact = load_mpt(checkpoint_uri)
         self._architecture = artifact.architecture
 
-        self._policy = artifact.instantiate(policy_env_info, device=device, strict=strict)
+        self._policy = artifact.instantiate(
+            policy_env_info,
+            device=device,
+            strict=strict,
+            pad_action_space=pad_action_space,
+        )
         self._policy.eval()
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
