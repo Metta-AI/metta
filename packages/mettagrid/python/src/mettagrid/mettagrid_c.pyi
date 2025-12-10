@@ -241,6 +241,28 @@ class TransferActionConfig(ActionConfig):
     vibe_transfers: dict[int, VibeTransferEffect]
     enabled: bool
 
+class VibeBuildEffect:
+    def __init__(
+        self,
+        cost: dict[int, int] = {},
+        object_key: str = "",
+    ) -> None: ...
+    cost: dict[int, int]
+    object_key: str
+
+class BuildActionConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+        vibe_builds: dict[int, VibeBuildEffect] = {},
+        enabled: bool = True,
+        vibes: list[int] = [],
+    ) -> None: ...
+    vibe_builds: dict[int, VibeBuildEffect]
+    enabled: bool
+    vibes: list[int]
+
 class ChangeVibeActionConfig(ActionConfig):
     def __init__(
         self,

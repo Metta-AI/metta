@@ -35,6 +35,7 @@ class Action;
 class Agent;
 class ObservationEncoder;
 class GridObject;
+class Build;
 
 struct GridObjectConfig;
 struct AssemblerConfig;
@@ -118,6 +119,7 @@ private:
   std::vector<Action> _action_handlers;                              // All actions from all handlers
   std::vector<std::unique_ptr<ActionHandler>> _action_handler_impl;  // Owns the ActionHandler objects
   unsigned char _max_action_priority;
+  Build* _build_handler;  // Raw pointer to build handler for runtime context setup
 
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
