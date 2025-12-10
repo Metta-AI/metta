@@ -193,10 +193,16 @@ export class Drawer {
   }
 
   drawGrid(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
-    // Only draw the visible region of the grid - helps performance on big maps when zoomed in
+    // Preserve pixelated look when zoomed in
     ctx.imageSmoothingEnabled = false;
+
+    // Only draw the visible region of the grid - helps performance on big maps when zoomed in
     const visible = visibleRegion(ctx, grid);
     const { minX, minY, maxX, maxY } = visible;
+
+    // Clear drawing area
+    ctx.fillStyle = BACKGROUND_MAP_COLOR;
+    ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
 
     // Draw floor over entire visible region
     this.drawFloor(ctx, grid, visible);
