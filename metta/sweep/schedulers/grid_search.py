@@ -55,6 +55,7 @@ class GridSearchScheduler:
         self.state = SchedulerState()
         # Precompute full grid suggestions
         dims = self._flatten_dims(config.parameters)
+        self._validate_dims(dims)
         self._dim_names: list[str] = list(dims.keys())
         self._grid: list[dict[str, Any]] = self._cartesian_product(dims)
         logger.info("[GridSearchScheduler] Initialized with grid size=%s", len(self._grid))
@@ -176,6 +177,18 @@ class GridSearchScheduler:
             except Exception:
                 continue
         return keys
+
+    def _validate_dims(self, dims: Dict[str, List[Any]]) -> None:
+        """Ensure the grid has categorical dimensions with non-empty choices."""
+        if not dims:
+            raise ValueError("GridSearchScheduler requires at least one categorical parameter with choices.")
+
+        empty_dims = [name for name, choices in dims.items() if len(choices) == 0]
+        if empty_dims:
+            joined = ", ".join(empty_dims)
+            raise ValueError(
+                f"GridSearchScheduler categorical parameters must have non-empty choices (empty for: {joined})."
+            )
 
     def _flatten_dims(self, params: Dict[str, Any], prefix: str = "") -> Dict[str, List[Any]]:
         """Interpret categorical parameters, flattening nested dicts into dot paths."""
