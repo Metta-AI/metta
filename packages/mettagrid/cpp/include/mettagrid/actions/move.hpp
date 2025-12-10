@@ -10,7 +10,6 @@
 #include "actions/attack.hpp"
 #include "actions/move_config.hpp"
 #include "actions/orientation.hpp"
-#include "actions/transfer.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
@@ -59,13 +58,6 @@ public:
             _vibe_handlers[vibe] = handler;
           }
         }
-      } else if (name == "transfer") {
-        Transfer* transfer = dynamic_cast<Transfer*>(handler);
-        if (transfer) {
-          for (ObservationType vibe : transfer->get_vibes()) {
-            _vibe_handlers[vibe] = handler;
-          }
-        }
       }
     }
   }
@@ -106,10 +98,6 @@ protected:
       // Let the handler decide if target is valid
       Attack* attack_handler = dynamic_cast<Attack*>(handler);
       if (attack_handler && attack_handler->try_attack(actor, target_object)) {
-        return true;
-      }
-      Transfer* transfer_handler = dynamic_cast<Transfer*>(handler);
-      if (transfer_handler && transfer_handler->try_transfer(actor, target_object)) {
         return true;
       }
     }
