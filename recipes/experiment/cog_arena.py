@@ -41,6 +41,7 @@ from mettagrid.config.mettagrid_config import (
     BuildConfig,
     ChangeVibeActionConfig,
     ChestConfig,
+    DemolishConfig,
     GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
@@ -235,6 +236,10 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                 name="barrier",
                 render_symbol="🪨",
                 build=BuildConfig(vibe="barrier", cost={"energy": 50, "silicon": 25}),
+                demolish=DemolishConfig(
+                    cost={"energy": 100},
+                    scrap={"silicon": 12},
+                ),
             ),
         },
     )

@@ -307,6 +307,19 @@ class BuildConfig(Config):
     cost: dict[str, int] = Field(default_factory=dict, description="Resource costs to build")
 
 
+class DemolishConfig(Config):
+    """Configuration for demolishing a building via attack."""
+
+    cost: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources required from the attacker to demolish this building",
+    )
+    scrap: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources returned to the attacker after demolishing",
+    )
+
+
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
 
@@ -324,6 +337,10 @@ class GridObjectConfig(Config):
     build: Optional[BuildConfig] = Field(
         default=None,
         description="If set, this object can be built by agents with the specified vibe",
+    )
+    demolish: Optional[DemolishConfig] = Field(
+        default=None,
+        description="If set, this object can be demolished by attacking it with sufficient resources",
     )
 
     @model_validator(mode="after")

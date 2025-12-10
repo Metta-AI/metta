@@ -275,7 +275,8 @@ public:
         chest_search_distance(cfg.chest_search_distance),
         agent_cooldown(cfg.agent_cooldown),
         clipper_ptr(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
+    const DemolishConfig* demolish = cfg.demolish.has_value() ? &cfg.demolish.value() : nullptr;
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe, demolish);
   }
   virtual ~Assembler() = default;
 
