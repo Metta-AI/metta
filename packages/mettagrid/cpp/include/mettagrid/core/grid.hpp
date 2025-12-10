@@ -93,6 +93,27 @@ public:
     return true;
   }
 
+  // Remove an object from the grid. Returns true if successful.
+  // Note: The object's ID slot in the objects vector becomes null but is not reused,
+  // keeping all other IDs stable.
+  inline bool remove_object(GridObject& obj) {
+    if (!is_valid_location(obj.location)) {
+      return false;
+    }
+    if (grid[obj.location.r][obj.location.c] != &obj) {
+      return false;  // Object not at expected location
+    }
+
+    // Clear the grid cell
+    grid[obj.location.r][obj.location.c] = nullptr;
+
+    // Release the object (unique_ptr becomes null but slot remains)
+    if (obj.id < objects.size()) {
+      objects[obj.id].reset();
+    }
+    return true;
+  }
+
   inline GridObject* object(GridObjectId obj_id) const {
     assert(obj_id < objects.size() && "Invalid object ID");
     return objects[obj_id].get();

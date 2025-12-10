@@ -2,8 +2,10 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/types.hpp"
@@ -47,14 +49,26 @@ public:
   }
 };
 
+// Configuration for demolishing a building via attack
+struct DemolishConfig {
+  std::unordered_map<InventoryItem, InventoryQuantity> cost;   // Resources required to demolish
+  std::unordered_map<InventoryItem, InventoryQuantity> scrap;  // Resources returned after demolish
+
+  DemolishConfig() = default;
+  DemolishConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& cost,
+                 const std::unordered_map<InventoryItem, InventoryQuantity>& scrap)
+      : cost(cost), scrap(scrap) {}
+};
+
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
   std::vector<int> tag_ids;
   ObservationType initial_vibe;
+  std::optional<DemolishConfig> demolish;  // If set, object can be demolished
 
   GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
-      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe) {}
+      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe), demolish(std::nullopt) {}
 
   virtual ~GridObjectConfig() = default;
 };
@@ -66,6 +80,7 @@ public:
   TypeId type_id{};
   std::string type_name;
   std::vector<int> tag_ids;
+  const DemolishConfig* demolish_config = nullptr;  // Optional demolish config for buildings
 
   virtual ~GridObject() = default;
 
@@ -73,13 +88,18 @@ public:
             const std::string& object_type_name,
             const GridLocation& object_location,
             const std::vector<int>& tags,
-            ObservationType object_vibe = 0) {
+            ObservationType object_vibe = 0,
+            const DemolishConfig* demolish = nullptr) {
     this->type_id = object_type_id;
     this->type_name = object_type_name;
     this->location = object_location;
     this->tag_ids = tags;
     this->vibe = object_vibe;
+    this->demolish_config = demolish;
   }
+
+  // Called when this object is demolished. Override for cleanup.
+  virtual void on_demolish() {}
 
   virtual std::vector<PartialObservationToken> obs_features() const {
     return {};  // Default: no observable features

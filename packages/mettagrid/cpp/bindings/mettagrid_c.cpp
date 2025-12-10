@@ -1024,8 +1024,19 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("resource_names", &MettaGrid::resource_names)
       .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
 
+  // Bind DemolishConfig for building destruction
+  py::class_<DemolishConfig>(m, "DemolishConfig")
+      .def(py::init<>())
+      .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&>(),
+           py::arg("cost") = std::unordered_map<InventoryItem, InventoryQuantity>(),
+           py::arg("scrap") = std::unordered_map<InventoryItem, InventoryQuantity>())
+      .def_readwrite("cost", &DemolishConfig::cost)
+      .def_readwrite("scrap", &DemolishConfig::scrap);
+
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
-  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
+  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
+      .def_readwrite("demolish", &GridObjectConfig::demolish);
 
   bind_wall_config(m);
 
