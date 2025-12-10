@@ -38,9 +38,9 @@ RUN pip install --no-cache-dir \
     sqlmodel
 
 # Install workspace packages in correct order (one per RUN)
-# Install codebot first to avoid PyPI version conflicts with tiktoken
-RUN pip install --no-cache-dir -e ./packages/codebot
+# Install gitta first (codebot depends on it), then codebot (before main metta to avoid PyPI version conflicts)
 RUN pip install --no-cache-dir -e ./packages/gitta
+RUN pip install --no-cache-dir -e ./packages/codebot
 RUN pip install --no-cache-dir -e ./packages/mettagrid
 RUN pip install --no-cache-dir -e ./packages/cortex
 RUN pip install --no-cache-dir -e ./common
