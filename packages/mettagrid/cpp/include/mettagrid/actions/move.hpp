@@ -3,10 +3,12 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
+#include "actions/build.hpp"
 #include "actions/move_config.hpp"
 #include "actions/orientation.hpp"
 #include "actions/transfer.hpp"
@@ -50,6 +52,8 @@ public:
 
     // Build vibe->handler map from handlers' vibes fields
     _vibe_handlers.clear();
+    _build_handler = nullptr;
+
     for (const auto& [name, handler] : handlers) {
       if (name == "attack") {
         Attack* attack = dynamic_cast<Attack*>(handler);
@@ -63,6 +67,14 @@ public:
         if (transfer) {
           for (ObservationType vibe : transfer->get_vibes()) {
             _vibe_handlers[vibe] = handler;
+          }
+        }
+      } else if (name == "build") {
+        Build* build = dynamic_cast<Build*>(handler);
+        if (build) {
+          _build_handler = build;
+          for (ObservationType vibe : build->get_vibes()) {
+            _build_vibes.insert(vibe);
           }
         }
       }
@@ -115,7 +127,18 @@ protected:
 
     // If location is empty, move
     if (_grid->is_empty(target_location.r, target_location.c)) {
-      return _grid->move_object(actor, target_location);
+      GridLocation previous_location = current_location;
+      bool moved = _grid->move_object(actor, target_location);
+      if (moved) {
+        // After successful move, try to build at the previous location if agent has build vibe
+        if (_build_handler != nullptr) {
+          if (_build_vibes.count(actor.vibe) > 0) {
+            _build_handler->try_build(actor, previous_location);
+            // Build success/failure doesn't affect move success
+          }
+        }
+      }
+      return moved;
     }
 
     // Try to use the object at target location
@@ -150,6 +173,8 @@ private:
   std::unordered_map<std::string, Orientation> _direction_map;
   std::unordered_map<std::string, ActionHandler*> _handlers;
   std::unordered_map<ObservationType, ActionHandler*> _vibe_handlers;  // vibe -> handler map
+  Build* _build_handler = nullptr;
+  std::unordered_set<ObservationType> _build_vibes;  // vibes that trigger build on successful move
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_

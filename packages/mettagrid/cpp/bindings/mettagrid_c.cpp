@@ -14,6 +14,7 @@
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
+#include "actions/build.hpp"
 #include "actions/change_vibe.hpp"
 #include "actions/move.hpp"
 #include "actions/move_config.hpp"
@@ -88,6 +89,11 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   init_action_handlers(_game_config);
 
   _init_grid(_game_config, map);
+
+  // Set runtime context for build handler now that we know the number of agents
+  if (_build_handler) {
+    _build_handler->set_runtime_context(&current_step, _obs_encoder.get(), static_cast<unsigned int>(_agents.size()));
+  }
 
   // Create buffers
   _make_buffers(num_agents);
@@ -294,14 +300,28 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
     _action_handlers.push_back(action);
   }
 
-  // Register Attack and Transfer handlers with Move handler
+  // Build
+  auto build_config =
+      std::static_pointer_cast<const BuildActionConfig>(game_config.actions.at("build"));
+  auto build = std::make_unique<Build>(*build_config, &game_config, _stats.get());
+  build->init(_grid.get(), &_rng);
+  if (build->priority > _max_action_priority) _max_action_priority = build->priority;
+  for (const auto& action : build->actions()) {
+    _action_handlers.push_back(action);
+  }
+  // Store raw pointer for runtime context setup after _init_grid
+  _build_handler = build.get();
+
+  // Register Attack, Transfer, and Build handlers with Move handler
   std::unordered_map<std::string, ActionHandler*> handlers;
   handlers["attack"] = attack.get();
   handlers["transfer"] = transfer.get();
+  handlers["build"] = build.get();
   move_ptr->set_action_handlers(handlers);
 
   _action_handler_impl.push_back(std::move(attack));
   _action_handler_impl.push_back(std::move(transfer));
+  _action_handler_impl.push_back(std::move(build));
 
   // ChangeVibe
   auto change_vibe_config =
@@ -1012,6 +1032,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_attack_action_config(m);
   bind_vibe_transfer_effect(m);
   bind_transfer_action_config(m);
+  bind_vibe_build_effect(m);
+  bind_build_action_config(m);
   bind_change_vibe_action_config(m);
   bind_move_action_config(m);
   bind_global_obs_config(m);

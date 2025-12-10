@@ -38,6 +38,7 @@ from mettagrid.config.mettagrid_config import (
     AgentRewards,
     AssemblerConfig,
     AttackActionConfig,
+    BuildConfig,
     ChangeVibeActionConfig,
     ChestConfig,
     GameConfig,
@@ -48,6 +49,7 @@ from mettagrid.config.mettagrid_config import (
     ProtocolConfig,
     ResourceLimitsConfig,
     TransferActionConfig,
+    WallConfig,
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
@@ -73,6 +75,7 @@ vibes = [
     Vibe("🔋", "battery"),
     Vibe("⚙️", "gear"),
     Vibe("❤️", "heart"),
+    Vibe("🪨", "barrier"),
 ]
 
 
@@ -228,6 +231,11 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             "oxygen_extractor": OxygenExtractorConfig(efficiency=200).station_cfg(),
             "germanium_extractor": GermaniumExtractorConfig().station_cfg(),
             "silicon_extractor": SiliconExtractorConfig().station_cfg(),
+            "barrier": WallConfig(
+                name="barrier",
+                render_symbol="🪨",
+                build=BuildConfig(vibe="barrier", cost={"energy": 50, "silicon": 25}),
+            ),
         },
     )
 

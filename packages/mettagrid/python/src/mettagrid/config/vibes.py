@@ -86,7 +86,6 @@ VIBES = [
     Vibe("🌾", "wheat"),
     Vibe("🌽", "corn"),
     Vibe("🥕", "carrot"),
-    Vibe("🪨", "rock"),
     Vibe("⛰️", "mountain"),
     Vibe("🪵", "wood"),
     Vibe("🌊", "wave"),

@@ -275,10 +275,8 @@ class ActionsConfig(Config):
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
 
     def actions(self) -> list[Action]:
-        return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.transfer, self.change_vibe]],
-            [],
-        )
+        action_handlers = [self.noop, self.move, self.attack, self.transfer, self.change_vibe]
+        return sum([action.actions() for action in action_handlers], [])
 
 
 class GlobalObsConfig(Config):
@@ -298,6 +296,17 @@ class GlobalObsConfig(Config):
     goal_obs: bool = Field(default=False)
 
 
+class BuildConfig(Config):
+    """Configuration for building this object type.
+
+    When an agent with this vibe successfully moves to a new location,
+    the specified cost is deducted and this object is placed in the spot moved from.
+    """
+
+    vibe: str = Field(description="Vibe that triggers building this object")
+    cost: dict[str, int] = Field(default_factory=dict, description="Resource costs to build")
+
+
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
 
@@ -312,6 +321,10 @@ class GridObjectConfig(Config):
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
+    build: Optional[BuildConfig] = Field(
+        default=None,
+        description="If set, this object can be built by agents with the specified vibe",
+    )
 
     @model_validator(mode="after")
     def _defaults_from_name(self) -> "GridObjectConfig":
