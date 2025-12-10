@@ -26,7 +26,6 @@ spec:
         app.kubernetes.io/name: eval-scheduler
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: eval-scheduler
-        dd-metrics-enabled: "true"
     spec:
       serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}
       containers:

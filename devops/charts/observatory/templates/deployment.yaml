@@ -10,7 +10,6 @@ spec:
     metadata:
       labels:
         app: {{ .Release.Name }}
-        dd-metrics-enabled: "true"
     spec:
       containers:
         - name: server

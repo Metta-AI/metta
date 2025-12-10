@@ -165,6 +165,7 @@ class DatadogAgentSetup(SetupModule):
             return
 
         info("Installing Datadog agent...")
+        env["DD_INSTALL_ONLY"] = "true"
         subprocess.run(
             "curl -fsSL https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh | bash",
             shell=True,
