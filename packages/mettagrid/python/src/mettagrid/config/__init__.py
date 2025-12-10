@@ -12,6 +12,8 @@ from .mettagrid_config import (
     GlobalObsConfig,
     MettaGridConfig,
     ProtocolConfig,
+    TransferActionConfig,
+    VibeTransfer,
     WallConfig,
 )
 
@@ -29,5 +31,7 @@ __all__ = [
     "MettaGridConfig",
     "ClipperConfig",
     "ProtocolConfig",
+    "TransferActionConfig",
+    "VibeTransfer",
     "WallConfig",
 ]
