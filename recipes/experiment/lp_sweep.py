@@ -52,7 +52,6 @@ from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 from recipes.experiment.cfg import NAVIGATION_EVALS
 
-
 # ============================================================================
 # Environment setup - Navigation (high dynamic range, fast reward signal)
 # ============================================================================
@@ -338,4 +337,3 @@ def sweep(sweep_name: str) -> SweepTool:
         max_trials=80,  # 60+ trials recommended
         num_parallel_trials=4,  # 4 GPUs = 4x faster at same cost
     )
-

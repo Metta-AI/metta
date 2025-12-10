@@ -25,9 +25,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
-    # ema_timescale: Tuned via sweep (prashant.lp_sweep.12_10_2) - higher values (0.005-0.008)
-    # showed ~2x improvement in learning performance. Default increased from 0.001 to 0.006.
-    ema_timescale: float = 0.006  # Timescale for fast EMA (sets low-frequency component)
+    ema_timescale: float = 0.001  # Timescale for fast EMA (sets low-frequency component)
     slow_timescale_factor: float = 0.2  # Factor applied to ema_timescale for slow EMA (width of frequency window)
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.05  # Prioritization rescaling factor for bidirectional reweighting
