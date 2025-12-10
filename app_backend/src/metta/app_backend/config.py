@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -9,6 +10,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
     ANTHROPIC_API_KEY: str | None = None
     LOGIN_SERVICE_URL: str = "https://softmax.com"
+    RUN_MIGRATIONS: bool = Field(default=False, description="Run migrations on startup")
 
 
 settings = Settings()

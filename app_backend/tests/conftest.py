@@ -4,7 +4,6 @@ from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
 from typing import Dict
-from unittest import mock
 
 import pytest
 from fastapi import FastAPI
@@ -21,11 +20,12 @@ from metta.common.test_support import docker_client_fixture, isolated_test_schem
 docker_client = docker_client_fixture()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def mock_debug_user_email():
-    """Set DEBUG_USER_EMAIL for all tests to bypass authentication."""
-    with mock.patch("metta.app_backend.config.settings.DEBUG_USER_EMAIL", "test@example.com"):
-        yield
+def pytest_configure(config):
+    """Configure test settings before any tests run (works with xdist workers)."""
+    from metta.app_backend import config as app_config
+
+    app_config.settings.RUN_MIGRATIONS = True
+    app_config.settings.DEBUG_USER_EMAIL = "test@example.com"
 
 
 # Skip all tests that use postgres_container; it is flaky
