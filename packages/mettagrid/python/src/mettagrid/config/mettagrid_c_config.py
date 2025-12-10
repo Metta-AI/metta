@@ -19,8 +19,6 @@ from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
-from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
-from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
@@ -415,24 +413,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Convert vibes from names to IDs
     action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in actions_config.attack.vibes if vibe in vibe_name_to_id]
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
-
-    # Process transfer - always add to map
-    action_params = process_action_config("transfer", actions_config.transfer)
-    action_params["enabled"] = actions_config.transfer.enabled
-    # Convert vibes from names to IDs
-    action_params["vibes"] = [
-        vibe_name_to_id[vibe] for vibe in actions_config.transfer.vibes if vibe in vibe_name_to_id
-    ]
-    # Convert vibe_transfers to C++ format
-    vibe_transfers_cpp = {}
-    for vibe_transfer in actions_config.transfer.vibe_transfers:
-        vibe_id = vibe_name_to_id.get(vibe_transfer.vibe)
-        if vibe_id is not None:
-            target_deltas = {resource_name_to_id[k]: v for k, v in vibe_transfer.target.items()}
-            actor_deltas = {resource_name_to_id[k]: v for k, v in vibe_transfer.actor.items()}
-            vibe_transfers_cpp[vibe_id] = CppVibeTransferEffect(target_deltas, actor_deltas)
-    action_params["vibe_transfers"] = vibe_transfers_cpp
-    actions_cpp_params["transfer"] = CppTransferActionConfig(**action_params)
 
     # Process change_vibe - always add to map
     action_params = process_action_config("change_vibe", actions_config.change_vibe)
