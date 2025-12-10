@@ -105,7 +105,6 @@ class ActorKey(nn.Module):
 class ActionProbsConfig(ComponentConfig):
     in_key: str
     name: str = "action_probs"
-    pad_to_env_actions: bool = True
 
     def make_component(self, env=None):
         return ActionProbs(config=self)
