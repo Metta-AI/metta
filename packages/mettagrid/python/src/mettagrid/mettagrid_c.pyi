@@ -125,6 +125,28 @@ class AttackActionConfig(ActionConfig):
     defense_resources: dict[int, int]
     enabled: bool
 
+class VibeTransferEffect:
+    def __init__(
+        self,
+        target_deltas: dict[int, int] = {},
+        actor_deltas: dict[int, int] = {},
+    ) -> None: ...
+    target_deltas: dict[int, int]
+    actor_deltas: dict[int, int]
+
+class TransferActionConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+        vibe_transfers: dict[int, VibeTransferEffect] = {},
+        enabled: bool = True,
+        vibes: list[int] = [],
+    ) -> None: ...
+    vibe_transfers: dict[int, VibeTransferEffect]
+    enabled: bool
+    vibes: list[int]
+
 class ChangeVibeActionConfig(ActionConfig):
     def __init__(
         self,
