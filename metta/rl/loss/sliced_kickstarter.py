@@ -105,6 +105,8 @@ class SlicedKickstarter(Loss):
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
 
         return Composite(
+            rewards=scalar_f32,
+            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32),
             teacher_logits=logits_f32,
             teacher_values=scalar_f32,
             stud_mask=boolean,

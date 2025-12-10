@@ -91,7 +91,7 @@ def configure_tf32_precision() -> None:
     if not torch.cuda.is_available():
         return
 
-    torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
+    return None
 
 
 __all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision"]

@@ -5,9 +5,12 @@ This recipe is automatically validated in CI and release processes.
 from pathlib import Path
 from typing import Any, Optional, Sequence
 
+from cortex.config import AGaLiTeCellConfig
+from cortex.stacks import build_cortex_auto_config
+
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.smollm import SmolLLMConfig
+from metta.agent.policies.cortex import CortexBaseConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -42,10 +45,10 @@ def _smollm_config(
     policy_config = {
         "model_name": model_name or "HuggingFaceTB/SmolLM-135M",
         "attn_implementation": "flash_attention_2",
-        "dtype": "bfloat16",
+        "dtype": "float32",
         "mem_len": int(mem_len) if mem_len is not None else 16,
         "init_from_pretrained": False,
-        "num_layers": 3,
+        "num_layers": 10,
     }
 
     trainer_updates = {
@@ -151,7 +154,19 @@ def train(
     )
 
     if policy_architecture is None:
-        policy_architecture = SmolLLMConfig(**policy_config)
+        # Original SmolLLM policy architecture:
+        # policy_architecture = SmolLLMConfig(**policy_config)
+        # Use Cortex-based architecture instead, with AGaLiTe stack.
+        num_layers_cfg = int(policy_config.get("num_layers", 3))
+        dtype_cfg = str(policy_config.get("dtype", "float32"))
+        stack_cfg = build_cortex_auto_config(
+            d_hidden=576,
+            num_layers=num_layers_cfg,
+            pattern="Ag",
+            override_global_configs=[AGaLiTeCellConfig(n_heads=8, eta=8)],
+            post_norm=True,
+        )
+        policy_architecture = CortexBaseConfig(stack_cfg=stack_cfg, dtype=dtype_cfg)
 
     losses_config = LossesConfig()
     losses_config.sliced_kickstarter.enabled = True
@@ -160,9 +175,14 @@ def train(
         "s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt"
     )
     ks_end_step = 1_000_000_000
+    # PPO disabled completely
+    losses_config.ppo_critic.enabled = False
+    losses_config.ppo_actor.enabled = False
+
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = ks_end_step
+    losses_config.sliced_kickstarter.teacher_led_proportion = 0.25
 
     trainer_cfg = TrainerConfig(losses=losses_config)
     trainer_cfg = trainer_cfg.model_copy(update=trainer_updates)
@@ -191,8 +211,8 @@ def train(
                 mode="progress",
                 style="linear",
                 start_value=0.35,
-                end_value=0.0,
-                start_agent_step=0,
+                end_value=1.0,
+                start_agent_step=500_000_000,
                 end_agent_step=ks_end_step,
             ),
         ],

@@ -316,12 +316,6 @@ class TrainTool(Tool):
         if not torch.cuda.is_available():
             return
 
-        try:
-            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
-            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
-        except Exception as exc:  # pragma: no cover - diagnostic only
-            logger.debug("Skipping CUDA matmul backend configuration: %s", exc)
-
         # Opportunistically enable flash attention when available
         if os.environ.get("FLASH_ATTENTION") is None:
             try:

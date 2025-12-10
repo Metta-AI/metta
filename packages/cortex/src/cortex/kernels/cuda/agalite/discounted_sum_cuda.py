@@ -6,6 +6,7 @@ from typing import Tuple
 import torch
 from torch.autograd import Function
 from torch.utils.cpp_extension import load
+from torch._dynamo import disable
 
 _mod_path = os.path.dirname(__file__)
 _ext = None
@@ -89,6 +90,7 @@ class _DiscountedSumCUDA(Function):
         return grad_start, grad_x, grad_discounts
 
 
+@disable
 def discounted_sum_cuda(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
     """Apply CUDA fused discounted sum if extension loads."""
     return _DiscountedSumCUDA.apply(start_state, x, discounts)
