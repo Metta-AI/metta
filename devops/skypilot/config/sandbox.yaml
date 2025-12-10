@@ -48,6 +48,6 @@ envs:
   SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
 
 secrets:
-  # configured by launch script based on local credentials
-  WANDB_PASSWORD: ""
+  # sandbox uses a placeholder; override as needed
+  WANDB_PASSWORD: "dummy"
   OBSERVATORY_TOKEN: ""
