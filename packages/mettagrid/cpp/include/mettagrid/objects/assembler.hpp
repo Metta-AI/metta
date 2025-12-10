@@ -303,12 +303,15 @@ public:
   }
 
   // Helper function to build a protocol map from a vector of protocols
+  // Creates deep copies of protocols so each Assembler has independent activation_count tracking
   static std::unordered_map<GroupVibe, std::vector<std::shared_ptr<Protocol>>> build_protocol_map(
       const std::vector<std::shared_ptr<Protocol>>& protocol_list) {
     std::unordered_map<GroupVibe, std::vector<std::shared_ptr<Protocol>>> protocol_map;
     for (const auto& protocol : protocol_list) {
-      GroupVibe vibe = calculate_group_vibe_from_vibes(protocol->vibes);
-      protocol_map[vibe].push_back(protocol);
+      // Deep copy the protocol so each Assembler has its own activation_count
+      auto protocol_copy = std::make_shared<Protocol>(*protocol);
+      GroupVibe vibe = calculate_group_vibe_from_vibes(protocol_copy->vibes);
+      protocol_map[vibe].push_back(protocol_copy);
     }
     for (auto& [vibe, protocol_list] : protocol_map) {
       std::sort(protocol_list.begin(),
