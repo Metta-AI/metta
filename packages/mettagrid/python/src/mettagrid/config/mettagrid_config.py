@@ -202,10 +202,36 @@ class ChangeVibeActionConfig(ActionConfig):
 
 
 class AttackActionConfig(ActionConfig):
-    """Python attack action configuration."""
+    """Python attack action configuration.
+
+    Enhanced attack system with armor/weapon modifiers:
+    - defense_resources: Base resources needed to block an attack
+    - armor_resources: Target's resources that reduce incoming damage (weighted)
+    - weapon_resources: Attacker's resources that increase damage (weighted)
+    - loot: Configurable list of resources to steal (or steal all if None, steal nothing if empty)
+
+    Defense calculation:
+    - weapon_power = sum(attacker_inventory[item] * weapon_weight)
+    - armor_power = sum(target_inventory[item] * armor_weight)
+    - Note: Vibing a resource that's in armor_resources gives +1 effective armor for that resource
+    - damage_bonus = max(weapon_power - armor_power, 0)
+    - cost_to_defend = defense_resources + damage_bonus
+    """
 
     action_handler: str = Field(default="attack")
     defense_resources: dict[str, int] = Field(default_factory=dict)
+    armor_resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources on target that reduce damage. Maps resource name to weight.",
+    )
+    weapon_resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources on attacker that increase damage. Maps resource name to weight.",
+    )
+    loot: Optional[list[str]] = Field(
+        default=None,
+        description="List of resources to steal (in order). If None, steal all resources. If empty list, steal nothing.",
+    )
     target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
         default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
     )
