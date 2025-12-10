@@ -1,8 +1,11 @@
+from typing import Optional
+
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AssemblerConfig,
     ChestConfig,
     ClipperConfig,
+    DemolishConfig,
     GameConfig,
     WallConfig,
 )
@@ -15,6 +18,7 @@ from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionC
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
 from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
+from mettagrid.mettagrid_c import DemolishConfig as CppDemolishConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
@@ -25,6 +29,17 @@ from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfi
 from mettagrid.mettagrid_c import VibeBuildEffect as CppVibeBuildEffect
 from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
+
+
+def _convert_demolish_config(
+    demolish: Optional[DemolishConfig], resource_name_to_id: dict[str, int]
+) -> Optional[CppDemolishConfig]:
+    """Convert Python DemolishConfig to C++ DemolishConfig."""
+    if demolish is None:
+        return None
+    cost = {resource_name_to_id[k]: int(v) for k, v in demolish.cost.items()}
+    scrap = {resource_name_to_id[k]: int(v) for k, v in demolish.scrap.items()}
+    return CppDemolishConfig(cost, scrap)
 
 
 def convert_to_cpp_game_config(game_config: GameConfig):
@@ -243,6 +258,7 @@ def convert_to_cpp_game_config(game_config: GameConfig):
                 type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
             )
             cpp_wall_config.tag_ids = tag_ids
+            cpp_wall_config.demolish = _convert_demolish_config(object_config.demolish, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
@@ -295,6 +311,7 @@ def convert_to_cpp_game_config(game_config: GameConfig):
             cpp_assembler_config.start_clipped = object_config.start_clipped
             cpp_assembler_config.chest_search_distance = object_config.chest_search_distance
             cpp_assembler_config.agent_cooldown = object_config.agent_cooldown
+            cpp_assembler_config.demolish = _convert_demolish_config(object_config.demolish, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
@@ -347,6 +364,7 @@ def convert_to_cpp_game_config(game_config: GameConfig):
             cpp_chest_config.initial_inventory = initial_inventory_cpp
             cpp_chest_config.inventory_config = inventory_config
             cpp_chest_config.tag_ids = tag_ids
+            cpp_chest_config.demolish = _convert_demolish_config(object_config.demolish, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config
         else:
