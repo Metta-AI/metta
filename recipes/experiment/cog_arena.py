@@ -36,6 +36,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
+    AOEEffectConfig,
     AssemblerConfig,
     AttackActionConfig,
     BuildConfig,
@@ -239,6 +240,10 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                 demolish=DemolishConfig(
                     cost={"energy": 100},
                     scrap={"silicon": 12},
+                ),
+                aoe=AOEEffectConfig(
+                    range=1,
+                    resource_deltas={"damage": 1},
                 ),
             ),
         },
