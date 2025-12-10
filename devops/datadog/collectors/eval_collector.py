@@ -13,16 +13,10 @@ class EvalCollector(BaseCollector):
     """
     Collector for eval metrics (local + remote) used by the infra dashboard.
 
-    Searches S3 recursively for eval artifacts under:
-    - s3://softmax-train-dir/**/eval*/
-    - s3://rain-artifacts-751442549699-us-west-2/**/eval*/
-
-    Currently no eval artifacts exist, so emits placeholder zeros and
-    a data_missing sentinel metric. When eval artifacts are discovered,
-    this collector will parse them to extract:
-    - success: binary success signal
-    - heart_delta_pct: percentage change in hearts
-    - duration_minutes: runtime duration
+    Reads job metrics from stable_suite's JobState database:
+    - devops/stable/state/{version}/jobs.sqlite
+    - Extracts success, heart_delta_pct, and duration_minutes from JobState
+    - Maps jobs to workflows using stable_suite_mapping
     """
 
     slug = "eval"
