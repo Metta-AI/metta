@@ -74,7 +74,6 @@ class MettaGridPufferEnv(PufferEnv):
         supervisor_policy_spec: Optional[PolicySpec] = None,
         buf: Any = None,
         seed: int = 0,
-        supervisor_subset_fraction: Optional[float] = None,
         supervisor_stop_agent_step: Optional[int] = None,
     ):
         # Support both Simulation and MettaGridConfig for backwards compatibility
@@ -83,7 +82,6 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_seed = seed
         self._supervisor_policy_spec = supervisor_policy_spec
         self._supervisor_enabled = True
-        self._supervisor_subset_fraction = supervisor_subset_fraction
         self._supervisor_stop_agent_step = supervisor_stop_agent_step
         self._sim: Simulation | None = None
 
@@ -213,30 +211,8 @@ class MettaGridPufferEnv(PufferEnv):
             self._buffers.teacher_actions.fill(-1)
             return
 
-        teacher_actions = self._buffers.teacher_actions
-        raw_observations = self._buffers.observations
-
-        subset_frac = self._supervisor_subset_fraction
-        if subset_frac is not None and 0.0 < subset_frac < 1.0:
-            mask = np.random.random(size=self.num_agents) < subset_frac
-            if not mask.any():
-                teacher_actions.fill(-1)
-                return
-            agent_ids = np.nonzero(mask)[0].astype(np.int32)
-            obs_subset = raw_observations[agent_ids]
-            actions_subset = np.full(agent_ids.shape[0], fill_value=-1, dtype=dtype_actions)
-            if hasattr(self._env_supervisor, "step_batch_subset"):
-                self._env_supervisor.step_batch_subset(agent_ids, obs_subset, actions_subset)
-                teacher_actions.fill(-1)
-                teacher_actions[agent_ids] = actions_subset
-            else:
-                # Fallback: run full batch but keep only the subset outputs
-                temp_actions = np.full(self.num_agents, fill_value=-1, dtype=dtype_actions)
-                self._env_supervisor.step_batch(raw_observations, temp_actions)
-                teacher_actions.fill(-1)
-                teacher_actions[agent_ids] = temp_actions[agent_ids]
-        else:
-            self._env_supervisor.step_batch(raw_observations, teacher_actions)
+        # Full-batch supervisor (behavior controlled solely by bc_teacher_lead_prob in the loss)
+        self._env_supervisor.step_batch(self._buffers.observations, self._buffers.teacher_actions)
 
     @property
     def observations(self) -> np.ndarray:
