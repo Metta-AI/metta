@@ -27,8 +27,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from devops.stable.runner import Runner, print_summary
-from devops.stable.suite import get_ci_jobs
 from metta.common.util.fs import get_repo_root
 from metta.setup.tools.test_runner.test_python import PACKAGES as PYTEST_PACKAGES
 from metta.setup.utils import error, info, success
@@ -182,6 +180,9 @@ def _run_cleanup_cancelled_runs(*, verbose: bool = False, extra_args: Sequence[s
 
 
 def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None, **_kwargs) -> CheckResult:
+    from devops.stable.runner import Runner, print_summary
+    from devops.stable.suite import get_ci_jobs
+
     _print_header("Recipe CI Tests")
 
     try:
