@@ -11,6 +11,16 @@ RUN apt-get update && apt-get install -y \
 RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
     && chmod +x /usr/local/bin/bazel
 
+# Install Nim via nimby (required for mettagrid Nim compilation)
+RUN curl -L -o /tmp/nimby https://github.com/treeform/nimby/releases/download/0.1.6/nimby-Linux-X64 \
+    && chmod +x /tmp/nimby \
+    && /tmp/nimby use 2.2.6 \
+    && mv /tmp/nimby /root/.nimby/nim/bin/nimby \
+    && ln -s /root/.nimby/nim/bin/nim /usr/local/bin/nim \
+    && ln -s /root/.nimby/nim/bin/nimby /usr/local/bin/nimby
+
+ENV PATH="/root/.nimby/nim/bin:${PATH}"
+
 WORKDIR /app
 COPY . .
 
