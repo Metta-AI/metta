@@ -121,6 +121,12 @@ class ActionProbs(nn.Module):
         self.config = config
         self.num_actions = 0
 
+    def _ensure_initialized(self) -> None:
+        if self.num_actions <= 0:
+            raise RuntimeError(
+                "ActionProbs not initialized; call initialize_to_environment before forward."
+            )
+
     def initialize_to_environment(
         self,
         env: PolicyEnvInterface,
@@ -135,6 +141,8 @@ class ActionProbs(nn.Module):
 
     def _pad_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
         """Optionally pad logits to match environment action count."""
+        self._ensure_initialized()
+
         current_actions = logits.size(-1)
         if current_actions == self.num_actions:
             return logits
@@ -164,7 +172,11 @@ class ActionProbs(nn.Module):
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Forward pass for inference mode with action sampling."""
-        logits = self._pad_logits_if_needed(td[self.config.in_key])
+        logits = td[self.config.in_key]
+        if logits.size(-1) == 0:
+            raise ValueError("Action logits have zero actions.")
+
+        logits = self._pad_logits_if_needed(logits)
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
         td["actions"] = action_logit_index.to(dtype=torch.int32)
@@ -191,8 +203,13 @@ class ActionProbs(nn.Module):
         if action.dim() != 1:
             raise ValueError(f"Expected flattened action indices, got shape {tuple(action.shape)}")
 
-        logits = self._pad_logits_if_needed(logits)
         action_logit_index = action.to(dtype=torch.long)
+        if action_logit_index.numel() > 0 and action_logit_index.max().item() >= self.num_actions:
+            raise ValueError(
+                f"Action index {int(action_logit_index.max())} out of bounds for {self.num_actions} actions."
+            )
+
+        logits = self._pad_logits_if_needed(logits)
         selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
 
         # Store in flattened TD (will be reshaped by caller if needed)
