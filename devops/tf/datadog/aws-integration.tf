@@ -93,8 +93,8 @@ resource "datadog_integration_aws_account" "datadog_integration" {
     }
   }
   resources_config {
-    cloud_security_posture_management_collection = true
-    extended_collection                          = true
+    cloud_security_posture_management_collection = false
+    extended_collection                          = false
   }
   traces_config {
     xray_services {
@@ -106,6 +106,17 @@ resource "datadog_integration_aws_account" "datadog_integration" {
   }
   metrics_config {
     namespace_filters {
+      exclude_only = [
+        # disable everything EC2-related to avoid datadog infra hosts pricing
+        "AWS/EC2",
+        "AWS/EC2/API",
+        "AWS/EC2Spot",
+        "AWS/EC2InfrastructurePerformance",
+        # disabled by default
+        "AWS/ElasticMapReduce",
+        "AWS/SQS",
+        "AWS/Usage",
+      ]
     }
   }
 }
