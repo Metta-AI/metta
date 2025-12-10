@@ -1,8 +1,7 @@
 import json
 import os
 import uuid
-from datetime import datetime, timedelta
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 from urllib.parse import urlparse
 
 import aioboto3
@@ -11,11 +10,9 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-import gitta as git
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.metta_repo import EvalTaskRow, FinishedTaskStatus, MettaRepo, TaskAttemptRow, TaskStatus
 from metta.app_backend.route_logger import timed_http_handler
-from metta.common.util.git_repo import REPO_SLUG
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
 
@@ -36,6 +33,10 @@ class TaskClaimRequest(BaseModel):
 
 class TaskClaimResponse(BaseModel):
     claimed: list[int]
+
+
+class TaskStartRequest(BaseModel):
+    git_hash: str | None = None
 
 
 class TaskFinishRequest(BaseModel):
@@ -86,24 +87,6 @@ class TaskAttemptsResponse(BaseModel):
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     router = APIRouter(prefix="/tasks", tags=["eval_tasks"])
 
-    # Cache for latest commit
-    _latest_commit_cache: Optional[tuple[str, datetime]] = None
-    _cache_ttl = timedelta(minutes=3)
-
-    async def get_cached_latest_commit() -> str:
-        nonlocal _latest_commit_cache
-
-        now = datetime.now()
-        if _latest_commit_cache:
-            commit_hash, cached_time = _latest_commit_cache
-            if now - cached_time < _cache_ttl:
-                return commit_hash
-
-        # Cache miss or expired - fetch new value
-        commit_hash = await git.get_latest_commit(REPO_SLUG, branch="main")
-        _latest_commit_cache = (commit_hash, now)
-        return commit_hash
-
     @router.post("")
     @timed_http_handler
     async def create_task(request: TaskCreateRequest, user: UserOrToken) -> EvalTaskRow:
@@ -123,7 +106,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
         task = await stats_repo.create_eval_task(
             command=request.command,
-            git_hash=request.git_hash or await get_cached_latest_commit(),
+            git_hash=request.git_hash,
             attributes=request.attributes,
             user_id=user,
             data_uri=data_uri,
@@ -212,8 +195,9 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/{task_id}/start")
     @timed_http_handler
-    async def start_task(task_id: int) -> TaskIdResponse:
-        await stats_repo.start_task(task_id=task_id)
+    async def start_task(task_id: int, request: TaskStartRequest | None = None) -> TaskIdResponse:
+        git_hash = request.git_hash if request else None
+        await stats_repo.start_task(task_id=task_id, git_hash=git_hash)
         return TaskIdResponse(task_id=task_id)
 
     @router.post("/{task_id}/finish")
