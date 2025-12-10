@@ -5,6 +5,8 @@
 #include <pybind11/stl.h>
 
 #include <algorithm>
+#include <cassert>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -21,16 +23,25 @@
 // If the argument (agent index to attack) > num_agents, the last agent is attacked.
 struct AttackActionConfig : public ActionConfig {
   std::unordered_map<InventoryItem, InventoryQuantity> defense_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> armor_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> weapon_resources;
+  std::optional<std::vector<InventoryItem>> loot;
   bool enabled;
   std::vector<ObservationType> vibes;  // Vibes that trigger this action on move
 
   AttackActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources,
                      const std::unordered_map<InventoryItem, InventoryQuantity>& consumed_resources,
                      const std::unordered_map<InventoryItem, InventoryQuantity>& defense_resources,
+                     const std::unordered_map<InventoryItem, InventoryQuantity>& armor_resources,
+                     const std::unordered_map<InventoryItem, InventoryQuantity>& weapon_resources,
+                     const std::optional<std::vector<InventoryItem>>& loot = std::nullopt,
                      bool enabled = true,
                      const std::vector<ObservationType>& vibes = {})
       : ActionConfig(required_resources, consumed_resources),
         defense_resources(defense_resources),
+        armor_resources(armor_resources),
+        weapon_resources(weapon_resources),
+        loot(loot),
         enabled(enabled),
         vibes(vibes) {}
 };
@@ -42,6 +53,9 @@ public:
                   const std::string& action_name = "attack")
       : ActionHandler(cfg, action_name),
         _defense_resources(cfg.defense_resources),
+        _armor_resources(cfg.armor_resources),
+        _weapon_resources(cfg.weapon_resources),
+        _loot(cfg.loot),
         _game_config(game_config),
         _enabled(cfg.enabled),
         _vibes(cfg.vibes) {
@@ -95,42 +109,35 @@ public:
 
 protected:
   std::unordered_map<InventoryItem, InventoryQuantity> _defense_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> _armor_resources;
+  std::unordered_map<InventoryItem, InventoryQuantity> _weapon_resources;
+  std::optional<std::vector<InventoryItem>> _loot;
   const GameConfig* _game_config;
   bool _enabled;
   std::vector<ObservationType> _vibes;
 
   bool _handle_action(Agent& actor, ActionArg arg) override {
-    Agent* last_agent = nullptr;
-    short num_skipped = 0;
+    std::vector<Agent*> targets;
+    // Simple 3x3 neighborhood scan
+    for (int r = static_cast<int>(actor.location.r) - 1; r <= static_cast<int>(actor.location.r) + 1; r++) {
+      for (int c = static_cast<int>(actor.location.c) - 1; c <= static_cast<int>(actor.location.c) + 1; c++) {
+        if (r == actor.location.r && c == actor.location.c) continue;
 
-    // 3x3 grid pattern for cardinal-only movement
-    // 7 6 8  (3 cells forward)
-    // 4 3 5  (2 cells forward)
-    // 1 0 2  (1 cell forward)
-    // . A .  (Agent position)
-
-    static constexpr short COL_OFFSETS[3] = {0, -1, 1};
-
-    for (short distance = 1; distance <= 3; distance++) {
-      for (short offset : COL_OFFSETS) {
-        // Commented out because we no longer have orientation, and thus relative_location.
-        // But leaving the code in place since we probably want some version of attack in the future.
-        // GridLocation target_loc = _grid->relative_location(actor.location, Orientation::North, distance, offset);
-        // Agent* target_agent = dynamic_cast<Agent*>(_grid->object_at(target_loc));
-        Agent* target_agent = nullptr;
-        if (target_agent) {
-          last_agent = target_agent;
-          if (num_skipped == arg) {
-            return _handle_target(actor, *target_agent);
-          }
-          num_skipped++;
+        GridLocation loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c));
+        Agent* agent = dynamic_cast<Agent*>(_grid->object_at(loc));
+        if (agent) {
+          targets.push_back(agent);
         }
       }
     }
 
-    // If we got here, it means we skipped over all the targets. Attack the last one.
-    if (last_agent) {
-      return _handle_target(actor, *last_agent);
+    if (!targets.empty()) {
+      // "If the argument > num_agents, the last agent is attacked."
+      if (static_cast<size_t>(arg) >= targets.size()) {
+        return _handle_target(actor, *targets.back());
+      } else {
+        return _handle_target(actor, *targets[arg]);
+      }
     }
 
     return false;
@@ -140,11 +147,11 @@ protected:
     bool was_already_frozen = target.frozen > 0;
 
     // Check if target can defend
-    if (!_defense_resources.empty()) {
-      bool target_can_defend = _check_defense_capability(target);
+    if (!_defense_resources.empty() || !_armor_resources.empty() || !_weapon_resources.empty()) {
+      bool target_can_defend = _check_defense_capability(actor, target);
 
       if (target_can_defend) {
-        _consume_defense_resources(target);
+        _consume_defense_resources(actor, target);
         _log_blocked_attack(actor, target);
         return true;
       }
@@ -165,32 +172,93 @@ protected:
   }
 
 private:
-  bool _check_defense_capability(const Agent& target) const {
+  // Compute weapon power from attacker's inventory
+  int _compute_weapon_power(const Agent& attacker) const {
+    int power = 0;
+    for (const auto& [item, weight] : _weapon_resources) {
+      power += attacker.inventory.amount(item) * weight;
+    }
+    return power;
+  }
+
+  // Check if target is vibing a specific resource (gets +1 effective armor)
+  bool _is_vibing_resource(const Agent& target, InventoryItem item) const {
+    assert(_game_config && "Attack handler must have valid game_config pointer");
+    if (target.vibe == 0 || target.vibe >= _game_config->vibe_names.size() ||
+        item >= _game_config->resource_names.size()) {
+      return false;
+    }
+    return _game_config->vibe_names[target.vibe] == _game_config->resource_names[item];
+  }
+
+  // Compute armor power from target's inventory
+  // Vibing an armor resource counts as having +1 of that resource
+  int _compute_armor_power(const Agent& target) const {
+    int power = 0;
+    for (const auto& [item, weight] : _armor_resources) {
+      int amount = target.inventory.amount(item);
+      if (_is_vibing_resource(target, item)) {
+        amount += 1;
+      }
+      power += amount * weight;
+    }
+    return power;
+  }
+
+  bool _check_defense_capability(const Agent& attacker, const Agent& target) const {
+    // Compute weapon vs armor difference
+    int weapon_power = _compute_weapon_power(attacker);
+    int armor_power = _compute_armor_power(target);
+
+    // Damage bonus: max(weapon_power - armor_power, 0)
+    // Weapon power increases defense cost needed
+    int damage_bonus = std::max(weapon_power - armor_power, 0);
+
+    // Check defense resources (increased by damage bonus)
     for (const auto& [item, amount] : _defense_resources) {
-      if (target.inventory.amount(item) < amount) {
+      // required = defense_resources + max(weapon - armor, 0)
+      int required = static_cast<int>(amount) + damage_bonus;
+      InventoryQuantity has = target.inventory.amount(item);
+      if (has < static_cast<InventoryQuantity>(required)) {
         return false;
       }
     }
     return true;
   }
 
-  void _consume_defense_resources(Agent& target) {
+  void _consume_defense_resources(const Agent& attacker, Agent& target) {
+    int weapon_power = _compute_weapon_power(attacker);
+    int armor_power = _compute_armor_power(target);
+    int damage_bonus = std::max(weapon_power - armor_power, 0);
+
     for (const auto& [item, amount] : _defense_resources) {
-      [[maybe_unused]] InventoryDelta delta = target.inventory.update(item, -amount);
-      assert(delta == -amount);
+      int required = static_cast<int>(amount) + damage_bonus;
+      [[maybe_unused]] InventoryDelta delta = target.inventory.update(item, -required);
     }
   }
 
   void _steal_resources(Agent& actor, Agent& target) {
-    // Create snapshot to avoid iterator invalidation
-    std::vector<std::pair<InventoryItem, InventoryQuantity>> snapshot;
-    snapshot.reserve(target.inventory.get().size());
-    for (const auto& [item, amount] : target.inventory.get()) {
-      snapshot.emplace_back(item, amount);
+    // Identify resources to steal
+    std::vector<std::pair<InventoryItem, InventoryQuantity>> resources_to_steal;
+
+    if (_loot.has_value()) {
+      // Steal only listed resources (in specified order)
+      for (const auto& item : *_loot) {
+        InventoryQuantity amount = target.inventory.amount(item);
+        if (amount > 0) {
+          resources_to_steal.emplace_back(item, amount);
+        }
+      }
+    } else {
+      // Steal everything (backward compatibility)
+      resources_to_steal.reserve(target.inventory.get().size());
+      for (const auto& [item, amount] : target.inventory.get()) {
+        resources_to_steal.emplace_back(item, amount);
+      }
     }
 
     // Transfer resources
-    for (const auto& [item, amount] : snapshot) {
+    for (const auto& [item, amount] : resources_to_steal) {
       InventoryDelta stolen = actor.inventory.update(item, amount);
       target.inventory.update(item, -stolen);
 
@@ -240,14 +308,23 @@ inline void bind_attack_action_config(py::module& m) {
       .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::optional<std::vector<InventoryItem>>&,
                     bool,
                     const std::vector<ObservationType>&>(),
            py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("defense_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
+           py::arg("armor_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
+           py::arg("weapon_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
+           py::arg("loot") = std::nullopt,
            py::arg("enabled") = true,
            py::arg("vibes") = std::vector<ObservationType>())
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources)
+      .def_readwrite("armor_resources", &AttackActionConfig::armor_resources)
+      .def_readwrite("weapon_resources", &AttackActionConfig::weapon_resources)
+      .def_readwrite("loot", &AttackActionConfig::loot)
       .def_readwrite("enabled", &AttackActionConfig::enabled)
       .def_readwrite("vibes", &AttackActionConfig::vibes);
 }
