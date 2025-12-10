@@ -42,9 +42,6 @@ export class MettaObject {
     c: number,
     name: string
   ): MettaObject | undefined {
-    if (name === "empty") {
-      return undefined;
-    }
     return new MettaObject({ name, r, c });
   }
 }
