@@ -21,6 +21,10 @@ RUN curl -L -o /tmp/nimby https://github.com/treeform/nimby/releases/download/0.
 
 ENV PATH="/root/.nimby/nim/bin:${PATH}"
 
+# Force CPU-only PyTorch wheels to avoid downloading CUDA (~GBs) during build
+ENV TORCH_INDEX_URL="https://download.pytorch.org/whl/cpu"
+ENV PIP_INDEX_URL="https://pypi.org/simple"
+
 WORKDIR /app
 COPY . .
 
@@ -41,6 +45,8 @@ RUN pip install --no-cache-dir \
 # Install gitta first (codebot depends on it), then codebot (before main metta to avoid PyPI version conflicts)
 RUN pip install --no-cache-dir -e ./packages/gitta
 RUN pip install --no-cache-dir -e ./packages/codebot
+# Install CPU-only torch ahead of mettagrid to avoid pulling large CUDA wheels
+RUN pip install --no-cache-dir torch==2.9.1 --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -e ./packages/mettagrid
 RUN pip install --no-cache-dir -e ./packages/cortex
 RUN pip install --no-cache-dir -e ./common
