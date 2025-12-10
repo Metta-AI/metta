@@ -25,16 +25,15 @@ RUN pip install --no-cache-dir \
 
 # Install workspace packages in editable mode so imports work
 # These are needed for datadog_client.py imports and stable_suite integration
-# Install in correct dependency order: gitta -> mettagrid -> cortex -> common -> app_backend -> agent -> softmax -> metta
-RUN pip install --no-cache-dir \
-    -e ./packages/gitta \
-    -e ./packages/mettagrid \
-    -e ./packages/cortex \
-    -e ./common \
-    -e ./app_backend \
-    -e ./agent \
-    -e ./softmax \
-    -e .
+# Install in correct dependency order, one package per RUN to avoid dependency resolution conflicts
+RUN pip install --no-cache-dir -e ./packages/gitta
+RUN pip install --no-cache-dir -e ./packages/mettagrid
+RUN pip install --no-cache-dir -e ./packages/cortex
+RUN pip install --no-cache-dir -e ./common
+RUN pip install --no-cache-dir -e ./app_backend
+RUN pip install --no-cache-dir -e ./agent
+RUN pip install --no-cache-dir -e ./softmax
+RUN pip install --no-cache-dir -e .
 
 ENV PYTHONPATH="/app:/app/packages:/app/common/src:/app/softmax/src"
 
