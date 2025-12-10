@@ -36,7 +36,7 @@ type ObjectLayer = {
 type ObjectDrawer = ObjectLayer[];
 
 const objectDrawers: Record<string, ObjectDrawer> = {
-  empty: [{ tile: "wall.49" }], // empty spaces act as terrain flooring
+  empty: [],
   wall: [{ tile: "wall" }], // unused by Drawer but used by AsciiEditor
   ...Object.fromEntries(
     TILE_NAMES.map((tile) => [tile, [{ tile }] as ObjectDrawer])
@@ -128,38 +128,42 @@ export class Drawer {
 
   drawWalls(ctx: CanvasRenderingContext2D, grid: MettaGrid, walls: Cell[]) {
     // Ported from worldmap.nim in mettascope
-    const wallsGrid: boolean[][] = Array.from({ length: grid.width }, () =>
-      Array.from({ length: grid.height }, () => true)
-    );
+    const wallSet = new Set<number>();
+
     for (const wall of walls) {
-      wallsGrid[wall.c][wall.r] = false;
+      wallSet.add(wall.c + wall.r * grid.width);
     }
 
-    const checkWall = (x: number, y: number) => {
+    const isFloor = (x: number, y: number) => {
       if (x < 0 || y < 0 || x >= grid.width || y >= grid.height) {
         return 0;
       }
-      return wallsGrid[x][y] ? 1 : 0;
+      return wallSet.has(x + y * grid.width) ? 0 : 1;
     };
 
     for (let x = 0; x < grid.width; x++) {
       for (let y = 0; y < grid.height; y++) {
-        if (wallsGrid[x][y]) {
+        if (isFloor(x, y)) {
           continue;
         }
 
         const pattern =
-          1 * checkWall(x - 1, y - 1) + // NW
-          2 * checkWall(x, y - 1) + // N
-          4 * checkWall(x + 1, y - 1) + // NE
-          8 * checkWall(x + 1, y) + // E
-          16 * checkWall(x + 1, y + 1) + // SE
-          32 * checkWall(x, y + 1) + // S
-          64 * checkWall(x - 1, y + 1) + // SW
-          128 * checkWall(x - 1, y); // W
+          1 * isFloor(x - 1, y - 1) + // NW
+          2 * isFloor(x, y - 1) + // N
+          4 * isFloor(x + 1, y - 1) + // NE
+          8 * isFloor(x + 1, y) + // E
+          16 * isFloor(x + 1, y + 1) + // SE
+          32 * isFloor(x, y + 1) + // S
+          64 * isFloor(x - 1, y + 1) + // SW
+          128 * isFloor(x - 1, y); // W
 
         const tile = wallPatternToTile[pattern];
 
+        // First draw a void layer to cover up the terrain
+        ctx.fillStyle = BACKGROUND_MAP_COLOR;
+        ctx.fillRect(x, y, 1, 1);
+
+        // Then draw the wall tile
         this.drawTile({
           ctx,
           tile: `wall.${tile}`,
@@ -170,13 +174,32 @@ export class Drawer {
     }
   }
 
+  private drawFloor(
+    ctx: CanvasRenderingContext2D,
+    grid: MettaGrid,
+    visible: ReturnType<typeof visibleRegion>
+  ) {
+    const tile = this.tileSets.bitmap("wall.49");
+
+    // Depending on the size of the grid, we want to draw less tiles
+    const step = Math.max(1, Math.floor(grid.width / 100));
+    for (let r = visible.minY; r < visible.maxY; r += step) {
+      for (let c = visible.minX; c < visible.maxX; c += step) {
+        const overflowR = Math.min(step, visible.maxY - r);
+        const overflowC = Math.min(step, visible.maxX - c);
+        ctx.drawImage(tile, c, r, overflowC, overflowR);
+      }
+    }
+  }
+
   drawGrid(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
     // Only draw the visible region of the grid - helps performance on big maps when zoomed in
-    const { minX, minY, maxX, maxY } = visibleRegion(ctx, grid);
+    ctx.imageSmoothingEnabled = false;
+    const visible = visibleRegion(ctx, grid);
+    const { minX, minY, maxX, maxY } = visible;
 
-    // Clear drawing area
-    ctx.fillStyle = BACKGROUND_MAP_COLOR;
-    ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+    // Draw floor over entire visible region
+    this.drawFloor(ctx, grid, visible);
 
     // Sort objects into walls and other objects
     const objects: MettaObject[] = [];
@@ -199,13 +222,6 @@ export class Drawer {
 
     this.drawWalls(ctx, grid, walls);
     for (const object of objects) {
-      // First draw the flooring layer
-      this.drawTile({
-        ctx,
-        tile: "wall.49",
-        c: object.c,
-        r: object.r,
-      });
       // Draw the object itself
       this.drawObject(ctx, object);
     }

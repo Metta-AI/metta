@@ -12,6 +12,7 @@ import {
 
 import { usePanZoom } from "@/hooks/use-pan-and-zoom";
 import { useIsMouseDown } from "@/hooks/useIsMouseDown";
+import { BACKGROUND_MAP_COLOR } from "@/lib/draw/Drawer";
 import { Cell } from "@/lib/MettaGrid";
 
 import { DebugInfo } from "./DebugInfo";
@@ -112,11 +113,9 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
     const context = canvas.getContext("2d");
     if (!context) return;
 
-    context.save();
     context.resetTransform();
-    context.fillStyle = "#eee";
+    context.fillStyle = BACKGROUND_MAP_COLOR;
     context.fillRect(0, 0, canvas.width, canvas.height);
-    context.restore();
 
     context.setTransform(transform);
 
@@ -172,7 +171,6 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
   useCallOnWindowResize(initCanvas);
   useCallOnElementResize(canvasRef.current, initCanvas);
 
-  // TODO - avoid rendering if not visible
   useEffect(() => {
     drawGridOnly();
   }, [drawGridOnly]);
