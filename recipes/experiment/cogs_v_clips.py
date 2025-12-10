@@ -381,7 +381,6 @@ def train(
         ]
 
         if bc_mode == "sliced_cloner":
-            tt.training_env.supervisor_subset_fraction = 0.2
             losses.ppo_critic.sample_enabled = False
             losses.ppo_critic.train_forward_enabled = False
             losses.ppo_critic.deferred_training_start_step = bc_total_steps
@@ -401,8 +400,7 @@ def train(
                 )
             ]
         else:
-            # Run teacher on a fraction equal to initial lead prob (simple perf knob; loss still anneals)
-            tt.training_env.supervisor_subset_fraction = bc_teacher_lead_prob
+            # Teacher usage controlled solely by bc_teacher_lead_prob (loss anneal); env runs full batch
             losses.supervisor.enabled = True
             losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
             anneal_start = int(bc_total_steps * 0.5)
