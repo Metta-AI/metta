@@ -74,7 +74,9 @@ class FileSchemeResolver(SchemeResolver):
             if self._can_find_latest(parsed):
                 latest = self._get_latest_checkpoint_uri(parsed)
                 if latest:
-                    return latest
+                    latest_parsed = self.parse(latest)
+                    assert latest_parsed.path is not None
+                    return latest_parsed.path
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
@@ -82,9 +84,12 @@ class FileSchemeResolver(SchemeResolver):
         if self._can_find_latest(parsed) and not uri.endswith(".mpt"):
             latest = self._get_latest_checkpoint_uri(parsed)
             if latest:
-                return latest
+                latest_parsed = self.parse(latest)
+                assert latest_parsed.path is not None
+                return latest_parsed.path
 
-        return parsed.canonical
+        assert parsed.path is not None
+        return parsed.path
 
 
 class S3SchemeResolver(FileSchemeResolver):
