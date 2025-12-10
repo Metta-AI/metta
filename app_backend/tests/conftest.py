@@ -23,8 +23,8 @@ docker_client = docker_client_fixture()
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_debug_user_email():
-    """Set debug_user_email for all tests to bypass authentication."""
-    with mock.patch("metta.app_backend.config.debug_user_email", "test@example.com"):
+    """Set DEBUG_USER_EMAIL for all tests to bypass authentication."""
+    with mock.patch("metta.app_backend.config.settings.DEBUG_USER_EMAIL", "test@example.com"):
         yield
 
 
