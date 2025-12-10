@@ -726,7 +726,7 @@ def experiment(
         timestamp = time.strftime("%Y-%m-%d_%H%M%S")
         run_name = (
             f"cvc_random_maps_{num_cogs}agent_heartbuckets_{heart_buckets}_"
-            f"resourcebuckets_{resource_buckets}_invbuckets_{initial_inventory_buckets}_{timestamp}"
+            f"resourcebuckets_{resource_buckets}_invbuckets_{initial_inventory_buckets}_supervised_{supervision}_{timestamp}"
         )
 
     cmd = [
@@ -775,21 +775,33 @@ __all__ = [
 
 if __name__ == "__main__":
 
-    # 8 cogs
-    experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True)
-    experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, initial_inventory_buckets=True)
-    experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
-    experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
-    experiment(num_cogs=8, heart_buckets=False, resource_buckets=False)
-    experiment(num_cogs=8, heart_buckets=True, resource_buckets=False)
-    experiment(num_cogs=8, heart_buckets=True, resource_buckets=True)
-    experiment(num_cogs=8, heart_buckets=False, resource_buckets=True)
+    # # 8 cogs
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, initial_inventory_buckets=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=False)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=False)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=True)
 
-    # 16 cogs
-    experiment(num_cogs=16, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True)
-    experiment(num_cogs=16, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
-    experiment(num_cogs=16, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
-    experiment(num_cogs=16, heart_buckets=False, resource_buckets=False)
-    experiment(num_cogs=16, heart_buckets=True, resource_buckets=False)
-    experiment(num_cogs=16, heart_buckets=True, resource_buckets=True)
-    experiment(num_cogs=16, heart_buckets=False, resource_buckets=True)
+    # # 16 cogs
+    # experiment(num_cogs=16, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True)
+    # experiment(num_cogs=16, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
+    # experiment(num_cogs=16, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
+    # experiment(num_cogs=16, heart_buckets=False, resource_buckets=False)
+    # experiment(num_cogs=16, heart_buckets=True, resource_buckets=False)
+    # experiment(num_cogs=16, heart_buckets=True, resource_buckets=True)
+    # experiment(num_cogs=16, heart_buckets=False, resource_buckets=True)
+
+    #SUPERVISED
+
+    #SUPERVISED
+    experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True, supervision=True)
+    experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, initial_inventory_buckets=True, supervision=True)
+    experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+    experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+    experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, supervision=True)
+    experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, supervision=True)
+    experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, supervision=True)
+    experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, supervision=True)
