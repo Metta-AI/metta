@@ -496,6 +496,11 @@ def train_single_mission(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    bc_policy_uri: Optional[str] = None,
+    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
+    bc_steps: Optional[int] = None,
+    bc_teacher_lead_prob: float = 1.0,
+    maps_cache_size: Optional[int] = None,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
     env = make_training_env(
@@ -512,6 +517,11 @@ def train_single_mission(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        bc_policy_uri=bc_policy_uri,
+        bc_mode=bc_mode,
+        bc_steps=bc_steps,
+        bc_teacher_lead_prob=bc_teacher_lead_prob,
+        maps_cache_size=maps_cache_size,
     )
 
 
