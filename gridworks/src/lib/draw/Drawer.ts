@@ -52,7 +52,7 @@ const objectDrawers: Record<string, ObjectDrawer> = {
 
 export const objectNames = Object.keys(objectDrawers);
 
-export const BACKGROUND_MAP_COLOR = "#cfa970";
+export const BACKGROUND_MAP_COLOR = "#000000";
 
 function visibleRegion(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
   // Get the current transformation matrix
