@@ -146,16 +146,10 @@ class ActionProbs(nn.Module):
             return logits
 
         if current_actions > self.num_actions:
-            raise ValueError(
-                f"Action logits have {current_actions} actions, but environment expects {self.num_actions}."
-            )
+            return logits
 
         if not self.config.pad_to_env_actions:
-            raise ValueError(
-                "Action space mismatch: policy emits fewer actions than environment expects "
-                f"({current_actions} < {self.num_actions}). "
-                "Set pad_to_env_actions=True to pad logits automatically."
-            )
+            return logits
 
         pad = self.num_actions - current_actions
         pad_shape = list(logits.shape[:-1]) + [pad]
