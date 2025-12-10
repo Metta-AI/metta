@@ -34,8 +34,9 @@ runs:
     - name: Deploy helm chart
       shell: bash
       run: |
-        helm upgrade \
+        helm upgrade --install \
           -n ${{ inputs.namespace }} \
+          --create-namespace \
           ${{ inputs.release }} \
           ${{ inputs.chart }} \
           --set image.tag=${{ inputs.image_tag }} \
