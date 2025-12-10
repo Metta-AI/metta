@@ -274,43 +274,6 @@ class AttackActionConfig(ActionConfig):
         return []
 
 
-class VibeTransfer(Config):
-    """Configuration for resource transfers triggered by a specific vibe.
-
-    When an agent with this vibe moves into another agent,
-    the specified resource deltas are applied to both the actor and target.
-
-    Example:
-        VibeTransfer(
-            vibe="battery",
-            target={"energy": 50},      # target gains 50 energy
-            actor={"energy": -50}       # actor loses 50 energy
-        )
-    """
-
-    vibe: str
-    target: dict[str, int] = Field(default_factory=dict)
-    actor: dict[str, int] = Field(default_factory=dict)
-
-
-class TransferActionConfig(ActionConfig):
-    """Python transfer action configuration.
-
-    Transfer is triggered by move when the agent's vibe matches a vibe in vibe_transfers.
-    The vibe_transfers list specifies what resource effects happen for each vibe.
-    """
-
-    action_handler: str = Field(default="transfer")
-    vibe_transfers: list[VibeTransfer] = Field(
-        default_factory=list,
-        description="List of vibe transfer configs specifying actor/target resource effects",
-    )
-
-    def _actions(self) -> list[Action]:
-        # Transfer doesn't create standalone actions - it's triggered by move
-        return []
-
-
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -321,12 +284,11 @@ class ActionsConfig(Config):
     noop: NoopActionConfig = Field(default_factory=lambda: NoopActionConfig())
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
-    transfer: TransferActionConfig = Field(default_factory=lambda: TransferActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
 
     def actions(self) -> list[Action]:
         return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.transfer, self.change_vibe]],
+            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe]],
             [],
         )
 
