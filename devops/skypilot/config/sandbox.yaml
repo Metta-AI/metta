@@ -42,11 +42,6 @@ envs:
   GITHUB_REPOSITORY: Metta-AI/metta
   METTA_GIT_REF: main
 
-  # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
-  SKYPILOT_DOCKER_USERNAME: ""
-  SKYPILOT_DOCKER_PASSWORD: ""
-  SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
-
 secrets:
   # sandbox uses a placeholder; override as needed
   WANDB_PASSWORD: "dummy"
