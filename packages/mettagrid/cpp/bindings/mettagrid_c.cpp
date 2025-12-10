@@ -85,7 +85,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   init_action_handlers();
 
-  _init_grid(game_config, map);
+  _init_grid(_game_config, map);
 
   // Pre-compute goal_obs tokens for each agent
   if (_global_obs_config.goal_obs) {
@@ -136,6 +136,9 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
     object_type_names[type_id] = object_cfg->type_name;
   }
 
+  // Collect assemblers to initialize agent tracking after all agents are created
+  std::vector<Assembler*> assemblers;
+
   // Initialize objects from map
   for (GridCoord r = 0; r < height; r++) {
     for (GridCoord c = 0; c < width; c++) {
@@ -184,6 +187,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
         assembler->set_obs_encoder(_obs_encoder.get());
+        assemblers.push_back(assembler);
         continue;
       }
 
@@ -201,6 +205,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
                                std::to_string(c) + ")");
     }
   }
+
 }
 
 void MettaGrid::_make_buffers(unsigned int num_agents) {
@@ -502,9 +507,10 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
     int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
 
-    // Encode location and add tokens
+    // Encode location and add tokens (pass agent_idx for agent-specific observations like per-agent cooldown)
     uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
-    attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
+    attempted_tokens_written +=
+        _obs_encoder->encode_tokens(obj, obs_tokens, location, static_cast<unsigned int>(agent_idx));
     tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
   }
 
@@ -598,9 +604,29 @@ void MettaGrid::_step() {
     }
   }
 
-  // Check and apply damage for all agents
+  // Apply cell effects to agents (AOE effects from nearby objects)
   for (auto* agent : _agents) {
-    agent->check_and_apply_damage(_rng);
+    const CellEffect& effect = _grid->effect_at(agent->location.r, agent->location.c);
+    for (const auto& [item, delta] : effect.resource_deltas) {
+      agent->inventory.update(item, delta);
+
+      // Track AOE stats
+      const std::string& resource_name = _stats->resource_name(item);
+      if (delta > 0) {
+        agent->stats.add("aoe." + resource_name + ".gained", static_cast<float>(delta));
+        _stats->add("aoe." + resource_name + ".gained", static_cast<float>(delta));
+      } else if (delta < 0) {
+        agent->stats.add("aoe." + resource_name + ".lost", static_cast<float>(-delta));
+        _stats->add("aoe." + resource_name + ".lost", static_cast<float>(-delta));
+      }
+      agent->stats.add("aoe." + resource_name + ".delta", static_cast<float>(delta));
+      _stats->add("aoe." + resource_name + ".delta", static_cast<float>(delta));
+    }
+  }
+
+  // Check and apply damage for all agents (randomized order for fairness)
+  for (const auto& agent_idx : agent_indices) {
+    _agents[agent_idx]->check_and_apply_damage(_rng);
   }
 
   // Apply global systems
@@ -1009,9 +1035,19 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("cost", &DemolishConfig::cost)
       .def_readwrite("scrap", &DemolishConfig::scrap);
 
+  // Bind AOEEffectConfig for AOE effects on any object
+  py::class_<AOEEffectConfig>(m, "AOEEffectConfig")
+      .def(py::init<>())
+      .def(py::init<unsigned int, const std::unordered_map<InventoryItem, InventoryDelta>&>(),
+           py::arg("range") = 1,
+           py::arg("resource_deltas") = std::unordered_map<InventoryItem, InventoryDelta>())
+      .def_readwrite("range", &AOEEffectConfig::range)
+      .def_readwrite("resource_deltas", &AOEEffectConfig::resource_deltas);
+
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
   py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
-      .def_readwrite("demolish", &GridObjectConfig::demolish);
+      .def_readwrite("demolish", &GridObjectConfig::demolish)
+      .def_readwrite("aoe", &GridObjectConfig::aoe);
 
   bind_wall_config(m);
 

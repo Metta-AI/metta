@@ -368,6 +368,19 @@ class DemolishConfig(Config):
     )
 
 
+class AOEEffectConfig(Config):
+    """Configuration for Area of Effect (AOE) resource effects.
+
+    When attached to a grid object, agents within range receive the resource_deltas each tick.
+    """
+
+    range: int = Field(default=1, ge=0, description="Radius of effect (Manhattan distance)")
+    resource_deltas: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resource changes per tick for agents in range. Positive = gain, negative = lose.",
+    )
+
+
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
 
@@ -389,6 +402,10 @@ class GridObjectConfig(Config):
     demolish: Optional[DemolishConfig] = Field(
         default=None,
         description="If set, this object can be demolished by attacking it with sufficient resources",
+    )
+    aoe: Optional[AOEEffectConfig] = Field(
+        default=None,
+        description="If set, this object emits resource effects to agents within range each tick",
     )
 
     @model_validator(mode="after")

@@ -152,7 +152,7 @@ public:
     actor.stats.incr(_action_prefix(actor_group) + "demolish." + target_type_name);
     actor.stats.incr("demolish." + target_type_name);
 
-    // Call on_demolish before removing
+    // Call on_demolish before removing (handles AOE cleanup)
     target->on_demolish();
 
     // Give scrap resources to actor

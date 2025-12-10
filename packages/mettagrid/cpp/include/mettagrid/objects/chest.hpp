@@ -17,6 +17,7 @@
 #include "objects/usable.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/stats_tracker.hpp"
+
 class Chest : public GridObject, public Usable, public HasInventory {
 private:
   // a reference to the game stats tracker
@@ -75,7 +76,7 @@ public:
         stats_tracker(stats_tracker),
         grid(nullptr) {
     const DemolishConfig* demolish = cfg.demolish.has_value() ? &cfg.demolish.value() : nullptr;
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe, demolish);
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe, demolish, cfg.aoe);
     // Set initial inventory for all configured resources (ignore limits for initial setup)
     for (const auto& [resource, amount] : cfg.initial_inventory) {
       if (amount > 0) {
@@ -96,6 +97,7 @@ public:
     this->obs_encoder = encoder;
   }
 
+private:
   // Implement pure virtual method from Usable
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid) {

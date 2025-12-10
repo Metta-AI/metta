@@ -276,7 +276,7 @@ public:
         agent_cooldown(cfg.agent_cooldown),
         clipper_ptr(nullptr) {
     const DemolishConfig* demolish = cfg.demolish.has_value() ? &cfg.demolish.value() : nullptr;
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe, demolish);
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe, demolish, cfg.aoe);
   }
   virtual ~Assembler() = default;
 
