@@ -1,7 +1,5 @@
 """Tests for vibe-triggered attack on move."""
 
-import pytest
-
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
