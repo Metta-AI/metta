@@ -1,4 +1,4 @@
-"""Machina v1 open-world recipe using training-vibe subset and sweep helpers."""
+"""Machina v1 open-world recipe using the full vibe set and sweep helpers."""
 
 from __future__ import annotations
 
@@ -21,18 +21,18 @@ from recipes.experiment.cogs_v_clips import (
     train_single_mission,
 )
 
-TRAINING_VIBE_NAMES: list[str] = [vibe.name for vibe in vibes.TRAINING_VIBES]
+FULL_VIBE_NAMES: list[str] = [vibe.name for vibe in vibes.VIBES]
 
 
-def _restrict_to_training_vibes(env: MettaGridConfig) -> None:
-    """Use the TRAINING_VIBES subset and align vibe actions."""
-    env.game.vibe_names = list(TRAINING_VIBE_NAMES)
+def _ensure_full_vibe_actions(env: MettaGridConfig) -> None:
+    """Ensure the environment exposes the complete vibe action set."""
+    env.game.vibe_names = list(FULL_VIBE_NAMES)
 
     change_vibe = getattr(getattr(env.game, "actions", None), "change_vibe", None)
     if change_vibe is not None:
-        change_vibe.number_of_vibes = len(TRAINING_VIBE_NAMES)
+        change_vibe.number_of_vibes = len(FULL_VIBE_NAMES)
 
-    if env.game.agent.initial_vibe >= len(TRAINING_VIBE_NAMES):
+    if env.game.agent.initial_vibe >= len(FULL_VIBE_NAMES):
         env.game.agent.initial_vibe = 0
 
 
@@ -64,13 +64,13 @@ def train(
     )
 
     training_env_cfg = tt.training_env.curriculum.task_generator.env
-    _restrict_to_training_vibes(training_env_cfg)
+    _ensure_full_vibe_actions(training_env_cfg)
 
     apply_cvc_sweep_defaults(tt.trainer)
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
     eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
-    _restrict_to_training_vibes(eval_env)
+    _ensure_full_vibe_actions(eval_env)
     tt.evaluator.simulations = [
         SimulationConfig(
             suite="cogs_vs_clips",
