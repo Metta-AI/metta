@@ -325,7 +325,7 @@ def train(
     bc_steps: Optional[int] = None,
     bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
     use_lp: bool = True,
-    maps_cache_size: Optional[int] = 50,
+    maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
