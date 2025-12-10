@@ -298,9 +298,9 @@ void test_dynamic_limit_chain() {
   // Example: gear has fixed limit, battery depends on gear, energy depends on battery
   // Resource 0 = gear, Resource 1 = battery, Resource 2 = energy
   InventoryConfig config;
-  config.limit_defs.push_back(LimitDef({0}, 5));                // gear has fixed limit of 5
-  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 1}}));      // each gear adds +1 battery capacity
-  config.limit_defs.push_back(LimitDef({2}, 0, {{1, 25}}));     // each battery adds +25 energy capacity
+  config.limit_defs.push_back(LimitDef({0}, 5));             // gear has fixed limit of 5
+  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 1}}));   // each gear adds +1 battery capacity
+  config.limit_defs.push_back(LimitDef({2}, 0, {{1, 25}}));  // each battery adds +25 energy capacity
 
   HasInventory inv(config);
 
@@ -334,8 +334,8 @@ void test_free_space_with_modifiers() {
 
   // Resource 0 = gear, Resource 1 = battery
   InventoryConfig config;
-  config.limit_defs.push_back(LimitDef({0}, 10));              // gear limit 10
-  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 5}}));     // battery limit depends on gear
+  config.limit_defs.push_back(LimitDef({0}, 10));           // gear limit 10
+  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 5}}));  // battery limit depends on gear
 
   HasInventory inv(config);
 
@@ -362,8 +362,8 @@ void test_limit_reduces_when_modifier_removed() {
 
   // Resource 0 = gear, Resource 1 = battery
   InventoryConfig config;
-  config.limit_defs.push_back(LimitDef({0}, 10));              // gear limit 10
-  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 5}}));     // battery limit depends on gear
+  config.limit_defs.push_back(LimitDef({0}, 10));           // gear limit 10
+  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 5}}));  // battery limit depends on gear
 
   HasInventory inv(config);
 
@@ -377,14 +377,16 @@ void test_limit_reduces_when_modifier_removed() {
   inv.inventory.update(0, -2);
   assert(inv.inventory.amount(0) == 2);
 
-  // Batteries should still be 18 (we don't auto-destroy)
+  // Batteries should still be 18 (removing gears doesn't auto-destroy batteries)
   assert(inv.inventory.amount(1) == 18);
 
-  // But free_space should be 0 (or negative, clamped)
+  // But free_space should be 0 (over limit)
   assert(inv.inventory.free_space(1) == 0);
 
-  // And we shouldn't be able to add more batteries
-  assert(inv.inventory.update(1, 1) == 0);
+  // Trying to add batteries when over limit will clamp down to the limit
+  // 18 + 1 = 19, clamped to max of 10, so delta is -8
+  assert(inv.inventory.update(1, 1) == -8);
+  assert(inv.inventory.amount(1) == 10);
 
   std::cout << "✓ Limit reduction when modifier removed test passed" << std::endl;
 }
@@ -411,8 +413,7 @@ void test_transfer_with_modifier_limits() {
   target.inventory.update(0, 2);
 
   // Try to transfer 20 batteries - should only transfer 10
-  InventoryDelta transferred = HasInventory::transfer_resources(
-      source.inventory, target.inventory, 1, 20, false);
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 1, 20, false);
 
   assert(transferred == 10);
   assert(source.inventory.amount(1) == 40);
