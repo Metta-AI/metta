@@ -48,7 +48,7 @@ resource "aws_iam_role_policy_attachment" "grafana-cloudwatch" {
 }
 
 resource "aws_eks_pod_identity_association" "grafana" {
-  cluster_name    = module.eks.cluster_name
+  cluster_name    = data.aws_eks_cluster.main.name
   namespace       = kubernetes_namespace.monitoring.metadata[0].name
   service_account = "prometheus-grafana" # created by prometheus-kube-stack chart
   role_arn        = aws_iam_role.grafana.arn
