@@ -2,6 +2,7 @@ import { FC, useContext, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
+import { Pagination, PaginationState } from './components/Pagination'
 import type { PolicyRow } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
 
@@ -19,6 +20,11 @@ export const PoliciesPage: FC = () => {
     data: [],
     loading: true,
     error: null,
+  })
+  const [paginationState, setPaginationState] = useState<PaginationState>({
+    page: 1,
+    limit: 500,
+    total: 0,
   })
   const [nameFilter, setNameFilter] = useState('')
   const [debouncedFilter, setDebouncedFilter] = useState('')
@@ -46,10 +52,15 @@ export const PoliciesPage: FC = () => {
       setPoliciesState((prev) => ({ ...prev, loading: true, error: null }))
       try {
         const response = await repo.getPolicies({
-          limit: 500,
+          offset: (paginationState.page - 1) * paginationState.limit,
+          limit: paginationState.limit,
           name_fuzzy: debouncedFilter || undefined,
         })
         if (isMounted) {
+          setPaginationState((prev) => ({
+            ...prev,
+            total: response.total_count,
+          }))
           setPoliciesState({ data: response.entries, loading: false, error: null })
         }
       } catch (error: any) {
@@ -68,7 +79,7 @@ export const PoliciesPage: FC = () => {
     return () => {
       isMounted = false
     }
-  }, [repo, debouncedFilter])
+  }, [repo, debouncedFilter, paginationState.page])
 
   const filteredPolicies = policiesState.data.filter((policy) =>
     policy.name.toLowerCase().includes(nameFilter.toLowerCase())
@@ -76,6 +87,28 @@ export const PoliciesPage: FC = () => {
 
   const isInitialLoad = policiesState.loading && policiesState.data.length === 0
   const isSearching = policiesState.loading && policiesState.data.length > 0
+
+  function nextPage() {
+    setPaginationState((prev) => ({
+      ...prev,
+      page: prev.page + 1,
+    }))
+  }
+
+  function prevPage() {
+    setPaginationState((prev) => ({
+      ...prev,
+      page: Math.max(prev.page - 1, 1),
+    }))
+  }
+
+  function doFilter(text: string) {
+    setPaginationState((prev) => ({
+      ...prev,
+      page: 1,
+    }))
+    setNameFilter(text)
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -92,7 +125,7 @@ export const PoliciesPage: FC = () => {
             type="text"
             placeholder="Search by name..."
             value={nameFilter}
-            onChange={(e) => setNameFilter(e.target.value)}
+            onChange={(e) => doFilter(e.target.value)}
             className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           {isSearching && (
@@ -109,6 +142,15 @@ export const PoliciesPage: FC = () => {
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               />
             </svg>
+          )}
+          {paginationState.total > 0 && (
+            <Pagination
+              className="ml-auto"
+              loading={policiesState.loading}
+              state={paginationState}
+              onNextFn={nextPage}
+              onPrevFn={prevPage}
+            />
           )}
         </div>
         <div className="p-5">
