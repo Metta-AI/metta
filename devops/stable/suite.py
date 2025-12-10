@@ -47,10 +47,10 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[Job], str]:
                 "uv",
                 "run",
                 "./tools/run.py",
-                "arena.evaluate",
-                f'policy_uris=["file://./train_dir/{arena_train_name}/checkpoints/"]',
+                "arena_basic_easy_shaped.evaluate_latest_in_dir",
+                f"dir_path=./train_dir/{arena_train_name}/checkpoints/",
             ],
-            timeout_s=300,
+            timeout_s=120,
             dependencies=[arena_train_name],
         ),
         create_job(
