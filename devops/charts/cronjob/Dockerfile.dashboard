@@ -1,16 +1,15 @@
 FROM python:3.12-slim
 
-# Install system dependencies (minimal)
+# Install system dependencies (minimal + C++ compiler)
 RUN apt-get update && apt-get install -y \
     git \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy everything (copying is cheap, reduces maintenance burden)
 WORKDIR /app
 COPY . .
 
-# Install workspace dependencies
-# Install core dependencies first, then workspace packages
+# Install core dependencies
 RUN pip install --no-cache-dir \
     boto3 \
     kubernetes \
@@ -23,9 +22,7 @@ RUN pip install --no-cache-dir \
     pydantic-settings \
     sqlmodel
 
-# Install workspace packages in editable mode so imports work
-# These are needed for datadog_client.py imports and stable_suite integration
-# Install in correct dependency order, one package per RUN to avoid dependency resolution conflicts
+# Install workspace packages in correct order (one per RUN)
 RUN pip install --no-cache-dir -e ./packages/gitta
 RUN pip install --no-cache-dir -e ./packages/mettagrid
 RUN pip install --no-cache-dir -e ./packages/cortex
@@ -37,7 +34,6 @@ RUN pip install --no-cache-dir -e .
 
 ENV PYTHONPATH="/app:/app/packages:/app/common/src:/app/softmax/src"
 
-# Verify devops package is accessible at build time
 RUN python -c "import sys; sys.path.insert(0, '/app'); from devops.datadog import cli; print('✓ devops.datadog import successful')" || (echo "✗ devops.datadog import failed" && ls -la /app/devops/ && exit 1)
 
 CMD ["python", "-m", "devops.datadog.cli"]
