@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 from typing import Iterable
 
-ALLOWED_METTA_PACKAGES = ["mettagrid"]
+DISALLOWED_PREFIXES = ["metta."]
 
 EXCLUDE_FILES = set()
 
@@ -38,9 +38,7 @@ def find_forbidden_imports(file_path: Path) -> list[ast.stmt]:
             continue
 
         for module in modules:
-            if module.startswith("metta.") and not any(
-                module.startswith(allowed) for allowed in ALLOWED_METTA_PACKAGES
-            ):
+            if any(module.startswith(prefix) for prefix in DISALLOWED_PREFIXES):
                 bad_nodes.append(node)
 
     return bad_nodes

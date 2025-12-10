@@ -14,15 +14,23 @@ class SimulationList(BaseModel):
 
 
 def evaluate_remotely(
-    policy_version_id: uuid.UUID,
     simulations: Sequence[SimulationRunConfig],
     stats_client: StatsClient,
+    policy_version_id: uuid.UUID | str | None = None,
+    policy_uri: str | None = None,
     git_hash: str | None = None,
+    push_metrics_to_wandb: bool = True,
 ) -> EvalTaskRow:
+    if not bool(policy_version_id) ^ bool(policy_uri):
+        raise ValueError("Exactly one of policy_version_id or policy_uri must be provided")
     command_parts = [
         "uv run tools/run.py recipes.experiment.remote_eval.eval",
-        f"policy_version_id={str(policy_version_id)}",
+        f"push_metrics_to_wandb={str(push_metrics_to_wandb).lower()}",
     ]
+    if policy_version_id:
+        command_parts.append(f"policy_version_id={str(policy_version_id)}")
+    if policy_uri:
+        command_parts.append(f"policy_uri={policy_uri}")
     command = " ".join(command_parts)
     request = TaskCreateRequest(
         command=command,

@@ -13,6 +13,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field, field_validator
 
+from metta.app_backend.config import settings
 from metta.app_backend.leaderboard_constants import (
     LEADERBOARD_CANDIDATE_COUNT_KEY,
     LEADERBOARD_LADYBUG_COUNT_KEY,
@@ -191,8 +192,9 @@ class MettaRepo:
         self.db_uri = db_uri
         self._pool: AsyncConnectionPool | None = None
         # Run migrations synchronously during initialization
-        with Connection.connect(self.db_uri) as con:
-            run_migrations(con, MIGRATIONS)
+        if settings.RUN_MIGRATIONS:
+            with Connection.connect(self.db_uri) as con:
+                run_migrations(con, MIGRATIONS)
 
     async def _ensure_pool(self) -> AsyncConnectionPool:
         if self._pool is None:
@@ -412,30 +414,6 @@ class MettaRepo:
                     """,
                     (task_id, task_id),
                 )
-
-    async def count_tasks(self, where_clause: str) -> int:
-        async with self.connect() as con:
-            result = await con.execute(
-                f"SELECT COUNT(*) FROM eval_tasks_view WHERE {where_clause}",  # type: ignore
-            )
-            res = await result.fetchone()
-            if res is None:
-                raise RuntimeError(f"Failed to count tasks with where clause {where_clause}")
-            return res[0]
-
-    async def get_avg_runtime(self, where_clause: str) -> float | None:
-        async with self.connect() as con:
-            result = await con.execute(
-                f"""
-                SELECT EXTRACT(EPOCH FROM AVG(finished_at - assigned_at))
-                FROM eval_tasks_view
-                WHERE {where_clause}
-                """,  # type: ignore
-            )
-            res = await result.fetchone()
-            if res is None:
-                raise RuntimeError(f"Failed to get average runtime with where clause {where_clause}")
-            return res[0]
 
     async def create_sweep(self, name: str, project: str, entity: str, wandb_sweep_id: str, user_id: str) -> uuid.UUID:
         """Create a new sweep."""

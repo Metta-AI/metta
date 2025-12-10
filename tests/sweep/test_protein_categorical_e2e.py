@@ -20,16 +20,10 @@ def test_e2e_categorical_single_and_multi_suggestions() -> None:
         metric="score",
         goal="maximize",
         parameters={
-            "model": {
-                "color": CategoricalParameterConfig(choices=["red", "blue", "green"]),
-            },
-            "trainer": {
-                "optimizer": {
-                    "learning_rate": ParameterConfig(
-                        min=1e-5, max=1e-3, distribution="log_normal", mean=1e-4, scale="auto"
-                    ),
-                }
-            },
+            "model.color": CategoricalParameterConfig(choices=["red", "blue", "green"]),
+            "trainer.optimizer.learning_rate": ParameterConfig(
+                min=1e-5, max=1e-3, distribution="log_normal", mean=1e-4, scale="auto"
+            ),
         },
         # Use defaults but ensure we seed with search center for deterministic first suggestion
         settings=ProteinSettings(num_random_samples=0, seed_with_search_center=True),
