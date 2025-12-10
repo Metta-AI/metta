@@ -123,9 +123,7 @@ class ActionProbs(nn.Module):
 
     def _ensure_initialized(self) -> None:
         if self.num_actions <= 0:
-            raise RuntimeError(
-                "ActionProbs not initialized; call initialize_to_environment before forward."
-            )
+            raise RuntimeError("ActionProbs not initialized; call initialize_to_environment before forward.")
 
     def initialize_to_environment(
         self,
