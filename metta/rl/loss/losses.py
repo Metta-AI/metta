@@ -6,6 +6,7 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.cmpo import CMPOConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
@@ -30,6 +31,7 @@ class LossesConfig(Config):
         "sliced_scripted_cloner",
         "ppo_critic",
         "quantile_ppo_critic",
+        "cmpo",
         "ppo_actor",
         "ppo",
         "vit_reconstruction",
@@ -47,6 +49,9 @@ class LossesConfig(Config):
 
     # our original PPO in a single file
     ppo: PPOConfig = Field(default_factory=lambda: PPOConfig(enabled=False))
+
+    # CMPO (Conservative Model-based Policy Optimization) from Muesli
+    cmpo: CMPOConfig = Field(default_factory=lambda: CMPOConfig(enabled=False))
 
     # other aux losses below
     contrastive: contrastive_config.ContrastiveConfig = Field(
@@ -97,6 +102,7 @@ class LossesConfig(Config):
             self.vit_reconstruction.enabled,
             self.contrastive.enabled,
             self.supervisor.enabled and not self.supervisor.sample_enabled,
+            self.cmpo.enabled,
         ]
 
         if any(consumers) and not any(samplers):
