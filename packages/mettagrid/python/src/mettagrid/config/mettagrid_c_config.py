@@ -20,8 +20,6 @@ from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import LimitDef as CppLimitDef
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
-from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
-from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
@@ -452,6 +450,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in actions_config.attack.vibes if vibe in vibe_name_to_id]
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
+<<<<<<< HEAD
     # Process transfer - vibes are derived from vibe_transfers keys in C++
     transfer_cfg = actions_config.transfer
     vibe_transfers_cpp = {}
@@ -472,6 +471,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         enabled=transfer_cfg.enabled,
     )
 
+=======
+>>>>>>> d8324275fe (Remove Transfer action, keep only vibe-triggered Attack on Move)
     # Process change_vibe - always add to map
     action_params = process_action_config("change_vibe", actions_config.change_vibe)
     num_vibes = len(actions_config.change_vibe.vibes) if actions_config.change_vibe.enabled else 0
