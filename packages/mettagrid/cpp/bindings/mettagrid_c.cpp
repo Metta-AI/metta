@@ -156,7 +156,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config, &resource_names, &game_config.feature_ids);
+        Agent* agent = new Agent(r, c, *agent_config, &resource_names, &game_config.feature_ids, &game_config.melee_combat);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
@@ -968,6 +968,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_move_action_config(m);
   bind_global_obs_config(m);
   bind_clipper_config(m);
+  bind_melee_combat_config(m);
   bind_game_config(m);
 
   // Export data types from types.hpp
