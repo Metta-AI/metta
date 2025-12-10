@@ -25,6 +25,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Iterable, Tuple
+import json
 
 import boto3
 import torch
@@ -39,9 +40,6 @@ S3_PREFIX = "policies"
 
 # Default runs to process (latest checkpoint per run will be used)
 DEFAULT_RUNS: list[str] = [
-    "relh.machina1_bc_dinky_sup.hc.1209.0.5.hc.1",
-    "relh.machina1_bc_thinky_sup.1209.0_5.10",
-    "relh.machina1_bc_thinky_sliced.hc.1209.11",
     "relh.machina1_bc_dinky_sliced.hc.1209.12",
 ]
 
@@ -102,16 +100,19 @@ def pad_checkpoint(src_uri: str, out_path: Path) -> Path:
     return Path(saved_uri.replace("file://", ""))
 
 
-def submit_checkpoint(path_or_uri: str | Path, name: str) -> None:
-    # CoGames submit accepts URIs; add file:// for local paths.
-    path_str = str(path_or_uri)
-    uri = path_str if "://" in path_str else f"file://{path_str}"
+def upload_to_s3(path: Path, dest_key: str) -> str:
+    session = boto3.Session()
+    s3 = session.client("s3", config=Config(signature_version="s3v4"))
+    s3.upload_file(str(path), S3_BUCKET, dest_key)
+    return f"s3://{S3_BUCKET}/{dest_key}"
+
+
+def submit_checkpoint(uri: str, name: str) -> None:
     cmd = ["uv", "run", "cogames", "submit", "-p", uri, "-n", name]
     subprocess.run(cmd, check=True)
 
 
-def local_eval(path: Path, seed: int = 50) -> None:
-    uri = f"file://{path}"
+def local_eval(uri: str, seed: int = 50) -> None:
     cmd = [
         "uv",
         "run",
@@ -124,11 +125,22 @@ def local_eval(path: Path, seed: int = 50) -> None:
 
 
 def upload_padded_checkpoint(s3, local_path: Path, run: str, version: str) -> str:
-    key = f"{S3_PREFIX}/{run}/{run}:v{version}.padded_neginf.mpt"
+    key = f"{S3_PREFIX}/{run}/{run}:v{version}-padded-neginf.mpt"
     dest_uri = f"s3://{S3_BUCKET}/{key}"
     print(f"[{run}] uploading padded checkpoint to {dest_uri}")
     s3.upload_file(str(local_path), S3_BUCKET, key)
     return dest_uri
+
+
+def _write_submission_dir(padded_path: Path, run: str, version: str, root: Path) -> Path:
+    """Create a submission directory with policy_spec.json and bundled .mpt."""
+    subdir = root / f"{run}.v{version}.bundle"
+    subdir.mkdir(parents=True, exist_ok=True)
+
+    checkpoint_name = "checkpoint.mpt"
+    dest_ckpt = subdir / checkpoint_name
+    dest_ckpt.write_bytes(padded_path.read_bytes())
+    return subdir
 
 
 def main(runs: Iterable[str], do_submit: bool, do_eval: bool) -> None:
@@ -147,16 +159,38 @@ def main(runs: Iterable[str], do_submit: bool, do_eval: bool) -> None:
 
         print(f"[{run}] latest: {src_uri} -> padding to {out_path}")
         padded = pad_checkpoint(src_uri, out_path)
-        padded_s3_uri = upload_padded_checkpoint(s3, padded, run, version) if do_submit else None
+
+        submission_dir = _write_submission_dir(padded, run, version, workdir)
+        checkpoint_name = "checkpoint.mpt"
+        policy_arg = (
+            "class=mettagrid.policy.mpt_policy.MptPolicy,"
+            f"data={checkpoint_name},"
+            f"kw.checkpoint_uri={checkpoint_name},"
+            "kw.device=cpu,kw.strict=True"
+        )
+        eval_policy_arg = (
+            "class=mettagrid.policy.mpt_policy.MptPolicy,"
+            f"data={submission_dir / checkpoint_name},"
+            f"kw.checkpoint_uri={submission_dir / checkpoint_name},"
+            "kw.device=cpu,kw.strict=True"
+        )
 
         if do_submit:
             name = f"{run}-neginf"
             print(f"[{run}] submitting as {name}")
-            submit_checkpoint(padded_s3_uri or padded, name)
+            cmd = ["uv", "run", "cogames", "submit", "-p", policy_arg, "-n", name]
+            subprocess.run(cmd, check=True, cwd=submission_dir)
 
         if do_eval:
             print(f"[{run}] running local eval")
-            local_eval(padded)
+            cmd = [
+                "uv",
+                "run",
+                "tools/run.py",
+                "recipes.experiment.v0_leaderboard.evaluate",
+                f"policy_uri={eval_policy_arg}",
+            ]
+            subprocess.run(cmd, check=True)
 
     print(f"Done. Padded files in {workdir}")
 
