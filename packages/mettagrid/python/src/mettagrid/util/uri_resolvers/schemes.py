@@ -10,7 +10,10 @@ import boto3
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.base import (
     CheckpointMetadata,
+    FileParsedScheme,
+    MockParsedScheme,
     ParsedScheme,
+    S3ParsedScheme,
     SchemeResolver,
 )
 
@@ -34,7 +37,7 @@ class FileSchemeResolver(SchemeResolver):
     def matches_scheme(self, uri: str) -> bool:
         return uri.startswith("file://")
 
-    def parse(self, uri: str) -> ParsedScheme:
+    def parse(self, uri: str) -> FileParsedScheme:
         if uri.startswith("file://"):
             parsed = urlparse(uri)
             combined_path = unquote(parsed.path)
@@ -47,15 +50,10 @@ class FileSchemeResolver(SchemeResolver):
             local_path = Path(uri).expanduser().resolve()
 
         canonical = local_path.as_uri()
-        return ParsedScheme(
-            raw=uri, scheme=self.scheme, canonical=canonical, local_path=local_path, path=str(local_path)
-        )
+        return FileParsedScheme(canonical=canonical, local_path=local_path)
 
-    def _can_find_latest(self, parsed: ParsedScheme) -> bool:
-        return parsed.local_path is not None
-
-    def _get_latest_checkpoint_uri(self, parsed: ParsedScheme) -> str | None:
-        if not parsed.local_path or not parsed.local_path.is_dir():
+    def _get_latest_checkpoint_uri(self, parsed: FileParsedScheme) -> str | None:
+        if not parsed.local_path.is_dir():
             return None
         best: tuple[int, str] | None = None
         for ckpt in parsed.local_path.glob("*.mpt"):
@@ -71,15 +69,13 @@ class FileSchemeResolver(SchemeResolver):
             if base_uri.endswith("/"):
                 base_uri = base_uri[:-1]
             parsed = self.parse(base_uri)
-            if self._can_find_latest(parsed):
-                latest = self._get_latest_checkpoint_uri(parsed)
-                if latest:
-                    return latest
+            latest = self._get_latest_checkpoint_uri(parsed)
+            if latest:
+                return latest
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
-
-        if self._can_find_latest(parsed) and not uri.endswith(".mpt"):
+        if not uri.endswith(".mpt"):
             latest = self._get_latest_checkpoint_uri(parsed)
             if latest:
                 return latest
@@ -87,7 +83,7 @@ class FileSchemeResolver(SchemeResolver):
         return parsed.canonical
 
 
-class S3SchemeResolver(FileSchemeResolver):
+class S3SchemeResolver(SchemeResolver):
     """Resolves AWS S3 URIs.
 
     Supported formats:
@@ -102,7 +98,7 @@ class S3SchemeResolver(FileSchemeResolver):
     def matches_scheme(self, uri: str) -> bool:
         return uri.startswith("s3://")
 
-    def parse(self, uri: str) -> ParsedScheme:
+    def parse(self, uri: str) -> S3ParsedScheme:
         if not uri.startswith("s3://"):
             raise ValueError(f"Expected s3:// URI, got: {uri}")
         remainder = uri[5:]
@@ -112,14 +108,9 @@ class S3SchemeResolver(FileSchemeResolver):
         if not bucket or not key:
             raise ValueError("Malformed S3 URI. Bucket and key must be non-empty")
         canonical = f"s3://{bucket}/{key}"
-        return ParsedScheme(raw=uri, scheme=self.scheme, canonical=canonical, bucket=bucket, key=key, path=key)
+        return S3ParsedScheme(canonical=canonical, bucket=bucket, key=key)
 
-    def _can_find_latest(self, parsed: ParsedScheme) -> bool:
-        return parsed.bucket is not None and parsed.key is not None
-
-    def _get_latest_checkpoint_uri(self, parsed: ParsedScheme) -> str | None:
-        if not parsed.bucket or not parsed.key:
-            return None
+    def _get_latest_checkpoint_uri(self, parsed: S3ParsedScheme) -> str | None:
         prefix = parsed.key
         if not prefix.endswith("/"):
             prefix = prefix + "/"
@@ -136,6 +127,25 @@ class S3SchemeResolver(FileSchemeResolver):
             if info and (best is None or info[1] > best[0]):
                 best = (info[1], uri)
         return best[1] if best else None
+
+    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
+        if uri.endswith(":latest"):
+            base_uri = uri[:-7]
+            if base_uri.endswith("/"):
+                base_uri = base_uri[:-1]
+            parsed = self.parse(base_uri)
+            latest = self._get_latest_checkpoint_uri(parsed)
+            if latest:
+                return latest
+            raise ValueError(f"No latest checkpoint found for {base_uri}")
+
+        parsed = self.parse(uri)
+        if not uri.endswith(".mpt"):
+            latest = self._get_latest_checkpoint_uri(parsed)
+            if latest:
+                return latest
+
+        return parsed.canonical
 
 
 class HttpSchemeResolver(SchemeResolver):
@@ -154,7 +164,7 @@ class HttpSchemeResolver(SchemeResolver):
     def matches_scheme(self, uri: str) -> bool:
         return uri.startswith("https://") or uri.startswith("http://")
 
-    def parse(self, uri: str) -> ParsedScheme:
+    def parse(self, uri: str) -> S3ParsedScheme:
         if uri.startswith("https://") or uri.startswith("http://"):
             # Match patterns:
             # - https://{bucket}.s3.amazonaws.com/{key}
@@ -162,11 +172,8 @@ class HttpSchemeResolver(SchemeResolver):
             s3_pattern = r"^https?://([^.]+)\.s3(?:\.([^.]+))?\.amazonaws\.com/(.+)$"
             match = re.match(s3_pattern, uri)
             if match:
-                bucket, region, key = match.groups()
-                # region is optional (None if not present), but we don't need it for s3:// URIs
-                # Convert to s3:// URI for proper handling
-                value = f"s3://{bucket}/{key}"
-                return S3SchemeResolver().parse(value)
+                bucket, _region, key = match.groups()
+                return S3ParsedScheme(canonical=f"s3://{bucket}/{key}", bucket=bucket, key=key)
         raise ValueError(f"Expected https:// or http:// URI, got: {uri}")
 
 
@@ -181,14 +188,14 @@ class MockSchemeResolver(SchemeResolver):
     def scheme(self) -> str:
         return "mock"
 
-    def parse(self, uri: str) -> ParsedScheme:
+    def parse(self, uri: str) -> MockParsedScheme:
         if not uri.startswith("mock://"):
             raise ValueError(f"Expected mock:// URI, got: {uri}")
         path = uri[len("mock://") :]
         if not path:
             raise ValueError("mock:// URIs must include a path")
         canonical = f"mock://{path}"
-        return ParsedScheme(raw=uri, scheme=self.scheme, canonical=canonical, path=path)
+        return MockParsedScheme(canonical=canonical, path=path)
 
 
 _SCHEME_RESOLVERS: list[str] = [

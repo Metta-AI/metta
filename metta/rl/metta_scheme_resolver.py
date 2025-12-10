@@ -6,7 +6,7 @@ import uuid
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.common.util.constants import PROD_STATS_SERVER_URI
-from mettagrid.util.uri_resolvers.base import SchemeResolver
+from mettagrid.util.uri_resolvers.base import MettaParsedScheme, SchemeResolver
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,14 @@ class MettaSchemeResolver(SchemeResolver):
     @property
     def scheme(self) -> str:
         return "metta"
+
+    def parse(self, uri: str) -> MettaParsedScheme:
+        if not uri.startswith("metta://"):
+            raise ValueError(f"Expected metta:// URI, got: {uri}")
+        path = uri[len("metta://") :]
+        if not path:
+            raise ValueError("metta:// URIs must include a path")
+        return MettaParsedScheme(canonical=uri, path=path)
 
     def _get_stats_client(self) -> StatsClient:
         if not self._stats_server_uri:
