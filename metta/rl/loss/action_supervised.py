@@ -89,7 +89,8 @@ class ActionSupervised(Loss):
             # when sending to the environment. After it gets sent to env it is no longer used.
             # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
             teacher_actions = td["teacher_actions"]
-            # Only overwrite where teacher_actions are valid (>=0); keep student actions elsewhere to satisfy action space
+            # Only overwrite where teacher_actions are valid (>=0); keep student actions
+            # elsewhere so action space stays satisfied
             valid_mask = teacher_actions >= 0
             td["actions"] = torch.where(valid_mask, teacher_actions, td["actions"])
 

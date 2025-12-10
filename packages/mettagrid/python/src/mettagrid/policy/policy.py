@@ -144,9 +144,7 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         self._invoke_step_batch(self._default_subset, raw_observations, raw_actions)
 
-    def step_batch_subset(
-        self, agent_ids: np.ndarray, raw_observations: np.ndarray, raw_actions: np.ndarray
-    ) -> None:
+    def step_batch_subset(self, agent_ids: np.ndarray, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         """Compute actions for a subset of agents.
 
         Args:
