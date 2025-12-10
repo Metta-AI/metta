@@ -141,8 +141,7 @@ class ActionProbs(nn.Module):
 
         if current_actions > self.num_actions:
             raise ValueError(
-                f"Action logits have {current_actions} actions, "
-                f"but environment expects {self.num_actions}."
+                f"Action logits have {current_actions} actions, but environment expects {self.num_actions}."
             )
 
         if not self.config.pad_to_env_actions:

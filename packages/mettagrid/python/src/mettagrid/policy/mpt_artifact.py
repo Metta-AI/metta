@@ -41,7 +41,6 @@ class MptArtifact:
         *,
         strict: bool = True,
     ) -> Any:
-        """Instantiate a policy with this state dict."""
         if isinstance(device, str):
             device = torch.device(device)
 
