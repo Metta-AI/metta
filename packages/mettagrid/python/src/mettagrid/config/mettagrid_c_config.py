@@ -1,12 +1,14 @@
+from typing import Optional
+
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AssemblerConfig,
     ChestConfig,
     ClipperConfig,
+    DemolishConfig,
     GameConfig,
     WallConfig,
 )
-from mettagrid.config.vibes import VIBES
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
@@ -16,6 +18,7 @@ from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionC
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
 from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
+from mettagrid.mettagrid_c import DemolishConfig as CppDemolishConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
@@ -27,28 +30,19 @@ from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
-def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
+def _convert_demolish_config(
+    demolish: Optional[DemolishConfig], resource_name_to_id: dict[str, int]
+) -> Optional[CppDemolishConfig]:
+    """Convert Python DemolishConfig to C++ DemolishConfig."""
+    if demolish is None:
+        return None
+    cost = {resource_name_to_id[k]: int(v) for k, v in demolish.cost.items()}
+    scrap = {resource_name_to_id[k]: int(v) for k, v in demolish.scrap.items()}
+    return CppDemolishConfig(cost, scrap)
+
+
+def convert_to_cpp_game_config(game_config: GameConfig):
     """Convert a GameConfig to a CppGameConfig."""
-    if isinstance(mettagrid_config, GameConfig):
-        # If it's already a GameConfig instance, use it directly
-        game_config = mettagrid_config
-    else:
-        # If it's a dict, remove computed fields before instantiating GameConfig
-        # features is a computed field and can't be set during __init__
-        config_dict = mettagrid_config.copy()
-        if "obs" in config_dict and "features" in config_dict["obs"]:
-            config_dict["obs"] = config_dict["obs"].copy()
-            config_dict["obs"].pop("features", None)
-        # Keep vibe_names in sync with number_of_vibes; favor the explicit count.
-        config_dict.pop("vibe_names", None)
-        change_vibe_cfg = config_dict.setdefault("actions", {}).setdefault("change_vibe", {})
-        change_vibe_cfg["number_of_vibes"] = change_vibe_cfg.get("number_of_vibes") or len(VIBES)
-        game_config = GameConfig(**config_dict)
-
-    # Ensure runtime object has consistent vibes.
-    game_config.actions.change_vibe.number_of_vibes = game_config.actions.change_vibe.number_of_vibes or len(VIBES)
-    game_config.vibe_names = [vibe.name for vibe in VIBES[: game_config.actions.change_vibe.number_of_vibes]]
-
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
@@ -59,9 +53,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Set up vibe mappings from the change_vibe action config.
     # The C++ bindings expect dense uint8 identifiers, so keep a name->id lookup.
-    num_vibes = game_config.actions.change_vibe.number_of_vibes
-    supported_vibes = VIBES[:num_vibes]
-    vibe_name_to_id = {vibe.name: i for i, vibe in enumerate(supported_vibes)}
+    vibe_name_to_id = {vibe: i for i, vibe in enumerate(game_config.vibe_names)}
 
     objects_cpp_params = {}  # params for CppWallConfig
 
@@ -175,20 +167,16 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         cpp_damage_config = CppDamageConfig()
         if damage_config_py is not None:
             # Convert threshold resource names to IDs
-            for resource_name in damage_config_py.get("threshold", {}).keys():
-                assert resource_name in resource_name_to_id, (
-                    f"Threshold resource '{resource_name}' not in resource_names"
-                )
             cpp_damage_config.threshold = {
                 resource_name_to_id[resource_name]: threshold_value
                 for resource_name, threshold_value in damage_config_py.get("threshold", {}).items()
+                if resource_name in resource_name_to_id
             }
             # Convert resources map (name -> minimum) to IDs
-            for resource_name in damage_config_py.get("resources", {}).keys():
-                assert resource_name in resource_name_to_id, f"Damage resource '{resource_name}' not in resource_names"
             cpp_damage_config.resources = {
                 resource_name_to_id[resource_name]: minimum_value
                 for resource_name, minimum_value in damage_config_py.get("resources", {}).items()
+                if resource_name in resource_name_to_id
             }
 
         # Build inventory config with support for grouped limits and modifiers
@@ -209,6 +197,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             base_limit = resource_limit["limit"]
             limit_defs.append(CppLimitDef(resources=resource_ids, base_limit=base_limit, modifiers=modifier_ids))
             configured_resources.update(resource_limit["resources"])
+
+        # Convert inventory_order from names to IDs - items are added in this order first
+        inventory_deps = [
+            resource_name_to_id[name] for name in agent_props.get("inventory_order", []) if name in resource_name_to_id
+        ]
 
         # Add default limits for unconfigured resources
         for resource_name in resource_names:
@@ -257,6 +250,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
             )
             cpp_wall_config.tag_ids = tag_ids
+            cpp_wall_config.demolish = _convert_demolish_config(object_config.demolish, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
@@ -312,6 +306,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.start_clipped = object_config.start_clipped
             cpp_assembler_config.chest_search_distance = object_config.chest_search_distance
             cpp_assembler_config.agent_cooldown = object_config.agent_cooldown
+            cpp_assembler_config.demolish = _convert_demolish_config(object_config.demolish, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
@@ -364,6 +359,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_chest_config.initial_inventory = initial_inventory_cpp
             cpp_chest_config.inventory_config = inventory_config
             cpp_chest_config.tag_ids = tag_ids
+            cpp_chest_config.demolish = _convert_demolish_config(object_config.demolish, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config
         else:
@@ -450,15 +446,52 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Process move - always add to map
     action_params = process_action_config("move", actions_config.move)
     action_params["allowed_directions"] = actions_config.move.allowed_directions
+
+    # Map vibe names to IDs
+    vibe_overrides = {}
+    for vibe_name, action_name in actions_config.move.vibe_specific_action_overrides.items():
+        if vibe_name in vibe_name_to_id:
+            vibe_id = vibe_name_to_id[vibe_name]
+            vibe_overrides[vibe_id] = action_name
+        else:
+            raise ValueError(f"Unknown vibe name '{vibe_name}' in vibe_specific_action_overrides")
+    action_params["vibe_specific_action_overrides"] = vibe_overrides
+
     actions_cpp_params["move"] = CppMoveActionConfig(**action_params)
 
     # Process attack - always add to map
-    action_params = process_action_config("attack", actions_config.attack)
+    # Note: Even when disabled, ALL attack config values must be passed through
+    # because attacks can still be triggered via vibes in attack config
     attack_cfg = actions_config.attack
-    # Always convert full attack config (enabled only controls standalone actions, not vibe-triggered)
-    action_params["defense_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()}
-    action_params["armor_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()}
-    action_params["weapon_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()}
+
+    # Validate that all attack resources are in resource_names
+    for resource_name in attack_cfg.consumed_resources:
+        if resource_name not in resource_name_to_id:
+            raise ValueError(f"attack.consumed_resources: '{resource_name}' not in resource_names")
+    for resource_name in attack_cfg.defense_resources:
+        if resource_name not in resource_name_to_id:
+            raise ValueError(f"attack.defense_resources: '{resource_name}' not in resource_names")
+    for resource_name in attack_cfg.armor_resources:
+        if resource_name not in resource_name_to_id:
+            raise ValueError(f"attack.armor_resources: '{resource_name}' not in resource_names")
+    for resource_name in attack_cfg.weapon_resources:
+        if resource_name not in resource_name_to_id:
+            raise ValueError(f"attack.weapon_resources: '{resource_name}' not in resource_names")
+    if attack_cfg.required_resources:
+        for resource_name in attack_cfg.required_resources:
+            if resource_name not in resource_name_to_id:
+                raise ValueError(f"attack.required_resources: '{resource_name}' not in resource_names")
+
+    action_params = {
+        "consumed_resources": {resource_name_to_id[k]: int(v) for k, v in attack_cfg.consumed_resources.items()},
+        "required_resources": {
+            resource_name_to_id[k]: int(v)
+            for k, v in (attack_cfg.required_resources or attack_cfg.consumed_resources).items()
+        },
+        "defense_resources": {resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()},
+        "armor_resources": {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()},
+        "weapon_resources": {resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()},
+    }
     # Convert success outcome
     success_actor = {resource_name_to_id[k]: v for k, v in attack_cfg.success.actor_inv_delta.items()}
     success_target = {resource_name_to_id[k]: v for k, v in attack_cfg.success.target_inv_delta.items()}
@@ -470,20 +503,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         attack_cfg.success.freeze,
     )
     action_params["enabled"] = attack_cfg.enabled
-<<<<<<< HEAD
     # Convert vibes from names to IDs (validate all vibe names exist)
     for vibe in attack_cfg.vibes:
         if vibe not in vibe_name_to_id:
             raise ValueError(f"Unknown vibe name '{vibe}' in attack.vibes")
     action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in attack_cfg.vibes]
-=======
-    # Convert vibes from names to IDs
-    action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in attack_cfg.vibes if vibe in vibe_name_to_id]
     # Convert vibe_bonus from names to IDs
     action_params["vibe_bonus"] = {
         vibe_name_to_id[vibe]: bonus for vibe, bonus in attack_cfg.vibe_bonus.items() if vibe in vibe_name_to_id
     }
->>>>>>> 9249d8778a (Fix C++ benchmark compilation: add armor/weapon_resources params)
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
     # Process transfer - vibes are derived from vibe_transfers keys in C++
@@ -508,9 +536,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Process change_vibe - always add to map
     action_params = process_action_config("change_vibe", actions_config.change_vibe)
-    action_params["number_of_vibes"] = (
-        actions_config.change_vibe.number_of_vibes if actions_config.change_vibe.enabled else 0
-    )
+    # Use vibes length if explicitly set, otherwise fall back to number_of_vibes
+    change_vibe_cfg = actions_config.change_vibe
+    if change_vibe_cfg.enabled:
+        if change_vibe_cfg.vibes is not None:
+            action_params["number_of_vibes"] = len(change_vibe_cfg.vibes)
+        else:
+            action_params["number_of_vibes"] = change_vibe_cfg.number_of_vibes
+    else:
+        action_params["number_of_vibes"] = 0
     actions_cpp_params["change_vibe"] = CppChangeVibeActionConfig(**action_params)
 
     game_cpp_params["actions"] = actions_cpp_params

@@ -304,6 +304,10 @@ proc useSelections*(zoomInfo: ZoomInfo) =
 proc drawObjects*() =
   ## Draw the objects on the map.
   for thing in replay.objects:
+    # Skip objects that have been removed (demolished)
+    if thing.removedAtStep >= 0 and step >= thing.removedAtStep:
+      continue
+
     let typeName = thing.typeName
     let pos = thing.location.at().xy
     case typeName

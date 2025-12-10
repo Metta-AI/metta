@@ -344,6 +344,30 @@ class GlobalObsConfig(Config):
     goal_obs: bool = Field(default=False)
 
 
+class BuildConfig(Config):
+    """Configuration for building this object type.
+
+    When an agent with this vibe successfully moves to a new location,
+    the specified cost is deducted and this object is placed in the spot moved from.
+    """
+
+    vibe: str = Field(description="Vibe that triggers building this object")
+    cost: dict[str, int] = Field(default_factory=dict, description="Resource costs to build")
+
+
+class DemolishConfig(Config):
+    """Configuration for demolishing a building via attack."""
+
+    cost: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources required from the attacker to demolish this building",
+    )
+    scrap: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources returned to the attacker after demolishing",
+    )
+
+
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
 
@@ -358,6 +382,14 @@ class GridObjectConfig(Config):
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
+    build: Optional[BuildConfig] = Field(
+        default=None,
+        description="If set, this object can be built by agents with the specified vibe",
+    )
+    demolish: Optional[DemolishConfig] = Field(
+        default=None,
+        description="If set, this object can be demolished by attacking it with sufficient resources",
+    )
 
     @model_validator(mode="after")
     def _defaults_from_name(self) -> "GridObjectConfig":
@@ -439,6 +471,11 @@ class AssemblerConfig(GridObjectConfig):
         default=0,
         ge=0,
         description="Distance within which assembler can use inventories from chests",
+    )
+    agent_cooldown: int = Field(
+        default=0,
+        ge=0,
+        description="Per-agent cooldown in timesteps before the same agent can use this assembler again",
     )
 
 
