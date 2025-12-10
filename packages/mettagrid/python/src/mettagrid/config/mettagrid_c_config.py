@@ -158,12 +158,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             }
             inventory_regen_amounts[vibe_id] = resource_amounts_cpp
 
-        # Convert vibe_transfers: vibe -> resource -> delta
-        vibe_transfers_map = {}
-        for vibe_name, resource_deltas in agent_props.get("vibe_transfers", {}).items():
-            vibe_id = vibe_name_to_id[vibe_name]
-            resource_deltas_cpp = {resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()}
-            vibe_transfers_map[vibe_id] = resource_deltas_cpp
+        diversity_tracked_resources = [
+            resource_name_to_id[resource_name]
+            for resource_name in agent_props.get("diversity_tracked_resources", [])
+            if resource_name in resource_name_to_id
+        ]
 
         # Convert diversity_tracked_resources to IDs
         diversity_tracked_resources = [
@@ -233,7 +232,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             stat_reward_max=stat_reward_max,
             initial_inventory=initial_inventory,
             inventory_regen_amounts=inventory_regen_amounts,
-            vibe_transfers=vibe_transfers_map,
             diversity_tracked_resources=diversity_tracked_resources,
             damage_config=cpp_damage_config,
         )

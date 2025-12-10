@@ -73,7 +73,6 @@ class AgentConfig(GridObjectConfig):
         stat_reward_max: dict[str, float] = {},
         initial_inventory: dict[int, int] = {},
         inventory_regen_amounts: dict[int, dict[int, int]] | None = None,
-        vibe_transfers: dict[int, dict[int, int]] | None = None,
         diversity_tracked_resources: list[int] | None = None,
     ) -> None: ...
     type_id: int
@@ -83,11 +82,10 @@ class AgentConfig(GridObjectConfig):
     group_name: str
     freeze_duration: int
     resource_limits: dict[int, int]
-    stat_rewards: dict[str, float]  # Added this
-    stat_reward_max: dict[str, float]  # Added this
+    stat_rewards: dict[str, float]
+    stat_reward_max: dict[str, float]
     initial_inventory: dict[int, int]
     inventory_regen_amounts: dict[int, dict[int, int]]
-    vibe_transfers: dict[int, dict[int, int]]
     diversity_tracked_resources: list[int]
 
 class ActionConfig:
