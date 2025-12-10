@@ -8,7 +8,7 @@ env:
   BACKEND_URL: "http://host.docker.internal:8000"
 
 datadog:
-  enabled: true
+  enabled: false
   datadog:
     clusterName: "kind-metta-local"
     tags:
