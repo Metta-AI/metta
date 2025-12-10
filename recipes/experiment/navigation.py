@@ -174,8 +174,31 @@ def make_curriculum(
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    # LP parameters for sweep
+    lp_gain: Optional[float] = None,
+    ema_timescale: Optional[float] = None,
+    slow_timescale_factor: Optional[float] = None,
+    progress_smoothing: Optional[float] = None,
 ) -> TrainTool:
-    resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    # If any LP parameters are specified, create a custom algorithm config
+    algorithm_config = None
+    if any(p is not None for p in [lp_gain, ema_timescale, slow_timescale_factor, progress_smoothing]):
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,
+            ema_timescale=ema_timescale if ema_timescale is not None else 0.006,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=3,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            lp_gain=lp_gain if lp_gain is not None else 0.1,
+            slow_timescale_factor=slow_timescale_factor if slow_timescale_factor is not None else 0.2,
+            progress_smoothing=progress_smoothing if progress_smoothing is not None else 0.05,
+        )
+
+    resolved_curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+        algorithm_config=algorithm_config,
+    )
 
     evaluator_cfg = EvaluatorConfig(
         simulations=make_navigation_eval_suite(),
