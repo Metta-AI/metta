@@ -14,10 +14,13 @@
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
+#include "actions/build.hpp"
+#include "actions/build_config.hpp"
 #include "actions/change_vibe.hpp"
 #include "actions/move.hpp"
 #include "actions/move_config.hpp"
 #include "actions/noop.hpp"
+#include "actions/transfer.hpp"
 #include "config/observation_features.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
@@ -82,9 +85,14 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _action_success.resize(num_agents);
 
-  init_action_handlers(game_config);
+  init_action_handlers();
 
-  _init_grid(game_config, map);
+  _init_grid(_game_config, map);
+
+  // Set runtime context for Build handler (needs obs_encoder and agents count)
+  if (_build_handler) {
+    _build_handler->set_runtime_context(&current_step, _obs_encoder.get(), num_agents);
+  }
 
   // Pre-compute goal_obs tokens for each agent
   if (_global_obs_config.goal_obs) {
@@ -135,6 +143,9 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
     object_type_names[type_id] = object_cfg->type_name;
   }
 
+  // Collect assemblers to initialize agent tracking after all agents are created
+  std::vector<Assembler*> assemblers;
+
   // Initialize objects from map
   for (GridCoord r = 0; r < height; r++) {
     for (GridCoord c = 0; c < width; c++) {
@@ -183,6 +194,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
         assembler->set_obs_encoder(_obs_encoder.get());
+        assemblers.push_back(assembler);
         continue;
       }
 
@@ -200,6 +212,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
                                std::to_string(c) + ")");
     }
   }
+
 }
 
 void MettaGrid::_make_buffers(unsigned int num_agents) {
@@ -246,11 +259,11 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
   _compute_observations(executed_actions);
 }
 
-void MettaGrid::init_action_handlers(const GameConfig& game_config) {
+void MettaGrid::init_action_handlers() {
   _max_action_priority = 0;
 
   // Noop
-  auto noop = std::make_unique<Noop>(*game_config.actions.at("noop"));
+  auto noop = std::make_unique<Noop>(*_game_config.actions.at("noop"));
   noop->init(_grid.get(), &_rng);
   if (noop->priority > _max_action_priority) _max_action_priority = noop->priority;
   for (const auto& action : noop->actions()) {
@@ -259,29 +272,66 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   _action_handler_impl.push_back(std::move(noop));
 
   // Move
-  auto move_config = std::static_pointer_cast<const MoveActionConfig>(game_config.actions.at("move"));
-  auto move = std::make_unique<Move>(*move_config, &game_config);
+  auto move_config = std::static_pointer_cast<const MoveActionConfig>(_game_config.actions.at("move"));
+  auto move = std::make_unique<Move>(*move_config, &_game_config);
   move->init(_grid.get(), &_rng);
   if (move->priority > _max_action_priority) _max_action_priority = move->priority;
   for (const auto& action : move->actions()) {
     _action_handlers.push_back(action);
   }
+  // Capture the raw pointer to pass to other handlers
+  Move* move_ptr = move.get();
   _action_handler_impl.push_back(std::move(move));
 
   // Attack
-  auto attack_config = std::static_pointer_cast<const AttackActionConfig>(game_config.actions.at("attack"));
-  auto attack = std::make_unique<Attack>(*attack_config, &game_config);
+  auto attack_config = std::static_pointer_cast<const AttackActionConfig>(_game_config.actions.at("attack"));
+  auto attack = std::make_unique<Attack>(*attack_config, &_game_config);
   attack->init(_grid.get(), &_rng);
   if (attack->priority > _max_action_priority) _max_action_priority = attack->priority;
   for (const auto& action : attack->actions()) {
     _action_handlers.push_back(action);
   }
+
+  // Transfer
+  auto transfer_config = std::static_pointer_cast<const TransferActionConfig>(_game_config.actions.at("transfer"));
+  auto transfer = std::make_unique<Transfer>(*transfer_config, &_game_config);
+  transfer->init(_grid.get(), &_rng);
+  if (transfer->priority > _max_action_priority) _max_action_priority = transfer->priority;
+  for (const auto& action : transfer->actions()) {
+    _action_handlers.push_back(action);
+  }
+
+  // Build (creates objects at previous location after successful move)
+  _build_handler = nullptr;
+  std::unique_ptr<Build> build;
+  if (_game_config.actions.find("build") != _game_config.actions.end()) {
+    auto build_config = std::static_pointer_cast<const BuildActionConfig>(_game_config.actions.at("build"));
+    build = std::make_unique<Build>(*build_config, &_game_config, _stats.get());
+    build->init(_grid.get(), &_rng);
+    if (build->priority > _max_action_priority) _max_action_priority = build->priority;
+    // Build doesn't create standalone actions - it's triggered by move
+    _build_handler = build.get();
+  }
+
+  // Register vibe-triggered action handlers with Move
+  std::unordered_map<std::string, ActionHandler*> handlers;
+  handlers["attack"] = attack.get();
+  handlers["transfer"] = transfer.get();
+  if (build) {
+    handlers["build"] = build.get();
+  }
+  move_ptr->set_action_handlers(handlers);
+
   _action_handler_impl.push_back(std::move(attack));
+  _action_handler_impl.push_back(std::move(transfer));
+  if (build) {
+    _action_handler_impl.push_back(std::move(build));
+  }
 
   // ChangeVibe
   auto change_vibe_config =
-      std::static_pointer_cast<const ChangeVibeActionConfig>(game_config.actions.at("change_vibe"));
-  auto change_vibe = std::make_unique<ChangeVibe>(*change_vibe_config, &game_config);
+      std::static_pointer_cast<const ChangeVibeActionConfig>(_game_config.actions.at("change_vibe"));
+  auto change_vibe = std::make_unique<ChangeVibe>(*change_vibe_config, &_game_config);
   change_vibe->init(_grid.get(), &_rng);
   if (change_vibe->priority > _max_action_priority) _max_action_priority = change_vibe->priority;
   for (const auto& action : change_vibe->actions()) {
@@ -482,9 +532,10 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
     int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
 
-    // Encode location and add tokens
+    // Encode location and add tokens (pass agent_idx for agent-specific observations like per-agent cooldown)
     uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
-    attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
+    attempted_tokens_written +=
+        _obs_encoder->encode_tokens(obj, obs_tokens, location, static_cast<unsigned int>(agent_idx));
     tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
   }
 
@@ -578,9 +629,29 @@ void MettaGrid::_step() {
     }
   }
 
-  // Check and apply damage for all agents
+  // Apply cell effects to agents (AOE effects from nearby objects)
   for (auto* agent : _agents) {
-    agent->check_and_apply_damage(_rng);
+    const CellEffect& effect = _grid->effect_at(agent->location.r, agent->location.c);
+    for (const auto& [item, delta] : effect.resource_deltas) {
+      agent->inventory.update(item, delta);
+
+      // Track AOE stats
+      const std::string& resource_name = _stats->resource_name(item);
+      if (delta > 0) {
+        agent->stats.add("aoe." + resource_name + ".gained", static_cast<float>(delta));
+        _stats->add("aoe." + resource_name + ".gained", static_cast<float>(delta));
+      } else if (delta < 0) {
+        agent->stats.add("aoe." + resource_name + ".lost", static_cast<float>(-delta));
+        _stats->add("aoe." + resource_name + ".lost", static_cast<float>(-delta));
+      }
+      agent->stats.add("aoe." + resource_name + ".delta", static_cast<float>(delta));
+      _stats->add("aoe." + resource_name + ".delta", static_cast<float>(delta));
+    }
+  }
+
+  // Check and apply damage for all agents (randomized order for fairness)
+  for (const auto& agent_idx : agent_indices) {
+    _agents[agent_idx]->check_and_apply_damage(_rng);
   }
 
   // Apply global systems
@@ -979,8 +1050,29 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("resource_names", &MettaGrid::resource_names)
       .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
 
+  // Bind DemolishConfig for building destruction
+  py::class_<DemolishConfig>(m, "DemolishConfig")
+      .def(py::init<>())
+      .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
+                    const std::unordered_map<InventoryItem, InventoryQuantity>&>(),
+           py::arg("cost") = std::unordered_map<InventoryItem, InventoryQuantity>(),
+           py::arg("scrap") = std::unordered_map<InventoryItem, InventoryQuantity>())
+      .def_readwrite("cost", &DemolishConfig::cost)
+      .def_readwrite("scrap", &DemolishConfig::scrap);
+
+  // Bind AOEEffectConfig for AOE effects on any object
+  py::class_<AOEEffectConfig>(m, "AOEEffectConfig")
+      .def(py::init<>())
+      .def(py::init<unsigned int, const std::unordered_map<InventoryItem, InventoryDelta>&>(),
+           py::arg("range") = 1,
+           py::arg("resource_deltas") = std::unordered_map<InventoryItem, InventoryDelta>())
+      .def_readwrite("range", &AOEEffectConfig::range)
+      .def_readwrite("resource_deltas", &AOEEffectConfig::resource_deltas);
+
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
-  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
+  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
+      .def_readwrite("demolish", &GridObjectConfig::demolish)
+      .def_readwrite("aoe", &GridObjectConfig::aoe);
 
   bind_wall_config(m);
 
@@ -999,6 +1091,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_chest_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
+  bind_vibe_transfer_effect(m);
+  bind_transfer_action_config(m);
+  bind_vibe_build_effect(m);
+  bind_build_action_config(m);
   bind_change_vibe_action_config(m);
   bind_move_action_config(m);
   bind_global_obs_config(m);

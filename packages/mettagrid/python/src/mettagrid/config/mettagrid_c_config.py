@@ -2,6 +2,7 @@ from typing import Optional
 
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
+    AOEEffectConfig,
     AssemblerConfig,
     ChestConfig,
     ClipperConfig,
@@ -11,6 +12,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
+from mettagrid.mettagrid_c import AOEEffectConfig as CppAOEEffectConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
@@ -41,6 +43,16 @@ def _convert_demolish_config(
     cost = {resource_name_to_id[k]: int(v) for k, v in demolish.cost.items()}
     scrap = {resource_name_to_id[k]: int(v) for k, v in demolish.scrap.items()}
     return CppDemolishConfig(cost, scrap)
+
+
+def _convert_aoe_config(
+    aoe: Optional[AOEEffectConfig], resource_name_to_id: dict[str, int]
+) -> Optional[CppAOEEffectConfig]:
+    """Convert Python AOEEffectConfig to C++ AOEEffectConfig."""
+    if aoe is None:
+        return None
+    resource_deltas = {resource_name_to_id[k]: int(v) for k, v in aoe.resource_deltas.items()}
+    return CppAOEEffectConfig(aoe.range, resource_deltas)
 
 
 def convert_to_cpp_game_config(game_config: GameConfig):
@@ -200,11 +212,6 @@ def convert_to_cpp_game_config(game_config: GameConfig):
             limit_defs.append(CppLimitDef(resources=resource_ids, base_limit=base_limit, modifiers=modifier_ids))
             configured_resources.update(resource_limit["resources"])
 
-        # Convert inventory_order from names to IDs - items are added in this order first
-        inventory_deps = [
-            resource_name_to_id[name] for name in agent_props.get("inventory_order", []) if name in resource_name_to_id
-        ]
-
         # Add default limits for unconfigured resources
         for resource_name in resource_names:
             if resource_name not in configured_resources:
@@ -253,6 +260,7 @@ def convert_to_cpp_game_config(game_config: GameConfig):
             )
             cpp_wall_config.tag_ids = tag_ids
             cpp_wall_config.demolish = _convert_demolish_config(object_config.demolish, resource_name_to_id)
+            cpp_wall_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
@@ -306,6 +314,7 @@ def convert_to_cpp_game_config(game_config: GameConfig):
             cpp_assembler_config.start_clipped = object_config.start_clipped
             cpp_assembler_config.chest_search_distance = object_config.chest_search_distance
             cpp_assembler_config.demolish = _convert_demolish_config(object_config.demolish, resource_name_to_id)
+            cpp_assembler_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
@@ -359,6 +368,7 @@ def convert_to_cpp_game_config(game_config: GameConfig):
             cpp_chest_config.inventory_config = inventory_config
             cpp_chest_config.tag_ids = tag_ids
             cpp_chest_config.demolish = _convert_demolish_config(object_config.demolish, resource_name_to_id)
+            cpp_chest_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config
         else:
@@ -445,17 +455,6 @@ def convert_to_cpp_game_config(game_config: GameConfig):
     # Process move - always add to map
     action_params = process_action_config("move", actions_config.move)
     action_params["allowed_directions"] = actions_config.move.allowed_directions
-
-    # Map vibe names to IDs
-    vibe_overrides = {}
-    for vibe_name, action_name in actions_config.move.vibe_specific_action_overrides.items():
-        if vibe_name in vibe_name_to_id:
-            vibe_id = vibe_name_to_id[vibe_name]
-            vibe_overrides[vibe_id] = action_name
-        else:
-            raise ValueError(f"Unknown vibe name '{vibe_name}' in vibe_specific_action_overrides")
-    action_params["vibe_specific_action_overrides"] = vibe_overrides
-
     actions_cpp_params["move"] = CppMoveActionConfig(**action_params)
 
     # Process attack - always add to map

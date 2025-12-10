@@ -17,6 +17,7 @@
 #include "objects/usable.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/stats_tracker.hpp"
+
 class Chest : public GridObject, public Usable, public HasInventory {
 private:
   // a reference to the game stats tracker
@@ -99,6 +100,7 @@ public:
     this->obs_encoder = encoder;
   }
 
+private:
   // Implement pure virtual method from Usable
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid) {
