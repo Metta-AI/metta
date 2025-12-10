@@ -173,8 +173,6 @@ class ActionProbs(nn.Module):
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Forward pass for inference mode with action sampling."""
         logits = td[self.config.in_key]
-        if logits.size(-1) == 0:
-            raise ValueError("Action logits have zero actions.")
 
         logits = self._pad_logits_if_needed(logits)
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
