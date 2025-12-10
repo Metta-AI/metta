@@ -31,6 +31,9 @@ class CurriculumEnv(PufferEnv):
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
 
+        # Track previous task ID to detect task changes for LSTM state reset
+        self._previous_task_id = self._current_task._task_id
+
         # Stats batching configuration - updating stats too frequently is an SPS hit
         self._stats_update_counter = 0
         self._stats_update_frequency = 50  # Batch stats updates to reduce overhead
@@ -67,10 +70,15 @@ class CurriculumEnv(PufferEnv):
 
         # Try to get a valid task and build the map
         max_retries = 10
+        task_changed = False
         for attempt in range(max_retries):
             try:
                 # Get a new task from curriculum
-                self._current_task = self._curriculum.get_task()
+                new_task = self._curriculum.get_task()
+                # Compare task IDs to detect when curriculum switches to a different task (fixes ICL LSTM collapse)
+                task_changed = new_task._task_id != self._previous_task_id
+                self._previous_task_id = new_task._task_id
+                self._current_task = new_task
                 # Create the env config and build the map in try-catch
                 self._env.set_mg_config(self._current_task.get_env_cfg())
                 obs, info = self._env.reset(*args, **kwargs)
@@ -82,6 +90,10 @@ class CurriculumEnv(PufferEnv):
                     raise
                 # Otherwise, try again with a new task
                 continue
+
+        # Signal task change via info dict so rollout phase can reset LSTM state before policy inference
+        if task_changed and isinstance(info, dict):
+            info["_task_changed"] = True
 
         # Invalidate stats cache on reset
         self._stats_cache_valid = False
@@ -112,9 +124,14 @@ class CurriculumEnv(PufferEnv):
 
             # Try to get a valid task and build the map
             max_retries = 10
+            task_changed = False
             for attempt in range(max_retries):
                 try:
-                    self._current_task = self._curriculum.get_task()
+                    # Detect task change when episode ends and curriculum selects new task (prevents LSTM memory conflicts)
+                    new_task = self._curriculum.get_task()
+                    task_changed = new_task._task_id != self._previous_task_id
+                    self._previous_task_id = new_task._task_id
+                    self._current_task = new_task
                     # Create the env config and build the map in try-catch
                     self._env.set_mg_config(self._current_task.get_env_cfg())
                     break
@@ -126,6 +143,16 @@ class CurriculumEnv(PufferEnv):
                         break
                     # Otherwise, try again with a new task
                     continue
+
+            # Set _task_changed flag in all agent info dicts to trigger LSTM state reset in rollout phase
+            if task_changed:
+                # infos can be a list of dicts or a dict, handle both cases
+                if isinstance(infos, list):
+                    for info in infos:
+                        if isinstance(info, dict):
+                            info["_task_changed"] = True
+                elif isinstance(infos, dict):
+                    infos["_task_changed"] = True
 
             # Invalidate stats cache when task changes
             self._stats_cache_valid = False
@@ -160,6 +187,7 @@ class CurriculumEnv(PufferEnv):
             "_env",
             "_curriculum",
             "_current_task",
+            "_previous_task_id",
             "step",
             "_add_curriculum_stats_to_info",
             "_stats_update_counter",
