@@ -7,8 +7,8 @@ class TestProtocolSigmoidPricing:
     """Test sigmoid pricing feature for assembler protocols.
 
     Sigmoid pricing allows:
-    - Linear phase (0 to sigmoid uses): cost scales from 0 (free) to 1 (full price)
-    - Exponential phase (after sigmoid uses): cost = base * (1+inflation)^(n-sigmoid)
+    - Linear phase (0 to sigmoid uses): cost = (base * n + sigmoid - 1) / sigmoid (integer ceiling division)
+    - Exponential phase (after sigmoid uses): cost = ceil(base * (1+inflation)^(n-sigmoid))
     """
 
     def test_sigmoid_linear_phase_first_use_is_free(self):
@@ -46,12 +46,12 @@ class TestProtocolSigmoidPricing:
         sim = Simulation(cfg)
         agent = sim.agent(0)
 
-        # First use - should be FREE (activation_count=0, multiplier=0/5=0)
+        # First use - should be FREE (activation_count=0)
         agent.set_action(Action(name="move_east"))
         sim.step()
 
         inventory = agent.inventory
-        # At activation_count=0 with sigmoid=5: multiplier = 0/5 = 0, so cost = ceil(10*0) = 0
+        # At activation_count=0 with sigmoid=5: cost = (10*0 + 5-1)/5 = 0
         assert inventory.get("iron", 0) == 100, (
             f"First use should be free (cost=0), iron should be 100, got {inventory.get('iron', 0)}"
         )
@@ -94,17 +94,17 @@ class TestProtocolSigmoidPricing:
         agent = sim.agent(0)
 
         expected_costs = [
-            # activation_count=0: multiplier = 0/4 = 0.0, cost = ceil(10*0.0) = 0
+            # activation_count=0: cost = (10*0 + 3) / 4 = 0
             0,
-            # activation_count=1: multiplier = 1/4 = 0.25, cost = ceil(10*0.25) = 3
+            # activation_count=1: cost = (10*1 + 3) / 4 = 3
             3,
-            # activation_count=2: multiplier = 2/4 = 0.5, cost = ceil(10*0.5) = 5
+            # activation_count=2: cost = (10*2 + 3) / 4 = 5
             5,
-            # activation_count=3: multiplier = 3/4 = 0.75, cost = ceil(10*0.75) = 8
+            # activation_count=3: cost = (10*3 + 3) / 4 = 8
             8,
-            # activation_count=4: multiplier = 1.0 (full price), cost = ceil(10*1.0) = 10
+            # activation_count=4: full price = 10
             10,
-            # activation_count=5: still full price (no inflation), cost = 10
+            # activation_count=5: still full price (no inflation) = 10
             10,
         ]
 
@@ -161,17 +161,17 @@ class TestProtocolSigmoidPricing:
         agent = sim.agent(0)
 
         expected_costs = [
-            # activation_count=0: multiplier = 0/2 = 0.0, cost = 0
+            # activation_count=0: cost = (10*0 + 1) / 2 = 0
             0,
-            # activation_count=1: multiplier = 1/2 = 0.5, cost = ceil(10*0.5) = 5
+            # activation_count=1: cost = (10*1 + 1) / 2 = 5
             5,
-            # activation_count=2: multiplier = (1+0.5)^0 = 1.0, cost = 10
+            # activation_count=2: cost = ceil(10 * 1.5^0) = 10
             10,
-            # activation_count=3: multiplier = (1+0.5)^1 = 1.5, cost = ceil(10*1.5) = 15
+            # activation_count=3: cost = ceil(10 * 1.5^1) = 15
             15,
-            # activation_count=4: multiplier = (1+0.5)^2 = 2.25, cost = ceil(10*2.25) = 23
+            # activation_count=4: cost = ceil(10 * 1.5^2) = 23
             23,
-            # activation_count=5: multiplier = (1+0.5)^3 = 3.375, cost = ceil(10*3.375) = 34
+            # activation_count=5: cost = ceil(10 * 1.5^3) = 34
             34,
         ]
 
@@ -267,7 +267,7 @@ class TestProtocolSigmoidPricing:
         sim = Simulation(cfg)
         agent = sim.agent(0)
 
-        # Use 0: multiplier = 0/2 = 0, both costs should be 0
+        # Use 0: cost = (base*0 + 1)/2 = 0, both costs should be 0
         agent.set_action(Action(name="move_east"))
         sim.step()
 
@@ -275,7 +275,7 @@ class TestProtocolSigmoidPricing:
         assert inventory.get("iron", 0) == 100, f"Use 0: iron should be 100, got {inventory.get('iron', 0)}"
         assert inventory.get("copper", 0) == 100, f"Use 0: copper should be 100, got {inventory.get('copper', 0)}"
 
-        # Use 1: multiplier = 1/2 = 0.5, iron cost = 5, copper cost = 10
+        # Use 1: iron cost = (10*1+1)/2 = 5, copper cost = (20*1+1)/2 = 10
         agent.set_action(Action(name="move_east"))
         sim.step()
 
@@ -283,7 +283,7 @@ class TestProtocolSigmoidPricing:
         assert inventory.get("iron", 0) == 95, f"Use 1: iron should be 95, got {inventory.get('iron', 0)}"
         assert inventory.get("copper", 0) == 90, f"Use 1: copper should be 90, got {inventory.get('copper', 0)}"
 
-        # Use 2: multiplier = 1.0, iron cost = 10, copper cost = 20
+        # Use 2: full price, iron cost = 10, copper cost = 20
         agent.set_action(Action(name="move_east"))
         sim.step()
 
