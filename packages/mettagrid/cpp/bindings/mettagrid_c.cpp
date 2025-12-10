@@ -609,6 +609,26 @@ void MettaGrid::_step() {
     }
   }
 
+  // Apply cell effects to agents (AOE effects from nearby objects)
+  for (auto* agent : _agents) {
+    const CellEffect& effect = _grid->effect_at(agent->location.r, agent->location.c);
+    for (const auto& [item, delta] : effect.resource_deltas) {
+      agent->inventory.update(item, delta);
+
+      // Track AOE stats
+      const std::string& resource_name = _stats->resource_name(item);
+      if (delta > 0) {
+        agent->stats.add("aoe." + resource_name + ".gained", static_cast<float>(delta));
+        _stats->add("aoe." + resource_name + ".gained", static_cast<float>(delta));
+      } else if (delta < 0) {
+        agent->stats.add("aoe." + resource_name + ".lost", static_cast<float>(-delta));
+        _stats->add("aoe." + resource_name + ".lost", static_cast<float>(-delta));
+      }
+      agent->stats.add("aoe." + resource_name + ".delta", static_cast<float>(delta));
+      _stats->add("aoe." + resource_name + ".delta", static_cast<float>(delta));
+    }
+  }
+
   // Check and apply damage for all agents (randomized order for fairness)
   for (const auto& agent_idx : agent_indices) {
     _agents[agent_idx]->check_and_apply_damage(_rng);
@@ -1020,9 +1040,19 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("cost", &DemolishConfig::cost)
       .def_readwrite("scrap", &DemolishConfig::scrap);
 
+  // Bind AOEEffectConfig for AOE effects on any object
+  py::class_<AOEEffectConfig>(m, "AOEEffectConfig")
+      .def(py::init<>())
+      .def(py::init<unsigned int, const std::unordered_map<InventoryItem, InventoryDelta>&>(),
+           py::arg("range") = 1,
+           py::arg("resource_deltas") = std::unordered_map<InventoryItem, InventoryDelta>())
+      .def_readwrite("range", &AOEEffectConfig::range)
+      .def_readwrite("resource_deltas", &AOEEffectConfig::resource_deltas);
+
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
   py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
-      .def_readwrite("demolish", &GridObjectConfig::demolish);
+      .def_readwrite("demolish", &GridObjectConfig::demolish)
+      .def_readwrite("aoe", &GridObjectConfig::aoe);
 
   bind_wall_config(m);
 
