@@ -39,18 +39,23 @@ public:
         inflation(inflation),
         activation_count(0) {}
 
-  // Calculate cost multiplier based on activation count
-  // - Linear phase (0 to sigmoid uses): scales from 0 (free) to 1 (full price)
-  // - Exponential phase (after sigmoid uses): multiplier = (1 + inflation) ^ (activation_count - sigmoid)
-  float get_cost_multiplier() const {
-    // Linear phase: free to full price for first 'sigmoid' uses
+  // Calculate scaled cost based on activation count
+  // - Linear phase (0 to sigmoid uses): scales from 0 (free) to full price using integer math
+  // - Exponential phase (after sigmoid uses): cost = base * (1 + inflation) ^ (n - sigmoid)
+  InventoryQuantity get_scaled_cost(InventoryQuantity base_cost) const {
+    // Linear phase: use integer math with ceiling division
     if (sigmoid > 0 && activation_count < sigmoid) {
-      return static_cast<float>(activation_count) / static_cast<float>(sigmoid);
+      // ceiling division: (base_cost * activation_count + sigmoid - 1) / sigmoid
+      return static_cast<InventoryQuantity>(
+          (static_cast<unsigned int>(base_cost) * activation_count + sigmoid - 1) / sigmoid);
     }
-    // Exponential phase: inflating costs after sigmoid uses
-    if (inflation == 0.0f) return 1.0f;
+    // Full price phase (no inflation)
+    if (inflation == 0.0f) return base_cost;
+
+    // Exponential phase: requires floating point for pow()
     int exponent = static_cast<int>(activation_count) - static_cast<int>(sigmoid);
-    return std::pow(1.0f + inflation, static_cast<float>(exponent));
+    float multiplier = std::pow(1.0f + inflation, static_cast<float>(exponent));
+    return static_cast<InventoryQuantity>(std::ceil(static_cast<float>(base_cost) * multiplier));
   }
 };
 
