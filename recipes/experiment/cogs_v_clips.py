@@ -374,6 +374,7 @@ def train(
     if bc_policy_uri is not None:
         tt.training_env.supervisor_policy_uri = bc_policy_uri
         losses = tt.trainer.losses
+        losses.vit_reconstruction.enabled = True
         bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
         scheduler_run_gates = [
             LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
