@@ -21,16 +21,19 @@ from mettagrid.config.mettagrid_config import (
     VibeTransfer,
     WallConfig,
 )
-from mettagrid.config.vibes import Vibe
+from mettagrid.config.vibes import VIBES
 from mettagrid.simulator import Simulation
 from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
-# Define test vibes
-TEST_VIBES = [
-    Vibe("😐", "default", category="emotion"),
-    Vibe("🔋", "battery", category="resource"),
-    Vibe("❤️", "heart", category="resource"),
-]
+# Use vibes from the global VIBES list
+# Default (vibe id 0): "default"
+# Charger (vibe id 1): "charger" - use for energy transfer tests
+# Heart_a (vibe id 10): "heart_a" - use for heart transfer tests
+CHARGER_VIBE_NAME = "charger"  # VIBES[1].name
+HEART_VIBE_NAME = "heart_a"  # VIBES[10].name
+
+# Number of vibes we need for tests (at least 11 to include heart_a at index 10)
+NUM_VIBES_FOR_TESTS = 11
 
 
 def create_two_agent_sim(
@@ -45,19 +48,15 @@ def create_two_agent_sim(
         ["wall", "wall", "wall", "wall"],
     ]
 
-    # vibe_names must be set to match the vibes we're using
-    vibe_names = [v.name for v in TEST_VIBES]
-
     game_config = GameConfig(
         max_steps=50,
         num_agents=2,
         obs=ObsConfig(width=3, height=3, num_tokens=100),
         resource_names=["energy", "heart"],
-        vibe_names=vibe_names,
         actions=ActionsConfig(
             noop=NoopActionConfig(),
             move=MoveActionConfig(enabled=True),
-            change_vibe=ChangeVibeActionConfig(enabled=True, vibes=TEST_VIBES, number_of_vibes=len(TEST_VIBES)),
+            change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=NUM_VIBES_FOR_TESTS),
             transfer=TransferActionConfig(
                 enabled=True,
                 vibe_transfers=vibe_transfers or [],
@@ -82,25 +81,25 @@ def create_two_agent_sim(
 class TestVibeTriggeredTransfer:
     """Test transfer triggered by vibes on move."""
 
-    def test_transfer_triggered_by_battery_vibe(self):
-        """Test that moving into another agent triggers transfer when agent has battery vibe."""
+    def test_transfer_triggered_by_charger_vibe(self):
+        """Test that moving into another agent triggers transfer when agent has charger vibe."""
         sim = create_two_agent_sim(
-            transfer_vibes=["battery"],
+            transfer_vibes=[CHARGER_VIBE_NAME],
             vibe_transfers=[
-                VibeTransfer(vibe="battery", target={"energy": 50}, actor={"energy": -50}),
+                VibeTransfer(vibe=CHARGER_VIBE_NAME, target={"energy": 50}, actor={"energy": -50}),
             ],
             initial_inventory={"energy": 100, "heart": 10},
         )
 
-        # Agent 0 changes vibe to "battery"
-        sim.agent(0).set_action("change_vibe_battery")
+        # Agent 0 changes vibe to "charger" (vibe id 1)
+        sim.agent(0).set_action("change_vibe_charger")
         sim.agent(1).set_action("noop")
         sim.step()
 
-        # Verify vibe is set (battery should be vibe id 1)
+        # Verify vibe is set (charger should be vibe id 1)
         objects = sim.grid_objects()
         agents = sorted([obj for obj in objects.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
-        assert agents[0]["vibe"] == 1, f"Agent 0 should have battery vibe (id=1), got {agents[0]['vibe']}"
+        assert agents[0]["vibe"] == 1, f"Agent 0 should have charger vibe (id=1), got {agents[0]['vibe']}"
 
         # Get inventories before transfer
         energy_idx = sim.resource_names.index("energy")
@@ -130,14 +129,14 @@ class TestVibeTriggeredTransfer:
     def test_no_transfer_without_configured_vibe(self):
         """Test that moving into another agent does NOT trigger transfer without the right vibe."""
         sim = create_two_agent_sim(
-            transfer_vibes=["battery"],
+            transfer_vibes=[CHARGER_VIBE_NAME],
             vibe_transfers=[
-                VibeTransfer(vibe="battery", target={"energy": 50}, actor={"energy": -50}),
+                VibeTransfer(vibe=CHARGER_VIBE_NAME, target={"energy": 50}, actor={"energy": -50}),
             ],
             initial_inventory={"energy": 100, "heart": 10},
         )
 
-        # Agent 0 keeps default vibe (not battery)
+        # Agent 0 keeps default vibe (not charger)
         # Get inventories before move
         objects = sim.grid_objects()
         agents = sorted([obj for obj in objects.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
@@ -168,15 +167,15 @@ class TestVibeTriggeredTransfer:
     def test_transfer_with_multiple_resources(self):
         """Test that transfer can affect multiple resources."""
         sim = create_two_agent_sim(
-            transfer_vibes=["heart"],
+            transfer_vibes=[HEART_VIBE_NAME],
             vibe_transfers=[
-                VibeTransfer(vibe="heart", target={"heart": 5, "energy": 10}, actor={"heart": -5, "energy": -10}),
+                VibeTransfer(vibe=HEART_VIBE_NAME, target={"heart": 5, "energy": 10}, actor={"heart": -5, "energy": -10}),
             ],
             initial_inventory={"energy": 100, "heart": 10},
         )
 
-        # Agent 0 changes vibe to "heart"
-        sim.agent(0).set_action("change_vibe_heart")
+        # Agent 0 changes vibe to "heart_a"
+        sim.agent(0).set_action("change_vibe_heart_a")
         sim.agent(1).set_action("noop")
         sim.step()
 
@@ -210,15 +209,15 @@ class TestVibeTriggeredTransfer:
     def test_transfer_fails_without_enough_resources(self):
         """Test that transfer fails if actor doesn't have enough resources."""
         sim = create_two_agent_sim(
-            transfer_vibes=["battery"],
+            transfer_vibes=[CHARGER_VIBE_NAME],
             vibe_transfers=[
-                VibeTransfer(vibe="battery", target={"energy": 200}, actor={"energy": -200}),
+                VibeTransfer(vibe=CHARGER_VIBE_NAME, target={"energy": 200}, actor={"energy": -200}),
             ],
             initial_inventory={"energy": 100, "heart": 10},  # Only 100 energy, transfer needs 200
         )
 
-        # Agent 0 changes vibe to "battery"
-        sim.agent(0).set_action("change_vibe_battery")
+        # Agent 0 changes vibe to "charger"
+        sim.agent(0).set_action("change_vibe_charger")
         sim.agent(1).set_action("noop")
         sim.step()
 
@@ -260,12 +259,11 @@ class TestVibeConfigValidation:
                 max_steps=50,
                 num_agents=2,
                 resource_names=["energy"],
-                vibe_names=["default", "battery"],
                 actions=ActionsConfig(
                     noop=NoopActionConfig(),
                     transfer=TransferActionConfig(
                         enabled=True,
-                        vibes=["nonexistent_vibe"],  # Invalid vibe name
+                        vibes=["nonexistent_vibe"],  # Invalid vibe name not in VIBES list
                     ),
                 ),
             )
