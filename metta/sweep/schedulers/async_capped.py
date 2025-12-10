@@ -59,7 +59,7 @@ class AsyncCappedSchedulerConfig(Config):
     force_eval: bool = False
 
     # New settings
-    max_concurrent_evals: int = 1
+    max_concurrent_evals: int | None = 1
     liar_strategy: str = "best"  # one of: "best", "mean", "worst"
     min_suggestion_distance: float = 0.0  # optional distance floor for external use
 
@@ -88,10 +88,14 @@ class AsyncCappedOptimizingScheduler:
 
         # Eval scheduling: honor max_concurrent_evals
         eval_capacity = self.state.eval_capacity(self.config.max_concurrent_evals)
+
+        def _has_capacity(capacity: int | None) -> bool:
+            return capacity is None or capacity > 0
+
         # First, schedule any forced re-evaluations
-        if eval_capacity > 0 and self.state.runs_pending_force_eval:
+        if _has_capacity(eval_capacity) and self.state.runs_pending_force_eval:
             for run_id in list(self.state.runs_pending_force_eval):
-                if eval_capacity <= 0:
+                if not _has_capacity(eval_capacity):
                     break
                 run = next((r for r in runs if r.run_id == run_id), None)
                 if run is None:
@@ -107,14 +111,17 @@ class AsyncCappedOptimizingScheduler:
                 )
                 jobs.append(job)
                 self.state.mark_eval_scheduled(run_id)
-                eval_capacity -= 1
+                if eval_capacity is not None:
+                    eval_capacity -= 1
                 logger.info("[AsyncCappedOptimizingScheduler] Scheduling forced re-evaluation for %s", run_id)
         # Then, schedule normal eval candidates up to remaining capacity
-        if eval_capacity > 0:
+        if _has_capacity(eval_capacity):
             eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
             for candidate in eval_candidates:
-                if eval_capacity <= 0:
+                if not _has_capacity(eval_capacity):
                     break
+                if candidate.run_id in self.state.runs_in_eval:
+                    continue
                 job = create_eval_job(
                     run_id=candidate.run_id,
                     experiment_id=self.config.experiment_id,
@@ -125,7 +132,8 @@ class AsyncCappedOptimizingScheduler:
                 )
                 jobs.append(job)
                 self.state.mark_eval_scheduled(candidate.run_id)
-                eval_capacity -= 1
+                if eval_capacity is not None:
+                    eval_capacity -= 1
                 logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", candidate.run_id)
 
         # If any runs still need evaluation, do not schedule new training
