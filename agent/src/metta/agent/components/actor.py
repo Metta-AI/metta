@@ -145,12 +145,6 @@ class ActionProbs(nn.Module):
         if current_actions == self.num_actions:
             return logits
 
-        if current_actions > self.num_actions:
-            return logits
-
-        if not self.config.pad_to_env_actions:
-            return logits
-
         pad = self.num_actions - current_actions
         pad_shape = list(logits.shape[:-1]) + [pad]
         pad_tensor = torch.full(pad_shape, float("-inf"), dtype=logits.dtype, device=logits.device)
