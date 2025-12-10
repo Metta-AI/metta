@@ -5,15 +5,14 @@ from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
 
-import asyncio
 import logging
 import os
 import sys
 import time
 
-from metta.app_backend.config import settings
-from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.tournament.runner import TournamentRunner
+from metta.common.util.constants import PROD_STATS_SERVER_URI
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +28,9 @@ class TournamentScheduler:
         self._runner = runner
         self._poll_interval_seconds = poll_interval_seconds
 
-    async def run_cycle(self) -> None:
+    def run_cycle(self) -> None:
         logger.info("Running tournament scheduler cycle")
-        result = await self._runner.run_all_referees()
+        result = self._runner.run_all_referees()
         logger.info(
             "Cycle complete: %d pools processed, %d matches created",
             result.pools_processed,
@@ -41,17 +40,17 @@ class TournamentScheduler:
             for error in result.errors:
                 logger.error("Error: %s", error)
 
-    async def run(self) -> None:
+    def run(self) -> None:
         logger.info("Tournament scheduler poll interval: %ss", self._poll_interval_seconds)
         while True:
             start_time = time.monotonic()
             try:
-                await self.run_cycle()
+                self.run_cycle()
             except Exception as exc:
                 logger.error("Error in tournament scheduler loop: %s", exc, exc_info=True)
             elapsed = time.monotonic() - start_time
             sleep_time = max(0.0, self._poll_interval_seconds - elapsed)
-            await asyncio.sleep(sleep_time)
+            time.sleep(sleep_time)
 
 
 def init_logging() -> None:
@@ -62,28 +61,32 @@ def init_logging() -> None:
     )
 
 
-async def async_main() -> None:
-    db_uri = os.environ.get("DATABASE_URL", settings.DATABASE_URL)
+def create_stats_client(backend_url: str, machine_token: str | None) -> StatsClient:
+    stats_client = StatsClient(backend_url=backend_url, machine_token=machine_token)
+    stats_client._validate_authenticated()
+    return stats_client
+
+
+def main() -> None:
+    init_logging()
+
+    backend_url = os.environ.get("BACKEND_URL", PROD_STATS_SERVER_URI)
+    machine_token = os.environ.get("MACHINE_TOKEN")
     poll_interval = float(os.environ.get("POLL_INTERVAL", DEFAULT_POLL_INTERVAL_SECONDS))
 
-    logger.info("Database URL: %s", db_uri[:20] + "..." if len(db_uri) > 20 else db_uri)
+    logger.info("Backend URL: %s", backend_url)
 
-    repo = MettaRepo(db_uri)
-    runner = TournamentRunner(repo)
+    stats_client = create_stats_client(backend_url, machine_token) if machine_token else StatsClient.create(backend_url)
+    runner = TournamentRunner(stats_client)
 
     try:
         scheduler = TournamentScheduler(
             runner=runner,
             poll_interval_seconds=poll_interval,
         )
-        await scheduler.run()
+        scheduler.run()
     finally:
-        await repo.close()
-
-
-def main() -> None:
-    init_logging()
-    asyncio.run(async_main())
+        stats_client.close()
 
 
 if __name__ == "__main__":
