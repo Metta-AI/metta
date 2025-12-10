@@ -256,7 +256,7 @@ class ActorHead(nn.Module):
             pad = self.num_actions - weight.shape[0]
             # Pad weights with zeros; pad biases with -inf to keep zero prob.
             weight_pad = torch.zeros(pad, weight.shape[1], dtype=weight.dtype, device=weight.device)
-            bias_pad = torch.full((pad,), float("-inf"), dtype=bias.dtype, device=bias.device)
+            bias_pad = torch.full((pad,), -1e9, dtype=bias.dtype, device=bias.device)
             state_dict[weight_key] = torch.cat([weight, weight_pad], dim=0)
             state_dict[bias_key] = torch.cat([bias, bias_pad], dim=0)
 
