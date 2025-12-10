@@ -88,7 +88,10 @@ class ActionSupervised(Loss):
             # Save td["action"] into the td that goes to the replay buffer but then overwrite it with teacher actions
             # when sending to the environment. After it gets sent to env it is no longer used.
             # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
-            td["actions"] = td["teacher_actions"]
+            teacher_actions = td["teacher_actions"]
+            # Only overwrite where teacher_actions are valid (>=0); keep student actions elsewhere to satisfy action space
+            valid_mask = teacher_actions >= 0
+            td["actions"] = torch.where(valid_mask, teacher_actions, td["actions"])
 
     def run_train(
         self,
@@ -110,9 +113,6 @@ class ActionSupervised(Loss):
         if not valid_mask.any():
             return self._zero(), shared_loss_data, False
 
-        minibatch = minibatch[valid_mask]
-        teacher_actions = teacher_actions[valid_mask]
-
         if self.train_forward_enabled:
             policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
             flat_actions = minibatch["actions"].reshape(B * TT, -1)
@@ -125,7 +125,9 @@ class ActionSupervised(Loss):
 
         policy_full_log_probs = policy_td["full_log_probs"].reshape(minibatch.shape[0], minibatch.shape[1], -1)
         # get the student's logprob for the action that the teacher chose
-        student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1)).squeeze(-1)
+        safe_teacher_actions = torch.where(valid_mask, teacher_actions, torch.zeros_like(teacher_actions))
+        student_log_probs = policy_full_log_probs.gather(dim=-1, index=safe_teacher_actions.unsqueeze(-1)).squeeze(-1)
+        student_log_probs = student_log_probs[valid_mask]
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
         loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["full_log_probs", "act_log_prob"])
