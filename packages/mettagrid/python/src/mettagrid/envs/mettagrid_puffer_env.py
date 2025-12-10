@@ -160,10 +160,8 @@ class MettaGridPufferEnv(PufferEnv):
             self._current_seed = seed
 
         self._new_sim()
-        self._supervisor_enabled = True
-
-        # Reset supervisor policy state between episodes to avoid accumulation
-        if self._env_supervisor is not None and hasattr(self._env_supervisor, "reset"):
+        # Keep existing supervisor_enabled state (outer trainer owns toggling). If enabled and reset() exists, call it.
+        if self._supervisor_enabled and self._env_supervisor is not None and hasattr(self._env_supervisor, "reset"):
             try:
                 self._env_supervisor.reset()
             except Exception:

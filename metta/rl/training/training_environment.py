@@ -270,6 +270,12 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         if self._cfg.supervisor_stop_agent_step is not None and self._supervisor_enabled:
             if self._agent_step_counter >= self._cfg.supervisor_stop_agent_step:
                 self.disable_supervisor()
+        elif self._cfg.supervisor_stop_agent_step is not None and not self._supervisor_enabled:
+            # After reset, driver may re-enable; keep it off if cutoff already reached
+            driver = getattr(self._vecenv, "driver_env", None)
+            if driver is not None and getattr(driver, "_supervisor_enabled", True):
+                if hasattr(driver, "disable_supervisor"):
+                    driver.disable_supervisor()
 
         # Convert to tensors
         o = torch.as_tensor(o)
