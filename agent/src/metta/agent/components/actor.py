@@ -202,11 +202,6 @@ class ActionProbs(nn.Module):
             raise ValueError(f"Expected flattened action indices, got shape {tuple(action.shape)}")
 
         action_logit_index = action.to(dtype=torch.long)
-        if action_logit_index.numel() > 0 and action_logit_index.max().item() >= self.num_actions:
-            raise ValueError(
-                f"Action index {int(action_logit_index.max())} out of bounds for {self.num_actions} actions."
-            )
-
         logits = self._pad_logits_if_needed(logits)
         selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
 
