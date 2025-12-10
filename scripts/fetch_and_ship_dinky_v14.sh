@@ -26,7 +26,7 @@ mkdir -p "${TMP_DIR}"
 
 echo "Resolving metta://policy/72d89b2c-3a72-4dab-b885-d7e30958f615 to S3 (using ${AWS_PROFILE})..."
 S3_URI="$(
-  AWS_PROFILE="${AWS_PROFILE}" python - <<'PY'
+  AWS_PROFILE="${AWS_PROFILE}" python - << 'PY'
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 resolver = MettaSchemeResolver()
 uri = "metta://policy/72d89b2c-3a72-4dab-b885-d7e30958f615"
@@ -47,4 +47,3 @@ echo "Done. File locations:"
 echo "  Local:   ${LOCAL_ZIP}"
 echo "  Remote:  ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
 echo "  Container: ${CONTAINER_NAME}:${CONTAINER_PATH}"
-
