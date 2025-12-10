@@ -20,7 +20,6 @@ templates:
     version: 0.1.0
     namespace: monitoring
 
-
 releases:
   ########## System configurations ##########
   - name: system
@@ -95,7 +94,8 @@ releases:
 
   - name: prometheus
     chart: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
-    version: 75.15.1
+    version: 80.2.0
+    disableValidation: true
     namespace: monitoring
     values:
       - ./helm.values/prometheus-values.yaml
@@ -177,18 +177,18 @@ releases:
   - name: pr-similarity-cache-cronjob
     <<: *cronjob_template
     values:
-      - schedule: "0 0 * * *"  # Daily at midnight
+      - schedule: "0 0 * * *" # Daily at midnight
       - image:
-          tag: latest-pr-similarity  # Workflow overrides with sha-abc123-pr-similarity
+          tag: latest-pr-similarity # Workflow overrides with sha-abc123-pr-similarity
       - datadog:
           service: pr-similarity-cache-refresh
 
   - name: dashboard-cronjob
     <<: *cronjob_template
     values:
-      - schedule: "0 */6 * * *"  # Every 6 hours
+      - schedule: "0 */6 * * *" # Every 6 hours
       - image:
-          tag: latest-dashboard  # Workflow overrides with sha-abc123-dashboard
+          tag: latest-dashboard # Workflow overrides with sha-abc123-dashboard
       - datadog:
           service: dashboard-collector
 
@@ -210,7 +210,6 @@ releases:
   #     - datadog:
   #         service: dashboard-collector-dev
   #         env: dev
-
 # Helpful commands:
 #   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
 #   Inspect cronjob definition: kubectl get cronjobs -n monitoring

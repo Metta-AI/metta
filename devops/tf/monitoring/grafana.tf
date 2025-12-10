@@ -20,3 +20,36 @@ resource "kubernetes_secret" "grafana" {
 }
 
 # Grafana chart and prometheus are installed by helmfile.
+
+resource "aws_iam_role" "grafana" {
+  name = "grafana"
+
+  assume_role_policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Sid" : "AllowEksAuthToAssumeRoleForPodIdentity",
+        "Effect" : "Allow",
+        "Principal" : {
+          "Service" : "pods.eks.amazonaws.com"
+        },
+        "Action" : [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "grafana-cloudwatch" {
+  role       = aws_iam_role.grafana.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchReadOnlyAccess"
+}
+
+resource "aws_eks_pod_identity_association" "grafana" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = kubernetes_namespace.monitoring.metadata[0].name
+  service_account = "prometheus-grafana" # created by prometheus-kube-stack chart
+  role_arn        = aws_iam_role.grafana.arn
+}
