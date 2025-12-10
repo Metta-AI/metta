@@ -2,7 +2,12 @@
 
 set -e
 REPO_DIR="/workspace/metta"
-mkdir -p /workspace
+
+# Ensure /workspace exists and is writable
+if [ ! -d /workspace ]; then
+  mkdir -p /workspace 2>/dev/null || sudo mkdir -p /workspace
+fi
+sudo chown "$(id -u)":"$(id -g)" /workspace 2>/dev/null || true
 
 # Ensure repo exists (AMI doesn't include it by default)
 if [ ! -d "${REPO_DIR}/.git" ]; then
