@@ -42,7 +42,6 @@ S3_PREFIX = "policies"
 DEFAULT_RUNS: list[str] = [
     "relh.machina1_bc_dinky_sup.hc.1209.0.5.hc.1",
     "relh.machina1_bc_thinky_sup.1209.0_5.10",
-    "relh.machina1_bc_dinky_sliced.hc.1209.13",
     "relh.machina1_bc_thinky_sliced.hc.1209.11",
     "relh.machina1_bc_dinky_sliced.hc.1209.12",
 ]
