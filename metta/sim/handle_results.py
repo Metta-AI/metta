@@ -290,6 +290,11 @@ def render_eval_summary(
 
     _print(summary_table)
 
+    # Print per-agent stats for each episode
+    for s_name, result in zip(sim_names, rollout_results, strict=True):
+        for episode_idx, episode in enumerate(result.results.episodes):
+            episode.print_agent_stats(title=f"Agent Summary: {s_name} Episode {episode_idx}")
+
     replay_rows: list[tuple[str, str, str]] = []
     for s_name, result in zip(sim_names, rollout_results, strict=True):
         replay_paths = [episode.replay_path for episode in result.results.episodes]

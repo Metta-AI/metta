@@ -18,6 +18,7 @@
 #include "actions/move.hpp"
 #include "actions/move_config.hpp"
 #include "actions/noop.hpp"
+#include "actions/transfer.hpp"
 #include "config/observation_features.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
@@ -82,9 +83,11 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _action_success.resize(num_agents);
 
-  init_action_handlers(game_config);
+  // IMPORTANT: Pass _game_config (member) not game_config (constructor param)
+  // Action handlers store pointers to GameConfig, so it must outlive them
+  init_action_handlers(_game_config);
 
-  _init_grid(game_config, map);
+  _init_grid(_game_config, map);
 
   // Create buffers
   _make_buffers(num_agents);
@@ -126,6 +129,9 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
     }
     object_type_names[type_id] = object_cfg->type_name;
   }
+
+  // Collect assemblers to initialize agent tracking after all agents are created
+  std::vector<Assembler*> assemblers;
 
   // Initialize objects from map
   for (GridCoord r = 0; r < height; r++) {
@@ -175,6 +181,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
         assembler->set_obs_encoder(_obs_encoder.get());
+        assemblers.push_back(assembler);
         continue;
       }
 
@@ -191,6 +198,12 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
       throw std::runtime_error("Unable to create object of type " + cell + " at (" + std::to_string(r) + ", " +
                                std::to_string(c) + ")");
     }
+  }
+
+  // Initialize per-agent tracking for all assemblers now that we know the number of agents
+  unsigned int num_agents = static_cast<unsigned int>(_agents.size());
+  for (Assembler* assembler : assemblers) {
+    assembler->init_agent_tracking(num_agents);
   }
 }
 
@@ -258,6 +271,8 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   for (const auto& action : move->actions()) {
     _action_handlers.push_back(action);
   }
+  // Capture the raw pointer to pass to other handlers if needed
+  Move* move_ptr = move.get();
   _action_handler_impl.push_back(std::move(move));
 
   // Attack
@@ -268,7 +283,25 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   for (const auto& action : attack->actions()) {
     _action_handlers.push_back(action);
   }
+
+  // Transfer
+  auto transfer_config =
+      std::static_pointer_cast<const TransferActionConfig>(game_config.actions.at("transfer"));
+  auto transfer = std::make_unique<Transfer>(*transfer_config, &game_config);
+  transfer->init(_grid.get(), &_rng);
+  if (transfer->priority > _max_action_priority) _max_action_priority = transfer->priority;
+  for (const auto& action : transfer->actions()) {
+    _action_handlers.push_back(action);
+  }
+
+  // Register Attack and Transfer handlers with Move handler
+  std::unordered_map<std::string, ActionHandler*> handlers;
+  handlers["attack"] = attack.get();
+  handlers["transfer"] = transfer.get();
+  move_ptr->set_action_handlers(handlers);
+
   _action_handler_impl.push_back(std::move(attack));
+  _action_handler_impl.push_back(std::move(transfer));
 
   // ChangeVibe
   auto change_vibe_config =
@@ -459,9 +492,10 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
     int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
 
-    // Encode location and add tokens
+    // Encode location and add tokens (pass agent_idx for agent-specific observations like per-agent cooldown)
     uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
-    attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
+    attempted_tokens_written +=
+        _obs_encoder->encode_tokens(obj, obs_tokens, location, static_cast<unsigned int>(agent_idx));
     tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
   }
 
@@ -537,15 +571,27 @@ void MettaGrid::_step() {
     }
   }
 
-  // Handle per-agent inventory regeneration (global interval check, per-agent amounts)
+  // Handle per-agent inventory regeneration (global interval check, vibe-dependent amounts)
   if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
     for (auto* agent : _agents) {
       if (!agent->inventory_regen_amounts.empty()) {
-        for (const auto& [item, amount] : agent->inventory_regen_amounts) {
-          agent->inventory.update(item, amount);
+        // Look up regen amounts for agent's current vibe, fall back to "default" (vibe ID 0)
+        auto vibe_it = agent->inventory_regen_amounts.find(agent->vibe);
+        if (vibe_it == agent->inventory_regen_amounts.end()) {
+          vibe_it = agent->inventory_regen_amounts.find(0);  // "default" is vibe ID 0
+        }
+        if (vibe_it != agent->inventory_regen_amounts.end()) {
+          for (const auto& [item, amount] : vibe_it->second) {
+            agent->inventory.update(item, amount);
+          }
         }
       }
     }
+  }
+
+  // Check and apply damage for all agents (randomized order for fairness)
+  for (const auto& agent_idx : agent_indices) {
+    _agents[agent_idx]->check_and_apply_damage(_rng);
   }
 
   // Apply global systems
@@ -964,6 +1010,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_chest_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
+  bind_vibe_transfer_effect(m);
+  bind_transfer_action_config(m);
   bind_change_vibe_action_config(m);
   bind_move_action_config(m);
   bind_global_obs_config(m);

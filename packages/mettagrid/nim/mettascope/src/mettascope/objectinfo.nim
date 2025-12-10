@@ -3,8 +3,6 @@ import
   fidget2,
   common, panels, replays
 
-const InventoryScale = 0.5f
-
 type
   ResourceLimitGroup* = object
     name*: string
@@ -132,8 +130,10 @@ proc updateObjectInfo*() =
   if selection.allowPartialUsage:
     addParam("Allow Partial Usage", $selection.allowPartialUsage)
 
+  const inventoryScale = 0.5f  # Scale inventory items to 50%
+
   proc scaleNode(node: Node, scale: float32) =
-    ## Recursively scale a node and all its children.
+    ## Recursively scale a node and all its children
     node.size = node.size * scale
     for child in node.children:
       scaleNode(child, scale)
@@ -150,7 +150,7 @@ proc updateObjectInfo*() =
     i.find("**/Image").fills[0].imageRef = "../../" & replay.itemImages[
         itemAmount.itemId]
     i.find("**/Amount").text = $itemAmount.count
-    scaleNode(i, InventoryScale)
+    scaleNode(i, inventoryScale)
     area.addChild(i)
 
   proc addVibe(area: Node, vibe: string, count: int = 1) =
@@ -163,30 +163,34 @@ proc updateObjectInfo*() =
         ""
     area.addChild(v)
 
+  ## Inventory Row Component
+  ## Creates a row with: used/limit label first, then resource items (50% size)
   proc addInventoryRow(name: string, used: int, limit: int, items: seq[ItemAmount]) =
-    ## Creates a row with used/limit label first, then resource items.
+    # Create a new row using the inventory template
     let row = inventoryRowTemplate.copy()
     row.removeChildren()
-    scaleNode(row, InventoryScale)
+    scaleNode(row, inventoryScale)  # Scale the row container
 
+    # Add used/limit label at the front (hide the icon/square)
     let label = item.copy()
     label.find("**/Image").visible = false
     label.find("**/Amount").text = $used & "/" & $limit
     row.addChild(label)
 
+    # Add each resource item to the row
     for itemAmount in items:
-      row.addSmallResource(itemAmount)
+      row.addResource(itemAmount)
 
     inventoryArea.addChild(row)
 
+  ## Inventory Row for ungrouped items (no used/limit label)
   proc addUngroupedRow(items: seq[ItemAmount]) =
-    ## Creates a row for ungrouped items with no used/limit label.
     let row = inventoryRowTemplate.copy()
     row.removeChildren()
-    scaleNode(row, InventoryScale)
+    scaleNode(row, inventoryScale)
 
     for itemAmount in items:
-      row.addSmallResource(itemAmount)
+      row.addResource(itemAmount)
 
     inventoryArea.addChild(row)
 
