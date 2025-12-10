@@ -126,7 +126,14 @@ class GRPO(Loss):
         """GRPO training loop with group-based advantage estimation."""
         config = self.cfg
         stop_update_epoch = False
-        self.policy.reset_memory()
+        # Don't reset LSTM memory during training - forward() handles state initialization
+        # and episode boundaries via dones/truncateds. Resetting breaks sequential learning
+        # for recipes (ICL, NAV, CVC) that rely on sequence context during BPTT.
+        from metta.agent.policies.puffer import PufferPolicy
+
+        if not isinstance(self.policy, PufferPolicy):
+            self.policy.reset_memory()
+
         self.burn_in_steps_iter = 0
 
         if config.target_kl is not None and mb_idx > 0:

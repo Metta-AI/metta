@@ -172,7 +172,14 @@ class PPO(Loss):
         policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
 
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
-        self.policy.reset_memory()
+        # Don't reset LSTM memory during training - forward() handles state initialization
+        # and episode boundaries via dones/truncateds. Resetting breaks sequential learning
+        # for recipes (ICL, NAV, CVC) that rely on sequence context during BPTT.
+        from metta.agent.policies.puffer import PufferPolicy
+
+        if not isinstance(self.policy, PufferPolicy):
+            self.policy.reset_memory()
+
         policy_td = self.policy.forward(policy_td, action=flat_actions)
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
 
