@@ -31,6 +31,9 @@ class CurriculumEnv(PufferEnv):
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
 
+        # Track previous task ID to detect task changes for LSTM state reset
+        self._previous_task_id = self._current_task._task_id
+
         # Stats batching configuration - updating stats too frequently is an SPS hit
         self._stats_update_counter = 0
         self._stats_update_frequency = 50  # Batch stats updates to reduce overhead
@@ -66,9 +69,19 @@ class CurriculumEnv(PufferEnv):
         """Reset the environment and get a new task from curriculum."""
 
         # Get a new task from curriculum
-        self._current_task = self._curriculum.get_task()
+        new_task = self._curriculum.get_task()
+
+        # Detect task change for LSTM state reset
+        task_changed = new_task._task_id != self._previous_task_id
+        self._previous_task_id = new_task._task_id
+        self._current_task = new_task
+
         self._env.set_mg_config(self._current_task.get_env_cfg())
         obs, info = self._env.reset(*args, **kwargs)
+
+        # Signal task change in info dict for LSTM state reset during rollout
+        if task_changed:
+            info["_task_changed"] = True
 
         # Invalidate stats cache on reset
         self._stats_cache_valid = False
@@ -96,8 +109,20 @@ class CurriculumEnv(PufferEnv):
             self._current_task.complete(mean_reward)
             # Update the curriculum algorithm with task performance for learning progress
             self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
-            self._current_task = self._curriculum.get_task()
+
+            # Get new task and detect task change for LSTM state reset
+            new_task = self._curriculum.get_task()
+            task_changed = new_task._task_id != self._previous_task_id
+            self._previous_task_id = new_task._task_id
+            self._current_task = new_task
+
             self._env.set_mg_config(self._current_task.get_env_cfg())
+
+            # Signal task change in info dict for LSTM state reset during rollout
+            if task_changed:
+                # infos is a list of dicts (one per agent), add flag to all
+                for info in infos:
+                    info["_task_changed"] = True
 
             # Invalidate stats cache when task changes
             self._stats_cache_valid = False
@@ -132,6 +157,7 @@ class CurriculumEnv(PufferEnv):
             "_env",
             "_curriculum",
             "_current_task",
+            "_previous_task_id",
             "step",
             "_add_curriculum_stats_to_info",
             "_stats_update_counter",
