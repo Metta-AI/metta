@@ -27,7 +27,6 @@ class MptPolicy(MultiAgentPolicy):
         checkpoint_uri: str,
         device: str | torch.device = "cpu",
         strict: bool = True,
-        pad_action_space: bool = False,
     ):
         super().__init__(policy_env_info)
 
@@ -38,7 +37,6 @@ class MptPolicy(MultiAgentPolicy):
             policy_env_info,
             device=device,
             strict=strict,
-            pad_action_space=pad_action_space,
         )
         self._policy.eval()
 
