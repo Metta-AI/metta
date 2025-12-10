@@ -478,14 +478,10 @@ def cmd_publish(
     if repo_only:
         if dry_run:
             info(f"Dry run: would push {package} to child repo (--repo-only).")
-            return
-        info(f"Pushing {package} to child repo (--repo-only, skipping tag creation)...")
-        try:
+        else:
+            info(f"Pushing {package} to child repo (--repo-only, skipping tag creation)...")
             subprocess.run([f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"], check=True)
             success(f"Pushed {package} to child repo.")
-        except subprocess.CalledProcessError as exc:
-            error(f"Failed to push child repo: {exc}")
-            raise typer.Exit(exc.returncode) from exc
         return
 
     prefix = f"{package}-v"
