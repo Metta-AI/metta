@@ -259,6 +259,13 @@ def policy_spec_from_uri(
     from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
 
     path_to_spec = resolve_uri(uri)
+
+    # Normalize local file URIs to plain paths so Path(...) works
+    if path_to_spec.startswith("file://"):
+        parsed_path = urlparse(path_to_spec).path
+        # urlparse on file:// returns an absolute path in .path; keep '/' when netloc is empty
+        path_to_spec = parsed_path or path_to_spec
+
     if path_to_spec.endswith(".mpt"):
         return PolicySpec(
             class_path="mettagrid.policy.mpt_policy.MptPolicy",
