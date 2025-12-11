@@ -91,12 +91,38 @@ class EvalTaskOrchestrator:
                 logger.info(f"Killing idle worker {worker.name}")
                 self._worker_manager.cleanup_worker(worker.name)
 
+    def _compute_num_cpus(self, parallelism: int) -> int:
+        """Compute the number of CPUs to request for a given parallelism. Our nodes have 4, 8, 12, or 16 CPUs.
+        Kubernetes nodes have "allocatable" resources that are less than total capacity because kubelet,
+        os-level daemons (sytemd), etc end up consuming some of the total capacity.
+        So if we want to allocate on a machine with 4 vpcpus in total, we need to request an allocation of fewer
+        than 4. Thus we request 3, 7, 11, or 15.
+        """
+        if parallelism <= 4:
+            return 3
+        elif parallelism <= 8:
+            return 7
+        elif parallelism <= 12:
+            return 11
+        else:
+            return 15
+
+    def _compute_memory_request(self, parallelism: int) -> int:
+        """Compute the memory to request for a given parallelism. We request 3GB per parallel process."""
+        parallelism = max(1, parallelism)
+        parallelism = min(16, parallelism)
+        return parallelism * 3
+
     def _spawn_workers_for_tasks(self) -> None:
         """Create one worker per unassigned task and claim the task for that worker."""
         available_tasks = self._task_client.get_available_tasks()
 
         for task in available_tasks.tasks:
-            worker_name = self._worker_manager.start_worker()
+            parallelism = task.attributes.get("parallelism", 1)
+            num_cpus = self._compute_num_cpus(parallelism)
+            memory_request = self._compute_memory_request(parallelism)
+
+            worker_name = self._worker_manager.start_worker(num_cpus_request=num_cpus, memory_request=memory_request)
             logger.info(f"Started worker {worker_name} for task {task.id}")
 
             claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker_name)
