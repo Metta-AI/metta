@@ -82,6 +82,9 @@ class TrainTool(Tool):
     disable_macbook_optimize: bool = False
     sandbox: bool = False
 
+    def output_uri(self, run: str) -> str:
+        return CheckpointManager.compute_output_uri(run, self.system)
+
     def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:
             assert self.run is None, "run cannot be set via args if already provided in TrainTool config"

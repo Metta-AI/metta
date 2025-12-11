@@ -56,6 +56,13 @@ class CheckpointManager:
         elif storage_decision.reason == "no_base_prefix":
             logger.info("Remote prefix unset; policies will remain local.")
 
+    @classmethod
+    def compute_output_uri(cls, run: str, system_cfg: SystemConfig) -> str:
+        storage_decision = auto_policy_storage_decision(run)
+        if storage_decision.remote_prefix:
+            return storage_decision.remote_prefix
+        return f"file://{system_cfg.data_dir / run / 'checkpoints'}"
+
     def get_latest_checkpoint(self) -> str | None:
         def try_resolve(uri: str) -> tuple[str, int] | None:
             try:

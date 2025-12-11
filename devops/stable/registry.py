@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Callable, get_type_hints
 
 if TYPE_CHECKING:
     from devops.stable.runner import AcceptanceCriterion, Job
-    from metta.tools.tool import Tool
+    from metta.common.tool import Tool
 
 from metta.tools.train import TrainTool
 
@@ -222,7 +222,8 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list["Job"]:
             inject_args = []
             for param_name, output_field in spec.inject.items():
                 if output_field == "uri":
-                    value = f"./train_dir/{dep_job_name}/checkpoints/"
+                    dep_tool = spec.depends_on()
+                    value = dep_tool.output_uri(dep_job_name)
                     inject_args.append(f"{param_name}={value}")
 
             if inject_args:
