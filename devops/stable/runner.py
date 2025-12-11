@@ -89,6 +89,8 @@ class Runner:
         """Run all jobs, respecting dependencies. Returns final job states."""
         self._executor = ThreadPoolExecutor(max_workers=32)
         self._futures = {}
+        last_status_time = time.time()
+        status_interval = 600  # 10 minutes
 
         try:
             while True:
@@ -99,6 +101,10 @@ class Runner:
 
                 if not pending and not running:
                     break
+
+                if time.time() - last_status_time >= status_interval:
+                    self._print_status_summary()
+                    last_status_time = time.time()
 
                 ready = self._get_ready_jobs(pending)
                 for job in ready:
@@ -161,6 +167,18 @@ class Runner:
     def _print(self, msg: str) -> None:
         with self._output_lock:
             print(msg, flush=True)
+
+    def _print_status_summary(self) -> None:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._print(f"\n[{timestamp}] === Status Summary ===")
+        for job in self.jobs.values():
+            elapsed = ""
+            if job.started_at:
+                start = datetime.fromisoformat(job.started_at)
+                elapsed = f" ({int((datetime.now() - start).total_seconds())}s)"
+            sky_info = f" [sky:{job.sky_job_id}]" if job.sky_job_id else ""
+            self._print(f"  {job.name}: {job.status.value}{elapsed}{sky_info}")
+        self._print("")
 
     def _run_local_job(self, job: Job) -> None:
         job.status = JobStatus.RUNNING
