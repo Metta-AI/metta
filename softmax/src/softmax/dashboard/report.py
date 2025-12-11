@@ -81,6 +81,7 @@ def report(
     2. Datadog collectors (ci, training, eval) for infra health metrics
     """
     all_samples = []
+    metrics = None  # Initialize before try block
 
     # Collect from existing softmax dashboard registry (backward compatibility)
     try:

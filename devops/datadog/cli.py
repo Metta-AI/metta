@@ -41,6 +41,10 @@ def collect_command(
     ),
 ) -> None:
     """Collect metrics using the specified collector."""
+    if push and dry_run:
+        typer.echo("Error: --push and --dry-run are mutually exclusive")
+        raise typer.Exit(1)
+
     collector_instance = get_collector(collector)
     typer.echo(f"[collector] Running '{collector}' collector...")
     samples = collector_instance.collect()
