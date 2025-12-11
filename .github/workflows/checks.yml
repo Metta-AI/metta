@@ -320,9 +320,14 @@ jobs:
           # - https://bazel.build/reference/command-line-reference#flag--disk_cache
           # - https://bazel.build/reference/command-line-reference#flag--repository_cache
           # - https://bazel.build/remote/caching#disk-cache
+          #
+          # Additionally, GitHub release downloads can intermittently return 5xx.
+          # Enable Bazel's repository downloader retries to make these transient
+          # failures less flaky.
 
           echo "build --disk_cache=$HOME/.bazel-disk-cache" >> packages/mettagrid/.bazelrc
           echo "build --repository_cache=$HOME/.bazel-repo-cache" >> packages/mettagrid/.bazelrc
+          echo "common --experimental_repository_downloader_retries=5" >> packages/mettagrid/.bazelrc
 
           mkdir -p $HOME/.bazel-disk-cache
           mkdir -p $HOME/.bazel-repo-cache
@@ -334,7 +339,7 @@ jobs:
           path: |
             ~/.bazel-disk-cache
             ~/.bazel-repo-cache
-          key: bazel-${{ runner.os }}-${{ hashFiles('packages/mettagrid/MODULE.bazel', 'packages/mettagrid/.bazelrc', '.bazelversion') }}
+          key: bazel-${{ runner.os }}-${{ hashFiles('packages/mettagrid/MODULE.bazel', 'packages/mettagrid/.bazelrc', '.bazeliskversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
 
