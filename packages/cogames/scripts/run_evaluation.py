@@ -199,12 +199,14 @@ def load_policy(
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
+        # Use strict=False to handle architecture mismatches between old/new implementations
+        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device), strict=False)
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     if is_s3_uri(policy_path):
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = policy_spec_from_uri(policy_path, device=str(device))
+        # Use strict=False to handle architecture mismatches between old/new implementations
+        policy_spec = policy_spec_from_uri(policy_path, device=str(device), strict=False)
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)

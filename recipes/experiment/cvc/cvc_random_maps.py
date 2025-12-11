@@ -723,11 +723,13 @@ def experiment(
                 bc_policy_uri=thinky
     """
     if run_name is None:
-        timestamp = time.strftime("%Y-%m-%d_%H%M%S")
-        run_name = (
-            f"cvc_random_maps_{num_cogs}agent_heartbuckets_{heart_buckets}_"
-            f"resourcebuckets_{resource_buckets}_invbuckets_{initial_inventory_buckets}_supervised_{supervision}_{timestamp}"
-        )
+        timestamp = time.strftime("%m%d_%H%M%S")
+        # Use abbreviations to stay under W&B's 128 char limit
+        hb = "T" if heart_buckets else "F"
+        rb = "T" if resource_buckets else "F"
+        ib = "T" if initial_inventory_buckets else "F"
+        sup = "sup" if supervision else "nosup"
+        run_name = f"cvc_dense_{num_cogs}cog_hb{hb}_rb{rb}_ib{ib}_{sup}_{timestamp}"
 
     cmd = [
         "./devops/skypilot/launch.py",
@@ -785,23 +787,31 @@ if __name__ == "__main__":
     # experiment(num_cogs=8, heart_buckets=True, resource_buckets=True)
     # experiment(num_cogs=8, heart_buckets=False, resource_buckets=True)
 
-    # # 16 cogs
-    # experiment(num_cogs=16, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True)
-    # experiment(num_cogs=16, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
-    # experiment(num_cogs=16, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
-    # experiment(num_cogs=16, heart_buckets=False, resource_buckets=False)
-    # experiment(num_cogs=16, heart_buckets=True, resource_buckets=False)
-    # experiment(num_cogs=16, heart_buckets=True, resource_buckets=True)
-    # experiment(num_cogs=16, heart_buckets=False, resource_buckets=True)
+    # # 1 cog
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=False)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=False)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=True)
 
     #SUPERVISED
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True, supervision=True)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=False, supervision=True)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=False, supervision=True)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=True, supervision=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=True, supervision=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
 
     #SUPERVISED
-    experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True, supervision=True)
-    experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, initial_inventory_buckets=True, supervision=True)
-    experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
-    experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
-    experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, supervision=True)
-    experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, supervision=True)
-    experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, supervision=True)
-    experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, initial_inventory_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, supervision=True)
