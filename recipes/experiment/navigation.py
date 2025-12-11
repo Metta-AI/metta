@@ -11,14 +11,9 @@ from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import NavigationFromNumpy
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import Distribution as D
-from metta.sweep.core import SweepParameters as SP
-from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.stub import StubTool
-from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import AsciiMapBuilder, MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -174,31 +169,8 @@ def make_curriculum(
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    # LP parameters for sweep
-    lp_gain: Optional[float] = None,
-    ema_timescale: Optional[float] = None,
-    slow_timescale_factor: Optional[float] = None,
-    progress_smoothing: Optional[float] = None,
 ) -> TrainTool:
-    # If any LP parameters are specified, create a custom algorithm config
-    algorithm_config = None
-    if any(p is not None for p in [lp_gain, ema_timescale, slow_timescale_factor, progress_smoothing]):
-        algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,
-            ema_timescale=ema_timescale if ema_timescale is not None else 0.006,
-            exploration_bonus=0.1,
-            max_memory_tasks=1000,
-            max_slice_axes=3,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-            lp_gain=lp_gain if lp_gain is not None else 0.1,
-            slow_timescale_factor=slow_timescale_factor if slow_timescale_factor is not None else 0.2,
-            progress_smoothing=progress_smoothing if progress_smoothing is not None else 0.05,
-        )
-
-    resolved_curriculum = curriculum or make_curriculum(
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-        algorithm_config=algorithm_config,
-    )
+    resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     evaluator_cfg = EvaluatorConfig(
         simulations=make_navigation_eval_suite(),
@@ -233,45 +205,3 @@ def play(policy_uri: Optional[str] = None) -> PlayTool:
 
 def replay(policy_uri: Optional[str] = None) -> ReplayTool:
     return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
-
-
-def evaluate_stub(*args, **kwargs) -> StubTool:
-    """Stub evaluation for sweep (using training metrics instead)."""
-    return StubTool()
-
-
-def sweep(sweep_name: str) -> SweepTool:
-    """Learning Progress hyperparameter sweep for navigation.
-
-    Sweeps over 4 key LP parameters:
-    1. lp_gain (z-score gain)
-    2. ema_timescale (sets the low-frequency component)
-    3. slow_timescale_factor (width of the frequency window)
-    4. progress_smoothing (score transformation)
-
-    Usage:
-        uv run tools/run.py recipes.experiment.navigation.sweep \
-            sweep_name="prashant.lp_sweep.12_10" -- gpus=4 nodes=1
-
-    Sweep results (prashant.lp_sweep.12_10_2, 80 trials):
-        - ema_timescale 0.005-0.008 showed ~2x improvement vs default 0.001
-        - Other params showed no clear pattern
-    """
-    parameters = [
-        SP.param("lp_gain", D.LOG_NORMAL, min=0.01, max=0.5, search_center=0.1),
-        SP.param("ema_timescale", D.LOG_NORMAL, min=0.0001, max=0.01, search_center=0.001),
-        SP.param("slow_timescale_factor", D.UNIFORM, min=0.05, max=0.5, search_center=0.2),
-        SP.param("progress_smoothing", D.UNIFORM, min=0.01, max=0.2, search_center=0.05),
-        {"trainer.total_timesteps": 150_000_000},  # 150M fixed
-    ]
-
-    return make_sweep(
-        name=sweep_name,
-        recipe="recipes.experiment.navigation",
-        train_entrypoint="train",
-        eval_entrypoint="evaluate_stub",
-        metric_key="experience/rewards",
-        search_space=parameters,
-        max_trials=80,
-        num_parallel_trials=4,
-    )
