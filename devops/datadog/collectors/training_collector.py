@@ -47,7 +47,14 @@ class TrainingCollector(BaseCollector):
             return samples
 
         # Filter to training jobs only
-        training_jobs = [jr for jr in job_results if is_training_job(jr.get("name", ""))]
+        training_jobs = []
+        for jr in job_results:
+            try:
+                if is_training_job(jr.get("name", "")):
+                    training_jobs.append(jr)
+            except ValueError:
+                self.logger.warning("Unknown job name, skipping: %s", jr.get("name", ""))
+                continue
 
         if not training_jobs:
             self.logger.warning("No training jobs found in job results")

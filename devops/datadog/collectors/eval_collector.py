@@ -47,7 +47,14 @@ class EvalCollector(BaseCollector):
             return samples
 
         # Filter to eval jobs only
-        eval_jobs = [jr for jr in job_results if is_eval_job(jr.get("name", ""))]
+        eval_jobs = []
+        for jr in job_results:
+            try:
+                if is_eval_job(jr.get("name", "")):
+                    eval_jobs.append(jr)
+            except ValueError:
+                self.logger.warning("Unknown job name, skipping: %s", jr.get("name", ""))
+                continue
 
         if not eval_jobs:
             self.logger.warning("No eval jobs found in job results")
