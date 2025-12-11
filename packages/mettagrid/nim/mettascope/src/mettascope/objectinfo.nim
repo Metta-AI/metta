@@ -1,6 +1,6 @@
 import
   std/[os, json, algorithm, tables, sets],
-  vmath, silky,
+  vmath, silky, windy,
   common, panels, replays
 
 const InventoryScale = 0.5f
@@ -47,34 +47,37 @@ proc computeEffectiveLimit(group: ResourceLimitGroup, inventory: seq[ItemAmount]
 
 # find "/UI/Main/**/ObjectInfo/OpenConfig":
 #   onClick:
-#     if selection.isNil:
-#       return
-#     let text =
-#       if replay.isNil or replay.mgConfig.isNil:
-#         "No replay config found."
-#       else:
-#         let typeName = selection.typeName
-#         if typeName == "agent":
-#           let agentConfig = replay.mgConfig["game"]["agent"]
-#           agentConfig.pretty
-#         else:
-#           if "game" notin replay.mgConfig or "objects" notin replay.mgConfig["game"]:
-#             "No object config found."
-#           elif typeName notin replay.mgConfig["game"]["objects"]:
-#             "Object config not found for type: " & typeName
-#           else:
-#             let objConfig = replay.mgConfig["game"]["objects"][typeName]
-#             objConfig.pretty
-#     let typeName = selection.typeName
-#     openTempTextFile(typeName & "_config.json", text)
+#
 
 proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
   ## Draws the object info panel to display the current selection.
   frame(frameId, contentPos, contentSize):
     if not selection.isNil:
       text("Type: " & selection.typeName)
+      button("Open Config"):
+        if selection.isNil:
+          return
+        let text =
+          if replay.isNil or replay.mgConfig.isNil:
+            "No replay config found."
+          else:
+            let typeName = selection.typeName
+            if typeName == "agent":
+              let agentConfig = replay.mgConfig["game"]["agent"]
+              agentConfig.pretty
+            else:
+              if "game" notin replay.mgConfig or "objects" notin replay.mgConfig["game"]:
+                "No object config found."
+              elif typeName notin replay.mgConfig["game"]["objects"]:
+                "Object config not found for type: " & typeName
+              else:
+                let objConfig = replay.mgConfig["game"]["objects"][typeName]
+                objConfig.pretty
+        let typeName = selection.typeName
+        openTempTextFile(typeName & "_config.json", text)
     else:
       text("No selection")
+
 
   # if selection.isNil:
   #   return

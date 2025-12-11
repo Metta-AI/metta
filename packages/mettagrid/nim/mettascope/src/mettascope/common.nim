@@ -61,8 +61,6 @@ var
   # Command line arguments.
   commandLineReplay*: string = ""
 
-  scrubValue*: float32 = 0
-
 
 type
   ActionRequest* = object

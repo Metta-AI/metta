@@ -1,7 +1,8 @@
 import
   std/[strutils, strformat, os, parseopt, json],
   opengl, windy, bumpy, vmath, chroma, silky, boxy, webby,
-  mettascope/[replays, common, worldmap, panels, objectinfo]
+  mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
+  footer, timeline]
 
 # Build the atlas.
 var builder = newAtlasBuilder(1024, 4)
@@ -23,7 +24,6 @@ loadExtensions()
 const
   BackgroundColor = parseHtmlColor("#000000").rgbx
   RibbonColor = parseHtmlColor("#273646").rgbx
-  ScrubberColor = parseHtmlColor("#1D1D1D").rgbx
   m = 12f # Default margin
 
 proc parseArgs() =
@@ -101,12 +101,30 @@ proc genericPanelDraw(panel: Panel, frameId: string, contentPos: Vec2, contentSi
     for i in 0 ..< 20:
       text(&"Scrollable line {i} for " & panel.name)
 
-proc mapPanelDraw(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
+proc drawWorldMap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
   ## Draw the world map.
   worldMapZoomInfo.rect = irect(contentPos.x, contentPos.y, contentSize.x, contentSize.y)
   worldMapZoomInfo.hasMouse = mouseInsideClip(rect(contentPos, contentSize))
-  drawWorldMap(worldMapZoomInfo)
 
+  glEnable(GL_SCISSOR_TEST)
+  glScissor(contentPos.x.int32, window.size.y.int32 - contentPos.y.int32 - contentSize.y.int32, contentSize.x.int32, contentSize.y.int32)
+  glClearColor(1.0f, 0.0f, 0.0f, 1.0f)
+  drawWorldMap(worldMapZoomInfo)
+  glDisable(GL_SCISSOR_TEST)
+
+
+proc drawMinimap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
+  ## Draw the minimap.
+  glEnable(GL_SCISSOR_TEST)
+  glScissor(contentPos.x.int32, window.size.y.int32 - contentPos.y.int32 - contentSize.y.int32, contentSize.x.int32, contentSize.y.int32)
+
+  let minimapZoomInfo = ZoomInfo()
+  minimapZoomInfo.rect = irect(contentPos.x, contentPos.y, contentSize.x, contentSize.y)
+  # Adjust zoom info and draw the minimap.
+  minimapZoomInfo.hasMouse = false
+  drawWorldMap(minimapZoomInfo)
+
+  glDisable(GL_SCISSOR_TEST)
 
 
 # Initialization
@@ -123,18 +141,24 @@ proc initPanels() =
   rootArea.areas[1].split = 0.7
 
   rootArea.areas[0].areas[0].addPanel("Object", drawObjectInfo)
-  rootArea.areas[0].areas[0].addPanel("Environment", genericPanelDraw)
+  rootArea.areas[0].areas[0].addPanel("Environment", drawEnvironmentInfo)
 
-  rootArea.areas[1].areas[0].addPanel("Map", mapPanelDraw)
-  rootArea.areas[0].areas[1].addPanel("Minimap", genericPanelDraw)
+  rootArea.areas[1].areas[0].addPanel("Map", drawWorldMap)
+  rootArea.areas[0].areas[1].addPanel("Minimap", drawMinimap)
 
-  rootArea.areas[1].areas[1].addPanel("Vibes", genericPanelDraw)
+  rootArea.areas[1].areas[1].addPanel("Vibes", drawVibes)
 
 initPanels()
 
 window.onFrame = proc() =
 
+  playControls()
+
+
   sk.beginUI(window, window.size)
+
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
+  glClear(GL_COLOR_BUFFER_BIT)
 
   # Header
   ribbon(sk.pos, vec2(sk.size.x, 64), RibbonColor):
@@ -148,35 +172,10 @@ window.onFrame = proc() =
       echo "cloud"
 
   # Scrubber
-  ribbon(vec2(0, sk.size.y - 64*2), vec2(sk.size.x, 66), ScrubberColor):
-    scrubber("timeline", sk.pos + vec2(16, 32), vec2(sk.size.x - 32, 32), scrubValue, 0, 1000)
+  drawTimeline(vec2(0, sk.size.y - 64*2), vec2(sk.size.x, 66))
 
   # Footer
-  ribbon(vec2(0, sk.size.y - 64), vec2(sk.size.x, 64), RibbonColor):
-
-    group(vec2(16, 16)):
-      iconButton("ui/rewindToStart"):
-        echo "rewindToStart"
-      iconButton("ui/stepBack"):
-        echo "stepBack"
-      iconButton("ui/play"):
-        echo "play"
-      iconButton("ui/stepForward"):
-        echo "stepForward"
-      iconButton("ui/rewindToEnd"):
-        echo "rewindToEnd"
-
-    group(vec2(sk.size.x - 240, 16)):
-      iconButton("ui/heart"):
-        echo "heart"
-      iconButton("ui/cloud"):
-        echo "cloud"
-      iconButton("ui/grid"):
-        echo "grid"
-      iconButton("ui/eye"):
-        echo "eye"
-      iconButton("ui/tack"):
-        echo "tack"
+  drawFooter(vec2(0, sk.size.y - 64), vec2(sk.size.x, 64))
 
   drawPanels()
 

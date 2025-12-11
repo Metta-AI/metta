@@ -117,15 +117,11 @@ proc beginPanAndZoom*(zoomInfo: ZoomInfo) =
 
   bxy.saveTransform()
 
-  # bxy.translate(zoomInfo.pos)
-
   if zoomInfo.hasMouse:
     if window.buttonPressed[MouseLeft]:
-      echo "start dragging"
       zoomInfo.dragging = true
     if not window.buttonDown[MouseLeft] and zoomInfo.dragging:
       zoomInfo.dragging = false
-      echo "stop dragging"
 
   if zoomInfo.dragging:
     if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
@@ -140,7 +136,6 @@ proc beginPanAndZoom*(zoomInfo: ZoomInfo) =
     if window.scrollDelta.y != 0:
       # Apply zoom at focal point (mouse position or agent position if pinned).
       let localMousePos = window.logicalMousePos - zoomInfo.rect.xy.vec2
-      echo "localMousePos: ", localMousePos
       let zoomSensitivity = 0.005
 
       let oldMat = translate(vec2(zoomInfo.pos.x, zoomInfo.pos.y)) *
