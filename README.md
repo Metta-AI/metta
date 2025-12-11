@@ -26,7 +26,6 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
 <p align="middle">
 <img src="docs/readme_showoff.gif" alt="Metta learning example video">
 <br>
-<a href="https://metta-ai.github.io/metta/mettascope/mettascope.html?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fandre_pufferbox_33%2Freplay.77200.json.z&play=true">Interactive demo</a>
 </p>
 
 Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI

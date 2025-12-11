@@ -80,10 +80,10 @@ class TestParseUri:
 class TestResolveUri:
     def test_resolve_file_uri(self, tmp_path):
         uri = f"file://{tmp_path}/test.txt"
-        resolved = resolve_uri(uri)
-        assert resolved.startswith("file://")
+        parsed = resolve_uri(uri)
+        assert parsed.canonical.startswith("file://")
 
     def test_resolve_plain_path(self, tmp_path):
         path = str(tmp_path / "test.txt")
-        resolved = resolve_uri(path)
-        assert resolved.startswith("file://")
+        parsed = resolve_uri(path)
+        assert parsed.canonical.startswith("file://")

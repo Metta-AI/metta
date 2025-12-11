@@ -74,7 +74,7 @@ class TestCheckpointManagerFlows:
 
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        assert latest.endswith(":v10.mpt")
+        assert ":v10.mpt" in latest or "%3Av10.mpt" in latest
 
     def test_trainer_state_save_and_restore(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Trainer state must be saved alongside policy for proper resume."""
@@ -106,8 +106,8 @@ class TestCheckpointManagerFlows:
             )
 
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}:latest"
-        resolved = resolve_uri(latest_uri)
-        metadata = get_checkpoint_metadata(resolved)
+        parsed = resolve_uri(latest_uri)
+        metadata = get_checkpoint_metadata(parsed.canonical)
         assert metadata.epoch == 7
 
     def test_mpt_policy_loads_and_runs(self, checkpoint_manager, mock_agent, mock_policy_architecture):

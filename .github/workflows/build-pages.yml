@@ -38,6 +38,12 @@ jobs:
           nimby list
           cat nim.cfg
 
+      - name: Cache nimby dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.nimby
+          key: nimby-deps-${{ hashFiles('metta/packages/mettagrid/nim/mettascope/nimby.lock') }}-${{ runner.os }}
+
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:

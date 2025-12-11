@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Union
+
+from pydantic import BaseModel
 
 
-def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
-    stem = path.stem
+def _extract_run_and_epoch(path_str: str) -> tuple[str, int] | None:
+    stem = Path(path_str).stem
     if ":v" in stem:
         run_name, suffix = stem.rsplit(":v", 1)
         if run_name and suffix.isdigit():
@@ -15,40 +16,66 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
     return None
 
 
-@dataclass(frozen=True, slots=True)
-class CheckpointMetadata:
+class CheckpointMetadata(BaseModel, frozen=True):
     run_name: str
     epoch: int
     uri: str
 
 
-@dataclass(frozen=True, slots=True)
-class ParsedScheme:
-    raw: str
-    scheme: str
+class FileParsedScheme(BaseModel, frozen=True):
+    scheme: Literal["file"] = "file"
     canonical: str
-    local_path: Optional[Path] = None
-    bucket: Optional[str] = None
-    key: Optional[str] = None
-    path: Optional[str] = None
-
-    def require_local_path(self) -> Path:
-        if self.scheme != "file" or self.local_path is None:
-            raise ValueError(f"URI '{self.raw}' does not refer to a local file path")
-        return self.local_path
-
-    def require_s3(self) -> tuple[str, str]:
-        if self.scheme != "s3" or not self.bucket or not self.key:
-            raise ValueError(f"URI '{self.raw}' is not an s3:// path")
-        return self.bucket, self.key
+    local_path: Path
 
     @property
     def checkpoint_info(self) -> tuple[str, int] | None:
-        if self.scheme == "mock" and self.path:
-            return (self.path, 0)
-        if not self.path:
-            return None
-        return _extract_run_and_epoch(Path(self.path))
+        return _extract_run_and_epoch(str(self.local_path))
+
+
+class S3ParsedScheme(BaseModel, frozen=True):
+    scheme: Literal["s3"] = "s3"
+    canonical: str
+    bucket: str
+    key: str
+
+    @property
+    def local_path(self) -> None:
+        return None
+
+    @property
+    def checkpoint_info(self) -> tuple[str, int] | None:
+        return _extract_run_and_epoch(self.key)
+
+
+class MockParsedScheme(BaseModel, frozen=True):
+    scheme: Literal["mock"] = "mock"
+    canonical: str
+    path: str
+
+    @property
+    def local_path(self) -> None:
+        return None
+
+    @property
+    def checkpoint_info(self) -> tuple[str, int] | None:
+        return (self.path, 0)
+
+
+class MettaParsedScheme(BaseModel, frozen=True):
+    scheme: Literal["metta"] = "metta"
+    canonical: str
+    path: str
+
+    @property
+    def local_path(self) -> None:
+        return None
+
+    @property
+    def checkpoint_info(self) -> tuple[str, int] | None:
+        return _extract_run_and_epoch(self.path)
+
+
+ParsedScheme = Union[FileParsedScheme, S3ParsedScheme, MockParsedScheme, MettaParsedScheme]
 
 
 class SchemeResolver(ABC):
@@ -64,16 +91,9 @@ class SchemeResolver(ABC):
     def matches_scheme(self, uri: str) -> bool:
         return uri.startswith(self._expected_prefix)
 
+    @abstractmethod
     def parse(self, uri: str) -> ParsedScheme:
-        if not uri.startswith(self._expected_prefix):
-            raise ValueError(f"Expected {self._expected_prefix} URI, got: {uri}")
+        pass
 
-        path = uri[len(self._expected_prefix) :]
-        if not path:
-            raise ValueError(f"Invalid {self._expected_prefix} URI: {uri}")
-
-        return ParsedScheme(raw=uri, scheme=self.scheme, canonical=uri, path=path)
-
-    # Path to the policy-spec.json file, in s3 or otherwise
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         return self.parse(uri).canonical

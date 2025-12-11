@@ -9,8 +9,7 @@ import time
 from contextlib import contextmanager
 from typing import Callable, Iterator, Optional
 
-from metta.common.util.log_config import init_logging
-from metta.common.util.text_styles import blue, bold, cyan, green, magenta, red, yellow
+from metta.common.util.text_styles import yellow
 
 
 class Spinner:
@@ -153,80 +152,3 @@ def sh(
 def die(msg: str, code: int = 1):
     print(msg, file=sys.stderr)
     sys.exit(code)
-
-
-def main():
-    """Demo the spinner functionality."""
-    print(cyan("CLI Spinner Demo"))
-    print(cyan("=" * 40))
-
-    # Demo 1: Basic spinner
-    print(f"\n{yellow('1. Basic spinner for 3 seconds:')}")
-    with spinner("Loading data"):
-        time.sleep(3)
-    print(green("✓ Done!"))
-
-    # Demo 2: Spinner with message updates
-    print(f"\n{yellow('2. Spinner with changing messages:')}")
-    with spinner("Initializing", style=blue) as sp:
-        time.sleep(1)
-        sp.update_message("Connecting to database")
-        time.sleep(1)
-        sp.update_message("Fetching records")
-        time.sleep(1)
-        sp.update_message("Processing data")
-        time.sleep(1)
-    print(green("✓ Complete!"))
-
-    # Demo 3: Different spinner styles with different text styles
-    print(f"\n{yellow('3. Different spinner styles and text styles:')}")
-    spinner_styles = [
-        (["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"], f"{cyan('cyan')} Dots", cyan),
-        (["|", "/", "-", "\\"], f"{yellow('yellow')} Slash", yellow),
-        (["◐", "◓", "◑", "◒"], f"{green('green')} Circle", green),
-        (["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"], f"{magenta('magenta')} Bar", magenta),
-    ]
-
-    for chars, name, text_style in spinner_styles:
-        with spinner(f"Testing {name} spinner", spinner_chars=chars, style=text_style):
-            time.sleep(2)
-        print(green(f"✓ {name} complete!"))
-
-    # Demo 4: Interactive demo with bold green spinner
-    print(f"\n{yellow('4. Interactive demo:')}")
-    with spinner("Press Enter to continue", style=lambda x: bold(green(x))):
-        input()
-    print(green("✓ Thanks for trying the spinner!"))
-
-    # Demo 5: Command execution with spinner
-    print(f"\n{yellow('5. Running command with spinner:')}")
-    try:
-        result = sh(
-            ["echo", "Hello from subprocess"],
-            show_spinner=True,
-            spinner_message="Executing command",
-            spinner_style=green,
-        )
-        print(green(f"✓ Command output: {result}"))
-    except Exception as e:
-        print(red(f"✗ Command failed: {e}"))
-
-    # Demo 6: Error scenario with red spinner
-    print(f"\n{yellow('6. Error handling demo:')}")
-    try:
-        with spinner("Simulating error", style=red):
-            time.sleep(1)
-            raise ValueError("Something went wrong!")
-    except ValueError:
-        print(red("✗ Error occurred as expected"))
-
-    # Demo 7: Bold spinner
-    print(f"\n{yellow('7. Bold spinner demo:')}")
-    with spinner("Important operation in progress", style=bold):
-        time.sleep(2)
-    print(green("✓ Critical operation completed!"))
-
-
-if __name__ == "__main__":
-    init_logging()
-    main()

@@ -6,7 +6,7 @@ import uuid
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.common.util.constants import PROD_STATS_SERVER_URI
-from mettagrid.util.uri_resolvers.base import SchemeResolver
+from mettagrid.util.uri_resolvers.base import MettaParsedScheme, SchemeResolver
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -64,6 +64,14 @@ class MettaSchemeResolver(SchemeResolver):
     def scheme(self) -> str:
         return "metta"
 
+    def parse(self, uri: str) -> MettaParsedScheme:
+        if not uri.startswith("metta://"):
+            raise ValueError(f"Expected metta:// URI, got: {uri}")
+        path = uri[len("metta://") :]
+        if not path:
+            raise ValueError("metta:// URIs must include a path")
+        return MettaParsedScheme(canonical=uri, path=path)
+
     def _get_stats_client(self) -> StatsClient:
         if not self._stats_server_uri:
             raise ValueError("Cannot resolve metta:// URI: stats server not configured")
@@ -118,4 +126,4 @@ class MettaSchemeResolver(SchemeResolver):
         if not mpt_file_path.endswith(".mpt"):
             raise ValueError(f"Invalid mpt file path: {mpt_file_path}")
         logger.info(f"Metta scheme resolver: {uri} resolved to mpt checkpoint: {mpt_file_path}")
-        return resolve_uri(mpt_file_path)
+        return resolve_uri(mpt_file_path).canonical

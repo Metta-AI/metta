@@ -87,26 +87,25 @@ class DatadogAgentSetup(SetupModule):
         except Exception as e:
             warning(f"Could not create Datadog log config: {e}")
 
-    def _enable_logs_in_config(self) -> None:
-        config_file = "/etc/datadog-agent/datadog.yaml"
-        if not os.path.exists(config_file):
-            return
+    def _configure_agent(self, api_key: str) -> None:
+        defaults_path = self.repo_root / "devops" / "datadog" / "defaults.yaml"
         try:
-            with open(config_file) as f:
-                lines = f.readlines()
-            has_logs_enabled = any(line.strip().startswith("logs_enabled:") for line in lines)
-            has_hostname = any(line.strip().startswith("hostname:") for line in lines)
-            additions = []
-            if not has_logs_enabled:
-                additions.append("logs_enabled: true")
-            if not has_hostname:
-                hostname = socket.gethostname() or "skypilot-node"
-                additions.append(f"hostname: {hostname}")
-            if additions:
-                with open(config_file, "a") as f:
-                    f.write("\n" + "\n".join(additions) + "\n")
+            with open(defaults_path) as f:
+                config = yaml.safe_load(f)
         except Exception as e:
-            warning(f"Could not enable logs in DD config: {e}")
+            warning(f"Could not load DD defaults from {defaults_path}: {e}")
+            config = {}
+
+        config["api_key"] = api_key
+        config["hostname"] = socket.gethostname() or "skypilot-node"
+
+        config_file = "/etc/datadog-agent/datadog.yaml"
+        try:
+            with open(config_file, "w") as f:
+                yaml.safe_dump(config, f, default_flow_style=False)
+            info(f"Wrote DD config to {config_file}")
+        except Exception as e:
+            warning(f"Could not write DD config: {e}")
 
     def _stop_agent(self) -> None:
         subprocess.run(["pkill", "-f", AGENT_BINARY], capture_output=True)
@@ -160,12 +159,13 @@ class DatadogAgentSetup(SetupModule):
 
         if self.check_installed():
             info("Datadog agent already installed.")
-            self._enable_logs_in_config()
+            self._configure_agent(api_key)
             self._setup_log_config()
             self._start_agent()
             return
 
         info("Installing Datadog agent...")
+        env["DD_INSTALL_ONLY"] = "true"
         subprocess.run(
             "curl -fsSL https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh | bash",
             shell=True,
@@ -179,7 +179,7 @@ class DatadogAgentSetup(SetupModule):
             error("Datadog agent binary not found after install")
             return
 
-        self._enable_logs_in_config()
+        self._configure_agent(api_key)
         self._setup_log_config()
         self._start_agent()
         success("Datadog agent installed successfully.")

@@ -20,6 +20,13 @@ spec:
           envFrom:
           - secretRef:
               name: {{ .Values.secret_name }}
+          {{- if .Values.env }}
+          env:
+          {{- range $key, $value := .Values.env }}
+          - name: {{ $key }}
+            value: {{ $value | quote }}
+          {{- end }}
+          {{- end }}
           resources:
             requests:
               memory: "1Gi"

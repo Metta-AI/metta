@@ -49,7 +49,6 @@ class Rollout:
             policy.reset()
 
         self._step_count = 0
-        logging.info(f"Set up rollout with {len(self._policies)} policies")
 
     def step(self) -> None:
         """Execute one step of the rollout."""

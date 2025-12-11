@@ -249,6 +249,9 @@ def suppress_noisy_logs() -> None:
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
+    # Silence ddtrace CI Visibility spam
+    logging.getLogger("ddtrace").setLevel(logging.WARNING)
+
 
 def init_mettagrid_system_environment() -> None:
     """Initialize environment variables for headless operation."""

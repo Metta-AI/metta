@@ -42,6 +42,15 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
+    - name: Cache nimby
+      id: cache-nimby
+      uses: actions/cache@v4
+      with:
+        path: ~/.nimby
+        key: nimby-2.2.6-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
+        restore-keys: |
+          nimby-2.2.6-${{ runner.os }}-
+
     - name: Set up nim
       shell: bash
       run: |
