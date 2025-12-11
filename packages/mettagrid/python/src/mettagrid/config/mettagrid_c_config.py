@@ -10,6 +10,7 @@ from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
+from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
@@ -446,33 +447,35 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Process attack - always add to map
     action_params = process_action_config("attack", actions_config.attack)
     attack_cfg = actions_config.attack
-    if attack_cfg.enabled:
-        action_params["defense_resources"] = {
-            resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()
-        }
-        action_params["armor_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()}
-        action_params["weapon_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()}
-        # Convert loot list from names to IDs if specified
-        if attack_cfg.loot is not None:
-            loot_ids = []
-            for name in attack_cfg.loot:
-                if name not in resource_name_to_id:
-                    raise ValueError(f"Loot resource '{name}' not found in resource_names")
-                loot_ids.append(resource_name_to_id[name])
-            action_params["loot"] = loot_ids
-        else:
-            action_params["loot"] = None
-    else:
-        action_params["defense_resources"] = {}
-        action_params["armor_resources"] = {}
-        action_params["weapon_resources"] = {}
-        action_params["loot"] = None
+    # Always convert full attack config (enabled only controls standalone actions, not vibe-triggered)
+    action_params["defense_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()}
+    action_params["armor_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()}
+    action_params["weapon_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()}
+    # Convert success outcome
+    success_actor = {resource_name_to_id[k]: v for k, v in attack_cfg.success.actor_inv_delta.items()}
+    success_target = {resource_name_to_id[k]: v for k, v in attack_cfg.success.target_inv_delta.items()}
+    success_loot = [resource_name_to_id[name] for name in attack_cfg.success.loot]
+    action_params["success"] = CppAttackOutcome(
+        success_actor,
+        success_target,
+        success_loot,
+        attack_cfg.success.freeze,
+    )
     action_params["enabled"] = attack_cfg.enabled
+<<<<<<< HEAD
     # Convert vibes from names to IDs (validate all vibe names exist)
     for vibe in attack_cfg.vibes:
         if vibe not in vibe_name_to_id:
             raise ValueError(f"Unknown vibe name '{vibe}' in attack.vibes")
     action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in attack_cfg.vibes]
+=======
+    # Convert vibes from names to IDs
+    action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in attack_cfg.vibes if vibe in vibe_name_to_id]
+    # Convert vibe_bonus from names to IDs
+    action_params["vibe_bonus"] = {
+        vibe_name_to_id[vibe]: bonus for vibe, bonus in attack_cfg.vibe_bonus.items() if vibe in vibe_name_to_id
+    }
+>>>>>>> 9249d8778a (Fix C++ benchmark compilation: add armor/weapon_resources params)
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
     # Process transfer - vibes are derived from vibe_transfers keys in C++
