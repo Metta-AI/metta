@@ -185,6 +185,7 @@ class LeaderboardPolicyEntry(BaseModel):
 
 class PolicySearchResult(BaseModel):
     """Result from policy search query."""
+
     id: str
     name: str
     type: Literal["training_run", "policy"]
