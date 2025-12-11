@@ -602,6 +602,7 @@ def sweep(
         **SP.PPO_GAE_LAMBDA,
         **SP.PPO_VF_COEF,
         **SP.ADAM_EPS,
+        **SP.PPO_ENT_COEF,
         **SP.param(
             "trainer.total_timesteps",
             D.INT_UNIFORM,
@@ -616,7 +617,7 @@ def sweep(
         recipe="recipes.experiment.cogs_v_clips",
         train_entrypoint="train_sweep",
         eval_entrypoint="evaluate_stub",
-        metric_key="env_agent/heart.gained",
+        metric_key="env_game/assembler.heart.created",
         search_space=search_space,
         cost_key="metric/total_time",
         max_trials=max_trials,
