@@ -140,12 +140,32 @@ class ActionProbs(nn.Module):
 
     def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
         """Apply an optional upper-bound mask on action indices."""
-        if self.config.max_action_index is None:
+        max_action_index = self.config.max_action_index
+        if max_action_index is None:
             return logits
-        max_idx = int(self.config.max_action_index)
-        if max_idx < 0 or max_idx > logits.size(-1):
-            return logits
-        logits[..., max_idx:] = float("-inf")
+
+        max_idx = int(max_action_index)
+        if max_idx <= 0:
+            raise ValueError(f"max_action_index must be positive, got {max_idx}")
+
+        max_idx = min(max_idx, logits.size(-1))
+        mask_value = torch.finfo(logits.dtype).min
+
+        # Keep logits finite so log_softmax never returns NaN (which would break torch.multinomial).
+        logits = torch.nan_to_num(logits, nan=0.0, posinf=0.0, neginf=mask_value)
+
+        if max_idx < logits.size(-1):
+            logits = logits.clone()
+            logits[..., max_idx:] = mask_value
+
+        # If every allowed action was invalid and got clamped to mask_value, fall back to a
+        # zeroed valid slice so we still produce a proper distribution over allowed actions only.
+        valid_slice = logits[..., :max_idx]
+        all_masked = (valid_slice == mask_value).all(dim=-1)
+        if all_masked.any():
+            logits = logits.clone()
+            logits[all_masked, :max_idx] = 0.0
+
         return logits
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
