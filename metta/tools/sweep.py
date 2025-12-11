@@ -12,6 +12,7 @@ from pydantic import Field
 from cogweb.cogweb_client import CogwebClient
 from metta.adaptive import AdaptiveConfig, AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
+from metta.adaptive.run_phase import RunPhaseManager
 from metta.adaptive.stores import WandbStore
 from metta.common.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
@@ -25,67 +26,64 @@ from metta.tools.utils.auto_config import auto_wandb_config
 logger = logging.getLogger(__name__)
 
 
-def create_on_eval_completed_hook(metric_path: str, cost_key: Optional[str] = None):
-    """Create an on_eval_completed hook that extracts the specified metric.
+def create_observation_hook(
+    phase_manager: RunPhaseManager,
+    metric_path: str,
+    cost_key: Optional[str] = None,
+    source: str = "evaluation",
+):
+    """Create a hook that records sweep observations via RunPhaseManager.
 
     Args:
+        phase_manager: The RunPhaseManager to use for recording observations.
         metric_path: The path to the metric in the summary (e.g., "evaluator/eval_arena/score")
-        cost_key: Optional path to the cost metric in the summary. If provided, extracts
-            cost from summary[cost_key]. Otherwise uses run.cost (defaults to 0).
+        cost_key: Optional path to the cost metric in the summary.
+        source: Label for where the observation came from ("evaluation" or "training").
 
     Returns:
-        A hook function that extracts the metric and updates the observation.
+        A hook function that extracts the metric and records the observation.
     """
 
-    def on_eval_completed(run, store, all_runs):
-        """Update run summary with sweep-specific observation data for the optimizer."""
-        # Extract the summary
+    def hook(run, store, all_runs):
+        """Extract metric and record observation."""
         summary = run.summary or {}
 
-        # Look for the specific metric we're optimizing - fail hard if not found
         if metric_path not in summary:
-            error_msg = (
-                f"[SweepTool] CRITICAL: Metric '{metric_path}' not found in run {run.run_id} summary. "
-                f"The sweep cannot optimize without this metric. Please verify your evaluation "
-                f"is producing the expected metric."
+            raise KeyError(
+                f"[SweepTool] Metric '{metric_path}' not found in run {run.run_id} summary. "
+                f"Source: {source}. Cannot optimize without this metric."
             )
-            logger.error(error_msg, exc_info=True)
-            raise KeyError(error_msg)
 
-        score = summary[metric_path]
+        score = float(summary[metric_path])
 
-        # Extract cost from summary if cost_key is provided, otherwise use run.cost
         if cost_key is not None:
             if cost_key not in summary:
-                error_msg = (
-                    f"[SweepTool] CRITICAL: Cost metric '{cost_key}' not found in run {run.run_id} summary. "
-                    f"Please verify your evaluation is producing the expected cost metric."
+                raise KeyError(
+                    f"[SweepTool] Cost metric '{cost_key}' not found in run {run.run_id} summary. "
+                    f"Source: {source}."
                 )
-                logger.error(error_msg, exc_info=True)
-                raise KeyError(error_msg)
-            cost = summary[cost_key]
+            cost = float(summary[cost_key])
         else:
-            # Use the existing cost field from RunInfo (defaults to 0 if not set)
-            cost = run.cost
+            cost = float(run.cost)
 
-        # Update the run summary with sweep data for the optimizer
-        sweep_data = {
-            "sweep/score": float(score),
-            "sweep/cost": float(cost),
-        }
+        phase_manager.record_observation(run.run_id, score, cost, source)
 
-        # Update remote store (WandB)
-        store.update_run_summary(run.run_id, sweep_data)
-
-        # CRITICAL: Also update the local run object so scheduler sees the data immediately
-        # Without this, the scheduler won't see the scores until the next WandB fetch
+        # Also update local run object so scheduler sees data immediately
         if run.summary is None:
             run.summary = {}
-        run.summary.update(sweep_data)
+        run.summary["sweep/score"] = score
+        run.summary["sweep/cost"] = cost
+        run.summary["sweep/observation_source"] = source
 
-        logger.info(f"[SweepTool] Updated sweep observation for {run.run_id}: score={score:.6f}, cost={cost:.2f}")
+        logger.info(
+            "[SweepTool] Recorded observation from %s for %s: score=%.6f, cost=%.2f",
+            source,
+            run.run_id,
+            score,
+            cost,
+        )
 
-    return on_eval_completed
+    return hook
 
 
 class DispatcherType(StrEnum):
@@ -137,6 +135,7 @@ class SweepTool(Tool):
     recipe_module: str = "recipes.experiment.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
+    skip_evaluation: bool = False  # If True, extract observations from training instead of evaluation
 
     # Scheduler selection and async-specific settings
     scheduler_type: SweepSchedulerType = SweepSchedulerType.ASYNC_CAPPED
@@ -239,6 +238,7 @@ class SweepTool(Tool):
         logger.info(f"[SweepTool] Monitoring interval: {self.monitoring_interval}s")
         logger.info(f"[SweepTool] Dispatcher type: {self.dispatcher_type}")
         logger.info(f"[SweepTool] Scheduler type: {self.scheduler_type}")
+        logger.info(f"[SweepTool] Skip evaluation: {self.skip_evaluation}")
         logger.info("[SweepTool] " + "=" * 60)
 
         # Populate optimizer parameters and fixed overrides from search_space (flat dot paths)
@@ -277,6 +277,7 @@ class SweepTool(Tool):
         )
 
         store = WandbStore(entity=self.wandb.entity, project=self.wandb.project, evaluator_prefix=evaluator_prefix)
+        phase_manager = RunPhaseManager(store)
 
         # Create dispatcher based on type
         if self.dispatcher_type == DispatcherType.LOCAL:
@@ -305,8 +306,9 @@ class SweepTool(Tool):
                 max_concurrent_evals=self.max_concurrent_evals,
                 liar_strategy=self.liar_strategy,
                 base_overrides=base_overrides,
+                skip_evaluation=self.skip_evaluation,
             )
-            scheduler = AsyncCappedOptimizingScheduler(scheduler_config)
+            scheduler = AsyncCappedOptimizingScheduler(scheduler_config, phase_manager)
         else:
             # GRID_SEARCH scheduler: derive categorical parameters and enumerate
             from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
@@ -345,8 +347,9 @@ class SweepTool(Tool):
                 max_concurrent_evals=self.max_concurrent_evals,
                 parameters=grid_params,
                 base_overrides=base_overrides,
+                skip_evaluation=self.skip_evaluation,
             )
-            scheduler = GridSearchScheduler(scheduler_config)
+            scheduler = GridSearchScheduler(scheduler_config, phase_manager)
 
         # Create adaptive config
         adaptive_config = AdaptiveConfig(
@@ -379,11 +382,22 @@ class SweepTool(Tool):
             if self.cost_key:
                 logger.info(f"[SweepTool] Cost metric: {self.cost_key}")
 
-            # Create the on_eval_completed hook with the specific metric we're optimizing
-            on_eval_completed = create_on_eval_completed_hook(metric_for_hook, cost_key=self.cost_key)
+            # Create hooks based on skip_evaluation setting
+            if self.skip_evaluation:
+                # Extract observations from training completion
+                on_training_completed = create_observation_hook(
+                    phase_manager, metric_for_hook, cost_key=self.cost_key, source="training"
+                )
+                on_eval_completed = None
+            else:
+                # Extract observations from evaluation completion (default)
+                on_training_completed = None
+                on_eval_completed = create_observation_hook(
+                    phase_manager, metric_for_hook, cost_key=self.cost_key, source="evaluation"
+                )
 
-            # Pass on_eval_completed hook to run method for sweep-specific observation tracking
             controller.run(
+                on_training_completed=on_training_completed,
                 on_eval_completed=on_eval_completed,
             )
 
@@ -412,13 +426,16 @@ class SweepTool(Tool):
                     logger_prefix="[SweepTool]",
                     include_score=True,
                     truncate_run_id=True,
+                    phase_manager=phase_manager,
                 )
                 for line in table_lines:
                     logger.info(line)
 
             # Show best result if available
             # Filter runs that have sweep scores (i.e., completed evaluations with scores)
-            completed_runs = [run for run in final_runs if run.summary and run.summary.get("sweep/score") is not None]
+            completed_runs = [
+                run for run in final_runs if run.summary and run.summary.get("sweep/score") is not None
+            ]
 
             if completed_runs:
                 # Find the best run based on the score

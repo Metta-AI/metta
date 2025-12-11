@@ -42,6 +42,7 @@ from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
 if TYPE_CHECKING:
     from metta.adaptive.models import JobStatus, RunInfo
+    from metta.adaptive.run_phase import RunPhaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -144,8 +145,19 @@ def _get_status_color(status: "JobStatus") -> str:
         return "white"
 
 
-def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_game/assembler.heart.created") -> Table:
+def make_rich_monitor_table(
+    runs: list["RunInfo"],
+    score_metric: str = "env_game/assembler.heart.created",
+    phase_manager: Optional["RunPhaseManager"] = None,
+) -> Table:
     """Create rich table for run monitoring."""
+    from metta.adaptive.run_phase import RunPhaseManager
+
+    # Create a phase manager if not provided
+    if phase_manager is None:
+        from metta.adaptive.stores.wandb import WandbStore
+
+        phase_manager = RunPhaseManager(WandbStore())
 
     # Create table
     table = Table(show_header=True, header_style="bold magenta")
@@ -187,7 +199,7 @@ def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_game
         cost_str = f"${run.cost:.2f}" if run.cost else "$0.00"
 
         # Status with color
-        status = run.status
+        status = phase_manager.get_phase(run)
         status_color = _get_status_color(status)
         status_text = Text(status.value, style=status_color)
 
@@ -209,8 +221,16 @@ def create_run_banner(
     display_limit: int = 10,
     score_metric: str = "env_game/assembler.heart.created",
     api_rpm: Optional[float] = None,
+    phase_manager: Optional["RunPhaseManager"] = None,
 ):
     """Create a banner with run information."""
+    from metta.adaptive.run_phase import RunPhaseManager
+
+    # Create a phase manager if not provided
+    if phase_manager is None:
+        from metta.adaptive.stores.wandb import WandbStore
+
+        phase_manager = RunPhaseManager(WandbStore())
 
     # Calculate runtime from earliest run created_at
     earliest_created = None
@@ -242,7 +262,8 @@ def create_run_banner(
     status_counts = {}
     for run in runs:
         # Get the enum value name without the prefix
-        status = run.status.name if hasattr(run.status, "name") else str(run.status)
+        phase = phase_manager.get_phase(run)
+        status = phase.name if hasattr(phase, "name") else str(phase)
         status_counts[status] = status_counts.get(status, 0) + 1
 
     total_runs = len(runs)
@@ -327,9 +348,11 @@ def live_monitor_runs(
 
     # Always use adaptive store
     try:
+        from metta.adaptive.run_phase import RunPhaseManager
         from metta.adaptive.stores.wandb import WandbStore
 
         store = WandbStore(entity=entity, project=project)
+        phase_manager = RunPhaseManager(store)
     except ImportError:
         print("Error: Cannot import adaptive WandbStore. Make sure dependencies are installed.")
         sys.exit(1)
@@ -398,10 +421,11 @@ def live_monitor_runs(
                 display_limit,
                 score_metric,
                 api_rpm=limiter.rpm_current(),
+                phase_manager=phase_manager,
             )
 
             # Create table
-            table = make_rich_monitor_table(runs, score_metric)
+            table = make_rich_monitor_table(runs, score_metric, phase_manager=phase_manager)
 
             # Create a renderable group
             display = Group(
