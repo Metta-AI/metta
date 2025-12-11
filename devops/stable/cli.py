@@ -16,7 +16,7 @@ from pathlib import Path
 
 import typer
 
-from devops.stable.registry import discover_jobs, specs_to_jobs
+from devops.stable.registry import Suite, discover_jobs, specs_to_jobs
 from devops.stable.runner import Runner, print_summary
 
 app = typer.Typer(add_completion=False, invoke_without_command=True)
@@ -100,17 +100,19 @@ def write_discord_summary(runner: Runner, state_dir: Path) -> None:
 def release(
     version: str = typer.Option(None, help="Version string (default: timestamp)"),
     job: str = typer.Option(None, help="Filter jobs by name pattern"),
+    suite: str = typer.Option(None, help="Filter by suite: ci, stable, or all (default)"),
     non_interactive: bool = typer.Option(False, "--non-interactive", help="Non-interactive mode"),
     skip_commit_match: bool = typer.Option(False, "--skip-commit-match", help="Skip commit verification"),
 ):
     """Run stable release validation."""
     version = version or generate_version()
     user = os.environ.get("USER", "unknown")
-    prefix = f"{user}.stable.{version}"
-    state_dir = get_state_dir(version)
+    prefix = f"{user}.{suite or 'stable'}.{version}"
+    state_dir = get_state_dir(version) if suite != "ci" else Path("train_dir/ci") / version
 
+    suite_filter = Suite(suite) if suite in ("ci", "stable") else None
     runner = Runner(state_dir)
-    specs = discover_jobs()
+    specs = discover_jobs(suite_filter)
     all_jobs = specs_to_jobs(specs, prefix)
     if job:
         all_jobs = [j for j in all_jobs if job in j.name]

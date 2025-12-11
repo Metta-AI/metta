@@ -18,8 +18,6 @@ Local development can run all stages:
 import shlex
 import subprocess
 import sys
-import traceback
-from pathlib import Path
 from typing import Annotated, Callable, Sequence
 
 import typer
@@ -180,58 +178,14 @@ def _run_cleanup_cancelled_runs(*, verbose: bool = False, extra_args: Sequence[s
 
 
 def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None, **_kwargs) -> CheckResult:
-    from devops.stable.registry import Suite, discover_jobs, get_user_timestamp, specs_to_jobs
-    from devops.stable.runner import Runner, print_summary
-
     _print_header("Recipe CI Tests")
 
-    try:
-        group = f"runner.{get_user_timestamp()}"
-        specs = discover_jobs(Suite.CI)
-        all_jobs = specs_to_jobs(specs, group)
+    cmd = ["uv", "run", "./devops/stable/cli.py", "--suite=ci"]
+    if name_filter:
+        cmd.extend(["--job", name_filter])
 
-        if name_filter:
-            recipe_jobs = [job for job in all_jobs if name_filter in job.name]
-            if not recipe_jobs:
-                error(f"No jobs matching '{name_filter}'")
-                info(f"Available jobs: {', '.join(job.name for job in all_jobs)}")
-                return CheckResult("Recipe Tests", False)
-            info(f"Running {len(recipe_jobs)} job(s) matching '{name_filter}' (group: {group}):")
-        else:
-            recipe_jobs = all_jobs
-            info(f"Running {len(recipe_jobs)} recipe CI tests (group: {group}):")
-
-        if not recipe_jobs:
-            info("No recipe CI tests found")
-            return CheckResult("Recipe Tests", True)
-
-        for job in recipe_jobs:
-            console.print(f"  - {job.name}")
-
-        state_dir = Path("train_dir/ci") / group
-        runner = Runner(state_dir)
-
-        for job in recipe_jobs:
-            runner.add_job(job)
-
-        console.print(f"\nState: {state_dir}")
-        console.print(f"Logs: {runner.logs_dir}\n")
-
-        jobs = runner.run_all()
-        all_passed = print_summary(jobs)
-
-        if all_passed:
-            success(f"All {len(recipe_jobs)} recipe tests passed")
-        else:
-            error("Some recipe tests failed - see details above")
-
-        return CheckResult("Recipe Tests", all_passed)
-
-    except Exception as e:
-        error(f"Failed to run recipe tests: {e}")
-        if verbose:
-            console.print(traceback.format_exc())
-        return CheckResult("Recipe Tests", False)
+    passed = _run_command(cmd, "Recipe CI tests", verbose=verbose)
+    return CheckResult("Recipe Tests", passed)
 
 
 def _print_summary(results: list[CheckResult]) -> None:
