@@ -680,7 +680,7 @@ def experiment(
 
     if run_name is None:
         mode_str = "variants" if has_variants else "full"
-        run_name = f"newarch.mission_variant_curriculum_{mode_str}_{time.strftime('%Y-%m-%d_%H%M%S')}"
+        run_name = f"newarch.{num_cogs}cogs.mission_variant_curriculum_{mode_str}_{time.strftime('%Y-%m-%d_%H%M%S')}"
 
     cmd = [
         "./devops/skypilot/launch.py",
@@ -743,20 +743,20 @@ if __name__ == "__main__":
     # === RESUBMIT FAILED JOBS (were "SUCCEEDED" = failed due to red-heart vibe bug) ===
 
     # Non-supervised variants (failed)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_no_variants_base_{date}", skip_git_check=True, variants=None)  # Was RUNNING
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_variants_base_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS)  # RESUBMIT - was 9731
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_all_variants_base_{date}", skip_git_check=True, variants="all")  # RESUBMIT - was 9732
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_procgen_missions_{date}", skip_git_check=True, variants=None)  # Was RUNNING
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_procgen_missions_with_variants_{date}", skip_git_check=True, variants="all")  # RESUBMIT - was 9734
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_procgen_missions_diagnostic_{date}", skip_git_check=True, variants=None)  # Was RUNNING
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_procgen_missions_diagnostic_with_variants_{date}", skip_git_check=True, variants="all")  # RESUBMIT - was 9736
+    experiment(num_cogs=1, base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_no_variants_base_{date}", skip_git_check=True, variants=None)  # Was RUNNING
+    experiment(num_cogs=1, base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_variants_base_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS)  # RESUBMIT - was 9731
+    experiment(num_cogs=1, base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_all_variants_base_{date}", skip_git_check=True, variants="all")  # RESUBMIT - was 9732
+    experiment(num_cogs=1, base_missions=list(PROC_GEN_MISSIONS), run_name=f"newarch_procgen_missions_{date}", skip_git_check=True, variants=None)  # Was RUNNING
+    experiment(num_cogs=1, base_missions=list(PROC_GEN_MISSIONS), run_name=f"newarch_procgen_missions_with_variants_{date}", skip_git_check=True, variants="all")  # RESUBMIT - was 9734
+    experiment(num_cogs=1, base_missions=list(PROC_GEN_MISSIONS) + list(DIAGNOSTIC_MISSIONS), run_name=f"newarch_procgen_missions_diagnostic_{date}", skip_git_check=True, variants=None)  # Was RUNNING
+    experiment(num_cogs=1, base_missions=list(PROC_GEN_MISSIONS) + list(DIAGNOSTIC_MISSIONS)    , run_name=f"newarch_procgen_missions_diagnostic_with_variants_{date}", skip_git_check=True, variants="all")  # RESUBMIT - was 9736
 
     # Supervised variants (failed)
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_no_variants_base_supervised_{date}", skip_git_check=True, variants=None, supervision=True)  # RUNNING - 9737
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_variants_base_supervised_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS, supervision=True)  # RESUBMIT - was 9738
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_all_variants_base_supervised_{date}", skip_git_check=True, variants="all", supervision=True)  # RESUBMIT - was 9739
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_procgen_missions_supervised_{date}", skip_git_check=True, variants=None, supervision=True)  # RUNNING - 9740
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_procgen_missions_with_variants_supervised_{date}", skip_git_check=True, variants="all", supervision=True)  # RESUBMIT - was 9741
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_procgen_missions_diagnostic_supervised_{date}", skip_git_check=True, variants=None, supervision=True)  # RUNNING - 9742
-    experiment(base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_procgen_missions_diagnostic_with_variants_supervised_{date}", skip_git_check=True, variants="all", supervision=True)  # RESUBMIT - was 9743
+    experiment(num_cogs=1, base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_no_variants_base_supervised_{date}", skip_git_check=True, variants=None, supervision=True)  # RUNNING - 9737
+    experiment(num_cogs=1, base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_variants_base_supervised_{date}", skip_git_check=True, variants=S3_SUCCESFUL_VARIANTS, supervision=True)  # RESUBMIT - was 9738
+    experiment(num_cogs=1, base_missions=list(FULL_CURRICULUM_MISSIONS), run_name=f"newarch_all_variants_base_supervised_{date}", skip_git_check=True, variants="all", supervision=True)  # RESUBMIT - was 9739
+    experiment(num_cogs=1, base_missions=list(PROC_GEN_MISSIONS), run_name=f"newarch_procgen_missions_supervised_{date}", skip_git_check=True, variants=None, supervision=True)  # RUNNING - 9740
+    experiment(num_cogs=1, base_missions=list(PROC_GEN_MISSIONS), run_name=f"newarch_procgen_missions_with_variants_supervised_{date}", skip_git_check=True, variants="all", supervision=True)  # RESUBMIT - was 9741
+    experiment(num_cogs=1, base_missions=list(PROC_GEN_MISSIONS) + list(DIAGNOSTIC_MISSIONS), run_name=f"newarch_procgen_missions_diagnostic_supervised_{date}", skip_git_check=True, variants=None, supervision=True)  # RUNNING - 9742
+    experiment(num_cogs=1, base_missions=list(PROC_GEN_MISSIONS) + list(DIAGNOSTIC_MISSIONS), run_name=f"newarch_procgen_missions_diagnostic_with_variants_supervised_{date}", skip_git_check=True, variants="all", supervision=True)  # RESUBMIT - was 9743
 
