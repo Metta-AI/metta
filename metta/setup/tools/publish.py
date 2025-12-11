@@ -7,17 +7,26 @@ import typer
 
 import gitta as git
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
+from metta.common.util.discord import send_to_discord
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info, success, warning
+from softmax.aws.secrets_manager import get_secretsmanager_secret
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
 EXPECTED_REMOTE_URL = f"git@github.com:{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}.git"
+DISCORD_CHANNEL_WEBHOOK_URL_SECRET_NAME = "discord/channel-webhook/updates"
 
 
 class Package(StrEnum):
     COGAMES = "cogames"
     METTAGRID = "mettagrid"
+
+
+_RELEASE_WORKFLOW_URL_FOR_PACKAGE = {
+    Package.COGAMES: "https://github.com/Metta-AI/metta/actions/workflows/release-cogames.yml",
+    Package.METTAGRID: "https://github.com/Metta-AI/metta/actions/workflows/release-mettagrid.yml",
+}
 
 
 def _get_metta_remote() -> str:
@@ -154,6 +163,52 @@ def _check_git_state(force: bool) -> tuple[str, str]:
     return current_branch, current_commit
 
 
+def _post_to_discord(
+    package: Package,
+    version: str,
+    tag_name: str,
+    commit: str,
+    dry_run: bool,
+) -> None:
+    # Get webhook URL from AWS Secrets Manager.
+    webhook_url = get_secretsmanager_secret(DISCORD_CHANNEL_WEBHOOK_URL_SECRET_NAME, require_exists=False)
+    if not webhook_url:
+        warning("Discord webhook URL not configured")
+        return
+
+    # Validate webhook URL format
+    if not webhook_url.startswith("https://discord.com/api/webhooks/"):
+        warning("Discord webhook URL doesn't match expected format. Skipping Discord notification.")
+        return
+
+    # Format release message
+    tag_url = f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}/releases/tag/{tag_name}"
+    commit_url = f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}/commit/{commit}"
+
+    message = f"🚀 **{package.value} v{version}** released!\n\n"
+    message += f"Tag: `{tag_name}`\n"
+    message += f"Commit: [{commit[:7]}]({commit_url})\n"
+    message += f"Release: [View on GitHub]({tag_url})\n"
+
+    if release_workflow_url := _RELEASE_WORKFLOW_URL_FOR_PACKAGE.get(package):
+        message += f"\n📦 Triggered [release workflow]({release_workflow_url}) to publish to PyPi (takes ~5-10 min)."
+
+    if dry_run:
+        info("Would post following message to Discord:")
+        print(message)
+        return
+
+    # Actually post to Discord.
+    info("Posting release announcement to Discord...")
+    success_flag = send_to_discord(webhook_url, message, suppress_embeds=True)
+
+    if not success_flag:
+        warning("Failed to post to Discord.")
+        return
+
+    success("Posted release announcement to Discord.")
+
+
 def cmd_publish(
     package: Annotated[Package, typer.Argument(help="Package to publish")],
     version: Annotated[
@@ -234,7 +289,19 @@ def _publish(
 
     if not repo_only:
         assert target_version is not None
-        _create_and_push_tag(package, target_version, remote, dry_run)
+        tag_name = _create_and_push_tag(package, target_version, remote, dry_run)
+
+        # Post to Discord after successful tag creation
+        try:
+            _post_to_discord(
+                package=package,
+                version=target_version,
+                tag_name=tag_name,
+                commit=current_commit,
+                dry_run=dry_run,
+            )
+        except Exception as exc:
+            warning(f"Failed to post to Discord: {exc}")
 
     if not tag_only:
         _push_child_repo(package, dry_run)
