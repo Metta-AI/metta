@@ -1360,7 +1360,7 @@ ORDER BY e.created_at DESC
 
             async with con.cursor(row_factory=dict_row) as cur:
                 # Use CTE with LEFT JOINs to avoid correlated subqueries
-                await cur.execute(
+                await cur.execute(  # type: ignore
                     f"""
                     WITH policy_data AS (
                         SELECT
@@ -1554,12 +1554,12 @@ ORDER BY e.created_at DESC
 
             cells: list[list[dict[str, Any]]] = []
             row_dict: dict[tuple[str, str], dict[str, Any]] = {}
-            for row in rows:
-                key = (row["policy_name"], row["eval_name"])
+            for row in rows:  # type: ignore
+                key = (row["policy_name"], row["eval_name"])  # type: ignore
                 if key not in row_dict:
                     row_dict[key] = {
-                        "value": row["metric_value"],
-                        "episode_id": str(row["episode_id"]) if row["episode_id"] else None,
+                        "value": row["metric_value"],  # type: ignore
+                        "episode_id": str(row["episode_id"]) if row["episode_id"] else None,  # type: ignore
                     }
 
             for policy_name in policy_names:
