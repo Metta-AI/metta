@@ -183,6 +183,17 @@ class LeaderboardPolicyEntry(BaseModel):
     score_episode_ids: dict[str, uuid.UUID | None] = Field(default_factory=dict)
 
 
+class PolicySearchResult(BaseModel):
+    """Result from policy search query."""
+    id: str
+    name: str
+    type: Literal["training_run", "policy"]
+    created_at: datetime
+    user_id: str
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    tags: dict[str, str] = Field(default_factory=dict)
+
+
 logger = logging.getLogger(name="metta_repo")
 
 
@@ -1309,7 +1320,7 @@ ORDER BY e.created_at DESC
         user_id: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[dict[str, Any]]:
+    ) -> list[PolicySearchResult]:
         """Search policies with filters."""
         async with self.connect() as con:
             where_conditions: list[str] = []
@@ -1388,26 +1399,25 @@ ORDER BY e.created_at DESC
                     params,
                 )
                 rows = await cur.fetchall()
-                return [dict(row) for row in rows]
+                return [PolicySearchResult(**dict(row)) for row in rows]
 
     async def get_eval_names(
         self,
-        training_run_ids: list[str],
-        run_free_policy_ids: list[str],
+        policy_ids: list[str],
     ) -> list[str]:
         """Get unique eval names from episodes for given policies.
 
         Returns identifiers in the format 'category/name' constructed from episode tags.
         """
         async with self.connect() as con:
-            policy_ids: list[uuid.UUID] = []
-            for pid in training_run_ids + run_free_policy_ids:
+            policy_uuids: list[uuid.UUID] = []
+            for pid in policy_ids:
                 try:
-                    policy_ids.append(uuid.UUID(pid))
+                    policy_uuids.append(uuid.UUID(pid))
                 except ValueError:
                     continue
 
-            if not policy_ids:
+            if not policy_uuids:
                 return []
 
             async with con.cursor(row_factory=dict_row) as cur:
@@ -1422,26 +1432,25 @@ ORDER BY e.created_at DESC
                     WHERE pv.policy_id = ANY(%s)
                     ORDER BY eval_name
                     """,
-                    (policy_ids,),
+                    (policy_uuids,),
                 )
                 rows = await cur.fetchall()
                 return [row["eval_name"] for row in rows if row["eval_name"]]
 
     async def get_scorecard_options(
         self,
-        training_run_ids: list[str],
-        run_free_policy_ids: list[str],
+        policy_ids: list[str],
     ) -> dict[str, Any]:
         """Get available evals and metrics for given policies in a single call."""
         async with self.connect() as con:
-            policy_ids: list[uuid.UUID] = []
-            for pid in training_run_ids + run_free_policy_ids:
+            policy_uuids: list[uuid.UUID] = []
+            for pid in policy_ids:
                 try:
-                    policy_ids.append(uuid.UUID(pid))
+                    policy_uuids.append(uuid.UUID(pid))
                 except ValueError:
                     continue
 
-            if not policy_ids:
+            if not policy_uuids:
                 return {"evaluation_identifiers": [], "metrics": []}
 
             async with con.cursor(row_factory=dict_row) as cur:
@@ -1457,7 +1466,7 @@ ORDER BY e.created_at DESC
                     WHERE pv.policy_id = ANY(%s)
                     ORDER BY eval_name
                     """,
-                    (policy_ids,),
+                    (policy_uuids,),
                 )
                 eval_rows = await cur.fetchall()
                 eval_names = [row["eval_name"] for row in eval_rows if row["eval_name"]]
@@ -1473,7 +1482,7 @@ ORDER BY e.created_at DESC
                     WHERE pv.policy_id = ANY(%s)
                     ORDER BY metric_name
                     """,
-                    (policy_ids,),
+                    (policy_uuids,),
                 )
                 metric_rows = await cur.fetchall()
                 metrics = [row["metric_name"] for row in metric_rows if row["metric_name"]]
@@ -1482,22 +1491,21 @@ ORDER BY e.created_at DESC
 
     async def generate_scorecard(
         self,
-        training_run_ids: list[str],
-        run_free_policy_ids: list[str],
+        policy_ids: list[str],
         evaluation_identifiers: list[str],
         metric: str,
         policy_selector: Literal["best", "latest"] = "best",
     ) -> dict[str, Any]:
         """Generate scorecard data for policies and evaluation identifiers."""
         async with self.connect() as con:
-            policy_ids: list[uuid.UUID] = []
-            for pid in training_run_ids + run_free_policy_ids:
+            policy_uuids: list[uuid.UUID] = []
+            for pid in policy_ids:
                 try:
-                    policy_ids.append(uuid.UUID(pid))
+                    policy_uuids.append(uuid.UUID(pid))
                 except ValueError:
                     continue
 
-            if not policy_ids or not evaluation_identifiers:
+            if not policy_uuids or not evaluation_identifiers:
                 return {
                     "policy_names": [],
                     "evaluation_identifiers": [],
@@ -1537,7 +1545,7 @@ ORDER BY e.created_at DESC
             async with con.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
                     base_query + order_by,
-                    (policy_ids, evaluation_identifiers, metric),
+                    (policy_uuids, evaluation_identifiers, metric),
                 )
                 rows = await cur.fetchall()
 

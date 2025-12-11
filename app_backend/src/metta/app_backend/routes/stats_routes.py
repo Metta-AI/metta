@@ -125,7 +125,6 @@ class PoliciesSearchResponse(BaseModel):
 
 class ScorecardOptionsRequest(BaseModel):
     policy_ids: list[str] = Field(default_factory=list)
-    run_free_policy_ids: list[str] = Field(default_factory=list)
 
 
 class ScorecardOptionsResponse(BaseModel):
@@ -135,7 +134,6 @@ class ScorecardOptionsResponse(BaseModel):
 
 class ScorecardRequest(BaseModel):
     policy_ids: list[str] = Field(default_factory=list)
-    run_free_policy_ids: list[str] = Field(default_factory=list)
     evaluation_identifiers: list[str]
     metric: str
     policy_version_selector: Literal["best", "latest"] = "best"
@@ -442,7 +440,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                     limit=limit,
                     offset=offset,
                 )
-                policies = [PolicyListItem(**p) for p in policies_data]
+                policies = [PolicyListItem(**p.model_dump()) for p in policies_data]
                 return PoliciesSearchResponse(policies=policies)
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
@@ -499,8 +497,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         """Get available evals and metrics for given policies."""
         try:
             options = await stats_repo.get_scorecard_options(
-                training_run_ids=request.policy_ids,
-                run_free_policy_ids=request.run_free_policy_ids,
+                policy_ids=request.policy_ids,
             )
             return ScorecardOptionsResponse(
                 evaluation_identifiers=options["evaluation_identifiers"],
@@ -514,8 +511,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     async def generate_scorecard(request: ScorecardRequest, user: UserOrToken) -> ScorecardResponse:
         try:
             data_dict = await stats_repo.generate_scorecard(
-                training_run_ids=request.policy_ids,
-                run_free_policy_ids=request.run_free_policy_ids,
+                policy_ids=request.policy_ids,
                 evaluation_identifiers=request.evaluation_identifiers,
                 metric=request.metric,
                 policy_selector=request.policy_version_selector,
