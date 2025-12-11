@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List
+
+from pydantic import BaseModel, Field
 
 
 class MetricKind(str, Enum):
@@ -14,15 +15,14 @@ class MetricKind(str, Enum):
     DISTRIBUTION = "distribution"
 
 
-@dataclass
-class MetricSample:
+class MetricSample(BaseModel):
     """Structured metric ready to be serialized for Datadog."""
 
     name: str
     value: float
-    tags: Dict[str, str] = field(default_factory=dict)
+    tags: Dict[str, str] = Field(default_factory=dict)
     kind: MetricKind = MetricKind.GAUGE
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     def tag_list(self) -> List[str]:
         """Convert dict tags to datadog-compatible list form."""
@@ -30,12 +30,14 @@ class MetricSample:
 
     def to_dict(self) -> Dict[str, Any]:
         """JSON-friendly representation used for dry runs and logging."""
+        data = self.model_dump(mode="json", exclude_none=False)
+        # Rename 'name' to 'metric' and convert 'kind' enum to string value for backward compatibility
         return {
-            "metric": self.name,
-            "value": self.value,
-            "tags": self.tags,
-            "kind": self.kind.value,
-            "timestamp": self.timestamp.isoformat(),
+            "metric": data["name"],
+            "value": data["value"],
+            "tags": data["tags"],
+            "kind": data["kind"],  # Pydantic already serializes Enum to its value in mode="json"
+            "timestamp": data["timestamp"],
         }
 
     def to_series(self):  # type: ignore[override]
