@@ -28,13 +28,14 @@ from typing_extensions import TypeVar
 from metta.common.tool import Tool
 from metta.common.tool.recipe_registry import recipe_registry
 from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
-from metta.common.tool.tool_registry import tool_registry
 from metta.common.util.log_config import init_logging, init_mettagrid_system_environment
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.rl.system_config import seed_everything
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
+
+_KNOWN_TOOLS = {"train", "evaluate", "evaluate_remote", "play", "replay", "sweep"}
 
 # --------------------------------------------------------------------------------------
 # Environment setup
@@ -524,7 +525,7 @@ constructor/function vs configuration overrides based on introspection.
 
         # Check if it's a bare tool name (like 'train', 'evaluate')
         # If it's a known tool type, list all recipes that support it
-        if tool_path in tool_registry:
+        if tool_path in _KNOWN_TOOLS:
             console.print(f"\n[bold]Recipes supporting '{tool_path}':[/bold]\n")
             recipes = recipe_registry.get_all()
             found_any = False
