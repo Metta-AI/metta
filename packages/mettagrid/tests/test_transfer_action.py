@@ -1,7 +1,7 @@
 """Tests for vibe-triggered transfer actions on move.
 
 This tests the Transfer action functionality where:
-- Transfer handler can specify `vibes` list to trigger transfer when agent with that vibe moves into another agent
+- Transfer is triggered when agent with a vibe in vibe_transfers moves into another agent
 - VibeTransfer configs define what resource changes happen for both actor and target
 """
 
@@ -36,7 +36,6 @@ NUM_VIBES_FOR_TESTS = 11
 
 
 def create_two_agent_sim(
-    transfer_vibes: list[str] | None = None,
     vibe_transfers: list[VibeTransfer] | None = None,
     initial_inventory: dict[str, int] | None = None,
 ) -> Simulation:
@@ -59,7 +58,6 @@ def create_two_agent_sim(
             transfer=TransferActionConfig(
                 enabled=True,
                 vibe_transfers=vibe_transfers or [],
-                vibes=transfer_vibes or [],
             ),
         ),
         agent=AgentConfig(
@@ -83,7 +81,6 @@ class TestVibeTriggeredTransfer:
     def test_transfer_triggered_by_charger_vibe(self):
         """Test that moving into another agent triggers transfer when agent has charger vibe."""
         sim = create_two_agent_sim(
-            transfer_vibes=[CHARGER_VIBE_NAME],
             vibe_transfers=[
                 VibeTransfer(vibe=CHARGER_VIBE_NAME, target={"energy": 50}, actor={"energy": -50}),
             ],
@@ -128,7 +125,6 @@ class TestVibeTriggeredTransfer:
     def test_no_transfer_without_configured_vibe(self):
         """Test that moving into another agent does NOT trigger transfer without the right vibe."""
         sim = create_two_agent_sim(
-            transfer_vibes=[CHARGER_VIBE_NAME],
             vibe_transfers=[
                 VibeTransfer(vibe=CHARGER_VIBE_NAME, target={"energy": 50}, actor={"energy": -50}),
             ],
@@ -166,7 +162,6 @@ class TestVibeTriggeredTransfer:
     def test_transfer_with_multiple_resources(self):
         """Test that transfer can affect multiple resources."""
         sim = create_two_agent_sim(
-            transfer_vibes=[HEART_VIBE_NAME],
             vibe_transfers=[
                 VibeTransfer(
                     vibe=HEART_VIBE_NAME,
@@ -212,7 +207,6 @@ class TestVibeTriggeredTransfer:
     def test_transfer_fails_without_enough_resources(self):
         """Test that transfer fails if actor doesn't have enough resources."""
         sim = create_two_agent_sim(
-            transfer_vibes=[CHARGER_VIBE_NAME],
             vibe_transfers=[
                 VibeTransfer(vibe=CHARGER_VIBE_NAME, target={"energy": 200}, actor={"energy": -200}),
             ],
@@ -255,8 +249,8 @@ class TestVibeTriggeredTransfer:
 class TestVibeConfigValidation:
     """Test configuration validation for transfer vibes."""
 
-    def test_invalid_vibe_name_in_transfer_raises_error(self):
-        """Test that using an invalid vibe name in transfer.vibes raises an error."""
+    def test_invalid_vibe_name_in_vibe_transfers_raises_error(self):
+        """Test that using an invalid vibe name in vibe_transfers raises an error."""
         with pytest.raises(ValueError, match="Unknown vibe name"):
             game_config = GameConfig(
                 max_steps=50,
@@ -266,7 +260,9 @@ class TestVibeConfigValidation:
                     noop=NoopActionConfig(),
                     transfer=TransferActionConfig(
                         enabled=True,
-                        vibes=["nonexistent_vibe"],  # Invalid vibe name not in VIBES list
+                        vibe_transfers=[
+                            VibeTransfer(vibe="nonexistent_vibe", target={"energy": 10}),
+                        ],
                     ),
                 ),
             )
