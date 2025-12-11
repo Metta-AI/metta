@@ -1,0 +1,82 @@
+name: Create Asana task for new GitHub Issues
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  create-asana-task:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Asana Task from GitHub Issue
+        env:
+          ASANA_PERSONAL_ACCESS_TOKEN: ${{ secrets.ASANA_TOKEN }}
+          ASANA_PROJECT_GID: ${{ secrets.ASANA_BUGS_PROJECT_ID }}
+          ASANA_SECTION_GID: ${{ secrets.ASANA_BUGS_PROJECT_TRIAGE_SECTION_GID }}
+        run: |
+          # Extract data about GitHub Issue from the GitHub Actions event.
+          GITHUB_ISSUE_TITLE=$(jq -r '.issue.title' "$GITHUB_EVENT_PATH")
+          GITHUB_ISSUE_BODY=$(jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH")
+          GITHUB_ISSUE_URL=$(jq -r '.issue.html_url' "$GITHUB_EVENT_PATH")
+          GITHUB_ISSUE_AUTHOR=$(jq -r '.issue.user.login' "$GITHUB_EVENT_PATH")
+          GITHUB_ISSUE_CREATED_AT=$(jq -r '.issue.created_at' "$GITHUB_EVENT_PATH")
+          GITHUB_ISSUE_NUMBER=$(jq -r '.issue.number' "$GITHUB_EVENT_PATH")
+
+          # Link to the issue author GitHub profile.
+          GITHUB_ISSUE_AUTHOR_PROFILE_URL="https://github.com/$GITHUB_ISSUE_AUTHOR"
+
+          # Format date to human-readable format (e.g., "Jan 2, 2025")
+          GITHUB_ISSUE_CREATED_AT_FORMATTED=$(date -d "$GITHUB_ISSUE_CREATED_AT" +"%B %d, %Y")
+
+          # Handle empty body.
+          if [ -z "$GITHUB_ISSUE_BODY" ]; then
+            GITHUB_ISSUE_BODY="(No body provided)"
+          fi
+
+          # Escape HTML characters in the title and body.
+          # Must escape & first, then < and >
+          GITHUB_ISSUE_TITLE_ESCAPED=$(sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' <<< "$GITHUB_ISSUE_TITLE")
+          GITHUB_ISSUE_BODY_ESCAPED=$(sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' <<< "$GITHUB_ISSUE_BODY")
+
+          # Debug: verify escaping worked
+          echo "Original title: $GITHUB_ISSUE_TITLE"
+          echo "Escaped title: $GITHUB_ISSUE_TITLE_ESCAPED"
+          echo "Original body: $GITHUB_ISSUE_BODY"
+          echo "Escaped body: $GITHUB_ISSUE_BODY_ESCAPED"
+
+          # Format into Asana task title and HTML body.
+          ASANA_TASK_TITLE="GitHub Issue: $GITHUB_ISSUE_TITLE"
+          ASANA_TASK_BODY="<body><strong>GitHub issue:</strong> <a href=\"$GITHUB_ISSUE_URL\">#$GITHUB_ISSUE_NUMBER: $GITHUB_ISSUE_TITLE_ESCAPED</a>
+          <strong>Reported by:</strong> <a href=\"$GITHUB_ISSUE_AUTHOR_PROFILE_URL\">@$GITHUB_ISSUE_AUTHOR</a>
+          <strong>When:</strong> $GITHUB_ISSUE_CREATED_AT_FORMATTED
+
+          <blockquote>$GITHUB_ISSUE_BODY_ESCAPED</blockquote>
+          </body>"
+
+          # Build JSON payload using jq for safe escaping.
+          PAYLOAD=$(jq -n \
+            --arg name "$ASANA_TASK_TITLE" \
+            --arg html_notes "$ASANA_TASK_BODY" \
+            --arg project "$ASANA_PROJECT_GID" \
+            --arg section "$ASANA_SECTION_GID" \
+            '{
+              "data": {
+                "name": $name,
+                "html_notes": $html_notes,
+                "projects": [$project],
+                "memberships": [{
+                  "project": $project,
+                  "section": $section
+                }]
+              }
+            }'
+          )
+
+          # Print the payload for debugging.
+          echo "$PAYLOAD"
+
+          # Create Asana task.
+          curl -f -X POST https://app.asana.com/api/1.0/tasks \
+            -H "Authorization: Bearer $ASANA_PERSONAL_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"

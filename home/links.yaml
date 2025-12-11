@@ -66,6 +66,10 @@ links:
     sub_links:
       - name: README
         url: https://github.com/Metta-AI/metta/tree/main/devops/tf
+  - name: Grafana
+    url: https://grafana.softmax-research.net/
+    short_urls: [gf, grafana]
+    icon: https://img.icons8.com/?size=100&id=bMkmDxPRZAld&format=png&color=000000
   - name: AWS
     url: https://softmaxx.awsapps.com/start/
     icon: https://img.icons8.com/?size=100&id=33039&format=png&color=000000

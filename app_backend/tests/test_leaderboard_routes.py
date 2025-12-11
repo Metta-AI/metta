@@ -179,7 +179,7 @@ async def test_leaderboard_v2_users_me_route_filters_by_user(
     )
     await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
 
-    with mock.patch("metta.app_backend.config.debug_user_email", user):
+    with mock.patch("metta.app_backend.config.settings.DEBUG_USER_EMAIL", user):
         response = isolated_stats_client.get_leaderboard_policies_v2_users_me()
         entries = response.entries
         assert len(entries) == 1
