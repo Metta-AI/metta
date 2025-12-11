@@ -39,7 +39,7 @@ class PufferPolicy(Policy):
         self.config = config or PufferPolicyConfig()
         self.is_continuous = False
         self.action_space = policy_env_info.action_space
-
+        # Set observation dimensions for LSTM output reshaping (required before forward() uses these attributes)
         self.out_width = policy_env_info.obs_width
         self.out_height = policy_env_info.obs_height
 
