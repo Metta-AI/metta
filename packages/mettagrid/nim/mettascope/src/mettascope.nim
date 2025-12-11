@@ -2,7 +2,7 @@ import
   std/[strutils, strformat, os, parseopt, json],
   opengl, windy, bumpy, vmath, chroma, silky, boxy, webby,
   mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
-  footer, timeline]
+  footer, timeline, minimap]
 
 # Build the atlas.
 var builder = newAtlasBuilder(1024, 4)
@@ -112,7 +112,6 @@ proc drawWorldMap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: 
   drawWorldMap(worldMapZoomInfo)
   glDisable(GL_SCISSOR_TEST)
 
-
 proc drawMinimap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
   ## Draw the minimap.
   glEnable(GL_SCISSOR_TEST)
@@ -122,7 +121,7 @@ proc drawMinimap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: V
   minimapZoomInfo.rect = irect(contentPos.x, contentPos.y, contentSize.x, contentSize.y)
   # Adjust zoom info and draw the minimap.
   minimapZoomInfo.hasMouse = false
-  drawWorldMap(minimapZoomInfo)
+  drawMinimap(minimapZoomInfo)
 
   glDisable(GL_SCISSOR_TEST)
 
