@@ -63,78 +63,60 @@ proc parseUrlParams() =
   commandLineReplay = url.query["replay"]
 
 when defined(emscripten):
-  # include for EMSCRIPTEN_KEEPALIVE
   {.emit: """
   #include <emscripten.h>
   """.}
 
-  # PostMessage handler for receiving replay data from Jupyter notebooks
   {.emit: """
   EM_JS(void, setup_postmessage_replay_handler_internal, (void* userData), {
-    // Validate origin helper function
+    // Check if the message origin is from an allowed source.
     function isValidOrigin(origin) {
-      // Allow Google Colab
-      if (origin === 'https://colab.research.google.com') {
+      console.log("detected origin: ", origin);
+      // Google Colab uses *.googleusercontent.com domains.
+      if (origin.includes('-colab.googleusercontent.com')) {
         return true;
       }
-      // Allow localhost variants (http and https, any port)
-      if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')) {
-        return true;
-      }
-      // Allow 127.0.0.1 variants
-      if (origin.startsWith('http://127.0.0.1:') || origin.startsWith('https://127.0.0.1:')) {
+      // Localhost and 127.0.0.1 variants (http and https, any port).
+      if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')
+        || origin.startsWith('http://127.0.0.1:') || origin.startsWith('https://127.0.0.1:')) {
         return true;
       }
       return false;
     }
 
+    // Listen for postMessage events from parent windows (Jupyter notebooks).
     window.addEventListener('message', function(event) {
-      // Validate origin for security
-      console.log("Received postMessage from origin:", event.origin);
-      if (!isValidOrigin(event.origin)) {
-        console.log('Ignoring postMessage from invalid origin:', event.origin);
+      if (!isValidOrigin(event.origin) || !event.data || event.data.type !== 'replayData') {
         return;
       }
 
-      // Only process messages with the expected type
-      if (!event.data || event.data.type !== 'replayData') {
-        return;
-      }
-
-      // Get base64 string from message
       const base64Data = event.data.base64;
       if (!base64Data || typeof base64Data !== 'string') {
-        console.error('Invalid replayData: base64 field missing or not a string');
         return;
       }
 
       try {
-        // Decode base64 to binary string
+        // Decode base64 to binary string.
         const binaryString = atob(base64Data);
         const binaryLength = binaryString.length;
-
-        // Allocate memory for the binary data
         const binaryPtr = _malloc(binaryLength);
-        if (!binaryPtr) {
-          console.error('Failed to allocate memory for replay data');
-          return;
-        }
+        if (!binaryPtr) return;
 
-        // Copy binary string to heap
+        // Copy binary data to heap.
         for (let i = 0; i < binaryLength; i++) {
           HEAPU8[binaryPtr + i] = binaryString.charCodeAt(i);
         }
 
-        // Get filename from message data or use default
+        // Allocate and copy filename.
         const fileName = event.data.fileName || 'replay_from_notebook.json.z';
         const fileNameLen = lengthBytesUTF8(fileName) + 1;
         const fileNamePtr = _malloc(fileNameLen);
         stringToUTF8(fileName, fileNamePtr, fileNameLen);
 
-        // Call the Nim callback
+        // Call the Nim callback with the replay data.
         Module._mettascope_postmessage_replay_callback(userData, fileNamePtr, binaryPtr, binaryLength);
 
-        // Free allocated memory
+        // Free allocated memory.
         _free(fileNamePtr);
         _free(binaryPtr);
       } catch (error) {
@@ -145,28 +127,23 @@ when defined(emscripten):
   """.}
 
   proc setup_postmessage_replay_handler_internal*(userData: pointer) {.importc.}
+    ## Set up postMessage listener for receiving replay data from Jupyter notebooks.
 
   proc mettascope_postmessage_replay_callback(userData: pointer, fileNamePtr: cstring, binaryPtr: pointer, binaryLen: cint) {.exportc, cdecl, codegenDecl: "EMSCRIPTEN_KEEPALIVE $# $#$#".} =
-    ## Callback to handle postMessage replay data.
+    ## Callback to handle postMessage replay data from JavaScript.
     ## EMSCRIPTEN_KEEPALIVE is required to avoid dead code elimination.
-    
-    # Convert the JS data into Nim data
     let fileName = $fileNamePtr
     var fileData = newString(binaryLen)
     if binaryLen > 0:
       copyMem(fileData[0].addr, binaryPtr, binaryLen)
     
-    # Process the replay data
-    echo "Received replay via postMessage: ", fileName, " (", fileData.len, " bytes)"
     if fileName.endsWith(".json.z"):
       try:
         common.replay = loadReplay(fileData, fileName)
         onReplayLoaded()
-        echo "Successfully loaded replay from postMessage: ", fileName
+        echo "Loaded replay from postMessage: ", fileName
       except:
-        echo "Error loading replay from postMessage: ", getCurrentExceptionMsg()
-    else:
-      echo "Ignoring postMessage data (not .json.z): ", fileName
+        echo "Error loading replay: ", getCurrentExceptionMsg()
 
 find "/UI/Main":
 
