@@ -174,27 +174,23 @@ class PufferPolicy(Policy):
         lstm_input = encoded_obs.unsqueeze(0)
         batch_size = encoded_obs.shape[0]
 
-        # Initialize state if None or batch size changed
-        # During training, state is reset at the start of each minibatch via reset_memory(),
-        # so state should be None here. During rollout, state persists across steps.
+        # Initialize LSTM state if None or batch size changed (training resets state per minibatch, rollout persists)
         if self._hidden_state is None or self._cell_state is None:
             device = encoded_obs.device
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)
         elif self._hidden_state.shape[1] != batch_size:
-            # Batch size changed (e.g., different minibatch size during training)
-            # Reinitialize state for the new batch size
+            # Reinitialize state when batch size changes (e.g., different minibatch sizes during training)
             device = encoded_obs.device
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)
 
-        # Reset LSTM state for agents whose episodes have ended
-        # This is critical: stale memory from previous episodes prevents learning
+        # Reset LSTM state for agents whose episodes ended to prevent stale memory from interfering with new episodes
         dones = td.get("dones", None)
         truncateds = td.get("truncateds", None)
         if dones is not None and truncateds is not None:
             reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
-            # Reset hidden and cell states to zero for ended episodes
+            # Zero out LSTM states for ended episodes using mask (only affects agents with dones/truncateds=True)
             self._hidden_state = self._hidden_state.masked_fill(reset_mask, 0.0)
             self._cell_state = self._cell_state.masked_fill(reset_mask, 0.0)
 

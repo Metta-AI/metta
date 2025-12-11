@@ -16,7 +16,9 @@ echo "  - Node index: $NODE_INDEX"
 echo "  - Arguments: $*"
 
 export PYTHONUNBUFFERED=1
-export PYTHONPATH=${PYTHONPATH:-}:$(pwd)
+# Get repo root (this script is in devops/, so parent dir is repo root)
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH=${PYTHONPATH:-}:${REPO_ROOT}
 export PYTHONOPTIMIZE=1
 export WANDB_DIR="./wandb"
 export DATA_DIR=${DATA_DIR:-./train_dir}

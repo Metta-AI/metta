@@ -31,7 +31,7 @@ class CurriculumEnv(PufferEnv):
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
 
-        # Track previous task ID to detect task changes for LSTM state reset
+        # Track previous task ID to detect curriculum task changes and trigger LSTM state reset when tasks switch
         self._previous_task_id = self._current_task._task_id
 
         # Stats batching configuration - updating stats too frequently is an SPS hit
@@ -71,7 +71,7 @@ class CurriculumEnv(PufferEnv):
         # Get a new task from curriculum
         new_task = self._curriculum.get_task()
 
-        # Detect task change for LSTM state reset
+        # Compare task IDs to detect when curriculum switches to a different task (fixes ICL LSTM collapse)
         task_changed = new_task._task_id != self._previous_task_id
         self._previous_task_id = new_task._task_id
         self._current_task = new_task
@@ -79,7 +79,7 @@ class CurriculumEnv(PufferEnv):
         self._env.set_mg_config(self._current_task.get_env_cfg())
         obs, info = self._env.reset(*args, **kwargs)
 
-        # Signal task change in info dict for LSTM state reset during rollout
+        # Signal task change via info dict so rollout phase can reset LSTM state before policy inference
         if task_changed and isinstance(info, dict):
             info["_task_changed"] = True
 
@@ -110,7 +110,7 @@ class CurriculumEnv(PufferEnv):
             # Update the curriculum algorithm with task performance for learning progress
             self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
 
-            # Get new task and detect task change for LSTM state reset
+            # Detect task change when episode ends and curriculum selects new task (prevents LSTM memory conflicts)
             new_task = self._curriculum.get_task()
             task_changed = new_task._task_id != self._previous_task_id
             self._previous_task_id = new_task._task_id
@@ -118,7 +118,7 @@ class CurriculumEnv(PufferEnv):
 
             self._env.set_mg_config(self._current_task.get_env_cfg())
 
-            # Signal task change in info dict for LSTM state reset during rollout
+            # Set _task_changed flag in all agent info dicts to trigger LSTM state reset in rollout phase
             if task_changed:
                 # infos can be a list of dicts or a dict, handle both cases
                 if isinstance(infos, list):

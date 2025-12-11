@@ -126,10 +126,7 @@ class GRPO(Loss):
         """GRPO training loop with group-based advantage estimation."""
         config = self.cfg
         stop_update_epoch = False
-        # Reset LSTM state at the start of each training minibatch.
-        # Each minibatch sequence should start fresh, but state is maintained
-        # across the sequence within that minibatch (handled by forward()).
-        # Episode boundaries are handled via dones/truncateds in forward().
+        # Reset LSTM state at minibatch start so sequences start fresh (state persists within minibatch)
         self.policy.reset_memory()
         self.burn_in_steps_iter = 0
 
