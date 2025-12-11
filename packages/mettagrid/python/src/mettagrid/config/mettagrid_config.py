@@ -201,19 +201,43 @@ class ChangeVibeActionConfig(ActionConfig):
         return Action(name=f"change_vibe_{vibe.name}")
 
 
+class AttackOutcome(Config):
+    """Outcome configuration for successful attack."""
+
+    actor_inv_delta: dict[str, int] = Field(
+        default_factory=dict,
+        description="Inventory changes for attacker. Maps resource name to delta.",
+    )
+    target_inv_delta: dict[str, int] = Field(
+        default_factory=dict,
+        description="Inventory changes for target. Maps resource name to delta.",
+    )
+    loot: list[str] = Field(
+        default_factory=list,
+        description="Resources to steal from target.",
+    )
+    freeze: int = Field(
+        default=0,
+        description="Freeze duration (0 = no freeze).",
+    )
+
+
 class AttackActionConfig(ActionConfig):
     """Python attack action configuration.
+
+    Attack is triggered by moving onto another agent (when vibes match).
+    No standalone attack actions are created.
 
     Enhanced attack system with armor/weapon modifiers:
     - defense_resources: Base resources needed to block an attack
     - armor_resources: Target's resources that reduce incoming damage (weighted)
     - weapon_resources: Attacker's resources that increase damage (weighted)
-    - loot: Configurable list of resources to steal (or steal all if None, steal nothing if empty)
+    - success: Outcome when attack succeeds (actor/target inventory changes, freeze)
+    - vibe_bonus: Per-vibe armor bonus when vibing a matching resource
 
     Defense calculation:
     - weapon_power = sum(attacker_inventory[item] * weapon_weight)
-    - armor_power = sum(target_inventory[item] * armor_weight)
-    - Note: Vibing a resource that's in armor_resources gives +1 effective armor for that resource
+    - armor_power = sum(target_inventory[item] * armor_weight) + vibe_bonus[target_vibe] if vibing
     - damage_bonus = max(weapon_power - armor_power, 0)
     - cost_to_defend = defense_resources + damage_bonus
     """
@@ -228,23 +252,22 @@ class AttackActionConfig(ActionConfig):
         default_factory=dict,
         description="Resources on attacker that increase damage. Maps resource name to weight.",
     )
-    loot: Optional[list[str]] = Field(
-        default=None,
-        description="Resources to steal (in order). None=steal all, []=steal nothing.",
-    )
-    target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
-        default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    success: AttackOutcome = Field(
+        default_factory=AttackOutcome,
+        description="Outcome when attack succeeds.",
     )
     vibes: list[str] = Field(
         default_factory=list,
         description="Vibe names that trigger attack on move (e.g., ['weapon'])",
     )
+    vibe_bonus: dict[str, int] = Field(
+        default_factory=dict,
+        description="Per-vibe armor bonus. Maps vibe name to bonus amount.",
+    )
 
     def _actions(self) -> list[Action]:
-        return [self.Attack(location) for location in self.target_locations]
-
-    def Attack(self, location: Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]) -> Action:
-        return Action(name=f"attack_{location}")
+        # Attack only triggers via move, no standalone actions
+        return []
 
 
 class VibeTransfer(Config):
