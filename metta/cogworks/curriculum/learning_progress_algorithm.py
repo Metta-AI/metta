@@ -132,11 +132,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._outcomes: Dict[int, List[float]] = {}
         self._counter: Dict[int, int] = {}
 
-        # Per-task EMA dictionaries (replaces parallel arrays)
+        # Per-task EMA dictionaries
         self._per_task_fast: Dict[int, float] = {}
         self._per_task_slow: Dict[int, float] = {}
-
-        # No array caches: per-task only
 
     def _init_basic_scoring(self):
         """Initialize basic EMA tracking (fallback method)."""
@@ -430,15 +428,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         learning_progress_array = self._learning_progress()
         mean_learning_progress = float(np.mean(learning_progress_array)) if len(learning_progress_array) > 0 else 0.0
 
-        stats = {
+        return {
             "num_tracked_tasks": float(len(self._outcomes)),
             "mean_task_success_rate": float(
                 np.mean([np.mean(vals) if vals else DEFAULT_SUCCESS_RATE for vals in self._outcomes.values()])
             ),
             "mean_learning_progress": mean_learning_progress,
         }
-
-        return stats
 
     def _get_basic_detailed_stats(self) -> Dict[str, float]:
         """Get detailed basic learning progress statistics."""
@@ -468,8 +464,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         }
 
     # Bidirectional learning progress implementation (integrated from modules)
-
-
     def _learning_progress(self) -> np.ndarray:
         """Calculate learning progress per task from per-task EMAs (no cached arrays)."""
         if not self._outcomes:
