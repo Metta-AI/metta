@@ -17,6 +17,7 @@ from typing import Annotated
 
 import typer
 
+from devops.stable.asana_bugs import check_blockers
 from devops.stable.registry import Suite, discover_jobs, specs_to_jobs
 from devops.stable.runner import Job, Runner, print_summary
 from metta.common.util.collections import group_by
@@ -105,6 +106,16 @@ def main(
     suite: Annotated[Suite | None, typer.Option(help="Which jobs to run: ci, stable, or all")] = None,
 ):
     """Run job validation."""
+    if suite != Suite.CI:
+        print("Checking for blocking bugs in Asana...")
+        blocker_result = check_blockers()
+        if blocker_result is False:
+            print("\nBlocking bugs found. Fix them before releasing.")
+            sys.exit(1)
+        elif blocker_result is None:
+            print("Asana check skipped (not configured or unavailable)")
+        print()
+
     version = generate_version()
     user = os.environ.get("USER", "unknown")
     prefix = f"{user}.{suite or 'all'}.{version}"
