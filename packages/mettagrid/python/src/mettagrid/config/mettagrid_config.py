@@ -230,7 +230,7 @@ class AttackActionConfig(ActionConfig):
     )
     loot: Optional[list[str]] = Field(
         default=None,
-        description="List of resources to steal (in order). If None, steal all resources. If empty list, steal nothing.",
+        description="Resources to steal (in order). None=steal all, []=steal nothing.",
     )
     target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
         default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
