@@ -114,7 +114,6 @@ class SlicedKickstarter(Loss):
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = teacher_actions[self.teacher_mask]
 
-
     def run_train(
         self,
         shared_loss_data: TensorDict,

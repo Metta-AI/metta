@@ -84,7 +84,6 @@ class SlicedScriptedCloner(Loss):
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = td["teacher_actions"].to(td["actions"].dtype)[self.teacher_mask]
 
-
     def run_train(
         self,
         shared_loss_data: TensorDict,
