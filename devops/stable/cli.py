@@ -18,7 +18,8 @@ from typing import Annotated
 import typer
 
 from devops.stable.registry import Suite, discover_jobs, specs_to_jobs
-from devops.stable.runner import Runner, print_summary
+from devops.stable.runner import Job, Runner, print_summary
+from metta.common.util.collections import group_by
 
 app = typer.Typer(add_completion=False, invoke_without_command=True)
 
@@ -31,14 +32,17 @@ def generate_version() -> str:
     return datetime.now().strftime("%Y.%m.%d-%H%M%S")
 
 
+def _jobs_by_status(jobs: list[Job]) -> dict[str, list[Job]]:
+    return group_by(jobs, lambda j: j.status.value)
+
+
 def write_github_summary(runner: Runner) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
 
-    succeeded = [j for j in runner.jobs.values() if j.status.value == "succeeded"]
-    failed = [j for j in runner.jobs.values() if j.status.value == "failed"]
-    skipped = [j for j in runner.jobs.values() if j.status.value == "skipped"]
+    by_status = _jobs_by_status(list(runner.jobs.values()))
+    succeeded, failed, skipped = by_status["succeeded"], by_status["failed"], by_status["skipped"]
 
     lines = [
         "# Stable Release Validation",
@@ -73,9 +77,8 @@ def write_github_summary(runner: Runner) -> None:
 
 
 def write_discord_summary(runner: Runner, state_dir: Path) -> None:
-    succeeded = [j for j in runner.jobs.values() if j.status.value == "succeeded"]
-    failed = [j for j in runner.jobs.values() if j.status.value == "failed"]
-    skipped = [j for j in runner.jobs.values() if j.status.value == "skipped"]
+    by_status = _jobs_by_status(list(runner.jobs.values()))
+    succeeded, failed, skipped = by_status["succeeded"], by_status["failed"], by_status["skipped"]
 
     lines = [
         f"**Jobs**: {len(succeeded)} passed, {len(failed)} failed, {len(skipped)} skipped",

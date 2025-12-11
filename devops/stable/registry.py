@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import importlib
-import os
 import pkgutil
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import StrEnum
 from typing import Callable, get_type_hints
 
@@ -16,12 +14,6 @@ from metta.tools.train import TrainTool
 class Suite(StrEnum):
     CI = "ci"
     STABLE = "stable"
-
-
-def get_user_timestamp() -> str:
-    user = os.environ.get("USER", "unknown")
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return f"{user}.{timestamp}"
 
 
 @dataclass
