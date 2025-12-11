@@ -1,26 +1,28 @@
 resources:
-  cloud: aws
-  any_of:
-    - region: us-east-1
-      use_spot: true
-      accelerators: "L4:1"
-    - region: us-east-1
-      use_spot: true
-      accelerators: "A10G:1"
-    - region: us-east-1
-      accelerators: "L4:1"
-    - region: us-east-1
-      accelerators: "A10G:1"
-    - region: us-west-2
-      use_spot: true
-      accelerators: "L4:1"
-    - region: us-west-2
-      use_spot: true
-      accelerators: "A10G:1"
-    - region: us-west-2
-      accelerators: "L4:1"
-    - region: us-west-2
-      accelerators: "A10G:1"
+  accelerators:
+    - "L4:1"
+  # cloud: aws
+  # any_of:
+  #   - region: us-east-1
+  #     use_spot: true
+  #     accelerators: "L4:1"
+  #   - region: us-east-1
+  #     use_spot: true
+  #     accelerators: "A10G:1"
+  #   - region: us-east-1
+  #     accelerators: "L4:1"
+  #   - region: us-east-1
+  #     accelerators: "A10G:1"
+  #   - region: us-west-2
+  #     use_spot: true
+  #     accelerators: "L4:1"
+  #   - region: us-west-2
+  #     use_spot: true
+  #     accelerators: "A10G:1"
+  #   - region: us-west-2
+  #     accelerators: "L4:1"
+  #   - region: us-west-2
+  #     accelerators: "A10G:1"
   cpus: 8+
   image_id: docker:metta:latest
   job_recovery:
@@ -35,13 +37,24 @@ config:
       - --ipc=host
       - --userns=host
 
-file_mounts:
-  /mnt/s3/softmax-public:
-    source: s3://softmax-public
-    mode: MOUNT_CACHED
-  /mnt/s3/train_dir:
-    source: s3://softmax-train-dir
-    mode: MOUNT_CACHED
+  kubernetes:
+    pod_config:
+      spec:
+        tolerations:
+          key: workload-type
+          operator: Equal
+          value: skypilot
+          effect: NoSchedule
+        nodeSelector:
+          workload-type: skypilot
+
+# file_mounts:
+#   /mnt/s3/softmax-public:
+#     source: s3://softmax-public
+#     mode: MOUNT_CACHED
+#   /mnt/s3/train_dir:
+#     source: s3://softmax-train-dir
+#     mode: MOUNT_CACHED
 
 # `set -u`: Exit on undefined variables to catch missing env vars early
 setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")

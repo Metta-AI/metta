@@ -1,19 +1,21 @@
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
-  name: eval-worker-nodepool
+  name: skypilot-nodepool
 spec:
   disruption:
     budgets:
     - nodes: 10%
     consolidateAfter: 15m
     consolidationPolicy: WhenEmpty
+  replicas: 2
   template:
     metadata:
       labels:
-        workload-type: eval-worker
+        workload-type: skypilot
+        skypilot.co/accelerator: l4
     spec:
-      expireAfter: 336h
+      expireAfter: 2h
       nodeClassRef:
         group: eks.amazonaws.com
         kind: NodeClass
@@ -23,19 +25,11 @@ spec:
         operator: In
         values:
         - on-demand
-      - key: eks.amazonaws.com/instance-category
+      - key: node.kubernetes.io/instance-type
         operator: In
         values:
-        - c
-        - m
-        - r
-      - key: "eks.amazonaws.com/instance-cpu"
-        operator: In
-        values: ["4", "8"]
-      - key: eks.amazonaws.com/instance-generation
-        operator: Gt
-        values:
-        - "4"
+        - g5.2xlarge   # 8 vCPUs, 1 A10G GPU
+        - g6.2xlarge   # 8 vCPUs, 1 L4 GPU
       - key: kubernetes.io/arch
         operator: In
         values:
@@ -44,8 +38,8 @@ spec:
         operator: In
         values:
         - linux
-      terminationGracePeriod: 24h0m0s
+      terminationGracePeriod: 1h0m0s
       taints:
       - key: workload-type
-        value: eval-worker
+        value: skypilot
         effect: NoSchedule
