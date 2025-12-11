@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
@@ -81,31 +82,55 @@ class Runner:
         self.logs_dir = self.state_dir / "logs"
         self.logs_dir.mkdir(exist_ok=True)
         self.jobs: dict[str, Job] = {}
+        self._executor: ThreadPoolExecutor | None = None
+        self._futures: dict[Future, Job] = {}
+        self._output_lock = threading.Lock()
 
     def add_job(self, job: Job) -> None:
         self.jobs[job.name] = job
 
     def run_all(self) -> dict[str, Job]:
         """Run all jobs, respecting dependencies. Returns final job states."""
-        while True:
-            pending = [j for j in self.jobs.values() if j.status == JobStatus.PENDING]
-            running = [j for j in self.jobs.values() if j.status == JobStatus.RUNNING]
+        self._executor = ThreadPoolExecutor(max_workers=32)
+        self._futures = {}
 
-            if not pending and not running:
-                break
+        try:
+            while True:
+                self._check_completed_futures()
 
-            ready = self._get_ready_jobs(pending)
-            if ready:
-                self._start_jobs(ready)
+                pending = [j for j in self.jobs.values() if j.status == JobStatus.PENDING]
+                running = [j for j in self.jobs.values() if j.status == JobStatus.RUNNING]
 
-            if running:
-                self._poll_remote_jobs()
+                if not pending and not running:
+                    break
 
-            if not ready and running:
-                time.sleep(5)
+                ready = self._get_ready_jobs(pending)
+                for job in ready:
+                    self._start_job(job)
+
+                remote_running = [j for j in running if j.is_remote]
+                if remote_running:
+                    self._poll_remote_jobs()
+                    time.sleep(5)
+                elif self._futures:
+                    time.sleep(0.1)
+        finally:
+            self._executor.shutdown(wait=True)
+            self._executor = None
 
         self._fetch_metrics_and_evaluate()
         return self.jobs
+
+    def _check_completed_futures(self) -> None:
+        completed = [f for f in self._futures if f.done()]
+        for future in completed:
+            job = self._futures.pop(future)
+            try:
+                future.result()
+            except Exception as e:
+                if job.status == JobStatus.RUNNING:
+                    job.status = JobStatus.FAILED
+                    job.error = str(e)
 
     def _get_ready_jobs(self, pending: list[Job]) -> list[Job]:
         ready = []
@@ -130,42 +155,57 @@ class Runner:
                 ready.append(job)
         return ready
 
-    def _start_jobs(self, jobs: list[Job]) -> None:
-        local_jobs = [j for j in jobs if not j.is_remote]
-        remote_jobs = [j for j in jobs if j.is_remote]
+    def _start_job(self, job: Job) -> None:
+        if job.is_remote:
+            future = self._executor.submit(self._launch_remote_job, job)
+        else:
+            future = self._executor.submit(self._run_local_job, job)
+        self._futures[future] = job
 
-        with ThreadPoolExecutor(max_workers=len(jobs) or 1) as executor:
-            futures = {}
-            for job in local_jobs:
-                futures[executor.submit(self._run_local_job, job)] = job
-            for job in remote_jobs:
-                futures[executor.submit(self._launch_remote_job, job)] = job
-
-            for future in as_completed(futures):
-                job = futures[future]
-                try:
-                    future.result()
-                except Exception as e:
-                    job.status = JobStatus.FAILED
-                    job.error = str(e)
+    def _print(self, msg: str) -> None:
+        with self._output_lock:
+            print(msg, flush=True)
 
     def _run_local_job(self, job: Job) -> None:
         job.status = JobStatus.RUNNING
         job.started_at = datetime.now().isoformat()
         job.logs_path = str(self.logs_dir / f"{job.name}.log")
 
-        print(f"[{job.name}] Starting: {' '.join(job.cmd)}")
+        self._print(f"[{job.name}] Starting: {' '.join(job.cmd)}")
 
         try:
             with open(job.logs_path, "w") as log_file:
-                result = subprocess.run(
+                proc = subprocess.Popen(
                     job.cmd,
-                    stdout=log_file,
+                    stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    timeout=job.timeout_s,
                     cwd=os.getcwd(),
+                    text=True,
+                    bufsize=1,
                 )
-                job.exit_code = result.returncode
+
+                deadline = time.time() + job.timeout_s
+                while proc.poll() is None:
+                    if time.time() > deadline:
+                        proc.terminate()
+                        try:
+                            proc.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                        raise subprocess.TimeoutExpired(job.cmd, job.timeout_s)
+
+                    line = proc.stdout.readline()
+                    if line:
+                        log_file.write(line)
+                        log_file.flush()
+                        self._print(f"[{job.name}] {line.rstrip()}")
+
+                for line in proc.stdout:
+                    log_file.write(line)
+                    log_file.flush()
+                    self._print(f"[{job.name}] {line.rstrip()}")
+
+                job.exit_code = proc.returncode
         except subprocess.TimeoutExpired:
             job.exit_code = 124
             job.error = f"Timeout after {job.timeout_s}s"
@@ -179,7 +219,8 @@ class Runner:
         ).total_seconds()
         job.status = JobStatus.SUCCEEDED if job.exit_code == 0 else JobStatus.FAILED
 
-        print(f"[{job.name}] exit_code={job.exit_code}")
+        status_icon = "PASSED" if job.exit_code == 0 else "FAILED"
+        self._print(f"[{job.name}] {status_icon} (exit_code={job.exit_code}, duration={job.duration_s:.0f}s)")
 
     def _launch_remote_job(self, job: Job) -> None:
         job.status = JobStatus.RUNNING
@@ -188,7 +229,7 @@ class Runner:
         remote = job.remote or {}
         gpus = remote.get("gpus", 1)
 
-        print(f"[{job.name}] Launching remote: gpus={gpus}")
+        self._print(f"[{job.name}] Launching remote: gpus={gpus}")
 
         try:
             result = subprocess.run(
@@ -201,6 +242,7 @@ class Runner:
                 job.status = JobStatus.FAILED
                 job.exit_code = result.returncode
                 job.error = result.stderr
+                self._print(f"[{job.name}] FAILED to launch: {result.stderr}")
                 return
 
             for line in result.stdout.split("\n"):
@@ -208,19 +250,19 @@ class Runner:
                     job.skypilot_job_id = line.split(":")[-1].strip()
                     break
 
-            print(f"[{job.name}] Launched: job_id={job.skypilot_job_id}")
+            self._print(f"[{job.name}] Launched: job_id={job.skypilot_job_id}")
 
         except Exception as e:
             job.status = JobStatus.FAILED
             job.exit_code = 1
             job.error = str(e)
+            self._print(f"[{job.name}] FAILED to launch: {e}")
 
     def _poll_remote_jobs(self) -> None:
         remote_running = [j for j in self.jobs.values() if j.status == JobStatus.RUNNING and j.is_remote]
         if not remote_running:
             return
 
-        # Check for timeouts first
         now = datetime.now()
         for job in remote_running:
             if job.started_at:
@@ -231,7 +273,7 @@ class Runner:
                     job.completed_at = now.isoformat()
                     job.duration_s = elapsed
                     job.error = f"Timeout after {job.timeout_s}s"
-                    # Cancel the SkyPilot job
+                    self._print(f"[{job.name}] TIMEOUT after {job.timeout_s}s")
                     if job.skypilot_job_id:
                         try:
                             subprocess.run(
@@ -243,7 +285,6 @@ class Runner:
                             pass
                     continue
 
-        # Re-filter after timeout checks
         remote_running = [j for j in self.jobs.values() if j.status == JobStatus.RUNNING and j.is_remote]
         if not remote_running:
             return
@@ -268,30 +309,33 @@ class Runner:
 
                 sky_job = status_by_id.get(job.skypilot_job_id)
                 if not sky_job:
-                    # Job disappeared from queue - mark as failed
                     job.status = JobStatus.FAILED
                     job.exit_code = 1
                     job.completed_at = datetime.now().isoformat()
                     job.error = "Job disappeared from SkyPilot queue"
+                    self._print(f"[{job.name}] FAILED: Job disappeared from SkyPilot queue")
                 else:
                     sky_status = sky_job.get("status", "").upper()
                     if sky_status == "SUCCEEDED":
                         job.status = JobStatus.SUCCEEDED
                         job.exit_code = 0
                         job.completed_at = datetime.now().isoformat()
+                        job.duration_s = (
+                            datetime.fromisoformat(job.completed_at) - datetime.fromisoformat(job.started_at)
+                        ).total_seconds()
+                        self._print(f"[{job.name}] PASSED (duration={job.duration_s:.0f}s)")
                     elif sky_status in ("FAILED", "FAILED_SETUP", "CANCELLED"):
                         job.status = JobStatus.FAILED
                         job.exit_code = 1
                         job.completed_at = datetime.now().isoformat()
                         job.error = f"SkyPilot status: {sky_status}"
-
-                if job.completed_at and job.started_at:
-                    job.duration_s = (
-                        datetime.fromisoformat(job.completed_at) - datetime.fromisoformat(job.started_at)
-                    ).total_seconds()
+                        job.duration_s = (
+                            datetime.fromisoformat(job.completed_at) - datetime.fromisoformat(job.started_at)
+                        ).total_seconds()
+                        self._print(f"[{job.name}] FAILED: {sky_status} (duration={job.duration_s:.0f}s)")
 
         except Exception as e:
-            print(f"Warning: Failed to poll SkyPilot jobs: {e}")
+            self._print(f"Warning: Failed to poll SkyPilot jobs: {e}")
 
     def _fetch_metrics_and_evaluate(self) -> None:
         for job in self.jobs.values():
