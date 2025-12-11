@@ -303,7 +303,7 @@ class TestSpecialActions:
     """Tests for special action types."""
 
     def test_attack_action_registration(self, basic_config, simple_map):
-        """Test that attack action is properly registered when enabled."""
+        """Test that attack does NOT create standalone actions (attack triggers via move only)."""
         config = GameConfig(
             resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
@@ -323,17 +323,13 @@ class TestSpecialActions:
         sim = create_sim(config, simple_map, 42)
         action_names = sim.action_names
 
-        # Attack variants should be present
+        # Attack only triggers via move, no standalone attack actions
         attack_actions = [name for name in action_names if name.startswith("attack_")]
-        assert len(attack_actions) == 9, f"Expected 9 attack variants, found {attack_actions}"
+        assert len(attack_actions) == 0, f"Expected no attack variants (attack via move only), found {attack_actions}"
 
-        # Verify noop is first, followed by move and attack actions
+        # Verify noop is first, followed by move actions
         assert action_names[0] == "noop", "Noop should always be first"
         assert any(name.startswith("move_") for name in action_names), "Should have move actions"
-
-        # All attack variants should be present (1-9, corresponding to grid positions)
-        for i in range(1, 10):
-            assert f"attack_{i}" in action_names, f"Should have attack_{i}"
 
 
 class TestResourceOrdering:

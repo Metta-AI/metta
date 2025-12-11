@@ -18,32 +18,48 @@
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 
-// Attack takes an argument 0-8, which is the index of the target agent to attack.
-// Target agents are those found in a 3x3 grid in front of the agent, indexed in scan order.
-// If the argument (agent index to attack) > num_agents, the last agent is attacked.
+// Outcome configuration for attack success
+struct AttackOutcome {
+  std::unordered_map<InventoryItem, InventoryDelta> actor_inv_delta;   // Inventory changes for attacker
+  std::unordered_map<InventoryItem, InventoryDelta> target_inv_delta;  // Inventory changes for target
+  std::vector<InventoryItem> loot;                                     // Resources to steal from target
+  int freeze;                                                          // Freeze duration (0 = no freeze)
+
+  AttackOutcome(const std::unordered_map<InventoryItem, InventoryDelta>& actor_inv_delta = {},
+                const std::unordered_map<InventoryItem, InventoryDelta>& target_inv_delta = {},
+                const std::vector<InventoryItem>& loot = {},
+                int freeze = 0)
+      : actor_inv_delta(actor_inv_delta), target_inv_delta(target_inv_delta), loot(loot), freeze(freeze) {}
+};
+
+// Attack is triggered by moving onto another agent (when vibes match).
+// No standalone attack actions are created - attack only happens via move.
 struct AttackActionConfig : public ActionConfig {
   std::unordered_map<InventoryItem, InventoryQuantity> defense_resources;
   std::unordered_map<InventoryItem, InventoryQuantity> armor_resources;
   std::unordered_map<InventoryItem, InventoryQuantity> weapon_resources;
-  std::optional<std::vector<InventoryItem>> loot;
+  AttackOutcome success;  // Outcome when attack succeeds
   bool enabled;
-  std::vector<ObservationType> vibes;  // Vibes that trigger this action on move
+  std::vector<ObservationType> vibes;                   // Vibes that trigger this action on move
+  std::unordered_map<ObservationType, int> vibe_bonus;  // Per-vibe armor bonus
 
   AttackActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources,
                      const std::unordered_map<InventoryItem, InventoryQuantity>& consumed_resources,
                      const std::unordered_map<InventoryItem, InventoryQuantity>& defense_resources,
                      const std::unordered_map<InventoryItem, InventoryQuantity>& armor_resources,
                      const std::unordered_map<InventoryItem, InventoryQuantity>& weapon_resources,
-                     const std::optional<std::vector<InventoryItem>>& loot = std::nullopt,
+                     const AttackOutcome& success = AttackOutcome(),
                      bool enabled = true,
-                     const std::vector<ObservationType>& vibes = {})
+                     const std::vector<ObservationType>& vibes = {},
+                     const std::unordered_map<ObservationType, int>& vibe_bonus = {})
       : ActionConfig(required_resources, consumed_resources),
         defense_resources(defense_resources),
         armor_resources(armor_resources),
         weapon_resources(weapon_resources),
-        loot(loot),
+        success(success),
         enabled(enabled),
-        vibes(vibes) {}
+        vibes(vibes),
+        vibe_bonus(vibe_bonus) {}
 };
 
 class Attack : public ActionHandler {
@@ -55,10 +71,11 @@ public:
         _defense_resources(cfg.defense_resources),
         _armor_resources(cfg.armor_resources),
         _weapon_resources(cfg.weapon_resources),
-        _loot(cfg.loot),
+        _success(cfg.success),
         _game_config(game_config),
         _enabled(cfg.enabled),
-        _vibes(cfg.vibes) {
+        _vibes(cfg.vibes),
+        _vibe_bonus(cfg.vibe_bonus) {
     priority = 1;
   }
 
@@ -68,14 +85,8 @@ public:
   }
 
   std::vector<Action> create_actions() override {
-    std::vector<Action> actions;
-    if (_enabled) {
-      // Attack is enabled - create actions
-      for (unsigned char i = 0; i <= 8; ++i) {
-        actions.emplace_back(this, "attack_" + std::to_string(i), static_cast<ActionArg>(i));
-      }
-    }
-    return actions;
+    // Attack only triggers via move, no standalone actions
+    return {};
   }
 
   // Expose to Move class - attack decides if target is valid
@@ -111,35 +122,14 @@ protected:
   std::unordered_map<InventoryItem, InventoryQuantity> _defense_resources;
   std::unordered_map<InventoryItem, InventoryQuantity> _armor_resources;
   std::unordered_map<InventoryItem, InventoryQuantity> _weapon_resources;
-  std::optional<std::vector<InventoryItem>> _loot;
+  AttackOutcome _success;
   const GameConfig* _game_config;
   bool _enabled;
   std::vector<ObservationType> _vibes;
+  std::unordered_map<ObservationType, int> _vibe_bonus;
 
-  bool _handle_action(Agent& actor, ActionArg arg) override {
-    std::vector<Agent*> targets;
-    // Simple 3x3 neighborhood scan
-    for (int r = static_cast<int>(actor.location.r) - 1; r <= static_cast<int>(actor.location.r) + 1; r++) {
-      for (int c = static_cast<int>(actor.location.c) - 1; c <= static_cast<int>(actor.location.c) + 1; c++) {
-        if (r == actor.location.r && c == actor.location.c) continue;
-
-        GridLocation loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c));
-        Agent* agent = dynamic_cast<Agent*>(_grid->object_at(loc));
-        if (agent) {
-          targets.push_back(agent);
-        }
-      }
-    }
-
-    if (!targets.empty()) {
-      // "If the argument > num_agents, the last agent is attacked."
-      if (static_cast<size_t>(arg) >= targets.size()) {
-        return _handle_target(actor, *targets.back());
-      } else {
-        return _handle_target(actor, *targets[arg]);
-      }
-    }
-
+  bool _handle_action(Agent& /*actor*/, ActionArg /*arg*/) override {
+    // Attack only triggers via move onto target, not as standalone action
     return false;
   }
 
@@ -158,11 +148,13 @@ protected:
       }
     }
 
-    // Attack succeeds
-    target.frozen = target.freeze_duration;
+    // Attack succeeds - apply configured outcome
+    if (_success.freeze > 0) {
+      target.frozen = _success.freeze;
+    }
 
     if (!was_already_frozen) {
-      _steal_resources(actor, target);
+      _apply_outcome(actor, target);
       _log_successful_attack(actor, target);
     } else {
       // Track wasted attacks on already-frozen targets
@@ -182,7 +174,13 @@ private:
     return power;
   }
 
-  // Check if target is vibing a specific resource (gets +1 effective armor)
+  // Get vibe bonus for target's current vibe (0 if not configured)
+  int _get_vibe_bonus(const Agent& target) const {
+    auto it = _vibe_bonus.find(target.vibe);
+    return (it != _vibe_bonus.end()) ? it->second : 0;
+  }
+
+  // Check if target is vibing a specific resource
   bool _is_vibing_resource(const Agent& target, InventoryItem item) const {
     assert(_game_config && "Attack handler must have valid game_config pointer");
     if (target.vibe == 0 || target.vibe >= _game_config->vibe_names.size() ||
@@ -193,13 +191,13 @@ private:
   }
 
   // Compute armor power from target's inventory
-  // Vibing an armor resource counts as having +1 of that resource
+  // Vibing an armor resource adds the per-vibe bonus for that resource
   int _compute_armor_power(const Agent& target) const {
     int power = 0;
     for (const auto& [item, weight] : _armor_resources) {
       int amount = target.inventory.amount(item);
       if (_is_vibing_resource(target, item)) {
-        amount += 1;
+        amount += _get_vibe_bonus(target);
       }
       power += amount * weight;
     }
@@ -238,33 +236,23 @@ private:
     }
   }
 
-  void _steal_resources(Agent& actor, Agent& target) {
-    // Identify resources to steal
-    std::vector<std::pair<InventoryItem, InventoryQuantity>> resources_to_steal;
-
-    if (_loot.has_value()) {
-      // Steal only listed resources (in specified order)
-      for (const auto& item : *_loot) {
-        InventoryQuantity amount = target.inventory.amount(item);
-        if (amount > 0) {
-          resources_to_steal.emplace_back(item, amount);
-        }
-      }
-    } else {
-      // Steal everything (backward compatibility)
-      resources_to_steal.reserve(target.inventory.get().size());
-      for (const auto& [item, amount] : target.inventory.get()) {
-        resources_to_steal.emplace_back(item, amount);
-      }
+  void _apply_outcome(Agent& actor, Agent& target) {
+    // Apply actor inventory changes
+    for (const auto& [item, delta] : _success.actor_inv_delta) {
+      actor.inventory.update(item, delta);
     }
 
-    // Transfer resources
-    for (const auto& [item, amount] : resources_to_steal) {
-      InventoryDelta stolen = actor.inventory.update(item, amount);
-      target.inventory.update(item, -stolen);
+    // Apply target inventory changes
+    for (const auto& [item, delta] : _success.target_inv_delta) {
+      target.inventory.update(item, delta);
+    }
 
-      if (stolen > 0) {
-        _log_resource_theft(actor, target, item, stolen);
+    // Steal loot from target
+    for (const auto& item : _success.loot) {
+      InventoryQuantity amount = target.inventory.amount(item);
+      if (amount > 0) {
+        InventoryDelta stolen = actor.inventory.update(item, amount);
+        target.inventory.update(item, -stolen);
       }
     }
   }
@@ -292,42 +280,51 @@ private:
       target.stats.incr(_action_prefix(target_group) + "hit_by." + actor_group);
     }
   }
-
-  void _log_resource_theft(Agent& actor, Agent& target, InventoryItem item, InventoryDelta amount) const {
-    const std::string& actor_group = actor.group_name;
-    const std::string& target_group = target.group_name;
-    const std::string item_name = actor.stats.resource_name(item);
-
-    actor.stats.add(_action_prefix(actor_group) + "steals." + item_name + ".from." + target_group, amount);
-  }
 };
 
 namespace py = pybind11;
 
 inline void bind_attack_action_config(py::module& m) {
+  py::class_<AttackOutcome, std::shared_ptr<AttackOutcome>>(m, "AttackOutcome")
+      .def(py::init<const std::unordered_map<InventoryItem, InventoryDelta>&,
+                    const std::unordered_map<InventoryItem, InventoryDelta>&,
+                    const std::vector<InventoryItem>&,
+                    int>(),
+           py::arg("actor") = std::unordered_map<InventoryItem, InventoryDelta>(),
+           py::arg("target") = std::unordered_map<InventoryItem, InventoryDelta>(),
+           py::arg("loot") = std::vector<InventoryItem>(),
+           py::arg("freeze") = 0)
+      .def_readwrite("actor_inv_delta", &AttackOutcome::actor_inv_delta)
+      .def_readwrite("target_inv_delta", &AttackOutcome::target_inv_delta)
+      .def_readwrite("loot", &AttackOutcome::loot)
+      .def_readwrite("freeze", &AttackOutcome::freeze);
+
   py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
       .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
-                    const std::optional<std::vector<InventoryItem>>&,
+                    const AttackOutcome&,
                     bool,
-                    const std::vector<ObservationType>&>(),
+                    const std::vector<ObservationType>&,
+                    const std::unordered_map<ObservationType, int>&>(),
            py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("defense_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("armor_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("weapon_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
-           py::arg("loot") = std::nullopt,
+           py::arg("success") = AttackOutcome(),
            py::arg("enabled") = true,
-           py::arg("vibes") = std::vector<ObservationType>())
+           py::arg("vibes") = std::vector<ObservationType>(),
+           py::arg("vibe_bonus") = std::unordered_map<ObservationType, int>())
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources)
       .def_readwrite("armor_resources", &AttackActionConfig::armor_resources)
       .def_readwrite("weapon_resources", &AttackActionConfig::weapon_resources)
-      .def_readwrite("loot", &AttackActionConfig::loot)
+      .def_readwrite("success", &AttackActionConfig::success)
       .def_readwrite("enabled", &AttackActionConfig::enabled)
-      .def_readwrite("vibes", &AttackActionConfig::vibes);
+      .def_readwrite("vibes", &AttackActionConfig::vibes)
+      .def_readwrite("vibe_bonus", &AttackActionConfig::vibe_bonus);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ATTACK_HPP_
