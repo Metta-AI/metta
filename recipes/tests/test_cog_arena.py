@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from recipes.experiment import cog_arena
 
 
