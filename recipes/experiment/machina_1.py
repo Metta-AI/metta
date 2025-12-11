@@ -28,7 +28,7 @@ def train(
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
     map_seed: int = 50,
-    ppo_learning_rate: float = 3e-4,
+    ppo_learning_rate: float = 2e-3,
 ) -> TrainTool:
     """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
 
@@ -87,7 +87,7 @@ def train_sweep(
     eval_difficulty: str | None = "standard",
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
-    ppo_learning_rate: float = 3e-4,
+    ppo_learning_rate: float = 2e-3,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
 
