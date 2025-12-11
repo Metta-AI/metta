@@ -5,9 +5,9 @@ REPO_DIR="/workspace/metta"
 
 # Ensure /workspace exists and is writable
 if [ ! -d /workspace ]; then
-  mkdir -p /workspace 2>/dev/null || sudo mkdir -p /workspace
+  mkdir -p /workspace 2> /dev/null || sudo mkdir -p /workspace
 fi
-if ! sudo chown "$(id -u)":"$(id -g)" /workspace 2>/dev/null; then
+if ! sudo chown "$(id -u)":"$(id -g)" /workspace 2> /dev/null; then
   echo "[SETUP] Failed to chown /workspace; please ensure it is writable by $(id -un)" >&2
   exit 1
 fi
