@@ -21,7 +21,6 @@ from mettagrid.config.mettagrid_config import (
     VibeTransfer,
     WallConfig,
 )
-from mettagrid.config.vibes import VIBES
 from mettagrid.simulator import Simulation
 from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
@@ -169,7 +168,11 @@ class TestVibeTriggeredTransfer:
         sim = create_two_agent_sim(
             transfer_vibes=[HEART_VIBE_NAME],
             vibe_transfers=[
-                VibeTransfer(vibe=HEART_VIBE_NAME, target={"heart": 5, "energy": 10}, actor={"heart": -5, "energy": -10}),
+                VibeTransfer(
+                    vibe=HEART_VIBE_NAME,
+                    target={"heart": 5, "energy": 10},
+                    actor={"heart": -5, "energy": -10},
+                ),
             ],
             initial_inventory={"energy": 100, "heart": 10},
         )
