@@ -455,7 +455,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     action_params["enabled"] = actions_config.attack.enabled
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
-    # Process transfer - always add to map (can be triggered via vibes)
+    # Process transfer - vibes are derived from vibe_transfers keys in C++
     transfer_cfg = actions_config.transfer
     vibe_transfers_cpp = {}
     seen_vibes: set[str] = set()
@@ -469,18 +469,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         target_deltas = {resource_name_to_id[k]: v for k, v in vt.target.items()}
         actor_deltas = {resource_name_to_id[k]: v for k, v in vt.actor.items()}
         vibe_transfers_cpp[vibe_id] = CppVibeTransferEffect(target_deltas, actor_deltas)
-    # Convert vibe names to IDs
-    transfer_vibes = []
-    for vibe_name in transfer_cfg.vibes:
-        if vibe_name not in vibe_name_to_id:
-            raise ValueError(f"Unknown vibe name '{vibe_name}' in transfer.vibes")
-        transfer_vibes.append(vibe_name_to_id[vibe_name])
     actions_cpp_params["transfer"] = CppTransferActionConfig(
         required_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.required_resources.items()},
         consumed_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.consumed_resources.items()},
         vibe_transfers=vibe_transfers_cpp,
         enabled=transfer_cfg.enabled,
-        vibes=transfer_vibes,
     )
 
     # Process change_vibe - always add to map
