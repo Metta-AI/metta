@@ -232,3 +232,64 @@ class TestDamage:
         assert agent.inventory.get("battery", 0) == 2
         assert agent.inventory.get("weapon", 0) == 2
         assert agent.inventory.get("shield", 0) == 2
+
+    def test_weighted_removal_favors_higher_quantities(self):
+        """Test that damage removal is weighted by quantity above minimum.
+
+        Items with more excess inventory should be removed more frequently.
+        """
+        # Run many trials to verify statistical distribution
+        removal_counts = {"battery": 0, "weapon": 0, "shield": 0}
+        num_trials = 300
+
+        for trial in range(num_trials):
+            cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+                [
+                    ["#", "#", "#"],
+                    ["#", "@", "#"],
+                    ["#", "#", "#"],
+                ],
+                char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
+            )
+
+            cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
+            # battery=10 (weight 10), weapon=3 (weight 3), shield=1 (weight 1)
+            cfg.game.agent.initial_inventory = {"battery": 10, "weapon": 3, "shield": 1, "damage": 10}
+            cfg.game.agent.damage = DamageConfig(
+                threshold={"damage": 10},
+                resources={"battery": 0, "weapon": 0, "shield": 0},
+            )
+            cfg.game.actions.noop.enabled = True
+
+            # Use different seed for each trial to get different random outcomes
+            sim = Simulation(cfg, seed=trial)
+            agent = sim.agent(0)
+
+            # Trigger damage
+            agent.set_action(Action(name="noop"))
+            sim.step()
+
+            # Check which item was removed
+            if agent.inventory.get("battery", 0) == 9:
+                removal_counts["battery"] += 1
+            elif agent.inventory.get("weapon", 0) == 2:
+                removal_counts["weapon"] += 1
+            elif agent.inventory.get("shield", 0) == 0:
+                removal_counts["shield"] += 1
+
+        # Expected weights: battery=10, weapon=3, shield=1, total=14
+        # Expected probabilities: battery=10/14≈71%, weapon=3/14≈21%, shield=1/14≈7%
+        # With 300 trials, expect roughly: battery≈214, weapon≈64, shield≈21
+        # Allow reasonable variance (at least battery > weapon > shield)
+        assert removal_counts["battery"] > removal_counts["weapon"], (
+            f"Battery (weight 10) should be removed more than weapon (weight 3): "
+            f"battery={removal_counts['battery']}, weapon={removal_counts['weapon']}"
+        )
+        assert removal_counts["weapon"] > removal_counts["shield"], (
+            f"Weapon (weight 3) should be removed more than shield (weight 1): "
+            f"weapon={removal_counts['weapon']}, shield={removal_counts['shield']}"
+        )
+        # Battery should be removed at least 50% of the time (expected ~71%)
+        assert removal_counts["battery"] >= num_trials * 0.5, (
+            f"Battery should be removed at least 50% of the time, got {removal_counts['battery']}/{num_trials}"
+        )

@@ -185,9 +185,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             }
             # Convert resources map (name -> minimum) to IDs
             for resource_name in damage_config_py.get("resources", {}).keys():
-                assert resource_name in resource_name_to_id, (
-                    f"Damage resource '{resource_name}' not in resource_names"
-                )
+                assert resource_name in resource_name_to_id, f"Damage resource '{resource_name}' not in resource_names"
             cpp_damage_config.resources = {
                 resource_name_to_id[resource_name]: minimum_value
                 for resource_name, minimum_value in damage_config_py.get("resources", {}).items()
