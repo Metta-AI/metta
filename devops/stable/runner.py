@@ -195,7 +195,6 @@ class Runner:
                 ["sky", "jobs", "launch", "-y", "-n", job.name, "--gpus", f"A100:{gpus}", "--"] + job.cmd,
                 capture_output=True,
                 text=True,
-                timeout=300,
             )
 
             if result.returncode != 0:

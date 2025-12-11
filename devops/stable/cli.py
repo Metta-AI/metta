@@ -76,13 +76,21 @@ def write_discord_summary(runner: Runner, state_dir: Path) -> None:
     failed = [j for j in runner.jobs.values() if j.status.value == "failed"]
     skipped = [j for j in runner.jobs.values() if j.status.value == "skipped"]
 
-    lines = [f"**Jobs**: {len(succeeded)} passed, {len(failed)} failed, {len(skipped)} skipped", ""]
+    lines = [
+        f"**Jobs**: {len(succeeded)} passed, {len(failed)} failed, {len(skipped)} skipped",
+        "",
+        "```",
+        f"{'Job':<45} {'Status':<8} {'Duration':<10}",
+        "-" * 65,
+    ]
 
     for job in runner.jobs.values():
         icon = {"succeeded": "✅", "failed": "❌", "skipped": "⏭️"}.get(job.status.value, "❓")
         name = job.name.split(".")[-1]
-        duration = f"({job.duration_s:.0f}s)" if job.duration_s else ""
-        lines.append(f"{icon} {name} {duration}")
+        duration = f"{job.duration_s:.0f}s" if job.duration_s else "-"
+        lines.append(f"{name:<45} {icon:<8} {duration:<10}")
+
+    lines.append("```")
 
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "discord_summary.txt").write_text("\n".join(lines))
