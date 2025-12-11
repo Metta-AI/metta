@@ -105,6 +105,8 @@ class ActorKey(nn.Module):
 class ActionProbsConfig(ComponentConfig):
     in_key: str
     name: str = "action_probs"
+    # If set, logits for action indices >= max_action_index are masked to -inf (post-padding).
+    max_action_index: int | None = None
 
     def make_component(self, env=None):
         return ActionProbs(config=self)
@@ -136,18 +138,15 @@ class ActionProbs(nn.Module):
 
         self.num_actions = int(action_space.n)
 
-    def _pad_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
-        """Optionally pad logits to match environment action count."""
-        self._ensure_initialized()
-
-        current_actions = logits.size(-1)
-        if current_actions == self.num_actions:
+    def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
+        """Apply an optional upper-bound mask on action indices."""
+        if self.config.max_action_index is None:
             return logits
-
-        pad = self.num_actions - current_actions
-        pad_shape = list(logits.shape[:-1]) + [pad]
-        pad_tensor = torch.full(pad_shape, float("-inf"), dtype=logits.dtype, device=logits.device)
-        return torch.cat([logits, pad_tensor], dim=-1)
+        max_idx = int(self.config.max_action_index)
+        if max_idx < 0 or max_idx > logits.size(-1):
+            return logits
+        logits[..., max_idx:] = float("-inf")
+        return logits
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         if action is None:
@@ -159,7 +158,8 @@ class ActionProbs(nn.Module):
         """Forward pass for inference mode with action sampling."""
         logits = td[self.config.in_key]
 
-        logits = self._pad_logits_if_needed(logits)
+        self._ensure_initialized()
+        logits = self._mask_logits_if_needed(logits)
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
         td["actions"] = action_logit_index.to(dtype=torch.int32)
@@ -187,7 +187,8 @@ class ActionProbs(nn.Module):
             raise ValueError(f"Expected flattened action indices, got shape {tuple(action.shape)}")
 
         action_logit_index = action.to(dtype=torch.long)
-        logits = self._pad_logits_if_needed(logits)
+        self._ensure_initialized()
+        logits = self._mask_logits_if_needed(logits)
         selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
 
         # Store in flattened TD (will be reshaped by caller if needed)
