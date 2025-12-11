@@ -524,7 +524,7 @@ constructor/function vs configuration overrides based on introspection.
 
         # Check if it's a bare tool name (like 'train', 'evaluate')
         # If it's a known tool type, list all recipes that support it
-        if tool_path in tool_registry.name_to_tool:
+        if tool_path in tool_registry:
             console.print(f"\n[bold]Recipes supporting '{tool_path}':[/bold]\n")
             recipes = recipe_registry.get_all()
             found_any = False
@@ -726,8 +726,7 @@ constructor/function vs configuration overrides based on introspection.
     # ----------------------------------------------------------------------------------
     # Seed & Run
     # ----------------------------------------------------------------------------------
-    if hasattr(tool_cfg, "system"):
-        seed_everything(tool_cfg.system)
+    seed_everything(tool_cfg.system)
 
     output_info(f"\n{bold(green('Running tool...'))}\n")
 
