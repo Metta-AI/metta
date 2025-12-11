@@ -77,9 +77,11 @@ class DamageConfig:
     def enabled(self) -> bool: ...
 
 class WallConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str): ...
+    def __init__(self, type_id: int, type_name: str, initial_vibe: int = 0): ...
     type_id: int
     type_name: str
+    tag_ids: list[int]
+    initial_vibe: int
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -232,11 +234,13 @@ class GlobalObsConfig:
         last_action: bool = True,
         last_reward: bool = True,
         compass: bool = False,
+        goal_obs: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
     compass: bool
+    goal_obs: bool
 
 class GameConfig:
     def __init__(
