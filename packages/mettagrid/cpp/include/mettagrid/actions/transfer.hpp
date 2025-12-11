@@ -104,9 +104,8 @@ public:
     // 3. Check if actor has capacity for receiving resources (positive deltas)
     for (const auto& [resource, delta] : effect.actor_deltas) {
       if (delta > 0) {
-        InventoryQuantity current = actor.inventory.amount(resource);
-        InventoryQuantity limit = actor.inventory.limit(resource);
-        if (current + static_cast<InventoryQuantity>(delta) > limit) {
+        InventoryQuantity free = actor.inventory.free_space(resource);
+        if (static_cast<InventoryQuantity>(delta) > free) {
           return false;  // Actor doesn't have capacity to receive
         }
       }
@@ -115,9 +114,8 @@ public:
     // 4. Check if target has capacity for receiving resources (positive deltas)
     for (const auto& [resource, delta] : effect.target_deltas) {
       if (delta > 0) {
-        InventoryQuantity current = target->inventory.amount(resource);
-        InventoryQuantity limit = target->inventory.limit(resource);
-        if (current + static_cast<InventoryQuantity>(delta) > limit) {
+        InventoryQuantity free = target->inventory.free_space(resource);
+        if (static_cast<InventoryQuantity>(delta) > free) {
           return false;  // Target doesn't have capacity to receive
         }
       }
