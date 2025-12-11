@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import math
 import multiprocessing
 from typing import Sequence
 
@@ -40,7 +41,19 @@ class EvaluateTool(Tool):
     stats_server_uri: str | None = Field(default_factory=auto_stats_server_uri)
     verbose: bool = False
     push_metrics_to_wandb: bool = False
-    max_workers: int | None = multiprocessing.cpu_count()
+    max_workers: int | None = None
+
+    def _compute_num_workers(self) -> int:
+        if self.max_workers is not None:
+            return self.max_workers
+
+        cpu_count = multiprocessing.cpu_count()
+        remainder = len(self.simulations) % cpu_count
+        if remainder == 0 or len(self.simulations) < cpu_count:
+            return cpu_count
+
+        full_rounds = math.floor(len(self.simulations) / cpu_count)
+        return math.ceil(len(self.simulations) / full_rounds)
 
     def _to_simulation_run_configs(self) -> list[SimulationRunConfig]:
         result = []
@@ -127,6 +140,8 @@ class EvaluateTool(Tool):
                     agent_step=agent_step,
                 )
 
+            num_workers = self._compute_num_workers()
+            logger.info("Using %d workers for evaluation", num_workers)
             rollout_results = simulate_and_record(
                 policy_specs=policy_specs,
                 simulations=self._to_simulation_run_configs(),
@@ -134,7 +149,7 @@ class EvaluateTool(Tool):
                 seed=self.system.seed,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
-                max_workers=self.max_workers,
+                max_workers=num_workers,
                 on_progress=logger.info if self.verbose else lambda x: None,
             )
 

@@ -21,7 +21,7 @@ REQUIRED_NIM_VERSION = "2.2.6"
 REQUIRED_NIMBY_VERSION = "0.1.13"
 MIN_BAZEL_VERSION = "7.0.0"
 DEFAULT_BAZEL_VERSION = "latest"
-BAZELISK_VERSION = "v1.19.0"
+BAZELISKVERSION_FILE = Path(__file__).parent.parent.parent.parent.parent / ".bazeliskversion"
 
 
 TARGET_INSTALL_DIRS = [
@@ -245,7 +245,8 @@ def get_bazelisk_url() -> str:
     system = platform.system().lower()
     machine = platform.machine().lower()
 
-    base = f"https://github.com/bazelbuild/bazelisk/releases/download/{BAZELISK_VERSION}/"
+    version = BAZELISKVERSION_FILE.read_text().strip()
+    base = f"https://github.com/bazelbuild/bazelisk/releases/download/v{version}/"
 
     if system == "linux":
         if machine in ("aarch64", "arm64"):
