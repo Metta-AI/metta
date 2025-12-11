@@ -1,8 +1,13 @@
 import
   std/[math, os, strutils, tables, strformat, random, times],
-  boxy, vmath, windy, fidget2/[hybridrender, common, measure],
-  common, panels, actions, utils, replays, objectinfo,
-  pathfinding, tilemap, pixelator, shaderquad
+  vmath, windy, boxy,
+  common, actions, utils, replays,
+  pathfinding, tilemap, pixelator, shaderquad,
+  panels
+  # panels, objectinfo
+
+proc foo() =
+  echo window.size.x, "x", window.size.y
 
 const TS = 1.0 / 64.0 # Tile scale.
 const TILE_SIZE = 64
@@ -45,7 +50,7 @@ const patternToTile = @[
   1, 34, 34, 0, 0, 34, 34, 0, 0
 ]
 
-proc generateTerrainMap(): TileMap {.measure.} =
+proc generateTerrainMap(): TileMap =
   ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
   let
     width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
@@ -106,7 +111,7 @@ proc generateTerrainMap(): TileMap {.measure.} =
   terrainMap.setupGPU()
   return terrainMap
 
-proc rebuildVisibilityMap*(visibilityMap: TileMap) {.measure.} =
+proc rebuildVisibilityMap*(visibilityMap: TileMap) =
   ## Rebuild the visibility map.
   let
     width = visibilityMap.width
@@ -164,7 +169,7 @@ proc rebuildVisibilityMap*(visibilityMap: TileMap) {.measure.} =
       tile = patternToTile[pattern].uint8
     visibilityMap.indexData[i] = tile
 
-proc generateVisibilityMap(): TileMap {.measure.} =
+proc generateVisibilityMap(): TileMap =
   ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
   let
     width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
@@ -183,12 +188,12 @@ proc generateVisibilityMap(): TileMap {.measure.} =
   visibilityMap.setupGPU()
   return visibilityMap
 
-proc updateVisibilityMap*(visibilityMap: TileMap) {.measure.} =
+proc updateVisibilityMap*(visibilityMap: TileMap) =
   ## Update the visibility map.
   visibilityMap.rebuildVisibilityMap()
   visibilityMap.updateGPU()
 
-proc buildAtlas*() {.measure.} =
+proc buildAtlas*() =
   ## Build the atlas.
   bxy.addImage("minimapPip", readImage(dataDir & "/minimapPip.png"))
   bxy.addImage("selection", readImage(dataDir & "/selection.png"))
@@ -218,7 +223,7 @@ proc buildAtlas*() {.measure.} =
   addDir(dataDir, "resources")
   addDir(dataDir, "vibe")
 
-proc getProjectionView*(): Mat4 {.measure.} =
+proc getProjectionView*(): Mat4 =
   ## Get the projection and view matrix.
   let m = bxy.getTransform()
   let view = mat4(
@@ -230,7 +235,7 @@ proc getProjectionView*(): Mat4 {.measure.} =
   let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
   projection * view
 
-proc useSelections*(panel: Panel) {.measure.} =
+proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
   let modifierDown = when defined(macosx):
     window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
@@ -262,8 +267,9 @@ proc useSelections*(panel: Panel) {.measure.} =
       if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
         gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
         let obj = getObjectAtLocation(gridPos)
-        if obj != nil:
-          selectObject(obj)
+        echo "Selected object"
+        # if obj != nil:
+        #   selectObject(obj)
 
   if window.buttonPressed[MouseRight] or (window.buttonPressed[MouseLeft] and modifierDown):
     if selection != nil and selection.isAgent:
@@ -325,7 +331,7 @@ proc useSelections*(panel: Panel) {.measure.} =
           agentObjectives[selection.agentId] = @[objective]
           recomputePath(selection.agentId, startPos)
 
-proc drawObjects*() {.measure.} =
+proc drawObjects*() =
   ## Draw the objects on the map.
   for thing in replay.objects:
     let typeName = thing.typeName
@@ -365,7 +371,7 @@ proc drawObjects*() {.measure.} =
           pos * TILE_SIZE,
         )
 
-proc drawVisualRanges*(alpha = 0.5) {.measure.} =
+proc drawVisualRanges*(alpha = 0.5) =
   ## Draw the visual ranges of the selected agent.
 
   bxy.enterRawOpenGLMode()
@@ -397,11 +403,11 @@ proc drawVisualRanges*(alpha = 0.5) {.measure.} =
   bxy.exitRawOpenGLMode()
 
 
-proc drawFogOfWar*() {.measure.} =
+proc drawFogOfWar*() =
   ## Draw the fog of war.
   drawVisualRanges(alpha = 1.0)
 
-proc drawTrajectory*() {.measure.} =
+proc drawTrajectory*() =
   ## Draw the trajectory of the selected object, with footprints or a future arrow.
   if selection != nil and selection.location.len > 1:
     for i in 1 ..< replay.maxSteps:
@@ -473,7 +479,7 @@ proc drawTrajectory*() {.measure.} =
             tint = tint
           )
 
-proc drawActions*() {.measure.} =
+proc drawActions*() =
   ## Draw the actions of the selected agent.
   for obj in replay.objects:
     # Do agent actions.
@@ -507,7 +513,7 @@ proc drawActions*() {.measure.} =
         scale = 1/200
       )
 
-proc drawAgentDecorations*() {.measure.} =
+proc drawAgentDecorations*() =
   # Draw energy bars, shield and frozen status.
   for agent in replay.agents:
     if agent.isFrozen.at:
@@ -518,7 +524,7 @@ proc drawAgentDecorations*() {.measure.} =
         scale = TS
       )
 
-proc drawGrid*() {.measure.} =
+proc drawGrid*() =
   # Draw the grid using a single quad and shader-based lines.
   bxy.enterRawOpenGLMode()
   if sq == nil:
@@ -531,7 +537,7 @@ proc drawGrid*() {.measure.} =
   sq.draw(mvp, mapSize, tileSize, gridColor, 1.0f)
   bxy.exitRawOpenGLMode()
 
-proc drawPlannedPath*() {.measure.} =
+proc drawPlannedPath*() =
   ## Draw the planned paths for all agents.
   ## Only show paths when in realtime mode and viewing the latest step.
   if playMode != Realtime or step != replay.maxSteps - 1:
@@ -610,7 +616,7 @@ proc drawPlannedPath*() {.measure.} =
             tint = color(1, 1, 1, 0.7)
           )
 
-proc drawSelection*() {.measure.} =
+proc drawSelection*() =
   # Draw selection.
   if selection != nil:
     bxy.drawImage(
@@ -633,7 +639,7 @@ proc applyOrientationOffset*(x: int, y: int, orientation: int): (int, int) =
   else:
     return (x, y)
 
-proc drawThoughtBubbles*() {.measure.} =
+proc drawThoughtBubbles*() =
   # Draw the thought bubbles of the selected agent.
   # The idea behind thought bubbles is to show what an agent is thinking.
   # We don't have this directly from the policy yet, so the next best thing
@@ -727,7 +733,7 @@ proc drawThoughtBubbles*() {.measure.} =
         scale = 1/200/8
       )
 
-proc drawTerrain*() {.measure.} =
+proc drawTerrain*() =
   ## Draw the terrain, space and asteroid tiles using the terrainMap tilemap.
   bxy.enterRawOpenGLMode()
 
@@ -742,7 +748,7 @@ proc drawTerrain*() {.measure.} =
 
   bxy.exitRawOpenGLMode()
 
-proc drawWorldMini*() {.measure.} =
+proc drawWorldMini*() =
   const wallTypeName = "wall"
   const agentTypeName = "agent"
 
@@ -779,7 +785,7 @@ proc drawWorldMini*() {.measure.} =
 
 
 
-proc centerAt*(panel: Panel, entity: Entity) {.measure.} =
+proc centerAt*(panel: Panel, entity: Entity) =
   ## Center the map on the given entity.
   if entity.isNil:
     return
@@ -792,17 +798,15 @@ proc centerAt*(panel: Panel, entity: Entity) {.measure.} =
   panel.pos.x = rectW / 2.0f - location.x.float32 * z
   panel.pos.y = rectH / 2.0f - location.y.float32 * z
 
-proc drawWorldMain*() {.measure.} =
+proc drawWorldMain*() =
   ## Draw the world map.
   drawTerrain()
   drawTrajectory()
   drawObjects()
 
-  measurePush("px.flush")
   bxy.enterRawOpenGLMode()
   px.flush(getProjectionView() * scale(vec3(TS, TS, 1.0f)))
   bxy.exitRawOpenGLMode()
-  measurePop()
 
   #drawActions()
   drawAgentDecorations()
@@ -818,7 +822,7 @@ proc drawWorldMain*() {.measure.} =
 
   drawThoughtBubbles()
 
-proc fitFullMap*(panel: Panel) {.measure.} =
+proc fitFullMap*(panel: Panel) =
   ## Set zoom and pan so the full map fits in the panel.
   if replay.isNil:
     return
@@ -842,11 +846,11 @@ proc fitFullMap*(panel: Panel) {.measure.} =
   panel.pos.x = rectW / 2.0f - cx * z
   panel.pos.y = rectH / 2.0f - cy * z
 
-proc fitVisibleMap*(panel: Panel) {.measure.} =
+proc fitVisibleMap*(panel: Panel) =
   ## Set zoom and pan so the visible area (union of all agent vision ranges) fits in the panel.
   if replay.isNil:
     return
-  
+
   if replay.agents.len == 0:
     fitFullMap(panel)
     return
@@ -885,7 +889,7 @@ proc fitVisibleMap*(panel: Panel) {.measure.} =
   panel.zoom = zoom
   panel.pos = rectSize / 2.0f - center * (zoom * zoom)
 
-proc adjustPanelForResize*(panel: Panel) {.measure.} =
+proc adjustPanelForResize*(panel: Panel) =
   ## Adjust pan and zoom when panel resizes to show the same portion of the map.
   let currentSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
 
@@ -921,7 +925,7 @@ proc adjustPanelForResize*(panel: Panel) {.measure.} =
   # Update previous size
   previousPanelSize = currentSize
 
-proc drawWorldMap*(panel: Panel) {.measure.} =
+proc drawWorldMap*(panel: Panel) =
   ## Draw the world map.
 
   if replay == nil or replay.mapSize[0] == 0 or replay.mapSize[1] == 0:
@@ -934,10 +938,10 @@ proc drawWorldMap*(panel: Panel) {.measure.} =
 
   panel.beginPanAndZoom()
 
-  if panel.hasMouse:
-    useSelections(panel)
+  # if panel.hasMouse:
+  #   useSelections(panel)
 
-  agentControls()
+  # agentControls()
 
   if panel.zoom < 3:
     drawWorldMini()

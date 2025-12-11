@@ -1,7 +1,10 @@
 import
-  std/[times, tables],
-  boxy, windy, vmath, fidget2,
+  std/[times, tables, os],
+  boxy, windy, vmath, silky,
   replays
+
+let rootDir* = "packages/mettagrid/nim/mettascope/"
+let dataDir* = rootDir / "data"
 
 type
   IRect* = object
@@ -27,8 +30,8 @@ type
     panelType*: PanelType
     rect*: IRect
     name*: string     ## The name of the panel.
-    header*: Node     ## The header of the panel.
-    node*: Node       ## The node of the panel.
+    # header*: Node     ## The header of the panel.
+    # node*: Node       ## The node of the panel.
     parentArea*: Area ## The parent area of the panel.
 
     pos*: Vec2
@@ -45,7 +48,7 @@ type
     Vertical
 
   Area* = ref object
-    node*: Node            ## The node of the area.
+    # node*: Node            ## The node of the area.
     layout*: AreaLayout    ## The layout of the area.
     areas*: seq[Area]      ## The subareas in the area (0 or 2)
     panels*: seq[Panel]    ## The panels in the area.
@@ -65,6 +68,9 @@ type
     Realtime
 
 var
+  sk*: Silky
+  bxy*: Boxy
+  window*: Window
   frame*: int
 
   globalTimelinePanel*: Panel
