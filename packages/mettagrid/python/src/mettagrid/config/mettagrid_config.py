@@ -249,18 +249,14 @@ class VibeTransfer(Config):
 class TransferActionConfig(ActionConfig):
     """Python transfer action configuration.
 
-    Transfer is triggered by move when the agent's vibe is in the vibes list.
-    The vibe_transfers list specifies what happens for each vibe.
+    Transfer is triggered by move when the agent's vibe matches a vibe in vibe_transfers.
+    The vibe_transfers list specifies what resource effects happen for each vibe.
     """
 
     action_handler: str = Field(default="transfer")
     vibe_transfers: list[VibeTransfer] = Field(
         default_factory=list,
         description="List of vibe transfer configs specifying actor/target resource effects",
-    )
-    vibes: list[str] = Field(
-        default_factory=list,
-        description="Vibe names that trigger transfer on move (e.g., ['battery'])",
     )
 
     def _actions(self) -> list[Action]:
