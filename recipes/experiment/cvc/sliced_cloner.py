@@ -31,8 +31,6 @@ from metta.tools.eval import EvalWithResultTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
-
-# Use the canonical CVC eval suite builder from the main recipe to avoid drift.
 from recipes.experiment.cogs_v_clips import make_eval_suite
 
 logger = logging.getLogger(__name__)
