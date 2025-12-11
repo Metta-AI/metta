@@ -157,6 +157,18 @@ protected:
     // Attack succeeds - apply configured outcome
     if (_success.freeze > 0) {
       target.frozen = _success.freeze;
+<<<<<<< HEAD
+=======
+    }
+
+    if (!was_already_frozen) {
+      _apply_outcome(actor, target);
+      _log_successful_attack(actor, target);
+    } else {
+      // Track wasted attacks on already-frozen targets
+      const std::string& actor_group = actor.group_name;
+      actor.stats.incr(_action_prefix(actor_group) + "wasted_on_frozen");
+>>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
     }
 
     _apply_outcome(actor, target);

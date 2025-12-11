@@ -253,6 +253,7 @@ class AttackActionConfig(ActionConfig):
         description="Resources on attacker that increase damage. Maps resource name to weight.",
     )
 <<<<<<< HEAD
+<<<<<<< HEAD
     success: AttackOutcome = Field(
         default_factory=AttackOutcome,
         description="Outcome when attack succeeds.",
@@ -264,6 +265,11 @@ class AttackActionConfig(ActionConfig):
     target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
         default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
 >>>>>>> 0a9e131de1 (Fix lint errors: shorten line length and reformat)
+=======
+    success: AttackOutcome = Field(
+        default_factory=AttackOutcome,
+        description="Outcome when attack succeeds.",
+>>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
     )
     vibes: list[str] = Field(
         default_factory=list,
@@ -272,6 +278,46 @@ class AttackActionConfig(ActionConfig):
     vibe_bonus: dict[str, int] = Field(
         default_factory=dict,
         description="Per-vibe armor bonus. Maps vibe name to bonus amount.",
+<<<<<<< HEAD
+=======
+    )
+
+    def _actions(self) -> list[Action]:
+        # Attack only triggers via move, no standalone actions
+        return []
+
+
+class VibeTransfer(Config):
+    """Configuration for resource transfers triggered by a specific vibe.
+
+    When an agent with this vibe moves into another agent,
+    the specified resource deltas are applied to both the actor and target.
+
+    Example:
+        VibeTransfer(
+            vibe="battery",
+            target={"energy": 50},      # target gains 50 energy
+            actor={"energy": -50}       # actor loses 50 energy
+        )
+    """
+
+    vibe: str
+    target: dict[str, int] = Field(default_factory=dict)
+    actor: dict[str, int] = Field(default_factory=dict)
+
+
+class TransferActionConfig(ActionConfig):
+    """Python transfer action configuration.
+
+    Transfer is triggered by move when the agent's vibe matches a vibe in vibe_transfers.
+    The vibe_transfers list specifies what resource effects happen for each vibe.
+    """
+
+    action_handler: str = Field(default="transfer")
+    vibe_transfers: list[VibeTransfer] = Field(
+        default_factory=list,
+        description="List of vibe transfer configs specifying actor/target resource effects",
+>>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
     )
 
     def _actions(self) -> list[Action]:
