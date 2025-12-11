@@ -13,8 +13,6 @@ from datadog_api_client.v2.model.metric_payload import MetricPayload
 from datadog_api_client.v2.model.metric_point import MetricPoint
 from datadog_api_client.v2.model.metric_series import MetricSeries
 
-from devops.datadog.collectors import available_collectors, get_collector
-from devops.datadog.datadog_client import DatadogMetricsClient
 from metta.common.datadog.config import datadog_config
 from metta.common.util.log_config import init_logging
 from softmax.aws.secrets_manager import get_secretsmanager_secret
@@ -76,71 +74,19 @@ def report(
 ) -> None:
     """Collect registered metrics and optionally send them to Datadog.
 
-    This command collects metrics from:
-    1. Softmax dashboard registry (existing metrics)
-    2. Datadog collectors (ci, training, eval) for infra health metrics
+    This command collects metrics from the Softmax dashboard registry.
     """
-    all_samples = []
     metrics = None  # Initialize before try block
 
-    # Collect from existing softmax dashboard registry (backward compatibility)
+    # Collect from existing softmax dashboard registry
     try:
         metrics = collect_metrics()
         typer.echo("Softmax dashboard metrics:")
         typer.echo(json.dumps(metrics, indent=2, sort_keys=True))
-
-        # Convert to MetricSample format for consistency (if needed)
-        # For now, we'll keep the old metrics separate and only send collector metrics
-        # to avoid breaking existing dashboards
     except Exception as e:
         logger.warning("Failed to collect softmax dashboard metrics: %s", e, exc_info=True)
 
-    # Collect from Datadog collectors (ci, training, eval)
-    collector_slugs = available_collectors()
-
-    for slug in collector_slugs:
-        try:
-            typer.echo(f"▶ running collector: {slug}")
-            collector = get_collector(slug)
-            samples = collector.collect()
-
-            if not isinstance(samples, list):
-                logger.error("Collector %s returned non-list: %s", slug, type(samples))
-                continue
-
-            all_samples.extend(samples)
-            typer.echo(f"… emitted {len(samples)} metrics")
-
-        except Exception as e:
-            logger.error("Collector %s failed: %s", slug, e, exc_info=True)
-            typer.echo(f"✗ collector {slug} failed: {e}")
-            # Continue with other collectors
-
-    if not all_samples:
-        typer.echo("⚠ No metrics collected from collectors")
-        return
-
-    # Print collected metrics in dry-run mode
-    if dry_run:
-        typer.echo(f"\nCollected {len(all_samples)} total metrics (dry-run mode):")
-        for sample in all_samples:
-            typer.echo(f"  {sample.name} = {sample.value} (tags: {len(sample.tags)} tags)")
-        return
-
     # Send to Datadog if push is enabled
-    if push:
-        try:
-            client = DatadogMetricsClient()
-            client.submit(all_samples)
-            typer.echo("\n✓ all metrics sent to datadog")
-        except Exception as e:
-            logger.error("Failed to push metrics to Datadog: %s", e, exc_info=True)
-            typer.echo(f"\n✗ Failed to push metrics: {e}")
-            raise
-    else:
-        typer.echo(f"\nCollected {len(all_samples)} metrics (use --push to send to Datadog)")
-
-    # Also send existing softmax dashboard metrics if push is enabled
     if push and metrics:
         try:
             typer.echo("Pushing softmax dashboard metrics to Datadog...")
