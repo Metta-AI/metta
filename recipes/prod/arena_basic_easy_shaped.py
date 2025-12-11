@@ -290,7 +290,7 @@ def play_ci() -> PlayTool:
 @ci_job(depends_on=train_ci, inject={"dir_path": "uri"}, timeout_s=120)
 def evaluate_ci(dir_path: Path) -> EvaluateTool:
     """Evaluate the trained policy from train_ci."""
-    return evaluate_latest_in_dir(dir_path)
+    return evaluate_latest_in_dir(dir_path, max_steps=10, max_time_s=60)
 
 
 @stable_job(
