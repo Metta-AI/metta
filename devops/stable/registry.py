@@ -23,11 +23,13 @@ import pkgutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, get_type_hints
 
 if TYPE_CHECKING:
     from devops.stable.runner import AcceptanceCriterion, Job
     from metta.tools.tool import Tool
+
+from metta.tools.train import TrainTool
 
 
 class Suite(StrEnum):
@@ -191,7 +193,8 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list["Job"]:
         job_name = f"{prefix}.{short_name}"
         spec_to_job_name[spec.func] = job_name
 
-        is_train = "train" in spec.func.__name__
+        return_type = get_type_hints(spec.func).get("return")
+        is_train = return_type is TrainTool
         is_remote = spec.gpus is not None
 
         if is_remote:
