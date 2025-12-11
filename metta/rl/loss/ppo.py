@@ -164,10 +164,7 @@ class PPO(Loss):
         policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
 
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
-        # Reset LSTM state at the start of each training minibatch.
-        # Each minibatch sequence should start fresh, but state is maintained
-        # across the sequence within that minibatch (handled by forward()).
-        # Episode boundaries are handled via dones/truncateds in forward().
+        # Reset LSTM state at minibatch start so sequences start fresh (state persists within minibatch)
         self.policy.reset_memory()
 
         policy_td = self.policy.forward(policy_td, action=flat_actions)

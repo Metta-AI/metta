@@ -181,18 +181,17 @@ class MapBuilder(ABC, Generic[ConfigT]):
         assert isinstance(Config, type) and issubclass(Config, MapBuilderConfig)
 
         if Config._builder_cls:
-            # Already bound to another MapBuilder class, so we need to clone it
-            # Create at module level for pickling compatibility
+            # Clone config at module level for pickling compatibility
             unique_name = f"{cls.__name__}Config"
             CloneConfig = type(
                 unique_name,
                 (Config,),
                 {
                     "__module__": Config.__module__,
-                    "__qualname__": unique_name,  # Use simple qualname since class is at module level
+                    "__qualname__": unique_name,  # Simple qualname for module-level class
                 },
             )
-            # Store in module namespace so pickle can find it
+            # Store in module namespace for pickle discovery
             import sys
 
             module = sys.modules[Config.__module__]

@@ -31,7 +31,7 @@ class CurriculumEnv(PufferEnv):
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
 
-        # Track previous task ID to detect task changes for LSTM state reset
+        # Track previous task ID to detect curriculum task changes and trigger LSTM state reset when tasks switch
         self._previous_task_id = self._current_task._task_id
 
         # Stats batching configuration - updating stats too frequently is an SPS hit
@@ -91,6 +91,17 @@ class CurriculumEnv(PufferEnv):
                 # Otherwise, try again with a new task
                 continue
 
+<<<<<<< HEAD
+=======
+        # Compare task IDs to detect when curriculum switches to a different task (fixes ICL LSTM collapse)
+        task_changed = new_task._task_id != self._previous_task_id
+        self._previous_task_id = new_task._task_id
+        self._current_task = new_task
+
+        self._env.set_mg_config(self._current_task.get_env_cfg())
+        obs, info = self._env.reset(*args, **kwargs)
+
+>>>>>>> f47b274a33 (commit)
         # Signal task change via info dict so rollout phase can reset LSTM state before policy inference
         if task_changed and isinstance(info, dict):
             info["_task_changed"] = True
