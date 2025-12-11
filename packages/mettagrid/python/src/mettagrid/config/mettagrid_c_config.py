@@ -450,12 +450,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         action_params["defense_resources"] = {
             resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()
         }
-        action_params["armor_resources"] = {
-            resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()
-        }
-        action_params["weapon_resources"] = {
-            resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()
-        }
+        action_params["armor_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()}
+        action_params["weapon_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()}
         # Convert loot list from names to IDs if specified
         if attack_cfg.loot is not None:
             loot_ids = []
