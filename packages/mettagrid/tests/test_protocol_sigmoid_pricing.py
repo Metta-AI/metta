@@ -1,4 +1,5 @@
 import pytest
+
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, ProtocolConfig
 from mettagrid.simulator import Action, Simulation
 

@@ -251,7 +251,7 @@ class ProtocolConfig(Config):
     inflation: float = Field(
         default=0.0,
         ge=0.0,
-        description="Compound rate for exponential cost scaling. After sigmoid uses, cost = base * (1+inflation)^(n-sigmoid).",
+        description="Compound rate for exponential cost scaling after sigmoid uses.",
     )
 
 

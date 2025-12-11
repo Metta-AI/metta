@@ -46,8 +46,8 @@ public:
     // Linear phase: use integer math with ceiling division
     if (sigmoid > 0 && activation_count < sigmoid) {
       // ceiling division: (base_cost * activation_count + sigmoid - 1) / sigmoid
-      return static_cast<InventoryQuantity>(
-          (static_cast<unsigned int>(base_cost) * activation_count + sigmoid - 1) / sigmoid);
+      return static_cast<InventoryQuantity>((static_cast<unsigned int>(base_cost) * activation_count + sigmoid - 1) /
+                                            sigmoid);
     }
     // Full price phase (no inflation)
     if (inflation == 0.0f) return base_cost;
