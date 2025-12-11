@@ -130,7 +130,9 @@ def handle_collect_command(args: argparse.Namespace):
     # Environment selection
     environments = {
         "1": ("arena", "Original arena environment (basic resource collection and combat)"),
-        "2": ("cvc_easy_mode", "Cogs vs Clips easy_mode (cooperative heart crafting - ALB benchmark)"),
+        "2": ("cvc_easy_hearts", "Cogs vs Clips easy_hearts (cooperative heart crafting)"),
+        "3": ("cvc_hello_world", "Cogs vs Clips hello_world.easy_hearts (hello world variant)"),
+        "4": ("machina1_open_world", "Machina 1 Open World (v0 leaderboard environment)"),
     }
 
     print("\n  Select environment for data collection:")
