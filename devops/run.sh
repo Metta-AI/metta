@@ -7,7 +7,6 @@ MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-12345}
 NODE_INDEX=${NODE_INDEX:-0}
 
-# Display configuration
 echo "[CONFIG] Training configuration:"
 echo "  - GPUs: $NUM_GPUS"
 echo "  - Nodes: $NUM_NODES"
@@ -17,16 +16,18 @@ echo "  - Node index: $NODE_INDEX"
 echo "  - Arguments: $*"
 
 export PYTHONUNBUFFERED=1
-# Get repo root (this script is in devops/, so parent dir is repo root)
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export PYTHONPATH=${PYTHONPATH:-}:${REPO_ROOT}
+export PYTHONPATH=${PYTHONPATH:-}:$(pwd)
 export PYTHONOPTIMIZE=1
 export WANDB_DIR="./wandb"
 export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
-# run torchrun; preserve exit code and print a friendly line
+# Start Datadog agent if configured (must be in run phase, not setup, due to SkyPilot subprocess cleanup)
+if [[ -n "${METTA_DD_LOG_FILE:-}" ]]; then
+  uv run metta install datadog-agent --non-interactive --profile=softmax-docker || true
+fi
+
 set +e
 uv run torchrun \
   --nnodes=$NUM_NODES \
@@ -35,8 +36,8 @@ uv run torchrun \
   --master-port=$MASTER_PORT \
   --node-rank=$NODE_INDEX \
   tools/run.py \
-  "$@"
-EXIT_CODE=$?
+  "$@" 2>&1 | tee -a "${METTA_DD_LOG_FILE:-/dev/null}"
+EXIT_CODE=${PIPESTATUS[0]}
 set -e
 
 if [[ $EXIT_CODE -eq 0 ]]; then
