@@ -36,7 +36,6 @@ register_collector(TrainingCollector)
 
 # Import stable_suite integration modules (for side effects)
 from devops.datadog.collectors import (  # noqa: E402, F401
-    stable_suite_fetcher,
     stable_suite_mapping,
     stable_suite_metrics,
 )

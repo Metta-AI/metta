@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from devops.datadog.collectors.base import BaseCollector
-from devops.datadog.collectors.stable_suite_fetcher import get_latest_job_states
 from devops.datadog.collectors.stable_suite_mapping import is_eval_job, map_job_to_workflow
 from devops.datadog.collectors.stable_suite_metrics import extract_eval_metrics
 from devops.datadog.models import MetricSample
@@ -13,28 +12,45 @@ class EvalCollector(BaseCollector):
     """
     Collector for eval metrics (local + remote) used by the infra dashboard.
 
-    Reads job metrics from stable_suite's JobState database:
-    - devops/stable/state/{version}/jobs.sqlite
-    - Extracts success, heart_delta_pct, and duration_minutes from JobState
+    Accepts structured job results and extracts metrics:
+    - Extracts success, heart_delta_pct, and duration_minutes from job results
     - Maps jobs to workflows using stable_suite_mapping
+
+    Job results should be dictionaries with keys: name, acceptance_passed, exit_code, metrics, duration_s
     """
 
     slug = "eval"
     metric_namespace = "metta.infra.cron"
     workflow_category = "evaluation"
 
-    def collect(self) -> List[MetricSample]:
+    def collect(self, job_results: Optional[List[Dict]] = None) -> List[MetricSample]:
+        """Collect eval metrics from structured job results.
+
+        Args:
+            job_results: List of job result dictionaries. Each dict should have:
+                - name: str (job name)
+                - acceptance_passed: bool | None
+                - exit_code: int | None
+                - metrics: Dict[str, float]
+                - duration_s: float | None (for eval jobs)
+
+        Returns:
+            List of MetricSample objects
+        """
         samples: List[MetricSample] = []
 
-        try:
-            # Get job states from stable_suite database
-            job_states = get_latest_job_states(since_days=1)
+        if job_results is None:
+            self.logger.warning("No job results provided to eval collector")
+            samples.append(self._build_data_missing_metric(value=1.0))
+            samples.extend(self._emit_placeholder_metrics())
+            return samples
 
+        try:
             # Filter to eval jobs only
-            eval_jobs = [js for js in job_states if is_eval_job(js.name)]
+            eval_jobs = [jr for jr in job_results if is_eval_job(jr.get("name", ""))]
 
             if not eval_jobs:
-                self.logger.warning("No eval jobs found in stable_suite")
+                self.logger.warning("No eval jobs found in job results")
                 samples.append(self._build_data_missing_metric(value=1.0))
                 samples.extend(self._emit_placeholder_metrics())
                 return samples
@@ -47,14 +63,15 @@ class EvalCollector(BaseCollector):
             remote_metrics = {"success": 0.0, "heart_delta_pct": 0.0, "duration_minutes": 0.0}
             local_metrics = {"success": 0.0, "heart_delta_pct": 0.0}  # Placeholder - no local eval
 
-            for job_state in eval_jobs:
+            for job_result in eval_jobs:
                 try:
-                    workflow = map_job_to_workflow(job_state.name)
+                    job_name = job_result.get("name", "")
+                    workflow = map_job_to_workflow(job_name)
                     if workflow == "remote_eval":
-                        metrics = extract_eval_metrics(job_state)
+                        metrics = extract_eval_metrics(job_result)
                         remote_metrics = metrics
                 except ValueError as exc:
-                    self.logger.warning("Could not map job %s to workflow: %s", job_state.name, exc)
+                    self.logger.warning("Could not map job %s to workflow: %s", job_result.get("name", ""), exc)
                     continue
 
             # Emit metrics
@@ -63,7 +80,7 @@ class EvalCollector(BaseCollector):
             samples.extend(self._remote_metrics(payload))
 
         except Exception as exc:  # noqa: BLE001
-            self.logger.error("Failed to collect eval metrics from stable_suite: %s", exc, exc_info=True)
+            self.logger.error("Failed to collect eval metrics: %s", exc, exc_info=True)
             samples.append(self._build_data_missing_metric(value=1.0))
             samples.extend(self._emit_placeholder_metrics())
 
@@ -78,7 +95,7 @@ class EvalCollector(BaseCollector):
             value=value,
             workflow_name="eval_data_availability",
             task="Data availability",
-            check="stable_suite eval data found",
+            check="job data found",
             condition="< 1",
             status="pass" if value < 1.0 else "fail",
         )

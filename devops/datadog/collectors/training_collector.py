@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from devops.datadog.collectors.base import BaseCollector
-from devops.datadog.collectors.stable_suite_fetcher import get_latest_job_states
 from devops.datadog.collectors.stable_suite_mapping import is_training_job, map_job_to_workflow
 from devops.datadog.collectors.stable_suite_metrics import extract_training_metrics
 from devops.datadog.models import MetricSample
@@ -14,28 +13,44 @@ class TrainingCollector(BaseCollector):
     """
     Collector for training health metrics used by the infra dashboard.
 
-    Reads job metrics from stable_suite's JobState database:
-    - devops/stable/state/{version}/jobs.sqlite
-    - Extracts success, hearts, sps, and shaped metrics from JobState
+    Accepts structured job results and extracts metrics:
+    - Extracts success, hearts, sps, and shaped metrics from job results
     - Maps jobs to workflows using stable_suite_mapping
+
+    Job results should be dictionaries with keys: name, acceptance_passed, exit_code, metrics
     """
 
     slug = "training"
     metric_namespace = "metta.infra.cron"
     workflow_category = "training"
 
-    def collect(self) -> List[MetricSample]:
+    def collect(self, job_results: Optional[List[Dict]] = None) -> List[MetricSample]:
+        """Collect training metrics from structured job results.
+
+        Args:
+            job_results: List of job result dictionaries. Each dict should have:
+                - name: str (job name)
+                - acceptance_passed: bool | None
+                - exit_code: int | None
+                - metrics: Dict[str, float]
+
+        Returns:
+            List of MetricSample objects
+        """
         samples: List[MetricSample] = []
 
-        try:
-            # Get job states from stable_suite database
-            job_states = get_latest_job_states(since_days=1)
+        if job_results is None:
+            self.logger.warning("No job results provided to training collector")
+            samples.append(self._build_data_missing_metric(value=1.0))
+            samples.extend(self._emit_placeholder_metrics())
+            return samples
 
+        try:
             # Filter to training jobs only
-            training_jobs = [js for js in job_states if is_training_job(js.name)]
+            training_jobs = [jr for jr in job_results if is_training_job(jr.get("name", ""))]
 
             if not training_jobs:
-                self.logger.warning("No training jobs found in stable_suite")
+                self.logger.warning("No training jobs found in job results")
                 samples.append(self._build_data_missing_metric(value=1.0))
                 samples.extend(self._emit_placeholder_metrics())
                 return samples
@@ -48,16 +63,17 @@ class TrainingCollector(BaseCollector):
                 lambda: {"success": 0.0, "hearts": 0.0, "sps": 0.0, "shaped": 0.0}
             )
 
-            for job_state in training_jobs:
+            for job_result in training_jobs:
                 try:
-                    workflow = map_job_to_workflow(job_state.name)
-                    metrics = extract_training_metrics(job_state)
+                    job_name = job_result.get("name", "")
+                    workflow = map_job_to_workflow(job_name)
+                    metrics = extract_training_metrics(job_result)
 
                     # Aggregate: use latest job's metrics (or could average)
                     # For now, use the most recent job's metrics
                     workflow_metrics[workflow] = metrics
                 except ValueError as exc:
-                    self.logger.warning("Could not map job %s to workflow: %s", job_state.name, exc)
+                    self.logger.warning("Could not map job %s to workflow: %s", job_result.get("name", ""), exc)
                     continue
 
             # Convert to old format for compatibility with existing metric builders
@@ -80,7 +96,7 @@ class TrainingCollector(BaseCollector):
             samples.extend(self._bugs_metrics(health_data))
 
         except Exception as exc:  # noqa: BLE001
-            self.logger.error("Failed to collect training metrics from stable_suite: %s", exc, exc_info=True)
+            self.logger.error("Failed to collect training metrics: %s", exc, exc_info=True)
             samples.append(self._build_data_missing_metric(value=1.0))
             samples.extend(self._emit_placeholder_metrics())
 
@@ -95,7 +111,7 @@ class TrainingCollector(BaseCollector):
             value=value,
             workflow_name="training_data_availability",
             task="Data availability",
-            check="stable_suite data found",
+            check="job data found",
             condition="< 1",
             status="pass" if value < 1.0 else "fail",
         )

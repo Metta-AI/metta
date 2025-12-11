@@ -1,14 +1,21 @@
-"""Metric extraction from stable_suite JobState.
+"""Metric extraction from structured job results.
 
-This module extracts training and eval metrics from JobState objects
+This module extracts training and eval metrics from structured job result dictionaries
 and maps them to Datadog schema metrics.
+
+Job results are expected to be dictionaries with the following structure:
+{
+    "name": str,  # Job name
+    "acceptance_passed": bool | None,  # Whether acceptance criteria passed
+    "exit_code": int | None,  # Exit code (0 = success)
+    "metrics": Dict[str, float],  # Job metrics dictionary
+    "duration_s": float | None,  # Duration in seconds (for eval jobs)
+}
 """
 
 from __future__ import annotations
 
 from typing import Dict
-
-from metta.jobs.job_state import JobState
 
 
 def determine_success(acceptance_passed: bool | None, exit_code: int | None) -> float:
@@ -36,7 +43,7 @@ def extract_hearts(metrics: Dict[str, float]) -> float:
     """Extract hearts metric from metrics dictionary.
 
     Args:
-        metrics: JobState.metrics dictionary
+        metrics: Job metrics dictionary
 
     Returns:
         Hearts value, or 0.0 if not available
@@ -48,7 +55,7 @@ def extract_sps(metrics: Dict[str, float]) -> float:
     """Extract SPS (steps per second) metric from metrics dictionary.
 
     Args:
-        metrics: JobState.metrics dictionary
+        metrics: Job metrics dictionary
 
     Returns:
         SPS value, or 0.0 if not available
@@ -60,7 +67,7 @@ def extract_shaped(metrics: Dict[str, float]) -> float:
     """Extract shaped SPS metric from metrics dictionary.
 
     Args:
-        metrics: JobState.metrics dictionary
+        metrics: Job metrics dictionary
 
     Returns:
         Shaped SPS value, or 0.0 if not available
@@ -75,7 +82,7 @@ def extract_heart_delta_pct(metrics: Dict[str, float]) -> float:
     """Extract heart_delta_pct metric from metrics dictionary.
 
     Args:
-        metrics: JobState.metrics dictionary
+        metrics: Job metrics dictionary
 
     Returns:
         Heart delta percentage, or 0.0 if not available
@@ -97,11 +104,11 @@ def extract_duration_minutes(duration_s: float | None) -> float:
     return duration_s / 60.0
 
 
-def extract_training_metrics(job_state: JobState) -> Dict[str, float]:
-    """Extract training metrics from JobState.
+def extract_training_metrics(job_result: Dict) -> Dict[str, float]:
+    """Extract training metrics from structured job result.
 
     Args:
-        job_state: JobState object with metrics, acceptance_passed, exit_code
+        job_result: Dictionary with keys: name, acceptance_passed, exit_code, metrics
 
     Returns:
         Dictionary with extracted metrics:
@@ -112,21 +119,21 @@ def extract_training_metrics(job_state: JobState) -> Dict[str, float]:
             "shaped": float or 0.0,  # Same as sps for multinode
         }
     """
-    metrics = job_state.metrics
+    metrics = job_result.get("metrics", {})
 
     return {
-        "success": determine_success(job_state.acceptance_passed, job_state.exit_code),
+        "success": determine_success(job_result.get("acceptance_passed"), job_result.get("exit_code")),
         "hearts": extract_hearts(metrics),
         "sps": extract_sps(metrics),
         "shaped": extract_shaped(metrics),
     }
 
 
-def extract_eval_metrics(job_state: JobState) -> Dict[str, float]:
-    """Extract eval metrics from JobState.
+def extract_eval_metrics(job_result: Dict) -> Dict[str, float]:
+    """Extract eval metrics from structured job result.
 
     Args:
-        job_state: JobState object with metrics, acceptance_passed, exit_code, duration_s
+        job_result: Dictionary with keys: name, acceptance_passed, exit_code, metrics, duration_s
 
     Returns:
         Dictionary with extracted metrics:
@@ -136,10 +143,10 @@ def extract_eval_metrics(job_state: JobState) -> Dict[str, float]:
             "duration_minutes": float or 0.0,
         }
     """
-    metrics = job_state.metrics
+    metrics = job_result.get("metrics", {})
 
     return {
-        "success": determine_success(job_state.acceptance_passed, job_state.exit_code),
+        "success": determine_success(job_result.get("acceptance_passed"), job_result.get("exit_code")),
         "heart_delta_pct": extract_heart_delta_pct(metrics),
-        "duration_minutes": extract_duration_minutes(job_state.duration_s),
+        "duration_minutes": extract_duration_minutes(job_result.get("duration_s")),
     }
