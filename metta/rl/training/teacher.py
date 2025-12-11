@@ -58,44 +58,15 @@ def apply_teacher_phase(
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
 
     if teacher_cfg.mode == "sliced_cloner":
-        losses.ppo_critic.sample_enabled = False
-        losses.ppo_critic.train_forward_enabled = False
-        losses.ppo_critic.deferred_training_start_step = total_steps
-
-        slicer = losses.sliced_scripted_cloner
-        slicer.enabled = True
-        slicer.led_proportion = teacher_cfg.led_proportion
-        slicer.student_proportion = teacher_cfg.student_proportion
-
-        _append_bc_run_gates(
-            scheduler_run_gates,
-            loss_name="sliced_scripted_cloner",
-            total_steps=total_steps,
-            enable_ppo_after=total_steps,
-        )
-        _append_teacher_share_rule(
-            scheduler_rules,
-            loss_name="sliced_scripted_cloner",
-            start_value=teacher_cfg.led_proportion,
-            total_steps=total_steps,
-        )
+        _disable_ppo_until(total_steps, losses)
+        _enable_loss(losses.sliced_scripted_cloner, teacher_cfg)
+        _append_bc_run_gates(scheduler_run_gates, "sliced_scripted_cloner", total_steps, enable_ppo_after=total_steps)
+        _append_teacher_share_rule(scheduler_rules, "sliced_scripted_cloner", teacher_cfg.led_proportion, total_steps)
 
     elif teacher_cfg.mode == "supervisor":
-        supervisor = losses.supervisor
-        supervisor.enabled = True
-        supervisor.led_proportion = teacher_cfg.led_proportion
-
-        _append_bc_run_gates(
-            scheduler_run_gates,
-            loss_name="supervisor",
-            total_steps=total_steps,
-        )
-        _append_teacher_share_rule(
-            scheduler_rules,
-            loss_name="supervisor",
-            start_value=teacher_cfg.led_proportion,
-            total_steps=total_steps,
-        )
+        sup = _enable_loss(losses.supervisor, teacher_cfg)
+        _append_bc_run_gates(scheduler_run_gates, "supervisor", total_steps)
+        _append_teacher_share_rule(scheduler_rules, "supervisor", teacher_cfg.led_proportion, total_steps)
         if total_steps:
             scheduler_rules.append(
                 HyperUpdateRule(
@@ -103,7 +74,7 @@ def apply_teacher_phase(
                     attr_path="action_loss_coef",
                     mode="progress",
                     style="linear",
-                    start_value=supervisor.action_loss_coef,
+                    start_value=sup.action_loss_coef,
                     end_value=0.0,
                     start_agent_step=total_steps // 2,
                     end_agent_step=total_steps,
@@ -112,68 +83,22 @@ def apply_teacher_phase(
 
     elif teacher_cfg.mode == "sliced_kickstarter":
         _require_policy_uri(teacher_cfg)
-        losses.ppo_critic.sample_enabled = False
-        losses.ppo_critic.train_forward_enabled = False
-        losses.ppo_critic.deferred_training_start_step = total_steps
-
-        sliced_kick = losses.sliced_kickstarter
-        sliced_kick.enabled = True
-        sliced_kick.teacher_uri = teacher_cfg.policy_uri
-        sliced_kick.led_proportion = teacher_cfg.led_proportion
-        sliced_kick.student_proportion = teacher_cfg.student_proportion
-
-        _append_bc_run_gates(
-            scheduler_run_gates,
-            loss_name="sliced_kickstarter",
-            total_steps=total_steps,
-            enable_ppo_after=total_steps,
-        )
-        _append_teacher_share_rule(
-            scheduler_rules,
-            loss_name="sliced_kickstarter",
-            start_value=teacher_cfg.led_proportion,
-            total_steps=total_steps,
-        )
+        _disable_ppo_until(total_steps, losses)
+        sk = _enable_loss(losses.sliced_kickstarter, teacher_cfg, needs_teacher_uri=True)
+        _append_bc_run_gates(scheduler_run_gates, "sliced_kickstarter", total_steps, enable_ppo_after=total_steps)
+        _append_teacher_share_rule(scheduler_rules, "sliced_kickstarter", teacher_cfg.led_proportion, total_steps)
 
     elif teacher_cfg.mode == "kickstarter":
         _require_policy_uri(teacher_cfg)
-        ks = losses.kickstarter
-        ks.enabled = True
-        ks.teacher_uri = teacher_cfg.policy_uri
-        ks.led_proportion = teacher_cfg.led_proportion
-
-        _append_bc_run_gates(
-            scheduler_run_gates,
-            loss_name="kickstarter",
-            total_steps=total_steps,
-            enable_ppo_after=total_steps,
-        )
-        _append_teacher_share_rule(
-            scheduler_rules,
-            loss_name="kickstarter",
-            start_value=teacher_cfg.led_proportion,
-            total_steps=total_steps,
-        )
+        ks = _enable_loss(losses.kickstarter, teacher_cfg, needs_teacher_uri=True, set_student=False)
+        _append_bc_run_gates(scheduler_run_gates, "kickstarter", total_steps, enable_ppo_after=total_steps)
+        _append_teacher_share_rule(scheduler_rules, "kickstarter", teacher_cfg.led_proportion, total_steps)
 
     elif teacher_cfg.mode == "logit_kickstarter":
         _require_policy_uri(teacher_cfg)
-        logit = losses.logit_kickstarter
-        logit.enabled = True
-        logit.teacher_uri = teacher_cfg.policy_uri
-        logit.led_proportion = teacher_cfg.led_proportion
-
-        _append_bc_run_gates(
-            scheduler_run_gates,
-            loss_name="logit_kickstarter",
-            total_steps=total_steps,
-            enable_ppo_after=total_steps,
-        )
-        _append_teacher_share_rule(
-            scheduler_rules,
-            loss_name="logit_kickstarter",
-            start_value=teacher_cfg.led_proportion,
-            total_steps=total_steps,
-        )
+        lk = _enable_loss(losses.logit_kickstarter, teacher_cfg, needs_teacher_uri=True, set_student=False)
+        _append_bc_run_gates(scheduler_run_gates, "logit_kickstarter", total_steps, enable_ppo_after=total_steps)
+        _append_teacher_share_rule(scheduler_rules, "logit_kickstarter", teacher_cfg.led_proportion, total_steps)
 
     else:
         raise ValueError(f"Unsupported teacher mode '{teacher_cfg.mode}'")
@@ -215,6 +140,29 @@ def _append_bc_run_gates(
                 begin_at_step=enable_ppo_after,
             )
         )
+
+
+def _disable_ppo_until(total_steps: int, losses) -> None:
+    losses.ppo_critic.sample_enabled = False
+    losses.ppo_critic.train_forward_enabled = False
+    losses.ppo_critic.deferred_training_start_step = total_steps
+
+
+def _enable_loss(
+    loss_cfg,
+    teacher_cfg: TeacherConfig,
+    *,
+    needs_teacher_uri: bool = False,
+    set_student: bool = True,
+):
+    loss_cfg.enabled = True
+    if hasattr(loss_cfg, "led_proportion"):
+        loss_cfg.led_proportion = teacher_cfg.led_proportion
+    if set_student and hasattr(loss_cfg, "student_proportion"):
+        loss_cfg.student_proportion = teacher_cfg.student_proportion
+    if needs_teacher_uri and hasattr(loss_cfg, "teacher_uri"):
+        loss_cfg.teacher_uri = teacher_cfg.policy_uri
+    return loss_cfg
 
 
 def _append_teacher_share_rule(
