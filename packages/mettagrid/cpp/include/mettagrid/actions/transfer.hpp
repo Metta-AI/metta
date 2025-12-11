@@ -33,17 +33,12 @@ struct TransferActionConfig : public ActionConfig {
   // Maps vibe ID to transfer effects (separate actor/target deltas)
   std::unordered_map<ObservationType, VibeTransferEffect> vibe_transfers;
   bool enabled;
-  std::vector<ObservationType> vibes;  // Vibes that trigger this action on move
 
   TransferActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources = {},
                        const std::unordered_map<InventoryItem, InventoryQuantity>& consumed_resources = {},
                        const std::unordered_map<ObservationType, VibeTransferEffect>& vibe_transfers = {},
-                       bool enabled = true,
-                       const std::vector<ObservationType>& vibes = {})
-      : ActionConfig(required_resources, consumed_resources),
-        vibe_transfers(vibe_transfers),
-        enabled(enabled),
-        vibes(vibes) {}
+                       bool enabled = true)
+      : ActionConfig(required_resources, consumed_resources), vibe_transfers(vibe_transfers), enabled(enabled) {}
 };
 
 class Transfer : public ActionHandler {
@@ -51,8 +46,12 @@ public:
   explicit Transfer(const TransferActionConfig& cfg,
                     [[maybe_unused]] const GameConfig* game_config,
                     const std::string& action_name = "transfer")
-      : ActionHandler(cfg, action_name), _vibe_transfers(cfg.vibe_transfers), _enabled(cfg.enabled), _vibes(cfg.vibes) {
+      : ActionHandler(cfg, action_name), _vibe_transfers(cfg.vibe_transfers), _enabled(cfg.enabled) {
     priority = 0;  // Lower priority than attack
+    // Derive vibes from vibe_transfers keys
+    for (const auto& [vibe_id, _] : _vibe_transfers) {
+      _vibes.push_back(vibe_id);
+    }
   }
 
   std::vector<Action> create_actions() override {
@@ -60,7 +59,7 @@ public:
     return {};
   }
 
-  // Get vibes that trigger this action on move
+  // Get vibes that trigger this action on move (derived from vibe_transfers)
   const std::vector<ObservationType>& get_vibes() const {
     return _vibes;
   }
@@ -185,16 +184,13 @@ inline void bind_transfer_action_config(py::module& m) {
       .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<ObservationType, VibeTransferEffect>&,
-                    bool,
-                    const std::vector<ObservationType>&>(),
+                    bool>(),
            py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("vibe_transfers") = std::unordered_map<ObservationType, VibeTransferEffect>(),
-           py::arg("enabled") = true,
-           py::arg("vibes") = std::vector<ObservationType>())
+           py::arg("enabled") = true)
       .def_readwrite("vibe_transfers", &TransferActionConfig::vibe_transfers)
-      .def_readwrite("enabled", &TransferActionConfig::enabled)
-      .def_readwrite("vibes", &TransferActionConfig::vibes);
+      .def_readwrite("enabled", &TransferActionConfig::enabled);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_TRANSFER_HPP_
