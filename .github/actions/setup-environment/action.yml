@@ -75,12 +75,12 @@ runs:
             sleep 5
           fi
         done
-        
+
         if [ ! -f nimby ] || [ ! -s nimby ]; then
           echo "Error: Failed to download nimby after $max_attempts attempts"
           exit 1
         fi
-        
+
         chmod +x nimby
         ./nimby use 2.2.6
         echo "$HOME/.nimby/nim/bin" >> "$GITHUB_PATH"
