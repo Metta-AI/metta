@@ -52,14 +52,9 @@ class DistributedHelper:
 
     def _setup_torch_optimizations(self) -> None:
         """Configure PyTorch for optimal performance."""
-        # Set both old and new TF32 APIs to avoid torch.compile conflicts
         if torch.cuda.is_available() and hasattr(torch.backends, "cuda"):
-            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
-            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
-            try:
-                torch.backends.cuda.matmul.allow_tf32 = True  # type: ignore[attr-defined]
-            except (AttributeError, RuntimeError):
-                pass
+            torch.backends.cuda.matmul.fp32_precision = "tf32"
+            torch.backends.cudnn.conv.fp32_precision = "tf32"
             # Enable SDPA optimizations for better attention performance
             torch.backends.cuda.enable_flash_sdp(True)
             torch.backends.cuda.enable_mem_efficient_sdp(True)

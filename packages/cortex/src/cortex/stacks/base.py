@@ -15,9 +15,6 @@ from cortex.cells import build_cell
 from cortex.config import CortexStackConfig
 from cortex.types import MaybeState, ResetMask, Tensor
 
-# TF32 is configured early by DistributedHelper._setup_torch_optimizations()
-# No need to configure it here to avoid API conflicts with torch.compile
-
 logger = logging.getLogger(__name__)
 
 
@@ -82,10 +79,6 @@ class CortexStack(nn.Module):
         resets: Optional[ResetMask] = None,
     ) -> tuple[Tensor, MaybeState]:
         y = x
-        # TF32 is configured early by DistributedHelper._setup_torch_optimizations()
-        # Calling configure_tf32_precision() here causes API conflicts with torch.compile
-        # which checks the old API (allow_tf32) while we use the new API (fp32_precision)
-
         batch_size = x.shape[0]
         next_state = TensorDict({}, batch_size=[batch_size])
         for i, block in enumerate(self.blocks):

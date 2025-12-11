@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pufferlib import PufferEnv  # type: ignore[import-untyped]
+from pufferlib import PufferEnv
 
 from .curriculum import Curriculum
 
@@ -67,31 +67,24 @@ class CurriculumEnv(PufferEnv):
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
-
-        # Try to get a valid task and build the map
+        # Store original task ID before retries to correctly detect task changes
+        original_task_id = self._previous_task_id
         max_retries = 10
         task_changed = False
         for attempt in range(max_retries):
             try:
-                # Get a new task from curriculum
                 new_task = self._curriculum.get_task()
-                # Compare task IDs to detect when curriculum switches to a different task (fixes ICL LSTM collapse)
-                task_changed = new_task._task_id != self._previous_task_id
-                self._previous_task_id = new_task._task_id
                 self._current_task = new_task
-                # Create the env config and build the map in try-catch
                 self._env.set_mg_config(self._current_task.get_env_cfg())
                 obs, info = self._env.reset(*args, **kwargs)
+                task_changed = new_task._task_id != original_task_id
+                self._previous_task_id = new_task._task_id
                 break
             except Exception:
-                # If config is invalid or map building fails, request a new task
                 if attempt == max_retries - 1:
-                    # If we've exhausted retries, raise the exception
                     raise
-                # Otherwise, try again with a new task
                 continue
 
-        # Signal task change via info dict so rollout phase can reset LSTM state before policy inference
         if task_changed and isinstance(info, dict):
             info["_task_changed"] = True
 

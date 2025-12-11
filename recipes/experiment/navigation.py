@@ -2,8 +2,7 @@ from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.puffer import PufferPolicyConfig
-from metta.agent.policies.trxl import TRXLConfig
+from recipes.experiment.architectures import ARCHITECTURES
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -184,12 +183,12 @@ def train(
         "evaluator": evaluator_cfg,
     }
 
-    if arch_type == "trxl":
-        kwargs["policy_architecture"] = TRXLConfig()
-    elif arch_type == "lstm":
-        kwargs["policy_architecture"] = PufferPolicyConfig()
-    elif arch_type != "default":
-        raise ValueError(f"Unknown arch_type={arch_type!r} (expected 'default', 'trxl', or 'lstm')")
+    if arch_type != "default":
+        if arch_type not in ARCHITECTURES:
+            raise ValueError(
+                f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})"
+            )
+        kwargs["policy_architecture"] = ARCHITECTURES[arch_type]
 
     return TrainTool(**kwargs)
 

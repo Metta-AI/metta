@@ -174,13 +174,7 @@ class PufferPolicy(Policy):
         lstm_input = encoded_obs.unsqueeze(0)
         batch_size = encoded_obs.shape[0]
 
-        # Initialize LSTM state if None or batch size changed (training resets state per minibatch, rollout persists)
         if self._hidden_state is None or self._cell_state is None:
-            device = encoded_obs.device
-            self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
-            self._cell_state = torch.zeros(1, batch_size, 512, device=device)
-        elif self._hidden_state.shape[1] != batch_size:
-            # Reinitialize state when batch size changes (e.g., different minibatch sizes during training)
             device = encoded_obs.device
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)

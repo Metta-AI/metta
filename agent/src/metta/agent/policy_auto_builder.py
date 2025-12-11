@@ -63,7 +63,6 @@ class PolicyAutoBuilder(Policy):
         self.to(device)
         if device.type == "cuda":
             self._configure_sdp()
-            # TF32 already configured elsewhere; setting here causes torch.compile conflicts
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):

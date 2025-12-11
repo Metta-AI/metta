@@ -124,13 +124,12 @@ class CoreTrainingLoop:
 
                 self._ensure_rollout_metadata(td)
 
-            # Check for _task_changed flag from curriculum and reset LSTM state to prevent memory conflicts
+            # Reset LSTM state when curriculum task changes to prevent memory conflicts
             if info:
                 task_changed = any(
                     info_dict.get("_task_changed", False) for info_dict in info if isinstance(info_dict, dict)
                 )
                 if task_changed:
-                    # Clear LSTM states for all policies when curriculum task changes (fixes ICL LSTM collapse)
                     for loss in self.losses.values():
                         loss.policy.reset_memory()
 

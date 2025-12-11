@@ -8,9 +8,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from metta.agent.policies.puffer import PufferPolicyConfig
-from metta.agent.policies.trxl import TRXLConfig
-from metta.agent.policies.vit import ViTDefaultConfig
+from recipes.experiment.architectures import ARCHITECTURES
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -413,14 +411,11 @@ def train(
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
-    if arch_type == "default":
-        policy_config = ViTDefaultConfig()
-    elif arch_type == "trxl":
-        policy_config = TRXLConfig()
-    elif arch_type == "lstm":
-        policy_config = PufferPolicyConfig()
-    else:
-        raise ValueError(f"Unknown arch_type={arch_type!r} (expected 'default', 'trxl', or 'lstm')")
+    if arch_type not in ARCHITECTURES:
+        raise ValueError(
+            f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})"
+        )
+    policy_config = ARCHITECTURES[arch_type]
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
