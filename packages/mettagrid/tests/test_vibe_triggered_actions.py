@@ -4,6 +4,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AttackActionConfig,
+    AttackOutcome,
     ChangeVibeActionConfig,
     GameConfig,
     InventoryConfig,
@@ -58,18 +59,17 @@ class TestVibeTriggeredAttack:
                 attack=AttackActionConfig(
                     enabled=False,  # Disable direct attack actions
                     vibes=["charger"],  # Attack triggers on move when agent has charger vibe
+                    success=AttackOutcome(freeze=5),
                 ),
             ),
             objects={"wall": WallConfig()},
             agents=[
                 AgentConfig(
                     team_id=0,
-                    freeze_duration=5,
                     inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
                 ),
                 AgentConfig(
                     team_id=1,
-                    freeze_duration=5,
                     inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
                 ),
             ],
@@ -128,12 +128,10 @@ class TestVibeTriggeredAttack:
             agents=[
                 AgentConfig(
                     team_id=0,
-                    freeze_duration=5,
                     inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
                 ),
                 AgentConfig(
                     team_id=1,
-                    freeze_duration=5,
                     inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
                 ),
             ],
