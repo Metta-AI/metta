@@ -110,9 +110,7 @@ class TestVibeTriggeredTransfer:
 
         # Check that transfer occurred
         objects_after = sim.grid_objects()
-        agents_after = sorted(
-            [obj for obj in objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"]
-        )
+        agents_after = sorted([obj for obj in objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
 
         agent0_energy_after = agents_after[0]["inventory"][energy_idx]
         agent1_energy_after = agents_after[1]["inventory"][energy_idx]
@@ -149,9 +147,7 @@ class TestVibeTriggeredTransfer:
 
         # Check that no transfer occurred
         objects_after = sim.grid_objects()
-        agents_after = sorted(
-            [obj for obj in objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"]
-        )
+        agents_after = sorted([obj for obj in objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
 
         agent0_energy_after = agents_after[0]["inventory"][energy_idx]
         agent1_energy_after = agents_after[1]["inventory"][energy_idx]
@@ -199,9 +195,7 @@ class TestVibeTriggeredTransfer:
 
         # Check that transfer occurred for both resources
         objects_after = sim.grid_objects()
-        agents_after = sorted(
-            [obj for obj in objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"]
-        )
+        agents_after = sorted([obj for obj in objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
 
         # Agent 0 should have lost resources
         assert agents_after[0]["inventory"][energy_idx] == agent0_energy_before - 10
@@ -239,9 +233,7 @@ class TestVibeTriggeredTransfer:
 
         # Check that no transfer occurred
         objects_after = sim.grid_objects()
-        agents_after = sorted(
-            [obj for obj in objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"]
-        )
+        agents_after = sorted([obj for obj in objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
 
         agent0_energy_after = agents_after[0]["inventory"][energy_idx]
         agent1_energy_after = agents_after[1]["inventory"][energy_idx]
