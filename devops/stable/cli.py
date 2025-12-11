@@ -2,9 +2,9 @@
 """Stable release validation CLI.
 
 Usage:
-    ./cli.py                         # Run full validation
-    ./cli.py --version=v1.0.0        # Use specific version
-    ./cli.py --job arena             # Filter jobs by name
+    ./cli.py                    # Run all jobs (ci + stable)
+    ./cli.py --suite=ci         # Run CI jobs only
+    ./cli.py --suite=stable     # Run stable jobs only
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Annotated
 
 import typer
 
@@ -97,29 +98,23 @@ def write_discord_summary(runner: Runner, state_dir: Path) -> None:
 
 
 @app.callback()
-def release(
-    version: str = typer.Option(None, help="Version string (default: timestamp)"),
-    job: str = typer.Option(None, help="Filter jobs by name pattern"),
-    suite: str = typer.Option(None, help="Filter by suite: ci, stable, or all (default)"),
-    non_interactive: bool = typer.Option(False, "--non-interactive", help="Non-interactive mode"),
-    skip_commit_match: bool = typer.Option(False, "--skip-commit-match", help="Skip commit verification"),
+def main(
+    suite: Annotated[Suite | None, typer.Option(help="Which jobs to run: ci, stable, or all")] = None,
 ):
-    """Run stable release validation."""
-    version = version or generate_version()
+    """Run job validation."""
+    version = generate_version()
     user = os.environ.get("USER", "unknown")
-    prefix = f"{user}.{suite or 'stable'}.{version}"
-    state_dir = get_state_dir(version) if suite != "ci" else Path("train_dir/ci") / version
+    prefix = f"{user}.{suite or 'all'}.{version}"
+    state_dir = get_state_dir(version)
 
-    suite_filter = Suite(suite) if suite in ("ci", "stable") else None
+    specs = discover_jobs(suite)
+    jobs = specs_to_jobs(specs, prefix)
+
     runner = Runner(state_dir)
-    specs = discover_jobs(suite_filter)
-    all_jobs = specs_to_jobs(specs, prefix)
-    if job:
-        all_jobs = [j for j in all_jobs if job in j.name]
-    for j in all_jobs:
+    for j in jobs:
         runner.add_job(j)
 
-    print(f"Running stable release validation: {version}")
+    print(f"Running {suite} jobs: {version}")
     print(f"State: {state_dir}")
     print(f"Logs: {runner.logs_dir}")
     print(f"Jobs: {len(runner.jobs)}")

@@ -120,20 +120,7 @@ jobs:
 
       - name: Run stable release process
         id: release
-        run: |
-          # Build command with optional arguments
-          CMD="./devops/stable/cli.py --non-interactive"
-
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            CMD="$CMD --version=${{ github.event.inputs.version }}"
-          fi
-
-          if [ "${{ github.event.inputs.skip_commit_match }}" == "true" ]; then
-            CMD="$CMD --skip-commit-match"
-          fi
-
-          echo "Running: $CMD"
-          $CMD
+        run: ./devops/stable/cli.py
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           OBSERVATORY_TOKEN: ${{ secrets.OBSERVATORY_TOKEN }}
