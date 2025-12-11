@@ -698,12 +698,9 @@ class TraderVariant(MissionVariant):
             VibeTransfer(vibe="heart_a", target={"heart": 1}),
             VibeTransfer(vibe="heart_b", target={"heart": 4}),
         ]
-        trade_vibe_names = [t.vibe for t in trade_transfers]
-
         # Enable transfer action with these vibes
         env.game.actions.transfer.enabled = True
         env.game.actions.transfer.vibe_transfers.extend(trade_transfers)
-        env.game.actions.transfer.vibes.extend(trade_vibe_names)
 
 
 # TODO - validate that all variant names are unique

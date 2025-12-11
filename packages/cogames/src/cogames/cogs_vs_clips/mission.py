@@ -184,7 +184,6 @@ class Mission(Config):
                 ),
                 transfer=TransferActionConfig(
                     enabled=True,
-                    vibes=["charger"],
                     vibe_transfers=[VibeTransfer(vibe="charger", target={"energy": 20})],
                 ),
             ),
