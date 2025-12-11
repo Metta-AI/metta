@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import uuid
 import zipfile
 from typing import Any, Optional
@@ -26,6 +27,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME
 from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
@@ -36,8 +38,14 @@ class EvaluatorConfig(Config):
     """Configuration for evaluation."""
 
     epoch_interval: int = 100  # 0 to disable
-    evaluate_local: bool = True
-    evaluate_remote: bool = False
+    evaluate_local: bool = Field(
+        default_factory=lambda: os.getenv("SKYPILOT_TASK_ID") is None,
+        description="Run evals locally. Defaults to True locally, False on SkyPilot.",
+    )
+    evaluate_remote: bool = Field(
+        default_factory=lambda: os.getenv("SKYPILOT_TASK_ID") is not None,
+        description="Run evals remotely via Observatory. Defaults to False locally, True on SkyPilot.",
+    )
     num_training_tasks: int = 2
     parallel_evals: int = Field(
         default=9,
@@ -132,10 +140,10 @@ class Evaluator(TrainerComponent):
         return epoch % interval == 0
 
     def _create_submission_zip(self, policy_spec: PolicySpec) -> bytes:
-        """Create a submission zip containing policy-spec.json."""
+        """Create a submission zip containing policy_spec.json."""
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr("policy_spec.json", policy_spec.model_dump_json())
+            zipf.writestr(POLICY_SPEC_FILENAME, policy_spec.model_dump_json())
         return buffer.getvalue()
 
     def _upload_submission_zip(self, policy_spec: PolicySpec) -> str | None:
@@ -208,10 +216,11 @@ class Evaluator(TrainerComponent):
         # Remote evaluation
         if self._evaluate_remote and self._stats_client and policy_version_id:
             response = evaluate_remotely(
-                policy_version_id,
-                sim_run_configs,
-                self._stats_client,
-                self._git_hash,
+                policy_version_id=policy_version_id,
+                simulations=sim_run_configs,
+                stats_client=self._stats_client,
+                git_hash=self._git_hash,
+                push_metrics_to_wandb=(self._wandb_run is not None),
             )
             logger.info(f"Created remote evaluation task {response}")
 

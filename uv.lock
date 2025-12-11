@@ -2164,6 +2164,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "cpplint" },
+    { name = "freezegun" },
     { name = "gcovr" },
     { name = "metta-pr-similarity-mcp" },
     { name = "mypy" },
@@ -2199,6 +2200,7 @@ mcp-servers = [
     { name = "wandb-dashboard-mcp" },
 ]
 testing = [
+    { name = "freezegun" },
     { name = "gcovr" },
     { name = "pyright" },
     { name = "pytest" },
@@ -2286,6 +2288,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "cpplint", specifier = ">=2.0.2" },
+    { name = "freezegun", specifier = ">=1.5.5" },
     { name = "gcovr", specifier = ">=8.3" },
     { name = "metta-pr-similarity-mcp", editable = "mcp_servers/pr_similarity" },
     { name = "mypy", specifier = ">=1.18.2" },
@@ -2321,6 +2324,7 @@ mcp-servers = [
     { name = "wandb-dashboard-mcp", editable = "mcp_servers/wandb_dashboard" },
 ]
 testing = [
+    { name = "freezegun", specifier = ">=1.5.5" },
     { name = "gcovr", specifier = ">=8.3" },
     { name = "pyright", specifier = ">=1.1.401" },
     { name = "pytest", specifier = ">=8.3.3" },
@@ -2382,6 +2386,7 @@ dependencies = [
     { name = "metta-common" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
     { name = "pytest-asyncio" },
     { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
@@ -2410,6 +2415,7 @@ requires-dist = [
     { name = "metta-common", editable = "common" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.9" },
     { name = "pydantic", specifier = ">=2.11.5" },
+    { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },

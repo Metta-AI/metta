@@ -12,6 +12,8 @@ proc centerAt*(panel: Panel, entity: Entity)
 var
   terrainMap*: TileMap
   visibilityMapStep*: int = -1
+  visibilityMapSelectionId*: int = -1
+  visibilityMapLockFocus*: bool = false
   visibilityMap*: TileMap
   px*: Pixelator
   sq*: ShaderQuad
@@ -116,16 +118,21 @@ proc rebuildVisibilityMap*(visibilityMap: TileMap) {.measure.} =
       fogOfWarMap[y * width + x] = true
 
   # Walk the agents and clear the visibility map.
-  for obj in replay.objects:
+  # If lockFocus is on with an agent selected, only show that agent's vision.
+  let agentsToProcess = if settings.lockFocus and selection != nil and selection.isAgent:
+    @[selection]
+  else:
+    replay.agents
+
+  for obj in agentsToProcess:
     let center = ivec2(int32(obj.visionSize div 2), int32(obj.visionSize div 2))
-    if obj.typeName == "agent":
-      let pos = obj.location.at
-      for i in 0 ..< obj.visionSize:
-        for j in 0 ..< obj.visionSize:
-          let gridPos = pos.xy + ivec2(int32(i), int32(j)) - center
-          if gridPos.x >= 0 and gridPos.x < width and
-            gridPos.y >= 0 and gridPos.y < height:
-            fogOfWarMap[gridPos.y * width + gridPos.x] = false
+    let pos = obj.location.at
+    for i in 0 ..< obj.visionSize:
+      for j in 0 ..< obj.visionSize:
+        let gridPos = pos.xy + ivec2(int32(i), int32(j)) - center
+        if gridPos.x >= 0 and gridPos.x < width and
+          gridPos.y >= 0 and gridPos.y < height:
+          fogOfWarMap[gridPos.y * width + gridPos.x] = false
 
   # Generate the tile edges.
   for i in 0 ..< visibilityMap.indexData.len:
@@ -187,6 +194,7 @@ proc buildAtlas*() {.measure.} =
   bxy.addImage("selection", readImage(dataDir & "/selection.png"))
   bxy.addImage("agents/path", readImage(dataDir & "/agents/path.png"))
   bxy.addImage("agents/footprints", readImage(dataDir & "/agents/footprints.png"))
+  bxy.addImage("agents/frozen", readImage(dataDir & "/agents/frozen.png"))
   bxy.addImage("actions/thoughts_lightning", readImage(dataDir & "/actions/thoughts_lightning.png"))
   bxy.addImage("actions/icons/unknown", readImage(dataDir & "/actions/icons/unknown.png"))
   bxy.addImage("actions/arrow", readImage(dataDir & "/actions/arrow.png"))
@@ -208,6 +216,7 @@ proc buildAtlas*() {.measure.} =
         bxy.addImage(name, readImage(path))
 
   addDir(dataDir, "resources")
+  addDir(dataDir, "vibe")
 
 proc getProjectionView*(): Mat4 {.measure.} =
   ## Get the projection and view matrix.
@@ -363,10 +372,19 @@ proc drawVisualRanges*(alpha = 0.5) {.measure.} =
 
   if visibilityMap == nil:
     visibilityMapStep = step
+    visibilityMapSelectionId = if selection != nil: selection.id else: -1
+    visibilityMapLockFocus = settings.lockFocus
     visibilityMap = generateVisibilityMap()
 
-  if visibilityMapStep != step:
+  let
+    currentSelectionId = if selection != nil: selection.id else: -1
+    needsRebuild = visibilityMapStep != step or visibilityMapLockFocus != settings.lockFocus or
+      (settings.lockFocus and visibilityMapSelectionId != currentSelectionId)
+
+  if needsRebuild:
     visibilityMapStep = step
+    visibilityMapSelectionId = currentSelectionId
+    visibilityMapLockFocus = settings.lockFocus
     visibilityMap.updateVisibilityMap()
 
   visibilityMap.draw(
