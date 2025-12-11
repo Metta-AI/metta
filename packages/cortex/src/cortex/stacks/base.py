@@ -14,6 +14,7 @@ from cortex.blocks.base import BaseBlock
 from cortex.cells import build_cell
 from cortex.config import CortexStackConfig
 from cortex.types import MaybeState, ResetMask, Tensor
+from cortex.utils import configure_tf32_precision
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class CortexStack(nn.Module):
         self.blocks = nn.ModuleList(self._build_blocks(cfg))
         self.norm = nn.LayerNorm(cfg.d_hidden) if cfg.post_norm else nn.Identity()
         self._compiled_blocks: list | None = None
+        self._tf32_configured = False
 
         compile_requested = bool(getattr(cfg, "compile_blocks", False))
         if compile_requested and not torch.cuda.is_available():
@@ -79,6 +81,10 @@ class CortexStack(nn.Module):
         resets: Optional[ResetMask] = None,
     ) -> tuple[Tensor, MaybeState]:
         y = x
+        if y.is_cuda and not self._tf32_configured:
+            configure_tf32_precision()
+            self._tf32_configured = True
+
         batch_size = x.shape[0]
         next_state = TensorDict({}, batch_size=[batch_size])
         for i, block in enumerate(self.blocks):

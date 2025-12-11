@@ -165,7 +165,6 @@ class PPO(Loss):
 
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
         self.policy.reset_memory()
-
         policy_td = self.policy.forward(policy_td, action=flat_actions)
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
 
