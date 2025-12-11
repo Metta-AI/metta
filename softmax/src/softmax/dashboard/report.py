@@ -86,8 +86,8 @@ def report(
     except Exception as e:
         logger.warning("Failed to collect softmax dashboard metrics: %s", e, exc_info=True)
 
-    # Send to Datadog if push is enabled
-    if push and metrics:
+    # Send to Datadog if push is enabled (and not dry-run)
+    if push and not dry_run and metrics:
         try:
             typer.echo("Pushing softmax dashboard metrics to Datadog...")
             configuration = _datadog_configuration()
@@ -98,6 +98,8 @@ def report(
         except Exception as e:
             logger.error("Failed to push softmax dashboard metrics: %s", e, exc_info=True)
             typer.echo(f"Warning: Failed to push softmax dashboard metrics: {e}")
+    elif dry_run:
+        typer.echo("Dry-run mode: skipping Datadog push")
 
 
 def main() -> None:
