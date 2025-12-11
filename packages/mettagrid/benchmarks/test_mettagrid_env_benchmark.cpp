@@ -42,6 +42,8 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::shared_ptr<AttackActionConfig> attack_cfg =
       std::make_shared<AttackActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
                                            std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                           std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                           std::unordered_map<InventoryItem, InventoryQuantity>(),
                                            std::unordered_map<InventoryItem, InventoryQuantity>());
 
   std::shared_ptr<ChangeVibeActionConfig> change_vibe_cfg =
