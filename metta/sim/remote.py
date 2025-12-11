@@ -36,5 +36,6 @@ def evaluate_remotely(
         command=command,
         data_file=SimulationList(simulations=simulations).model_dump(mode="json"),
         git_hash=git_hash,
+        attributes={"parallelism": len(simulations)},
     )
     return stats_client.create_eval_task(request)
