@@ -1,7 +1,7 @@
 """Metric extraction from structured job results.
 
-This module extracts training and eval metrics from structured job result dictionaries
-and maps them to Datadog schema metrics.
+This module provides helper functions to extract training and eval metrics from
+structured job_result dictionaries from the new runner workflow and map them to Datadog schema metrics.
 
 Job results are expected to be dictionaries with the following structure:
 {

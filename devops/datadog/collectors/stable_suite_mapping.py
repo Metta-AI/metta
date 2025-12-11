@@ -1,7 +1,7 @@
-"""Job to workflow mapping for stable_suite integration.
+"""Job to workflow mapping for runner integration.
 
-This module maps stable_suite job names to Datadog schema workflow names.
-Mapping is hard-coded based on Nishad's confirmed mapping.
+This module maps job names from the stable release runner to Datadog schema workflow names.
+Mapping is hard-coded based on confirmed job naming conventions.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ JOB_TO_WORKFLOW_MAP = {
 
 
 def map_job_to_workflow(job_name: str) -> str:
-    """Map a stable_suite job name to a Datadog workflow name.
+    """Map a job name to a Datadog workflow name.
 
     Args:
         job_name: Full job name (e.g., "stable.v0.1.0.arena_single_gpu_100m")

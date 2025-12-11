@@ -12,7 +12,8 @@ class EvalCollector(BaseCollector):
     """
     Collector for eval metrics (local + remote) used by the infra dashboard.
 
-    Accepts structured job results and extracts metrics:
+    This collector is designed to be used within the new runner workflow.
+    It accepts structured job_results (dictionaries) from the runner and extracts metrics:
     - Extracts success, heart_delta_pct, and duration_minutes from job results
     - Maps jobs to workflows using stable_suite_mapping
 
@@ -45,47 +46,38 @@ class EvalCollector(BaseCollector):
             samples.extend(self._emit_placeholder_metrics())
             return samples
 
-        try:
-            # Filter to eval jobs only
-            eval_jobs = [jr for jr in job_results if is_eval_job(jr.get("name", ""))]
+        # Filter to eval jobs only
+        eval_jobs = [jr for jr in job_results if is_eval_job(jr.get("name", ""))]
 
-            if not eval_jobs:
-                self.logger.warning("No eval jobs found in job results")
-                samples.append(self._build_data_missing_metric(value=1.0))
-                samples.extend(self._emit_placeholder_metrics())
-                return samples
-
-            # Emit data_missing = 0 since we found data
-            samples.append(self._build_data_missing_metric(value=0.0))
-
-            # Extract metrics from eval jobs
-            # Note: Only remote eval exists in stable_suite (no local eval)
-            remote_metrics = {"success": 0.0, "heart_delta_pct": 0.0, "duration_minutes": 0.0}
-            local_metrics = {"success": 0.0, "heart_delta_pct": 0.0}  # Placeholder - no local eval
-
-            for job_result in eval_jobs:
-                try:
-                    job_name = job_result.get("name", "")
-                    workflow = map_job_to_workflow(job_name)
-                    if workflow == "remote_eval":
-                        metrics = extract_eval_metrics(job_result)
-                        remote_metrics = metrics
-                except ValueError as exc:
-                    self.logger.warning("Could not map job %s to workflow: %s", job_result.get("name", ""), exc)
-                    continue
-
-            # Emit metrics
-            payload = {"local": local_metrics, "remote": remote_metrics}
-            samples.extend(self._local_metrics(payload))
-            samples.extend(self._remote_metrics(payload))
-
-        except Exception as exc:  # noqa: BLE001
-            self.logger.error("Failed to collect eval metrics: %s", exc, exc_info=True)
+        if not eval_jobs:
+            self.logger.warning("No eval jobs found in job results")
             samples.append(self._build_data_missing_metric(value=1.0))
             samples.extend(self._emit_placeholder_metrics())
+            return samples
 
-        if not samples:
-            self.logger.warning("Eval collector produced zero metrics")
+        # Emit data_missing = 0 since we found data
+        samples.append(self._build_data_missing_metric(value=0.0))
+
+        # Extract metrics from eval jobs
+        remote_metrics = {"success": 0.0, "heart_delta_pct": 0.0, "duration_minutes": 0.0}
+        local_metrics = {"success": 0.0, "heart_delta_pct": 0.0}
+
+        for job_result in eval_jobs:
+            try:
+                job_name = job_result.get("name", "")
+                workflow = map_job_to_workflow(job_name)
+                if workflow == "remote_eval":
+                    metrics = extract_eval_metrics(job_result)
+                    remote_metrics = metrics
+            except ValueError as exc:
+                self.logger.warning("Could not map job %s to workflow: %s", job_result.get("name", ""), exc)
+                continue
+
+        # Emit metrics
+        payload = {"local": local_metrics, "remote": remote_metrics}
+        samples.extend(self._local_metrics(payload))
+        samples.extend(self._remote_metrics(payload))
+
         return samples
 
     def _build_data_missing_metric(self, value: float) -> MetricSample:

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from datetime import timedelta
 from typing import Dict, List, Set
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from devops.datadog.collectors.base import BaseCollector
 from devops.datadog.github_client import GitHubClient
@@ -12,51 +14,49 @@ from devops.datadog.utils import parse_github_timestamp, percentile, utcnow
 from softmax.aws.secrets_manager import get_secretsmanager_secret
 
 
-@dataclass
-class CICollectorConfig:
-    repo: str
-    branch: str
-    hotfix_labels: List[str]
-    force_merge_labels: List[str]
-    revert_labels: List[str]
-    hours_to_consider: int
-    weekly_window_days: int
-    flaky_threshold: int
-    duration_p90_minutes: float
-    cancelled_threshold: int
-    hotfix_threshold: int
-    force_merge_threshold: int
-    revert_threshold: int
-    # Workflow names for specific checks (configurable via env vars)
-    tests_blocking_merge_workflows: List[str]
-    benchmarks_workflows: List[str]
+class CICollectorConfig(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="",  # No prefix, use exact env var names
+        case_sensitive=True,
+        extra="ignore",
+    )
 
-    @staticmethod
-    def from_env() -> "CICollectorConfig":
-        return CICollectorConfig(
-            repo=os.environ.get("METTA_GITHUB_REPO", "Metta-AI/metta"),
-            branch=os.environ.get("METTA_GITHUB_BRANCH", "main"),
-            hotfix_labels=_split_env("METTA_GITHUB_HOTFIX_LABELS", default="hotfix"),
-            force_merge_labels=_split_env("METTA_GITHUB_FORCE_MERGE_LABELS", default="force-merge,force_merge"),
-            revert_labels=_split_env("METTA_GITHUB_REVERT_LABELS", default="revert"),
-            hours_to_consider=int(os.environ.get("CI_HISTORY_WINDOW_HOURS", "24")),
-            weekly_window_days=int(os.environ.get("CI_WEEKLY_WINDOW_DAYS", "7")),
-            flaky_threshold=int(os.environ.get("CI_FLAKY_TEST_THRESHOLD", "10")),
-            duration_p90_minutes=float(os.environ.get("CI_P90_DURATION_MINUTES", "5")),
-            cancelled_threshold=int(os.environ.get("CI_CANCELLED_THRESHOLD", "10")),
-            hotfix_threshold=int(os.environ.get("CI_HOTFIX_THRESHOLD", "5")),
-            force_merge_threshold=int(os.environ.get("CI_FORCE_MERGE_THRESHOLD", "7")),
-            revert_threshold=int(os.environ.get("CI_REVERT_THRESHOLD", "1")),
-            tests_blocking_merge_workflows=_split_env("CI_TESTS_BLOCKING_MERGE_WORKFLOWS", default=""),
-            benchmarks_workflows=_split_env("CI_BENCHMARKS_WORKFLOWS", default=""),
-        )
+    repo: str = Field(default="Metta-AI/metta", description="GitHub repository")
+    branch: str = Field(default="main", description="GitHub branch to monitor")
+    hotfix_labels: List[str] = Field(default_factory=lambda: ["hotfix"], description="Labels that indicate hotfix PRs")
+    force_merge_labels: List[str] = Field(
+        default_factory=lambda: ["force-merge", "force_merge"], description="Labels that indicate force merge PRs"
+    )
+    revert_labels: List[str] = Field(default_factory=lambda: ["revert"], description="Labels that indicate revert PRs")
+    hours_to_consider: int = Field(default=24, description="Hours of CI history to consider")
+    weekly_window_days: int = Field(default=7, description="Days for weekly metrics window")
+    flaky_threshold: int = Field(default=10, description="Threshold for flaky test count")
+    duration_p90_minutes: float = Field(default=5.0, description="P90 duration threshold in minutes")
+    cancelled_threshold: int = Field(default=10, description="Threshold for cancelled runs")
+    hotfix_threshold: int = Field(default=5, description="Threshold for hotfix count")
+    force_merge_threshold: int = Field(default=7, description="Threshold for force merge count")
+    revert_threshold: int = Field(default=1, description="Threshold for revert count")
+    tests_blocking_merge_workflows: List[str] = Field(
+        default_factory=list, description="Workflow names for tests that block merge"
+    )
+    benchmarks_workflows: List[str] = Field(default_factory=list, description="Workflow names for benchmarks")
 
-
-def _split_env(key: str, default: str = "") -> List[str]:
-    value = os.environ.get(key, default)
-    if not value:
-        return []
-    return [token.strip() for token in value.split(",") if token.strip()]
+    @field_validator(
+        "hotfix_labels",
+        "force_merge_labels",
+        "revert_labels",
+        "tests_blocking_merge_workflows",
+        "benchmarks_workflows",
+        mode="before",
+    )
+    @classmethod
+    def parse_comma_separated(cls, v: str | List[str]) -> List[str]:
+        """Parse comma-separated string from env vars into list."""
+        if isinstance(v, str):
+            if not v:
+                return []
+            return [token.strip() for token in v.split(",") if token.strip()]
+        return v
 
 
 class CICollector(BaseCollector):
@@ -66,7 +66,7 @@ class CICollector(BaseCollector):
 
     def __init__(self) -> None:
         super().__init__()
-        self.config = CICollectorConfig.from_env()
+        self.config = CICollectorConfig()
         token = (
             os.environ.get("GITHUB_DASHBOARD_TOKEN")
             or os.environ.get("GITHUB_TOKEN")

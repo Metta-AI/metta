@@ -13,7 +13,8 @@ class TrainingCollector(BaseCollector):
     """
     Collector for training health metrics used by the infra dashboard.
 
-    Accepts structured job results and extracts metrics:
+    This collector is designed to be used within the new runner workflow.
+    It accepts structured job_results (dictionaries) from the runner and extracts metrics:
     - Extracts success, hearts, sps, and shaped metrics from job results
     - Maps jobs to workflows using stable_suite_mapping
 
@@ -45,63 +46,51 @@ class TrainingCollector(BaseCollector):
             samples.extend(self._emit_placeholder_metrics())
             return samples
 
-        try:
-            # Filter to training jobs only
-            training_jobs = [jr for jr in job_results if is_training_job(jr.get("name", ""))]
+        # Filter to training jobs only
+        training_jobs = [jr for jr in job_results if is_training_job(jr.get("name", ""))]
 
-            if not training_jobs:
-                self.logger.warning("No training jobs found in job results")
-                samples.append(self._build_data_missing_metric(value=1.0))
-                samples.extend(self._emit_placeholder_metrics())
-                return samples
-
-            # Emit data_missing = 0 since we found data
-            samples.append(self._build_data_missing_metric(value=0.0))
-
-            # Group jobs by workflow and extract metrics
-            workflow_metrics: Dict[str, Dict[str, float]] = defaultdict(
-                lambda: {"success": 0.0, "hearts": 0.0, "sps": 0.0, "shaped": 0.0}
-            )
-
-            for job_result in training_jobs:
-                try:
-                    job_name = job_result.get("name", "")
-                    workflow = map_job_to_workflow(job_name)
-                    metrics = extract_training_metrics(job_result)
-
-                    # Aggregate: use latest job's metrics (or could average)
-                    # For now, use the most recent job's metrics
-                    workflow_metrics[workflow] = metrics
-                except ValueError as exc:
-                    self.logger.warning("Could not map job %s to workflow: %s", job_result.get("name", ""), exc)
-                    continue
-
-            # Convert to old format for compatibility with existing metric builders
-            health_data: Dict[str, Dict[str, float]] = {}
-            for workflow, metrics in workflow_metrics.items():
-                if workflow == "multigpu_arena_basic_easy_shaped":
-                    health_data["multigpu"] = metrics
-                elif workflow == "multinode_learning_progress":
-                    health_data["multinode"] = metrics
-                elif workflow == "local_arena_basic_easy_shaped":
-                    # Not available from stable_suite
-                    health_data["local_arena"] = {"checkpoint1": 0.0, "checkpoint2": 0.0}
-                elif workflow == "training_bugs":
-                    health_data["bugs"] = {"count": 0.0}  # Not from stable_suite
-
-            # Emit metrics for each workflow
-            samples.extend(self._multigpu_metrics(health_data))
-            samples.extend(self._multinode_metrics(health_data))
-            samples.extend(self._local_arena_metrics(health_data))
-            samples.extend(self._bugs_metrics(health_data))
-
-        except Exception as exc:  # noqa: BLE001
-            self.logger.error("Failed to collect training metrics: %s", exc, exc_info=True)
+        if not training_jobs:
+            self.logger.warning("No training jobs found in job results")
             samples.append(self._build_data_missing_metric(value=1.0))
             samples.extend(self._emit_placeholder_metrics())
+            return samples
 
-        if not samples:
-            self.logger.warning("Training collector produced zero metrics")
+        # Emit data_missing = 0 since we found data
+        samples.append(self._build_data_missing_metric(value=0.0))
+
+        # Group jobs by workflow and extract metrics
+        workflow_metrics: Dict[str, Dict[str, float]] = defaultdict(
+            lambda: {"success": 0.0, "hearts": 0.0, "sps": 0.0, "shaped": 0.0}
+        )
+
+        for job_result in training_jobs:
+            try:
+                job_name = job_result.get("name", "")
+                workflow = map_job_to_workflow(job_name)
+                metrics = extract_training_metrics(job_result)
+                workflow_metrics[workflow] = metrics
+            except ValueError as exc:
+                self.logger.warning("Could not map job %s to workflow: %s", job_result.get("name", ""), exc)
+                continue
+
+        # Convert to old format for compatibility with existing metric builders
+        health_data: Dict[str, Dict[str, float]] = {}
+        for workflow, metrics in workflow_metrics.items():
+            if workflow == "multigpu_arena_basic_easy_shaped":
+                health_data["multigpu"] = metrics
+            elif workflow == "multinode_learning_progress":
+                health_data["multinode"] = metrics
+            elif workflow == "local_arena_basic_easy_shaped":
+                health_data["local_arena"] = {"checkpoint1": 0.0, "checkpoint2": 0.0}
+            elif workflow == "training_bugs":
+                health_data["bugs"] = {"count": 0.0}
+
+        # Emit metrics for each workflow
+        samples.extend(self._multigpu_metrics(health_data))
+        samples.extend(self._multinode_metrics(health_data))
+        samples.extend(self._local_arena_metrics(health_data))
+        samples.extend(self._bugs_metrics(health_data))
+
         return samples
 
     def _build_data_missing_metric(self, value: float) -> MetricSample:
