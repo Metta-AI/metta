@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import subprocess
+import sys
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -14,7 +16,7 @@ from pathlib import Path
 from typing import Literal
 
 import wandb
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
@@ -41,8 +43,8 @@ class Job(BaseModel):
     cmd: list[str]
     timeout_s: int = 3600
     remote: dict | None = None
-    dependencies: list[str] = []
-    acceptance: list[AcceptanceCriterion] = []
+    dependencies: list[str] = Field(default_factory=list)
+    acceptance: list[AcceptanceCriterion] = Field(default_factory=list)
     wandb_run_name: str | None = None
 
     status: JobStatus = JobStatus.PENDING
@@ -52,7 +54,7 @@ class Job(BaseModel):
     duration_s: float | None = None
     logs_path: str | None = None
     skypilot_job_id: str | None = None
-    metrics: dict[str, float] = {}
+    metrics: dict[str, float] = Field(default_factory=dict)
     acceptance_passed: bool | None = None
     error: str | None = None
 
@@ -72,7 +74,15 @@ class Job(BaseModel):
 
 
 class Runner:
-    def __init__(self, state_dir: Path):
+    def __init__(
+        self,
+        state_dir: Path,
+        *,
+        stream_logs: bool | None = None,
+        status_interval_s: float = 600,
+        remote_poll_interval_s: float = 5.0,
+        local_idle_sleep_s: float = 0.1,
+    ):
         self.state_dir = Path(state_dir)
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir = self.state_dir / "logs"
@@ -81,16 +91,19 @@ class Runner:
         self._executor: ThreadPoolExecutor | None = None
         self._futures: dict[Future, Job] = {}
         self._output_lock = threading.Lock()
+        self.status_interval_s = status_interval_s
+        self.remote_poll_interval_s = remote_poll_interval_s
+        self.local_idle_sleep_s = local_idle_sleep_s
+        self.stream_logs = self._default_stream_logs() if stream_logs is None else stream_logs
 
     def add_job(self, job: Job) -> None:
         self.jobs[job.name] = job
 
     def run_all(self) -> dict[str, Job]:
         """Run all jobs, respecting dependencies. Returns final job states."""
-        self._executor = ThreadPoolExecutor(max_workers=32)
+        self._executor = ThreadPoolExecutor(max_workers=min(32, max(1, len(self.jobs))))
         self._futures = {}
         last_status_time = time.time()
-        status_interval = 600  # 10 minutes
 
         try:
             while True:
@@ -102,7 +115,7 @@ class Runner:
                 if not pending and not running:
                     break
 
-                if time.time() - last_status_time >= status_interval:
+                if time.time() - last_status_time >= self.status_interval_s:
                     self._print_status_summary()
                     last_status_time = time.time()
 
@@ -113,9 +126,9 @@ class Runner:
                 remote_running = [j for j in running if j.is_remote]
                 if remote_running:
                     self._poll_remote_jobs()
-                    time.sleep(5)
+                    time.sleep(self.remote_poll_interval_s)
                 elif self._futures:
-                    time.sleep(0.1)
+                    time.sleep(self.local_idle_sleep_s)
         finally:
             self._executor.shutdown(wait=True)
             self._executor = None
@@ -167,7 +180,18 @@ class Runner:
 
     def _print(self, msg: str) -> None:
         with self._output_lock:
-            print(msg, flush=True)
+            # Avoid flush-per-line overhead; tty output is line-buffered already.
+            print(msg)
+
+    def _default_stream_logs(self) -> bool:
+        # Default to "quiet" mode in CI (runner overhead can dominate for chatty jobs),
+        # but stream logs interactively when a human is watching.
+        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+            return False
+        try:
+            return sys.stdout.isatty()
+        except Exception:
+            return False
 
     def _print_status_summary(self) -> None:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -190,39 +214,60 @@ class Runner:
 
         try:
             with open(job.logs_path, "w") as log_file:
-                proc = subprocess.Popen(
-                    job.cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    cwd=os.getcwd(),
-                    text=True,
-                    bufsize=1,
-                )
-
-                deadline = time.time() + job.timeout_s
-                while proc.poll() is None:
-                    if time.time() > deadline:
+                if not self.stream_logs:
+                    proc = subprocess.Popen(
+                        job.cmd,
+                        stdout=log_file,
+                        stderr=subprocess.STDOUT,
+                        cwd=os.getcwd(),
+                        text=True,
+                    )
+                    try:
+                        proc.wait(timeout=job.timeout_s)
+                    except subprocess.TimeoutExpired:
                         proc.terminate()
                         try:
                             proc.wait(timeout=5)
                         except subprocess.TimeoutExpired:
                             proc.kill()
-                        raise subprocess.TimeoutExpired(job.cmd, job.timeout_s)
-
+                        raise
+                    job.exit_code = proc.returncode
+                else:
+                    proc = subprocess.Popen(
+                        job.cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        cwd=os.getcwd(),
+                    )
                     assert proc.stdout is not None
-                    line = proc.stdout.readline()
-                    if line:
-                        log_file.write(line)
-                        log_file.flush()
-                        self._print(f"[{job.name}] {line.rstrip()}")
-
-                assert proc.stdout is not None
-                for line in proc.stdout:
-                    log_file.write(line)
+                    deadline = time.time() + job.timeout_s
+                    last_flush = time.monotonic()
+                    while proc.poll() is None:
+                        if time.time() > deadline:
+                            proc.terminate()
+                            try:
+                                proc.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                proc.kill()
+                            raise subprocess.TimeoutExpired(job.cmd, job.timeout_s)
+                        readable, _, _ = select.select([proc.stdout], [], [], 0.5)
+                        if readable:
+                            chunk = proc.stdout.read1(65536)  # type: ignore[attr-defined]
+                            if chunk:
+                                log_file.write(chunk.decode(errors="replace"))
+                                now = time.monotonic()
+                                if now - last_flush >= 0.5:
+                                    log_file.flush()
+                                    last_flush = now
+                                for line in chunk.decode(errors="replace").splitlines():
+                                    self._print(f"[{job.name}] {line}")
+                    stdout = proc.stdout
+                    for chunk in iter(lambda: stdout.read(65536), b""):
+                        log_file.write(chunk.decode(errors="replace"))
+                        for line in chunk.decode(errors="replace").splitlines():
+                            self._print(f"[{job.name}] {line}")
                     log_file.flush()
-                    self._print(f"[{job.name}] {line.rstrip()}")
-
-                job.exit_code = proc.returncode
+                    job.exit_code = proc.returncode
         except subprocess.TimeoutExpired:
             job.exit_code = 124
             job.error = f"Timeout after {job.timeout_s}s"
@@ -257,12 +302,18 @@ class Runner:
             job.logs_path = str(self.logs_dir / f"{job.name}.log")
             with open(job.logs_path, "w") as log_file:
                 assert proc.stdout is not None
+                last_flush = time.monotonic()
                 for line in proc.stdout:
                     log_file.write(line)
-                    log_file.flush()
-                    self._print(f"[{job.name}] {line.rstrip()}")
+                    now = time.monotonic()
+                    if now - last_flush >= 0.5:
+                        log_file.flush()
+                        last_flush = now
+                    if self.stream_logs:
+                        self._print(f"[{job.name}] {line.rstrip()}")
                     if "Job ID:" in line:
                         job.skypilot_job_id = line.split(":")[-1].strip()
+                log_file.flush()
 
             proc.wait()
             if proc.returncode != 0:
