@@ -156,7 +156,7 @@ find "/UI/Main":
           common.replay = loadReplay(commandLineReplay)
           onReplayLoaded()
       elif common.replay == nil:
-        let defaultReplay = dataDir / "replays" / "pens.json.z"
+        let defaultReplay = dataDir / "replays" / "dinky7.json.z"
         echo "Loading replay from default file: ", defaultReplay
         common.replay = loadReplay(defaultReplay)
         onReplayLoaded()
