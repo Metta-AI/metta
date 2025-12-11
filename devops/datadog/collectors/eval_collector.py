@@ -134,10 +134,11 @@ class EvalCollector(BaseCollector):
     def _local_metrics(self, payload: Dict) -> List[MetricSample]:
         samples: List[MetricSample] = []
         wf = "remote_eval"
+        local_data = payload.get("local", {})
 
         sample = self._build(
             metric="eval.local.success",
-            value=float(payload.get("success", 0.0)),
+            value=float(local_data.get("success", 0.0)),
             workflow_name=wf,
             task="Local eval",
             check="Success signal",
@@ -148,7 +149,7 @@ class EvalCollector(BaseCollector):
 
         sample = self._build(
             metric="eval.local.heart_delta_pct",
-            value=float(payload.get("heart_delta_pct", 0.0)),
+            value=float(local_data.get("heart_delta_pct", 0.0)),
             workflow_name=wf,
             task="Local eval",
             check="Heart delta pct",
@@ -163,10 +164,11 @@ class EvalCollector(BaseCollector):
     def _remote_metrics(self, payload: Dict) -> List[MetricSample]:
         samples: List[MetricSample] = []
         wf = "remote_eval"
+        remote_data = payload.get("remote", {})
 
         sample = self._build(
             metric="eval.remote.success",
-            value=float(payload.get("success", 0.0)),
+            value=float(remote_data.get("success", 0.0)),
             workflow_name=wf,
             task="Remote eval",
             check="Success signal",
@@ -179,7 +181,7 @@ class EvalCollector(BaseCollector):
 
         sample = self._build(
             metric="eval.remote.heart_delta_pct",
-            value=float(payload.get("heart_delta_pct", 0.0)),
+            value=float(remote_data.get("heart_delta_pct", 0.0)),
             workflow_name=wf,
             task="Remote eval",
             check="Heart delta pct",
@@ -192,7 +194,7 @@ class EvalCollector(BaseCollector):
 
         sample = self._build(
             metric="eval.remote.duration_minutes",
-            value=float(payload.get("duration_minutes", 0.0)),
+            value=float(remote_data.get("duration_minutes", 0.0)),
             workflow_name=wf,
             task="Remote eval",
             check="Runtime minutes",
