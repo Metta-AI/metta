@@ -1,7 +1,5 @@
 """Machina v1 open-world recipe using the full vibe set and sweep helpers."""
 
-from __future__ import annotations
-
 from typing import Optional, Sequence
 
 from metta.agent.policies.vit import ViTDefaultConfig

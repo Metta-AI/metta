@@ -5,8 +5,6 @@ recipes should import from here and extend via custom defaults, similar to how
 `recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Optional, Sequence
 
