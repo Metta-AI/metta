@@ -158,6 +158,7 @@ class Runner:
         return ready
 
     def _start_job(self, job: Job) -> None:
+        assert self._executor is not None
         if job.is_remote:
             future = self._executor.submit(self._launch_remote_job, job)
         else:
@@ -176,7 +177,7 @@ class Runner:
             if job.started_at:
                 start = datetime.fromisoformat(job.started_at)
                 elapsed = f" ({int((datetime.now() - start).total_seconds())}s)"
-            sky_info = f" [sky:{job.sky_job_id}]" if job.sky_job_id else ""
+            sky_info = f" [sky:{job.skypilot_job_id}]" if job.skypilot_job_id else ""
             self._print(f"  {job.name}: {job.status.value}{elapsed}{sky_info}")
         self._print("")
 
@@ -208,12 +209,14 @@ class Runner:
                             proc.kill()
                         raise subprocess.TimeoutExpired(job.cmd, job.timeout_s)
 
+                    assert proc.stdout is not None
                     line = proc.stdout.readline()
                     if line:
                         log_file.write(line)
                         log_file.flush()
                         self._print(f"[{job.name}] {line.rstrip()}")
 
+                assert proc.stdout is not None
                 for line in proc.stdout:
                     log_file.write(line)
                     log_file.flush()
@@ -253,6 +256,7 @@ class Runner:
 
             job.logs_path = str(self.logs_dir / f"{job.name}.log")
             with open(job.logs_path, "w") as log_file:
+                assert proc.stdout is not None
                 for line in proc.stdout:
                     log_file.write(line)
                     log_file.flush()
@@ -338,6 +342,7 @@ class Runner:
                         job.status = JobStatus.SUCCEEDED
                         job.exit_code = 0
                         job.completed_at = datetime.now().isoformat()
+                        assert job.started_at is not None
                         job.duration_s = (
                             datetime.fromisoformat(job.completed_at) - datetime.fromisoformat(job.started_at)
                         ).total_seconds()
@@ -347,6 +352,7 @@ class Runner:
                         job.exit_code = 1
                         job.completed_at = datetime.now().isoformat()
                         job.error = f"SkyPilot status: {sky_status}"
+                        assert job.started_at is not None
                         job.duration_s = (
                             datetime.fromisoformat(job.completed_at) - datetime.fromisoformat(job.started_at)
                         ).total_seconds()
@@ -381,20 +387,24 @@ class Runner:
             if actual is None:
                 return False
 
-            match c.operator:
-                case ">=" if actual < c.threshold:
+            if c.operator == "in":
+                assert isinstance(c.threshold, tuple)
+                low, high = c.threshold
+                if not (low <= actual <= high):
                     return False
-                case ">" if actual <= c.threshold:
-                    return False
-                case "<=" if actual > c.threshold:
-                    return False
-                case "<" if actual >= c.threshold:
-                    return False
-                case "==" if actual != c.threshold:
-                    return False
-                case "in":
-                    low, high = c.threshold
-                    if not (low <= actual <= high):
+            else:
+                assert isinstance(c.threshold, float | int)
+                threshold = c.threshold
+                match c.operator:
+                    case ">=" if actual < threshold:
+                        return False
+                    case ">" if actual <= threshold:
+                        return False
+                    case "<=" if actual > threshold:
+                        return False
+                    case "<" if actual >= threshold:
+                        return False
+                    case "==" if actual != threshold:
                         return False
 
         return True
