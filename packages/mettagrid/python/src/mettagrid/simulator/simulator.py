@@ -290,7 +290,7 @@ class Simulator:
         # Check if invariants have changed
         config_invariants = self._compute_config_invariants(config)
         if self._config_invariants != config_invariants:
-            # Allow updates between episodes for curriculum training (assertion above prevents changes during active simulation)
+            # Allow updates between episodes for curriculum training
             self._config_invariants = config_invariants
 
         self._current_simulation = Simulation(
