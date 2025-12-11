@@ -220,6 +220,34 @@ class Runner:
         if not remote_running:
             return
 
+        # Check for timeouts first
+        now = datetime.now()
+        for job in remote_running:
+            if job.started_at:
+                elapsed = (now - datetime.fromisoformat(job.started_at)).total_seconds()
+                if elapsed > job.timeout_s:
+                    job.status = JobStatus.FAILED
+                    job.exit_code = 124
+                    job.completed_at = now.isoformat()
+                    job.duration_s = elapsed
+                    job.error = f"Timeout after {job.timeout_s}s"
+                    # Cancel the SkyPilot job
+                    if job.skypilot_job_id:
+                        try:
+                            subprocess.run(
+                                ["sky", "jobs", "cancel", "-y", job.skypilot_job_id],
+                                capture_output=True,
+                                timeout=30,
+                            )
+                        except Exception:
+                            pass
+                    continue
+
+        # Re-filter after timeout checks
+        remote_running = [j for j in self.jobs.values() if j.status == JobStatus.RUNNING and j.is_remote]
+        if not remote_running:
+            return
+
         try:
             result = subprocess.run(
                 ["sky", "jobs", "queue", "--json"],
