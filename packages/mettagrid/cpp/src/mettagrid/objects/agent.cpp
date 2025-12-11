@@ -133,20 +133,23 @@ bool Agent::check_and_apply_damage(std::mt19937& rng) {
   }
 
   // Find which resources from the damage map the agent has above their minimum
+  // and build weights based on quantity available for removal
   std::vector<InventoryItem> available_resources;
+  std::vector<int> weights;
   for (const auto& [item, minimum] : damage_config.resources) {
     InventoryQuantity amount = this->inventory.amount(item);
-    if (amount > static_cast<InventoryQuantity>(minimum)) {
+    int removable = static_cast<int>(amount) - minimum;
+    if (removable > 0) {
       available_resources.push_back(item);
+      weights.push_back(removable);
     }
   }
 
-  // If no resources available to remove, just subtract thresholds
+  // If resources available, pick one weighted by quantity above minimum
   if (!available_resources.empty()) {
-    // Shuffle available resources to ensure random selection
-    std::shuffle(available_resources.begin(), available_resources.end(), rng);
-    // Remove the first item after shuffle
-    InventoryItem item_to_remove = available_resources[0];
+    std::discrete_distribution<size_t> dist(weights.begin(), weights.end());
+    size_t selected_idx = dist(rng);
+    InventoryItem item_to_remove = available_resources[selected_idx];
     this->inventory.update(item_to_remove, -1);
     this->stats.incr("damage.items_lost");
     this->stats.incr("damaged." + this->stats.resource_name(item_to_remove));

@@ -54,8 +54,8 @@ class DamageConfig(Config):
     """Damage configuration for agents.
 
     When an agent's inventory items reach or exceed all threshold values, one random
-    resource from the resources map is removed from inventory (if above minimum) and the
-    threshold amounts are subtracted from inventory.
+    resource from the resources map is destroyed (weighted by quantity above minimum)
+    and the threshold amounts are subtracted from inventory.
     """
 
     threshold: dict[str, int] = Field(
@@ -64,7 +64,8 @@ class DamageConfig(Config):
     )
     resources: dict[str, int] = Field(
         default_factory=dict,
-        description="Map of resource names to minimum values. Resources at or below minimum are excluded from removal.",
+        description="Map of resources that can be destroyed, with minimum values. "
+        "Only resources listed here can be destroyed. Resources at or below minimum are protected.",
     )
 
 

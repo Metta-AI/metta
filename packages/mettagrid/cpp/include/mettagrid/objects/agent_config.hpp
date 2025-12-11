@@ -14,11 +14,12 @@
 #include "objects/inventory_config.hpp"
 
 // Configuration for damage system: when all threshold inventory resources are reached,
-// one random resource is removed from the agent's inventory
+// one random resource from the resources map is destroyed (weighted by quantity above minimum)
 struct DamageConfig {
   // Map of inventory item to threshold values. All must be reached to trigger damage.
   std::unordered_map<InventoryItem, int> threshold;
-  // Map of inventory item to minimum values. Resources at or below minimum are excluded from removal.
+  // Map of inventory items that can be destroyed, with their minimum values.
+  // Only resources listed here can be destroyed. Resources at or below minimum are protected.
   std::unordered_map<InventoryItem, int> resources;
 
   bool enabled() const {
