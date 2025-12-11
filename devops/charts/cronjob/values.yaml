@@ -9,9 +9,7 @@ image:
   pullPolicy: Always
   tag: "latest"
 
-command: []
-args: []
-extraEnv: []
+# Note: Commands are defined in Dockerfile CMD, not in Helm values
 
 serviceAccount:
   create: false  # Shared service account is provisioned centrally (Terraform)
