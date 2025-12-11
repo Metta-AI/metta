@@ -196,7 +196,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     Example usage:
         `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
-            sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+            sweep_name="ak.baes.10081528" -- gpus=4 nodes=2 dispatcher_type=skypilot`
 
     We recommend running using local_test=True before running the sweep on the remote:
         `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
@@ -204,22 +204,23 @@ def sweep(sweep_name: str) -> SweepTool:
 
     This will run a quick local sweep and allow you to catch configuration bugs
     (NB: Unless those bugs are related to batch_size, minibatch_size, or hardware config).
+
     If this runs smoothly, you must launch the sweep on a remote sandbox
     (otherwise sweep progress will halt when you close your computer).
 
     Running on the remote:
-        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
+        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py new --sweep-controller`, and ssh into it.
         2 - Clean git pollution: `git clean -df && git stash`
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
         5 - Launch tmux session: `tmux new -s sweep`
         6 - Launch the sweep:
             `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
-                sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+                sweep_name="ak.baes.10081528" -- gpus=4 nodes=2 dispatcher_type=skypilot`
         7 - Detach when you want: CTRL+B then d
-        8 - Attach to look at status/output: `tmux attach -t sweep_configs`
+        8 - Attach to look at status/output: `tmux attach -t sweep`
 
-    Please tag Axel (akerbec@softmax.ai) on any bug report.
+    Please tag Axel (akerbec@softmax.com) on any bug report.
     """
 
     # Common parameters are accessible via SP (SweepParameters).
@@ -245,12 +246,15 @@ def sweep(sweep_name: str) -> SweepTool:
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
         # training and scoring will lead to key conflicts that will lock the sweep.
+        
+        # Evaluations in sweeps are currently being fixed.
         eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
-        metric_key="experience/rewards",
+        metric_key="env_game/assembler.hearts.created",
         search_space=parameters,
         max_trials=80,
+
         # Default value is 1. We don't recommend going higher than 4.
-        # The faster each individual trial, the lower you should set this number.
+        # The faster each individual trial, the lower you can set this number.
         num_parallel_trials=4,
     )
