@@ -92,8 +92,11 @@ class EvalTaskOrchestrator:
                 self._worker_manager.cleanup_worker(worker.name)
 
     def _compute_num_cpus(self, parallelism: int) -> int:
-        """Compute the number of CPUs to request for a given parallelism. Our instances have 4, 8, 12, or 16 CPUs,
-        but in practice somewhat less than max is schedulable, so we request 3, 7, 11, or 15.
+        """Compute the number of CPUs to request for a given parallelism. Our nodes have 4, 8, 12, or 16 CPUs.
+        Kubernetes nodes have "allocatable" resources that are less than total capacity because kubelet,
+        os-level daemons (sytemd), etc end up consuming some of the total capacity.
+        So if we want to allocate on a machine with 4 vpcpus in total, we need to request an allocation of fewer
+        than 4. Thus we request 3, 7, 11, or 15.
         """
         if parallelism <= 4:
             return 3
@@ -106,10 +109,9 @@ class EvalTaskOrchestrator:
 
     def _compute_memory_request(self, parallelism: int) -> int:
         """Compute the memory to request for a given parallelism. We request 3GB per parallel process."""
-        if parallelism <= 16:
-            return parallelism * 3
-        else:
-            return 16 * 3
+        parallelism = max(1, parallelism)
+        parallelism = min(16, parallelism)
+        return parallelism * 3
 
     def _spawn_workers_for_tasks(self) -> None:
         """Create one worker per unassigned task and claim the task for that worker."""
