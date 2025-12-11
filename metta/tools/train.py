@@ -46,6 +46,7 @@ from metta.rl.training import (
 from metta.rl.training.scheduler import LossScheduler, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import (
+    auto_policy_storage_decision,
     auto_run_name,
     auto_stats_server_uri,
     auto_wandb_config,
@@ -83,7 +84,10 @@ class TrainTool(Tool):
     sandbox: bool = False
 
     def output_uri(self, run: str) -> str:
-        return CheckpointManager.compute_output_uri(run, self.system)
+        storage = auto_policy_storage_decision(run)
+        if storage.remote_prefix:
+            return storage.remote_prefix
+        return f"file://{self.system.data_dir / run / 'checkpoints'}"
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:
