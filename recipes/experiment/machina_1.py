@@ -40,12 +40,14 @@ def train(
         eval_difficulty=eval_difficulty,
         teacher=teacher,
     )
+    tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
     tt.training_env.maps_cache_size = 1
     tt.training_env.seed = map_seed
 
     # Keep the environment action space full; restrict actor sampling to the first 21 actions.
-    tt.policy_architecture.action_probs_config.max_action_index = 21
+    if tt.policy_architecture.action_probs_config:
+        tt.policy_architecture.action_probs_config.max_action_index = 21
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     full_vibes = [v.name for v in vibes.VIBES]
     env_cfg = tt.training_env.curriculum.task_generator.env
@@ -58,7 +60,6 @@ def train(
 
     apply_cvc_sweep_defaults(tt.trainer)
     tt.trainer.optimizer.learning_rate = ppo_learning_rate
-    tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
     eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
     eval_env.game.vibe_names = list(full_vibes)
