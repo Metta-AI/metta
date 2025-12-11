@@ -228,27 +228,69 @@ class Runner:
 
         remote = job.remote or {}
         gpus = remote.get("gpus", 1)
+        nodes = remote.get("nodes", 1)
 
-        self._print(f"[{job.name}] Launching remote: gpus={gpus}")
+        # Convert cmd from ["uv", "run", "./tools/run.py", "train", "arena", "run=X", ...]
+        # to launch.py format: ["./devops/skypilot/launch.py", "train", "arena", "--run=X", "--gpus=N", ...]
+        cmd = job.cmd
+        if len(cmd) >= 5 and cmd[:3] == ["uv", "run", "./tools/run.py"]:
+            module_path = cmd[3:5]  # e.g., ["train", "arena"]
+            tool_args = cmd[5:]  # e.g., ["run=X", "trainer.total_timesteps=100"]
+
+            # Extract run= arg and other args
+            run_arg = None
+            other_args = []
+            for arg in tool_args:
+                if arg.startswith("run="):
+                    run_arg = arg[4:]
+                else:
+                    other_args.append(arg)
+
+            launch_cmd = [
+                "uv",
+                "run",
+                "./devops/skypilot/launch.py",
+                *module_path,
+                f"--gpus={gpus}",
+                f"--nodes={nodes}",
+                "--skip-git-check",
+            ]
+            if run_arg:
+                launch_cmd.append(f"--run={run_arg}")
+            if other_args:
+                launch_cmd.append("--")
+                launch_cmd.extend(other_args)
+        else:
+            # Fallback to raw sky jobs launch if cmd format is unexpected
+            launch_cmd = ["sky", "jobs", "launch", "-y", "-n", job.name, "--gpus", f"A100:{gpus}", "--"] + cmd
+
+        self._print(f"[{job.name}] Launching remote: {' '.join(launch_cmd)}")
 
         try:
-            result = subprocess.run(
-                ["sky", "jobs", "launch", "-y", "-n", job.name, "--gpus", f"A100:{gpus}", "--"] + job.cmd,
-                capture_output=True,
+            proc = subprocess.Popen(
+                launch_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
+                bufsize=1,
             )
 
-            if result.returncode != 0:
-                job.status = JobStatus.FAILED
-                job.exit_code = result.returncode
-                job.error = result.stderr
-                self._print(f"[{job.name}] FAILED to launch: {result.stderr}")
-                return
+            job.logs_path = str(self.logs_dir / f"{job.name}.log")
+            with open(job.logs_path, "w") as log_file:
+                for line in proc.stdout:
+                    log_file.write(line)
+                    log_file.flush()
+                    self._print(f"[{job.name}] {line.rstrip()}")
+                    if "Job ID:" in line:
+                        job.skypilot_job_id = line.split(":")[-1].strip()
 
-            for line in result.stdout.split("\n"):
-                if "Job ID:" in line:
-                    job.skypilot_job_id = line.split(":")[-1].strip()
-                    break
+            proc.wait()
+            if proc.returncode != 0:
+                job.status = JobStatus.FAILED
+                job.exit_code = proc.returncode
+                job.error = f"launch.py exited with code {proc.returncode}"
+                self._print(f"[{job.name}] FAILED to launch (exit_code={proc.returncode})")
+                return
 
             self._print(f"[{job.name}] Launched: job_id={job.skypilot_job_id}")
 
