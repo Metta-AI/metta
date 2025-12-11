@@ -442,6 +442,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Process attack - always add to map
     action_params = process_action_config("attack", actions_config.attack)
     attack_cfg = actions_config.attack
+<<<<<<< HEAD
     # Always convert full attack config (enabled only controls standalone actions, not vibe-triggered)
     action_params["defense_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()}
     action_params["armor_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()}
@@ -456,6 +457,29 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         success_loot,
         attack_cfg.success.freeze,
     )
+=======
+    if attack_cfg.enabled:
+        action_params["defense_resources"] = {
+            resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()
+        }
+        action_params["armor_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()}
+        action_params["weapon_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()}
+        # Convert loot list from names to IDs if specified
+        if attack_cfg.loot is not None:
+            loot_ids = []
+            for name in attack_cfg.loot:
+                if name not in resource_name_to_id:
+                    raise ValueError(f"Loot resource '{name}' not found in resource_names")
+                loot_ids.append(resource_name_to_id[name])
+            action_params["loot"] = loot_ids
+        else:
+            action_params["loot"] = None
+    else:
+        action_params["defense_resources"] = {}
+        action_params["armor_resources"] = {}
+        action_params["weapon_resources"] = {}
+        action_params["loot"] = None
+>>>>>>> 0a9e131de1 (Fix lint errors: shorten line length and reformat)
     action_params["enabled"] = attack_cfg.enabled
     # Convert vibes from names to IDs (validate all vibe names exist)
     for vibe in attack_cfg.vibes:

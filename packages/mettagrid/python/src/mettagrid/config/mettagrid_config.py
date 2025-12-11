@@ -252,9 +252,18 @@ class AttackActionConfig(ActionConfig):
         default_factory=dict,
         description="Resources on attacker that increase damage. Maps resource name to weight.",
     )
+<<<<<<< HEAD
     success: AttackOutcome = Field(
         default_factory=AttackOutcome,
         description="Outcome when attack succeeds.",
+=======
+    loot: Optional[list[str]] = Field(
+        default=None,
+        description="Resources to steal (in order). None=steal all, []=steal nothing.",
+    )
+    target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
+        default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+>>>>>>> 0a9e131de1 (Fix lint errors: shorten line length and reformat)
     )
     vibes: list[str] = Field(
         default_factory=list,
