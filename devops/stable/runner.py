@@ -226,49 +226,11 @@ class Runner:
         job.status = JobStatus.RUNNING
         job.started_at = datetime.now().isoformat()
 
-        remote = job.remote or {}
-        gpus = remote.get("gpus", 1)
-        nodes = remote.get("nodes", 1)
-
-        # Convert cmd from ["uv", "run", "./tools/run.py", "module.path", "run=X", ...]
-        # to launch.py format: ["./devops/skypilot/launch.py", "module.path", "--run=X", "--gpus=N", ...]
-        cmd = job.cmd
-        if len(cmd) >= 4 and cmd[:3] == ["uv", "run", "./tools/run.py"]:
-            module_path = cmd[3]  # e.g., "arena_basic_easy_shaped.train_100m"
-            tool_args = cmd[4:]  # e.g., ["run=X", "trainer.total_timesteps=100"]
-
-            # Extract run= arg and other args
-            run_arg = None
-            other_args = []
-            for arg in tool_args:
-                if arg.startswith("run="):
-                    run_arg = arg[4:]
-                else:
-                    other_args.append(arg)
-
-            launch_cmd = [
-                "uv",
-                "run",
-                "./devops/skypilot/launch.py",
-                module_path,
-                f"--gpus={gpus}",
-                f"--nodes={nodes}",
-                "--skip-git-check",
-            ]
-            if run_arg:
-                launch_cmd.append(f"--run={run_arg}")
-            if other_args:
-                launch_cmd.append("--")
-                launch_cmd.extend(other_args)
-        else:
-            # Fallback to raw sky jobs launch if cmd format is unexpected
-            launch_cmd = ["sky", "jobs", "launch", "-y", "-n", job.name, "--gpus", f"A100:{gpus}", "--"] + cmd
-
-        self._print(f"[{job.name}] Launching remote: {' '.join(launch_cmd)}")
+        self._print(f"[{job.name}] Launching remote: {' '.join(job.cmd)}")
 
         try:
             proc = subprocess.Popen(
-                launch_cmd,
+                job.cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

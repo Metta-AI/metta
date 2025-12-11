@@ -191,21 +191,41 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list["Job"]:
         job_name = f"{prefix}.{short_name}"
         spec_to_job_name[spec.func] = job_name
 
-        cmd = ["uv", "run", "./tools/run.py", tool_path]
-
         is_train = "train" in spec.func.__name__
-        if is_train:
-            cmd.append(f"run={job_name}")
+        is_remote = spec.gpus is not None
+
+        if is_remote:
+            cmd = [
+                "uv",
+                "run",
+                "./devops/skypilot/launch.py",
+                tool_path,
+                f"--gpus={spec.gpus}",
+                f"--nodes={spec.nodes}",
+                "--skip-git-check",
+            ]
+            if is_train:
+                cmd.append(f"--run={job_name}")
+        else:
+            cmd = ["uv", "run", "./tools/run.py", tool_path]
+            if is_train:
+                cmd.append(f"run={job_name}")
 
         dependencies: list[str] = []
         if spec.depends_on and spec.depends_on in spec_to_job_name:
             dep_job_name = spec_to_job_name[spec.depends_on]
             dependencies.append(dep_job_name)
 
+            inject_args = []
             for param_name, output_field in spec.inject.items():
                 if output_field == "uri":
                     value = f"./train_dir/{dep_job_name}/checkpoints/"
-                    cmd.append(f"{param_name}={value}")
+                    inject_args.append(f"{param_name}={value}")
+
+            if inject_args:
+                if is_remote:
+                    cmd.append("--")
+                cmd.extend(inject_args)
 
         remote = {"gpus": spec.gpus, "nodes": spec.nodes} if spec.gpus else None
 
