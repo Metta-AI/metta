@@ -175,16 +175,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         cpp_damage_config = CppDamageConfig()
         if damage_config_py is not None:
             # Convert threshold resource names to IDs
+            for resource_name in damage_config_py.get("threshold", {}).keys():
+                assert resource_name in resource_name_to_id, f"Threshold resource '{resource_name}' not in resource_names"
             cpp_damage_config.threshold = {
                 resource_name_to_id[resource_name]: threshold_value
                 for resource_name, threshold_value in damage_config_py.get("threshold", {}).items()
-                if resource_name in resource_name_to_id
             }
             # Convert resources map (name -> minimum) to IDs
+            for resource_name in damage_config_py.get("resources", {}).keys():
+                assert resource_name in resource_name_to_id, f"Damage resource '{resource_name}' not in resource_names"
             cpp_damage_config.resources = {
                 resource_name_to_id[resource_name]: minimum_value
                 for resource_name, minimum_value in damage_config_py.get("resources", {}).items()
-                if resource_name in resource_name_to_id
             }
 
         # Build inventory config with support for grouped limits
