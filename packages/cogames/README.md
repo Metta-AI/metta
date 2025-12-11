@@ -110,16 +110,15 @@ cogames leaderboard
 
 # Develop a Policy
 
-A **policy** is the decision-making logic that controls your agents. Given an observation of the game state, a policy
-outputs an action. Policies can be simple rule-based scripts, neural networks trained via reinforcement learning, or
-anything in between.
+A **policy** contains the decision-making logic that controls your agents. Given an observation of the game state, a
+policy outputs an action.
 
-CoGames provides two main approaches:
-- **Scripted policies**: Hand-coded logic (run `cogames tutorial make-policy --scripted` for a starter template)
-- **Trainable policies**: Neural networks that learn from experience (run `cogames tutorial make-policy --trainable` for a template)
+CoGames asks that policies implement the `MultiAgentPolicy` interface. Any implementation will work, and we provide two
+templates to get you up and running:
 
-Both approaches implement the `MultiAgentPolicy` interface, which manages multiple agents and provides per-agent
-decision-making through the `agent_policy()` method.
+- `cogames tutorial make-policy --scripted` gives a starter template for a simple, rule-based script
+- `cogames tutorial make-policy --trainable` gives a basic neural-net based implementation that can be trained via
+  `cogames tutorial train`
 
 ## Play, Train, and Run
 
@@ -202,7 +201,9 @@ trainable policy, run:
 cogames tutorial make-policy --trainable -o my_policy.py
 ```
 
-This generates a complete working template. See the [trainable policy template](src/cogames/policy/trainable_policy_template.py) for the full implementation. The key components are:
+This generates a complete working template. See the
+[trainable policy template](src/cogames/policy/trainable_policy_template.py) for the full implementation. The key
+components are:
 
 - **`MultiAgentPolicy`**: The main policy class that the training system interacts with
 - **`AgentPolicy`**: Per-agent decision-making (returned by `agent_policy()`)
