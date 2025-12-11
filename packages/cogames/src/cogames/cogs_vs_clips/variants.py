@@ -3,7 +3,13 @@ from typing import Iterable, Sequence, override
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
 from cogames.cogs_vs_clips.procedural import BaseHubVariant, MachinaArenaVariant
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig, ResourceLimitsConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    ChestConfig,
+    ProtocolConfig,
+    ResourceLimitsConfig,
+    VibeTransfer,
+)
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import DEFAULT_EXTRACTORS as HUB_EXTRACTORS
@@ -679,20 +685,25 @@ class TraderVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        env.game.agent.vibe_transfers.update(
-            {
-                "carbon_a": {"carbon": 1},
-                "carbon_b": {"carbon": 10},
-                "oxygen_a": {"oxygen": 1},
-                "oxygen_b": {"oxygen": 10},
-                "germanium_a": {"germanium": 1},
-                "germanium_b": {"germanium": 4},
-                "silicon_a": {"silicon": 10},
-                "silicon_b": {"silicon": 50},
-                "heart_a": {"heart": 1},
-                "heart_b": {"heart": 4},
-            }
-        )
+        # Define vibe transfers for trading resources
+        trade_transfers = [
+            VibeTransfer(vibe="carbon_a", target={"carbon": 1}),
+            VibeTransfer(vibe="carbon_b", target={"carbon": 10}),
+            VibeTransfer(vibe="oxygen_a", target={"oxygen": 1}),
+            VibeTransfer(vibe="oxygen_b", target={"oxygen": 10}),
+            VibeTransfer(vibe="germanium_a", target={"germanium": 1}),
+            VibeTransfer(vibe="germanium_b", target={"germanium": 4}),
+            VibeTransfer(vibe="silicon_a", target={"silicon": 10}),
+            VibeTransfer(vibe="silicon_b", target={"silicon": 50}),
+            VibeTransfer(vibe="heart_a", target={"heart": 1}),
+            VibeTransfer(vibe="heart_b", target={"heart": 4}),
+        ]
+        trade_vibe_names = [t.vibe for t in trade_transfers]
+
+        # Enable transfer action with these vibes
+        env.game.actions.transfer.enabled = True
+        env.game.actions.transfer.vibe_transfers.extend(trade_transfers)
+        env.game.actions.transfer.vibes.extend(trade_vibe_names)
 
 
 # TODO - validate that all variant names are unique
