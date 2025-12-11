@@ -191,8 +191,7 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list["Job"]:
         spec_to_job_name[spec.func] = f"{prefix}.{short_name}"
 
     for spec in specs:
-        module = spec.func.__module__
-        tool_path = module.replace("recipes.prod.", "").replace("recipes.experiment.", "") + "." + spec.func.__name__
+        tool_path = f"{spec.func.__module__}.{spec.func.__name__}"
         job_name = spec_to_job_name[spec.func]
 
         return_type = get_type_hints(spec.func).get("return")
