@@ -27,6 +27,7 @@ def train(
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
     map_seed: int = 50,
+    ppo_learning_rate: float = 3e-4,
 ) -> TrainTool:
     """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
 
@@ -55,6 +56,7 @@ def train(
         env_cfg.game.agent.initial_vibe = 0
 
     apply_cvc_sweep_defaults(tt.trainer)
+    tt.trainer.optimizer.learning_rate = ppo_learning_rate
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
     eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
@@ -83,6 +85,7 @@ def train_sweep(
     eval_difficulty: str | None = "standard",
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
+    ppo_learning_rate: float = 3e-4,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
 
@@ -99,6 +102,7 @@ def train_sweep(
         eval_difficulty=eval_difficulty,
         policy_architecture=policy_architecture,
         teacher=teacher,
+        ppo_learning_rate=ppo_learning_rate,
     )
 
 
