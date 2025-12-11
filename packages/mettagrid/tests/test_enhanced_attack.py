@@ -166,55 +166,117 @@ class TestWeaponArmorSystem:
 
 
 class TestVibeArmorBonus:
-    """Tests for the vibe-based armor bonus."""
+    """Tests for the vibe-based armor bonus.
 
-    def test_vibe_gives_armor_bonus(self, base_game_config):
-        """Test that vibing a resource gives +1 effective armor for that type."""
-        # Configure: armor=1 for the "armor" resource
-        base_game_config.actions.attack = AttackActionConfig(
-            enabled=True,
-            defense_resources={"energy": 1},
-            weapon_resources={"weapon": 1},
-            armor_resources={"armor": 1},
+    The vibe bonus only applies when the vibe name matches the resource name.
+    Since vibe names come from VIBES and resource names are configurable,
+    we need to use resource names that match existing vibe names.
+    """
+
+    def test_vibe_gives_armor_bonus(self):
+        """Test that vibing a resource gives +1 effective armor for that type.
+
+        For this to work, the resource name must match a vibe name.
+        We use "charger" which is vibe index 1 in VIBES.
+        """
+        # Use resource names that match vibe names for testing
+        # VIBES[0] = "default", VIBES[1] = "charger"
+        game_config = GameConfig(
+            max_steps=50,
+            num_agents=2,
+            obs=ObsConfig(width=5, height=5, num_tokens=100),
+            resource_names=["energy", "charger", "weapon", "heart", "gold"],  # "charger" matches vibe
+            actions=ActionsConfig(
+                noop=NoopActionConfig(enabled=True),
+                move=MoveActionConfig(enabled=True),
+                attack=AttackActionConfig(
+                    enabled=True,
+                    defense_resources={"energy": 1},
+                    weapon_resources={"weapon": 1},
+                    armor_resources={"charger": 1},  # Use charger as armor
+                ),
+                change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=5),
+            ),
+            objects={"wall": WallConfig()},
+            agent=AgentConfig(
+                default_resource_limit=100,
+                freeze_duration=5,
+                rewards=AgentRewards(),
+            ),
         )
 
         # First, test without vibe bonus
-        # Attacker has 2 weapons (power=2), target has 1 armor (power=1)
+        # Attacker has 2 weapons (power=2), target has 1 charger (armor power=1)
         # damage_bonus = max(2-1, 0) = 1
         # Defense cost = base(1) + 1 = 2
         # Target has only 1 energy -> attack succeeds
-        sim = create_sim_with_agents(
-            base_game_config,
-            attacker_inv={"weapon": 2},
-            target_inv={"energy": 1, "armor": 1},
-        )
+        game_config.agents = [
+            AgentConfig(
+                team_id=0,
+                initial_inventory={"weapon": 2},
+                resource_limits={"all": ResourceLimitsConfig(limit=100, resources=game_config.resource_names)},
+            ),
+            AgentConfig(
+                team_id=1,
+                initial_inventory={"energy": 1, "charger": 1},
+                initial_vibe=0,  # "default" vibe - no bonus
+                resource_limits={"all": ResourceLimitsConfig(limit=100, resources=game_config.resource_names)},
+            ),
+        ]
+
+        cfg = MettaGridConfig(game=game_config)
+        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=[["agent.red", "agent.blue"]])
+        sim = Simulation(cfg, seed=42)
 
         result = attack(sim, target_arg=0, agent_idx=0)
         assert result["target_frozen"], "Without vibe bonus, target should be frozen"
 
         # Now test WITH vibe bonus
-        # If target is vibing "armor", they get +1 effective armor
+        # If target is vibing "charger" (vibe index 1), they get +1 effective charger
         # armor_power = 1 (held) + 1 (vibe bonus) = 2
         # damage_bonus = max(2-2, 0) = 0
         # Defense cost = base(1) + 0 = 1
         # Target has 1 energy -> defense succeeds
-        base_game_config.agents = [
+        game_config2 = GameConfig(
+            max_steps=50,
+            num_agents=2,
+            obs=ObsConfig(width=5, height=5, num_tokens=100),
+            resource_names=["energy", "charger", "weapon", "heart", "gold"],
+            actions=ActionsConfig(
+                noop=NoopActionConfig(enabled=True),
+                move=MoveActionConfig(enabled=True),
+                attack=AttackActionConfig(
+                    enabled=True,
+                    defense_resources={"energy": 1},
+                    weapon_resources={"weapon": 1},
+                    armor_resources={"charger": 1},
+                ),
+                change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=5),
+            ),
+            objects={"wall": WallConfig()},
+            agent=AgentConfig(
+                default_resource_limit=100,
+                freeze_duration=5,
+                rewards=AgentRewards(),
+            ),
+        )
+        game_config2.agents = [
             AgentConfig(
                 team_id=0,
                 initial_inventory={"weapon": 2},
-                resource_limits={"all": ResourceLimitsConfig(limit=100, resources=base_game_config.resource_names)},
+                resource_limits={"all": ResourceLimitsConfig(limit=100, resources=game_config2.resource_names)},
             ),
             AgentConfig(
                 team_id=1,
-                initial_inventory={"energy": 1, "armor": 1},
-                initial_vibe=2,  # Set vibe to "armor" (vibe index matches resource index)
-                resource_limits={"all": ResourceLimitsConfig(limit=100, resources=base_game_config.resource_names)},
+                initial_inventory={"energy": 1, "charger": 1},
+                initial_vibe=1,  # "charger" vibe - matches armor resource!
+                resource_limits={"all": ResourceLimitsConfig(limit=100, resources=game_config2.resource_names)},
             ),
         ]
 
-        cfg = MettaGridConfig(game=base_game_config)
-        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=[["agent.red", "agent.blue"]])
-        sim2 = Simulation(cfg, seed=42)
+        cfg2 = MettaGridConfig(game=game_config2)
+        cfg2.game.map_builder = ObjectNameMapBuilder.Config(map_data=[["agent.red", "agent.blue"]])
+        sim2 = Simulation(cfg2, seed=42)
 
         result2 = attack(sim2, target_arg=0, agent_idx=0)
         assert result2["success"], "Attack should execute"
