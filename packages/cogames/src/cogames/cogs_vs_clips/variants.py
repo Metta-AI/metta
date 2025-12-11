@@ -685,18 +685,18 @@ class TraderVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        # Define vibe transfers for trading resources
+        # Define vibe transfers for trading resources (actor gives, target receives)
         trade_transfers = [
-            VibeTransfer(vibe="carbon_a", target={"carbon": 1}),
-            VibeTransfer(vibe="carbon_b", target={"carbon": 10}),
-            VibeTransfer(vibe="oxygen_a", target={"oxygen": 1}),
-            VibeTransfer(vibe="oxygen_b", target={"oxygen": 10}),
-            VibeTransfer(vibe="germanium_a", target={"germanium": 1}),
-            VibeTransfer(vibe="germanium_b", target={"germanium": 4}),
-            VibeTransfer(vibe="silicon_a", target={"silicon": 10}),
-            VibeTransfer(vibe="silicon_b", target={"silicon": 50}),
-            VibeTransfer(vibe="heart_a", target={"heart": 1}),
-            VibeTransfer(vibe="heart_b", target={"heart": 4}),
+            VibeTransfer(vibe="carbon_a", target={"carbon": 1}, actor={"carbon": -1}),
+            VibeTransfer(vibe="carbon_b", target={"carbon": 10}, actor={"carbon": -10}),
+            VibeTransfer(vibe="oxygen_a", target={"oxygen": 1}, actor={"oxygen": -1}),
+            VibeTransfer(vibe="oxygen_b", target={"oxygen": 10}, actor={"oxygen": -10}),
+            VibeTransfer(vibe="germanium_a", target={"germanium": 1}, actor={"germanium": -1}),
+            VibeTransfer(vibe="germanium_b", target={"germanium": 4}, actor={"germanium": -4}),
+            VibeTransfer(vibe="silicon_a", target={"silicon": 10}, actor={"silicon": -10}),
+            VibeTransfer(vibe="silicon_b", target={"silicon": 50}, actor={"silicon": -50}),
+            VibeTransfer(vibe="heart_a", target={"heart": 1}, actor={"heart": -1}),
+            VibeTransfer(vibe="heart_b", target={"heart": 4}, actor={"heart": -4}),
         ]
         # Enable transfer action with these vibes
         env.game.actions.transfer.enabled = True
