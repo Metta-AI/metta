@@ -26,7 +26,9 @@ class TeacherConfig(Config):
     policy_uri: str | None = None
     mode: TeacherMode = "sliced_cloner"
     steps: int | None = None
-    led_proportion: float = Field(default=1.0, ge=0.0, le=1.0)
+    # Teacher (led) and student slices should leave some remainder for PPO.
+    # Match mainline BC defaults: start at 20% teacher-led, anneal to 0.
+    led_proportion: float = Field(default=0.2, ge=0.0, le=1.0)
     student_proportion: float = Field(default=0.0, ge=0.0, le=1.0)
 
     @property
