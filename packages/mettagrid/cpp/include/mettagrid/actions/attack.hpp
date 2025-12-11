@@ -146,8 +146,9 @@ protected:
   bool _handle_target(Agent& actor, Agent& target) {
     bool was_already_frozen = target.frozen > 0;
 
-    // Check if target can defend
-    if (!_defense_resources.empty() || !_armor_resources.empty() || !_weapon_resources.empty()) {
+    // Check if target can defend (requires defense_resources to be configured)
+    // armor/weapon resources only modify the defense cost, they don't enable defense by themselves
+    if (!_defense_resources.empty()) {
       bool target_can_defend = _check_defense_capability(actor, target);
 
       if (target_can_defend) {
