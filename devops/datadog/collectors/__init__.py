@@ -25,7 +25,7 @@ def available_collectors() -> List[str]:
     return sorted(COLLECTOR_REGISTRY.keys())
 
 
-# TODO: unify collector discovery/registration pattern (matches Nishad's feedback)
+# TODO: unify collector discovery/registration pattern across codebase
 
 # Import collectors so they self-register
 from devops.datadog.collectors.ci_collector import CICollector  # noqa: E402
