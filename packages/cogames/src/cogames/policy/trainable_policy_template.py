@@ -82,24 +82,47 @@ class MyNetwork(nn.Module):
 class MyAgentPolicy(AgentPolicy):
     """Per-agent policy that uses the shared network for inference."""
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, network: "MyNetwork", device: torch.device):
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        network: "MyNetwork",
+        device: torch.device,
+        obs_shape: tuple[int, ...],
+    ):
         super().__init__(policy_env_info)
         self._network = network
         self._action_names = policy_env_info.action_names
         self._device = device
+        self._obs_shape = obs_shape
+
+    def _obs_to_array(self, obs: AgentObservation) -> np.ndarray:
+        """Convert AgentObservation tokens to numpy array for network input."""
+        num_tokens, token_dim = self._obs_shape
+        obs_array = np.full((num_tokens, token_dim), fill_value=255, dtype=np.uint8)
+        for idx, token in enumerate(obs.tokens):
+            if idx >= num_tokens:
+                break
+            token_values = token.raw_token
+            obs_array[idx, : len(token_values)] = token_values
+        return obs_array
 
     def step(self, obs: AgentObservation) -> Action:
-        # Convert observation to tensor and add batch dimension
-        obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
+        # Handle both numpy arrays (from PufferLib training) and AgentObservation (from Rollout/eval)
+        if isinstance(obs, np.ndarray):
+            obs_array = obs
+        else:
+            obs_array = self._obs_to_array(obs)
+
+        obs_tensor = torch.tensor(obs_array, device=self._device).unsqueeze(0).float()
 
         # Run inference and take argmax action
         with torch.no_grad():
             self._network.eval()
             logits, _ = self._network.forward_eval(obs_tensor)
-            action_idx = logits.argmax(dim=-1).item()
+            action_idx = int(logits.argmax(dim=-1).item())
 
         try:
-            return Action(name=self._action_names[int(action_idx)])
+            return Action(name=self._action_names[action_idx])
         except IndexError:
             # Fallback if network outputs invalid action index
             return Action(name="noop") if "noop" in self._action_names else Action(name=self._action_names[0])
@@ -127,9 +150,9 @@ class MyTrainablePolicy(MultiAgentPolicy):
     ):
         super().__init__(policy_env_info, **kwargs)
 
-        obs_shape = policy_env_info.observation_space.shape
+        self._obs_shape = policy_env_info.observation_space.shape
         num_actions = len(policy_env_info.action_names)
-        self._network = MyNetwork(obs_shape, num_actions, hidden_size)
+        self._network = MyNetwork(self._obs_shape, num_actions, hidden_size)
 
         if device is not None:
             self._network = self._network.to(torch.device(device))
@@ -137,7 +160,7 @@ class MyTrainablePolicy(MultiAgentPolicy):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy instance for the given agent."""
         current_device = next(self._network.parameters()).device
-        return MyAgentPolicy(self._policy_env_info, self._network, current_device)
+        return MyAgentPolicy(self._policy_env_info, self._network, current_device, self._obs_shape)
 
     def network(self) -> nn.Module:
         """Return the neural network module for training."""

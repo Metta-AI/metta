@@ -170,14 +170,20 @@ def test_make_policy_scripted_runs():
         assert "def step_with_state" in content
         assert "MultiAgentPolicy" in content
 
-        # Test that the original scripted_starter policy works (it's already registered)
-        from cogames.policy.scripted_agent.starter_agent import StarterPolicy
-        from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+        # Verify policy can be instantiated
+        sys.path.insert(0, str(tmpdir))
+        try:
+            from mettagrid.policy.loader import initialize_or_load_policy
+            from mettagrid.policy.policy import PolicySpec
+            from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
-        env_cfg = get_mission("machina_1")[1]
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-        policy = StarterPolicy(policy_env_info)
+            env_cfg = get_mission("machina_1")[1]
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+            policy_spec = PolicySpec(class_path=f"{policy_file.stem}.StarterPolicy")
+            policy = initialize_or_load_policy(policy_env_info, policy_spec)
 
-        # Verify it can create agent policies
-        agent_policy = policy.agent_policy(0)
-        assert agent_policy is not None
+            # Verify it can create agent policies
+            agent_policy = policy.agent_policy(0)
+            assert agent_policy is not None
+        finally:
+            sys.path.remove(str(tmpdir))
