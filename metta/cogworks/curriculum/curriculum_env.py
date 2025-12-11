@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pufferlib import PufferEnv
+from pufferlib import PufferEnv  # type: ignore[import-untyped]
 
 from .curriculum import Curriculum
 
@@ -127,7 +127,7 @@ class CurriculumEnv(PufferEnv):
             task_changed = False
             for attempt in range(max_retries):
                 try:
-                    # Detect task change when episode ends and curriculum selects new task (prevents LSTM memory conflicts)
+                    # Detect task change when episode ends (prevents LSTM memory conflicts)
                     new_task = self._curriculum.get_task()
                     task_changed = new_task._task_id != self._previous_task_id
                     self._previous_task_id = new_task._task_id
@@ -159,7 +159,14 @@ class CurriculumEnv(PufferEnv):
 
         # Add curriculum stats to info for logging (batched)
         self._stats_update_counter += 1
-        self._add_curriculum_stats_to_info(infos)
+        if isinstance(infos, dict):
+            self._add_curriculum_stats_to_info(infos)
+        elif isinstance(infos, list):
+            # If infos is a list, add stats to the first dict (typically all dicts are the same)
+            for info in infos:
+                if isinstance(info, dict):
+                    self._add_curriculum_stats_to_info(info)
+                    break
 
         return obs, rewards, terminals, truncations, infos
 
