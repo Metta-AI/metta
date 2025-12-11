@@ -72,6 +72,7 @@ public:
 
   // Expose to Move class - transfer decides if target is valid
   bool try_transfer(Agent& actor, GridObject* target_object) {
+    if (!_enabled) return false;  // Transfer action is disabled
     if (!target_object) return false;
 
     Agent* target = dynamic_cast<Agent*>(target_object);
@@ -86,21 +87,43 @@ public:
     const std::string& actor_group = actor.group_name;
     const std::string& target_group = target->group_name;
 
-    // 1. Check if actor has resources for transfer
+    // 1. Check if actor has resources to give (negative deltas)
     for (const auto& [resource, delta] : effect.actor_deltas) {
       if (delta < 0 && actor.inventory.amount(resource) < static_cast<InventoryQuantity>(-delta)) {
         return false;  // Actor doesn't have enough resources to give
       }
     }
 
-    // 2. Check if target has resources for transfer
+    // 2. Check if target has resources to give (negative deltas)
     for (const auto& [resource, delta] : effect.target_deltas) {
       if (delta < 0 && target->inventory.amount(resource) < static_cast<InventoryQuantity>(-delta)) {
         return false;  // Target doesn't have enough resources to give
       }
     }
 
-    // 3. Update actor and target resources
+    // 3. Check if actor has capacity for receiving resources (positive deltas)
+    for (const auto& [resource, delta] : effect.actor_deltas) {
+      if (delta > 0) {
+        InventoryQuantity current = actor.inventory.amount(resource);
+        InventoryQuantity limit = actor.inventory.limit(resource);
+        if (current + static_cast<InventoryQuantity>(delta) > limit) {
+          return false;  // Actor doesn't have capacity to receive
+        }
+      }
+    }
+
+    // 4. Check if target has capacity for receiving resources (positive deltas)
+    for (const auto& [resource, delta] : effect.target_deltas) {
+      if (delta > 0) {
+        InventoryQuantity current = target->inventory.amount(resource);
+        InventoryQuantity limit = target->inventory.limit(resource);
+        if (current + static_cast<InventoryQuantity>(delta) > limit) {
+          return false;  // Target doesn't have capacity to receive
+        }
+      }
+    }
+
+    // 5. Update actor and target resources
     for (const auto& [resource, delta] : effect.actor_deltas) {
       if (delta != 0) {
         InventoryDelta actual = actor.inventory.update(resource, delta);
