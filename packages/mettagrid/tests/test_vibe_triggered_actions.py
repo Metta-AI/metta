@@ -18,7 +18,7 @@ from mettagrid.simulator import Simulation
 from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
 
-def get_agent_position(sim: Simulation, agent_id: int) -> tuple:
+def get_agent_position(sim: Simulation, agent_id: int) -> tuple | None:
     """Get an agent's position as (row, col)."""
     grid_objects = sim.grid_objects()
     for obj in grid_objects.values():
