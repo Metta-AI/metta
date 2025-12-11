@@ -8,7 +8,7 @@ from typing import Optional
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from devops.stable.registry import ci_job, stable_job
-from devops.stable.runner import AcceptanceCriterion, Operator
+from devops.stable.runner import AcceptanceCriterion
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
@@ -298,7 +298,7 @@ def evaluate_ci(dir_path: Path) -> EvaluateTool:
     timeout_s=7200,
     acceptance=[
         AcceptanceCriterion(metric="overview/sps", threshold=40000),
-        AcceptanceCriterion(metric="env_agent/heart.gained", operator=Operator.GT, threshold=0.1),
+        AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.1),
     ],
 )
 def train_100m() -> TrainTool:
@@ -316,7 +316,7 @@ def train_100m() -> TrainTool:
     timeout_s=172800,
     acceptance=[
         AcceptanceCriterion(metric="overview/sps", threshold=80000),
-        AcceptanceCriterion(metric="env_agent/heart.gained", operator=Operator.GT, threshold=1.0),
+        AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=1.0),
     ],
 )
 def train_2b() -> TrainTool:

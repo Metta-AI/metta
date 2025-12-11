@@ -11,6 +11,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import Literal
 
 import wandb
 from pydantic import BaseModel
@@ -26,18 +27,13 @@ class JobStatus(StrEnum):
     SKIPPED = "skipped"
 
 
-class Operator(StrEnum):
-    GE = ">="
-    GT = ">"
-    LE = "<="
-    LT = "<"
-    EQ = "=="
+Operator = Literal[">=", ">", "<=", "<", "==", "in"]
 
 
 class AcceptanceCriterion(BaseModel):
     metric: str
-    threshold: float
-    operator: Operator = Operator.GE
+    threshold: float | tuple[float, float]
+    operator: Operator = ">="
 
 
 class Job(BaseModel):
@@ -368,16 +364,20 @@ class Runner:
                 return False
 
             match c.operator:
-                case Operator.GE if actual < c.threshold:
+                case ">=" if actual < c.threshold:
                     return False
-                case Operator.GT if actual <= c.threshold:
+                case ">" if actual <= c.threshold:
                     return False
-                case Operator.LE if actual > c.threshold:
+                case "<=" if actual > c.threshold:
                     return False
-                case Operator.LT if actual >= c.threshold:
+                case "<" if actual >= c.threshold:
                     return False
-                case Operator.EQ if actual != c.threshold:
+                case "==" if actual != c.threshold:
                     return False
+                case "in":
+                    low, high = c.threshold
+                    if not (low <= actual <= high):
+                        return False
 
         return True
 
