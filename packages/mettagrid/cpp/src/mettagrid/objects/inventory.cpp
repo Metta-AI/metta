@@ -94,7 +94,8 @@ InventoryQuantity Inventory::free_space(InventoryItem item) const {
   InventoryQuantity used = limit->amount;
   InventoryQuantity total_limit = limit->limit;
 
-  return total_limit - used;
+  // Prevent underflow when used exceeds limit (can happen with dynamic modifiers)
+  return total_limit > used ? total_limit - used : 0;
 }
 
 // Get method implementation
