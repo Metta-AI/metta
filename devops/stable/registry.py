@@ -1,20 +1,3 @@
-"""Job registry for CI and stable release validation.
-
-Recipe authors can register jobs using decorators:
-
-    @ci_job()
-    def train_ci(...) -> TrainTool:
-        return TrainTool(trainer=TrainerConfig(total_timesteps=100), ...)
-
-    @ci_job(depends_on=train_ci, inject={"policy_uris": "uri"})
-    def evaluate_ci(policy_uris: str) -> EvaluateTool:
-        return EvaluateTool(policy_uris=policy_uris, ...)
-
-    @stable_job()
-    def train_stable(...) -> TrainTool:
-        return TrainTool(trainer=TrainerConfig(total_timesteps=100_000_000), ...)
-"""
-
 from __future__ import annotations
 
 import importlib
@@ -23,12 +6,10 @@ import pkgutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Callable, get_type_hints
+from typing import Callable, get_type_hints
 
-if TYPE_CHECKING:
-    from devops.stable.runner import AcceptanceCriterion, Job
-    from metta.common.tool import Tool
-
+from devops.stable.runner import AcceptanceCriterion, Job
+from metta.common.tool import Tool
 from metta.tools.train import TrainTool
 
 
@@ -47,14 +28,14 @@ def get_user_timestamp() -> str:
 class JobSpec:
     """Specification for a registered job."""
 
-    func: Callable[..., "Tool"]
+    func: Callable[..., Tool]
     suite: Suite
-    depends_on: Callable[..., "Tool"] | None = None
+    depends_on: Callable[..., Tool] | None = None
     inject: dict[str, str] = field(default_factory=dict)
     timeout_s: int = 3600
     gpus: int | None = None
     nodes: int = 1
-    acceptance: list["AcceptanceCriterion"] = field(default_factory=list)
+    acceptance: list[AcceptanceCriterion] = field(default_factory=list)
 
     @property
     def name(self) -> str:
@@ -68,13 +49,13 @@ _registry: list[JobSpec] = []
 
 def ci_job(
     *,
-    depends_on: Callable[..., "Tool"] | None = None,
+    depends_on: Callable[..., Tool] | None = None,
     inject: dict[str, str] | None = None,
     timeout_s: int = 300,
     gpus: int | None = None,
     nodes: int = 1,
-    acceptance: list["AcceptanceCriterion"] | None = None,
-) -> Callable[[Callable[..., "Tool"]], Callable[..., "Tool"]]:
+    acceptance: list[AcceptanceCriterion] | None = None,
+) -> Callable[[Callable[..., Tool]], Callable[..., Tool]]:
     """Register a CI job.
 
     Args:
@@ -86,7 +67,7 @@ def ci_job(
         acceptance: List of acceptance criteria to evaluate after job completes.
     """
 
-    def decorator(func: Callable[..., "Tool"]) -> Callable[..., "Tool"]:
+    def decorator(func: Callable[..., Tool]) -> Callable[..., Tool]:
         _registry.append(
             JobSpec(
                 func=func,
@@ -106,13 +87,13 @@ def ci_job(
 
 def stable_job(
     *,
-    depends_on: Callable[..., "Tool"] | None = None,
+    depends_on: Callable[..., Tool] | None = None,
     inject: dict[str, str] | None = None,
     timeout_s: int = 7200,
     gpus: int | None = None,
     nodes: int = 1,
-    acceptance: list["AcceptanceCriterion"] | None = None,
-) -> Callable[[Callable[..., "Tool"]], Callable[..., "Tool"]]:
+    acceptance: list[AcceptanceCriterion] | None = None,
+) -> Callable[[Callable[..., Tool]], Callable[..., Tool]]:
     """Register a stable release job.
 
     Args:
@@ -124,7 +105,7 @@ def stable_job(
         acceptance: List of acceptance criteria to evaluate after job completes.
     """
 
-    def decorator(func: Callable[..., "Tool"]) -> Callable[..., "Tool"]:
+    def decorator(func: Callable[..., Tool]) -> Callable[..., Tool]:
         _registry.append(
             JobSpec(
                 func=func,
@@ -171,7 +152,7 @@ def discover_jobs(suite: Suite | None = None) -> list[JobSpec]:
     return [spec for spec in _registry if spec.suite == suite]
 
 
-def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list["Job"]:
+def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
     """Convert job specs to Job objects for the runner.
 
     Args:
@@ -181,8 +162,6 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list["Job"]:
     Returns:
         List of Job objects ready for the runner.
     """
-    from devops.stable.runner import Job
-
     jobs: list[Job] = []
 
     spec_to_job_name: dict[Callable, str] = {}
@@ -208,12 +187,10 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list["Job"]:
                 f"--nodes={spec.nodes}",
                 "--skip-git-check",
             ]
-            if is_train:
-                cmd.append(f"--run={job_name}")
         else:
             cmd = ["uv", "run", "./tools/run.py", tool_path]
-            if is_train:
-                cmd.append(f"run={job_name}")
+        if is_train:
+            cmd.append(f"run={job_name}")
 
         dependencies: list[str] = []
         if spec.depends_on and spec.depends_on in spec_to_job_name:
@@ -224,13 +201,16 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list["Job"]:
             for param_name, output_field in spec.inject.items():
                 if output_field == "uri":
                     dep_tool = spec.depends_on()
+                    if not isinstance(dep_tool, TrainTool):
+                        raise ValueError(
+                            f"Only support injecting 'uri' from TrainTool, but {dep_job_name} is {type(dep_tool)}"
+                        )
                     value = dep_tool.output_uri(dep_job_name)
                     inject_args.append(f"{param_name}={value}")
+                else:
+                    raise ValueError(f"Unknown output field: {output_field}")
 
-            if inject_args:
-                if is_remote:
-                    cmd.append("--")
-                cmd.extend(inject_args)
+            cmd.extend(inject_args)
 
         remote = {"gpus": spec.gpus, "nodes": spec.nodes} if spec.gpus else None
 
