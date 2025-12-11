@@ -12,6 +12,7 @@ from metta.sweep.core import make_sweep
 from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
+from mettagrid.config import vibes
 from recipes.experiment.cogs_v_clips import (
     apply_cvc_sweep_defaults,
     make_training_env,
@@ -43,11 +44,26 @@ def train(
 
     # Keep the environment action space full; restrict actor sampling to the first 21 actions.
     tt.policy_architecture.action_probs_config.max_action_index = 21
+    # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
+    full_vibes = [v.name for v in vibes.VIBES]
+    env_cfg = tt.training_env.curriculum.task_generator.env
+    env_cfg.game.vibe_names = full_vibes
+    change_vibe = getattr(env_cfg.game.actions, "change_vibe", None)
+    if change_vibe is not None:
+        change_vibe.number_of_vibes = len(full_vibes)
+    if env_cfg.game.agent.initial_vibe >= len(full_vibes):
+        env_cfg.game.agent.initial_vibe = 0
 
     apply_cvc_sweep_defaults(tt.trainer)
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
     eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
+    eval_env.game.vibe_names = list(full_vibes)
+    change_vibe_eval = getattr(eval_env.game.actions, "change_vibe", None)
+    if change_vibe_eval is not None:
+        change_vibe_eval.number_of_vibes = len(full_vibes)
+    if eval_env.game.agent.initial_vibe >= len(full_vibes):
+        eval_env.game.agent.initial_vibe = 0
     tt.evaluator.simulations = [
         SimulationConfig(
             suite="cogs_vs_clips",
