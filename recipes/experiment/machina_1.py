@@ -19,6 +19,7 @@ from recipes.experiment.cogs_v_clips import (
     train_single_mission,
 )
 
+
 def train(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
