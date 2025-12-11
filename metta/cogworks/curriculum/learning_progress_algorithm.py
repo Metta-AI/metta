@@ -204,12 +204,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             fast = self._per_task_fast[task_id]
             slow = self._per_task_slow[task_id]
 
-            # Apply smoothing reweighting when configured
+            # Apply the same progress smoothing used in distribution calc so the
+            # bidirectional score honors the config knob.
             if self.hypers.progress_smoothing != 0.0:
                 fast = float(self._reweight(fast))
                 slow = float(self._reweight(slow))
 
+            # Learning progress = |fast - slow|
             lp = abs(fast - slow)
+            # Small bonus for above-baseline performance
             perf_bonus = max(fast, 0) * 0.1
             score = lp + perf_bonus
 
