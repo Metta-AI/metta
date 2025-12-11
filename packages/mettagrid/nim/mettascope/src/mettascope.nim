@@ -1,4 +1,4 @@
-import std/[os, strutils, parseopt, json],
+import std/[os, strutils, parseopt, json, tables],
   boxy, windy, vmath, fidget2, fidget2/hybridrender, webby,
   mettascope/[replays, common, panels, utils, timeline,
   worldmap, minimap, agenttraces, footer, envconfig, vibes]
@@ -19,6 +19,20 @@ proc updateReplayHeader() =
 
 proc onReplayLoaded() =
   ## Called when a replay is loaded.
+  # Clear cached maps that depend on the old replay
+  terrainMap = nil
+  visibilityMap = nil
+
+  # Reset global state for the new replay
+  step = 0
+  stepFloat = 0.0
+  previousStep = -1
+  selection = nil
+  play = false
+  requestPython = false
+  agentPaths = initTable[int, seq[PathAction]]()
+  agentObjectives = initTable[int, seq[Objective]]()
+
   replay.loadImages()
   updateReplayHeader()
   worldMapPanel.pos = vec2(0, 0)
@@ -53,6 +67,18 @@ find "/UI/Main":
   onLoad:
     # We need to build the atlas before loading the replay.
     buildAtlas()
+    
+    window.onFileDrop = proc(fileName: string, fileData: string) =
+      echo "File dropped: ", fileName, " (", fileData.len, " bytes)"
+      if fileName.endsWith(".json.z"):
+        try:
+          common.replay = loadReplay(fileData, fileName)
+          onReplayLoaded()
+          echo "Successfully loaded replay: ", fileName
+        except:
+          echo "Error loading replay file: ", getCurrentExceptionMsg()
+      else:
+        echo "Ignoring dropped file (not .json.z): ", fileName
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
