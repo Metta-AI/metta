@@ -549,8 +549,11 @@ void MettaGrid::_step() {
   }
 
   // Check and apply damage for all agents (randomized order for fairness)
+  // Use while loop to apply damage repeatedly while threshold is met
   for (const auto& agent_idx : agent_indices) {
-    _agents[agent_idx]->check_and_apply_damage(_rng);
+    while (_agents[agent_idx]->check_and_apply_damage(_rng)) {
+      // Keep applying damage until threshold is no longer met
+    }
   }
 
   // Apply global systems
