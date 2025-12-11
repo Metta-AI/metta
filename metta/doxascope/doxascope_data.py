@@ -157,6 +157,10 @@ class DoxascopeLogger:
             policy_uri = policy_uri[7:]  # Remove "file://"
         elif policy_uri.startswith("s3://"):
             policy_uri = policy_uri[5:]  # Remove "s3://"
+        elif policy_uri.startswith("metta://policy/"):
+            policy_uri = policy_uri[15:]  # Remove "metta://policy/"
+        elif policy_uri.startswith("metta://"):
+            policy_uri = policy_uri[8:]  # Remove "metta://"
 
         stem = Path(policy_uri).stem
         if ":" in stem:
