@@ -116,8 +116,9 @@ class EvalTaskOrchestrator:
         available_tasks = self._task_client.get_available_tasks()
 
         for task in available_tasks.tasks:
-            num_cpus = self._compute_num_cpus(task.parallelism)
-            memory_request = self._compute_memory_request(task.parallelism)
+            parallelism = task.attributes.get("parallelism", 1)
+            num_cpus = self._compute_num_cpus(parallelism)
+            memory_request = self._compute_memory_request(parallelism)
 
             worker_name = self._worker_manager.start_worker(num_cpus_request=num_cpus, memory_request=memory_request)
             logger.info(f"Started worker {worker_name} for task {task.id}")

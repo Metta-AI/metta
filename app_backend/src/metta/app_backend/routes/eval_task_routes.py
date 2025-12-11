@@ -27,7 +27,6 @@ class TaskCreateRequest(BaseModel):
     git_hash: str | None = None
     data_file: dict[str, Any] | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
-    parallelism: int = 1
 
 
 class TaskClaimRequest(BaseModel):
@@ -128,7 +127,6 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             attributes=request.attributes,
             user_id=user,
             data_uri=data_uri,
-            parallelism=request.parallelism
         )
         return task
 

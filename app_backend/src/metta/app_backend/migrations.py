@@ -133,22 +133,4 @@ MIGRATIONS = [
                ON episode_tags (episode_id, key, value)""",
         ],
     ),
-    SqlMigration(
-        version=3,
-        description="Add parallelism column to eval_tasks",
-        sql_statements=[
-            """ALTER TABLE eval_tasks ADD COLUMN parallelism INTEGER NOT NULL DEFAULT 1""",
-            """DROP VIEW IF EXISTS eval_tasks_view""",
-            """CREATE VIEW eval_tasks_view AS
-                SELECT
-                    t.id, t.command, t.data_uri, t.git_hash, t.attributes,
-                    t.user_id, t.created_at, t.is_finished, t.latest_attempt_id,
-                    t.parallelism,
-                    a.attempt_number, a.status, a.status_details, a.assigned_at,
-                    a.assignee, a.started_at, a.finished_at, a.output_log_path
-                FROM eval_tasks t
-                LEFT JOIN task_attempts a ON t.latest_attempt_id = a.id
-            """,
-        ],
-    ),
 ]

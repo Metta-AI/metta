@@ -130,7 +130,7 @@ AND NOT EXISTS (
             TaskCreateRequest(
                 command=" ".join(command_parts),
                 git_hash=self._eval_git_hash,
-                parallelism=10,
+                attributes={"parallelism": 10},
             )
         )
         logger.info("Successfully scheduled eval for policy: %s: %s", policy_version_id, eval_task.id)
