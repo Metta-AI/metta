@@ -180,13 +180,15 @@ def _run_cleanup_cancelled_runs(*, verbose: bool = False, extra_args: Sequence[s
 
 
 def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None, **_kwargs) -> CheckResult:
+    from devops.stable.registry import Suite, discover_jobs, get_user_timestamp, specs_to_jobs
     from devops.stable.runner import Runner, print_summary
-    from devops.stable.suite import get_ci_jobs
 
     _print_header("Recipe CI Tests")
 
     try:
-        all_jobs, group = get_ci_jobs()
+        group = f"runner.{get_user_timestamp()}"
+        specs = discover_jobs(Suite.CI)
+        all_jobs = specs_to_jobs(specs, group)
 
         if name_filter:
             recipe_jobs = [job for job in all_jobs if name_filter in job.name]

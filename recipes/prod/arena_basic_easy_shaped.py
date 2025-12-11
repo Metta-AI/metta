@@ -7,6 +7,8 @@ from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+from devops.stable.registry import ci_job, stable_job
+from devops.stable.runner import AcceptanceCriterion, Operator
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
@@ -15,7 +17,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -256,3 +258,77 @@ def sweep(sweep_name: str) -> SweepTool:
         # The faster each individual trial, the lower you should set this number.
         num_parallel_trials=4,
     )
+
+
+@ci_job(timeout_s=300)
+def train_ci() -> TrainTool:
+    """Minimal train for CI smoke test."""
+    return TrainTool(
+        trainer=TrainerConfig(total_timesteps=100),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=make_curriculum(),
+            forward_pass_minibatch_target_size=96,
+            vectorization="serial",
+        ),
+        evaluator=EvaluatorConfig(evaluate_local=False, evaluate_remote=False),
+        checkpointer=CheckpointerConfig(epoch_interval=1),
+        policy_architecture=ViTDefaultConfig(),
+    )
+
+
+@ci_job(timeout_s=120)
+def play_ci() -> PlayTool:
+    """Play test with random policy."""
+    return PlayTool(
+        sim=simulations()[0],
+        max_steps=10,
+        render="log",
+        open_browser_on_start=False,
+    )
+
+
+@ci_job(depends_on=train_ci, inject={"dir_path": "uri"}, timeout_s=120)
+def evaluate_ci(dir_path: Path) -> EvaluateTool:
+    """Evaluate the trained policy from train_ci."""
+    return evaluate_latest_in_dir(dir_path)
+
+
+@stable_job(
+    gpus=1,
+    timeout_s=7200,
+    acceptance=[
+        AcceptanceCriterion(metric="overview/sps", threshold=40000),
+        AcceptanceCriterion(metric="env_agent/heart.gained", operator=Operator.GT, threshold=0.1),
+    ],
+)
+def train_100m() -> TrainTool:
+    """Arena single GPU - 100M timesteps."""
+    return TrainTool(
+        trainer=TrainerConfig(total_timesteps=100_000_000),
+        training_env=TrainingEnvironmentConfig(curriculum=make_curriculum()),
+        policy_architecture=ViTDefaultConfig(),
+    )
+
+
+@stable_job(
+    gpus=4,
+    nodes=4,
+    timeout_s=172800,
+    acceptance=[
+        AcceptanceCriterion(metric="overview/sps", threshold=80000),
+        AcceptanceCriterion(metric="env_agent/heart.gained", operator=Operator.GT, threshold=1.0),
+    ],
+)
+def train_2b() -> TrainTool:
+    """Arena multi GPU - 2B timesteps."""
+    return TrainTool(
+        trainer=TrainerConfig(total_timesteps=2_000_000_000),
+        training_env=TrainingEnvironmentConfig(curriculum=make_curriculum()),
+        policy_architecture=ViTDefaultConfig(),
+    )
+
+
+@stable_job(depends_on=train_100m, inject={"policy_uri": "uri"}, timeout_s=1800)
+def evaluate_stable(policy_uri: str) -> EvaluateTool:
+    """Evaluate the 100M trained policy."""
+    return EvaluateTool(simulations=simulations(), policy_uris=[policy_uri])

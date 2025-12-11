@@ -286,7 +286,7 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
-          uv run python .github/scripts/run_ci_stage.py recipe-tests --no-interactive
+          uv run python .github/scripts/run_ci_stage.py recipe-tests --non-interactive
 
   cpp-tests:
     name: "Tests - C++ and Nim"

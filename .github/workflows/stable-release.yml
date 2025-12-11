@@ -122,7 +122,7 @@ jobs:
         id: release
         run: |
           # Build command with optional arguments
-          CMD="./devops/stable/cli.py --no-interactive"
+          CMD="./devops/stable/cli.py --non-interactive"
 
           if [ -n "${{ github.event.inputs.version }}" ]; then
             CMD="$CMD --version=${{ github.event.inputs.version }}"

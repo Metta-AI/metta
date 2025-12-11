@@ -16,8 +16,8 @@ from pathlib import Path
 
 import typer
 
+from devops.stable.registry import discover_jobs, specs_to_jobs
 from devops.stable.runner import Runner, print_summary
-from devops.stable.suite import get_all_jobs
 
 app = typer.Typer(add_completion=False, invoke_without_command=True)
 
@@ -100,7 +100,7 @@ def write_discord_summary(runner: Runner, state_dir: Path) -> None:
 def release(
     version: str = typer.Option(None, help="Version string (default: timestamp)"),
     job: str = typer.Option(None, help="Filter jobs by name pattern"),
-    no_interactive: bool = typer.Option(False, "--no-interactive", help="Non-interactive mode"),
+    non_interactive: bool = typer.Option(False, "--non-interactive", help="Non-interactive mode"),
     skip_commit_match: bool = typer.Option(False, "--skip-commit-match", help="Skip commit verification"),
 ):
     """Run stable release validation."""
@@ -110,10 +110,11 @@ def release(
     state_dir = get_state_dir(version)
 
     runner = Runner(state_dir)
-    jobs = get_all_jobs(prefix)
+    specs = discover_jobs()
+    all_jobs = specs_to_jobs(specs, prefix)
     if job:
-        jobs = [j for j in jobs if job in j.name]
-    for j in jobs:
+        all_jobs = [j for j in all_jobs if job in j.name]
+    for j in all_jobs:
         runner.add_job(j)
 
     print(f"Running stable release validation: {version}")
