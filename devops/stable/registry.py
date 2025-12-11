@@ -184,14 +184,16 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list["Job"]:
     from devops.stable.runner import Job
 
     jobs: list[Job] = []
+
     spec_to_job_name: dict[Callable, str] = {}
+    for spec in specs:
+        short_name = spec.name.replace(".", "_")
+        spec_to_job_name[spec.func] = f"{prefix}.{short_name}"
 
     for spec in specs:
         module = spec.func.__module__
         tool_path = module.replace("recipes.prod.", "").replace("recipes.experiment.", "") + "." + spec.func.__name__
-        short_name = spec.name.replace(".", "_")
-        job_name = f"{prefix}.{short_name}"
-        spec_to_job_name[spec.func] = job_name
+        job_name = spec_to_job_name[spec.func]
 
         return_type = get_type_hints(spec.func).get("return")
         is_train = return_type is TrainTool
