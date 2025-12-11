@@ -43,7 +43,7 @@ def test_sweep_tool_grid_search_builds_scheduler(monkeypatch, tmp_path) -> None:
             captured["store"] = store
             captured["config"] = config
 
-        def run(self, on_eval_completed=None):  # noqa: ARG002
+        def run(self, on_training_completed=None, on_eval_completed=None, on_job_dispatch=None):  # noqa: ARG002
             # Do nothing; we only care that construction succeeded
             return 0
 

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from metta.adaptive.models import JobStatus, RunInfo
+
+if TYPE_CHECKING:
+    from metta.adaptive.run_phase import RunPhaseManager
 
 
 @dataclass
@@ -29,7 +32,13 @@ class SchedulerState:
         ):
             self._initialized = True
 
-    def refresh(self, runs: list[RunInfo], *, force_eval: bool = False) -> None:
+    def refresh(
+        self,
+        runs: list[RunInfo],
+        phase_manager: "RunPhaseManager",
+        *,
+        force_eval: bool = False,
+    ) -> None:
         """Sync internal state from current runs, preserving cached suggestions."""
         run_by_id = {r.run_id: r for r in runs}
 
@@ -41,7 +50,7 @@ class SchedulerState:
             self.in_progress_suggestions.clear()
 
         for run_id, run in run_by_id.items():
-            status = run.status
+            status = phase_manager.get_phase(run)
 
             if status in (JobStatus.PENDING, JobStatus.IN_TRAINING):
                 self.runs_in_training.add(run_id)

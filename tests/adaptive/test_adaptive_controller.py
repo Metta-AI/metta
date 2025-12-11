@@ -121,11 +121,15 @@ class TestAdaptiveController:
         """Test that eval completion hook is called correctly."""
         hook_mock = Mock()
 
-        # Setup: run with evaluation completed but not yet processed
+        # Setup: run with evaluation completed (sweep/score present) but not yet processed
         evaluated_run = RunInfo(
             run_id="test_run_001",
-            has_been_evaluated=True,
-            summary={},  # No processing flag yet
+            has_started_training=True,
+            has_completed_training=True,
+            summary={
+                "sweep/eval_started": True,
+                "sweep/score": 0.5,  # Eval completed
+            },
         )
         mock_store.fetch_runs.return_value = [evaluated_run]
 
@@ -142,9 +146,8 @@ class TestAdaptiveController:
         call_args = mock_store.update_run_summary.call_args
         assert call_args[0][0] == "test_run_001"
         update_dict = call_args[0][1]
-        assert update_dict["adaptive/post_eval_processed"] is True
-        assert "adaptive/post_eval_processed_at" in update_dict
-        assert isinstance(update_dict["adaptive/post_eval_processed_at"], datetime)
+        assert update_dict["sweep/post_eval_processed"] is True
+        assert "sweep/post_eval_processed_at" in update_dict
 
     def test_job_dispatch_hook(self, controller, mock_scheduler, mock_dispatcher, mock_store):
         """Test that job dispatch hook is called after store operations."""
@@ -205,7 +208,12 @@ class TestAdaptiveController:
 
         # Verify eval started flag was set (no init_run for evals)
         mock_store.init_run.assert_not_called()
-        mock_store.update_run_summary.assert_called_once_with("test_run_001", {"has_started_eval": True})
+        mock_store.update_run_summary.assert_called_once()
+        call_args = mock_store.update_run_summary.call_args
+        assert call_args[0][0] == "test_run_001"
+        update_dict = call_args[0][1]
+        assert update_dict["sweep/eval_started"] is True
+        assert "sweep/eval_started_at" in update_dict
 
     def test_resume_skips_initial_wait(self, controller, mock_scheduler, mock_store, monkeypatch):
         """Ensure resumed runs can skip the initial monitoring interval."""

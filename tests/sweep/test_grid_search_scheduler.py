@@ -8,14 +8,33 @@ Covers:
 """
 
 from datetime import datetime, timezone
+from typing import Any
 
 from metta.adaptive.models import JobTypes, RunInfo
+from metta.adaptive.run_phase import RunPhaseManager
 from metta.sweep.core import CategoricalParameterConfig
 from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
 
 
+class MockStore:
+    """Mock store that records update calls."""
+
+    def __init__(self):
+        self.summaries: dict[str, dict[str, Any]] = {}
+
+    def update_run_summary(self, run_id: str, data: dict[str, Any]) -> bool:
+        if run_id not in self.summaries:
+            self.summaries[run_id] = {}
+        self.summaries[run_id].update(data)
+        return True
+
+
 def _now():
     return datetime.now(timezone.utc)
+
+
+def _make_phase_manager():
+    return RunPhaseManager(MockStore())
 
 
 def test_grid_scheduler_basic_flow():
@@ -30,7 +49,8 @@ def test_grid_scheduler_basic_flow():
         parameters=params,
         max_trials=3,  # cap below full grid of 4
     )
-    scheduler = GridSearchScheduler(cfg)
+    phase_manager = _make_phase_manager()
+    scheduler = GridSearchScheduler(cfg, phase_manager)
 
     # First call: request 2 training slots -> should schedule 2 trainings
     jobs = scheduler.schedule([], available_training_slots=2)
@@ -49,8 +69,6 @@ def test_grid_scheduler_basic_flow():
             last_updated_at=_now(),
             has_started_training=True,
             has_completed_training=False,
-            has_started_eval=False,
-            has_been_evaluated=False,
             has_failed=False,
         ),
         RunInfo(
@@ -59,8 +77,6 @@ def test_grid_scheduler_basic_flow():
             last_updated_at=_now(),
             has_started_training=True,
             has_completed_training=False,
-            has_started_eval=False,
-            has_been_evaluated=False,
             has_failed=False,
         ),
     ]
@@ -75,9 +91,8 @@ def test_grid_scheduler_basic_flow():
             last_updated_at=_now(),
             has_started_training=True,
             has_completed_training=True,
-            has_started_eval=False,
-            has_been_evaluated=False,
             has_failed=False,
+            summary={},  # No sweep/eval_started
         ),
         RunInfo(
             run_id=jobs[1].run_id,
@@ -85,12 +100,11 @@ def test_grid_scheduler_basic_flow():
             last_updated_at=_now(),
             has_started_training=True,
             has_completed_training=True,
-            has_started_eval=False,
-            has_been_evaluated=False,
             has_failed=False,
+            summary={},  # No sweep/eval_started
         ),
     ]
-    # status property returns TRAINING_DONE_NO_EVAL when completed but not evaluated
+    # phase computed by phase_manager returns TRAINING_DONE_NO_EVAL
     jobs3 = scheduler.schedule(runs_train_done, available_training_slots=0)
     assert len(jobs3) == 2
     assert all(job.type == JobTypes.LAUNCH_EVAL for job in jobs3)
@@ -103,10 +117,12 @@ def test_grid_scheduler_basic_flow():
             last_updated_at=_now(),
             has_started_training=True,
             has_completed_training=True,
-            has_started_eval=True,
-            has_been_evaluated=True,
             has_failed=False,
-            summary=jobs[0].metadata,
+            summary={
+                **jobs[0].metadata,
+                "sweep/eval_started": True,
+                "sweep/score": 0.5,  # Observation recorded
+            },
         ),
         RunInfo(
             run_id=jobs[1].run_id,
@@ -114,10 +130,12 @@ def test_grid_scheduler_basic_flow():
             last_updated_at=_now(),
             has_started_training=True,
             has_completed_training=True,
-            has_started_eval=True,
-            has_been_evaluated=True,
             has_failed=False,
-            summary=jobs[1].metadata,
+            summary={
+                **jobs[1].metadata,
+                "sweep/eval_started": True,
+                "sweep/score": 0.6,  # Observation recorded
+            },
         ),
     ]
     jobs4 = scheduler.schedule(runs_completed, available_training_slots=1)
@@ -132,9 +150,11 @@ def test_grid_scheduler_basic_flow():
             last_updated_at=_now(),
             has_started_training=True,
             has_completed_training=True,
-            has_started_eval=True,
-            has_been_evaluated=True,
             has_failed=False,
+            summary={
+                "sweep/eval_started": True,
+                "sweep/score": 0.7,
+            },
         )
     ]
     assert scheduler.is_experiment_complete(runs_done) is True
@@ -147,7 +167,8 @@ def test_grid_scheduler_ignores_non_categorical_leaves():
         "trainer.optimizer.learning_rate": 1e-3,  # ignored
     }
     cfg = GridSearchSchedulerConfig(experiment_id="grid_bad", parameters=params)
-    scheduler = GridSearchScheduler(cfg)
+    phase_manager = _make_phase_manager()
+    scheduler = GridSearchScheduler(cfg, phase_manager)
 
     jobs = scheduler.schedule([], available_training_slots=1)
     assert len(jobs) == 1
@@ -162,7 +183,8 @@ def test_grid_scheduler_accepts_list_and_nested_config():
         "model.color": CategoricalParameterConfig(choices=["red", "blue"]),
     }
     cfg = GridSearchSchedulerConfig(experiment_id="grid_ok", parameters=params)
-    scheduler = GridSearchScheduler(cfg)
+    phase_manager = _make_phase_manager()
+    scheduler = GridSearchScheduler(cfg, phase_manager)
 
     # Should schedule first training job
     jobs = scheduler.schedule([], available_training_slots=1)
@@ -193,15 +215,18 @@ def test_grid_scheduler_resume_hydrates_from_runs():
                 last_updated_at=_now(),
                 has_started_training=True,
                 has_completed_training=True,
-                has_started_eval=True,
-                has_been_evaluated=True,
                 has_failed=False,
-                summary={"sweep/suggestion": sugg},
+                summary={
+                    "sweep/suggestion": sugg,
+                    "sweep/eval_started": True,
+                    "sweep/score": 0.5,
+                },
             )
         )
 
     # New scheduler instance (simulating restart)
-    scheduler = GridSearchScheduler(cfg)
+    phase_manager = _make_phase_manager()
+    scheduler = GridSearchScheduler(cfg, phase_manager)
 
     # Ask to schedule up to 2 trainings; should skip used suggestions and launch remaining grid points
     jobs = scheduler.schedule(completed_runs, available_training_slots=2)
@@ -223,7 +248,8 @@ def test_grid_scheduler_eval_throttling():
         "trainer.device": ["cpu", "cuda"],
     }
     cfg = GridSearchSchedulerConfig(experiment_id="grid_throttle", parameters=params, max_concurrent_evals=1)
-    scheduler = GridSearchScheduler(cfg)
+    phase_manager = _make_phase_manager()
+    scheduler = GridSearchScheduler(cfg, phase_manager)
 
     # Two runs finished training => only 1 eval should be scheduled due to throttle
     runs_train_done = [
@@ -233,9 +259,8 @@ def test_grid_scheduler_eval_throttling():
             last_updated_at=_now(),
             has_started_training=True,
             has_completed_training=True,
-            has_started_eval=False,
-            has_been_evaluated=False,
             has_failed=False,
+            summary={},
         ),
         RunInfo(
             run_id="r2",
@@ -243,13 +268,11 @@ def test_grid_scheduler_eval_throttling():
             last_updated_at=_now(),
             has_started_training=True,
             has_completed_training=True,
-            has_started_eval=False,
-            has_been_evaluated=False,
             has_failed=False,
+            summary={},
         ),
     ]
     jobs = scheduler.schedule(runs_train_done, available_training_slots=5)
-    from metta.adaptive.models import JobTypes
 
     # Exactly one eval should be scheduled due to throttle
     eval_jobs = [j for j in jobs if j.type == JobTypes.LAUNCH_EVAL]
@@ -259,3 +282,35 @@ def test_grid_scheduler_eval_throttling():
     train_jobs = [j for j in jobs if j.type == JobTypes.LAUNCH_TRAINING]
     assert len(train_jobs) >= 1
     assert len(train_jobs) <= 5
+
+
+def test_grid_scheduler_skips_eval_jobs_when_disabled():
+    """When skip_evaluation=True, scheduler should not schedule eval jobs."""
+    params = {
+        "model.color": CategoricalParameterConfig(choices=["red", "blue"]),
+    }
+    cfg = GridSearchSchedulerConfig(
+        experiment_id="grid_skip_eval",
+        parameters=params,
+        skip_evaluation=True,
+    )
+    phase_manager = _make_phase_manager()
+    scheduler = GridSearchScheduler(cfg, phase_manager)
+
+    # One run finished training
+    runs_train_done = [
+        RunInfo(
+            run_id="r1",
+            created_at=_now(),
+            last_updated_at=_now(),
+            has_started_training=True,
+            has_completed_training=True,
+            has_failed=False,
+            summary={"sweep/suggestion": {"model.color": "red"}},
+        ),
+    ]
+    jobs = scheduler.schedule(runs_train_done, available_training_slots=1)
+
+    # Should not schedule any eval jobs
+    eval_jobs = [j for j in jobs if j.type == JobTypes.LAUNCH_EVAL]
+    assert len(eval_jobs) == 0, "Should not schedule eval jobs when skip_evaluation=True"

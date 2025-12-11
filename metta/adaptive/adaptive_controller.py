@@ -2,7 +2,6 @@
 
 import logging
 import time
-from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from tenacity import Retrying, stop_after_attempt, wait_exponential_jitter
@@ -14,6 +13,7 @@ from .protocols import (
     ExperimentScheduler,
     Store,
 )
+from .run_phase import RunPhaseManager
 from .utils import make_monitor_table
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ class AdaptiveController:
         self.dispatcher = dispatcher
         self.store = store
         self.config = config
+        self.phase_manager = RunPhaseManager(store)
 
         # Job tracking by (run_id, job_type) to handle train/eval jobs with same run_id
         self.dispatched_jobs: set[tuple[str, str]] = set()
@@ -84,27 +85,21 @@ class AdaptiveController:
                         logger_prefix="[AdaptiveController]",
                         include_score=True,
                         truncate_run_id=True,
+                        phase_manager=self.phase_manager,
                     )
                     for line in table_lines:
                         logger.info(line)
 
-                # 1.a Run post-eval completion hooks (guarded by summary flag) before any scheduling
+                # 1.a Run lifecycle hooks (guarded to prevent re-triggering)
                 if runs and on_training_completed is not None:
                     for run in runs:
                         try:
-                            summary_dict = run.summary or {}
-                            already_processed = bool(summary_dict.get("adaptive/post_train_processed", False))
-                            if run.has_completed_training and not already_processed:
+                            if run.has_completed_training and not self.phase_manager.is_hook_processed(
+                                run, "post_train"
+                            ):
                                 logger.info(f"[AdaptiveController] Running on_training_completed for {run.run_id}")
                                 on_training_completed(run, self.store, runs)
-                                processed_at = datetime.now(timezone.utc)
-                                self.store.update_run_summary(
-                                    run.run_id,
-                                    {
-                                        "adaptive/post_train_processed": True,
-                                        "adaptive/post_train_processed_at": processed_at,
-                                    },
-                                )
+                                self.phase_manager.mark_hook_processed(run.run_id, "post_train")
                         except Exception as e:
                             logger.error(
                                 f"[AdaptiveController] Error running on_training_completed for {run.run_id}: {e}",
@@ -114,9 +109,10 @@ class AdaptiveController:
                 if runs and on_eval_completed is not None:
                     for run in runs:
                         try:
-                            summary_dict = run.summary or {}
-                            already_processed = bool(summary_dict.get("adaptive/post_eval_processed", False))
-                            if run.has_been_evaluated and not already_processed:
+                            phase = self.phase_manager.get_phase(run)
+                            if phase == JobStatus.COMPLETED and not self.phase_manager.is_hook_processed(
+                                run, "post_eval"
+                            ):
                                 logger.info(f"[AdaptiveController] Running on_eval_completed for {run.run_id}")
 
                                 for attempt in Retrying(
@@ -127,14 +123,7 @@ class AdaptiveController:
                                     with attempt:
                                         on_eval_completed(run, self.store, runs)
 
-                                processed_at = datetime.now(timezone.utc)
-                                self.store.update_run_summary(
-                                    run.run_id,
-                                    {
-                                        "adaptive/post_eval_processed": True,
-                                        "adaptive/post_eval_processed_at": processed_at,
-                                    },
-                                )
+                                self.phase_manager.mark_hook_processed(run.run_id, "post_eval")
                         except Exception as e:
                             logger.error(
                                 f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}",
@@ -143,7 +132,9 @@ class AdaptiveController:
 
                 # 2. Calculate available training slots (only count runs actually using training resources)
                 active_training_count = sum(
-                    1 for run in runs if run.status in (JobStatus.PENDING, JobStatus.IN_TRAINING)
+                    1
+                    for run in runs
+                    if self.phase_manager.get_phase(run) in (JobStatus.PENDING, JobStatus.IN_TRAINING)
                 )
                 available_training_slots = max(0, self.config.max_parallel - active_training_count)
 
@@ -192,7 +183,7 @@ class AdaptiveController:
 
                         # Mark eval jobs as started in store
                         elif job.type == JobTypes.LAUNCH_EVAL:
-                            self.store.update_run_summary(job.run_id, {"has_started_eval": True})
+                            self.phase_manager.mark_eval_started(job.run_id)
 
                         # Call job dispatch hook if provided (after wandb initialization)
                         if on_job_dispatch is not None:
