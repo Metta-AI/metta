@@ -13,48 +13,6 @@ type
     w*: int32
     h*: int32
 
-  PanelType* = enum
-    GlobalHeader
-    GlobalFooter
-    GlobalTimeline
-
-    WorldMap
-    Minimap
-    AgentTable
-    AgentTraces
-    EnvironmentInfo
-    ObjectInfo
-    VibePanel
-
-  Panel* = ref object
-    panelType*: PanelType
-    rect*: IRect
-    name*: string     ## The name of the panel.
-    # header*: Node     ## The header of the panel.
-    # node*: Node       ## The node of the panel.
-    parentArea*: Area ## The parent area of the panel.
-
-    pos*: Vec2
-    vel*: Vec2
-    zoom*: float32 = 10
-    zoomVel*: float32
-    minZoom*: float32 = 0.5
-    maxZoom*: float32 = 50
-    scrollArea*: Rect
-    hasMouse*: bool = false
-
-  AreaLayout* = enum
-    Horizontal
-    Vertical
-
-  Area* = ref object
-    # node*: Node            ## The node of the area.
-    layout*: AreaLayout    ## The layout of the area.
-    areas*: seq[Area]      ## The subareas in the area (0 or 2)
-    panels*: seq[Panel]    ## The panels in the area.
-    split*: float32        ## The split percentage of the area.
-    selectedPanelNum*: int ## The index of the selected panel in the area.
-
   Settings* = object
     showFogOfWar* = false
     showVisualRange* = true
@@ -73,17 +31,17 @@ var
   window*: Window
   frame*: int
 
-  globalTimelinePanel*: Panel
-  globalFooterPanel*: Panel
-  globalHeaderPanel*: Panel
+  # globalTimelinePanel*: Panel
+  # globalFooterPanel*: Panel
+  # globalHeaderPanel*: Panel
 
-  worldMapPanel*: Panel
-  minimapPanel*: Panel
-  agentTablePanel*: Panel
-  agentTracesPanel*: Panel
-  objectInfoPanel*: Panel
-  environmentInfoPanel*: Panel
-  vibePanel*: Panel
+  # worldMapPanel*: Panel
+  # minimapPanel*: Panel
+  # agentTablePanel*: Panel
+  # agentTracesPanel*: Panel
+  # objectInfoPanel*: Panel
+  # environmentInfoPanel*: Panel
+  # vibePanel*: Panel
 
   settings* = Settings()
   selection*: Entity
@@ -102,6 +60,9 @@ var
 
   # Command line arguments.
   commandLineReplay*: string = ""
+
+  scrubValue*: float32 = 0
+
 
 type
   ActionRequest* = object
@@ -134,9 +95,6 @@ type
 
 var
   requestActions*: seq[ActionRequest]
-
-  mouseCaptured*: bool = false
-  mouseCapturedPanel*: Panel = nil
 
 var
   ## Path queue for each agent. Maps agentId to a sequence of path actions.

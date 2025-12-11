@@ -3,8 +3,7 @@ import
   vmath, windy, boxy,
   common, actions, utils, replays,
   pathfinding, tilemap, pixelator, shaderquad,
-  panels
-  # panels, objectinfo
+  panels, objectinfo
 
 proc foo() =
   echo window.size.x, "x", window.size.y
@@ -12,7 +11,7 @@ proc foo() =
 const TS = 1.0 / 64.0 # Tile scale.
 const TILE_SIZE = 64
 
-proc centerAt*(panel: Panel, entity: Entity)
+proc centerAt*(zoomInfo: ZoomInfo, entity: Entity)
 
 var
   terrainMap*: TileMap
@@ -235,7 +234,7 @@ proc getProjectionView*(): Mat4 =
   let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
   projection * view
 
-proc useSelections*(panel: Panel) =
+proc useSelections*(zoomInfo: ZoomInfo) =
   ## Reads the mouse position and selects the thing under it.
   let modifierDown = when defined(macosx):
     window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
@@ -253,7 +252,7 @@ proc useSelections*(panel: Panel) =
   if window.buttonPressed[DoubleClick] and not modifierDown:
     settings.lockFocus = not settings.lockFocus
     if settings.lockFocus and selection != nil:
-      centerAt(panel, selection)
+      centerAt(zoomInfo, selection)
 
   # Only select on mouse up, and only if we didn't drag much.
   if window.buttonReleased[MouseLeft] and not modifierDown:
@@ -267,9 +266,9 @@ proc useSelections*(panel: Panel) =
       if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
         gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
         let obj = getObjectAtLocation(gridPos)
-        echo "Selected object"
-        # if obj != nil:
-        #   selectObject(obj)
+
+        if obj != nil:
+          selectObject(obj)
 
   if window.buttonPressed[MouseRight] or (window.buttonPressed[MouseLeft] and modifierDown):
     if selection != nil and selection.isAgent:
@@ -471,13 +470,13 @@ proc drawTrajectory*() =
             diagScale = sqrt(2.0f)
 
           # Draw centered at the tile with rotation. Use a slightly larger scale on diagonals.
-          bxy.drawImage(
-            image,
-            vec2(cx0.float32, cy0.float32),
-            angle = rotation,
-            scale = (1.0f / 200.0f) * diagScale,
-            tint = tint
-          )
+          # bxy.drawImage(
+          #   image,
+          #   vec2(cx0.float32, cy0.float32),
+          #   angle = rotation,
+          #   scale = (1.0f / 200.0f) * diagScale,
+          #   tint = tint
+          # )
 
 proc drawActions*() =
   ## Draw the actions of the selected agent.
@@ -506,12 +505,13 @@ proc drawActions*() =
           else: 0, # East
         scale = 1/200)
     elif obj.productionProgress.at > 0:
-      bxy.drawImage(
-        "actions/converting",
-        obj.location.at.xy.vec2,
-        angle = 0,
-        scale = 1/200
-      )
+      # bxy.drawImage(
+      #   "actions/converting",
+      #   obj.location.at.xy.vec2,
+      #   angle = 0,
+      #   scale = 1/200
+      # )
+      discard
 
 proc drawAgentDecorations*() =
   # Draw energy bars, shield and frozen status.
@@ -619,11 +619,15 @@ proc drawPlannedPath*() =
 proc drawSelection*() =
   # Draw selection.
   if selection != nil:
-    bxy.drawImage(
-      "selection",
-      selection.location.at.xy.vec2,
-      angle = 0,
-      scale = 1/200
+    # bxy.drawImage(
+    #   "selection",
+    #   selection.location.at.xy.vec2,
+    #   angle = 0,
+    #   scale = 1/200
+    # )
+    px.drawSprite(
+      "objects/selection",
+      selection.location.at.xy.ivec2 * TILE_SIZE,
     )
 
 proc applyOrientationOffset*(x: int, y: int, orientation: int): (int, int) =
@@ -785,23 +789,23 @@ proc drawWorldMini*() =
 
 
 
-proc centerAt*(panel: Panel, entity: Entity) =
+proc centerAt*(zoomInfo: ZoomInfo, entity: Entity) =
   ## Center the map on the given entity.
   if entity.isNil:
     return
   let location = entity.location.at(step).xy
-  let rectW = panel.rect.w.float32
-  let rectH = panel.rect.h.float32
+  let rectW = zoomInfo.rect.w.float32
+  let rectH = zoomInfo.rect.h.float32
   if rectW <= 0 or rectH <= 0:
     return
-  let z = panel.zoom * panel.zoom
-  panel.pos.x = rectW / 2.0f - location.x.float32 * z
-  panel.pos.y = rectH / 2.0f - location.y.float32 * z
+  let z = zoomInfo.zoom * zoomInfo.zoom
+  zoomInfo.pos.x = rectW / 2.0f - location.x.float32 * z
+  zoomInfo.pos.y = rectH / 2.0f - location.y.float32 * z
 
 proc drawWorldMain*() =
   ## Draw the world map.
   drawTerrain()
-  drawTrajectory()
+  #drawTrajectory()
   drawObjects()
 
   bxy.enterRawOpenGLMode()
@@ -820,14 +824,14 @@ proc drawWorldMain*() =
   if settings.showGrid:
     drawGrid()
 
-  drawThoughtBubbles()
+  #drawThoughtBubbles()
 
-proc fitFullMap*(panel: Panel) =
+proc fitFullMap*(zoomInfo: ZoomInfo) =
   ## Set zoom and pan so the full map fits in the panel.
   if replay.isNil:
     return
-  let rectW = panel.rect.w.float32
-  let rectH = panel.rect.h.float32
+  let rectW = zoomInfo.rect.w.float32
+  let rectH = zoomInfo.rect.h.float32
   if rectW <= 0 or rectH <= 0:
     return
   let
@@ -838,24 +842,24 @@ proc fitFullMap*(panel: Panel) =
     mapW = max(0.001f, mapMaxX - mapMinX)
     mapH = max(0.001f, mapMaxY - mapMinY)
   let zoomScale = min(rectW / mapW, rectH / mapH)
-  panel.zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
+  zoomInfo.zoom = clamp(sqrt(zoomScale), zoomInfo.minZoom, zoomInfo.maxZoom)
   let
     cx = (mapMinX + mapMaxX) / 2.0f
     cy = (mapMinY + mapMaxY) / 2.0f
-    z = panel.zoom * panel.zoom
-  panel.pos.x = rectW / 2.0f - cx * z
-  panel.pos.y = rectH / 2.0f - cy * z
+    z = zoomInfo.zoom * zoomInfo.zoom
+  zoomInfo.pos.x = rectW / 2.0f - cx * z
+  zoomInfo.pos.y = rectH / 2.0f - cy * z
 
-proc fitVisibleMap*(panel: Panel) =
+proc fitVisibleMap*(zoomInfo: ZoomInfo) =
   ## Set zoom and pan so the visible area (union of all agent vision ranges) fits in the panel.
   if replay.isNil:
     return
 
   if replay.agents.len == 0:
-    fitFullMap(panel)
+    fitFullMap(zoomInfo)
     return
 
-  let rectSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
+  let rectSize = vec2(zoomInfo.rect.w.float32, zoomInfo.rect.h.float32)
 
   # Calculate the union of all agent vision areas.
   var
@@ -877,21 +881,21 @@ proc fitVisibleMap*(panel: Panel) =
   # Ensure we have valid bounds with reasonable size, otherwise fall back to full map
   let size = maxPos - minPos
   if size.x < 1.0f or size.y < 1.0f:
-    fitFullMap(panel)
+    fitFullMap(zoomInfo)
     return
 
   let
     visibleSize = maxPos - minPos
     zoomScale = min(rectSize.x / visibleSize.x, rectSize.y / visibleSize.y)
     center = (minPos + maxPos) / 2.0f
-    zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
+    zoom = clamp(sqrt(zoomScale), zoomInfo.minZoom, zoomInfo.maxZoom)
 
-  panel.zoom = zoom
-  panel.pos = rectSize / 2.0f - center * (zoom * zoom)
+  zoomInfo.zoom = zoom
+  zoomInfo.pos = rectSize / 2.0f - center * (zoom * zoom)
 
-proc adjustPanelForResize*(panel: Panel) =
+proc adjustPanelForResize*(zoomInfo: ZoomInfo) =
   ## Adjust pan and zoom when panel resizes to show the same portion of the map.
-  let currentSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
+  let currentSize = vec2(zoomInfo.rect.w.float32, zoomInfo.rect.h.float32)
 
   # Skip if this is the first time or no change
   if previousPanelSize.x <= 0 or previousPanelSize.y <= 0 or currentSize == previousPanelSize:
@@ -902,11 +906,11 @@ proc adjustPanelForResize*(panel: Panel) =
   let
     oldRectW = previousPanelSize.x
     oldRectH = previousPanelSize.y
-    rectW = panel.rect.w.float32
-    rectH = panel.rect.h.float32
-    z = panel.zoom * panel.zoom
-    centerX = (oldRectW / 2.0f - panel.pos.x) / z
-    centerY = (oldRectH / 2.0f - panel.pos.y) / z
+    rectW = zoomInfo.rect.w.float32
+    rectH = zoomInfo.rect.h.float32
+    z = zoomInfo.zoom * zoomInfo.zoom
+    centerX = (oldRectW / 2.0f - zoomInfo.pos.x) / z
+    centerY = (oldRectH / 2.0f - zoomInfo.pos.y) / z
 
   # Adjust zoom with square root of proportional scaling - moderate the zoom increase
   # when panel gets bigger to keep map elements reasonably sized
@@ -915,17 +919,17 @@ proc adjustPanelForResize*(panel: Panel) =
     newDiagonal = sqrt(rectW * rectW + rectH * rectH)
     zoomFactor = sqrt(newDiagonal / oldDiagonal)
 
-  panel.zoom = clamp(panel.zoom * zoomFactor, panel.minZoom, panel.maxZoom)
+  zoomInfo.zoom = clamp(zoomInfo.zoom * zoomFactor, zoomInfo.minZoom, zoomInfo.maxZoom)
 
   # Recalculate pan to keep the same center point
-  let newZ = panel.zoom * panel.zoom
-  panel.pos.x = rectW / 2.0f - centerX * newZ
-  panel.pos.y = rectH / 2.0f - centerY * newZ
+  let newZ = zoomInfo.zoom * zoomInfo.zoom
+  zoomInfo.pos.x = rectW / 2.0f - centerX * newZ
+  zoomInfo.pos.y = rectH / 2.0f - centerY * newZ
 
   # Update previous size
   previousPanelSize = currentSize
 
-proc drawWorldMap*(panel: Panel) =
+proc drawWorldMap*(zoomInfo: ZoomInfo) =
   ## Draw the world map.
 
   if replay == nil or replay.mapSize[0] == 0 or replay.mapSize[1] == 0:
@@ -934,18 +938,18 @@ proc drawWorldMap*(panel: Panel) =
 
   ## Draw the world map.
   if settings.lockFocus:
-    centerAt(panel, selection)
+    centerAt(zoomInfo, selection)
 
-  panel.beginPanAndZoom()
+  zoomInfo.beginPanAndZoom()
 
-  # if panel.hasMouse:
-  #   useSelections(panel)
+  if zoomInfo.hasMouse:
+    useSelections(zoomInfo)
 
   # agentControls()
 
-  if panel.zoom < 3:
+  if zoomInfo.zoom < 3:
     drawWorldMini()
   else:
     drawWorldMain()
 
-  panel.endPanAndZoom()
+  zoomInfo.endPanAndZoom()

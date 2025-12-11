@@ -1,43 +1,30 @@
 import
   std/[strutils, strformat, os, parseopt, json],
   opengl, windy, bumpy, vmath, chroma, silky, boxy, webby,
-  mettascope/[replays, common, worldmap]
+  mettascope/[replays, common, worldmap, panels, objectinfo]
 
-
-
+# Build the atlas.
 var builder = newAtlasBuilder(1024, 4)
-
 builder.addDir(rootDir / "data/theme/", rootDir / "data/theme/")
 builder.addDir(rootDir / "data/ui/", rootDir / "data/")
 builder.addDir(rootDir / "data/vibe/", rootDir / "data/")
-
 builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "H1", 32.0)
 builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "Default", 18.0)
-
 builder.write(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
-
-
-const
-  BackgroundColor = parseHtmlColor("#000000").rgbx
-  RibbonColor = parseHtmlColor("#273646").rgbx
-  ScrubberColor = parseHtmlColor("#1D1D1D").rgbx
-  m = 12f # Default margin
 
 window = newWindow(
   "MettaScope",
   ivec2(1200, 800),
   vsync = false
 )
-
-window.centerWindow()
 makeContextCurrent(window)
 loadExtensions()
 
-sk = newSilky(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
-bxy = newBoxy()
-
-var scrubValue: float32 = 0
-
+const
+  BackgroundColor = parseHtmlColor("#000000").rgbx
+  RibbonColor = parseHtmlColor("#273646").rgbx
+  ScrubberColor = parseHtmlColor("#1D1D1D").rgbx
+  m = 12f # Default margin
 
 proc parseArgs() =
   ## Parse command line arguments.
@@ -105,205 +92,54 @@ proc replaySwitch(replay: string) =
     echo "Realtime mode"
     onReplayLoaded()
 
+proc genericPanelDraw(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
+  frame(frameId, contentPos, contentSize):
+    # Start content a bit inset.
+    sk.at += vec2(8, 8)
+    h1text(panel.name)
+    text("This is the content of " & panel.name)
+    for i in 0 ..< 20:
+      text(&"Scrollable line {i} for " & panel.name)
 
-when defined(emscripten):
-  parseUrlParams()
-else:
-  parseArgs()
-replaySwitch(commandLineReplay)
-
-var vibes = @[
-  "vibe/alembic",
-  "vibe/angry",
-  "vibe/anxious",
-  "vibe/assembler",
-  "vibe/asterisk",
-  "vibe/backpack",
-  "vibe/beaming",
-  "vibe/black-circle",
-  "vibe/black-heart",
-  "vibe/blue-circle",
-  "vibe/blue-diamond",
-  "vibe/blue-heart",
-  "vibe/bow",
-  "vibe/broken-heart",
-  "vibe/brown-circle",
-  "vibe/brown-heart",
-  "vibe/brown-square",
-  "vibe/carbon",
-  "vibe/carbon_a",
-  "vibe/carbon_b",
-  "vibe/carrot",
-  "vibe/charger",
-  "vibe/chart-down",
-  "vibe/chart-up",
-  "vibe/chest",
-  "vibe/clown",
-  "vibe/coin",
-  "vibe/compass",
-  "vibe/confused",
-  "vibe/corn",
-  "vibe/crying-cat",
-  "vibe/crying",
-  "vibe/dagger",
-  "vibe/default",
-  "vibe/diamond",
-  "vibe/divide",
-  "vibe/down-left",
-  "vibe/down-right",
-  "vibe/down",
-  "vibe/drooling",
-  "vibe/eight",
-  "vibe/factory",
-  "vibe/fearful",
-  "vibe/fire",
-  "vibe/five",
-  "vibe/four",
-  "vibe/fuel",
-  "vibe/gear",
-  "vibe/germanium",
-  "vibe/germanium_a",
-  "vibe/germanium_b",
-  "vibe/ghost",
-  "vibe/green-circle",
-  "vibe/green-heart",
-  "vibe/grinning-big-eyes",
-  "vibe/grinning-smiling-eyes",
-  "vibe/grinning",
-  "vibe/growing-heart",
-  "vibe/halo",
-  "vibe/hammer",
-  "vibe/hash",
-  "vibe/heart-arrow",
-  "vibe/heart-decoration",
-  "vibe/heart-exclamation",
-  "vibe/heart-eyes",
-  "vibe/heart-ribbon",
-  "vibe/heart",
-  "vibe/heart_a",
-  "vibe/heart_b",
-  "vibe/hundred",
-  "vibe/kiss",
-  "vibe/left",
-  "vibe/light-shade",
-  "vibe/lightning",
-  "vibe/love-letter",
-  "vibe/medium-shade",
-  "vibe/minus",
-  "vibe/moai",
-  "vibe/money",
-  "vibe/monocle",
-  "vibe/mountain",
-  "vibe/multiply",
-  "vibe/nine",
-  "vibe/numbers",
-  "vibe/oil",
-  "vibe/one",
-  "vibe/orange-circle",
-  "vibe/orange-heart",
-  "vibe/orange-square",
-  "vibe/oxygen",
-  "vibe/oxygen_a",
-  "vibe/oxygen_b",
-  "vibe/package",
-  "vibe/paperclip",
-  "vibe/pin",
-  "vibe/plug",
-  "vibe/plus",
-  "vibe/pouting",
-  "vibe/purple-circle",
-  "vibe/purple-heart",
-  "vibe/purple-square",
-  "vibe/pushpin",
-  "vibe/red-circle",
-  "vibe/red-heart",
-  "vibe/red-triangle",
-  "vibe/revolving-hearts",
-  "vibe/right",
-  "vibe/rock",
-  "vibe/rocket",
-  "vibe/rofl",
-  "vibe/rolling-eyes",
-  "vibe/rotate-clockwise",
-  "vibe/rotate",
-  "vibe/savoring",
-  "vibe/seahorse",
-  "vibe/seven",
-  "vibe/shield",
-  "vibe/silicon",
-  "vibe/silicon_a",
-  "vibe/silicon_b",
-  "vibe/six",
-  "vibe/skull-crossbones",
-  "vibe/sleepy",
-  "vibe/small-blue-diamond",
-  "vibe/smiling",
-  "vibe/smirking",
-  "vibe/sobbing",
-  "vibe/sparkle",
-  "vibe/sparkling-heart",
-  "vibe/squinting",
-  "vibe/star-struck",
-  "vibe/swearing",
-  "vibe/swords",
-  "vibe/target",
-  "vibe/tears-of-joy",
-  "vibe/ten",
-  "vibe/test-tube",
-  "vibe/three",
-  "vibe/tree",
-  "vibe/two-hearts",
-  "vibe/two",
-  "vibe/up-left",
-  "vibe/up-right",
-  "vibe/up",
-  "vibe/wall",
-  "vibe/water",
-  "vibe/wave",
-  "vibe/wheat",
-  "vibe/white-circle",
-  "vibe/white-heart",
-  "vibe/white-square",
-  "vibe/wood",
-  "vibe/wrench",
-  "vibe/yawning",
-  "vibe/yellow-circle",
-  "vibe/yellow-heart",
-  "vibe/yellow-square",
-  "vibe/zero",
-]
+proc mapPanelDraw(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
+  ## Draw the world map.
+  worldMapZoomInfo.rect = irect(contentPos.x, contentPos.y, contentSize.x, contentSize.y)
+  worldMapZoomInfo.hasMouse = mouseInsideClip(rect(contentPos, contentSize))
+  drawWorldMap(worldMapZoomInfo)
 
 
-var worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
-worldMapPanel.rect = IRect(x: 0, y: 0, w: 500, h: 500)
-worldMapPanel.pos = vec2(0, 0)
-worldMapPanel.zoom = 10
-worldMapPanel.minZoom = 0.5
-worldMapPanel.maxZoom = 50
-worldMapPanel.scrollArea = Rect(x: 0, y: 0, w: 500, h: 500)
-worldMapPanel.hasMouse = false
+
+# Initialization
+proc initPanels() =
+
+  rootArea = Area()
+  rootArea.split(Vertical)
+  rootArea.split = 0.30
+
+  rootArea.areas[0].split(Horizontal)
+  rootArea.areas[0].split = 0.7
+
+  rootArea.areas[1].split(Vertical)
+  rootArea.areas[1].split = 0.7
+
+  rootArea.areas[0].areas[0].addPanel("Object", drawObjectInfo)
+  rootArea.areas[0].areas[0].addPanel("Environment", genericPanelDraw)
+
+  rootArea.areas[1].areas[0].addPanel("Map", mapPanelDraw)
+  rootArea.areas[0].areas[1].addPanel("Minimap", genericPanelDraw)
+
+  rootArea.areas[1].areas[1].addPanel("Vibes", genericPanelDraw)
+
+initPanels()
 
 window.onFrame = proc() =
 
   sk.beginUI(window, window.size)
 
-  # # Draw map background
-  # for x in 0 ..< 16:
-  #   for y in 0 ..< 10:
-  #     sk.at = vec2(x.float32 * 256, y.float32 * 256)
-  #     image("testTexture", rgbx(30, 30, 30, 255))
-
-
-
-  drawWorldMap(worldMapPanel)
-
   # Header
   ribbon(sk.pos, vec2(sk.size.x, 64), RibbonColor):
     image("ui/logo")
     h1text("Hello, World!")
-
-    # button("press me"):
-    #   echo "pressed"
 
     sk.at = sk.pos + vec2(sk.size.x - 100, 16)
     iconButton("ui/heart"):
@@ -342,24 +178,44 @@ window.onFrame = proc() =
       iconButton("ui/tack"):
         echo "tack"
 
-  # frame(vec2(sk.size.x - (11 * (32 + m)), 100) - vec2(14, 14), vec2(500, 800) + vec2(14, 14)):
-  #   sk.at = sk.pos + vec2(m, m) * 2
-  #   for i, vibe in vibes:
-  #     if i > 0 and i mod 10 == 0:
-  #       sk.at.x = sk.pos.x + m * 2
-  #       sk.at.y += 32 + m
-  #     iconButton(vibe):
-  #       echo vibe
-
-  group vec2(10, 200):
-    text("Step: 1 of 10\nscore: 100\nlevel: 1\nwidth: 100\nheight: 100\nnum agents: 10")
+  drawPanels()
 
   let ms = sk.avgFrameTime * 1000
   sk.at = sk.pos + vec2(sk.size.x - 250, 20)
-  text(&"frame time: {ms:>7.3f}ms")
+  text(&"frame time: {ms:>7.3f}ms\nquads: {sk.instanceCount}")
 
   sk.endUi()
   window.swapBuffers()
 
-while not window.closeRequested:
-  pollEvents()
+  if window.cursor.kind != sk.cursor.kind:
+    window.cursor = sk.cursor
+
+proc main() =
+  ## Main entry point.
+
+  window.centerWindow()
+
+  sk = newSilky(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
+  bxy = newBoxy()
+
+  when defined(emscripten):
+    parseUrlParams()
+  else:
+    parseArgs()
+  replaySwitch(commandLineReplay)
+
+  ## Initialize the world map zoom info.
+  worldMapZoomInfo = ZoomInfo()
+  worldMapZoomInfo.rect = IRect(x: 0, y: 0, w: 500, h: 500)
+  worldMapZoomInfo.pos = vec2(0, 0)
+  worldMapZoomInfo.zoom = 10
+  worldMapZoomInfo.minZoom = 0.5
+  worldMapZoomInfo.maxZoom = 50
+  worldMapZoomInfo.scrollArea = Rect(x: 0, y: 0, w: 500, h: 500)
+  worldMapZoomInfo.hasMouse = false
+
+  while not window.closeRequested:
+    pollEvents()
+
+when isMainModule:
+  main()
