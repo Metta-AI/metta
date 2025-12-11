@@ -459,6 +459,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     transfer_cfg = actions_config.transfer
     vibe_transfers_cpp = {}
     for vt in transfer_cfg.vibe_transfers:
+        if vt.vibe not in vibe_name_to_id:
+            raise ValueError(f"Unknown vibe name '{vt.vibe}' in transfer.vibe_transfers")
         vibe_id = vibe_name_to_id[vt.vibe]
         target_deltas = {resource_name_to_id[k]: v for k, v in vt.target.items()}
         actor_deltas = {resource_name_to_id[k]: v for k, v in vt.actor.items()}
