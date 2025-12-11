@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -42,7 +43,12 @@ class MptArtifact:
         strict: bool = True,
     ) -> Any:
         if isinstance(device, str):
-            device = torch.device(device)
+            try:
+                device = torch.device(device)
+            except RuntimeError as e:
+                # Log error and fall back to CPU
+                logging.error(f"Error creating device {device}: {e}")
+                device = torch.device("cpu")
 
         policy = self.architecture.make_policy(policy_env_info)
         policy = policy.to(device)
