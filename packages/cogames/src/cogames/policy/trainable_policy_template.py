@@ -35,7 +35,7 @@ class MyNetwork(nn.Module):
     Important: PufferLib training requires forward_eval() to return (logits, values).
     """
 
-    def __init__(self, obs_shape: tuple[int, int], num_actions: int, hidden_size: int = 256):
+    def __init__(self, obs_shape: tuple[int, ...], num_actions: int, hidden_size: int = 256):
         super().__init__()
         input_size = obs_shape[0] * obs_shape[1]
         self.encoder = nn.Sequential(
@@ -49,7 +49,17 @@ class MyNetwork(nn.Module):
         self.value_head = nn.Linear(hidden_size, 1)
 
     def forward_eval(self, x: torch.Tensor, state: Any = None) -> tuple[torch.Tensor, torch.Tensor]:
-        """Forward pass for evaluation/training. Returns (logits, values)."""
+        """Forward pass for evaluation. Called by PufferLib during rollout collection.
+
+        Args:
+            x: Observation tensor of shape (batch, *obs_shape). Values are uint8 [0, 255].
+               See mettagrid/docs/observations.md for observation format details.
+            state: RNN state dict (unused for stateless policies, but required by PufferLib)
+
+        Returns:
+            logits: Action logits of shape (batch, num_actions)
+            values: Value estimates of shape (batch, 1)
+        """
         x = x.float() / 255.0
         hidden = self.encoder(x)
         logits = self.action_head(hidden)
@@ -57,14 +67,18 @@ class MyNetwork(nn.Module):
         return logits, values
 
     def forward(self, x: torch.Tensor, state: Any = None) -> tuple[torch.Tensor, torch.Tensor]:
-        """Forward pass - same as forward_eval for stateless policies."""
+        """Forward pass for training. Called by PufferLib during policy gradient updates.
+
+        For stateless policies, this is identical to forward_eval. Stateful policies may
+        differ (e.g., handling hidden state differently during backprop).
+        """
         return self.forward_eval(x, state)
 
 
 class MyAgentPolicy(AgentPolicy):
     """Per-agent policy that uses the shared network for inference."""
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, network: nn.Module, device: torch.device):
+    def __init__(self, policy_env_info: PolicyEnvInterface, network: "MyNetwork", device: torch.device):
         super().__init__(policy_env_info)
         self._network = network
         self._action_names = policy_env_info.action_names
@@ -72,19 +86,26 @@ class MyAgentPolicy(AgentPolicy):
         self._obs_shape = policy_env_info.observation_space.shape
 
     def step(self, obs: AgentObservation) -> Action:
+        # Convert AgentObservation to tensor format expected by the network.
+        # obs.tokens is a list of observation tokens, each containing a raw_token (list of ints).
+        # We pack these into a 2D tensor of shape (num_tokens, token_dim).
         obs_tensor = torch.zeros(self._obs_shape, device=self._device, dtype=torch.uint8)
         for i, token in enumerate(obs.tokens):
             if i < obs_tensor.shape[0]:
                 raw = token.raw_token
                 obs_tensor[i, : len(raw)] = torch.tensor(raw, dtype=torch.uint8, device=self._device)
 
+        # Run inference: add batch dimension, get action logits, take argmax
         with torch.no_grad():
             self._network.eval()
             logits, _ = self._network.forward_eval(obs_tensor.unsqueeze(0))
             action_idx = logits.argmax(dim=-1).item()
 
-        action_idx = max(0, min(int(action_idx), len(self._action_names) - 1))
-        return Action(name=self._action_names[action_idx])
+        try:
+            return Action(name=self._action_names[int(action_idx)])
+        except IndexError:
+            # Fallback if network outputs invalid action index
+            return Action(name="noop") if "noop" in self._action_names else Action(name=self._action_names[0])
 
 
 class MyTrainablePolicy(MultiAgentPolicy):
