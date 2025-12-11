@@ -9,6 +9,9 @@ This template provides a minimal trainable neural network policy that can be use
 - network(): Returns the nn.Module for training
 - load_policy_data() / save_policy_data(): Checkpoint serialization
 
+This implementation is closely based on mettagrid/policy/stateless.py, simplified for
+clarity and without the pufferlib dependency.
+
 To use this template:
 1. Modify MyNetwork to implement your desired architecture
 2. Run: cogames train -m easy_hearts -p class=my_trainable_policy.MyTrainablePolicy
@@ -18,6 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -35,12 +39,11 @@ class MyNetwork(nn.Module):
     Important: PufferLib training requires forward_eval() to return (logits, values).
     """
 
-    def __init__(self, obs_shape: tuple[int, ...], num_actions: int, hidden_size: int = 256):
+    def __init__(self, obs_shape: tuple[int, ...], num_actions: int, hidden_size: int = 128):
         super().__init__()
-        input_size = obs_shape[0] * obs_shape[1]
+        self.hidden_size = hidden_size
         self.encoder = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(input_size, hidden_size),
+            nn.Linear(int(np.prod(obs_shape)), hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
@@ -60,7 +63,8 @@ class MyNetwork(nn.Module):
             logits: Action logits of shape (batch, num_actions)
             values: Value estimates of shape (batch, 1)
         """
-        x = x.float() / 255.0
+        batch_size = x.shape[0]
+        x = x.view(batch_size, -1).float() / 255.0
         hidden = self.encoder(x)
         logits = self.action_head(hidden)
         values = self.value_head(hidden)
@@ -83,22 +87,15 @@ class MyAgentPolicy(AgentPolicy):
         self._network = network
         self._action_names = policy_env_info.action_names
         self._device = device
-        self._obs_shape = policy_env_info.observation_space.shape
 
     def step(self, obs: AgentObservation) -> Action:
-        # Convert AgentObservation to tensor format expected by the network.
-        # obs.tokens is a list of observation tokens, each containing a raw_token (list of ints).
-        # We pack these into a 2D tensor of shape (num_tokens, token_dim).
-        obs_tensor = torch.zeros(self._obs_shape, device=self._device, dtype=torch.uint8)
-        for i, token in enumerate(obs.tokens):
-            if i < obs_tensor.shape[0]:
-                raw = token.raw_token
-                obs_tensor[i, : len(raw)] = torch.tensor(raw, dtype=torch.uint8, device=self._device)
+        # Convert observation to tensor and add batch dimension
+        obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
 
-        # Run inference: add batch dimension, get action logits, take argmax
+        # Run inference and take argmax action
         with torch.no_grad():
             self._network.eval()
-            logits, _ = self._network.forward_eval(obs_tensor.unsqueeze(0))
+            logits, _ = self._network.forward_eval(obs_tensor)
             action_idx = logits.argmax(dim=-1).item()
 
         try:
@@ -124,34 +121,38 @@ class MyTrainablePolicy(MultiAgentPolicy):
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
-        hidden_size: int = 256,
+        hidden_size: int = 128,
         device: str | torch.device | None = None,
         **kwargs,
     ):
         super().__init__(policy_env_info, **kwargs)
 
-        if device is None:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        elif isinstance(device, str):
-            device = torch.device(device)
-        self._device = device
-
         obs_shape = policy_env_info.observation_space.shape
         num_actions = len(policy_env_info.action_names)
-        self._network = MyNetwork(obs_shape, num_actions, hidden_size).to(self._device)
+        self._network = MyNetwork(obs_shape, num_actions, hidden_size)
+
+        if device is not None:
+            self._network = self._network.to(torch.device(device))
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Return an AgentPolicy instance for the given agent."""
-        return MyAgentPolicy(self._policy_env_info, self._network, self._device)
+        current_device = next(self._network.parameters()).device
+        return MyAgentPolicy(self._policy_env_info, self._network, current_device)
 
     def network(self) -> nn.Module:
         """Return the neural network module for training."""
         return self._network
 
+    def is_recurrent(self) -> bool:
+        """Return False for stateless policies."""
+        return False
+
     def load_policy_data(self, path: str) -> None:
         """Load network weights from a checkpoint file."""
-        state_dict = torch.load(path, map_location=self._device, weights_only=True)
+        device = next(self._network.parameters()).device
+        state_dict = torch.load(path, map_location=device, weights_only=True)
         self._network.load_state_dict(state_dict)
+        self._network = self._network.to(device)
 
     def save_policy_data(self, path: str) -> None:
         """Save network weights to a checkpoint file."""
