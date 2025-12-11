@@ -201,6 +201,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             inventory_regen_amounts=inventory_regen_amounts,
             diversity_tracked_resources=diversity_tracked_resources,
             vibe_transfers=vibe_transfers_map,
+            initial_vibe=agent_props.get("initial_vibe", 0),
         )
         cpp_agent_config.tag_ids = tag_ids
 
