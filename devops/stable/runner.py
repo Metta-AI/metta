@@ -230,12 +230,12 @@ class Runner:
         gpus = remote.get("gpus", 1)
         nodes = remote.get("nodes", 1)
 
-        # Convert cmd from ["uv", "run", "./tools/run.py", "train", "arena", "run=X", ...]
-        # to launch.py format: ["./devops/skypilot/launch.py", "train", "arena", "--run=X", "--gpus=N", ...]
+        # Convert cmd from ["uv", "run", "./tools/run.py", "module.path", "run=X", ...]
+        # to launch.py format: ["./devops/skypilot/launch.py", "module.path", "--run=X", "--gpus=N", ...]
         cmd = job.cmd
-        if len(cmd) >= 5 and cmd[:3] == ["uv", "run", "./tools/run.py"]:
-            module_path = cmd[3:5]  # e.g., ["train", "arena"]
-            tool_args = cmd[5:]  # e.g., ["run=X", "trainer.total_timesteps=100"]
+        if len(cmd) >= 4 and cmd[:3] == ["uv", "run", "./tools/run.py"]:
+            module_path = cmd[3]  # e.g., "arena_basic_easy_shaped.train_100m"
+            tool_args = cmd[4:]  # e.g., ["run=X", "trainer.total_timesteps=100"]
 
             # Extract run= arg and other args
             run_arg = None
@@ -250,7 +250,7 @@ class Runner:
                 "uv",
                 "run",
                 "./devops/skypilot/launch.py",
-                *module_path,
+                module_path,
                 f"--gpus={gpus}",
                 f"--nodes={nodes}",
                 "--skip-git-check",
