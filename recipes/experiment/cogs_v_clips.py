@@ -282,11 +282,8 @@ def make_curriculum(
     for mission_name in missions:
         mission_template = _resolve_mission_template(mission_name)
 
-        # Get available variants
-        if variants is None:
-            available_variants = [v.name for v in VARIANTS]
-        else:
-            available_variants = list(variants)
+        # All candidate variants (use provided list when given, otherwise all)
+        available_variants = list(variants) if variants is not None else [v.name for v in VARIANTS]
 
         # Filter to compatible variants for this mission
         compatible_available = [v.name for v in VARIANTS if v.name in available_variants and v.compat(mission_template)]
