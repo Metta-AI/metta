@@ -106,7 +106,27 @@ uv run cogames play -m hello_world -c 2 -s 100 -p "class=llm-anthropic,kw.model=
 
 | Test | Date | Reward | Cost | Notes |
 |------|------|--------|------|-------|
-| C1   |      |        |      |       |
+| C1   | 12/12 | 1.30 (0.35 + 0.95) | $5.07 | SUCCESS! Much better than Qwen. Agent 0: carbon(2), silicon(15). Agent 1: germanium(2), oxygen(10), silicon(15). Found 3 of 4 extractor types! |
+| C2   | 12/12 | **12.87** (5.95 + 6.92) | $10.79 | **SUCCESS!** Both agents collected resources. Agent 1 had C=2, Ge=2, Si=15 (missing only O). High rewards suggest hearts were crafted! |
+
+---
+
+### Test C2: Claude extended run (2 agents, 200 steps, hello_world)
+```bash
+uv run cogames play -m hello_world -c 2 -s 200 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee claude_hello_world_2agents_200steps.log
+```
+**Estimated cost:** ~$10.00
+
+**What we're measuring:**
+- [ ] Can agents find all 4 extractor types with more time?
+- [ ] Do agents craft at least 1 heart?
+- [ ] Do agents deposit hearts in chest?
+
+**Success criteria:**
+- At least 1 agent collects all 4 resources (carbon, oxygen, germanium, silicon)
+- Reward > 2.0 (indicating heart crafted/deposited)
+
+---
 
 ## Next Steps (based on C1 results)
 - If exploration is weak → Add spatial memory map or pathfinding hints
