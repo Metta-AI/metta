@@ -1,3 +1,10 @@
+"""Collectors package.
+
+Note: Training and eval collectors were removed. Datadog metrics are now emitted
+directly by the stable runner workflow. This package only retains CI collector
+for GitHub workflow metrics (separate from runner metrics).
+"""
+
 from __future__ import annotations
 
 from typing import Dict, List, Type
@@ -25,19 +32,7 @@ def available_collectors() -> List[str]:
     return sorted(COLLECTOR_REGISTRY.keys())
 
 
-# TODO: unify collector discovery/registration pattern across codebase
-
-# Import collectors so they self-register
+# Import CI collector (for GitHub workflow metrics, not runner metrics)
 from devops.datadog.collectors.ci_collector import CICollector  # noqa: E402
-from devops.datadog.collectors.eval_collector import EvalCollector  # noqa: E402
-from devops.datadog.collectors.training_collector import TrainingCollector  # noqa: E402
 
 register_collector(CICollector)
-register_collector(EvalCollector)
-register_collector(TrainingCollector)
-
-# Import stable_suite integration modules (for side effects)
-from devops.datadog.collectors import (  # noqa: E402, F401
-    stable_suite_mapping,
-    stable_suite_metrics,
-)
