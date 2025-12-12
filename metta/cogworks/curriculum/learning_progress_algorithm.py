@@ -25,9 +25,11 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
-    ema_timescale: float = 0.001
+    ema_timescale: float = 0.001  # Timescale for fast EMA (sets low-frequency component)
+    slow_timescale_factor: float = 0.2  # Factor applied to ema_timescale for slow EMA (width of frequency window)
     exploration_bonus: float = 0.1
-    progress_smoothing: float = 0.05  # For bidirectional reweighting
+    progress_smoothing: float = 0.05  # Prioritization rescaling factor for bidirectional reweighting
+    lp_gain: float = 0.1  # Gain factor for performance bonus (z-score gain)
 
     # Task distribution and sampling
     num_active_tasks: int = 1000
@@ -212,9 +214,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
             # Learning progress = |fast - slow|
             lp = abs(fast - slow)
-            # Small bonus for above-baseline performance
-            perf_bonus = max(fast, 0) * 0.1
-            score = lp + perf_bonus
+            # Small bonus for above-baseline performance (controlled by lp_gain)
+            perf_bonus = max(fast, 0) * self.hypers.lp_gain
+            score = max(lp + perf_bonus, self.hypers.exploration_bonus)
 
         # Cache the computed score
         self._score_cache[task_id] = score
@@ -373,8 +375,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._per_task_fast[task_id] = normalized * self.hypers.ema_timescale + self._per_task_fast[task_id] * (
                 1.0 - self.hypers.ema_timescale
             )
-            # Slow EMA (5x slower)
-            slow_ts = self.hypers.ema_timescale * 0.2
+            # Slow EMA (controlled by slow_timescale_factor)
+            slow_ts = self.hypers.ema_timescale * self.hypers.slow_timescale_factor
             self._per_task_slow[task_id] = normalized * slow_ts + self._per_task_slow[task_id] * (1.0 - slow_ts)
 
         self._cache_valid_tasks.discard(task_id)
@@ -501,7 +503,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         slow_arr = np.asarray(slow_list, dtype=float)
 
         lp = np.abs(fast_arr - slow_arr)
-        performance_bonus = np.maximum(fast_arr, 0) * 0.1
+        performance_bonus = np.maximum(fast_arr, 0) * self.hypers.lp_gain
 
         return lp + performance_bonus
 
