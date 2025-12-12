@@ -27,8 +27,6 @@ def train(
     eval_difficulty: str | None = "standard",
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
-    map_seed: int = 50,
-    ppo_learning_rate: float = 2e-3,
 ) -> TrainTool:
     """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
 
@@ -42,12 +40,8 @@ def train(
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
-    tt.training_env.maps_cache_size = 1
-    tt.training_env.seed = map_seed
+    tt.training_env.maps_cache_size = 30
 
-    # Keep the environment action space full; restrict actor sampling to the first 21 actions.
-    if tt.policy_architecture.action_probs_config:
-        tt.policy_architecture.action_probs_config.max_action_index = 21
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     full_vibes = [v.name for v in vibes.VIBES]
     env_cfg = tt.training_env.curriculum.task_generator.env
@@ -59,15 +53,8 @@ def train(
         env_cfg.game.agent.initial_vibe = 0
 
     apply_cvc_sweep_defaults(tt.trainer)
-    tt.trainer.optimizer.learning_rate = ppo_learning_rate
 
     eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
-    eval_env.game.vibe_names = list(full_vibes)
-    change_vibe_eval = getattr(eval_env.game.actions, "change_vibe", None)
-    if change_vibe_eval is not None:
-        change_vibe_eval.number_of_vibes = len(full_vibes)
-    if eval_env.game.agent.initial_vibe >= len(full_vibes):
-        eval_env.game.agent.initial_vibe = 0
     tt.evaluator.simulations = [
         SimulationConfig(
             suite="cogs_vs_clips",
@@ -87,7 +74,6 @@ def train_sweep(
     eval_difficulty: str | None = "standard",
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
-    ppo_learning_rate: float = 2e-3,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
 
