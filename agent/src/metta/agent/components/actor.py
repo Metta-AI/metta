@@ -117,16 +117,12 @@ class ActionProbs(nn.Module):
     Computes action scores based on a query and action embeddings (keys).
     """
 
+    _MAX_ACTION_INDEX = 21
+
     def __init__(self, config: ActionProbsConfig):
         super().__init__()
         self.config = config
         self.num_actions = 0
-        # Persist the trained action cap in checkpoints so masking stays consistent.
-        self.register_buffer(
-            "_max_action_index_buf",
-            torch.tensor(21, dtype=torch.int32),
-            persistent=True,
-        )
 
     def _ensure_initialized(self) -> None:
         if self.num_actions <= 0:
@@ -144,12 +140,9 @@ class ActionProbs(nn.Module):
 
         self.num_actions = int(action_space.n)
 
-        # Always use the canonical training cap of 21 actions; store so it round-trips.
-        self._max_action_index_buf.fill_(21)
-
     def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
-        """Mask logits past the first 21 actions (or the stored cap)."""
-        max_idx = min(int(self._max_action_index_buf.item()), logits.size(-1))
+        """Mask logits past the first 21 actions."""
+        max_idx = min(self._MAX_ACTION_INDEX, logits.size(-1))
         if max_idx <= 0:
             raise ValueError(f"max_action_index must be positive, got {max_idx}")
         mask_value = torch.finfo(logits.dtype).min
@@ -167,7 +160,6 @@ class ActionProbs(nn.Module):
         if all_masked.any():
             logits = logits.clone()
             logits[all_masked, :max_idx] = 0.0
-
         return logits
 
     def _load_from_state_dict(
@@ -180,13 +172,11 @@ class ActionProbs(nn.Module):
         unexpected_keys,
         error_msgs,
     ):
-        """Allow checkpoints that lack the mask buffer and default to 21."""
+        """Ignore legacy mask buffer while loading older checkpoints."""
         buf_key = prefix + "_max_action_index_buf"
-        if buf_key in missing_keys:
-            missing_keys.remove(buf_key)
-        if buf_key not in state_dict:
-            # Default to the training cap (21 actions: 5 base + 16 TRAINING_VIBES)
-            state_dict[buf_key] = torch.tensor(21, dtype=torch.int32)
+        state_dict.pop(buf_key, None)
+        if buf_key in unexpected_keys:
+            unexpected_keys.remove(buf_key)
 
         super()._load_from_state_dict(
             state_dict,
