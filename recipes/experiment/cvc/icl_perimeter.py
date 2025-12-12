@@ -33,10 +33,14 @@ from cogames.cogs_vs_clips.stations import (
     OxygenExtractorConfig,
     SiliconExtractorConfig,
 )
+from metta.agent.policies.trxl import TRXLConfig
+from metta.agent.components.cortex import CortexTDConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
+from cortex.config import XLCellConfig
+from cortex.stacks import build_cortex_auto_config
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.rl.loss.losses import LossesConfig
@@ -48,6 +52,26 @@ from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.icl_perimeter import ICLPerimeterMapBuilder
+
+
+# Custom TrXL config with pass_state_during_training enabled
+def make_trxl_with_state() -> TRXLConfig:
+    """Create TRXLConfig with pass_state_during_training=True."""
+    config = TRXLConfig()
+    # Update the CortexTDConfig component to pass state during training
+    for i, component in enumerate(config.components):
+        if isinstance(component, CortexTDConfig):
+            config.components[i] = CortexTDConfig(
+                in_key=component.in_key,
+                out_key=component.out_key,
+                d_hidden=component.d_hidden,
+                out_features=component.out_features,
+                key_prefix=component.key_prefix,
+                stack_cfg=component.stack_cfg,
+                pass_state_during_training=True,
+            )
+    return config
+
 
 # Resources required for a heart
 REQUIRED_RESOURCES = ["carbon", "oxygen", "germanium", "silicon"]
@@ -390,6 +414,7 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
+        bptt_horizon=600,  # Match max episode length
     )
 
     # Eval on hardest config (all 4 missing)
@@ -421,6 +446,7 @@ def train(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
+        policy_architecture=make_trxl_with_state(),
     )
 
 
