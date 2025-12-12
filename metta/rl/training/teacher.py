@@ -53,12 +53,41 @@ def apply_teacher_phase(
     total_steps = teacher_cfg.steps if teacher_cfg.steps is not None else default_steps
     losses = trainer_cfg.losses
 
+    def _gate_loss(name: str) -> None:
+        if total_steps:
+            scheduler_run_gates.extend(
+                [
+                    LossRunGate(loss_instance_name=name, phase="rollout", end_at_step=total_steps),
+                    LossRunGate(loss_instance_name=name, phase="train", end_at_step=total_steps),
+                ]
+            )
+
+    def _gate_critic_after_teacher() -> None:
+        if total_steps:
+            scheduler_run_gates.append(
+                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=total_steps)
+            )
+
+    def _anneal_led(loss_name: str, start_value: float) -> None:
+        if total_steps and start_value > 0.0:
+            scheduler_rules.append(
+                HyperUpdateRule(
+                    loss_instance_name=loss_name,
+                    attr_path="led_proportion",
+                    mode="progress",
+                    style="linear",
+                    start_value=start_value,
+                    end_value=0.0,
+                    start_agent_step=0,
+                    end_agent_step=total_steps,
+                )
+            )
+
     if teacher_cfg.mode in {"sliced_cloner", "supervisor"}:
         _require_policy_uri(teacher_cfg)
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
 
     if teacher_cfg.mode == "sliced_cloner":
-        # Let the cloner own sampling if desired, but keep PPO critic fully enabled; it now respects existing actions.
         losses.ppo_critic.sample_enabled = True
         losses.ppo_critic.train_forward_enabled = True
         losses.ppo_critic.rollout_forward_enabled = True
@@ -69,68 +98,16 @@ def apply_teacher_phase(
         slicer.led_proportion = teacher_cfg.led_proportion
         slicer.student_proportion = teacher_cfg.student_proportion
 
-        if total_steps:
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="sliced_scripted_cloner",
-                    phase="rollout",
-                    end_at_step=total_steps,
-                )
-            )
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="sliced_scripted_cloner",
-                    phase="train",
-                    end_at_step=total_steps,
-                )
-            )
-        if total_steps and teacher_cfg.led_proportion > 0.0:
-            scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="sliced_scripted_cloner",
-                    attr_path="led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=teacher_cfg.led_proportion,
-                    end_value=0.0,
-                    start_agent_step=0,
-                    end_agent_step=total_steps,
-                )
-            )
+        _gate_loss("sliced_scripted_cloner")
+        _anneal_led("sliced_scripted_cloner", teacher_cfg.led_proportion)
 
     elif teacher_cfg.mode == "supervisor":
         supervisor = losses.supervisor
         supervisor.enabled = True
         supervisor.led_proportion = teacher_cfg.led_proportion
 
-        if total_steps:
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="supervisor",
-                    phase="rollout",
-                    end_at_step=total_steps,
-                )
-            )
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="supervisor",
-                    phase="train",
-                    end_at_step=total_steps,
-                )
-            )
-        if total_steps and teacher_cfg.led_proportion > 0.0:
-            scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="supervisor",
-                    attr_path="led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=teacher_cfg.led_proportion,
-                    end_value=0.0,
-                    start_agent_step=0,
-                    end_agent_step=total_steps,
-                )
-            )
+        _gate_loss("supervisor")
+        _anneal_led("supervisor", teacher_cfg.led_proportion)
         if total_steps:
             scheduler_rules.append(
                 HyperUpdateRule(
@@ -147,7 +124,6 @@ def apply_teacher_phase(
 
     elif teacher_cfg.mode == "sliced_kickstarter":
         _require_policy_uri(teacher_cfg)
-
         losses.ppo_critic.sample_enabled = False
         losses.ppo_critic.train_forward_enabled = False
         losses.ppo_critic.deferred_training_start_step = total_steps
@@ -158,41 +134,9 @@ def apply_teacher_phase(
         sliced_kick.led_proportion = teacher_cfg.led_proportion
         sliced_kick.student_proportion = teacher_cfg.student_proportion
 
-        if total_steps:
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="sliced_kickstarter",
-                    phase="rollout",
-                    end_at_step=total_steps,
-                )
-            )
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="sliced_kickstarter",
-                    phase="train",
-                    end_at_step=total_steps,
-                )
-            )
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="ppo_critic",
-                    phase="rollout",
-                    begin_at_step=total_steps,
-                )
-            )
-        if total_steps and teacher_cfg.led_proportion > 0.0:
-            scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="sliced_kickstarter",
-                    attr_path="led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=teacher_cfg.led_proportion,
-                    end_value=0.0,
-                    start_agent_step=0,
-                    end_agent_step=total_steps,
-                )
-            )
+        _gate_loss("sliced_kickstarter")
+        _gate_critic_after_teacher()
+        _anneal_led("sliced_kickstarter", teacher_cfg.led_proportion)
 
     elif teacher_cfg.mode == "kickstarter":
         _require_policy_uri(teacher_cfg)
@@ -201,41 +145,9 @@ def apply_teacher_phase(
         ks.teacher_uri = teacher_cfg.policy_uri
         ks.led_proportion = teacher_cfg.led_proportion
 
-        if total_steps:
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="kickstarter",
-                    phase="rollout",
-                    end_at_step=total_steps,
-                )
-            )
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="kickstarter",
-                    phase="train",
-                    end_at_step=total_steps,
-                )
-            )
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="ppo_critic",
-                    phase="rollout",
-                    begin_at_step=total_steps,
-                )
-            )
-        if total_steps and teacher_cfg.led_proportion > 0.0:
-            scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="kickstarter",
-                    attr_path="led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=teacher_cfg.led_proportion,
-                    end_value=0.0,
-                    start_agent_step=0,
-                    end_agent_step=total_steps,
-                )
-            )
+        _gate_loss("kickstarter")
+        _gate_critic_after_teacher()
+        _anneal_led("kickstarter", teacher_cfg.led_proportion)
 
     elif teacher_cfg.mode == "logit_kickstarter":
         _require_policy_uri(teacher_cfg)
@@ -244,41 +156,9 @@ def apply_teacher_phase(
         logit.teacher_uri = teacher_cfg.policy_uri
         logit.led_proportion = teacher_cfg.led_proportion
 
-        if total_steps:
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="logit_kickstarter",
-                    phase="rollout",
-                    end_at_step=total_steps,
-                )
-            )
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="logit_kickstarter",
-                    phase="train",
-                    end_at_step=total_steps,
-                )
-            )
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="ppo_critic",
-                    phase="rollout",
-                    begin_at_step=total_steps,
-                )
-            )
-        if total_steps and teacher_cfg.led_proportion > 0.0:
-            scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="logit_kickstarter",
-                    attr_path="led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=teacher_cfg.led_proportion,
-                    end_value=0.0,
-                    start_agent_step=0,
-                    end_agent_step=total_steps,
-                )
-            )
+        _gate_loss("logit_kickstarter")
+        _gate_critic_after_teacher()
+        _anneal_led("logit_kickstarter", teacher_cfg.led_proportion)
 
     else:
         raise ValueError(f"Unsupported teacher mode '{teacher_cfg.mode}'")
