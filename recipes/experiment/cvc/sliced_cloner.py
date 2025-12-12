@@ -5,8 +5,6 @@ recipes should import from here and extend via custom defaults, similar to how
 `recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Optional, Sequence
 
@@ -26,6 +24,7 @@ from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvalWithResultTool
 from metta.tools.play import PlayTool
@@ -240,8 +239,8 @@ def train(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
-    bc_policy_uri: Optional[str] = None,
     use_lp: bool = True,
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -258,41 +257,20 @@ def train(
     )
     trainer_cfg = TrainerConfig(losses=LossesConfig())
     scheduler = None
+    scheduler_run_gates: list[LossRunGate] = []
+    scheduler_rules: list[HyperUpdateRule] = []
+    training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
 
-    if bc_policy_uri is not None:
-        ssc_end_step = 500_000_000
-        trainer_cfg.losses.sliced_scripted_cloner.enabled = True
-        trainer_cfg.losses.ppo_critic.sample_enabled = False
-        trainer_cfg.losses.ppo_critic.train_forward_enabled = False
-        trainer_cfg.losses.ppo_critic.deferred_training_start_step = ssc_end_step
-
-        scheduler = SchedulerConfig(
-            run_gates=[
-                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=ssc_end_step),
-                LossRunGate(
-                    loss_instance_name="sliced_scripted_cloner",
-                    phase="rollout",
-                    end_at_step=ssc_end_step,
-                ),
-                LossRunGate(
-                    loss_instance_name="sliced_scripted_cloner",
-                    phase="train",
-                    end_at_step=ssc_end_step,
-                ),
-            ],
-            rules=[
-                HyperUpdateRule(
-                    loss_instance_name="sliced_scripted_cloner",
-                    attr_path="teacher_led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=0.20,
-                    end_value=0.0,
-                    start_agent_step=0,
-                    end_agent_step=ssc_end_step,
-                ),
-            ],
+    if teacher and teacher.enabled:
+        apply_teacher_phase(
+            trainer_cfg=trainer_cfg,
+            training_env_cfg=training_env_cfg,
+            scheduler_rules=scheduler_rules,
+            scheduler_run_gates=scheduler_run_gates,
+            teacher_cfg=teacher,
+            default_steps=teacher.steps or 500_000_000,
         )
+        scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
@@ -309,7 +287,7 @@ def train(
 
     tt = TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum, supervisor_policy_uri=bc_policy_uri),
+        training_env=training_env_cfg,
         evaluator=evaluator_cfg,
         policy_architecture=ViTSize2Config(),
         scheduler=scheduler,
@@ -326,6 +304,7 @@ def train_variants(
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Create a training tool with curriculum tasks for all variants.
 
@@ -369,6 +348,7 @@ def train_variants(
         curriculum=curriculum,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        teacher=teacher,
     )
 
 
@@ -378,6 +358,7 @@ def train_single_mission(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
     env = make_training_env(
@@ -394,6 +375,7 @@ def train_single_mission(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        teacher=teacher,
     )
 
 
@@ -457,6 +439,7 @@ def train_coordination(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Train on coordination-heavy missions or a specific target map."""
     return train(
@@ -466,6 +449,7 @@ def train_coordination(
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
         mission=mission,
+        teacher=teacher,
     )
 
 

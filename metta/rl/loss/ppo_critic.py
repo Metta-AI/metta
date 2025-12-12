@@ -16,21 +16,21 @@ from metta.rl.utils import prepare_policy_forward_td
 
 
 class PPOCriticConfig(LossConfig):
+    """Value-head tuning plus optional sampling control."""
+
     vf_clip_coef: float = Field(default=0.1, ge=0)
     vf_coef: float = Field(default=0.897619, ge=0)
-    # Value loss clipping toggle
     clip_vloss: bool = True
     gamma: float = Field(default=0.977, ge=0, le=1.0)
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
-
-    # control flow for forwarding and sampling. clunky but needed if other losses want to drive (e.g. action supervised)
-    sample_enabled: bool = Field(default=True)  # if true, this loss samples from buffer during training
-    train_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under training
-    rollout_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under rollout
-
-    deferred_training_start_step: int | None = None  # if set, sample/train_forward enable after this step
+    profiles: list[str] | None = Field(default=None)
+    # Control flow for forwarding and sampling; used when another loss drives training.
+    sample_enabled: bool = Field(default=True)  # sample from buffer during training
+    train_forward_enabled: bool = Field(default=True)  # forward policy during training
+    rollout_forward_enabled: bool = Field(default=True)  # forward policy during rollout
+    deferred_training_start_step: int | None = None  # enable sampling/forwarding after this step
 
     def create(
         self,
@@ -69,11 +69,10 @@ class PPOCritic(Loss):
         self.sample_enabled = self.cfg.sample_enabled
         self.train_forward_enabled = self.cfg.train_forward_enabled
         self.rollout_forward_enabled = self.cfg.rollout_forward_enabled
+        self.trainable_only = True
+        self.loss_profiles: set[int] | None = None
 
-        if hasattr(self.policy, "burn_in_steps"):
-            self.burn_in_steps = self.policy.burn_in_steps
-        else:
-            self.burn_in_steps = 0
+        self.burn_in_steps = getattr(self.policy, "burn_in_steps", 0)
         self.burn_in_steps_iter = 0
 
     def get_experience_spec(self) -> Composite:
@@ -102,7 +101,12 @@ class PPOCritic(Loss):
             return
 
         with torch.no_grad():
-            self.policy.forward(td)
+            # If another loss already produced actions (e.g., sliced_cloner teacher slice),
+            # reuse them to avoid overwriting while still computing values/logprobs.
+            if "actions" in td.keys():
+                self.policy.forward(td, action=td["actions"])
+            else:
+                self.policy.forward(td)
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
@@ -150,9 +154,8 @@ class PPOCritic(Loss):
                 prio_beta0=self.cfg.prio_beta0,
                 advantages=self.advantages,
             )
-            # mb data should have been computed with policy under torch.no_grad()
             shared_loss_data["sampled_mb"] = minibatch
-            shared_loss_data["indices"] = NonTensorData(indices)  # this may break compile if we ever use it again
+            shared_loss_data["indices"] = NonTensorData(indices)
             shared_loss_data["prio_weights"] = prio_weights
         else:
             minibatch = shared_loss_data["sampled_mb"]
@@ -161,17 +164,30 @@ class PPOCritic(Loss):
                 indices = indices.data
 
             if "prio_weights" not in shared_loss_data:
-                # just in case ppo_actor runs after this and is expecting
                 shared_loss_data["prio_weights"] = torch.ones(
                     (minibatch.shape[0], minibatch.shape[1]),
                     device=self.device,
                     dtype=torch.float32,
                 )
 
+        shared_loss_data = self._filter_minibatch(shared_loss_data)
+        minibatch = shared_loss_data["sampled_mb"]
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
+        indices = shared_loss_data["indices"]
+        if isinstance(indices, NonTensorData):
+            indices = indices.data
+        prio_weights = shared_loss_data["prio_weights"]
 
-        shared_loss_data["advantages"] = self.advantages[indices]
+        mask_meta = shared_loss_data.pop("_applied_mask", None)
+        if isinstance(mask_meta, NonTensorData):
+            mask_meta = mask_meta.data
+
+        advantages = self.advantages[indices]
+        if mask_meta is not None:
+            advantages = self._apply_row_mask(advantages, mask_meta)
+
+        shared_loss_data["advantages"] = advantages
         # Share gamma/lambda with other losses (e.g. actor) to ensure consistency
         batch_size = shared_loss_data.batch_size
         shared_loss_data["gamma"] = torch.full(batch_size, self.cfg.gamma, device=self.device)
