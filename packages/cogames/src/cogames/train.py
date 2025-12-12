@@ -12,6 +12,7 @@ import psutil
 import torch
 from rich.console import Console
 
+import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
 from cogames.policy.signal_handler import DeferSigintContextManager
 from mettagrid import MettaGridConfig, PufferMettaGridEnv
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
@@ -92,8 +93,6 @@ def train(
     env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
     log_outputs: bool = False,
 ) -> None:
-    import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
-
     console = Console()
 
     if env_cfg is None and env_cfg_supplier is None:
