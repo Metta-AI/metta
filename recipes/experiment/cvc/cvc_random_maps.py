@@ -30,11 +30,7 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config import vibes as vibes_module
-<<<<<<< HEAD
-from mettagrid.config.mettagrid_config import MettaGridConfig, ProtocolConfig
-=======
 from mettagrid.config.mettagrid_config import ProtocolConfig
->>>>>>> 6735a612efd95d51f7b5bc1eb6f3de7a1e16e4e8
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.random import Random
 from recipes.experiment import cogs_v_clips
