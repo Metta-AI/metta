@@ -47,17 +47,13 @@ def ci_job(
     depends_on: Callable[..., Tool] | None = None,
     input_references: dict[str, str] | None = None,
     timeout_s: int = 300,
-    acceptance: list[AcceptanceCriterion] | None = None,
 ) -> Callable[[Callable[..., Tool]], Callable[..., Tool]]:
     """Register a CI job.
 
     Args:
         depends_on: Function this job depends on (must complete first).
-        inject: Map of parameter names to output fields from dependency.
+        input_references: Map of parameter names to output fields from dependency.
         timeout_s: Maximum time for job to complete (default 5min for CI).
-        gpus: Number of GPUs (None = local, 1+ = remote SkyPilot).
-        nodes: Number of nodes for multi-node training.
-        acceptance: List of acceptance criteria to evaluate after job completes.
     """
 
     def decorator(func: Callable[..., Tool]) -> Callable[..., Tool]:
@@ -68,7 +64,6 @@ def ci_job(
                 depends_on=depends_on,
                 input_references=input_references or {},
                 timeout_s=timeout_s,
-                acceptance=acceptance or [],
             )
         )
         return func
@@ -91,8 +86,8 @@ def stable_job(
         depends_on: Function this job depends on (must complete first).
         inject: Map of parameter names to output fields from dependency.
         timeout_s: Maximum time for job to complete (default 2h for stable).
-        gpus: Number of GPUs (None = local, 1+ = remote SkyPilot).
-        nodes: Number of nodes for multi-node training.
+        remote_gpus: Number of GPUs (None = local, 1+ = remote SkyPilot).
+        remote_nodes: Number of nodes for multi-node training.
         acceptance: List of acceptance criteria to evaluate after job completes.
     """
 
@@ -198,7 +193,7 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
             dependencies.append(dep_job_name)
 
             inject_args = []
-            available_references = spec.depends_on().output_references()
+            available_references = spec.depends_on().output_references(job_name=dep_job_name)
             for param_name, output_field in spec.input_references.items():
                 if output_field not in available_references:
                     raise ValueError(f"Dependency {dep_job_name} does not provide output field: {output_field}")
