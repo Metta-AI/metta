@@ -76,8 +76,15 @@ def _interactive_prediction_config(args: argparse.Namespace) -> Optional[argpars
     if not hasattr(args, "prediction_types") or args.prediction_types is None:
         args.prediction_types = ["location", "inventory"]
 
+    # Ensure exclude_inventory_items has a default
+    if not hasattr(args, "exclude_inventory_items") or args.exclude_inventory_items is None:
+        args.exclude_inventory_items = []
+
     print("\n--- Prediction Configuration ---")
     print(f"  - Prediction Types            : {args.prediction_types}")
+    if "inventory" in args.prediction_types:
+        exclude_str = ", ".join(args.exclude_inventory_items) if args.exclude_inventory_items else "(none)"
+        print(f"  - Exclude Inventory Items     : {exclude_str}")
     print(f"  - Future Timesteps to Predict : {args.num_future_timesteps}")
     print(f"  - Past Timesteps to Predict   : {args.num_past_timesteps}")
     print(f"  - Granularity                 : {args.granularity}")
@@ -101,6 +108,17 @@ def _interactive_prediction_config(args: argparse.Namespace) -> Optional[argpars
         args.prediction_types = ["inventory"]
     else:
         args.prediction_types = ["location", "inventory"]
+
+    # Ask about inventory exclusions if inventory prediction is enabled
+    if "inventory" in args.prediction_types:
+        print("\nExclude inventory items from prediction (e.g., 'energy' for passive consumption)?")
+        print("  Common items: energy, carbon, oxygen, germanium, silicon, heart")
+        current_str = ", ".join(args.exclude_inventory_items) if args.exclude_inventory_items else ""
+        default_display = current_str or "none"
+        exclude_input = input(f"  -> Enter comma-separated items to exclude (default: {default_display}): ").strip()
+        if exclude_input:
+            args.exclude_inventory_items = [item.strip() for item in exclude_input.split(",") if item.strip()]
+        # If empty input and we had defaults, keep them
 
     # Only ask about timesteps if location prediction is enabled
     if "location" in args.prediction_types:
@@ -617,9 +635,12 @@ def handle_train_command(args: argparse.Namespace):
     # Determine prediction types
     prediction_types = args.prediction_types
     include_inventory = "inventory" in prediction_types
+    exclude_inventory_items = getattr(args, "exclude_inventory_items", None) or []
 
     print("\n--- Preparing Data for Main Model ---")
     print(f"Prediction types: {prediction_types}")
+    if include_inventory and exclude_inventory_items:
+        print(f"Excluding inventory items: {exclude_inventory_items}")
     prepared_data = prepare_data(
         raw_data_dir=policy_data_dir,
         output_dir=output_dir,
@@ -631,6 +652,7 @@ def handle_train_command(args: argparse.Namespace):
         data_split_seed=42,
         granularity=args.granularity,
         include_inventory=include_inventory,
+        exclude_inventory_items=exclude_inventory_items if include_inventory else None,
     )
 
     if prepared_data.train_loader is None:
@@ -850,6 +872,10 @@ def handle_sweep_command(args: argparse.Namespace):
     # Determine prediction types for sweep
     prediction_types = getattr(args, "prediction_types", ["location", "inventory"])
     include_inventory = "inventory" in prediction_types
+    exclude_inventory_items = getattr(args, "exclude_inventory_items", None) or []
+
+    if include_inventory and exclude_inventory_items:
+        print(f"Excluding inventory items: {exclude_inventory_items}")
 
     prepared_data = prepare_data(
         policy_data_dir,
@@ -861,6 +887,7 @@ def handle_sweep_command(args: argparse.Namespace):
         args.num_past_timesteps,
         granularity=args.granularity,
         include_inventory=include_inventory,
+        exclude_inventory_items=exclude_inventory_items if include_inventory else None,
     )
     if prepared_data.train_loader is None:
         print("❌ Failed to prepare data. Aborting sweep.")
@@ -969,6 +996,13 @@ def main():
         choices=["location", "inventory"],
         help="What to predict: location, inventory, or both (default: both).",
     )
+    parser_train.add_argument(
+        "--exclude-inventory-items",
+        type=str,
+        nargs="*",
+        default=[],
+        help="Inventory items to exclude from prediction (e.g., 'energy' for passive consumption).",
+    )
     parser_train.set_defaults(func=handle_train_command)
 
     # --- Compare Command ---
@@ -1034,6 +1068,21 @@ def main():
         "--device", type=str, default="auto", help="Device to use for training (e.g., 'cpu', 'cuda')."
     )
     parser_sweep.add_argument("--batch-size", type=int, default=32, help="Batch size for training.")
+    parser_sweep.add_argument(
+        "--prediction-types",
+        type=str,
+        nargs="+",
+        default=["location", "inventory"],
+        choices=["location", "inventory"],
+        help="What to predict: location, inventory, or both (default: both).",
+    )
+    parser_sweep.add_argument(
+        "--exclude-inventory-items",
+        type=str,
+        nargs="*",
+        default=[],
+        help="Inventory items to exclude from prediction (e.g., 'energy' for passive consumption).",
+    )
     parser_sweep.set_defaults(func=handle_sweep_command)
 
     args = parser.parse_args()

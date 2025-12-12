@@ -867,7 +867,10 @@ class PreprocessedData:
     resource_names: Optional[List[str]] = None
 
 
-def find_changing_items_across_files(json_files: list) -> List[str]:
+def find_changing_items_across_files(
+    json_files: list,
+    exclude_items: Optional[List[str]] = None,
+) -> List[str]:
     """
     Scans all JSON files to find which items change in any trajectory.
 
@@ -876,14 +879,23 @@ def find_changing_items_across_files(json_files: list) -> List[str]:
 
     Args:
         json_files: List of JSON files to scan
+        exclude_items: Optional list of item names to exclude from prediction
+            (e.g., ["energy"] to exclude passive resource consumption)
 
     Returns:
-        Sorted list of resource names that change at least once
+        Sorted list of resource names that change at least once (minus excluded items)
     """
     trajectory_data = _extract_agent_trajectories(json_files)
     if not trajectory_data.trajectories or not trajectory_data.resource_names:
         return []
-    return _find_items_that_change(trajectory_data.trajectories, trajectory_data.resource_names)
+    changing_items = _find_items_that_change(trajectory_data.trajectories, trajectory_data.resource_names)
+
+    # Filter out excluded items
+    if exclude_items:
+        excluded_set = set(exclude_items)
+        changing_items = [item for item in changing_items if item not in excluded_set]
+
+    return changing_items
 
 
 def preprocess_doxascope_data(

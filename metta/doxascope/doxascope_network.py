@@ -705,10 +705,15 @@ def prepare_data(
     data_split_seed: int = 42,
     granularity: str = "exact",
     include_inventory: bool = True,
+    exclude_inventory_items: Optional[List[str]] = None,
 ) -> PreparedData:
     """
     Prepares and splits data into training, validation, and test sets.
     The split is done on a per-file basis to prevent data leakage.
+
+    Args:
+        exclude_inventory_items: Optional list of item names to exclude from inventory prediction
+            (e.g., ["energy"] to exclude passive resource consumption)
     """
     preprocessed_dir = output_dir / "preprocessed_data"
     preprocessed_dir.mkdir(parents=True, exist_ok=True)
@@ -792,7 +797,9 @@ def prepare_data(
     # Find changing items across ALL files first (ensures consistent item list across splits)
     resource_names = None
     if include_inventory:
-        resource_names = find_changing_items_across_files(all_json_files)
+        resource_names = find_changing_items_across_files(all_json_files, exclude_items=exclude_inventory_items)
+        if exclude_inventory_items:
+            print(f"Excluding inventory items from prediction: {exclude_inventory_items}")
         if resource_names:
             print(f"Found {len(resource_names)} items that change across all files: {resource_names}")
         else:
