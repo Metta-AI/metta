@@ -10,6 +10,7 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from mettagrid.base_config import Config
+from metta.rl.utils import forward_policy_for_training
 
 logger = logging.getLogger(__name__)
 
@@ -250,14 +251,27 @@ class CoreTrainingLoop:
                 stop_update_epoch_mb = False
                 shared_loss_mb_data = self.experience.give_me_empty_md_td()
 
-                minibatch, indices, prio_weights = self._sample_minibatch_for_losses(
-                    context, mb_idx
+                # Get advantages from losses for sampling
+                advantages = None
+                for loss_obj in self.losses.values():
+                    if hasattr(loss_obj, 'advantages'):
+                        advantages = loss_obj.advantages
+                        break
+
+                # Sample using Experience.sample()
+                minibatch, indices, prio_weights = self.experience.sample(
+                    mb_idx=mb_idx,
+                    epoch=context.epoch,
+                    total_timesteps=context.config.total_timesteps,
+                    batch_size=context.config.batch_size,
+                    advantages=advantages,
                 )
+
                 shared_loss_mb_data["sampled_mb"] = minibatch
                 shared_loss_mb_data["indices"] = NonTensorData(indices)
                 shared_loss_mb_data["prio_weights"] = prio_weights
 
-                policy_td = self._forward_policy_for_losses(minibatch)
+                policy_td = forward_policy_for_training(self.policy, minibatch, self.policy_spec)
                 shared_loss_mb_data["policy_td"] = policy_td
 
                 for _loss_name, loss_obj in self.losses.items():
@@ -306,56 +320,6 @@ class CoreTrainingLoop:
             losses_stats.update(loss_obj.stats())
 
         return losses_stats, epochs_trained
-
-    def _sample_minibatch_for_losses(
-        self,
-        context: ComponentContext,
-        mb_idx: int,
-    ) -> tuple[TensorDict, Tensor, Tensor]:
-        """Sample minibatch from experience buffer for all losses."""
-        sampling_cfg = context.config.sampling
-
-        # Get advantages from losses (still needed for prioritized sampling)
-        advantages = None
-        for loss_obj in self.losses.values():
-            if hasattr(loss_obj, 'advantages'):
-                advantages = loss_obj.advantages
-                break
-
-        # Use Experience sampling methods
-        if sampling_cfg.method == "sequential" or advantages is None:
-            minibatch, indices = self.experience.sample_sequential(mb_idx)
-            prio_weights = torch.ones(
-                (minibatch.shape[0], minibatch.shape[1]),
-                device=self.device,
-                dtype=torch.float32
-            )
-        else:
-            minibatch, indices, prio_weights = self.experience.sample_prioritized(
-                mb_idx=mb_idx,
-                epoch=context.epoch,
-                total_timesteps=context.config.total_timesteps,
-                batch_size=context.config.batch_size,
-                prio_alpha=sampling_cfg.prio_alpha,
-                prio_beta0=sampling_cfg.prio_beta0,
-                advantages=advantages,
-            )
-
-        return minibatch, indices, prio_weights
-
-
-    def _forward_policy_for_losses(
-        self,
-        minibatch: TensorDict,
-    ) -> TensorDict:
-        """Forward policy on sampled minibatch for all losses."""
-        from metta.rl.utils import forward_policy_for_training
-
-        return forward_policy_for_training(
-            self.policy,
-            minibatch,
-            self.policy_spec,
-        )
 
     def on_epoch_start(self, context: ComponentContext) -> None:
         """Called at the start of each epoch.

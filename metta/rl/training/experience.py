@@ -6,7 +6,7 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.common.util.collections import duplicates
-
+from metta.rl.training.batch import calculate_prioritized_sampling_params
 
 class Experience:
     """Segmented tensor storage for RL experience with BPTT support."""
@@ -236,8 +236,6 @@ class Experience:
                 torch.ones((minibatch.shape[0], minibatch.shape[1]), device=self.device, dtype=torch.float32),
             )
 
-        from metta.rl.training.batch import calculate_prioritized_sampling_params
-
         anneal_beta = calculate_prioritized_sampling_params(
             epoch=epoch,
             total_timesteps=total_timesteps,
@@ -256,6 +254,35 @@ class Experience:
 
         return minibatch, idx, all_prio_is_weights[idx, None]
 
+    def sample(
+        self,
+        mb_idx: int,
+        epoch: int,
+        total_timesteps: int,
+        batch_size: int,
+        advantages: Tensor | None = None,
+    ) -> tuple[TensorDict, Tensor, Tensor]:
+        """ WRITE DOC STRING """
+
+        if self.sampling_config.method == "sequential" or advantages is None:
+            minibatch, indices = self.sample_sequential(mb_idx)
+            prio_weights = torch.ones(
+                (minibatch.shape[0], minibatch.shape[1]),
+                device=self.device,
+                dtype=torch.float32
+            )
+        else:
+            minibatch, indices, prio_weights = self.sample_prioritized(
+                mb_idx,
+                epoch,
+                total_timesteps,
+                batch_size,
+                self.sampling_config.prio_alpha,
+                self.sampling_config.prio_beta0,
+                advantages
+            )
+
+        return minibatch, indices, prio_weights
 
     @staticmethod
     def from_losses(
@@ -267,6 +294,7 @@ class Experience:
         policy_experience_spec: Composite,
         losses: Dict[str, Any],  # av fix circular import issue when setting value to Loss
         device: torch.device | str,
+        sampling_config: "SamplingConfig",
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
 
@@ -286,6 +314,7 @@ class Experience:
             experience_spec=Composite(merged_spec_dict),
             device=device,
         )
+        experience.sampling_config = sampling_config
         for loss in losses.values():
             loss.attach_replay_buffer(experience)
         return experience

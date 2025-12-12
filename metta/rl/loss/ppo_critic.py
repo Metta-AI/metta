@@ -133,8 +133,8 @@ class PPOCritic(Loss):
                 advantages,
                 self.cfg.gamma,
                 self.cfg.gae_lambda,
-                1.0,
-                1.0,
+                1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
+                1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
                 self.device,
             )
 
@@ -143,10 +143,11 @@ class PPOCritic(Loss):
         if isinstance(indices, NonTensorData):
             indices = indices.data
 
-        if minibatch.batch_size.numel() == 0:
+        if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
 
         shared_loss_data["advantages"] = self.advantages[indices]
+        # Share gamma/lambda with other losses (e.g. actor) to ensure consistency
         batch_size = shared_loss_data.batch_size
         shared_loss_data["gamma"] = torch.full(batch_size, self.cfg.gamma, device=self.device)
         shared_loss_data["gae_lambda"] = torch.full(batch_size, self.cfg.gae_lambda, device=self.device)
@@ -155,6 +156,7 @@ class PPOCritic(Loss):
         old_values = minibatch["values"]
         returns = shared_loss_data["advantages"] + minibatch["values"]
         minibatch["returns"] = returns
+        # Read policy forward results from core loop (populated by _forward_policy_for_loss
         policy_td = shared_loss_data.get("policy_td", None)
         newvalue_reshaped = None
         if policy_td is not None:
@@ -174,7 +176,7 @@ class PPOCritic(Loss):
                 v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
             else:
                 v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
-
+            # Update values in experience buffer
             update_td = TensorDict(
                 {
                     "values": newvalue.view(minibatch["values"].shape).detach(),
@@ -184,7 +186,7 @@ class PPOCritic(Loss):
             self.replay.update(indices, update_td)
         else:
             v_loss = 0.5 * ((old_values - returns) ** 2).mean()
-
+        # Scale value loss by coefficient
         v_loss = v_loss * self.cfg.vf_coef
         self.loss_tracker["value_loss"].append(float(v_loss.item()))
 
