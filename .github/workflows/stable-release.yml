@@ -145,7 +145,7 @@ jobs:
         if: always()
         uses: ./.github/actions/discord-webhook
         with:
-          webhook-url: ${{ secrets.DISCORD_STABLE_HOOK }}
+          webhook-url: ${{ github.ref == 'refs/heads/main' && secrets.DISCORD_STABLE_HOOK || secrets.DISCORD_INFRA_ALERTS_TESTING_HOOK }}
           content: |
             ${{ job.status == 'success' && '✅' || '❌' }} **Stable Release ${{ job.status == 'success' && 'Completed' || 'Failed' }}**
 
