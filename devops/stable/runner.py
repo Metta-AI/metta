@@ -330,13 +330,12 @@ class Runner:
                 self._complete_job(job, JobStatus.FAILED, 1, f"SkyPilot status: {sky_status}")
 
     def _fetch_metrics_and_evaluate(self) -> None:
-        api = wandb.Api()
-        for job in self.jobs.values():
-            if job.status != JobStatus.SUCCEEDED:
-                continue
-            if not job.wandb_run_name:
-                continue
+        jobs_needing_metrics = [j for j in self.jobs.values() if j.status == JobStatus.SUCCEEDED and j.wandb_run_name]
+        if not jobs_needing_metrics:
+            return
 
+        api = wandb.Api()
+        for job in jobs_needing_metrics:
             run = api.run(f"{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/{job.wandb_run_name}")
             job.metrics = dict(run.summary)
 
