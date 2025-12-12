@@ -62,8 +62,8 @@ def load_mpt(uri: str) -> MptArtifact:
 
     Supports file://, s3://, metta://, local paths, and :latest suffix.
     """
-    resolved_uri = resolve_uri(uri)
-    with local_copy(resolved_uri) as local_path:
+    parsed = resolve_uri(uri)
+    with local_copy(parsed.canonical) as local_path:
         return _load_local_mpt_file(local_path)
 
 

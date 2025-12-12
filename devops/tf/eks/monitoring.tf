@@ -1,5 +1,7 @@
-resource "kubernetes_namespace" "monitoring" {
-  metadata {
-    name = "monitoring"
+removed {
+  from = kubernetes_namespace.monitoring
+  # requries opentofu 1.11
+  lifecycle {
+    destroy = false
   }
 }
