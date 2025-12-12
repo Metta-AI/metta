@@ -4,6 +4,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 from gymnasium.spaces import Discrete
+from pydantic import ConfigDict
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 
@@ -103,6 +104,8 @@ class ActorKey(nn.Module):
 
 
 class ActionProbsConfig(ComponentConfig):
+    model_config = ConfigDict(extra="ignore")
+
     in_key: str
     name: str = "action_probs"
 
