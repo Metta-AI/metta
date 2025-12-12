@@ -183,6 +183,15 @@ releases:
       - datadog:
           service: pr-similarity-cache-refresh
 
+  - name: metrics-collector-cronjob
+    <<: *cronjob_template
+    values:
+      - schedule: "*/15 * * * *" # Every 15 minutes
+      - image:
+          tag: latest-metrics-collector # Workflow overrides with sha-abc123-metrics-collector
+      - datadog:
+          service: metrics-collector
+
   # Dev cronjob deployments (see devops/charts/CRONJOB_DEV_WORKFLOW.md for instructions)
   # Uncomment the release you want to deploy for dev testing:
   #
