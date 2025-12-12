@@ -1758,20 +1758,20 @@ proc step*(env: Environment, actions: ptr array[MapAgents, uint8]) =
     # Check if agent is dead and has a home assembler
     if env.terminated[agentId] == 1.0 and agent.homeassembler.x >= 0:
       # Find the assembler
-      var assembler: Thing = nil
+      var assemblerThing: Thing = nil
       for thing in env.things:
         if thing.kind == assembler and thing.pos == agent.homeassembler:
-          assembler = thing
+          assemblerThing = thing
           break
 
       # Respawn if assembler exists and has hearts
-      if not isNil(assembler) and assembler.hearts > 0:
+      if not isNil(assemblerThing) and assemblerThing.hearts > 0:
         # Deduct a heart from the assembler
-        assembler.hearts -= MapObjectassemblerRespawnCost
-        env.updateObservations(assemblerHeartsLayer, assembler.pos, assembler.hearts)
+        assemblerThing.hearts -= MapObjectassemblerRespawnCost
+        env.updateObservations(assemblerHeartsLayer, assemblerThing.pos, assemblerThing.hearts)
 
         # Find first empty position around assembler (no allocation)
-        let respawnPos = env.findFirstEmptyPositionAround(assembler.pos, 2)
+        let respawnPos = env.findFirstEmptyPositionAround(assemblerThing.pos, 2)
         if respawnPos.x >= 0:
           # Respawn the agent
           agent.pos = respawnPos

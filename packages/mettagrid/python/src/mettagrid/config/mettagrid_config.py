@@ -194,6 +194,9 @@ class GlobalObsConfig(Config):
     # Compass token that points toward the assembler/hub center
     compass: bool = Field(default=False)
 
+    # Goal tokens that indicate rewarding resources
+    goal_obs: bool = Field(default=False)
+
 
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
@@ -267,6 +270,11 @@ class AssemblerConfig(GridObjectConfig):
     )
     start_clipped: bool = Field(
         default=False, description="If true, this assembler starts in a clipped state at the beginning of the game"
+    )
+    chest_search_distance: int = Field(
+        default=0,
+        ge=0,
+        description="Distance within which assembler can use inventories from chests",
     )
 
 
@@ -418,13 +426,6 @@ class GameConfig(Config):
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
         return IdMap(self)
-
-
-class EnvSupervisorConfig(Config):
-    """Environment supervisor configuration."""
-
-    policy: Optional[str] = Field(default=None)
-    policy_data_path: Optional[str] = Field(default=None)
 
 
 class MettaGridConfig(Config):

@@ -103,6 +103,7 @@ type
     group*: int
     frozen*: int
     episodeCompletionPct*: int
+    goal*: int
     lastAction*: int
     lastReward*: int
     vibe*: int
@@ -373,6 +374,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.frozen = feature.id
       of "episode_completion_pct":
         result.features.episodeCompletionPct = feature.id
+      of "goal":
+        result.features.goal = feature.id
       of "last_action":
         result.features.lastAction = feature.id
       of "last_reward":

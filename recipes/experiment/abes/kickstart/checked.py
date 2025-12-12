@@ -128,6 +128,7 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
+            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=334),
             LossRunGate(
                 loss_instance_name="sl_checkpointed_kickstarter",
                 phase="rollout",
@@ -291,8 +292,8 @@ def sweep(sweep_name: str) -> SweepTool:
         # training and scoring will lead to key conflicts that will lock the sweep.
         eval_entrypoint="evaluate_in_sweep",
         # Typically, "evaluator/eval_{suite}/score"
-        objective="evaluator/eval_sweep/score",
-        parameters=parameters,
+        metric_key="evaluator/eval_sweep/score",
+        search_space=parameters,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.

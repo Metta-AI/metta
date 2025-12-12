@@ -28,6 +28,7 @@ def _collect_source_files(project_root: Path) -> list[Path]:
     return nim_sources + [
         project_root / "tribal_village.nim",
         project_root / "tribal_village.nimble",
+        project_root / "nimby.lock",
     ]
 
 
@@ -42,22 +43,18 @@ def _build_library(project_root: Path) -> Path:
     _ensure_nim_toolchain()
     _install_nim_deps(project_root)
 
-    build_script = project_root / "build_lib.sh"
-    if build_script.exists():
-        result = subprocess.run(["bash", str(build_script)], cwd=project_root, capture_output=True, text=True)
-    else:
-        ext = Path(_target_library_name()).suffix
-        cmd = [
-            "nim",
-            "c",
-            "--app:lib",
-            "--mm:arc",
-            "--opt:speed",
-            "-d:danger",
-            f"--out:libtribal_village{ext}",
-            "src/tribal_village_interface.nim",
-        ]
-        result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True)
+    ext = Path(_target_library_name()).suffix
+    cmd = [
+        "nim",
+        "c",
+        "--app:lib",
+        "--mm:arc",
+        "--opt:speed",
+        "-d:danger",
+        f"--out:libtribal_village{ext}",
+        "src/tribal_village_interface.nim",
+    ]
+    result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True)
 
     if result.returncode != 0:
         stdout = result.stdout.strip()
@@ -103,48 +100,60 @@ def ensure_nim_library_current(verbose: bool = True) -> Path:
 
 
 def _ensure_nim_toolchain() -> None:
-    """Ensure nim/nimble exist, bootstrap via nimby if missing."""
+    """Ensure nimby is available and installs the requested Nim version."""
 
-    if shutil.which("nim") and shutil.which("nimble"):
-        return
+    nimby_path = shutil.which("nimby")
 
     system = platform.system()
     arch = platform.machine().lower()
-    if system == "Linux":
-        url = f"https://github.com/treeform/nimby/releases/download/{DEFAULT_NIMBY_VERSION}/nimby-Linux-X64"
-    elif system == "Darwin":
-        suffix = "ARM64" if "arm" in arch else "X64"
-        url = f"https://github.com/treeform/nimby/releases/download/{DEFAULT_NIMBY_VERSION}/nimby-macOS-{suffix}"
-    else:
-        raise RuntimeError(f"Unsupported OS for nimby bootstrap: {system}")
+    if nimby_path is None:
+        if system == "Linux":
+            url = f"https://github.com/treeform/nimby/releases/download/{DEFAULT_NIMBY_VERSION}/nimby-Linux-X64"
+        elif system == "Darwin":
+            suffix = "ARM64" if "arm" in arch else "X64"
+            url = f"https://github.com/treeform/nimby/releases/download/{DEFAULT_NIMBY_VERSION}/nimby-macOS-{suffix}"
+        else:
+            raise RuntimeError(f"Unsupported OS for nimby bootstrap: {system}")
 
-    dst = Path.home() / ".nimby" / "nim" / "bin" / "nimby"
-    with tempfile.TemporaryDirectory() as tmp:
-        nimby_path = Path(tmp) / "nimby"
-        urllib.request.urlretrieve(url, nimby_path)
-        nimby_path.chmod(nimby_path.stat().st_mode | stat.S_IEXEC)
-        subprocess.check_call([str(nimby_path), "use", DEFAULT_NIM_VERSION])
+        dst = Path.home() / ".nimby" / "nim" / "bin" / "nimby"
+        with tempfile.TemporaryDirectory() as tmp:
+            nimby_dl = Path(tmp) / "nimby"
+            urllib.request.urlretrieve(url, nimby_dl)
+            nimby_dl.chmod(nimby_dl.stat().st_mode | stat.S_IEXEC)
+            subprocess.check_call([str(nimby_dl), "use", DEFAULT_NIM_VERSION])
 
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(nimby_path, dst)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(nimby_dl, dst)
+
+        nimby_path = str(dst)
 
     nim_bin_dir = Path.home() / ".nimby" / "nim" / "bin"
     os.environ["PATH"] = f"{nim_bin_dir}{os.pathsep}" + os.environ.get("PATH", "")
 
-    if not shutil.which("nim") or not shutil.which("nimble"):
-        raise RuntimeError("Failed to provision nim/nimble via nimby.")
+    if shutil.which("nim") is None:
+        subprocess.check_call([nimby_path, "use", DEFAULT_NIM_VERSION])
+
+    if shutil.which("nim") is None:
+        raise RuntimeError("Failed to provision nim via nimby.")
 
 
 def _install_nim_deps(project_root: Path) -> None:
-    """Install Nim deps via nimble."""
+    """Install Nim deps via nimby lockfile."""
 
-    nimble = shutil.which("nimble")
-    if nimble is None:
-        raise RuntimeError("nimble not found after nimby setup.")
+    nimby = shutil.which("nimby")
+    if nimby is None:
+        raise RuntimeError("nimby not found after setup.")
 
-    # Install dependencies only; this is idempotent and faster than full install.
+    lockfile = project_root / "nimby.lock"
+    if not lockfile.exists():
+        raise RuntimeError(f"nimby.lock missing at {lockfile}")
+
+    nim_cfg = project_root / "nim.cfg"
+    if nim_cfg.exists():
+        nim_cfg.unlink()
+
     result = subprocess.run(
-        [nimble, "install", "-y", "--depsOnly"],
+        [nimby, "sync", "-g", str(lockfile)],
         cwd=project_root,
         capture_output=True,
         text=True,
@@ -152,4 +161,4 @@ def _install_nim_deps(project_root: Path) -> None:
     if result.returncode != 0:
         stdout = result.stdout.strip()
         stderr = result.stderr.strip()
-        raise RuntimeError(f"nimble install failed (exit {result.returncode}). stdout: {stdout} stderr: {stderr}")
+        raise RuntimeError(f"nimby sync failed (exit {result.returncode}). stdout: {stdout} stderr: {stderr}")

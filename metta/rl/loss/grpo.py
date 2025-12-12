@@ -10,6 +10,7 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
+from metta.rl.utils import add_dummy_loss_for_unused_params
 
 
 class GRPOConfig(LossConfig):
@@ -43,17 +44,8 @@ class GRPOConfig(LossConfig):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "GRPO":
-        """Points to the GRPO class for initialization."""
-        return GRPO(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return GRPO(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class GRPO(Loss):
@@ -78,9 +70,9 @@ class GRPO(Loss):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "GRPOConfig",
     ) -> None:
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.burn_in_steps = 0
         if hasattr(self.policy, "burn_in_steps"):
@@ -255,17 +247,7 @@ class GRPO(Loss):
         )
 
         loss = pg_loss - cfg.ent_coef * entropy_loss
-
-        # This is a hack to ensure all parameters participate in the backward pass for DDP.
-        # Add dummy loss terms for any unused outputs to ensure all parameters
-        # participate in backward pass for DDP. This prevents "unused parameter" errors.
-        # TODO: Find a better way to do this.
-        for key in policy_td.keys():
-            if key not in ["act_log_prob", "entropy"] and isinstance(policy_td[key], Tensor):
-                value = policy_td[key]
-                if value.requires_grad:
-                    # Add zero-weighted term to ensure gradient flow
-                    loss = loss + 0.0 * value.sum()
+        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["act_log_prob", "entropy"])
 
         self._track("policy_loss", pg_loss)
         self._track("entropy", entropy_loss)

@@ -6,10 +6,10 @@ from metta.common.util.constants import METTA_AWS_ACCOUNT_ID, METTA_SKYPILOT_URL
 
 
 class UserType(Enum):
-    EXTERNAL = "external"
-    CLOUD = "cloud"
     SOFTMAX = "softmax"
     SOFTMAX_DOCKER = "softmax-docker"
+    EXTERNAL = "external"
+    CLOUD = "cloud"
     CUSTOM = "custom"
 
     @property

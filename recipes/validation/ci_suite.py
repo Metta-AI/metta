@@ -43,6 +43,8 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
             "checkpointer.epoch_interval=1",
             "training_env.forward_pass_minibatch_target_size=96",
             "training_env.vectorization=serial",
+            "evaluator.evaluate_local=False",
+            "evaluator.evaluate_remote=False",
         ],
         timeout_s=180,  # CI runners are slower; initialization alone can take 30+ seconds
         is_training_job=True,
@@ -74,9 +76,10 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     # CvC Unified - Train just enough to get a single checkpoint
     cvc_small_train = JobConfig(
         name=cvc_small_train_name,
-        module="recipes.prod.cvc.fixed_maps.train",
+        module="recipes.experiment.cogs_v_clips.train",
         args=[
             f"run={cvc_small_train_name}",
+            "mission=easy_hearts",  # Explicitly use a mission that exists in the current registry
             "trainer.total_timesteps=64",
             "trainer.minibatch_size=8",
             "trainer.batch_size=64",
@@ -104,7 +107,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     # CvC Unified - Play test with random policy
     cvc_small_play = JobConfig(
         name=cvc_small_play_name,
-        module="recipes.prod.cvc.fixed_maps.play",
+        module="recipes.experiment.cogs_v_clips.play",
         args=["max_steps=10", "render=log", "open_browser_on_start=False"],  # Headless mode for CI
         timeout_s=120,  # CI runners need more time for initialization
         group=group,  # Tag with group for monitoring
