@@ -121,6 +121,13 @@ class ActionProbs(nn.Module):
         super().__init__()
         self.config = config
         self.num_actions = 0
+        # Persist the trained action cap in checkpoints so masking still works
+        # even if config.max_action_index is unset during evaluation.
+        self.register_buffer(
+            "_max_action_index_buf",
+            torch.tensor(-1, dtype=torch.int32),
+            persistent=True,
+        )
 
     def _ensure_initialized(self) -> None:
         if self.num_actions <= 0:
@@ -138,9 +145,17 @@ class ActionProbs(nn.Module):
 
         self.num_actions = int(action_space.n)
 
+        # Store the trained mask limit in the buffer so it round-trips with state_dicts.
+        max_idx = self.config.max_action_index if self.config.max_action_index is not None else -1
+        self._max_action_index_buf.fill_(int(max_idx))
+
     def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
         """Apply an optional upper-bound mask on action indices."""
         max_action_index = self.config.max_action_index
+        # Fallback to stored value from the checkpoint when config leaves it None.
+        if max_action_index is None:
+            buf_val = int(self._max_action_index_buf.item())
+            max_action_index = buf_val if buf_val > 0 else None
         if max_action_index is None:
             return logits
 
@@ -167,6 +182,34 @@ class ActionProbs(nn.Module):
             logits[all_masked, :max_idx] = 0.0
 
         return logits
+
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        """Allow checkpoints that lack the optional mask buffer and default to 21."""
+        buf_key = prefix + "_max_action_index_buf"
+        if buf_key in missing_keys:
+            missing_keys.remove(buf_key)
+        if buf_key not in state_dict:
+            # Default to the training cap (21 actions: 5 base + 16 TRAINING_VIBES)
+            state_dict[buf_key] = torch.tensor(21, dtype=torch.int32)
+
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         if action is None:

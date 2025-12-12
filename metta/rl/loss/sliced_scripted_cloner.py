@@ -71,6 +71,13 @@ class SlicedScriptedCloner(Loss):
 
             self.policy.forward(td)
 
+            if self.teacher_mask.any():
+                # Align stored actions/logprobs with the teacher-led portion so PPO can learn from it.
+                teacher_actions = td["teacher_actions"].to(td["actions"].dtype)
+                teacher_log_probs = td["full_log_probs"].gather(dim=-1, index=teacher_actions.unsqueeze(-1)).squeeze(-1)
+                td["actions"][self.teacher_mask] = teacher_actions[self.teacher_mask]
+                td["act_log_prob"][self.teacher_mask] = teacher_log_probs[self.teacher_mask]
+
         td["stud_mask"] = self.stud_mask
         td["teacher_mask"] = self.teacher_mask
         td["ppo_mask"] = self.ppo_mask
@@ -94,14 +101,10 @@ class SlicedScriptedCloner(Loss):
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
-        train_ppo_mask = minibatch["ppo_mask"][:, 0]
 
         shared_loss_data["sampled_mb"] = minibatch
-        # cut down all of shared_loss_data to just the ppo mask before passing out to PPO losses
-        shared_loss_data = shared_loss_data[train_ppo_mask]
-        # slice - minus teacher led minus student led
-        shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
-        # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
+        shared_loss_data["indices"] = NonTensorData(indices)
+        # Make the entire minibatch available to PPO instead of masking out teacher-led slices.
 
         # sliced cloner MUST run first since it decides what to pass to PPO
         student_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
@@ -109,7 +112,7 @@ class SlicedScriptedCloner(Loss):
         self.policy.reset_memory()
         student_td = self.policy.forward(student_td, action=flat_actions)
         student_td = student_td.reshape(B, TT)
-        shared_loss_data["policy_td"] = student_td[train_ppo_mask]  # this is for passing to PPO losses
+        shared_loss_data["policy_td"] = student_td  # this is for passing to PPO losses
 
         minibatch = minibatch[train_teacher_mask | train_stud_mask]
         student_td = student_td[train_teacher_mask | train_stud_mask]
