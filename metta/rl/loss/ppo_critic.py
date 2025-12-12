@@ -102,7 +102,12 @@ class PPOCritic(Loss):
             return
 
         with torch.no_grad():
-            self.policy.forward(td)
+            # If another loss already produced actions (e.g., sliced_cloner teacher slice),
+            # reuse them to avoid overwriting while still computing values/logprobs.
+            if "actions" in td.keys():
+                self.policy.forward(td, action=td["actions"])
+            else:
+                self.policy.forward(td)
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
