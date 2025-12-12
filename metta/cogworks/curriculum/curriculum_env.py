@@ -85,7 +85,7 @@ class CurriculumEnv(PufferEnv):
                     raise
                 continue
 
-        if task_changed:
+        if task_changed and isinstance(info, dict):
             info["_task_changed"] = True
 
         # Invalidate stats cache on reset
@@ -139,16 +139,27 @@ class CurriculumEnv(PufferEnv):
 
             # Set _task_changed flag in all agent info dicts to trigger LSTM state reset in rollout phase
             if task_changed:
+                # infos can be a list of dicts or a dict, handle both cases
+                if isinstance(infos, list):
                     for info in infos:
+                        if isinstance(info, dict):
                             info["_task_changed"] = True
+                elif isinstance(infos, dict):
+                    infos["_task_changed"] = True
 
             # Invalidate stats cache when task changes
             self._stats_cache_valid = False
 
         # Add curriculum stats to info for logging (batched)
         self._stats_update_counter += 1
-        if infos:
-            self._add_curriculum_stats_to_info(infos[0])
+        if isinstance(infos, dict):
+            self._add_curriculum_stats_to_info(infos)
+        elif isinstance(infos, list):
+            # If infos is a list, add stats to the first dict (typically all dicts are the same)
+            for info in infos:
+                if isinstance(info, dict):
+                    self._add_curriculum_stats_to_info(info)
+                    break
 
         return obs, rewards, terminals, truncations, infos
 
