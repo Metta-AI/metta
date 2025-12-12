@@ -235,8 +235,7 @@ export class Drawer {
     ctx.imageSmoothingEnabled = false;
 
     // Only draw the visible region of the grid - helps performance on big maps when zoomed in
-    const visible = visibleRegion(ctx, grid);
-    const { minX, minY, maxX, maxY } = visible;
+    const { minX, minY, maxX, maxY } = visibleRegion(ctx, grid);
 
     // Clear drawing area
     ctx.fillStyle = BACKGROUND_MAP_COLOR;
