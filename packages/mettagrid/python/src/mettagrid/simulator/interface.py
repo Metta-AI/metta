@@ -30,11 +30,6 @@ class AgentObservation:
     tokens: Sequence[ObservationToken]
 
 
-@dataclass
-class Action:
-    name: str
-
-
 class SimulatorEventHandler:
     """Handler for Simulator events."""
 
