@@ -559,5 +559,5 @@ if __name__ == "__main__":
     experiment(num_cogs=2)
 
     #4 agents
-    experiment(num_cogs=4)
+    # experiment(num_cogs=4)
 
