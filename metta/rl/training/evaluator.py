@@ -152,7 +152,10 @@ class Evaluator(TrainerComponent):
         if not checkpoint_uri or not checkpoint_uri.startswith("s3://"):
             return None
 
-        submission_path = checkpoint_uri.replace(".mpt", "-submission.zip")
+        if checkpoint_uri.endswith("policy.mpt"):
+            submission_path = checkpoint_uri[: -len("policy.mpt")] + "submission.zip"
+        else:
+            submission_path = checkpoint_uri.rstrip("/") + "-submission.zip"
         zip_data = self._create_submission_zip(policy_spec)
         write_data(submission_path, zip_data, content_type="application/zip")
         logger.info("Uploaded submission zip to %s", submission_path)

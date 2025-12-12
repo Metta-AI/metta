@@ -56,7 +56,7 @@ class Checkpointer(TrainerComponent):
         load_device = torch.device(self._distributed.config.device)
 
         def _mpt_from_checkpoint(uri: str) -> str:
-            return uri.rstrip("/") + "/policy.mpt" if not uri.endswith(".mpt") else uri
+            return uri.rstrip("/") + "/policy.mpt"
 
         if self._distributed.is_distributed:
             normalized_uri = None

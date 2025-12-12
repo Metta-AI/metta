@@ -283,10 +283,10 @@ def policy_spec_from_uri(
         spec_uri = parsed.canonical
         if not spec_uri.endswith("policy_spec.json"):
             spec_uri = spec_uri.rstrip("/") + "/policy_spec.json"
-        import json
         from mettagrid.util.file import read
 
-        spec = PolicySpec.model_validate_json(json.loads(read(spec_uri)))
+        spec_bytes = read(spec_uri)
+        spec = PolicySpec.model_validate_json(spec_bytes.decode())
         if device is not None and "device" in spec.init_kwargs:
             spec.init_kwargs["device"] = device
         return spec

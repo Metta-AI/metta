@@ -10,7 +10,6 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.mpt_artifact import save_mpt
-from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
