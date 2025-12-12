@@ -216,6 +216,32 @@ class ActionProbs(nn.Module):
 
         return td
 
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        # Ignore legacy mask buffer if present in old checkpoints.
+        buf_key = prefix + "_max_action_index_buf"
+        state_dict.pop(buf_key, None)
+        if buf_key in unexpected_keys:
+            unexpected_keys.remove(buf_key)
+
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+
 
 class ActorHeadConfig(ComponentConfig):
     in_key: str
