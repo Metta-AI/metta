@@ -1,16 +1,8 @@
 ## Overview
 
-Submits metrics to datadog. These are rendered in our "Softmax System Health" dashboard (accessible from
-home.softmax-research.net)
+Metrics are now emitted directly by the stable runner workflow. This module provides
+the metric registry for system health metrics.
 
 ## Usage
 
-```bash
-uv run python -m softmax.dashboard.report
-```
-
-or
-
-```bash
- metta softmax-system-health report [--push]
-```
+Metrics are collected automatically by the stable runner and pushed to Datadog.
