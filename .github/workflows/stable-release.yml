@@ -111,11 +111,11 @@ jobs:
 
           if [ -n "$(git status --porcelain)" ]; then
             echo ""
-            echo "⚠️  Found uncommitted changes. Stashing them to ensure clean state for remote jobs..."
+            echo "Found uncommitted changes. Stashing them to ensure clean state for remote jobs..."
             git stash push -m "GitHub Actions: Auto-stash before stable release"
-            echo "✅ Changes stashed successfully"
+            echo "Changes stashed successfully"
           else
-            echo "✅ Working tree is clean"
+            echo "Working tree is clean"
           fi
 
       - name: Run stable release process
@@ -147,7 +147,7 @@ jobs:
         with:
           webhook-url: ${{ github.ref == 'refs/heads/main' && secrets.DISCORD_STABLE_HOOK || secrets.DISCORD_INFRA_ALERTS_TESTING_HOOK }}
           content: |
-            ${{ job.status == 'success' && '✅' || '❌' }} **Stable Release ${{ job.status == 'success' && 'Completed' || 'Failed' }}**
+            **Stable Release ${{ job.status == 'success' && 'Completed' || 'Failed' }}**
 
             ${{ steps.summary.outputs.content }}
 
