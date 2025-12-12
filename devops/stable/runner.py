@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import threading
@@ -299,17 +298,15 @@ class Runner:
             return
 
         try:
-            result = subprocess.run(
-                ["sky", "jobs", "queue", "--json"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
+            import sky
+            import sky.jobs.client.sdk as sky_jobs_sdk
 
-            if result.returncode != 0:
+            job_ids = [int(j.skypilot_job_id) for j in remote_running if j.skypilot_job_id]
+            if not job_ids:
                 return
 
-            queue_data = json.loads(result.stdout) if result.stdout else []
+            request_id = sky_jobs_sdk.queue(refresh=False, job_ids=job_ids)
+            queue_data = sky.get(request_id)
             status_by_id = {str(j.get("job_id")): j for j in queue_data}
 
             for job in remote_running:
@@ -324,8 +321,8 @@ class Runner:
                     job.error = "Job disappeared from SkyPilot queue"
                     self._print(f"[{job.name}] FAILED: Job disappeared from SkyPilot queue")
                 else:
-                    sky_status = sky_job.get("status", "").upper()
-                    if sky_status == "SUCCEEDED":
+                    sky_status = str(sky_job.get("status", "")).upper()
+                    if "SUCCEEDED" in sky_status:
                         job.status = JobStatus.SUCCEEDED
                         job.exit_code = 0
                         job.completed_at = datetime.now().isoformat()
@@ -334,7 +331,7 @@ class Runner:
                             datetime.fromisoformat(job.completed_at) - datetime.fromisoformat(job.started_at)
                         ).total_seconds()
                         self._print(f"[{job.name}] PASSED (duration={job.duration_s:.0f}s)")
-                    elif sky_status in ("FAILED", "FAILED_SETUP", "CANCELLED"):
+                    elif any(s in sky_status for s in ("FAILED", "CANCELLED")):
                         job.status = JobStatus.FAILED
                         job.exit_code = 1
                         job.completed_at = datetime.now().isoformat()
