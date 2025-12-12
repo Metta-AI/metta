@@ -1,44 +1,7 @@
 import std/[os, strutils, parseopt, json, tables],
   boxy, windy, vmath, fidget2, fidget2/hybridrender, webby,
   mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces, footer, envconfig, vibes]
-
-proc updateReplayHeader() =
-  ## Set the global header's display name for the current session.
-  var display = "Mettascope"
-
-  if not common.replay.isNil:
-    if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
-      let node = common.replay.mgConfig["label"]
-      if node.kind == JString:
-        display = node.getStr
-    if display == "Mettascope" and common.replay.fileName.len > 0:
-      display = common.replay.fileName
-  let titleNode = find("**/GlobalTitle")
-  titleNode.text = display
-
-proc onReplayLoaded() =
-  ## Called when a replay is loaded.
-  # Clear cached maps that depend on the old replay
-  terrainMap = nil
-  visibilityMap = nil
-
-  # Reset global state for the new replay
-  step = 0
-  stepFloat = 0.0
-  previousStep = -1
-  selection = nil
-  play = false
-  requestPython = false
-  agentPaths = initTable[int, seq[PathAction]]()
-  agentObjectives = initTable[int, seq[Objective]]()
-
-  replay.loadImages()
-  updateReplayHeader()
-  worldMapPanel.pos = vec2(0, 0)
-  onStepChanged()
-  updateEnvConfig()
-  updateVibePanel()
+  worldmap, minimap, agenttraces, footer, envconfig, vibes, notebook, replayloader]
 
 proc parseArgs() =
   ## Parse command line arguments.
@@ -62,88 +25,6 @@ proc parseUrlParams() =
   let url = parseUrl(window.url)
   commandLineReplay = url.query["replay"]
 
-when defined(emscripten):
-  {.emit: """
-  #include <emscripten.h>
-  """.}
-
-  {.emit: """
-  EM_JS(void, setup_postmessage_replay_handler_internal, (void* userData), {
-    // Check if the message origin is from an allowed source.
-    function isValidOrigin(origin) {
-      console.log("detected origin: ", origin);
-      // Google Colab uses *.googleusercontent.com domains.
-      if (origin.includes('-colab.googleusercontent.com')) {
-        return true;
-      }
-      // Localhost and 127.0.0.1 variants (http and https, any port).
-      if (origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:')
-        || origin.startsWith('http://127.0.0.1:') || origin.startsWith('https://127.0.0.1:')) {
-        return true;
-      }
-      return false;
-    }
-
-    // Listen for postMessage events from parent windows (Jupyter notebooks).
-    window.addEventListener('message', function(event) {
-      if (!isValidOrigin(event.origin) || !event.data || event.data.type !== 'replayData') {
-        return;
-      }
-
-      const base64Data = event.data.base64;
-      if (!base64Data || typeof base64Data !== 'string') {
-        return;
-      }
-
-      try {
-        // Decode base64 to binary string.
-        const binaryString = atob(base64Data);
-        const binaryLength = binaryString.length;
-        const binaryPtr = _malloc(binaryLength);
-        if (!binaryPtr) return;
-
-        // Copy binary data to heap.
-        for (let i = 0; i < binaryLength; i++) {
-          HEAPU8[binaryPtr + i] = binaryString.charCodeAt(i);
-        }
-
-        // Allocate and copy filename.
-        const fileName = event.data.fileName || 'replay_from_notebook.json.z';
-        const fileNameLen = lengthBytesUTF8(fileName) + 1;
-        const fileNamePtr = _malloc(fileNameLen);
-        stringToUTF8(fileName, fileNamePtr, fileNameLen);
-
-        // Call the Nim callback with the replay data.
-        Module._mettascope_postmessage_replay_callback(userData, fileNamePtr, binaryPtr, binaryLength);
-
-        // Free allocated memory.
-        _free(fileNamePtr);
-        _free(binaryPtr);
-      } catch (error) {
-        console.error('Error processing postMessage replay data:', error);
-      }
-    });
-  });
-  """.}
-
-  proc setup_postmessage_replay_handler_internal*(userData: pointer) {.importc.}
-    ## Set up postMessage listener for receiving replay data from Jupyter notebooks.
-
-  proc mettascope_postmessage_replay_callback(userData: pointer, fileNamePtr: cstring, binaryPtr: pointer, binaryLen: cint) {.exportc, cdecl, codegenDecl: "EMSCRIPTEN_KEEPALIVE $# $#$#".} =
-    ## Callback to handle postMessage replay data from JavaScript.
-    ## EMSCRIPTEN_KEEPALIVE is required to avoid dead code elimination.
-    let fileName = $fileNamePtr
-    var fileData = newString(binaryLen)
-    if binaryLen > 0:
-      copyMem(fileData[0].addr, binaryPtr, binaryLen)
-    
-    if fileName.endsWith(".json.z"):
-      try:
-        common.replay = loadReplay(fileData, fileName)
-        onReplayLoaded()
-        echo "Loaded replay from postMessage: ", fileName
-      except:
-        echo "Error loading replay: ", getCurrentExceptionMsg()
 
 find "/UI/Main":
 
@@ -164,7 +45,7 @@ find "/UI/Main":
         echo "Ignoring dropped file (not .json.z): ", fileName
 
     when defined(emscripten):
-      setup_postmessage_replay_handler_internal(cast[pointer](window))
+      setupPostMessageReplayHandler(cast[pointer](window))
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
