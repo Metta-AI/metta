@@ -3,6 +3,7 @@
 from typing import Optional, Sequence
 
 from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.trxl import TRXLConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -40,7 +41,7 @@ def train(
         eval_difficulty=eval_difficulty,
         teacher=teacher,
     )
-    tt.policy_architecture = policy_architecture or ViTDefaultConfig()
+    tt.policy_architecture = policy_architecture or TRXLConfig()
 
     tt.training_env.maps_cache_size = 1
     tt.training_env.seed = map_seed
