@@ -83,11 +83,15 @@ class TrainTool(Tool):
     disable_macbook_optimize: bool = False
     sandbox: bool = False
 
-    def output_uri(self, run: str) -> str:
-        storage = auto_policy_storage_decision(run)
+    def output_references(self) -> dict:
+        if self.run is None:
+            raise ValueError("run is required to determine output URI")
+        storage = auto_policy_storage_decision(self.run)
         if storage.remote_prefix:
-            return storage.remote_prefix
-        return f"file://{self.system.data_dir / run / 'checkpoints'}"
+            policy_uri = storage.remote_prefix
+        else:
+            policy_uri = f"file://{self.system.data_dir / self.run / 'checkpoints'}"
+        return {"policy_uri": policy_uri}
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:

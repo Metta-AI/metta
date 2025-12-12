@@ -23,7 +23,7 @@ class JobSpec:
     func: Callable[..., Tool]
     suite: Suite
     depends_on: Callable[..., Tool] | None = None
-    inject: dict[str, str] = field(default_factory=dict)
+    input_references: dict[str, str] = field(default_factory=dict)
     timeout_s: int = 3600
     gpus: int | None = None
     nodes: int = 1
@@ -42,7 +42,7 @@ _registry: list[JobSpec] = []
 def ci_job(
     *,
     depends_on: Callable[..., Tool] | None = None,
-    inject: dict[str, str] | None = None,
+    input_references: dict[str, str] | None = None,
     timeout_s: int = 300,
     gpus: int | None = None,
     nodes: int = 1,
@@ -65,7 +65,7 @@ def ci_job(
                 func=func,
                 suite=Suite.CI,
                 depends_on=depends_on,
-                inject=inject or {},
+                input_references=input_references or {},
                 timeout_s=timeout_s,
                 gpus=gpus,
                 nodes=nodes,
@@ -80,7 +80,7 @@ def ci_job(
 def stable_job(
     *,
     depends_on: Callable[..., Tool] | None = None,
-    inject: dict[str, str] | None = None,
+    input_references: dict[str, str] | None = None,
     timeout_s: int = 7200,
     gpus: int | None = None,
     nodes: int = 1,
@@ -103,7 +103,7 @@ def stable_job(
                 func=func,
                 suite=Suite.STABLE,
                 depends_on=depends_on,
-                inject=inject or {},
+                input_references=input_references or {},
                 timeout_s=timeout_s,
                 gpus=gpus,
                 nodes=nodes,
@@ -198,18 +198,12 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
             dependencies.append(dep_job_name)
 
             inject_args = []
-            for param_name, output_field in spec.inject.items():
-                if output_field == "uri":
-                    dep_tool = spec.depends_on()
-                    if not isinstance(dep_tool, TrainTool):
-                        raise ValueError(
-                            f"Only support injecting 'uri' from TrainTool, but {dep_job_name} is {type(dep_tool)}"
-                        )
-                    value = dep_tool.output_uri(dep_job_name)
-                    inject_args.append(f"{param_name}={value}")
-                else:
-                    raise ValueError(f"Unknown output field: {output_field}")
-
+            available_references = spec.depends_on().output_references()
+            for param_name, output_field in spec.input_references.items():
+                if output_field not in available_references:
+                    raise ValueError(f"Dependency {dep_job_name} does not provide output field: {output_field}")
+                value = available_references[output_field]
+                inject_args.append(f"{param_name}={value}")
             cmd.extend(inject_args)
 
         remote = {"gpus": spec.gpus, "nodes": spec.nodes} if spec.gpus else None

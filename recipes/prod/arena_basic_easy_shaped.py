@@ -291,7 +291,7 @@ def play_ci() -> PlayTool:
     )
 
 
-@ci_job(depends_on=train_ci, inject={"dir_path": "uri"}, timeout_s=120)
+@ci_job(depends_on=train_ci, input_references={"dir_path": "uri"}, timeout_s=120)
 def evaluate_ci(dir_path: str) -> EvaluateTool:
     """Evaluate the trained policy from train_ci."""
     return evaluate_latest_in_dir(dir_path, max_steps=10, max_time_s=60)
@@ -332,7 +332,7 @@ def train_2b() -> TrainTool:
     )
 
 
-@stable_job(depends_on=train_100m, inject={"policy_uri": "uri"}, timeout_s=1800)
+@stable_job(depends_on=train_100m, input_references={"policy_uri": "uri"}, timeout_s=1800)
 def evaluate_stable(policy_uri: str) -> EvaluateTool:
     """Evaluate the 100M trained policy."""
     return EvaluateTool(simulations=simulations(), policy_uris=[policy_uri])
