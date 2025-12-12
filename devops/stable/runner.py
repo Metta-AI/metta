@@ -19,7 +19,7 @@ from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
 
 class JobStatus(StrEnum):
-    PENDING = "pending"
+    NOT_STARTED = "pending"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
@@ -45,7 +45,7 @@ class Job(BaseModel):
     acceptance: list[AcceptanceCriterion] = Field(default_factory=list)
     wandb_run_name: str | None = None
 
-    status: JobStatus = JobStatus.PENDING
+    status: JobStatus = JobStatus.NOT_STARTED
     exit_code: int | None = None
     started_at: str | None = None
     completed_at: str | None = None
@@ -91,7 +91,7 @@ class Runner:
             while True:
                 self._check_completed_futures()
 
-                pending = [j for j in self.jobs.values() if j.status == JobStatus.PENDING]
+                pending = [j for j in self.jobs.values() if j.status == JobStatus.NOT_STARTED]
                 running = [j for j in self.jobs.values() if j.status == JobStatus.RUNNING]
 
                 if not pending and not running:
@@ -145,13 +145,13 @@ class Runner:
                     job.error = f"Dependency {dep.status.value.lower()}: {dep_name}"
                     deps_satisfied = False
                     break
-                if dep.status == JobStatus.PENDING:
+                if dep.status in (JobStatus.NOT_STARTED, JobStatus.RUNNING):
                     deps_satisfied = False
                     break
                 else:
                     assert dep.status == JobStatus.SUCCEEDED
 
-            if deps_satisfied and job.status == JobStatus.PENDING:
+            if deps_satisfied and job.status == JobStatus.NOT_STARTED:
                 ready.append(job)
         return ready
 
