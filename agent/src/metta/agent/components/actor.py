@@ -106,7 +106,6 @@ class ActionProbsConfig(ComponentConfig):
     in_key: str
     name: str = "action_probs"
     # Mask everything past the first 21 actions (5 base + 16 TRAINING_VIBES) everywhere.
-    max_action_index: int | None = 21
 
     def make_component(self, env=None):
         return ActionProbs(config=self)
@@ -116,8 +115,6 @@ class ActionProbs(nn.Module):
     """
     Computes action scores based on a query and action embeddings (keys).
     """
-
-    _MAX_ACTION_INDEX = 21
 
     def __init__(self, config: ActionProbsConfig):
         super().__init__()
@@ -141,8 +138,8 @@ class ActionProbs(nn.Module):
         self.num_actions = int(action_space.n)
 
     def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
-        """Mask logits past the first 21 actions."""
-        max_idx = min(self._MAX_ACTION_INDEX, logits.size(-1))
+        """Mask logits past the first 21 actions (always enforced)."""
+        max_idx = min(21, logits.size(-1))
         if max_idx <= 0:
             raise ValueError(f"max_action_index must be positive, got {max_idx}")
         mask_value = torch.finfo(logits.dtype).min
@@ -161,32 +158,6 @@ class ActionProbs(nn.Module):
             logits = logits.clone()
             logits[all_masked, :max_idx] = 0.0
         return logits
-
-    def _load_from_state_dict(
-        self,
-        state_dict,
-        prefix,
-        local_metadata,
-        strict,
-        missing_keys,
-        unexpected_keys,
-        error_msgs,
-    ):
-        """Ignore legacy mask buffer while loading older checkpoints."""
-        buf_key = prefix + "_max_action_index_buf"
-        state_dict.pop(buf_key, None)
-        if buf_key in unexpected_keys:
-            unexpected_keys.remove(buf_key)
-
-        super()._load_from_state_dict(
-            state_dict,
-            prefix,
-            local_metadata,
-            strict,
-            missing_keys,
-            unexpected_keys,
-            error_msgs,
-        )
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         if action is None:
