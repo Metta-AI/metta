@@ -105,8 +105,8 @@ class ActorKey(nn.Module):
 class ActionProbsConfig(ComponentConfig):
     in_key: str
     name: str = "action_probs"
-    # If set, logits for action indices >= max_action_index are masked to -inf (post-padding).
-    max_action_index: int | None = None
+    # Mask everything past the first 21 actions (5 base + 16 TRAINING_VIBES) everywhere.
+    max_action_index: int | None = 21
 
     def make_component(self, env=None):
         return ActionProbs(config=self)
@@ -121,11 +121,10 @@ class ActionProbs(nn.Module):
         super().__init__()
         self.config = config
         self.num_actions = 0
-        # Persist the trained action cap in checkpoints so masking still works
-        # even if config.max_action_index is unset during evaluation.
+        # Persist the trained action cap in checkpoints so masking stays consistent.
         self.register_buffer(
             "_max_action_index_buf",
-            torch.tensor(-1, dtype=torch.int32),
+            torch.tensor(21, dtype=torch.int32),
             persistent=True,
         )
 
@@ -145,19 +144,12 @@ class ActionProbs(nn.Module):
 
         self.num_actions = int(action_space.n)
 
-        # Store the trained mask limit in the buffer so it round-trips with state_dicts.
-        max_idx = self.config.max_action_index if self.config.max_action_index is not None else -1
-        self._max_action_index_buf.fill_(int(max_idx))
+        # Always use the canonical training cap of 21 actions; store so it round-trips.
+        self._max_action_index_buf.fill_(21)
 
     def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
-        """Apply an optional upper-bound mask on action indices."""
-        max_action_index = self.config.max_action_index
-        # Fallback to stored value from the checkpoint when config leaves it None.
-        if max_action_index is None:
-            buf_val = int(self._max_action_index_buf.item())
-            max_action_index = buf_val if buf_val > 0 else None
-        if max_action_index is None:
-            return logits
+        """Mask logits past the first 21 actions (or the stored cap)."""
+        max_action_index = int(self._max_action_index_buf.item())
 
         max_idx = int(max_action_index)
         if max_idx <= 0:
@@ -193,7 +185,7 @@ class ActionProbs(nn.Module):
         unexpected_keys,
         error_msgs,
     ):
-        """Allow checkpoints that lack the optional mask buffer and default to 21."""
+        """Allow checkpoints that lack the mask buffer and default to 21."""
         buf_key = prefix + "_max_action_index_buf"
         if buf_key in missing_keys:
             missing_keys.remove(buf_key)
