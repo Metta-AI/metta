@@ -165,7 +165,7 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
         if return_type is TrainTool:
             tool = spec.func()
             assert isinstance(tool, TrainTool)
-            wandb_disabled = tool.wandb.enabled or tool.wandb == WandbConfig.Unconfigured()
+            wandb_disabled = not (tool.wandb.enabled or tool.wandb == WandbConfig.Unconfigured())
 
         if spec.acceptance and wandb_disabled:
             raise ValueError(f"{spec.name} must have wandb enabled to use acceptance criteria")
