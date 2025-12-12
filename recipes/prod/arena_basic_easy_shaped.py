@@ -2,7 +2,6 @@
 This recipe is automatically validated in CI and release processes.
 """
 
-from pathlib import Path
 from typing import Optional
 
 import metta.cogworks.curriculum as cc
@@ -123,25 +122,6 @@ def train(
 def evaluate(policy_uris: list[str] | str) -> EvaluateTool:
     """Evaluate policies on arena simulations."""
     return EvaluateTool(simulations=simulations(), policy_uris=policy_uris)
-
-
-def evaluate_latest_in_dir(dir_path: str, max_steps: int = 10000, max_time_s: int = 120) -> EvaluateTool:
-    """Evaluate the latest policy on arena simulations."""
-    if dir_path.startswith("file://"):
-        local_path = Path(dir_path[7:])
-    else:
-        local_path = Path(dir_path)
-    checkpoints = local_path.glob("*.mpt")
-    policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
-    if not policy_uri:
-        raise ValueError(f"No policies found in {dir_path}")
-    policy_uri = policy_uri[-1]
-    sim = mettagrid(num_agents=6)
-    sim.game.max_steps = max_steps
-    return EvaluateTool(
-        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim, max_time_s=max_time_s)],
-        policy_uris=[policy_uri],
-    )
 
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:
@@ -293,10 +273,15 @@ def play_ci() -> PlayTool:
     )
 
 
-@ci_job(depends_on=train_ci, input_references={"dir_path": "uri"}, timeout_s=120)
-def evaluate_ci(dir_path: str) -> EvaluateTool:
+@ci_job(depends_on=train_ci, input_references={"policy_uri": "policy_uri"}, timeout_s=120)
+def evaluate_ci(policy_uri: str) -> EvaluateTool:
     """Evaluate the trained policy from train_ci."""
-    return evaluate_latest_in_dir(dir_path, max_steps=10, max_time_s=60)
+    sim = mettagrid(num_agents=6)
+    sim.game.max_steps = 10
+    return EvaluateTool(
+        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim, max_time_s=60)],
+        policy_uris=[policy_uri],
+    )
 
 
 @stable_job(
@@ -335,7 +320,7 @@ def train_2b() -> TrainTool:
     )
 
 
-@stable_job(depends_on=train_100m, input_references={"policy_uri": "uri"}, timeout_s=1800)
+@stable_job(depends_on=train_100m, input_references={"policy_uri": "policy_uri"}, timeout_s=1800)
 def evaluate_stable(policy_uri: str) -> EvaluateTool:
     """Local evaluation of the 100M trained policy."""
     return EvaluateTool(simulations=simulations(), policy_uris=[policy_uri])
