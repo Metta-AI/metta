@@ -111,11 +111,11 @@ jobs:
 
           if [ -n "$(git status --porcelain)" ]; then
             echo ""
-            echo "⚠️  Found uncommitted changes. Stashing them to ensure clean state for remote jobs..."
+            echo "Found uncommitted changes. Stashing them to ensure clean state for remote jobs..."
             git stash push -m "GitHub Actions: Auto-stash before stable release"
-            echo "✅ Changes stashed successfully"
+            echo "Changes stashed successfully"
           else
-            echo "✅ Working tree is clean"
+            echo "Working tree is clean"
           fi
 
       - name: Run stable release process
@@ -135,3 +135,11 @@ jobs:
         with:
           webhook-url: ${{ github.ref == 'refs/heads/main' && secrets.DISCORD_STABLE_HOOK || secrets.DISCORD_INFRA_ALERTS_TESTING_HOOK }}
           content-file: devops/stable/state/*/discord_summary.txt
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runner-logs
+          path: devops/stable/state/*/logs/
+          retention-days: 30

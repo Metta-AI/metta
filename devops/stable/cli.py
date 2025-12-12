@@ -20,7 +20,6 @@ import typer
 from devops.stable.asana_bugs import check_blockers
 from devops.stable.registry import Suite, discover_jobs, specs_to_jobs
 from devops.stable.runner import Job, Runner, print_summary
-from metta.common.util.collections import group_by
 
 app = typer.Typer(add_completion=False, invoke_without_command=True)
 
@@ -33,8 +32,16 @@ def generate_version() -> str:
     return datetime.now().strftime("%Y.%m.%d-%H%M%S")
 
 
-def _jobs_by_status(jobs: list[Job]) -> dict[str, list[Job]]:
-    return group_by(jobs, lambda j: j.status.value)
+def _is_acceptance_failed(job: Job) -> bool:
+    return job.status.value == "succeeded" and job.acceptance_passed is False
+
+
+def _is_failed(job: Job) -> bool:
+    return job.status.value == "failed" or _is_acceptance_failed(job)
+
+
+def _is_succeeded(job: Job) -> bool:
+    return job.status.value == "succeeded" and job.acceptance_passed in (None, True)
 
 
 def write_github_summary(runner: Runner) -> None:
@@ -42,8 +49,10 @@ def write_github_summary(runner: Runner) -> None:
     if not summary_path:
         return
 
-    by_status = _jobs_by_status(list(runner.jobs.values()))
-    succeeded, failed, skipped = by_status["succeeded"], by_status["failed"], by_status["skipped"]
+    jobs = list(runner.jobs.values())
+    succeeded = [j for j in jobs if _is_succeeded(j)]
+    failed = [j for j in jobs if _is_failed(j)]
+    skipped = [j for j in jobs if j.status.value == "skipped"]
 
     lines = [
         "# Stable Release Validation",
@@ -58,9 +67,11 @@ def write_github_summary(runner: Runner) -> None:
     ]
 
     for job in runner.jobs.values():
-        icon = {"succeeded": "✅", "failed": "❌", "skipped": "⏭️"}.get(job.status.value, "❓")
+        status = job.status.value
+        if _is_acceptance_failed(job):
+            status = "failed"
         duration = f"{job.duration_s:.0f}s" if job.duration_s else "-"
-        lines.append(f"| {job.name} | {icon} | {duration} |")
+        lines.append(f"| {job.name} | {status.upper()} | {duration} |")
 
     if failed:
         lines.extend(["", "## Failed Jobs", ""])
@@ -78,8 +89,10 @@ def write_github_summary(runner: Runner) -> None:
 
 
 def write_discord_summary(runner: Runner, state_dir: Path) -> None:
-    by_status = _jobs_by_status(list(runner.jobs.values()))
-    succeeded, failed, skipped = by_status["succeeded"], by_status["failed"], by_status["skipped"]
+    jobs = list(runner.jobs.values())
+    succeeded = [j for j in jobs if _is_succeeded(j)]
+    failed = [j for j in jobs if _is_failed(j)]
+    skipped = [j for j in jobs if j.status.value == "skipped"]
 
     lines = [
         f"**Jobs**: {len(succeeded)} passed, {len(failed)} failed, {len(skipped)} skipped",
@@ -90,10 +103,12 @@ def write_discord_summary(runner: Runner, state_dir: Path) -> None:
     ]
 
     for job in runner.jobs.values():
-        icon = {"succeeded": "✅", "failed": "❌", "skipped": "⏭️"}.get(job.status.value, "❓")
+        status = job.status.value
+        if _is_acceptance_failed(job):
+            status = "failed"
         name = job.name.split(".")[-1]
         duration = f"{job.duration_s:.0f}s" if job.duration_s else "-"
-        lines.append(f"{name:<45} {icon:<8} {duration:<10}")
+        lines.append(f"{name:<45} {status.upper():<8} {duration:<10}")
 
     lines.append("```")
 
@@ -146,7 +161,7 @@ def main(
     write_discord_summary(runner, state_dir)
 
     if has_blockers:
-        print("\n❌ FAILED: Blocking bugs found in Asana")
+        print("\nFAILED: Blocking bugs found in Asana")
         sys.exit(1)
 
     sys.exit(0 if success else 1)
