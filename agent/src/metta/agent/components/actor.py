@@ -139,24 +139,11 @@ class ActionProbs(nn.Module):
 
     def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
         """Mask logits past the first 21 actions (always enforced)."""
-        max_idx = min(21, logits.size(-1))
-        if max_idx <= 0:
-            raise ValueError(f"max_action_index must be positive, got {max_idx}")
-        mask_value = torch.finfo(logits.dtype).min
-
-        # Keep logits finite so log_softmax never returns NaN (which would break torch.multinomial).
-        logits = torch.nan_to_num(logits, nan=0.0, posinf=0.0, neginf=mask_value)
-
-        if max_idx < logits.size(-1):
+        mask_value = -1e9
+        logits = torch.nan_to_num(logits, nan=mask_value, posinf=mask_value, neginf=mask_value)
+        if logits.size(-1) > 21:
             logits = logits.clone()
-            logits[..., max_idx:] = mask_value
-
-        # If every allowed action was invalid and got clamped to mask_value, fall back to a
-        # zeroed valid slice so we still produce a proper distribution over allowed actions only.
-        all_masked = logits[..., :max_idx].eq(mask_value).all(dim=-1)
-        if all_masked.any():
-            logits = logits.clone()
-            logits[all_masked, :max_idx] = 0.0
+            logits[..., 21:] = mask_value
         return logits
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
