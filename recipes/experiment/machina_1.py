@@ -90,7 +90,6 @@ def train_sweep(
         eval_difficulty=eval_difficulty,
         policy_architecture=policy_architecture,
         teacher=teacher,
-        ppo_learning_rate=ppo_learning_rate,
     )
 
 

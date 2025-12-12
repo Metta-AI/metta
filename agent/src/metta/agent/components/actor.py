@@ -105,7 +105,6 @@ class ActorKey(nn.Module):
 class ActionProbsConfig(ComponentConfig):
     in_key: str
     name: str = "action_probs"
-    # Mask everything past the first 21 actions (5 base + 16 TRAINING_VIBES) everywhere.
 
     def make_component(self, env=None):
         return ActionProbs(config=self)
@@ -138,7 +137,7 @@ class ActionProbs(nn.Module):
         self.num_actions = int(action_space.n)
 
     def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
-        """Mask logits past the first 21 actions (always enforced)."""
+        """Sanitize logits and mask past the first 21 actions (keep full action_dim for checkpoint compatibility)."""
         mask_value = -1e9
         logits = torch.nan_to_num(logits, nan=mask_value, posinf=mask_value, neginf=mask_value)
         if logits.size(-1) > 21:

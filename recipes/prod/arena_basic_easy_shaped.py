@@ -246,14 +246,12 @@ def sweep(sweep_name: str) -> SweepTool:
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
         # training and scoring will lead to key conflicts that will lock the sweep.
-        
         # Evaluations in sweeps are currently being fixed.
         eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
         metric_key="env_game/assembler.hearts.created",
         search_space=parameters,
         max_trials=80,
-
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you can set this number.
         num_parallel_trials=4,
