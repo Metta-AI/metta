@@ -160,9 +160,9 @@ class EvaluateTool(Tool):
                 seed=self.system.seed,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
+                doxascope_logger=self.doxascope_logger,
                 max_workers=num_workers,
                 on_progress=logger.info if self.verbose else lambda x: None,
-                doxascope_logger=self.doxascope_logger,
             )
 
         render_eval_summary(

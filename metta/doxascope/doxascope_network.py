@@ -18,6 +18,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
 from .doxascope_data import (
+    find_changing_items_across_files,
     get_num_classes_for_manhattan_distance,
     get_num_classes_for_quadrant_granularity,
     preprocess_doxascope_data,
@@ -34,17 +35,34 @@ def get_activation_fn(name: str) -> nn.Module:
 
 
 class DoxascopeDataset(Dataset):
-    """Dataset for doxascope training."""
+    """Dataset for doxascope training with location and optional inventory labels."""
 
-    def __init__(self, X, y):
+    def __init__(
+        self,
+        X: np.ndarray,
+        y_location: np.ndarray,
+        y_inventory: Optional[np.ndarray] = None,
+        time_to_change: Optional[np.ndarray] = None,
+    ):
         self.X = torch.FloatTensor(X)
-        self.y = torch.LongTensor(y)
+        self.y_location = torch.LongTensor(y_location)
+        # y_inventory is now class indices (LongTensor), not multi-hot vectors
+        self.y_inventory = torch.LongTensor(y_inventory) if y_inventory is not None else None
+        self.time_to_change = torch.LongTensor(time_to_change) if time_to_change is not None else None
 
     def __len__(self):
         return len(self.X)
 
     def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
+        item = {
+            "X": self.X[idx],
+            "y_location": self.y_location[idx],
+        }
+        if self.y_inventory is not None:
+            item["y_inventory"] = self.y_inventory[idx]
+        if self.time_to_change is not None:
+            item["time_to_change"] = self.time_to_change[idx]
+        return item
 
 
 @dataclass
@@ -123,13 +141,17 @@ class DoxascopeNet(nn.Module):
         self.main_net = build_mlp(main_net_depth, main_in_dim, hidden_dim, hidden_dim)
 
         # Create unified prediction specs list
-        # Location predictions at various timesteps
-        self.head_timesteps = sorted(
-            [k for k in range(-num_past_timesteps, 0)] + [k for k in range(1, num_future_timesteps + 1)]
-        )
         prediction_specs: List[Tuple[str, Optional[int]]] = []
-        for k in self.head_timesteps:
-            prediction_specs.append(("location", k))
+
+        # Location predictions at various timesteps (only if location is enabled)
+        if "location" in prediction_types:
+            self.head_timesteps = sorted(
+                [k for k in range(-num_past_timesteps, 0)] + [k for k in range(1, num_future_timesteps + 1)]
+            )
+            for k in self.head_timesteps:
+                prediction_specs.append(("location", k))
+        else:
+            self.head_timesteps = []
 
         # Inventory prediction (next inventory change)
         if "inventory" in prediction_types:
@@ -255,6 +277,16 @@ class DoxascopeNet(nn.Module):
         return outputs
 
 
+@dataclass
+class EpochMetrics:
+    """Metrics from a single training/evaluation epoch."""
+
+    avg_loss: float
+    location_acc_per_step: List[float]
+    inventory_accuracy: Optional[float] = None
+    inventory_per_item_accuracy: Optional[List[float]] = None
+
+
 class DoxascopeTrainer:
     """Training and evaluation pipeline for the doxascope network."""
 
@@ -262,58 +294,129 @@ class DoxascopeTrainer:
         self.model = model.to(device)
         self.device = device
 
-    def _compute_loss(self, outputs: List[torch.Tensor], batch_y: torch.Tensor) -> torch.Tensor:
+    def _compute_loss(self, outputs: List[torch.Tensor], batch: Dict[str, torch.Tensor]) -> torch.Tensor:
         """Computes the total loss across all prediction heads."""
         loss = torch.tensor(0.0, device=self.device)
-        criterion = nn.CrossEntropyLoss()
-        for i, out in enumerate(outputs):
-            target = batch_y[:, i]
-            loss += criterion(out, target)
-        return loss / len(outputs) if outputs else loss
+        num_heads = 0
 
-    def _run_epoch(self, dataloader: DataLoader, is_training: bool):
+        # Location losses (CrossEntropy for each timestep)
+        num_location_heads = len(self.model.head_timesteps)
+        if "location" in self.model.prediction_types and "y_location" in batch:
+            ce_criterion = nn.CrossEntropyLoss()
+            y_location = batch["y_location"]
+            for i in range(num_location_heads):
+                target = y_location[:, i]
+                loss += ce_criterion(outputs[i], target)
+            num_heads += num_location_heads
+
+        # Inventory loss (CrossEntropy - single class prediction, not multi-label)
+        if "inventory" in self.model.prediction_types and "y_inventory" in batch:
+            inv_output = outputs[num_location_heads]  # Inventory is last output
+            y_inventory = batch["y_inventory"]  # Class indices [batch_size]
+            ce_criterion = nn.CrossEntropyLoss()
+            loss += ce_criterion(inv_output, y_inventory)
+            num_heads += 1
+
+        return loss / num_heads if num_heads > 0 else loss
+
+    def _run_epoch(self, dataloader: DataLoader, is_training: bool) -> EpochMetrics:
         """Run a single epoch of training or evaluation."""
         if is_training:
             self.model.train()
         else:
             self.model.eval()
 
-        total_loss = 0
+        total_loss = 0.0
         total_samples = 0
-        num_steps = len(self.model.head_timesteps)
-        correct_per_step = [0] * num_steps
+        num_location_steps = len(self.model.head_timesteps)
+        correct_per_step = [0] * num_location_steps
 
-        for batch_x, batch_y in dataloader:
-            batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
+        # Inventory tracking
+        has_inventory = "inventory" in self.model.prediction_types
+        inv_correct_total = 0
+        inv_total = 0
+        inv_correct_per_item: Optional[List[int]] = None
+        inv_total_per_item: Optional[List[int]] = None
+        if has_inventory:
+            num_items = self.model.config.get("inventory_num_items", 0)
+            inv_correct_per_item = [0] * num_items
+            inv_total_per_item = [0] * num_items
 
-            # Evaluation: disable gradients for efficiency
+        has_location = "location" in self.model.prediction_types
+
+        for batch in dataloader:
+            batch_x = batch["X"].to(self.device)
+
+            # Move all batch items to device
+            batch_on_device: Dict[str, torch.Tensor] = {}
+            if has_location and "y_location" in batch:
+                batch_on_device["y_location"] = batch["y_location"].to(self.device)
+            if has_inventory and "y_inventory" in batch:
+                batch_on_device["y_inventory"] = batch["y_inventory"].to(self.device)
+
+            # Forward pass
             if not is_training:
                 with torch.no_grad():
                     outputs = self.model(batch_x)
-                    loss = self._compute_loss(outputs, batch_y)
-            # Training: gradients enabled by default
+                    loss = self._compute_loss(outputs, batch_on_device)
             else:
                 outputs = self.model(batch_x)
-                loss = self._compute_loss(outputs, batch_y)
+                loss = self._compute_loss(outputs, batch_on_device)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
 
-            total_loss += loss.item() * batch_x.size(0)
-            total_samples += batch_x.size(0)
+            batch_size = batch_x.size(0)
+            total_loss += loss.item() * batch_size
+            total_samples += batch_size
 
-            # Compute accuracy (always without gradients for efficiency)
+            # Compute accuracy metrics
             with torch.no_grad():
-                for i in range(num_steps):
-                    _, predicted = outputs[i].max(1)
-                    correct_per_step[i] += predicted.eq(batch_y[:, i]).sum().item()
+                # Location accuracy
+                if has_location and "y_location" in batch_on_device:
+                    for i in range(num_location_steps):
+                        _, predicted = outputs[i].max(1)
+                        correct_per_step[i] += predicted.eq(batch_on_device["y_location"][:, i]).sum().item()
 
-        avg_loss = total_loss / total_samples if total_samples > 0 else 0
-        acc_per_step = (
-            [100.0 * c / total_samples for c in correct_per_step] if total_samples > 0 else ([0.0] * num_steps)
+                # Inventory accuracy (single-class prediction)
+                if has_inventory and "y_inventory" in batch_on_device:
+                    inv_output = outputs[num_location_steps]
+                    inv_pred = inv_output.argmax(dim=1)  # Predicted class
+                    inv_target = batch_on_device["y_inventory"]  # True class
+
+                    # Overall accuracy
+                    correct_samples = (inv_pred == inv_target).sum().item()
+                    inv_correct_total += correct_samples
+                    inv_total += batch_size
+
+                    # Per-item accuracy (accuracy when predicting each item class)
+                    for j in range(len(inv_correct_per_item)):
+                        mask = inv_target == j
+                        if mask.any():
+                            inv_correct_per_item[j] += (inv_pred[mask] == j).sum().item()
+                            inv_total_per_item[j] += mask.sum().item()
+
+        avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
+        location_acc = (
+            [100.0 * c / total_samples for c in correct_per_step] if total_samples > 0 else [0.0] * num_location_steps
         )
 
-        return avg_loss, acc_per_step
+        # Compute inventory metrics
+        inventory_accuracy = None
+        inventory_per_item_accuracy = None
+        if has_inventory and inv_total > 0:
+            inventory_accuracy = 100.0 * inv_correct_total / inv_total
+            inventory_per_item_accuracy = [
+                100.0 * inv_correct_per_item[j] / inv_total_per_item[j] if inv_total_per_item[j] > 0 else 0.0
+                for j in range(len(inv_correct_per_item))
+            ]
+
+        return EpochMetrics(
+            avg_loss=avg_loss,
+            location_acc_per_step=location_acc,
+            inventory_accuracy=inventory_accuracy,
+            inventory_per_item_accuracy=inventory_per_item_accuracy,
+        )
 
     def train_and_evaluate(
         self,
@@ -326,6 +429,7 @@ class DoxascopeTrainer:
         output_dir: Path,
         policy_name: str,
         is_baseline: bool = False,
+        resource_names: Optional[List[str]] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Runs the full training and evaluation pipeline.
@@ -337,16 +441,25 @@ class DoxascopeTrainer:
             return None
 
         # --- Evaluation on Test Set ---
+        test_metrics: Optional[EpochMetrics] = None
         if test_loader:
             print("\n--- Evaluating on Test Set ---")
             self.model.load_state_dict(training_result.best_checkpoint["state_dict"])
-            _, test_acc_per_step = self._run_epoch(test_loader, is_training=False)
+            test_metrics = self._run_epoch(test_loader, is_training=False)
             timesteps = self.model.head_timesteps
+            test_acc_per_step = test_metrics.location_acc_per_step
             test_acc_avg = sum(test_acc_per_step) / len(test_acc_per_step) if test_acc_per_step else 0.0
 
-            print(f"  - Average Test Accuracy: {test_acc_avg:.2f}%")
+            print(f"  - Average Location Accuracy: {test_acc_avg:.2f}%")
             for step, acc in zip(timesteps, test_acc_per_step, strict=False):
                 print(f"    - Timestep {step}: {acc:.2f}%")
+
+            # Print inventory metrics if available
+            if test_metrics.inventory_accuracy is not None:
+                print(f"  - Inventory Prediction Accuracy: {test_metrics.inventory_accuracy:.2f}%")
+                if test_metrics.inventory_per_item_accuracy and resource_names:
+                    for name, acc in zip(resource_names, test_metrics.inventory_per_item_accuracy, strict=False):
+                        print(f"    - {name}: {acc:.2f}%")
         else:
             test_acc_avg = 0.0
             timesteps = []
@@ -354,13 +467,25 @@ class DoxascopeTrainer:
 
         # --- Save Results ---
         suffix = "_baseline" if is_baseline else ""
-        test_results = {
+        test_results: Dict[str, Any] = {
             "policy_name": policy_name,
             "test_accuracy_avg": test_acc_avg,
             "timesteps": timesteps,
             "test_accuracy_per_step": test_acc_per_step,
             "model_config": self.model.config,
         }
+
+        # Add inventory results if available
+        if test_metrics and test_metrics.inventory_accuracy is not None:
+            test_results["inventory_accuracy"] = {
+                "overall": test_metrics.inventory_accuracy,
+                "per_item": (
+                    dict(zip(resource_names, test_metrics.inventory_per_item_accuracy, strict=False))
+                    if resource_names and test_metrics.inventory_per_item_accuracy
+                    else {}
+                ),
+            }
+
         with open(output_dir / f"test_results{suffix}.json", "w") as f:
             json.dump(test_results, f, indent=2)
 
@@ -383,40 +508,68 @@ class DoxascopeTrainer:
             "history": training_result.history,
             "test_results": test_results,
             "test_loader": test_loader,
+            "resource_names": resource_names,
         }
 
     def train(self, train_loader, val_loader, num_epochs=100, lr=0.001, patience=10) -> Optional[TrainingResult]:
         """Train the model and return training history and results."""
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
-        best_val_acc = 0
+        best_val_acc = 0.0
         epochs_no_improve = 0
 
-        history: Dict[str, List[float]] = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": []}
+        history: Dict[str, List[float]] = {
+            "train_loss": [],
+            "val_loss": [],
+            "train_acc": [],
+            "val_acc": [],
+            "train_inv_acc": [],
+            "val_inv_acc": [],
+        }
 
         checkpoint = {}
+        has_inventory = "inventory" in self.model.prediction_types
 
         for epoch in range(num_epochs):
             start_time = time.time()
 
-            train_loss, train_acc_per_step = self._run_epoch(train_loader, is_training=True)
-            avg_train_acc = sum(train_acc_per_step) / len(train_acc_per_step) if train_acc_per_step else 0
-
-            val_loss, val_acc_per_step = (
-                self._run_epoch(val_loader, is_training=False) if val_loader else (float("inf"), [])
+            train_metrics = self._run_epoch(train_loader, is_training=True)
+            avg_train_acc = (
+                sum(train_metrics.location_acc_per_step) / len(train_metrics.location_acc_per_step)
+                if train_metrics.location_acc_per_step
+                else 0.0
             )
-            avg_val_acc = sum(val_acc_per_step) / len(val_acc_per_step) if val_acc_per_step else 0
 
-            history["train_loss"].append(train_loss)
+            if val_loader:
+                val_metrics = self._run_epoch(val_loader, is_training=False)
+                val_loss = val_metrics.avg_loss
+                avg_val_acc = (
+                    sum(val_metrics.location_acc_per_step) / len(val_metrics.location_acc_per_step)
+                    if val_metrics.location_acc_per_step
+                    else 0.0
+                )
+            else:
+                val_metrics = None
+                val_loss = float("inf")
+                avg_val_acc = 0.0
+
+            history["train_loss"].append(train_metrics.avg_loss)
             history["val_loss"].append(val_loss)
             history["train_acc"].append(avg_train_acc)
             history["val_acc"].append(avg_val_acc)
+            history["train_inv_acc"].append(train_metrics.inventory_accuracy or 0.0)
+            history["val_inv_acc"].append(val_metrics.inventory_accuracy if val_metrics else 0.0)
 
             epoch_duration = time.time() - start_time
-            print(
+            log_msg = (
                 f"Epoch {epoch + 1}/{num_epochs} - {epoch_duration:.2f}s - "
-                f"Loss: {train_loss:.4f} - Val Loss: {val_loss:.4f} - "
-                f"Acc: {avg_train_acc:.2f}% - Val Acc: {avg_val_acc:.2f}%"
+                f"Loss: {train_metrics.avg_loss:.4f} - Val Loss: {val_loss:.4f} - "
+                f"Loc Acc: {avg_train_acc:.2f}% - Val Loc Acc: {avg_val_acc:.2f}%"
             )
+            if has_inventory:
+                train_inv = train_metrics.inventory_accuracy or 0.0
+                val_inv = val_metrics.inventory_accuracy if val_metrics else 0.0
+                log_msg += f" - Inv Acc: {train_inv:.2f}% - Val Inv Acc: {val_inv:.2f}%"
+            print(log_msg)
 
             if avg_val_acc > best_val_acc:
                 best_val_acc = avg_val_acc
@@ -448,9 +601,19 @@ class DoxascopeTrainer:
         return TrainingResult(history=history, best_checkpoint=checkpoint, final_val_acc=best_val_acc)
 
 
-def create_baseline_data(
-    preprocessed_dir: Path, batch_size: int
-) -> tuple[Optional[DataLoader], Optional[DataLoader], Optional[DataLoader], Optional[int]]:
+@dataclass
+class PreparedData:
+    """Container for prepared data loaders and metadata."""
+
+    train_loader: Optional[DataLoader]
+    val_loader: Optional[DataLoader]
+    test_loader: Optional[DataLoader]
+    input_dim: Optional[int]
+    resource_names: Optional[List[str]] = None
+    inventory_num_items: Optional[int] = None
+
+
+def create_baseline_data(preprocessed_dir: Path, batch_size: int) -> PreparedData:
     """Creates baseline data loaders by loading preprocessed data and randomizing inputs."""
     baseline_files = {
         "train": preprocessed_dir / "train_baseline.npz",
@@ -473,18 +636,37 @@ def create_baseline_data(
         for split, baseline_file in baseline_files.items():
             original_file = original_files[split]
             if original_file.exists():
-                data = np.load(original_file)
+                data = np.load(original_file, allow_pickle=True)
                 X, y = data["X"], data["y"]
                 X_random = np.asarray(np.random.randn(*X.shape), dtype=np.float32)
-                np.savez_compressed(baseline_file, X=X_random, y=y)
+
+                # Preserve all keys from original file, just randomize X
+                save_dict = {"X": X_random, "y": y}
+                if "y_inventory" in data:
+                    save_dict["y_inventory"] = data["y_inventory"]
+                if "time_to_change" in data:
+                    save_dict["time_to_change"] = data["time_to_change"]
+                if "resource_names" in data:
+                    save_dict["resource_names"] = data["resource_names"]
+                if "granularity" in data:
+                    save_dict["granularity"] = data["granularity"]
+
+                np.savez_compressed(baseline_file, **save_dict)
 
     # Create data loaders from baseline files
     loaders: List[Optional[DataLoader]] = []
+    resource_names = None
     for split in ["train", "val", "test"]:
         baseline_file = baseline_files[split]
         if baseline_file.exists():
-            data = np.load(baseline_file)
-            dataset = DoxascopeDataset(data["X"], data["y"])
+            data = np.load(baseline_file, allow_pickle=True)
+            y_inventory = data["y_inventory"] if "y_inventory" in data else None
+            time_to_change = data["time_to_change"] if "time_to_change" in data else None
+            dataset = DoxascopeDataset(data["X"], data["y"], y_inventory, time_to_change)
+
+            if resource_names is None and "resource_names" in data:
+                resource_names = list(data["resource_names"])
+
             shuffle = split == "train"
             loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
             loaders.append(loader)
@@ -496,11 +678,20 @@ def create_baseline_data(
     input_dim = None
     for loader in loaders:
         if loader is not None:
-            sample_x, _ = next(iter(loader))  # type: ignore
-            input_dim = sample_x.shape[1]
+            sample = next(iter(loader))
+            input_dim = sample["X"].shape[1]
             break
 
-    return tuple(loaders) + (input_dim,)
+    inventory_num_items = len(resource_names) if resource_names else None
+
+    return PreparedData(
+        train_loader=loaders[0],
+        val_loader=loaders[1],
+        test_loader=loaders[2],
+        input_dim=input_dim,
+        resource_names=resource_names,
+        inventory_num_items=inventory_num_items,
+    )
 
 
 def prepare_data(
@@ -513,12 +704,17 @@ def prepare_data(
     num_past_timesteps: int,
     data_split_seed: int = 42,
     granularity: str = "exact",
-) -> Tuple[Optional[DataLoader], Optional[DataLoader], Optional[DataLoader], Optional[int]]:
+    include_inventory: bool = True,
+    exclude_inventory_items: Optional[List[str]] = None,
+) -> PreparedData:
     """
     Prepares and splits data into training, validation, and test sets.
     The split is done on a per-file basis to prevent data leakage.
+
+    Args:
+        exclude_inventory_items: Optional list of item names to exclude from inventory prediction
+            (e.g., ["energy"] to exclude passive resource consumption)
     """
-    train_loader, val_loader, test_loader = None, None, None
     preprocessed_dir = output_dir / "preprocessed_data"
     preprocessed_dir.mkdir(parents=True, exist_ok=True)
 
@@ -598,50 +794,89 @@ def prepare_data(
 
     print(f"Data split into {len(train_files)} train, {len(val_files)} val, {len(test_files)} test files.")
 
-    # Process files for each split
-    X_train, y_train = preprocess_doxascope_data(
+    # Find changing items across ALL files first (ensures consistent item list across splits)
+    resource_names = None
+    if include_inventory:
+        resource_names = find_changing_items_across_files(all_json_files, exclude_items=exclude_inventory_items)
+        if exclude_inventory_items:
+            print(f"Excluding inventory items from prediction: {exclude_inventory_items}")
+        if resource_names:
+            print(f"Found {len(resource_names)} items that change across all files: {resource_names}")
+        else:
+            print("No items change in any file. Disabling inventory prediction.")
+            include_inventory = False
+
+    # Process files for each split (using consistent resource_names)
+    train_result = preprocess_doxascope_data(
         train_files,
         preprocessed_dir,
         "train.npz",
         num_future_timesteps,
         num_past_timesteps,
         granularity=granularity,
+        include_inventory=include_inventory,
+        resource_names_override=resource_names,
     )
-    if X_train is None:
+    if train_result is None:
         print("No training data could be generated.")
-        return None, None, None, None
-    input_dim = X_train.shape[1]
+        return PreparedData(None, None, None, None)
+    input_dim = train_result.X.shape[1]
 
-    X_val, y_val = preprocess_doxascope_data(
-        val_files, preprocessed_dir, "val.npz", num_future_timesteps, num_past_timesteps, granularity=granularity
+    preprocess_doxascope_data(
+        val_files,
+        preprocessed_dir,
+        "val.npz",
+        num_future_timesteps,
+        num_past_timesteps,
+        granularity=granularity,
+        include_inventory=include_inventory,
+        resource_names_override=resource_names,
     )
-    if X_val is None:
-        print("Warning: No validation samples could be generated from the validation files.")
 
-    X_test, y_test = preprocess_doxascope_data(
-        test_files, preprocessed_dir, "test.npz", num_future_timesteps, num_past_timesteps, granularity=granularity
+    preprocess_doxascope_data(
+        test_files,
+        preprocessed_dir,
+        "test.npz",
+        num_future_timesteps,
+        num_past_timesteps,
+        granularity=granularity,
+        include_inventory=include_inventory,
+        resource_names_override=resource_names,
     )
-    if X_test is None:
-        print("Warning: No test samples could be generated from the test files.")
 
     # Create datasets and dataloaders from loaded/processed data
     train_loader, val_loader, test_loader = None, None, None
 
-    train_data = np.load(preprocessed_dir / "train.npz")
-    train_dataset = DoxascopeDataset(train_data["X"], train_data["y"])
+    train_data = np.load(preprocessed_dir / "train.npz", allow_pickle=True)
+    y_inventory = train_data["y_inventory"] if "y_inventory" in train_data else None
+    time_to_change = train_data["time_to_change"] if "time_to_change" in train_data else None
+    train_dataset = DoxascopeDataset(train_data["X"], train_data["y"], y_inventory, time_to_change)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     print(f"  Train samples: {len(train_dataset)}")
 
     if (preprocessed_dir / "val.npz").exists():
-        val_data = np.load(preprocessed_dir / "val.npz")
-        val_dataset = DoxascopeDataset(val_data["X"], val_data["y"])
+        val_data = np.load(preprocessed_dir / "val.npz", allow_pickle=True)
+        y_inv_val = val_data["y_inventory"] if "y_inventory" in val_data else None
+        ttc_val = val_data["time_to_change"] if "time_to_change" in val_data else None
+        val_dataset = DoxascopeDataset(val_data["X"], val_data["y"], y_inv_val, ttc_val)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
         print(f"  Validation samples: {len(val_dataset)}")
 
     if (preprocessed_dir / "test.npz").exists():
-        test_data = np.load(preprocessed_dir / "test.npz")
-        test_dataset = DoxascopeDataset(test_data["X"], test_data["y"])
+        test_data = np.load(preprocessed_dir / "test.npz", allow_pickle=True)
+        y_inv_test = test_data["y_inventory"] if "y_inventory" in test_data else None
+        ttc_test = test_data["time_to_change"] if "time_to_change" in test_data else None
+        test_dataset = DoxascopeDataset(test_data["X"], test_data["y"], y_inv_test, ttc_test)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
         print(f"  Test samples: {len(test_dataset)}")
 
-    return train_loader, val_loader, test_loader, input_dim
+    inventory_num_items = len(resource_names) if resource_names else None
+
+    return PreparedData(
+        train_loader=train_loader,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        input_dim=input_dim,
+        resource_names=resource_names,
+        inventory_num_items=inventory_num_items,
+    )

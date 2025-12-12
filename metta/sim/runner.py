@@ -90,18 +90,16 @@ def run_simulations(
         simulation_rollouts: list[SimulationRunResult] = []
 
         for i, simulation in enumerate(simulations):
-            proportions = simulation.proportions
-
             # Create or clone doxascope logger for this simulation
             current_logger: DoxascopeLogger | None = None
-            if doxascope_logger is None and simulation.doxascope_enabled:
-                prefix = simulation.episode_tags.get("name", "eval")
-                simulation_id = f"{prefix}_{uuid.uuid4().hex[:12]}"
-                current_logger = DoxascopeLogger(enabled=True, simulation_id=simulation_id)
-            elif doxascope_logger:
+            if doxascope_logger is not None:
                 prefix = simulation.episode_tags.get("name", "eval")
                 sim_id = f"{prefix}_{uuid.uuid4().hex[:12]}"
                 current_logger = doxascope_logger.clone(sim_id)
+            elif simulation.doxascope_enabled:
+                prefix = simulation.episode_tags.get("name", "eval")
+                simulation_id = f"{prefix}_{uuid.uuid4().hex[:12]}"
+                current_logger = DoxascopeLogger(enabled=True, simulation_id=simulation_id)
 
             env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
             multi_agent_policies: list[MultiAgentPolicy] = [
@@ -114,7 +112,7 @@ def run_simulations(
                 policies=multi_agent_policies,
                 episodes=simulation.num_episodes,
                 seed=seed,
-                proportions=proportions,
+                proportions=simulation.proportions,
                 save_replay=replay_dir,
                 max_action_time_ms=simulation.max_action_time_ms,
                 doxascope_logger=current_logger,

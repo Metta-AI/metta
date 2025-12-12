@@ -9,6 +9,7 @@ This module provides functionality for:
 
 import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -156,6 +157,10 @@ class DoxascopeLogger:
             policy_uri = policy_uri[7:]  # Remove "file://"
         elif policy_uri.startswith("s3://"):
             policy_uri = policy_uri[5:]  # Remove "s3://"
+        elif policy_uri.startswith("metta://policy/"):
+            policy_uri = policy_uri[15:]  # Remove "metta://policy/"
+        elif policy_uri.startswith("metta://"):
+            policy_uri = policy_uri[8:]  # Remove "metta://"
 
         stem = Path(policy_uri).stem
         if ":" in stem:
@@ -547,7 +552,7 @@ class DoxascopeLogger:
             return None
 
     def save(self):
-        """Save logged data to JSON file."""
+        """Save logged data to JSON file with metadata."""
         if not self.enabled or self.output_file is None:
             return
 
@@ -556,8 +561,18 @@ class DoxascopeLogger:
                 # This warning is usually suppressed in eval.py if data is empty, but keeping it here for completeness
                 logger.warning("Doxascope: no data was logged for this simulation; nothing to save.")
                 return
+
+            # Wrap data with metadata for resource names and other info
+            output = {
+                "metadata": {
+                    "resource_names": self.resource_names,
+                    "simulation_id": self.simulation_id,
+                },
+                "timesteps": self.data,
+            }
+
             with open(self.output_file, "w") as f:
-                json.dump(self.data, f)
+                json.dump(output, f)
             file_size_bytes = self.output_file.stat().st_size
             file_size_mb = file_size_bytes / (1024 * 1024)
             logger.info(f"Doxascope data saved to {self.output_file.name} ({file_size_mb:.2f} MB)")
@@ -589,19 +604,41 @@ class DoxascopeEventHandler(SimulatorEventHandler):
         )
 
 
-def _extract_agent_trajectories(files: list) -> List[List[Tuple[np.ndarray, Tuple[int, int]]]]:
+@dataclass
+class TrajectoryData:
+    """Container for extracted trajectory data from raw files."""
+
+    trajectories: List[List[Tuple[np.ndarray, Tuple[int, int], Dict[str, int]]]]
+    resource_names: List[str]
+
+
+def _extract_agent_trajectories(files: list) -> TrajectoryData:
     """
     Load raw data (single-env) and return per-file, per-agent trajectories.
-    Each trajectory is a list of (memory_vector, position) tuples from a single
+    Each trajectory is a list of (memory_vector, position, inventory) tuples from a single
     file for a single agent.
+
+    Also extracts and unions all resource names across files.
     """
-    trajectories: List[List[Tuple[np.ndarray, Tuple[int, int]]]] = []
+    trajectories: List[List[Tuple[np.ndarray, Tuple[int, int], Dict[str, int]]]] = []
+    all_resource_names: set = set()
 
     for json_file in files:
         with open(json_file, "r") as f:
-            data = json.load(f)
+            raw_data = json.load(f)
 
-        file_agent_trajs: Dict[int, List[Tuple[np.ndarray, Tuple[int, int]]]] = {}
+        # Handle both old format (list of timesteps) and new format (with metadata)
+        if isinstance(raw_data, dict) and "timesteps" in raw_data:
+            data = raw_data["timesteps"]
+            metadata = raw_data.get("metadata", {})
+            file_resource_names = metadata.get("resource_names")
+            if file_resource_names:
+                all_resource_names.update(file_resource_names)
+        else:
+            # Old format: raw_data is directly the list of timesteps
+            data = raw_data
+
+        file_agent_trajs: Dict[int, List[Tuple[np.ndarray, Tuple[int, int], Dict[str, int]]]] = {}
         expected_dim = None
 
         for timestep_data in data:
@@ -622,38 +659,148 @@ def _extract_agent_trajectories(files: list) -> List[List[Tuple[np.ndarray, Tupl
                     continue
 
                 position = tuple(agent_data["position"])
+                inventory = agent_data.get("inventory", {})
+                # Ensure inventory values are integers
+                inventory = {str(k): int(v) for k, v in inventory.items()}
+
+                # Track resource names from inventory keys
+                all_resource_names.update(inventory.keys())
+
                 key = int(agent_id)
-                file_agent_trajs.setdefault(key, []).append((memory, position))
+                file_agent_trajs.setdefault(key, []).append((memory, position, inventory))
 
         # Append per-agent trajectories for this file
         for traj in file_agent_trajs.values():
             trajectories.append(traj)
 
-    return trajectories
+    # Sort resource names for consistent ordering
+    resource_names = sorted(all_resource_names)
+
+    return TrajectoryData(trajectories=trajectories, resource_names=resource_names)
+
+
+def _find_items_that_change(
+    trajectories: List[List[Tuple[np.ndarray, Tuple[int, int], Dict[str, int]]]],
+    all_resource_names: List[str],
+) -> List[str]:
+    """
+    Scan all trajectories to find which items actually change at least once.
+
+    Args:
+        trajectories: List of agent trajectories
+        all_resource_names: Full list of possible resource names
+
+    Returns:
+        List of resource names that actually change (sorted)
+    """
+    changing_items: set = set()
+
+    for trajectory in trajectories:
+        if len(trajectory) < 2:
+            continue
+
+        for i in range(len(trajectory) - 1):
+            current_inventory = trajectory[i][2]
+            next_inventory = trajectory[i + 1][2]
+
+            for item_name in all_resource_names:
+                current_val = current_inventory.get(item_name, 0)
+                next_val = next_inventory.get(item_name, 0)
+                if current_val != next_val:
+                    changing_items.add(item_name)
+
+    return sorted(changing_items)
+
+
+def _find_next_changing_items(
+    trajectory: List[Tuple[np.ndarray, Tuple[int, int], Dict[str, int]]],
+    current_idx: int,
+    resource_names: List[str],
+) -> Optional[List[Tuple[int, int]]]:
+    """
+    From current_idx, find the next timestep where inventory changes and return
+    which items change.
+
+    Args:
+        trajectory: List of (memory, position, inventory) tuples
+        current_idx: Current timestep index in the trajectory
+        resource_names: Ordered list of resource names (only items that actually change)
+
+    Returns:
+        List of (item_index, time_to_change) tuples for each item that changes,
+        or None if no change found. If multiple items change at the same timestep,
+        returns one entry per item (all with same time_to_change).
+    """
+    if not resource_names:
+        return None
+
+    current_inventory = trajectory[current_idx][2]
+
+    # Look ahead for the next inventory change
+    for future_idx in range(current_idx + 1, len(trajectory)):
+        future_inventory = trajectory[future_idx][2]
+
+        # Find all items that changed at this timestep
+        changing_items = []
+        for i, item_name in enumerate(resource_names):
+            current_val = current_inventory.get(item_name, 0)
+            future_val = future_inventory.get(item_name, 0)
+            if current_val != future_val:
+                time_to_change = future_idx - current_idx
+                changing_items.append((i, time_to_change))
+
+        if changing_items:
+            return changing_items
+
+    # No inventory change found in the rest of the trajectory
+    return None
+
+
+@dataclass
+class TrainingSamples:
+    """Container for training samples with location and inventory data."""
+
+    memory_vectors: List[np.ndarray]
+    location_labels: List[List[int]]
+    # inventory_labels: single class index (which item changes next), not multi-hot
+    inventory_labels: Optional[List[int]] = None
+    time_to_change: Optional[List[int]] = None
 
 
 def _create_training_samples(
-    trajectories: List[List[Tuple[np.ndarray, Tuple[int, int]]]],
+    trajectories: List[List[Tuple[np.ndarray, Tuple[int, int], Dict[str, int]]]],
     num_future: int,
     num_past: int,
     granularity: str = "exact",
-) -> Tuple[List[np.ndarray], List[List[int]]]:
+    include_inventory: bool = True,
+    resource_names: Optional[List[str]] = None,
+) -> TrainingSamples:
     """Generate training samples (X, y) from per-agent trajectories.
+
     Args:
-        trajectories: List of trajectories, each a list of (memory, position)
+        trajectories: List of trajectories, each a list of (memory, position, inventory)
         num_future: Number of future timesteps to predict
         num_past: Number of past timesteps to predict
         granularity: The prediction granularity ("exact" or "quadrant")
+        include_inventory: Whether to include inventory prediction labels
+        resource_names: Ordered list of resource names for inventory encoding
+
+    Returns:
+        TrainingSamples with memory vectors, location labels, and optionally inventory data.
+        For inventory prediction: one sample per item that changes (if multiple items change
+        at the same timestep, multiple samples are created with the same memory vector).
     """
     all_memory_vectors: List[np.ndarray] = []
-    all_labels: List[List[int]] = []
+    all_location_labels: List[List[int]] = []
+    all_inventory_labels: List[int] = [] if include_inventory else None
+    all_time_to_change: List[int] = [] if include_inventory else None
 
     for trajectory in trajectories:
         if len(trajectory) < num_future + num_past + 1:
             continue
 
         for i in range(num_past, len(trajectory) - num_future):
-            current_memory, current_pos = trajectory[i]
+            current_memory, current_pos, _ = trajectory[i]
             timestep_labels: List[int] = []
             valid_sample = True
 
@@ -679,11 +826,76 @@ def _create_training_samples(
 
                 timestep_labels.append(label)
 
-            if valid_sample:
-                all_labels.append(timestep_labels)
+            if not valid_sample:
+                continue
+
+            # Handle inventory prediction
+            if include_inventory and resource_names:
+                changing_items = _find_next_changing_items(trajectory, i, resource_names)
+                if changing_items is None:
+                    # No inventory change found - skip this sample entirely
+                    continue
+
+                # Create one sample per item that changes
+                # (if multiple items change at same timestep, all are valid "next items")
+                for item_idx, ttc in changing_items:
+                    all_memory_vectors.append(current_memory)
+                    all_location_labels.append(timestep_labels)
+                    all_inventory_labels.append(item_idx)
+                    all_time_to_change.append(ttc)
+            else:
+                # Location-only mode
+                all_location_labels.append(timestep_labels)
                 all_memory_vectors.append(current_memory)
 
-    return all_memory_vectors, all_labels
+    return TrainingSamples(
+        memory_vectors=all_memory_vectors,
+        location_labels=all_location_labels,
+        inventory_labels=all_inventory_labels if all_inventory_labels else None,
+        time_to_change=all_time_to_change if all_time_to_change else None,
+    )
+
+
+@dataclass
+class PreprocessedData:
+    """Container for preprocessed training data."""
+
+    X: np.ndarray
+    y_location: np.ndarray
+    y_inventory: Optional[np.ndarray] = None
+    time_to_change: Optional[np.ndarray] = None
+    resource_names: Optional[List[str]] = None
+
+
+def find_changing_items_across_files(
+    json_files: list,
+    exclude_items: Optional[List[str]] = None,
+) -> List[str]:
+    """
+    Scans all JSON files to find which items change in any trajectory.
+
+    This should be called once on ALL files before splitting into train/val/test
+    to ensure consistent item lists across all splits.
+
+    Args:
+        json_files: List of JSON files to scan
+        exclude_items: Optional list of item names to exclude from prediction
+            (e.g., ["energy"] to exclude passive resource consumption)
+
+    Returns:
+        Sorted list of resource names that change at least once (minus excluded items)
+    """
+    trajectory_data = _extract_agent_trajectories(json_files)
+    if not trajectory_data.trajectories or not trajectory_data.resource_names:
+        return []
+    changing_items = _find_items_that_change(trajectory_data.trajectories, trajectory_data.resource_names)
+
+    # Filter out excluded items
+    if exclude_items:
+        excluded_set = set(exclude_items)
+        changing_items = [item for item in changing_items if item not in excluded_set]
+
+    return changing_items
 
 
 def preprocess_doxascope_data(
@@ -693,42 +905,111 @@ def preprocess_doxascope_data(
     num_future_timesteps: int = 1,
     num_past_timesteps: int = 0,
     granularity: str = "exact",
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    include_inventory: bool = True,
+    resource_names_override: Optional[List[str]] = None,
+) -> Optional[PreprocessedData]:
     """
     Preprocesses raw doxascope JSON data to create training-ready NPZ files.
+
+    Args:
+        json_files: List of JSON files to process
+        preprocessed_dir: Directory to save preprocessed data
+        output_filename: Name of the output NPZ file
+        num_future_timesteps: Number of future timesteps to predict
+        num_past_timesteps: Number of past timesteps to predict
+        granularity: Prediction granularity ("exact" or "quadrant")
+        include_inventory: Whether to include inventory prediction data
+        resource_names_override: If provided, use this list of items instead of auto-detecting.
+            This ensures consistent item lists across train/val/test splits.
+
+    Returns:
+        PreprocessedData container or None if preprocessing fails
     """
     if not json_files:
         logger.warning("No JSON files provided for preprocessing.")
-        return None, None
+        return None
 
     logger.info(f"Processing {len(json_files)} simulation log(s) with '{granularity}' granularity...")
 
-    trajectories = _extract_agent_trajectories(json_files)
-    if not trajectories:
+    trajectory_data = _extract_agent_trajectories(json_files)
+    if not trajectory_data.trajectories:
         logger.warning("No valid agent trajectories found in the provided files.")
-        return None, None
+        return None
 
-    all_memory_vectors, all_labels = _create_training_samples(
-        trajectories, num_future_timesteps, num_past_timesteps, granularity=granularity
+    resource_names = None
+    if include_inventory:
+        if resource_names_override:
+            # Use provided list (ensures consistency across splits)
+            resource_names = resource_names_override
+            logger.info(f"Using provided resource list with {len(resource_names)} items: {resource_names}")
+        else:
+            # Auto-detect changing items (only for single-file processing)
+            all_resource_names = trajectory_data.resource_names
+            if all_resource_names:
+                resource_names = _find_items_that_change(trajectory_data.trajectories, all_resource_names)
+                if resource_names:
+                    logger.info(
+                        f"Found {len(resource_names)} resource types that change: {resource_names} "
+                        f"(filtered from {len(all_resource_names)} total)"
+                    )
+                else:
+                    logger.warning("No items change in any trajectory; inventory prediction will be skipped.")
+                    include_inventory = False
+            else:
+                logger.warning("No resource names found in data; inventory prediction will be skipped.")
+                include_inventory = False
+
+    samples = _create_training_samples(
+        trajectory_data.trajectories,
+        num_future_timesteps,
+        num_past_timesteps,
+        granularity=granularity,
+        include_inventory=include_inventory,
+        resource_names=resource_names,
     )
 
-    if not all_memory_vectors:
+    if not samples.memory_vectors:
         logger.warning("No training samples could be created from the trajectories.")
-        return None, None
+        return None
 
     try:
-        X = np.array(all_memory_vectors, dtype=np.float32)
-        y = np.array(all_labels, dtype=np.int64)
+        X = np.array(samples.memory_vectors, dtype=np.float32)
+        y_location = np.array(samples.location_labels, dtype=np.int64)
+
+        # Prepare data dict for saving
+        save_dict = {
+            "X": X,
+            "y": y_location,  # Keep 'y' for backward compatibility
+            "granularity": np.array(granularity),
+        }
+
+        # Add inventory data if available
+        # y_inventory is now class indices (int64), not multi-hot vectors
+        y_inventory = None
+        time_to_change = None
+        if include_inventory and samples.inventory_labels:
+            y_inventory = np.array(samples.inventory_labels, dtype=np.int64)
+            time_to_change = np.array(samples.time_to_change, dtype=np.int64)
+            save_dict["y_inventory"] = y_inventory
+            save_dict["time_to_change"] = time_to_change
+            save_dict["resource_names"] = np.array(resource_names, dtype=object)
+            logger.info(f"Included inventory labels for {len(resource_names)} resource types")
 
         output_file = preprocessed_dir / output_filename
         preprocessed_dir.mkdir(parents=True, exist_ok=True)
-        # Save granularity along with the data
-        np.savez_compressed(output_file, X=X, y=y, granularity=np.array(granularity))
+        np.savez_compressed(output_file, **save_dict)
 
         logger.info(f"Successfully saved {len(X)} samples to {output_file}")
-        return X, y
+
+        return PreprocessedData(
+            X=X,
+            y_location=y_location,
+            y_inventory=y_inventory,
+            time_to_change=time_to_change,
+            resource_names=resource_names,
+        )
     except ValueError as e:
         logger.error(f"Failed to create NumPy arrays due to inconsistent shapes: {e}")
-        unique_dims = {mv.shape for mv in all_memory_vectors}
+        unique_dims = {mv.shape for mv in samples.memory_vectors}
         logger.error(f"Found memory vectors with the following shapes: {unique_dims}")
-        return None, None
+        return None
