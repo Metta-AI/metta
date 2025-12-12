@@ -9,7 +9,7 @@ from mettagrid.config.mettagrid_config import (
     ObsConfig,
     WallConfig,
 )
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 

@@ -5,7 +5,7 @@
 import json
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 
 
 def test_mg_config_map_builder_serialization():
@@ -22,7 +22,7 @@ def test_mg_config_map_builder_serialization():
     map_builder = config_dict["game"]["map_builder"]
 
     # Check that all RandomMapBuilder.Config fields are present
-    assert map_builder["type"] == "mettagrid.map_builder.random.RandomMapBuilder.Config"
+    assert map_builder["type"] == "mettagrid.map_builder.random_map.RandomMapBuilder.Config"
     assert "seed" in map_builder
     assert "width" in map_builder
     assert "height" in map_builder
@@ -56,7 +56,7 @@ def test_mg_config_custom_map_builder():
     config_dict = config.model_dump()
     map_builder = config_dict["game"]["map_builder"]
 
-    assert map_builder["type"] == "mettagrid.map_builder.random.RandomMapBuilder.Config"
+    assert map_builder["type"] == "mettagrid.map_builder.random_map.RandomMapBuilder.Config"
     assert map_builder["width"] == 15
     assert map_builder["height"] == 20
     assert map_builder["agents"] == 12
