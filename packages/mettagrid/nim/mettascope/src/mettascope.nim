@@ -191,8 +191,6 @@ window.onFrame = proc() =
 proc main() =
   ## Main entry point.
 
-  window.centerWindow()
-
   sk = newSilky(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
   bxy = newBoxy()
 
