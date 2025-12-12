@@ -16,6 +16,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.common.wandb.context import WandbConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -277,6 +278,7 @@ def train_ci() -> TrainTool:
         evaluator=EvaluatorConfig(evaluate_local=False, evaluate_remote=False),
         checkpointer=CheckpointerConfig(epoch_interval=1),
         policy_architecture=ViTDefaultConfig(),
+        wandb=WandbConfig.Off(),
     )
 
 
