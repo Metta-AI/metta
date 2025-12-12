@@ -149,13 +149,9 @@ class ActionProbs(nn.Module):
 
     def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
         """Mask logits past the first 21 actions (or the stored cap)."""
-        max_action_index = int(self._max_action_index_buf.item())
-
-        max_idx = int(max_action_index)
+        max_idx = min(int(self._max_action_index_buf.item()), logits.size(-1))
         if max_idx <= 0:
             raise ValueError(f"max_action_index must be positive, got {max_idx}")
-
-        max_idx = min(max_idx, logits.size(-1))
         mask_value = torch.finfo(logits.dtype).min
 
         # Keep logits finite so log_softmax never returns NaN (which would break torch.multinomial).
@@ -167,8 +163,7 @@ class ActionProbs(nn.Module):
 
         # If every allowed action was invalid and got clamped to mask_value, fall back to a
         # zeroed valid slice so we still produce a proper distribution over allowed actions only.
-        valid_slice = logits[..., :max_idx]
-        all_masked = (valid_slice == mask_value).all(dim=-1)
+        all_masked = logits[..., :max_idx].eq(mask_value).all(dim=-1)
         if all_masked.any():
             logits = logits.clone()
             logits[all_masked, :max_idx] = 0.0
