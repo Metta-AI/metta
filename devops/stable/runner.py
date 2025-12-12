@@ -267,97 +267,80 @@ class Runner:
             self._print(f"[{job.name}] FAILED to launch: {e}")
 
     def _poll_remote_jobs(self) -> None:
+        import sky
+        import sky.jobs.client.sdk as sky_jobs_sdk
+
         remote_running = [j for j in self.jobs.values() if j.status == JobStatus.RUNNING and j.is_remote]
         if not remote_running:
             return
 
         now = datetime.now()
         for job in remote_running:
-            if job.started_at:
-                elapsed = (now - datetime.fromisoformat(job.started_at)).total_seconds()
-                if elapsed > job.timeout_s:
-                    job.status = JobStatus.FAILED
-                    job.exit_code = 124
-                    job.completed_at = now.isoformat()
-                    job.duration_s = elapsed
-                    job.error = f"Timeout after {job.timeout_s}s"
-                    self._print(f"[{job.name}] TIMEOUT after {job.timeout_s}s")
-                    if job.skypilot_job_id:
-                        try:
-                            subprocess.run(
-                                ["sky", "jobs", "cancel", "-y", job.skypilot_job_id],
-                                capture_output=True,
-                                timeout=30,
-                            )
-                        except Exception:
-                            pass
-                    continue
+            if not job.started_at:
+                continue
+            elapsed = (now - datetime.fromisoformat(job.started_at)).total_seconds()
+            if elapsed > job.timeout_s:
+                job.status = JobStatus.FAILED
+                job.exit_code = 124
+                job.completed_at = now.isoformat()
+                job.duration_s = elapsed
+                job.error = f"Timeout after {job.timeout_s}s"
+                self._print(f"[{job.name}] TIMEOUT after {job.timeout_s}s")
+                if job.skypilot_job_id:
+                    subprocess.run(["sky", "jobs", "cancel", "-y", job.skypilot_job_id], capture_output=True)
 
         remote_running = [j for j in self.jobs.values() if j.status == JobStatus.RUNNING and j.is_remote]
         if not remote_running:
             return
 
-        try:
-            import sky
-            import sky.jobs.client.sdk as sky_jobs_sdk
+        job_ids = [int(j.skypilot_job_id) for j in remote_running if j.skypilot_job_id]
+        if not job_ids:
+            return
 
-            job_ids = [int(j.skypilot_job_id) for j in remote_running if j.skypilot_job_id]
-            if not job_ids:
-                return
+        request_id = sky_jobs_sdk.queue(refresh=False, job_ids=job_ids)
+        queue_data = sky.get(request_id)
+        status_by_id = {str(j.get("job_id")): j for j in queue_data}
 
-            request_id = sky_jobs_sdk.queue(refresh=False, job_ids=job_ids)
-            queue_data = sky.get(request_id)
-            status_by_id = {str(j.get("job_id")): j for j in queue_data}
+        for job in remote_running:
+            if not job.skypilot_job_id:
+                continue
 
-            for job in remote_running:
-                if not job.skypilot_job_id:
-                    continue
+            sky_job = status_by_id.get(job.skypilot_job_id)
+            if not sky_job:
+                job.status = JobStatus.FAILED
+                job.exit_code = 1
+                job.completed_at = datetime.now().isoformat()
+                job.error = "Job disappeared from SkyPilot queue"
+                self._print(f"[{job.name}] FAILED: Job disappeared from SkyPilot queue")
+                continue
 
-                sky_job = status_by_id.get(job.skypilot_job_id)
-                if not sky_job:
-                    job.status = JobStatus.FAILED
-                    job.exit_code = 1
-                    job.completed_at = datetime.now().isoformat()
-                    job.error = "Job disappeared from SkyPilot queue"
-                    self._print(f"[{job.name}] FAILED: Job disappeared from SkyPilot queue")
-                else:
-                    sky_status = str(sky_job.get("status", "")).upper()
-                    if "SUCCEEDED" in sky_status:
-                        job.status = JobStatus.SUCCEEDED
-                        job.exit_code = 0
-                        job.completed_at = datetime.now().isoformat()
-                        assert job.started_at is not None
-                        job.duration_s = (
-                            datetime.fromisoformat(job.completed_at) - datetime.fromisoformat(job.started_at)
-                        ).total_seconds()
-                        self._print(f"[{job.name}] PASSED (duration={job.duration_s:.0f}s)")
-                    elif any(s in sky_status for s in ("FAILED", "CANCELLED")):
-                        job.status = JobStatus.FAILED
-                        job.exit_code = 1
-                        job.completed_at = datetime.now().isoformat()
-                        job.error = f"SkyPilot status: {sky_status}"
-                        assert job.started_at is not None
-                        job.duration_s = (
-                            datetime.fromisoformat(job.completed_at) - datetime.fromisoformat(job.started_at)
-                        ).total_seconds()
-                        self._print(f"[{job.name}] FAILED: {sky_status} (duration={job.duration_s:.0f}s)")
-
-        except Exception as e:
-            self._print(f"Warning: Failed to poll SkyPilot jobs: {e}")
+            sky_status = str(sky_job.get("status", "")).upper()
+            if "SUCCEEDED" in sky_status:
+                job.status = JobStatus.SUCCEEDED
+                job.exit_code = 0
+                job.completed_at = datetime.now().isoformat()
+                started = datetime.fromisoformat(job.started_at)
+                job.duration_s = (datetime.fromisoformat(job.completed_at) - started).total_seconds()
+                self._print(f"[{job.name}] PASSED (duration={job.duration_s:.0f}s)")
+            elif any(s in sky_status for s in ("FAILED", "CANCELLED")):
+                job.status = JobStatus.FAILED
+                job.exit_code = 1
+                job.completed_at = datetime.now().isoformat()
+                job.error = f"SkyPilot status: {sky_status}"
+                started = datetime.fromisoformat(job.started_at)
+                job.duration_s = (datetime.fromisoformat(job.completed_at) - started).total_seconds()
+                self._print(f"[{job.name}] FAILED: {sky_status} (duration={job.duration_s:.0f}s)")
 
     def _fetch_metrics_and_evaluate(self) -> None:
+        api = wandb.Api()
         for job in self.jobs.values():
             if job.status != JobStatus.SUCCEEDED:
                 continue
             if not job.wandb_run_name:
                 continue
 
-            try:
-                api = wandb.Api()
-                run = api.run(f"{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/{job.wandb_run_name}")
-                job.metrics = dict(run.summary)
-            except Exception as e:
-                print(f"Warning: Failed to fetch metrics for {job.name}: {e}")
+            run = api.run(f"{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/{job.wandb_run_name}")
+            job.metrics = dict(run.summary)
 
             if job.acceptance:
                 job.acceptance_passed = self._evaluate_acceptance(job)
