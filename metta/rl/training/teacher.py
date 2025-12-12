@@ -58,9 +58,10 @@ def apply_teacher_phase(
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
 
     if teacher_cfg.mode == "sliced_cloner":
+        # Let the cloner own sampling, but keep PPO critic forward/backprop on the shared minibatch.
         losses.ppo_critic.sample_enabled = False
-        losses.ppo_critic.train_forward_enabled = False
-        losses.ppo_critic.deferred_training_start_step = total_steps
+        losses.ppo_critic.train_forward_enabled = True
+        losses.ppo_critic.deferred_training_start_step = None
 
         slicer = losses.sliced_scripted_cloner
         slicer.enabled = True
@@ -80,13 +81,6 @@ def apply_teacher_phase(
                     loss_instance_name="sliced_scripted_cloner",
                     phase="train",
                     end_at_step=total_steps,
-                )
-            )
-            scheduler_run_gates.append(
-                LossRunGate(
-                    loss_instance_name="ppo_critic",
-                    phase="rollout",
-                    begin_at_step=total_steps,
                 )
             )
         if total_steps and teacher_cfg.led_proportion > 0.0:
