@@ -39,7 +39,6 @@ class PufferPolicy(Policy):
         self.config = config or PufferPolicyConfig()
         self.is_continuous = False
         self.action_space = policy_env_info.action_space
-        # Set observation dimensions for LSTM output reshaping (required before forward() uses these attributes)
         self.out_width = policy_env_info.obs_width
         self.out_height = policy_env_info.obs_height
 
@@ -174,19 +173,11 @@ class PufferPolicy(Policy):
         lstm_input = encoded_obs.unsqueeze(0)
         batch_size = encoded_obs.shape[0]
 
+        # Initialize state if None
         if self._hidden_state is None or self._cell_state is None:
             device = encoded_obs.device
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)
-
-        # Reset LSTM state for agents whose episodes ended to prevent stale memory from interfering with new episodes
-        dones = td.get("dones", None)
-        truncateds = td.get("truncateds", None)
-        if dones is not None and truncateds is not None:
-            reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
-            # Zero out LSTM states for ended episodes using mask (only affects agents with dones/truncateds=True)
-            self._hidden_state = self._hidden_state.masked_fill(reset_mask, 0.0)
-            self._cell_state = self._cell_state.masked_fill(reset_mask, 0.0)
 
         lstm_output, (self._hidden_state, self._cell_state) = self.lstm(
             lstm_input, (self._hidden_state, self._cell_state)
