@@ -87,7 +87,7 @@ class _AcceptanceEvaluator:
         if self._api is None:
             self._api = wandb.Api()
         try:
-            run = self._api.run(f"{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/{job.wandb_run_name}")
+            run = self._api.run(f"{METTA_WANDB_ENTITY}/{METTA_WANDB_PROJECT}/{job.wandb_run_name}")  # type: ignore[union-attr]
             job.metrics = dict(run.summary)
         except Exception as e:
             job.acceptance_passed = False
