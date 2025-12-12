@@ -4,7 +4,7 @@ import importlib
 import pkgutil
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Callable
+from typing import Callable, get_type_hints
 
 from devops.stable.runner import AcceptanceCriterion, Job
 from metta.common.tool import Tool
@@ -164,11 +164,15 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
     for spec in specs:
         tool_path = f"{spec.func.__module__}.{spec.func.__name__}"
         job_name = spec_to_job_name[spec.func]
-        tool = spec.func()
 
-        is_train = isinstance(tool, TrainTool)
+        return_type = get_type_hints(spec.func).get("return")
+        is_train = return_type is TrainTool
         is_remote = spec.gpus is not None
-        wandb_enabled = is_train and tool.wandb.enabled
+
+        wandb_enabled = False
+        if is_train:
+            tool = spec.func()
+            wandb_enabled = tool.wandb.enabled
 
         if spec.acceptance and not wandb_enabled:
             raise ValueError(f"{spec.name} has acceptance criteria but wandb is disabled")

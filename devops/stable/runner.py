@@ -375,28 +375,6 @@ class Runner:
         return True
 
 
-def create_job(
-    name: str,
-    cmd: list[str],
-    timeout_s: int = 3600,
-    gpus: int | None = None,
-    nodes: int = 1,
-    dependencies: list[str] | None = None,
-    acceptance: list[AcceptanceCriterion] | None = None,
-    wandb_run_name: str | None = None,
-) -> Job:
-    remote = {"gpus": gpus, "nodes": nodes} if gpus else None
-    return Job(
-        name=name,
-        cmd=cmd,
-        timeout_s=timeout_s,
-        remote=remote,
-        dependencies=dependencies or [],
-        acceptance=acceptance or [],
-        wandb_run_name=wandb_run_name,
-    )
-
-
 def print_summary(jobs: dict[str, Job], tail_lines: int = 50) -> bool:
     print("\n" + "=" * 60)
     print("Job Summary")
