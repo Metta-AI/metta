@@ -380,8 +380,8 @@ proc validateLocation*(obj: JsonNode, key: string, fieldName: string, issues: va
   let location = obj[key]
 
   # Check if it's a single location (never changed during replay)
-  # also make sure it's not a time series array with only 2 elements
-  if location.kind == JArray and location.len == 2:
+  # also make sure it's not a time series array
+  if location.kind == JArray and (location.len == 2 or location.len == 3):
     var allNumbers = true
     for coord in location.getElems():
       if coord.kind notin {JInt, JFloat}:
@@ -417,7 +417,8 @@ proc validateLocation*(obj: JsonNode, key: string, fieldName: string, issues: va
           field: fieldName
         ))
 
-      if coords.kind != JArray or coords.len != 2:
+      # allow vec3 so that older replays are not so noisy
+      if coords.kind != JArray or (coords.len != 2 and coords.len != 3):
         issues.add(ValidationIssue(
           message: &"{fieldName} coordinates must be [x, y] array, got {coords.kind}",
           field: fieldName
