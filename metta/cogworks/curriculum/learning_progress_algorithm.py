@@ -202,6 +202,23 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._cache_valid_tasks.add(task_id)
         return score
 
+    def _get_bidirectional_eviction_score(self, task_id: int) -> float:
+        """Eviction-specific score without the exploration floor, so ties favor low-progress tasks."""
+        # If we lack history, fall back to exploration bonus (allows eviction of cold tasks if needed)
+        if task_id not in self._per_task_fast or task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
+            return self.hypers.exploration_bonus
+
+        fast = self._per_task_fast[task_id]
+        slow = self._per_task_slow[task_id]
+
+        if self.hypers.progress_smoothing != 0.0:
+            fast = float(self._reweight(fast))
+            slow = float(self._reweight(slow))
+
+        lp = abs(fast - slow)
+        perf_bonus = max(fast, 0) * self.hypers.lp_gain
+        return lp + perf_bonus
+
     def _get_basic_learning_progress_score(self, task_id: int) -> float:
         """Calculate basic learning progress score using EMA variance."""
         # Return cached score if valid
@@ -240,7 +257,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return None
 
         if self.hypers.use_bidirectional:
-            scores = {tid: self._get_bidirectional_learning_progress_score(tid) for tid in task_ids}
+            scores = {tid: self._get_bidirectional_eviction_score(tid) for tid in task_ids}
         else:
             # Respect basic scorer configuration to avoid missing per-task fields
             scores = {tid: self._get_basic_learning_progress_score(tid) for tid in task_ids}
@@ -522,12 +539,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         sub = raw_scores[positive_mask]
 
         # Optional smoothing already applied in _get_bidirectional_learning_progress_score
-        std = np.std(sub)
-        if std > 0:
-            sub = (sub - np.mean(sub)) / std
-        else:
-            sub = sub - np.mean(sub)
+        if sub.size > 2:
+            std = np.std(sub)
+            if std > 0:
+                sub = (sub - np.mean(sub)) / std
+            else:
+                sub = sub - np.mean(sub)
 
+        # Keep sigmoid normalization even when we skip standardization for small batches
         sub = self._sigmoid(sub)
 
         total = float(np.sum(sub))
