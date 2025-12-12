@@ -166,8 +166,7 @@ class Runner:
 
     def _print(self, msg: str) -> None:
         with self._output_lock:
-            # Avoid flush-per-line overhead; tty output is line-buffered already.
-            print(msg)
+            print(msg, flush=True)
 
     def _print_status_summary(self) -> None:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
