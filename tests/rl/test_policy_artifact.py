@@ -13,7 +13,7 @@ from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from mettagrid.base_config import Config
-from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt, save_mpt
+from metta.rl.mpt_artifact import MptArtifact, load_mpt, save_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 

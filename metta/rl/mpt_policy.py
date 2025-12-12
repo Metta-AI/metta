@@ -1,3 +1,5 @@
+"""MPT-backed multi-agent policy (moved from mettagrid.policy)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -5,7 +7,7 @@ from typing import Any
 
 import torch
 
-from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
+from metta.rl.mpt_artifact import load_mpt, save_mpt
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.file import ParsedURI

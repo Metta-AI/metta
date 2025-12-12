@@ -55,13 +55,24 @@ class FileSchemeResolver(SchemeResolver):
     def _get_latest_checkpoint_uri(self, parsed: FileParsedScheme) -> str | None:
         if not parsed.local_path.is_dir():
             return None
-        best: tuple[int, str] | None = None
-        for ckpt in parsed.local_path.glob("*.mpt"):
-            uri = f"file://{ckpt}"
-            info = self.parse(uri).checkpoint_info
-            if info and (best is None or info[1] > best[0]):
-                best = (info[1], uri)
-        return best[1] if best else None
+
+        best: tuple[int, Path] | None = None
+        for candidate in parsed.local_path.iterdir():
+            if not candidate.is_dir():
+                continue
+            if ":v" not in candidate.name:
+                continue
+            run_name, suffix = candidate.name.rsplit(":v", 1)
+            if not run_name or not suffix.isdigit():
+                continue
+            epoch = int(suffix)
+            if (candidate / "policy_spec.json").exists():
+                if best is None or epoch > best[0]:
+                    best = (epoch, candidate)
+
+        if best:
+            return f"file://{best[1].resolve()}"
+        return None
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
@@ -75,11 +86,6 @@ class FileSchemeResolver(SchemeResolver):
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
-        if not uri.endswith(".mpt"):
-            latest = self._get_latest_checkpoint_uri(parsed)
-            if latest:
-                return latest
-
         return parsed.canonical
 
 
@@ -118,15 +124,29 @@ class S3SchemeResolver(SchemeResolver):
         response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
         if response["KeyCount"] == 0:
             return None
+
         best: tuple[int, str] | None = None
         for obj in response["Contents"]:
-            if not obj["Key"].endswith(".mpt"):
+            key = obj["Key"]
+            if not key.endswith("policy_spec.json"):
                 continue
-            uri = f"s3://{parsed.bucket}/{obj['Key']}"
-            info = self.parse(uri).checkpoint_info
-            if info and (best is None or info[1] > best[0]):
-                best = (info[1], uri)
-        return best[1] if best else None
+            parts = key.split("/")
+            if len(parts) < 2:
+                continue
+            run_dir = parts[-2]
+            if ":v" not in run_dir:
+                continue
+            run_name, suffix = run_dir.rsplit(":v", 1)
+            if not run_name or not suffix.isdigit():
+                continue
+            epoch = int(suffix)
+            uri = f"s3://{parsed.bucket}/{run_dir}"
+            if best is None or epoch > best[0]:
+                best = (epoch, uri)
+
+        if best:
+            return best[1]
+        return None
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
@@ -140,11 +160,6 @@ class S3SchemeResolver(SchemeResolver):
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
-        if not uri.endswith(".mpt"):
-            latest = self._get_latest_checkpoint_uri(parsed)
-            if latest:
-                return latest
-
         return parsed.canonical
 
 
@@ -249,7 +264,7 @@ def resolve_uri(uri: str) -> ParsedScheme:
 
 
 def checkpoint_filename(run_name: str, epoch: int) -> str:
-    return f"{run_name}:v{epoch}.mpt"
+    return f"{run_name}:v{epoch}"
 
 
 def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
@@ -265,24 +280,26 @@ def policy_spec_from_uri(
 ):
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
+    from mettagrid.policy.submission import POLICY_SPEC_FILENAME
+    from mettagrid.util.file import read
 
     parsed = resolve_uri(uri)
 
-    if parsed.canonical.endswith(".mpt"):
-        checkpoint_path = str(parsed.local_path) if parsed.local_path else parsed.canonical
-        return PolicySpec(
-            class_path="mettagrid.policy.mpt_policy.MptPolicy",
-            init_kwargs={
-                "checkpoint_uri": checkpoint_path,
-                "device": device,
-                "strict": strict,
-            },
-        )
-
     if parsed.scheme == "s3":
-        return load_policy_spec_from_s3(
-            parsed.canonical, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
-        )
+        # Support both archive submissions (.zip) and spec directories
+        if parsed.canonical.endswith(".zip"):
+            return load_policy_spec_from_s3(
+                parsed.canonical, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
+            )
+
+        spec_key = parsed.canonical
+        if not spec_key.endswith(POLICY_SPEC_FILENAME):
+            spec_key = parsed.canonical.rstrip("/") + f"/{POLICY_SPEC_FILENAME}"
+        spec_bytes = read(spec_key)
+        spec = PolicySpec.model_validate_json(spec_bytes.decode())
+        if device is not None and "device" in spec.init_kwargs:
+            spec.init_kwargs["device"] = device
+        return spec
 
     if parsed.local_path:
         return load_policy_spec_from_local_dir(parsed.local_path, device=device)

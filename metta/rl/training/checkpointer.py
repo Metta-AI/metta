@@ -10,7 +10,7 @@ from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
+from metta.rl.mpt_artifact import MptArtifact, load_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
@@ -55,6 +55,9 @@ class Checkpointer(TrainerComponent):
         candidate_uri = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
         load_device = torch.device(self._distributed.config.device)
 
+        def _mpt_uri_from_checkpoint(uri: str) -> str:
+            return uri if uri.endswith(".mpt") else uri.rstrip("/") + "/policy.mpt"
+
         if self._distributed.is_distributed:
             normalized_uri = None
             if self._distributed.is_master() and candidate_uri:
@@ -64,7 +67,7 @@ class Checkpointer(TrainerComponent):
             if normalized_uri:
                 artifact: MptArtifact | None = None
                 if self._distributed.is_master():
-                    artifact = load_mpt(normalized_uri)
+                    artifact = load_mpt(_mpt_uri_from_checkpoint(normalized_uri))
 
                 state_dict = self._distributed.broadcast_from_master(
                     {k: v.cpu() for k, v in artifact.state_dict.items()} if artifact else None
@@ -91,7 +94,7 @@ class Checkpointer(TrainerComponent):
                 return policy
 
         if candidate_uri:
-            artifact = load_mpt(candidate_uri)
+            artifact = load_mpt(_mpt_uri_from_checkpoint(candidate_uri))
             policy = artifact.instantiate(policy_env_info, load_device)
             self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)

@@ -13,7 +13,7 @@ from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.mpt_policy import MptPolicy
+from metta.rl.mpt_policy import MptPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
