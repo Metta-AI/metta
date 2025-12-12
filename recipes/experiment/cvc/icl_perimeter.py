@@ -415,7 +415,8 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
         bptt_horizon=600,  # Match max episode length
-        batch_size=5_242_880,  # Large enough for 8184 agents (needs >= 4910400), divisible by powers of 2
+        batch_size=5_256_000,  # Divisible by minibatch_size (18000 × 292)
+        minibatch_size=18000,  # Divisible by bptt_horizon (600 × 30)
     )
 
     # Eval on hardest config (all 4 missing)
