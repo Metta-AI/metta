@@ -1,16 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar
+from typing import Any
 
 import torch.nn as nn
-from pydantic import ConfigDict
 
 from mettagrid.base_config import Config
 
 
 class ComponentConfig(Config, ABC):
     """Abstract base class for component configurations."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
 
     name: str
 
