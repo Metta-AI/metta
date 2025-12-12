@@ -3,6 +3,7 @@ import { configsRoute } from "@/lib/routes";
 
 import { getConfig } from "../../../../lib/api";
 import { ConfigViewScreen } from "./ConfigViewScreen";
+import { ConfigViewTitle } from "./ConfigViewTitle";
 
 interface ConfigViewPage {
   params: Promise<{ name: string }>;
@@ -25,18 +26,7 @@ export default async function ConfigViewPage({ params }: ConfigViewPage) {
             ← Back to config makers list
           </StyledLink>
         </div>
-        <h1 className="text-2xl font-bold">
-          <span>
-            <a
-              className="hover:underline"
-              href={`cursor://file${cfg.maker.absolute_path}:${cfg.maker.line}`}
-            >
-              {cfg.maker.path}
-            </a>
-          </span>
-          <span className="text-xl text-gray-400"> &rarr;</span>
-          <span className="text-xl text-gray-500"> {cfg.maker.kind}</span>
-        </h1>
+        <ConfigViewTitle maker={cfg.maker} />
       </div>
       <div className="p-4">
         <ConfigViewScreen cfg={cfg} />

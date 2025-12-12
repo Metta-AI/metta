@@ -13,7 +13,11 @@ from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.util.file import ParsedURI
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, parse_uri, policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import (
+    checkpoint_filename,
+    parse_uri,
+    policy_spec_from_uri,
+)
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -39,12 +43,9 @@ class SLCheckpointedKickstarterConfig(LossConfig):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "SLCheckpointedKickstarter":
         """Create SLCheckpointedKickstarter loss instance."""
-        return SLCheckpointedKickstarter(
-            policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config
-        )
+        return SLCheckpointedKickstarter(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class SLCheckpointedKickstarter(Loss):
@@ -68,12 +69,9 @@ class SLCheckpointedKickstarter(Loss):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any = None,
+        cfg: "SLCheckpointedKickstarterConfig",
     ) -> None:
-        # Get loss config from trainer_cfg if not provided
-        if loss_config is None:
-            loss_config = getattr(trainer_cfg.losses, instance_name, None)
-        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         self.temperature = self.cfg.temperature
         self.student_forward = self.cfg.student_forward
         self.teacher_uri = self.cfg.teacher_uri

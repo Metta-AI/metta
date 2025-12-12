@@ -27,7 +27,7 @@ class UvSetup(SetupModule):
             sys.exit(1)
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        cmd = ["uv", "sync"]
+        cmd = ["uv", "sync", "--all-packages"]
         cmd.extend(["--force-reinstall", "--no-cache"] if force else [])
         env = os.environ.copy()
         env["METTAGRID_FORCE_NIM_BUILD"] = "1"

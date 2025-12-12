@@ -11,6 +11,7 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
+from metta.rl.utils import add_dummy_loss_for_unused_params
 from mettagrid.base_config import Config
 
 
@@ -42,16 +43,8 @@ class PPOActorConfig(LossConfig):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "PPOActor":
-        return PPOActor(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return PPOActor(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class PPOActor(Loss):
@@ -66,9 +59,9 @@ class PPOActor(Loss):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "PPOActorConfig",
     ):
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
 
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))
@@ -157,6 +150,7 @@ class PPOActor(Loss):
         entropy_loss = entropy.mean()
 
         loss = pg_loss - cfg.ent_coef * entropy_loss
+        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["act_log_prob", "entropy"])
 
         # Compute metrics
         with torch.no_grad():

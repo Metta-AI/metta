@@ -39,17 +39,9 @@ class LogitKickstarterConfig(LossConfig):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "LogitKickstarter":
         """Create LogitKickstarter loss instance."""
-        return LogitKickstarter(
-            policy,
-            trainer_cfg,
-            vec_env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return LogitKickstarter(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class LogitKickstarter(Loss):
@@ -73,9 +65,9 @@ class LogitKickstarter(Loss):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any = None,
+        cfg: "LogitKickstarterConfig",
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         self.student_forward = self.cfg.student_forward
 
         base_policy_env_info = getattr(self.env, "policy_env_info", None)

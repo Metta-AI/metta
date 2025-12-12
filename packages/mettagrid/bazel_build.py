@@ -45,7 +45,10 @@ def _run_bazel_build() -> None:
     """Run Bazel build to compile the C++ extension."""
     # Check if bazel is available
     if shutil.which("bazel") is None:
-        raise RuntimeError("Bazel is required to build mettagrid. Run ./devops/tools/install-system.sh to install it.")
+        raise RuntimeError(
+            "Bazel is required to build mettagrid. "
+            "Run 'uv run python -m metta.setup.components.system_packages.bootstrap' to install it."
+        )
 
     # Determine build configuration from environment
     debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")

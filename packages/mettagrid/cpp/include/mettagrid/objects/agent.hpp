@@ -36,7 +36,6 @@ public:
   RewardType current_stat_reward;
   RewardType* reward;
   GridLocation prev_location;
-  std::string prev_action_name;
   unsigned int steps_without_motion;
   // Inventory regeneration amounts (per-agent)
   std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
@@ -53,7 +52,7 @@ public:
 
   void set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory);
 
-  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta);
+  void on_inventory_change(InventoryItem item, InventoryDelta delta) override;
 
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr);
 
