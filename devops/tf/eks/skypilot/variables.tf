@@ -5,3 +5,18 @@ variable "lambda_ai_secret_arn" {
 variable "jobs_bucket" {
   default = "skypilot-jobs"
 }
+
+variable "db_instance_class" {
+  type    = string
+  default = "db.m8gd.large"
+}
+
+variable "db_allocated_storage" {
+  type    = number
+  default = 500 # GiB
+}
+
+variable "db_postgres_version" {
+  type    = string
+  default = "17.5"
+}
