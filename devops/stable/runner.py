@@ -39,7 +39,8 @@ class Job(BaseModel):
     name: str
     cmd: list[str]
     timeout_s: int = 3600
-    remote: dict | None = None
+    remote_gpus: int | None = None
+    remote_nodes: int | None = None
     dependencies: list[str] = Field(default_factory=list)
     acceptance: list[AcceptanceCriterion] = Field(default_factory=list)
     wandb_run_name: str | None = None
@@ -57,7 +58,7 @@ class Job(BaseModel):
 
     @property
     def is_remote(self) -> bool:
-        return self.remote is not None
+        return self.remote_gpus is not None or self.remote_nodes is not None
 
     @property
     def is_terminal(self) -> bool:

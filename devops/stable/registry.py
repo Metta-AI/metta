@@ -25,8 +25,11 @@ class JobSpec:
     depends_on: Callable[..., Tool] | None = None
     input_references: dict[str, str] = field(default_factory=dict)
     timeout_s: int = 3600
-    gpus: int | None = None
-    nodes: int = 1
+
+    # Only used for remote jobs
+    remote_gpus: int | None = None
+    remote_nodes: int | None = None
+
     acceptance: list[AcceptanceCriterion] = field(default_factory=list)
 
     @property
@@ -44,8 +47,6 @@ def ci_job(
     depends_on: Callable[..., Tool] | None = None,
     input_references: dict[str, str] | None = None,
     timeout_s: int = 300,
-    gpus: int | None = None,
-    nodes: int = 1,
     acceptance: list[AcceptanceCriterion] | None = None,
 ) -> Callable[[Callable[..., Tool]], Callable[..., Tool]]:
     """Register a CI job.
@@ -67,8 +68,6 @@ def ci_job(
                 depends_on=depends_on,
                 input_references=input_references or {},
                 timeout_s=timeout_s,
-                gpus=gpus,
-                nodes=nodes,
                 acceptance=acceptance or [],
             )
         )
@@ -82,8 +81,8 @@ def stable_job(
     depends_on: Callable[..., Tool] | None = None,
     input_references: dict[str, str] | None = None,
     timeout_s: int = 7200,
-    gpus: int | None = None,
-    nodes: int = 1,
+    remote_gpus: int | None = None,
+    remote_nodes: int | None = None,
     acceptance: list[AcceptanceCriterion] | None = None,
 ) -> Callable[[Callable[..., Tool]], Callable[..., Tool]]:
     """Register a stable release job.
@@ -105,8 +104,8 @@ def stable_job(
                 depends_on=depends_on,
                 input_references=input_references or {},
                 timeout_s=timeout_s,
-                gpus=gpus,
-                nodes=nodes,
+                remote_gpus=remote_gpus,
+                remote_nodes=remote_nodes,
                 acceptance=acceptance or [],
             )
         )
@@ -158,38 +157,39 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
 
     spec_to_job_name: dict[Callable, str] = {}
     for spec in specs:
-        short_name = spec.name.replace(".", "_")
-        spec_to_job_name[spec.func] = f"{prefix}.{short_name}"
+        spec_to_job_name[spec.func] = f"{prefix}-{spec.name}"
 
     for spec in specs:
         tool_path = f"{spec.func.__module__}.{spec.func.__name__}"
         job_name = spec_to_job_name[spec.func]
 
         return_type = get_type_hints(spec.func).get("return")
-        is_train = return_type is TrainTool
-        is_remote = spec.gpus is not None
 
         wandb_enabled = False
-        if is_train:
+        if return_type is TrainTool:
             tool = spec.func()
+            assert isinstance(tool, TrainTool)
             wandb_enabled = tool.wandb.enabled
 
         if spec.acceptance and not wandb_enabled:
-            raise ValueError(f"{spec.name} has acceptance criteria but wandb is disabled")
+            raise ValueError(f"{spec.name} must have wandb enabled to use acceptance criteria")
 
-        if is_remote:
+        assert (spec.remote_gpus is not None) == (spec.remote_nodes is not None), (
+            "remote jobs must have either gpus or nodes"
+        )
+        if spec.remote_gpus:
             cmd = [
                 "uv",
                 "run",
                 "./devops/skypilot/launch.py",
                 tool_path,
-                f"--gpus={spec.gpus}",
-                f"--nodes={spec.nodes}",
+                f"--gpus={spec.remote_gpus}",
+                f"--nodes={spec.remote_nodes}",
                 "--skip-git-check",
             ]
         else:
             cmd = ["uv", "run", "./tools/run.py", tool_path]
-        if is_train:
+        if return_type is TrainTool:
             cmd.append(f"run={job_name}")
 
         dependencies: list[str] = []
@@ -206,14 +206,13 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
                 inject_args.append(f"{param_name}={value}")
             cmd.extend(inject_args)
 
-        remote = {"gpus": spec.gpus, "nodes": spec.nodes} if spec.gpus else None
-
         jobs.append(
             Job(
                 name=job_name,
                 cmd=cmd,
                 timeout_s=spec.timeout_s,
-                remote=remote,
+                remote_gpus=spec.remote_gpus,
+                remote_nodes=spec.remote_nodes,
                 dependencies=dependencies,
                 wandb_run_name=job_name if wandb_enabled else None,
                 acceptance=spec.acceptance,

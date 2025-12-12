@@ -298,7 +298,8 @@ def evaluate_ci(dir_path: str) -> EvaluateTool:
 
 
 @stable_job(
-    gpus=1,
+    remote_gpus=1,
+    remote_nodes=1,
     timeout_s=7200,
     acceptance=[
         AcceptanceCriterion(metric="overview/sps", threshold=40000),
@@ -315,8 +316,8 @@ def train_100m() -> TrainTool:
 
 
 @stable_job(
-    gpus=4,
-    nodes=4,
+    remote_gpus=4,
+    remote_nodes=4,
     timeout_s=172800,
     acceptance=[
         AcceptanceCriterion(metric="overview/sps", threshold=80000),
@@ -334,5 +335,5 @@ def train_2b() -> TrainTool:
 
 @stable_job(depends_on=train_100m, input_references={"policy_uri": "uri"}, timeout_s=1800)
 def evaluate_stable(policy_uri: str) -> EvaluateTool:
-    """Evaluate the 100M trained policy."""
+    """Local evaluation of the 100M trained policy."""
     return EvaluateTool(simulations=simulations(), policy_uris=[policy_uri])

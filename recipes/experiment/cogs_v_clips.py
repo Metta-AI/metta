@@ -714,7 +714,8 @@ def play_ci() -> PlayTool:
 
 
 @stable_job(
-    gpus=1,
+    remote_gpus=1,
+    remote_nodes=1,
     timeout_s=43200,
     acceptance=[AcceptanceCriterion(metric="overview/sps", threshold=30000)],
 )
@@ -726,8 +727,8 @@ def train_200ep() -> TrainTool:
 
 
 @stable_job(
-    gpus=4,
-    nodes=4,
+    remote_gpus=4,
+    remote_nodes=4,
     timeout_s=172800,
     acceptance=[AcceptanceCriterion(metric="overview/sps", threshold=80000)],
 )
