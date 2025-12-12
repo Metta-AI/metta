@@ -7,11 +7,12 @@ from typing import Any, Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from metta.doxascope.doxascope_data import DoxascopeLogger
+from metta.doxascope.doxascope_data import DoxascopeEventHandler, DoxascopeLogger
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 
 logger = logging.getLogger(__name__)
@@ -74,32 +75,51 @@ def run_simulations(
     seed: int,
     max_workers: int | None = None,
     on_progress: Callable[[str], None] = lambda x: None,
-    doxascope_logger: DoxascopeLogger | None = None,
+    event_handlers: list[SimulatorEventHandler] | None = None,
 ) -> list[SimulationRunResult]:
     if not policy_specs:
         raise ValueError("At least one policy spec is required")
+
+    # Helper to check if DoxascopeEventHandler exists in event_handlers
+    def has_doxascope_handler(handlers: list[SimulatorEventHandler] | None) -> bool:
+        if handlers is None:
+            return False
+        return any(isinstance(h, DoxascopeEventHandler) for h in handlers)
 
     # Doxascope requires sequential processing because:
     # 1. The logger tracks state across timesteps within the same process
     # 2. ProcessPoolExecutor spawns separate processes that can't share logger state
     # 3. doxascope_enabled simulations need access to the configured logger
-    uses_doxascope = doxascope_logger is not None or any(sim.doxascope_enabled for sim in simulations)
+    uses_doxascope = has_doxascope_handler(event_handlers) or any(sim.doxascope_enabled for sim in simulations)
 
     # Sequential path: for doxascope, max_workers unset/1, or single simulation
     if uses_doxascope or not max_workers or max_workers <= 1 or len(simulations) <= 1:
         simulation_rollouts: list[SimulationRunResult] = []
 
         for i, simulation in enumerate(simulations):
-            # Create or clone doxascope logger for this simulation
+            # Clone event handlers for this simulation
+            # If there's a DoxascopeEventHandler, clone its logger and create a new handler
+            current_handlers: list[SimulatorEventHandler] = []
             current_logger: DoxascopeLogger | None = None
-            if doxascope_logger is not None:
-                prefix = simulation.episode_tags.get("name", "eval")
-                sim_id = f"{prefix}_{uuid.uuid4().hex[:12]}"
-                current_logger = doxascope_logger.clone(sim_id)
+
+            if event_handlers:
+                for handler in event_handlers:
+                    if isinstance(handler, DoxascopeEventHandler):
+                        # Clone the logger with a new simulation ID
+                        prefix = simulation.episode_tags.get("name", "eval")
+                        sim_id = f"{prefix}_{uuid.uuid4().hex[:12]}"
+                        current_logger = handler._logger.clone(sim_id)
+                        # Create new event handler with cloned logger
+                        current_handlers.append(DoxascopeEventHandler(current_logger))
+                    else:
+                        # Keep other handlers as-is
+                        current_handlers.append(handler)
             elif simulation.doxascope_enabled:
+                # Create a new logger if simulation requires doxascope but none was provided
                 prefix = simulation.episode_tags.get("name", "eval")
                 simulation_id = f"{prefix}_{uuid.uuid4().hex[:12]}"
                 current_logger = DoxascopeLogger(enabled=True, simulation_id=simulation_id)
+                current_handlers.append(DoxascopeEventHandler(current_logger))
 
             env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
             multi_agent_policies: list[MultiAgentPolicy] = [
@@ -115,7 +135,7 @@ def run_simulations(
                 proportions=simulation.proportions,
                 save_replay=replay_dir,
                 max_action_time_ms=simulation.max_action_time_ms,
-                doxascope_logger=current_logger,
+                event_handlers=current_handlers if current_handlers else None,
             )
 
             if current_logger:

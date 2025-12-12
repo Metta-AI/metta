@@ -11,7 +11,7 @@ from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.common.tool import Tool
 from metta.common.tool.tool import ToolResult, ToolWithResult
 from metta.common.wandb.context import WandbRunAppendContext
-from metta.doxascope.doxascope_data import DoxascopeLogger
+from metta.doxascope.doxascope_data import DoxascopeEventHandler, DoxascopeLogger
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult
@@ -23,6 +23,7 @@ from metta.sim.simulate_and_record import (
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
@@ -135,11 +136,21 @@ class EvaluateTool(Tool):
                     "needed to push metrics to WandB."
                 )
 
-        # Configure doxascope logger with policy URI if provided
+        # Create event handlers list at the highest level
+        event_handlers: list[SimulatorEventHandler] = []
+
+        # Configure doxascope logger and create event handler if provided
         if self.doxascope_logger and policy_uris:
-            from metta.tools.resolve_uri import resolve_uri
-            normalized_uri = resolve_uri(policy_uris[0])
-            self.doxascope_logger.configure(policy_uri=normalized_uri)
+            # Extract object_type_names from the first simulation's environment config
+            sim_configs = self._to_simulation_run_configs()
+            object_type_names = list(sim_configs[0].env.game.objects.keys()) if sim_configs else None
+            # Use the original policy URI (not resolved S3 URI) for output directory naming
+            self.doxascope_logger.configure(
+                policy_uri=policy_uris[0],
+                object_type_names=object_type_names
+            )
+            # Create DoxascopeEventHandler and add to event handlers list
+            event_handlers.append(DoxascopeEventHandler(self.doxascope_logger))
 
         with wandb_context as wandb_run:
             if self.push_metrics_to_wandb:
@@ -160,7 +171,7 @@ class EvaluateTool(Tool):
                 seed=self.system.seed,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
-                doxascope_logger=self.doxascope_logger,
+                event_handlers=event_handlers if event_handlers else None,
                 max_workers=num_workers,
                 on_progress=logger.info if self.verbose else lambda x: None,
             )

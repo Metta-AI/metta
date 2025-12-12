@@ -8,7 +8,6 @@ from typing import Callable, Optional, Sequence
 import numpy as np
 from pydantic import BaseModel, ConfigDict
 
-from metta.doxascope.doxascope_data import DoxascopeEventHandler
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
@@ -66,7 +65,7 @@ def multi_episode_rollout(
     save_replay: Optional[str] = None,
     max_action_time_ms: int | None = None,
     render_mode: Optional[RenderMode] = None,
-    doxascope_logger: Optional[DoxascopeLogger] = None,
+    event_handlers: Optional[list[SimulatorEventHandler]] = None,
 ) -> MultiEpisodeRolloutResult:
     """
     Runs rollout for multiple episodes, randomizing agent assignments for each episode in proportions
@@ -99,18 +98,14 @@ def multi_episode_rollout(
             policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
 
+        # Start with provided event handlers or empty list
+        handlers: list[SimulatorEventHandler] = list(event_handlers) if event_handlers is not None else []
+
         # Create a new replay writer for each episode if save_replay is provided
-        handlers: list[SimulatorEventHandler] = []
         episode_replay_writer = None
         if save_replay is not None:
             episode_replay_writer = ReplayLogWriter(save_replay)
             handlers.append(episode_replay_writer)
-        # Create new event handler for the same doxascope logger
-
-        if doxascope_logger is not None:
-            if doxascope_logger.enabled:
-                doxascope_event_handler = DoxascopeEventHandler(doxascope_logger)
-                handlers.append(doxascope_event_handler)
 
         rollout = Rollout(
             env_cfg,

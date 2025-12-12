@@ -13,11 +13,12 @@ from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
 
-from metta.doxascope.doxascope_data import DoxascopeLogger
+from metta.doxascope.doxascope_data import DoxascopeEventHandler, DoxascopeLogger
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 from mettagrid.simulator.multi_episode.summary import MultiEpisodeRolloutSummary, build_multi_episode_rollout_summaries
 
@@ -80,6 +81,10 @@ def evaluate(
             initialize_or_load_policy(env_interface, spec) for spec in policy_specs
         ]
 
+        # Create event handlers list at the highest level for this mission
+        event_handlers: list[SimulatorEventHandler] = []
+        doxascope_logger: DoxascopeLogger | None = None
+
         if base_doxascope_logger.enabled:
             doxascope_logger = base_doxascope_logger.clone(simulation_id=f"eval_{seed}_{mission_name}")
             # Extract policy URI from either data_path or init_kwargs
@@ -88,8 +93,8 @@ def evaluate(
                 policy_uri=str(policy_uri),
                 object_type_names=list(env_cfg.game.objects.keys())
             )
-        else:
-            doxascope_logger = None
+            # Create DoxascopeEventHandler and add to event handlers list
+            event_handlers.append(DoxascopeEventHandler(doxascope_logger))
 
         progress_label = f"Simulating ({mission_name})"
         progress_iterable = range(episodes)
@@ -111,7 +116,7 @@ def evaluate(
                 seed=seed,
                 progress_callback=_progress_callback,
                 save_replay=save_replay,
-                doxascope_logger=doxascope_logger,
+                event_handlers=event_handlers if event_handlers else None,
             )
 
         if doxascope_logger:
