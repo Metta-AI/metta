@@ -310,6 +310,7 @@ class SweepTool(Tool):
             scheduler = AsyncCappedOptimizingScheduler(scheduler_config)
         else:
             # GRID_SEARCH scheduler: derive categorical parameters and enumerate
+            # Keep local import for slow loading metta.sweep.schedulers.grid_search
             from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
 
             # Helper to extract categoricals from search_space if present
