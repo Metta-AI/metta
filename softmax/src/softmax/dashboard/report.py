@@ -76,6 +76,10 @@ def report(
 
     This command collects metrics from the Softmax dashboard registry.
     """
+    if push and dry_run:
+        typer.echo("Error: --push and --dry-run are mutually exclusive")
+        raise typer.Exit(1)
+
     metrics = None  # Initialize before try block
 
     # Collect from existing softmax dashboard registry
@@ -86,8 +90,8 @@ def report(
     except Exception as e:
         logger.warning("Failed to collect softmax dashboard metrics: %s", e, exc_info=True)
 
-    # Send to Datadog if push is enabled (and not dry-run)
-    if push and not dry_run and metrics:
+    # Send to Datadog if push is enabled
+    if push and metrics:
         try:
             typer.echo("Pushing softmax dashboard metrics to Datadog...")
             configuration = _datadog_configuration()
