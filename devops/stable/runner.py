@@ -167,6 +167,16 @@ class Runner:
         with self._output_lock:
             print(msg, flush=True)
 
+    def _complete_job(self, job: Job, status: JobStatus, exit_code: int, error: str | None = None) -> None:
+        job.status = status
+        job.exit_code = exit_code
+        job.error = error
+        job.completed_at = datetime.now().isoformat()
+        started = datetime.fromisoformat(job.started_at)
+        job.duration_s = (datetime.fromisoformat(job.completed_at) - started).total_seconds()
+        result = "PASSED" if status == JobStatus.SUCCEEDED else f"FAILED: {error}"
+        self._print(f"[{job.name}] {result} (duration={job.duration_s:.0f}s)")
+
     def _print_status_summary(self) -> None:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._print(f"\n[{timestamp}] === Status Summary ===")
@@ -306,30 +316,12 @@ class Runner:
                 continue
 
             sky_job = status_by_id.get(job.skypilot_job_id)
-            if not sky_job:
-                job.status = JobStatus.FAILED
-                job.exit_code = 1
-                job.completed_at = datetime.now().isoformat()
-                job.error = "Job disappeared from SkyPilot queue"
-                self._print(f"[{job.name}] FAILED: Job disappeared from SkyPilot queue")
-                continue
+            sky_status = str(sky_job.get("status", "")).upper() if sky_job else "MISSING"
 
-            sky_status = str(sky_job.get("status", "")).upper()
             if "SUCCEEDED" in sky_status:
-                job.status = JobStatus.SUCCEEDED
-                job.exit_code = 0
-                job.completed_at = datetime.now().isoformat()
-                started = datetime.fromisoformat(job.started_at)
-                job.duration_s = (datetime.fromisoformat(job.completed_at) - started).total_seconds()
-                self._print(f"[{job.name}] PASSED (duration={job.duration_s:.0f}s)")
-            elif any(s in sky_status for s in ("FAILED", "CANCELLED")):
-                job.status = JobStatus.FAILED
-                job.exit_code = 1
-                job.completed_at = datetime.now().isoformat()
-                job.error = f"SkyPilot status: {sky_status}"
-                started = datetime.fromisoformat(job.started_at)
-                job.duration_s = (datetime.fromisoformat(job.completed_at) - started).total_seconds()
-                self._print(f"[{job.name}] FAILED: {sky_status} (duration={job.duration_s:.0f}s)")
+                self._complete_job(job, JobStatus.SUCCEEDED, 0)
+            elif any(s in sky_status for s in ("FAILED", "CANCELLED", "MISSING")):
+                self._complete_job(job, JobStatus.FAILED, 1, f"SkyPilot status: {sky_status}")
 
     def _fetch_metrics_and_evaluate(self) -> None:
         api = wandb.Api()
