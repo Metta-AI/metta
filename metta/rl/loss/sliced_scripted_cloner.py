@@ -14,6 +14,7 @@ from metta.rl.utils import add_dummy_loss_for_unused_params, prepare_policy_forw
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
+# Keep: heavy module + manages circular dependency (loss <-> trainer)
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 

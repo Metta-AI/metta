@@ -19,6 +19,7 @@ from mettagrid.util.uri_resolvers.schemes import (
     policy_spec_from_uri,
 )
 
+# Keep: heavy module + manages circular dependency (loss <-> trainer)
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 

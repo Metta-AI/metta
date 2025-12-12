@@ -6,6 +6,7 @@ from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
+# Keep: heavy module + manages circular dependency (loss <-> trainer)
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 from metta.agent.policy import Policy

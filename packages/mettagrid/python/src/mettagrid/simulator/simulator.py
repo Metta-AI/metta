@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
-# Don't use `from ... import ...` here because it will cause a circular import.
+# Don't use `from ... import ...` for convert_to_cpp_game_config or
+# MettaGridConfig because it will cause a circular import.
 import mettagrid.config.mettagrid_c_config as mettagrid_c_config
 import mettagrid.config.mettagrid_config as mettagrid_config
 from mettagrid.config.id_map import ObservationFeatureSpec
