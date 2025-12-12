@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -36,7 +36,7 @@ def make_nav_ascii_env(
     border_width: int = 6,
     instance_border_width: int = 3,
 ) -> MettaGridConfig:
-    # we re-use nav sequence maps, but replace all objects with altars
+    # we re-use nav sequence maps, but replace all objects with assemblers
     path = f"packages/mettagrid/configs/maps/navigation_sequence/{name}.map"
 
     env = eb.make_navigation(num_agents=num_agents * num_instances)
@@ -44,9 +44,9 @@ def make_nav_ascii_env(
 
     map_instance = AsciiMapBuilder.Config.from_uri(path)
 
-    # Replace objects with altars by setting char_to_map_name (char -> map_name, the stable ASCII map key).
-    map_instance.char_to_map_name["n"] = "altar"
-    map_instance.char_to_map_name["m"] = "altar"
+    # Replace objects with assemblers by setting char_to_map_name (char -> map_name, the stable ASCII map key).
+    map_instance.char_to_map_name["n"] = "assembler"
+    map_instance.char_to_map_name["m"] = "assembler"
 
     env.game.map_builder = MapGen.Config(
         instances=num_instances,
@@ -69,7 +69,7 @@ def make_emptyspace_sparse_env() -> MettaGridConfig:
             border_width=3,
             instance=MeanDistance.Config(
                 mean_distance=30,
-                objects={"altar": 3},
+                objects={"assembler": 3},
             ),
         ),
     )
@@ -108,7 +108,7 @@ def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
         instance_border_width=3,
         instance=NavigationFromNumpy.Config(
             agents=num_agents,
-            objects={"altar": 10},
+            objects={"assembler": 10},
             dir="varied_terrain/dense_large",
         ),
     )
@@ -135,25 +135,25 @@ def make_curriculum(
             maps.append(f"varied_terrain/{terrain}_{size}")
 
     dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(3, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance.objects.assembler", [Span(3, 50)])
 
     # sparse environments are just random maps
     sparse_nav_env = nav_env.model_copy()
     sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
         agents=4,
-        objects={"altar": 10},
+        objects={"assembler": 10},
     )
     sparse_tasks = cc.bucketed(sparse_nav_env)
     sparse_tasks.add_bucket("game.map_builder.width", [Span(60, 120)])
     sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 10)])
+    sparse_tasks.add_bucket("game.map_builder.objects.assembler", [Span(1, 10)])
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
             use_bidirectional=True,  # Default: bidirectional learning progress
-            ema_timescale=0.001,
+            ema_timescale=0.006,  # Tuned via sweep prashant.lp_sweep.12_10_2 (was 0.001)
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=3,
@@ -183,7 +183,7 @@ def train(
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: list[str] | str,
 ) -> EvaluateTool:
     return EvaluateTool(
         simulations=simulations(),

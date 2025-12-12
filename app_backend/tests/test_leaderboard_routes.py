@@ -4,7 +4,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.leaderboard_constants import COGAMES_SUBMITTED_PV_KEY, LEADERBOARD_SIM_NAME_EPISODE_KEY
+from metta.app_backend.leaderboard_constants import (
+    COGAMES_SUBMITTED_PV_KEY,
+    LEADERBOARD_SIM_NAME_EPISODE_KEY,
+)
 from metta.app_backend.metta_repo import MettaRepo
 
 
@@ -148,6 +151,8 @@ async def test_leaderboard_v2_users_me_route_filters_by_user(
     isolated_stats_repo: MettaRepo,
     isolated_stats_client: StatsClient,
 ) -> None:
+    from unittest import mock
+
     user = "policy-owner@example.com"
     other_user = "other@example.com"
     owned_pv_id = await _create_policy_with_scores(
@@ -174,12 +179,12 @@ async def test_leaderboard_v2_users_me_route_filters_by_user(
     )
     await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {COGAMES_SUBMITTED_PV_KEY: "true"})
 
-    isolated_stats_client._test_user_email = user  # type: ignore[attr-defined]
-    response = isolated_stats_client.get_leaderboard_policies_v2_users_me()
-    entries = response.entries
-    assert len(entries) == 1
-    assert entries[0].policy_version.id == owned_pv_id
-    assert entries[0].policy_version.user_id == user
+    with mock.patch("metta.app_backend.config.settings.DEBUG_USER_EMAIL", user):
+        response = isolated_stats_client.get_leaderboard_policies_v2_users_me()
+        entries = response.entries
+        assert len(entries) == 1
+        assert entries[0].policy_version.id == owned_pv_id
+        assert entries[0].policy_version.user_id == user
 
 
 @pytest.mark.asyncio
@@ -204,10 +209,8 @@ async def test_query_episodes_filters_by_primary_and_tag(
         ],
     )
 
-    headers = {"X-Auth-Request-Email": user}
     response = isolated_test_client.post(
         "/stats/episodes/query",
-        headers=headers,
         json={
             "primary_policy_version_ids": [str(policy_version_id)],
             "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},
@@ -225,7 +228,6 @@ async def test_query_episodes_filters_by_primary_and_tag(
     # Offset should work even when limit is None
     offset_response = isolated_test_client.post(
         "/stats/episodes/query",
-        headers=headers,
         json={
             "primary_policy_version_ids": [str(policy_version_id)],
             "tag_filters": {LEADERBOARD_SIM_NAME_EPISODE_KEY: ["arena-basic"]},

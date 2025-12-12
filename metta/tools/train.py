@@ -2,6 +2,7 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, Optional
 
 import torch
@@ -36,6 +37,7 @@ from metta.rl.training import (
     TorchProfiler,
     TrainerComponent,
     TrainingEnvironmentConfig,
+    UpdateEpochAutoTuner,
     VectorizedTrainingEnvironment,
     WandbAborter,
     WandbAborterConfig,
@@ -48,6 +50,9 @@ from metta.tools.utils.auto_config import (
     auto_stats_server_uri,
     auto_wandb_config,
 )
+from mettagrid.policy.loader import resolve_policy_class_path
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = getRankAwareLogger(__name__)
 
@@ -120,7 +125,21 @@ class TrainTool(Tool):
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()
-        env = VectorizedTrainingEnvironment(self.training_env)
+
+        sup_uri = self.training_env.supervisor_policy_uri
+        supervisor_policy_spec: PolicySpec | None = None
+        if sup_uri:
+            candidate = Path(sup_uri)
+            looks_like_path = candidate.suffix or os.sep in sup_uri or candidate.parent != Path(".")
+            looks_like_uri = "://" in sup_uri
+
+            if looks_like_uri or looks_like_path:
+                supervisor_policy_spec = policy_spec_from_uri(sup_uri)
+            else:
+                class_path = resolve_policy_class_path(sup_uri)
+                supervisor_policy_spec = PolicySpec(class_path=class_path)
+
+        env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 
         self._configure_torch_backends()
 
@@ -223,6 +242,10 @@ class TrainTool(Tool):
         if heartbeat_cfg is not None:
             components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
 
+        autotune_cfg = getattr(self.trainer, "update_epochs_autotune", None)
+        if autotune_cfg and getattr(autotune_cfg, "enabled", False):
+            components.append(UpdateEpochAutoTuner(autotune_cfg))
+
         stats_component: TrainerComponent | None = None
 
         if distributed_helper.is_master():
@@ -298,11 +321,7 @@ class TrainTool(Tool):
         if not torch.cuda.is_available():
             return
 
-        try:
-            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
-            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
-        except Exception as exc:  # pragma: no cover - diagnostic only
-            logger.debug("Skipping CUDA matmul backend configuration: %s", exc)
+        torch.set_float32_matmul_precision("high")
 
         # Opportunistically enable flash attention when available
         if os.environ.get("FLASH_ATTENTION") is None:

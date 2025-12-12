@@ -12,7 +12,7 @@ from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.url_schemes import resolve_uri
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class Checkpointer(TrainerComponent):
         if self._distributed.is_distributed:
             normalized_uri = None
             if self._distributed.is_master() and candidate_uri:
-                normalized_uri = resolve_uri(candidate_uri)
+                normalized_uri = resolve_uri(candidate_uri).canonical
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
@@ -93,7 +93,7 @@ class Checkpointer(TrainerComponent):
         if candidate_uri:
             artifact = load_mpt(candidate_uri)
             policy = artifact.instantiate(policy_env_info, load_device)
-            self._latest_policy_uri = resolve_uri(candidate_uri)
+            self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
 

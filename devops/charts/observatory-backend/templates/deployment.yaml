@@ -20,12 +20,13 @@ spec:
           envFrom:
           - secretRef:
               name: {{ .Values.secret_name }}
+          {{- if .Values.env }}
           env:
-            - name: ANTHROPIC_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.anthropic }}
-                  key: api-key
+          {{- range $key, $value := .Values.env }}
+          - name: {{ $key }}
+            value: {{ $value | quote }}
+          {{- end }}
+          {{- end }}
           resources:
             requests:
               memory: "1Gi"

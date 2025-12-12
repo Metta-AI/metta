@@ -14,7 +14,9 @@
 #include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/assembler_config.hpp"
+#include "objects/chest.hpp"
 #include "objects/constants.hpp"
+#include "objects/inventory.hpp"
 #include "objects/protocol.hpp"
 #include "objects/usable.hpp"
 #include "systems/observation_encoder.hpp"
@@ -89,11 +91,40 @@ private:
     return agents;
   }
 
-  // Check if agents have sufficient resources for the given protocol
-  bool static can_afford_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  // Get surrounding chests within chest_search_distance (Chebyshev distance)
+  // Returns empty vector if chest_search_distance is 0
+  std::vector<Chest*> get_surrounding_chests() const {
+    std::vector<Chest*> chests;
+    if (!grid || chest_search_distance == 0) return chests;
+
+    GridCoord r = location.r;
+    GridCoord c = location.c;
+
+    for (int dr = -static_cast<int>(chest_search_distance); dr <= static_cast<int>(chest_search_distance); ++dr) {
+      for (int dc = -static_cast<int>(chest_search_distance); dc <= static_cast<int>(chest_search_distance); ++dc) {
+        // Skip center (assembler itself)
+        if (dr == 0 && dc == 0) continue;
+
+        GridCoord check_r = r + dr;
+        GridCoord check_c = c + dc;
+        GridLocation check_location(check_r, check_c);
+
+        if (grid->is_valid_location(check_location)) {
+          if (Chest* chest = dynamic_cast<Chest*>(grid->object_at(check_location))) {
+            chests.push_back(chest);
+          }
+        }
+      }
+    }
+
+    return chests;
+  }
+
+  // Check if inventories have sufficient resources for the given protocol
+  bool static can_afford_protocol(const Protocol& protocol, const std::vector<Inventory*>& surrounding_inventories) {
     std::unordered_map<InventoryItem, InventoryQuantity> total_resources;
-    for (Agent* agent : surrounding_agents) {
-      for (const auto& [item, amount] : agent->inventory.get()) {
+    for (Inventory* inventory : surrounding_inventories) {
+      for (const auto& [item, amount] : inventory->get()) {
         total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
       }
     }
@@ -105,28 +136,28 @@ private:
     return true;
   }
 
-  // Check if surrounding agents can receive output from the given protocol
-  // Returns true if either (a) the protocol has no output, or (b) the surrounding agents
+  // Check if surrounding inventories can receive output from the given protocol
+  // Returns true if either (a) the protocol has no output, or (b) the surrounding inventories
   // can absorb at least one item in the output. Returns false if the protocol produces
-  // output and the surrounding agents cannot absorb any of it.
-  bool static can_receive_output(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  // output and the surrounding inventories cannot absorb any of it.
+  bool static can_receive_output(const Protocol& protocol, const std::vector<Inventory*>& surrounding_inventories) {
     // If protocol has no positive output, return true
     if (!Assembler::protocol_has_positive_output(protocol)) {
       return true;
     }
 
-    // If there are no surrounding agents, they can't absorb anything
-    if (surrounding_agents.empty()) {
+    // If there are no surrounding inventories, they can't absorb anything
+    if (surrounding_inventories.empty()) {
       return false;
     }
 
-    // Check if agents can absorb at least one item for each output resource
+    // Check if inventories can absorb at least one item
     for (const auto& [item, amount] : protocol.output_resources) {
       if (amount > 0) {
-        // Sum up free space across all surrounding agents for this item
+        // Sum up free space across all surrounding inventories for this item
         InventoryQuantity total_free_space = 0;
-        for (Agent* agent : surrounding_agents) {
-          total_free_space += agent->inventory.free_space(item);
+        for (Inventory* inventory : surrounding_inventories) {
+          total_free_space += inventory->free_space(item);
         }
         // If at least one item can be absorbed, return true
         if (total_free_space >= 1) {
@@ -135,18 +166,14 @@ private:
       }
     }
 
-    // Protocol produces output but agents can absorb none of it
+    // Protocol produces output but inventories can absorb none of it
     return false;
   }
 
-  // Give output resources to agents and log creation stats
-  void give_output_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
-    std::vector<HasInventory*> agents_as_inventory_havers;
-    for (Agent* agent : surrounding_agents) {
-      agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
-    }
+  // Give output resources to inventories and log creation stats
+  void give_output_for_protocol(const Protocol& protocol, const std::vector<Inventory*>& surrounding_inventories) {
     for (const auto& [item, amount] : protocol.output_resources) {
-      InventoryDelta distributed = HasInventory::shared_update(agents_as_inventory_havers, item, amount);
+      InventoryDelta distributed = HasInventory::shared_update(surrounding_inventories, item, amount);
 
       // Count newly created outputs
       if (stats_tracker && distributed > 0) {
@@ -167,15 +194,12 @@ private:
   }
 
 public:
-  // Consume resources from surrounding agents for the given protocol
+  // Consume resources from surrounding inventories for the given protocol
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
-  void static consume_resources_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
-    std::vector<HasInventory*> agents_as_inventory_havers;
-    for (Agent* agent : surrounding_agents) {
-      agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
-    }
+  void static consume_resources_for_protocol(const Protocol& protocol,
+                                             const std::vector<Inventory*>& surrounding_inventories) {
     for (const auto& [item, required_amount] : protocol.input_resources) {
-      InventoryDelta consumed = HasInventory::shared_update(agents_as_inventory_havers, item, -required_amount);
+      InventoryDelta consumed = HasInventory::shared_update(surrounding_inventories, item, -required_amount);
       assert(consumed == -required_amount && "Expected all required resources to be consumed");
     }
   }
@@ -222,6 +246,9 @@ public:
   // Allow partial usage during cooldown
   bool allow_partial_usage;
 
+  // Chest search distance - if > 0, assembler can use inventories from chests within this distance
+  unsigned int chest_search_distance;
+
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg, StatsTracker* stats)
       : protocols(build_protocol_map(cfg.protocols)),
         unclip_protocols(),
@@ -237,6 +264,7 @@ public:
         current_timestep_ptr(nullptr),
         obs_encoder(nullptr),
         allow_partial_usage(cfg.allow_partial_usage),
+        chest_search_distance(cfg.chest_search_distance),
         clipper_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
   }
@@ -263,22 +291,6 @@ public:
       return 0;
     }
     return cooldown_end_timestep - *current_timestep_ptr;
-  }
-
-  float cooldown_progress() const {
-    // If no cooldown is active or no timestep pointer, return 1.0 (completed)
-    if (!current_timestep_ptr || cooldown_duration == 0 || cooldown_end_timestep <= *current_timestep_ptr) {
-      return 1.0f;
-    }
-
-    // Calculate how much time has elapsed since cooldown started
-    unsigned int cooldown_start = cooldown_end_timestep - cooldown_duration;
-    if (*current_timestep_ptr <= cooldown_start) {
-      return 0.0f;  // Cooldown just started
-    }
-
-    unsigned int elapsed = *current_timestep_ptr - cooldown_start;
-    return static_cast<float>(elapsed) / static_cast<float>(cooldown_duration);
   }
 
   // Helper function to calculate GroupVibe from a vector of glyphs
@@ -381,19 +393,26 @@ public:
 
   void become_unclipped();
 
-  // Scale protocol requirements based on cooldown progress (for partial usage)
-  const Protocol scale_protocol_for_partial_usage(const Protocol& original_protocol, float progress) const {
+  // Scale protocol requirements based on cooldown remaining (for partial usage)
+  // Uses integer math: elapsed = duration - remaining, then scales by (amount * elapsed) / duration
+  const Protocol scale_protocol_for_partial_usage(const Protocol& original_protocol,
+                                                  unsigned int elapsed,
+                                                  unsigned int duration) const {
     Protocol scaled_protocol;
 
-    // Scale input resources (multiply by progress and round up)
+    // Scale input resources (multiply by elapsed/duration and round up)
+    // Round up: (amount * elapsed + duration - 1) / duration
     for (const auto& [resource, amount] : original_protocol.input_resources) {
-      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::ceil(amount * progress));
+      InventoryQuantity scaled_amount =
+          static_cast<InventoryQuantity>((static_cast<unsigned int>(amount) * elapsed + duration - 1) / duration);
       scaled_protocol.input_resources[resource] = scaled_amount;
     }
 
-    // Scale output resources (multiply by progress and round down)
+    // Scale output resources (multiply by elapsed/duration and round down)
+    // Round down: (amount * elapsed) / duration
     for (const auto& [resource, amount] : original_protocol.output_resources) {
-      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::floor(amount * progress));
+      InventoryQuantity scaled_amount =
+          static_cast<InventoryQuantity>((static_cast<unsigned int>(amount) * elapsed) / duration);
       scaled_protocol.output_resources[resource] = scaled_amount;
     }
 
@@ -414,8 +433,8 @@ public:
     }
 
     // Check if on cooldown and whether partial usage is allowed
-    float progress = cooldown_progress();
-    if (progress < 1.0f && !allow_partial_usage) {
+    unsigned int remaining = cooldown_remaining();
+    if (remaining > 0 && !allow_partial_usage) {
       return false;  // On cooldown and partial usage not allowed
     }
 
@@ -425,8 +444,10 @@ public:
     }
 
     Protocol protocol_to_use = *original_protocol;
-    if (progress < 1.0f && allow_partial_usage) {
-      protocol_to_use = scale_protocol_for_partial_usage(*original_protocol, progress);
+    if (remaining > 0 && allow_partial_usage) {
+      // Calculate elapsed time: duration - remaining
+      unsigned int elapsed = cooldown_duration - remaining;
+      protocol_to_use = scale_protocol_for_partial_usage(*original_protocol, elapsed, cooldown_duration);
 
       // Prevent usage that would yield no outputs (and would only serve to burn inputs and increment uses_count)
       // Do not prevent usage if:
@@ -439,16 +460,32 @@ public:
     }
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
-    if (!Assembler::can_afford_protocol(protocol_to_use, surrounding_agents)) {
+    // Extract Inventory* pointers from agents for resource operations
+    std::vector<Inventory*> input_inventories;
+    for (Agent* agent : surrounding_agents) {
+      input_inventories.push_back(&agent->inventory);
+    }
+    // Add chest inventories if chest_search_distance > 0
+    if (chest_search_distance > 0) {
+      std::vector<Chest*> surrounding_chests = get_surrounding_chests();
+      for (Chest* chest : surrounding_chests) {
+        input_inventories.push_back(&chest->inventory);
+      }
+    }
+    if (!Assembler::can_afford_protocol(protocol_to_use, input_inventories)) {
       return false;
     }
-    if (!Assembler::can_receive_output(protocol_to_use, surrounding_agents) && !is_clipped) {
-      // If the agents gain nothing from the protocol, don't use it.
+    std::vector<Inventory*> output_inventories;
+    for (const auto& [item, amount] : protocol_to_use.output_resources) {
+      output_inventories.push_back(&actor.inventory);
+    }
+    if (!Assembler::can_receive_output(protocol_to_use, output_inventories) && !is_clipped) {
+      // If the inventories gain nothing from the protocol, don't use it.
       return false;
     }
 
-    consume_resources_for_protocol(protocol_to_use, surrounding_agents);
-    give_output_for_protocol(protocol_to_use, surrounding_agents);
+    consume_resources_for_protocol(protocol_to_use, input_inventories);
+    give_output_for_protocol(protocol_to_use, output_inventories);
 
     cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;

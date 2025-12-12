@@ -19,7 +19,7 @@ from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import save_mpt
 from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.url_schemes import checkpoint_filename, get_checkpoint_metadata, resolve_uri
+from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, get_checkpoint_metadata, resolve_uri
 
 
 class MockActionComponentConfig(ComponentConfig):
@@ -74,7 +74,7 @@ class TestCheckpointManagerFlows:
 
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        assert latest.endswith(":v10.mpt")
+        assert ":v10.mpt" in latest or "%3Av10.mpt" in latest
 
     def test_trainer_state_save_and_restore(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Trainer state must be saved alongside policy for proper resume."""
@@ -106,9 +106,9 @@ class TestCheckpointManagerFlows:
             )
 
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}:latest"
-        resolved = resolve_uri(latest_uri)
-        metadata = get_checkpoint_metadata(resolved)
-        assert metadata["epoch"] == 7
+        parsed = resolve_uri(latest_uri)
+        metadata = get_checkpoint_metadata(parsed.canonical)
+        assert metadata.epoch == 7
 
     def test_mpt_policy_loads_and_runs(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """MptPolicy is used for evaluation - it must load checkpoint and produce actions."""

@@ -1,10 +1,9 @@
 import pytest
 
-from mettagrid.util.url_schemes import (
+from mettagrid.util.uri_resolvers.schemes import (
     FileSchemeResolver,
     MockSchemeResolver,
     S3SchemeResolver,
-    get_scheme_resolver,
     parse_uri,
     resolve_uri,
 )
@@ -52,32 +51,6 @@ class TestMockSchemeResolver:
             resolver.parse("mock://")
 
 
-class TestSchemeResolverRegistry:
-    def test_get_file_resolver(self):
-        resolver = get_scheme_resolver("file")
-        assert resolver is not None
-        assert isinstance(resolver, FileSchemeResolver)
-
-    def test_get_s3_resolver(self):
-        resolver = get_scheme_resolver("s3")
-        assert resolver is not None
-        assert isinstance(resolver, S3SchemeResolver)
-
-    def test_get_mock_resolver(self):
-        resolver = get_scheme_resolver("mock")
-        assert resolver is not None
-        assert isinstance(resolver, MockSchemeResolver)
-
-    def test_get_metta_resolver(self):
-        resolver = get_scheme_resolver("metta")
-        assert resolver is not None
-        assert resolver.scheme == "metta"
-
-    def test_unknown_scheme_returns_none(self):
-        resolver = get_scheme_resolver("unknown")
-        assert resolver is None
-
-
 class TestParseUri:
     def test_parse_file_uri(self, tmp_path):
         parsed = parse_uri(f"file://{tmp_path}/test.txt")
@@ -100,17 +73,17 @@ class TestParseUri:
         assert parsed.scheme == "file"
 
     def test_unknown_scheme_raises(self):
-        with pytest.raises(ValueError, match="Unsupported URI scheme"):
+        with pytest.raises(ValueError, match="Invalid URI"):
             parse_uri("unknown://path")
 
 
 class TestResolveUri:
     def test_resolve_file_uri(self, tmp_path):
         uri = f"file://{tmp_path}/test.txt"
-        resolved = resolve_uri(uri)
-        assert resolved.startswith("file://")
+        parsed = resolve_uri(uri)
+        assert parsed.canonical.startswith("file://")
 
     def test_resolve_plain_path(self, tmp_path):
         path = str(tmp_path / "test.txt")
-        resolved = resolve_uri(path)
-        assert resolved.startswith("file://")
+        parsed = resolve_uri(path)
+        assert parsed.canonical.startswith("file://")

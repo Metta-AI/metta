@@ -35,6 +35,7 @@ import shutil
 import sys
 import time
 from collections import defaultdict, deque
+import threading
 from threading import Thread
 
 import numpy as np
@@ -65,7 +66,8 @@ rich.traceback.install(show_locals=False)
 
 import signal  # Aggressively exit on ctrl+c
 
-signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+if threading.current_thread() is threading.main_thread():
+    signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 # Assume advantage kernel has been built if CUDA compiler is available
 ADVANTAGE_CUDA = shutil.which("nvcc") is not None
@@ -73,10 +75,8 @@ ADVANTAGE_CUDA = shutil.which("nvcc") is not None
 
 class PuffeRL:
     def __init__(self, config, vecenv, policy, logger=None):
-        # Backend perf optimization (using new API)
-        if torch.cuda.is_available():
-            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
-            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
+        # Backend perf optimization
+        torch.set_float32_matmul_precision("high")
         torch.backends.cudnn.deterministic = config["torch_deterministic"]
         torch.backends.cudnn.benchmark = True
 

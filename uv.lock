@@ -1050,6 +1050,18 @@ wheels = [
 ]
 
 [[package]]
+name = "freezegun"
+version = "1.5.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/95/dd/23e2f4e357f8fd3bdff613c1fe4466d21bfb00a6177f238079b17f7b1c84/freezegun-1.5.5.tar.gz", hash = "sha256:ac7742a6cc6c25a2c35e9292dfd554b897b517d2dec26891a2e8debf205cb94a", size = 35914, upload-time = "2025-08-09T10:39:08.338Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5e/2e/b41d8a1a917d6581fc27a35d05561037b048e47df50f27f8ac9c7e27a710/freezegun-1.5.5-py3-none-any.whl", hash = "sha256:cd557f4a75cf074e84bc374249b9dd491eaeacd61376b9eb3c423282211619d2", size = 19266, upload-time = "2025-08-09T10:39:06.636Z" },
+]
+
+[[package]]
 name = "frozenlist"
 version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2152,6 +2164,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "cpplint" },
+    { name = "freezegun" },
     { name = "gcovr" },
     { name = "metta-pr-similarity-mcp" },
     { name = "mypy" },
@@ -2187,6 +2200,7 @@ mcp-servers = [
     { name = "wandb-dashboard-mcp" },
 ]
 testing = [
+    { name = "freezegun" },
     { name = "gcovr" },
     { name = "pyright" },
     { name = "pytest" },
@@ -2274,6 +2288,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "cpplint", specifier = ">=2.0.2" },
+    { name = "freezegun", specifier = ">=1.5.5" },
     { name = "gcovr", specifier = ">=8.3" },
     { name = "metta-pr-similarity-mcp", editable = "mcp_servers/pr_similarity" },
     { name = "mypy", specifier = ">=1.18.2" },
@@ -2309,6 +2324,7 @@ mcp-servers = [
     { name = "wandb-dashboard-mcp", editable = "mcp_servers/wandb_dashboard" },
 ]
 testing = [
+    { name = "freezegun", specifier = ">=1.5.5" },
     { name = "gcovr", specifier = ">=8.3" },
     { name = "pyright", specifier = ">=1.1.401" },
     { name = "pytest", specifier = ">=8.3.3" },
@@ -2370,6 +2386,7 @@ dependencies = [
     { name = "metta-common" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
     { name = "pytest-asyncio" },
     { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
@@ -2398,6 +2415,7 @@ requires-dist = [
     { name = "metta-common", editable = "common" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.9" },
     { name = "pydantic", specifier = ">=2.11.5" },
+    { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
@@ -2421,6 +2439,7 @@ source = { editable = "common" }
 dependencies = [
     { name = "cogames" },
     { name = "rich" },
+    { name = "tenacity" },
     { name = "wandb" },
 ]
 
@@ -2438,6 +2457,7 @@ dev = [
 requires-dist = [
     { name = "cogames", editable = "packages/cogames" },
     { name = "rich", specifier = ">=14.1" },
+    { name = "tenacity", specifier = ">=9.0.0" },
     { name = "wandb", specifier = ">=0.22.3" },
 ]
 
@@ -2485,6 +2505,13 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "freezegun" },
+    { name = "pytest" },
+    { name = "pytest-benchmark" },
+    { name = "pytest-xdist" },
+]
+testing = [
+    { name = "freezegun" },
     { name = "pytest" },
     { name = "pytest-benchmark" },
     { name = "pytest-xdist" },
@@ -2503,6 +2530,13 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "freezegun", specifier = ">=1.5.0" },
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-benchmark", specifier = ">=5.1.0" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+]
+testing = [
+    { name = "freezegun", specifier = ">=1.5.0" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },

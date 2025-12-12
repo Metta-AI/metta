@@ -11,7 +11,9 @@ from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.file import local_copy
+from mettagrid.util.file import ParsedURI, local_copy, write_file
+from mettagrid.util.module import load_symbol
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 
 class PolicyArchitectureProtocol(Protocol):
@@ -45,12 +47,12 @@ class MptArtifact:
         policy = self.architecture.make_policy(policy_env_info)
         policy = policy.to(device)
 
-        if hasattr(policy, "initialize_to_environment"):
-            policy.initialize_to_environment(policy_env_info, device)
-
         missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=strict)
         if strict and (missing or unexpected):
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+
+        if hasattr(policy, "initialize_to_environment"):
+            policy.initialize_to_environment(policy_env_info, device)
 
         return policy
 
@@ -60,10 +62,8 @@ def load_mpt(uri: str) -> MptArtifact:
 
     Supports file://, s3://, metta://, local paths, and :latest suffix.
     """
-    from mettagrid.util.url_schemes import resolve_uri
-
-    resolved_uri = resolve_uri(uri)
-    with local_copy(resolved_uri) as local_path:
+    parsed = resolve_uri(uri)
+    with local_copy(parsed.canonical) as local_path:
         return _load_local_mpt_file(local_path)
 
 
@@ -93,8 +93,6 @@ def _load_local_mpt_file(path: Path) -> MptArtifact:
 
 def _architecture_from_spec(spec: str) -> PolicyArchitectureProtocol:
     """Deserialize an architecture from a string specification."""
-    from mettagrid.util.module import load_symbol
-
     spec = spec.strip()
     if not spec:
         raise ValueError("Policy architecture specification cannot be empty")
@@ -119,8 +117,6 @@ def save_mpt(
     state_dict: Mapping[str, torch.Tensor],
 ) -> str:
     """Save an .mpt checkpoint to a URI or local path. Returns the saved URI."""
-    from mettagrid.util.file import ParsedURI, write_file
-
     parsed = ParsedURI.parse(str(uri))
 
     if parsed.scheme == "s3":

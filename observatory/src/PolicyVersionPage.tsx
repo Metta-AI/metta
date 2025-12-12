@@ -4,13 +4,11 @@ import { Link, useParams } from 'react-router-dom'
 import { AppContext } from './AppContext'
 import { CopyableUri } from './components/CopyableUri'
 import { ReplayViewer, normalizeReplayUrl } from './components/ReplayViewer'
-import { TaskBadge } from './components/TaskBadge'
 import { LEADERBOARD_SIM_NAME_EPISODE_KEY } from './constants'
-import type { EpisodeWithTags, EvalTask, LeaderboardPolicyEntry, PolicyVersionWithName } from './repo'
+import { TasksTable } from './EvalTasks/TasksTable'
+import type { EpisodeWithTags, LeaderboardPolicyEntry, PolicyVersionWithName } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
 import { formatPolicyVersion } from './utils/format'
-
-const TASK_PAGE_SIZE = 100
 
 type LoadState<T> = {
   data: T
@@ -41,7 +39,7 @@ export const PolicyVersionPage: FC = () => {
   const [policyVersionInfo, setPolicyVersionInfo] = useState<LoadState<PolicyVersionWithName | null>>(() =>
     createInitialState<PolicyVersionWithName | null>(null)
   )
-  const [taskState, setTaskState] = useState<LoadState<EvalTask[]>>(() => createInitialState<EvalTask[]>([]))
+  const [taskError, setTaskError] = useState<string | null>(null)
   const [episodesState, setEpisodesState] = useState<LoadState<EpisodeWithTags[]>>(() =>
     createInitialState<EpisodeWithTags[]>([])
   )
@@ -50,7 +48,6 @@ export const PolicyVersionPage: FC = () => {
   useEffect(() => {
     if (!policyVersionId) {
       setPolicyState({ data: null, loading: false, error: 'Missing policy version id' })
-      setTaskState({ data: [], loading: false, error: 'Missing policy version id' })
       return
     }
 
@@ -79,36 +76,6 @@ export const PolicyVersionPage: FC = () => {
             data: null,
             loading: false,
             error: error.message ?? 'Failed to load policy details',
-          })
-        }
-      }
-    }
-
-    const loadTasks = async () => {
-      setTaskState((prev) => ({ ...prev, loading: true, error: null }))
-      try {
-        const tasks: EvalTask[] = []
-        let page = 1
-
-        while (true) {
-          const response = await repo.getEvalTasksPaginated(page, TASK_PAGE_SIZE, { command: policyVersionId })
-          tasks.push(...response.tasks)
-
-          if (page >= response.total_pages) {
-            break
-          }
-          page += 1
-        }
-
-        if (isMounted) {
-          setTaskState({ data: tasks, loading: false, error: null })
-        }
-      } catch (error: any) {
-        if (isMounted) {
-          setTaskState({
-            data: [],
-            loading: false,
-            error: error.message ?? 'Failed to load related tasks',
           })
         }
       }
@@ -155,7 +122,6 @@ export const PolicyVersionPage: FC = () => {
     }
 
     void loadPolicy()
-    void loadTasks()
     void loadEpisodes()
     void loadPolicyVersionInfo()
 
@@ -343,70 +309,13 @@ export const PolicyVersionPage: FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Related Jobs</h2>
-          </div>
-        </div>
-        <div className="p-5">
-          {taskState.loading ? (
-            <div className="text-gray-500 text-sm">Loading tasks...</div>
-          ) : taskState.error ? (
-            <div className="text-red-600 text-sm">{taskState.error}</div>
-          ) : taskState.data.length === 0 ? (
-            <div className="text-gray-500 text-sm">No tasks found for this policy version.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-                    <th className="px-3 py-2 border-b border-gray-200">ID</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Status</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Assignee</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Attempts</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Created</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Logs</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {taskState.data.map((task) => (
-                    <tr key={task.id} className="border-b border-gray-100 align-top">
-                      <td className="px-3 py-2">
-                        <span className="cursor-default" title={task.command}>
-                          {task.id}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <TaskBadge task={task} size="small" />
-                      </td>
-                      <td className="px-3 py-2">{task.assignee || '—'}</td>
-                      <td className="px-3 py-2">{(task.attempt_number || 0) + 1}</td>
-                      <td className="px-3 py-2" title={formatDate(task.created_at)}>
-                        {formatRelativeTime(task.created_at)}
-                      </td>
-                      <td className="px-3 py-2">
-                        {task.output_log_path ? (
-                          <a
-                            href={repo.getTaskLogUrl(task.id, 'output')}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 no-underline hover:underline"
-                          >
-                            View
-                          </a>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+      {taskError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">{taskError}</div>
+      )}
+
+      {policyVersionId && (
+        <TasksTable repo={repo} setError={setTaskError} initialFilters={{ command: policyVersionId }} hideFilters />
+      )}
     </div>
   )
 }

@@ -32,11 +32,22 @@ def _():
 @app.cell
 async def _(client, group_by):
     # Load all policies
-    policies_response = await client.get_policies()
-    all_policies = policies_response.policies
+    policies_response = await client.get_policy_versions()
+    all_policies = getattr(policies_response, "entries", None) or getattr(
+        policies_response, "policies", []
+    )
+
+    def _policy_type(policy):
+        tags = getattr(policy, "tags", {}) or {}
+        return (
+            getattr(policy, "type", None)
+            or tags.get("type")
+            or tags.get("policy_type")
+            or "training_run"
+        )
 
     # Separate training runs and run-free policies
-    policy_groups = group_by(all_policies, key_fn=lambda x: x.type)
+    policy_groups = group_by(all_policies, key_fn=_policy_type)
     training_run_policies = policy_groups.get("training_run", [])
     run_free_policies = policy_groups.get("policy", [])
 

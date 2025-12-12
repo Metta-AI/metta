@@ -184,8 +184,8 @@ def sweep_architecture(sweep_name: str) -> SweepTool:
         recipe="recipes.experiment.simple_architecture_search.basic",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
-        objective="evaluator/eval_sweep/score",
-        parameters=[architecture_parameter],
+        metric_key="evaluator/eval_sweep/score",
+        search_space=[architecture_parameter],
         max_trials=200,
         num_parallel_trials=8,
     )

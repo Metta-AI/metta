@@ -14,10 +14,8 @@
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
+#include "systems/observation_encoder.hpp"
 #include "systems/stats_tracker.hpp"
-
-class ObservationEncoder;
-
 class Chest : public GridObject, public Usable, public HasInventory {
 private:
   // a reference to the game stats tracker
@@ -34,22 +32,29 @@ private:
 
     for (const auto& [resource, delta] : resource_deltas) {
       if (delta > 0) {
-        InventoryDelta transferred = HasInventory::transfer_resources(agent, *this, resource, delta, true);
+        InventoryDelta transferred =
+            HasInventory::transfer_resources(agent.inventory, inventory, resource, delta, true);
         if (transferred > 0) {
-          stats_tracker->add("chest." + stats_tracker->resource_name(resource) + ".deposited", transferred);
-          stats_tracker->set("chest." + stats_tracker->resource_name(resource) + ".amount", inventory.amount(resource));
           any_transfer = true;
         }
       } else if (delta < 0) {
-        InventoryDelta transferred = HasInventory::transfer_resources(*this, agent, resource, -delta, true);
+        InventoryDelta transferred =
+            HasInventory::transfer_resources(inventory, agent.inventory, resource, -delta, true);
         if (transferred > 0) {
-          stats_tracker->add("chest." + stats_tracker->resource_name(resource) + ".withdrawn", transferred);
-          stats_tracker->set("chest." + stats_tracker->resource_name(resource) + ".amount", inventory.amount(resource));
           any_transfer = true;
         }
       }
     }
     return any_transfer;
+  }
+
+  void on_inventory_change(InventoryItem item, InventoryDelta delta) override {
+    if (delta > 0) {
+      stats_tracker->add("chest." + stats_tracker->resource_name(item) + ".deposited", delta);
+    } else if (delta < 0) {
+      stats_tracker->add("chest." + stats_tracker->resource_name(item) + ".withdrawn", -delta);
+    }
+    stats_tracker->set("chest." + stats_tracker->resource_name(item) + ".amount", inventory.amount(item));
   }
 
 public:
@@ -72,7 +77,7 @@ public:
     // Set initial inventory for all configured resources
     for (const auto& [resource, amount] : cfg.initial_inventory) {
       if (amount > 0) {
-        update_inventory(resource, amount);
+        inventory.update(resource, amount);
       }
     }
   }

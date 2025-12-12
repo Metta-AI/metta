@@ -2,7 +2,7 @@ import { TileSet, TileSetSource } from "./TileSet";
 import { TileSetCollection } from "./TileSetCollection";
 
 export const TILE_NAMES = [
-  "altar",
+  "assembler",
   "armory",
   "factory",
   "generator",
@@ -18,15 +18,15 @@ export const TILE_NAMES = [
   "oxygen_extractor",
   "germanium_extractor",
   "silicon_extractor",
-  "clipped_carbon_extractor",
-  "clipped_oxygen_extractor",
-  "clipped_germanium_extractor",
-  "clipped_silicon_extractor",
+  "carbon_extractor.clipped",
+  "oxygen_extractor.clipped",
+  "germanium_extractor.clipped",
+  "silicon_extractor.clipped",
+  "charger_ex_dep",
   "oxygen_ex_dep",
   "carbon_ex_dep",
   "germanium_ex_dep",
   "silicon_ex_dep",
-  "assembler",
   "chest",
   "chest_carbon",
   "chest_oxygen",
@@ -36,49 +36,51 @@ export const TILE_NAMES = [
   "lasery",
   "temple",
   "block",
-  "wall",
+  "converter",
+  "trash",
   // doesn't include "agent" or "wall.*", they're special
 ];
 
-export const WALL_NAMES = [
-  "wall.0",
-  "wall.e",
-  "wall.s",
-  "wall.se",
-  "wall.w",
-  "wall.we",
-  "wall.ws",
-  "wall.wse",
-  "wall.n",
-  "wall.ne",
-  "wall.ns",
-  "wall.nse",
-  "wall.nw",
-  "wall.nwe",
-  "wall.nws",
-  "wall.nwse",
+const objects = [...TILE_NAMES, "agent"].map((name) => {
+  // TODO: Consolidate sizes or store them along with the name
+  const size = name === "assembler" ? 192 : name === "agent" ? 256 : 64;
+
+  return {
+    src: `/mettascope-assets/objects/${name}.png`,
+    tileSize: size,
+    tiles: [
+      {
+        name,
+        // right now we don't use atlases, but this might change again in the future
+        x: 0,
+        y: 0,
+      },
+    ],
+  };
+}) satisfies TileSetSource[];
+
+const walls = [
+  {
+    src: `/mettascope-assets/wall_atlas.png`,
+    tileSize: 64,
+    tiles: [{ name: "wall", x: 0, y: 0 }],
+  },
+  {
+    src: `/mettascope-assets/wall_atlas.png`,
+    tileSize: 64,
+    tiles: Array.from({ length: 7 * 8 }, (_, i) => {
+      const x = i % 7;
+      const y = Math.floor(i / 7);
+      return {
+        name: `wall.${i}`,
+        x,
+        y,
+      };
+    }),
+  },
 ];
 
-export const WALL_E = 1;
-export const WALL_S = 2;
-export const WALL_W = 4;
-export const WALL_N = 8;
-
-const sources = [...TILE_NAMES, ...WALL_NAMES, "wall.fill", "agent"].map(
-  (name) =>
-    ({
-      src: `/mettascope-assets/objects/${name}.png`,
-      tileSize: 256,
-      tiles: [
-        {
-          name,
-          // right now we don't use atlases, but this might change again in the future
-          x: 0,
-          y: 0,
-        },
-      ],
-    }) satisfies TileSetSource
-);
+const sources = [...walls, ...objects];
 
 // singleton for loading tile sets
 let tileSetsPromise: Promise<TileSetCollection> | null = null;

@@ -11,7 +11,7 @@ from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.mpt_artifact import save_mpt
 from mettagrid.policy.mpt_policy import MptPolicy
-from mettagrid.util.url_schemes import checkpoint_filename, key_and_version, resolve_uri
+from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +59,10 @@ class CheckpointManager:
     def get_latest_checkpoint(self) -> str | None:
         def try_resolve(uri: str) -> tuple[str, int] | None:
             try:
-                resolved = resolve_uri(uri)
-                meta = key_and_version(resolved)
-                if meta:
-                    return (resolved, meta[1])
+                parsed = resolve_uri(uri)
+                info = parsed.checkpoint_info
+                if info:
+                    return (parsed.canonical, info[1])
             except (ValueError, FileNotFoundError):
                 pass
             return None

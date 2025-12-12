@@ -35,7 +35,7 @@ export const MapEditor: FC<{ charToName: Record<string, string> }> = ({
   return (
     <div className="flex h-screen">
       {/* Left Sidebar */}
-      <div className="w-80 border-r border-gray-300 bg-gray-50 p-4">
+      <div className="h-full w-96 overflow-y-scroll border-r border-gray-300 bg-gray-50 p-4">
         <div className="mb-4">
           <h2 className="mb-2 text-lg font-semibold">Tools</h2>
           <ResetGridButton currentGrid={grid} setGrid={setGrid} />

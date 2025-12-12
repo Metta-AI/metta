@@ -9,7 +9,7 @@ import yaml
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
-_SUPPORTED_MISSION_EXTENSIONS = [".yaml", ".yml", ".json", ".py"]
+_SUPPORTED_MISSION_EXTENSIONS = [".yaml", ".yml", ".json"]
 
 
 def load_mission_config_from_python(path: Path) -> MettaGridConfig:

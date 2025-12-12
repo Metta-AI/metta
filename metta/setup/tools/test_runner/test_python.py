@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 import time
@@ -49,9 +50,9 @@ PACKAGES: tuple[Package, ...] = (
 )
 
 
-def _run_command(args: Sequence[str]) -> int:
+def _run_command(args: Sequence[str], env: dict[str, str] | None = None) -> int:
     info(f"→ {' '.join(args)}")
-    completed = subprocess.run(args, cwd=get_repo_root(), check=False)
+    completed = subprocess.run(args, cwd=get_repo_root(), check=False, env={**os.environ, **(env or {})})
     return completed.returncode
 
 
@@ -126,7 +127,10 @@ def _execute_ci_packages(
         if report_file.exists():
             report_file.unlink()
         start = time.perf_counter()
-        returncode = _run_command([*base_cmd, target, "--json-report", f"--json-report-file={report_file}"])
+        returncode = _run_command(
+            [*base_cmd, target, "--json-report", f"--json-report-file={report_file}"],
+            env={"DD_SERVICE": package.name},
+        )
         duration = time.perf_counter() - start
         return PackageResult(
             package=package,
@@ -203,7 +207,9 @@ def run(
             "--timeout-method=thread",
             "--disable-warnings",
             "--color=no",
-            "-v",
+            "-q",
+            "-o",
+            "console_output_style=count",
         ]
 
         # Apply benchmark filtering for CI mode
