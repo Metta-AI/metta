@@ -277,9 +277,10 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         prev_tag = state.prev_landmark_tag
 
         # Expected new position of landmark in observation coords
-        # Movement is opposite in observation space
-        expected_new_r = prev_r + dr
-        expected_new_c = prev_c + dc
+        # Movement is opposite in observation space: if we move north (dr=-1),
+        # objects shift south in our view (+1 row)
+        expected_new_r = prev_r - dr
+        expected_new_c = prev_c - dc
 
         # Find the landmark in current observation
         for tok in obs.tokens:
@@ -468,68 +469,208 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         return self._actions.noop.Noop()
 
     def _do_gather(self, state: HarvestState) -> Action:
-        """Gather resources from extractors."""
+        """Gather resources using observation-based navigation.
+
+        Prioritizes germanium (the bottleneck with 2000-step cooldown).
+        Uses observation to check cooldowns and navigate, avoiding position drift issues.
+        """
+        from .utils import find_direction_to_object_from_obs
+
         # Find which resources we still need
         deficits = self._calculate_deficits(state)
         if all(d <= 0 for d in deficits.values()):
             return self._actions.noop.Noop()
 
-        # Find an extractor for a needed resource
-        extractor = self._find_needed_extractor(state, deficits)
+        # Priority 1: Check if any READY extractor is visible and adjacent
+        for resource_type in ["germanium", "carbon", "oxygen", "silicon"]:
+            if deficits.get(resource_type, 0) <= 0:
+                continue  # Don't need this resource
+            result = self._find_ready_extractor_in_obs(state, resource_type)
+            if result is not None:
+                obs_direction, _cooldown = result
+                state.using_object_this_step = True
+                return self._actions.move.Move(obs_direction)
 
-        if extractor is None:
-            # Need to explore to find extractors
-            return self._explore(state)
+        # Priority 2: Navigate towards any visible extractor we need
+        # Prioritize germanium since it has the longest cooldown
+        for resource_type in ["germanium", "oxygen", "silicon", "carbon"]:
+            if deficits.get(resource_type, 0) <= 0:
+                continue
 
-        # Navigate to extractor
-        if not is_adjacent((state.row, state.col), extractor.position):
-            return self._move_towards(state, extractor.position, reach_adjacent=True)
+            # Check if adjacent to extractor (wait for cooldown if germanium)
+            ext_direction = find_direction_to_object_from_obs(
+                state.current_obs, resource_type,
+                obs_hr=self._obs_hr, obs_wr=self._obs_wr, tag_names=self._tag_names,
+            )
+            if ext_direction is not None and resource_type == "germanium":
+                return self._actions.noop.Noop()  # Wait for germanium cooldown
 
-        # Adjacent - use it
-        if extractor.cooldown_remaining > 0 or extractor.remaining_uses == 0 or extractor.clipped:
-            return self._actions.noop.Noop()
+            # Check if we can SEE the extractor (visible but not adjacent)
+            nav_direction = self._find_extractor_direction_in_obs(state, resource_type)
+            if nav_direction is not None:
+                # Only move if that direction is clear
+                if self._is_direction_clear_in_obs(state, nav_direction):
+                    return self._actions.move.Move(nav_direction)
+                # Direction blocked - try to go around by finding a clear direction
+                for alt_dir in ["north", "south", "east", "west"]:
+                    if alt_dir != nav_direction and self._is_direction_clear_in_obs(state, alt_dir):
+                        return self._actions.move.Move(alt_dir)
 
-        return use_object_at(
-            state, extractor.position, actions=self._actions, move_deltas=self._move_deltas, using_for="extractor"
+        # Fallback: explore to find resources
+        return self._explore(state)
+
+    def _find_ready_extractor_in_obs(self, state: HarvestState, resource_type: str) -> Optional[tuple[str, int]]:
+        """Find a ready extractor of given type adjacent to us in observation.
+
+        Returns (direction, cooldown) if found, or None.
+        Checks ACTUAL cooldown from observation tokens.
+        """
+        from .utils import find_direction_to_object_from_obs
+
+        obs_direction = find_direction_to_object_from_obs(
+            state.current_obs, resource_type,
+            obs_hr=self._obs_hr, obs_wr=self._obs_wr, tag_names=self._tag_names,
         )
+        if obs_direction is None:
+            return None
+
+        # Get cooldown from observation at that position
+        dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+        dr, dc = dir_offsets[obs_direction]
+        extractor_obs_pos = (self._obs_hr + dr, self._obs_wr + dc)
+
+        cooldown = 0  # Default to 0 if not found (ready)
+        for tok in state.current_obs.tokens:
+            if tok.location == extractor_obs_pos and tok.feature.name == "cooldown_remaining":
+                cooldown = tok.value
+                break
+
+        if cooldown == 0:
+            return (obs_direction, cooldown)
+        return None
+
+    def _find_extractor_direction_in_obs(self, state: HarvestState, resource_type: str) -> Optional[str]:
+        """Find direction towards a visible extractor (not necessarily adjacent).
+
+        Scans entire observation for the extractor and returns direction to move towards it.
+        """
+        extractor_positions = []
+
+        for tok in state.current_obs.tokens:
+            if tok.feature.name == "tag":
+                tag_name = self._tag_names.get(tok.value, "").lower()
+                if resource_type in tag_name and "extractor" in tag_name:
+                    extractor_positions.append(tok.location)
+
+        if not extractor_positions:
+            return None
+
+        center = (self._obs_hr, self._obs_wr)
+        closest = min(extractor_positions, key=lambda p: abs(p[0] - center[0]) + abs(p[1] - center[1]))
+
+        dr = closest[0] - center[0]
+        dc = closest[1] - center[1]
+
+        if abs(dr) >= abs(dc):
+            if dr < 0:
+                return "north"
+            elif dr > 0:
+                return "south"
+        if dc < 0:
+            return "west"
+        elif dc > 0:
+            return "east"
+
+        return None
+
+    def _find_station_adjacent_in_obs(self, state: HarvestState, station_type: str) -> Optional[str]:
+        """Find if a station (assembler/chest/charger) is adjacent in observation.
+
+        Returns direction to the station if adjacent, or None.
+        """
+        dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+
+        for direction, (dr, dc) in dir_offsets.items():
+            adj_obs_pos = (self._obs_hr + dr, self._obs_wr + dc)
+            for tok in state.current_obs.tokens:
+                if tok.location == adj_obs_pos and tok.feature.name == "tag":
+                    tag_name = self._tag_names.get(tok.value, "").lower()
+                    if station_type in tag_name:
+                        return direction
+        return None
+
+    def _find_station_direction_in_obs(self, state: HarvestState, station_type: str) -> Optional[tuple[str, str | None]]:
+        """Find directions towards a visible station (not necessarily adjacent).
+
+        Scans entire observation for the station and returns (primary_dir, secondary_dir).
+        Primary is the axis with larger distance, secondary is the other axis.
+        """
+        station_positions = []
+
+        for tok in state.current_obs.tokens:
+            if tok.feature.name == "tag":
+                tag_name = self._tag_names.get(tok.value, "").lower()
+                if station_type in tag_name:
+                    station_positions.append(tok.location)
+
+        if not station_positions:
+            return None
+
+        center = (self._obs_hr, self._obs_wr)
+        closest = min(station_positions, key=lambda p: abs(p[0] - center[0]) + abs(p[1] - center[1]))
+
+        dr = closest[0] - center[0]
+        dc = closest[1] - center[1]
+
+        # Determine primary and secondary directions
+        row_dir = "north" if dr < 0 else ("south" if dr > 0 else None)
+        col_dir = "west" if dc < 0 else ("east" if dc > 0 else None)
+
+        if abs(dr) >= abs(dc):
+            return (row_dir, col_dir) if row_dir else (col_dir, None)
+        else:
+            return (col_dir, row_dir) if col_dir else (row_dir, None)
+
+    def _navigate_to_station(self, state: HarvestState, station_type: str) -> Action:
+        """Navigate to a station using observation-based navigation.
+
+        Used for assembler, chest, and charger navigation.
+        """
+        # Check if station is adjacent in observation
+        adj_dir = self._find_station_adjacent_in_obs(state, station_type)
+        if adj_dir is not None:
+            state.using_object_this_step = True
+            return self._actions.move.Move(adj_dir)
+
+        # Check if station is visible (but not adjacent)
+        nav_result = self._find_station_direction_in_obs(state, station_type)
+        if nav_result is not None:
+            primary_dir, secondary_dir = nav_result
+            # Try primary direction first
+            if primary_dir and self._is_direction_clear_in_obs(state, primary_dir):
+                return self._actions.move.Move(primary_dir)
+            # Try secondary direction (moving along the other axis)
+            if secondary_dir and self._is_direction_clear_in_obs(state, secondary_dir):
+                return self._actions.move.Move(secondary_dir)
+            # Both blocked - try any clear direction
+            for alt_dir in ["north", "south", "east", "west"]:
+                if self._is_direction_clear_in_obs(state, alt_dir):
+                    return self._actions.move.Move(alt_dir)
+
+        # Station not visible - explore
+        return self._explore(state)
 
     def _do_assemble(self, state: HarvestState) -> Action:
         """Assemble hearts at the assembler."""
-        assembler = state.stations.get("assembler")
-
-        if assembler is None:
-            return self._explore(state)
-
-        if not is_adjacent((state.row, state.col), assembler):
-            return self._move_towards(state, assembler, reach_adjacent=True, station_name="assembler")
-
-        return use_object_at(
-            state, assembler, actions=self._actions, move_deltas=self._move_deltas, using_for="assembler"
-        )
+        return self._navigate_to_station(state, "assembler")
 
     def _do_deliver(self, state: HarvestState) -> Action:
         """Deliver hearts to the chest."""
-        chest = state.stations.get("chest")
-
-        if chest is None:
-            return self._explore(state)
-
-        if not is_adjacent((state.row, state.col), chest):
-            return self._move_towards(state, chest, reach_adjacent=True, station_name="chest")
-
-        return use_object_at(state, chest, actions=self._actions, move_deltas=self._move_deltas, using_for="chest")
+        return self._navigate_to_station(state, "chest")
 
     def _do_recharge(self, state: HarvestState) -> Action:
         """Recharge at the charger."""
-        charger = state.stations.get("charger")
-
-        if charger is None:
-            return self._explore(state)
-
-        if not is_adjacent((state.row, state.col), charger):
-            return self._move_towards(state, charger, reach_adjacent=True, station_name="charger")
-
-        return use_object_at(state, charger, actions=self._actions, move_deltas=self._move_deltas, using_for="charger")
+        return self._navigate_to_station(state, "charger")
 
     def _calculate_deficits(self, state: HarvestState) -> dict[str, int]:
         """Calculate how many more resources we need."""
@@ -656,70 +797,68 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         return self._actions.noop.Noop()
 
     def _explore(self, state: HarvestState) -> Action:
-        """Explore using frontier-based navigation for better maze coverage.
+        """Explore using observation-based navigation.
 
-        Uses incremental frontier caching for O(new_cells) instead of O(all_explored_cells).
+        First checks for visible extractors we need, then uses directional patrol.
         """
-        # Use cached frontiers if available (incremental update)
-        if state.path_cache is not None:
-            frontier_targets = list(state.path_cache.update_frontiers(
-                state.explored_cells, state.occupancy, CellType
-            ))
-        else:
-            frontier_targets = self._find_frontier_targets(state)
+        # First, check if we can see a READY extractor for a resource we NEED
+        deficits = self._calculate_deficits(state)
+        for resource_type in ["germanium", "carbon", "oxygen", "silicon"]:
+            if deficits.get(resource_type, 0) <= 0:
+                continue
+            result = self._find_ready_extractor_in_obs(state, resource_type)
+            if result is not None:
+                obs_direction, _cooldown = result
+                state.using_object_this_step = True
+                return self._actions.move.Move(obs_direction)
 
-        if frontier_targets:
-            # Navigate to nearest frontier cell using fast BFS
-            nearest = min(
-                frontier_targets,
-                key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col),
-            )
-            start = (state.row, state.col)
-            goal_cells = [nearest]
+        # Check if we can see ANY extractor we need (visible but not adjacent)
+        for resource_type in ["germanium", "carbon", "oxygen", "silicon"]:
+            if deficits.get(resource_type, 0) <= 0:
+                continue
+            nav_direction = self._find_extractor_direction_in_obs(state, resource_type)
+            if nav_direction is not None:
+                return self._actions.move.Move(nav_direction)
 
-            # Use fast BFS if available
-            if state.path_cache is not None:
-                path = state.path_cache.shortest_path_fast(
-                    start, goal_cells, state.occupancy, CellType, state.agent_occupancy, False
-                )
-            else:
-                path = shortest_path(state, start, goal_cells, False, CellType)
+        # No extractors visible - use directional patrol pattern
+        patrol_patterns = [
+            ["south", "east", "north", "west"],
+            ["south", "west", "north", "east"],
+            ["north", "west", "south", "east"],
+            ["north", "east", "south", "west"],
+        ]
+        patrol_period = 30
+        pattern_idx = (state.step_count // patrol_period) % 4
+        preferred_order = patrol_patterns[pattern_idx]
 
-            if path:
-                next_pos = path[0]
-                dr = next_pos[0] - state.row
-                dc = next_pos[1] - state.col
-                if dr == -1:
-                    return self._actions.move.Move("north")
-                elif dr == 1:
-                    return self._actions.move.Move("south")
-                elif dc == 1:
-                    return self._actions.move.Move("east")
-                elif dc == -1:
-                    return self._actions.move.Move("west")
+        # Check which directions are clear using observation
+        clear_directions = []
+        for direction in ["north", "south", "east", "west"]:
+            if self._is_direction_clear_in_obs(state, direction):
+                clear_directions.append(direction)
 
-        # Fallback: random direction exploration for when stuck or no frontier
-        if state.exploration_direction is None or state.step_count - state.exploration_step > 15:
-            directions = ["north", "south", "east", "west"]
-            random.shuffle(directions)
+        if not clear_directions:
+            return self._actions.noop.Noop()
 
-            for direction in directions:
-                dr, dc = self._move_deltas[direction]
-                nr, nc = state.row + dr, state.col + dc
-                if path_is_within_bounds(state, nr, nc) and path_is_traversable(state, nr, nc, CellType):
-                    state.exploration_direction = direction
-                    state.exploration_step = state.step_count
-                    break
+        # Pick first preferred direction that's clear
+        for direction in preferred_order:
+            if direction in clear_directions:
+                return self._actions.move.Move(direction)
 
-        if state.exploration_direction:
-            dr, dc = self._move_deltas[state.exploration_direction]
-            nr, nc = state.row + dr, state.col + dc
-            if path_is_within_bounds(state, nr, nc) and path_is_traversable(state, nr, nc, CellType):
-                return self._actions.move.Move(state.exploration_direction)
+        return self._actions.move.Move(clear_directions[0])
 
-        # Blocked - pick a new direction
-        state.exploration_direction = None
-        return self._actions.noop.Noop()
+    def _is_direction_clear_in_obs(self, state: HarvestState, direction: str) -> bool:
+        """Check if a direction is clear based on observation."""
+        dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+        dr, dc = dir_offsets[direction]
+        target_obs_pos = (self._obs_hr + dr, self._obs_wr + dc)
+
+        for tok in state.current_obs.tokens:
+            if tok.location == target_obs_pos and tok.feature.name == "tag":
+                tag_name = self._tag_names.get(tok.value, "").lower()
+                if "wall" in tag_name or "extractor" in tag_name or "assembler" in tag_name or "chest" in tag_name or "charger" in tag_name:
+                    return False
+        return True
 
     def _find_frontier_targets(self, state: HarvestState) -> list[tuple[int, int]]:
         """Find explored cells that are adjacent to unexplored cells (frontier)."""
@@ -745,7 +884,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 class HarvestPolicy(MultiAgentPolicy):
     """Multi-agent policy wrapper for the harvest mission."""
 
-    short_names = []
+    short_names = ["zfogg_harvest", "zfogg_harvest_policy"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
