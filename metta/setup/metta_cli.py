@@ -13,7 +13,7 @@ import time
 import webbrowser
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import Annotated, Optional
 
 import typer
 from rich.console import Console
@@ -25,6 +25,7 @@ from metta.common.util.fs import get_repo_root
 from metta.common.util.log_config import init_logging
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
+from metta.setup.registry import SetupModule
 from metta.setup.tools.book import app as book_app
 from metta.setup.tools.ci_runner import cmd_ci
 from metta.setup.tools.clean import cmd_clean
@@ -35,9 +36,6 @@ from metta.setup.tools.test_runner.test_nim import app as nim_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
-
-if TYPE_CHECKING:
-    from metta.setup.registry import SetupModule
 
 
 class PRStatus(StrEnum):
