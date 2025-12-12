@@ -6,9 +6,10 @@ import multiprocessing
 import platform
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import Any, Callable, Optional
 
 import psutil
+import torch
 from rich.console import Console
 
 from cogames.policy.signal_handler import DeferSigintContextManager
@@ -28,9 +29,6 @@ from mettagrid.util.stats_writer import NoopStatsWriter
 from pufferlib import pufferl
 from pufferlib import vector as pvector
 from pufferlib.pufferlib import set_buffers
-
-if TYPE_CHECKING:
-    import torch
 
 logger = logging.getLogger("cogames.pufferlib")
 
@@ -80,7 +78,7 @@ def _resolve_vector_counts(
 def train(
     env_cfg: Optional[MettaGridConfig],
     policy_class_path: str,
-    device: "torch.device",
+    device: torch.device,
     initial_weights_path: Optional[str],
     num_steps: int,
     checkpoints_path: Path,

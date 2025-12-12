@@ -1,17 +1,12 @@
 """Simulation control component for miniscope renderer."""
 
-from typing import TYPE_CHECKING
-
 import numpy as np
 from rich.text import Text
 
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, PlaybackState, RenderMode
-
-if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
 
 
 class SimControlComponent(MiniscopeComponent):
@@ -19,7 +14,7 @@ class SimControlComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: "Simulation",
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):

@@ -3,8 +3,7 @@
 This module provides the main simulation interface for MettaGrid environments.
 """
 
-from typing import TYPE_CHECKING
-
+from mettagrid.config.id_map import ObservationFeatureSpec  # noqa: F401
 from mettagrid.simulator.interface import (
     Action,
     AgentObservation,
@@ -18,9 +17,6 @@ from mettagrid.simulator.simulator import (
     SimulationAgent,
     Simulator,
 )
-
-if TYPE_CHECKING:
-    from mettagrid.config.id_map import ObservationFeatureSpec as _ObservationFeatureSpec  # noqa: F401
 
 __all__ = [
     # From interface
@@ -37,12 +33,3 @@ __all__ = [
     "SimulationAgent",
     "Simulator",
 ]
-
-
-def __getattr__(name: str):
-    if name == "ObservationFeatureSpec":
-        from mettagrid.config.id_map import ObservationFeatureSpec as _ObservationFeatureSpec
-
-        globals()[name] = _ObservationFeatureSpec
-        return _ObservationFeatureSpec
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
