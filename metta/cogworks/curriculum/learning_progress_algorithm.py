@@ -239,7 +239,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if not task_ids:
             return None
 
-        scores = {tid: self._get_bidirectional_learning_progress_score(tid) for tid in task_ids}
+        if self.hypers.use_bidirectional:
+            scores = {tid: self._get_bidirectional_learning_progress_score(tid) for tid in task_ids}
+        else:
+            # Respect basic scorer configuration to avoid missing per-task fields
+            scores = {tid: self._get_basic_learning_progress_score(tid) for tid in task_ids}
         return min(task_ids, key=lambda tid: scores.get(tid, 0.0))
 
     def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:

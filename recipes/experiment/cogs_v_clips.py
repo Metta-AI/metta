@@ -288,12 +288,17 @@ def make_curriculum(
         # Filter to compatible variants for this mission
         compatible_available = [v.name for v in VARIANTS if v.name in available_variants and v.compat(mission_template)]
 
-        # Iterate over all possible num_variants from 0 to dr_variants
-        max_variants = min(dr_variants, len(compatible_available))
-        for num_variants in range(max_variants + 1):
-            # Create a task set for each possible combination of this size
-            variant_combinations = list(itertools.combinations(compatible_available, num_variants))
+        # Build groups of variant combinations to merge. Preserve explicit variants when dr_variants=0.
+        if variants is not None and dr_variants == 0:
+            combination_sizes = [0] + ([len(compatible_available)] if compatible_available else [])
+        else:
+            combination_sizes = range(min(dr_variants, len(compatible_available)) + 1)
 
+        variant_combination_groups = [
+            list(itertools.combinations(compatible_available, size)) for size in combination_sizes
+        ]
+
+        for variant_combinations in variant_combination_groups:
             num_variants_tasks = []
             for variant_combination in variant_combinations:
                 # Baseline when no variants selected; otherwise use the chosen combination
@@ -308,7 +313,7 @@ def make_curriculum(
                 _add_buckets_to_tasks(mission_tasks, dr_rewards=dr_rewards, dr_misc=dr_misc)
                 num_variants_tasks.append(mission_tasks)
 
-            # Merge all task sets for this num_variants value
+            # Merge all task sets for this group (previously per num_variants)
             merged_num_variants_tasks = cc.merge(num_variants_tasks)
             all_num_variants_task_sets.append(merged_num_variants_tasks)
 
