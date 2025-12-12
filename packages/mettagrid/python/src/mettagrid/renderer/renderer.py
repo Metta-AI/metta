@@ -5,7 +5,7 @@ from typing import Literal
 
 from typing_extensions import override
 
-from mettagrid.simulator import SimulatorEventHandler
+from mettagrid.simulator.interface import SimulatorEventHandler
 
 RenderMode = Literal["gui", "unicode", "log", "none"]
 

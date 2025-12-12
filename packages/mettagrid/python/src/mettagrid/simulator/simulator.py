@@ -14,8 +14,9 @@ from mettagrid.map_builder.map_builder import GameMap
 from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from mettagrid.mettagrid_c import PackedCoordinate
 from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
-from mettagrid.simulator.interface import Action, AgentObservation, ObservationToken, SimulatorEventHandler
+from mettagrid.simulator.interface import AgentObservation, ObservationToken, SimulatorEventHandler
 from mettagrid.simulator.map_cache import SharedMapCache, get_shared_cache
+from mettagrid.simulator.types import Action
 
 if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
