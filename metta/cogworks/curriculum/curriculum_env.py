@@ -139,8 +139,8 @@ class CurriculumEnv(PufferEnv):
 
             # Set _task_changed flag in all agent info dicts to trigger LSTM state reset in rollout phase
             if task_changed:
-                for info in infos:
-                    info["_task_changed"] = True
+                    for info in infos:
+                            info["_task_changed"] = True
 
             # Invalidate stats cache when task changes
             self._stats_cache_valid = False
