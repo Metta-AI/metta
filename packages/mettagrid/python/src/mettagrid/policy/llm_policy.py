@@ -464,6 +464,7 @@ class LLMAgentPolicy(AgentPolicy):
         debug_mode: bool = False,
         context_window_size: int = 20,
         summary_interval: int = 5,
+        debug_summary_interval: int = 0,
         mg_cfg = None,
         agent_id: int = 0,
     ):
@@ -477,6 +478,7 @@ class LLMAgentPolicy(AgentPolicy):
             debug_mode: If True, print human-readable observation debug info (default: True)
             context_window_size: Number of steps before resending basic info (default: 20)
             summary_interval: Number of steps between history summaries (default: 5)
+            debug_summary_interval: Steps between LLM debug summaries written to file (0=disabled, e.g., 100)
             mg_cfg: Optional MettaGridConfig for extracting game-specific info (chest vibes, etc.)
             agent_id: Agent ID for this policy instance (used for debug output filtering)
         """
@@ -487,6 +489,12 @@ class LLMAgentPolicy(AgentPolicy):
         self.agent_id = agent_id
         self.last_action: str | None = None
         self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
+        self.debug_summary_interval = int(debug_summary_interval) if isinstance(debug_summary_interval, str) else debug_summary_interval
+
+        # Debug summary tracking (for long runs)
+        self._debug_summary_step_count = 0
+        self._debug_summary_actions: list[dict[str, str]] = []  # Actions since last debug summary
+        self._debug_summary_file: str | None = None
 
         # Track conversation history for debugging
         self.conversation_history: list[dict] = []
@@ -702,7 +710,12 @@ class LLMAgentPolicy(AgentPolicy):
             action: The action taken
             reasoning: The reasoning behind the action (from LLM response)
         """
-        self._current_window_actions.append({"action": action, "reasoning": reasoning})
+        action_info = {"action": action, "reasoning": reasoning}
+        self._current_window_actions.append(action_info)
+
+        # Also track for debug summary
+        if self.debug_summary_interval > 0:
+            self._debug_summary_actions.append(action_info)
 
         # Track direction changes for exploration strategy
         direction_map = {
@@ -753,6 +766,96 @@ class LLMAgentPolicy(AgentPolicy):
         self._current_window_actions = []
         # Start new window positions from current position
         self._current_window_positions = [(self._global_x, self._global_y)]
+
+    def _generate_debug_summary(self) -> None:
+        """Generate an LLM debug summary for the last N steps and write to file.
+
+        This creates a concise summary of what happened in the last debug_summary_interval
+        steps, useful for debugging long runs without reading through all actions.
+        """
+        if not self._debug_summary_actions:
+            return
+
+        # Build a compact representation of recent actions
+        action_counts: dict[str, int] = {}
+        for action_info in self._debug_summary_actions:
+            action = action_info.get("action", "unknown")
+            action_counts[action] = action_counts.get(action, 0) + 1
+
+        # Format action summary
+        action_summary = ", ".join(f"{k}:{v}" for k, v in sorted(action_counts.items()))
+
+        # Get current state summary
+        inventory = self._last_inventory
+        inv_str = ", ".join(f"{k}={v}" for k, v in inventory.items() if v > 0 and k != "energy")
+        energy = inventory.get("energy", 0)
+
+        # Create the prompt for LLM to summarize
+        summary_prompt = f"""Summarize what Agent {self.agent_id} did in the last {len(self._debug_summary_actions)} steps.
+
+Actions taken: {action_summary}
+Current position: ({self._global_x}, {self._global_y}) from origin
+Explored tiles: {len(self._all_visited_positions)}
+Current inventory: {inv_str if inv_str else 'empty'}
+Energy: {energy}
+Discovered objects: {', '.join(self._discovered_objects.keys()) if self._discovered_objects else 'none'}
+
+Write a 2-3 sentence summary of progress, challenges, and current strategy. Be concise."""
+
+        try:
+            # Use the same LLM to generate summary
+            summary_text = ""
+            if self.provider == "openai" and self.client:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": summary_prompt}],
+                    max_tokens=150,
+                    temperature=0.3,
+                )
+                summary_text = response.choices[0].message.content or "No summary generated"
+            elif self.provider == "anthropic" and self.anthropic_client:
+                response = self.anthropic_client.messages.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": summary_prompt}],
+                    max_tokens=150,
+                    temperature=0.3,
+                )
+                from anthropic.types import TextBlock
+                for block in response.content:
+                    if isinstance(block, TextBlock):
+                        summary_text = block.text
+                        break
+            elif self.provider == "ollama" and self.ollama_client:
+                response = self.ollama_client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": summary_prompt}],
+                    max_tokens=150,
+                    temperature=0.3,
+                )
+                summary_text = response.choices[0].message.content or "No summary generated"
+
+            # Write to file
+            if self._debug_summary_file is None:
+                self._debug_summary_file = f"llm_debug_summary_agent{self.agent_id}.log"
+
+            interval_num = self._debug_summary_step_count // self.debug_summary_interval
+            with open(self._debug_summary_file, "a") as f:
+                f.write(f"\n{'='*60}\n")
+                f.write(f"[Agent {self.agent_id}] Steps {(interval_num-1)*self.debug_summary_interval + 1}-{interval_num*self.debug_summary_interval}\n")
+                f.write(f"{'='*60}\n")
+                f.write(f"Position: ({self._global_x}, {self._global_y}) | Explored: {len(self._all_visited_positions)} tiles\n")
+                f.write(f"Inventory: {inv_str if inv_str else 'empty'} | Energy: {energy}\n")
+                f.write(f"Actions: {action_summary}\n")
+                f.write(f"\nSummary: {summary_text}\n")
+
+            # Also print to console
+            print(f"\n[DEBUG SUMMARY Agent {self.agent_id}] Steps {(interval_num-1)*self.debug_summary_interval + 1}-{interval_num*self.debug_summary_interval}: {summary_text}\n")
+
+        except Exception as e:
+            logger.warning(f"Failed to generate debug summary: {e}")
+
+        # Reset for next interval
+        self._debug_summary_actions = []
 
     def _get_history_summary_text(self) -> str:
         """Get formatted history summaries to prepend to prompts.
@@ -1045,9 +1148,19 @@ class LLMAgentPolicy(AgentPolicy):
         # Increment summary step counter
         self._summary_step_count += 1
 
+        # Increment debug summary step counter
+        self._debug_summary_step_count += 1
+
         # Check if we're at a summary interval boundary (every N steps)
         at_boundary = (self._summary_step_count - 1) % self.summary_interval == 0
         is_summary_boundary = self._summary_step_count > 1 and at_boundary
+
+        # Check if we're at a debug summary interval boundary
+        is_debug_summary_boundary = (
+            self.debug_summary_interval > 0 and
+            self._debug_summary_step_count > 0 and
+            self._debug_summary_step_count % self.debug_summary_interval == 0
+        )
 
         # Check if we're about to start a new context window (before incrementing step counter)
         next_step = self.prompt_builder.step_count + 1
@@ -1056,6 +1169,10 @@ class LLMAgentPolicy(AgentPolicy):
         # At summary boundary, finalize the current interval's summary
         if is_summary_boundary:
             self._finalize_window_summary()
+
+        # At debug summary boundary, generate LLM debug summary
+        if is_debug_summary_boundary:
+            self._generate_debug_summary()
 
         # At context window boundary, also clear conversation messages for fresh window
         if is_window_boundary:
@@ -1419,6 +1536,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         debug_mode: bool = False,
         context_window_size: int = 20,
         summary_interval: int = 5,
+        debug_summary_interval: int = 0,
         mg_cfg = None,
     ):
         """Initialize LLM multi-agent policy.
@@ -1431,6 +1549,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             debug_mode: If True, print human-readable observation debug info (default: True)
             context_window_size: Number of steps before resending basic info (default: 20)
             summary_interval: Number of steps between history summaries (default: 5)
+            debug_summary_interval: Steps between LLM debug summaries written to file (0=disabled, e.g., 100)
             mg_cfg: Optional MettaGridConfig for extracting game-specific info (chest vibes, etc.)
         """
         super().__init__(policy_env_info)
@@ -1443,6 +1562,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             self.debug_mode = bool(debug_mode)
         self.context_window_size = context_window_size
         self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
+        self.debug_summary_interval = int(debug_summary_interval) if isinstance(debug_summary_interval, str) else debug_summary_interval
         self.mg_cfg = mg_cfg
 
         # Check API key before model selection for paid providers
@@ -1512,6 +1632,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             debug_mode=self.debug_mode,
             context_window_size=self.context_window_size,
             summary_interval=self.summary_interval,
+            debug_summary_interval=self.debug_summary_interval,
             mg_cfg=self.mg_cfg,
             agent_id=agent_id,
         )
@@ -1531,6 +1652,7 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
         debug_mode: bool = False,
         context_window_size: int = 20,
         summary_interval: int = 5,
+        debug_summary_interval: int = 0,
         mg_cfg = None,
     ):
         super().__init__(
@@ -1541,6 +1663,7 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
             debug_mode=debug_mode,
             context_window_size=context_window_size,
             summary_interval=summary_interval,
+            debug_summary_interval=debug_summary_interval,
             mg_cfg=mg_cfg,
         )
 
@@ -1558,6 +1681,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
         debug_mode: bool = False,
         context_window_size: int = 20,
         summary_interval: int = 5,
+        debug_summary_interval: int = 0,
         mg_cfg = None,
     ):
         super().__init__(
@@ -1568,6 +1692,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
             debug_mode=debug_mode,
             context_window_size=context_window_size,
             summary_interval=summary_interval,
+            debug_summary_interval=debug_summary_interval,
             mg_cfg=mg_cfg,
         )
 
@@ -1585,6 +1710,7 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
         debug_mode: bool = False,
         context_window_size: int = 20,
         summary_interval: int = 5,
+        debug_summary_interval: int = 0,
         mg_cfg = None,
     ):
         super().__init__(
@@ -1595,5 +1721,6 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
             debug_mode=debug_mode,
             context_window_size=context_window_size,
             summary_interval=summary_interval,
+            debug_summary_interval=debug_summary_interval,
             mg_cfg=mg_cfg,
         )
