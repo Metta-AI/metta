@@ -71,51 +71,6 @@ def list_collectors() -> None:
         typer.echo(f" - {slug}")
 
 
-@app.command("list-workflows")
-def list_workflows_command(
-    repo: str = typer.Option(
-        None,
-        "--repo",
-        help="Repository (e.g., Metta-AI/metta). Defaults to METTA_GITHUB_REPO env var.",
-    ),
-) -> None:
-    """List all workflows in the repository to help identify which ones to monitor."""
-    import os
-
-    from devops.datadog.github_client import GitHubClient
-    from softmax.aws.secrets_manager import get_secretsmanager_secret
-
-    repo = repo or os.environ.get("METTA_GITHUB_REPO", "Metta-AI/metta")
-    token = (
-        os.environ.get("GITHUB_DASHBOARD_TOKEN")
-        or os.environ.get("GITHUB_TOKEN")
-        or get_secretsmanager_secret("github/dashboard-token", require_exists=False)
-    )
-    github = GitHubClient(token=token)
-
-    typer.echo(f"Fetching workflows for {repo}...")
-    workflows = github.list_workflows(repo)
-
-    if not workflows:
-        typer.echo("No workflows found.")
-        return
-
-    typer.echo(f"\nFound {len(workflows)} workflows:\n")
-    typer.echo(f"{'ID':<10} {'Name':<50} {'Path':<60} {'State':<10}")
-    typer.echo("-" * 130)
-
-    for workflow in workflows:
-        workflow_id = workflow.get("id", "")
-        name = workflow.get("name", "N/A")
-        path = workflow.get("path", "N/A")
-        state = workflow.get("state", "N/A")
-        typer.echo(f"{workflow_id:<10} {name:<50} {path:<60} {state:<10}")
-
-    typer.echo("\n💡 To configure which workflows to monitor, set these env vars:")
-    typer.echo("   CI_TESTS_BLOCKING_MERGE_WORKFLOWS=workflow1,workflow2")
-    typer.echo("   CI_BENCHMARKS_WORKFLOWS=workflow1,workflow2")
-
-
 def _handle_samples(samples: List[MetricSample], *, dry_run: bool, output: Path | None) -> None:
     payload = [sample.to_dict() for sample in samples]
     if dry_run or not samples:
