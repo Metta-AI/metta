@@ -43,7 +43,6 @@ def prepare_policy_forward_td(
     return td, B, TT
 
 
-
 def forward_policy_for_training(
     policy,
     minibatch: TensorDict,
@@ -61,11 +60,7 @@ def forward_policy_for_training(
     Returns:
         Policy output TensorDict reshaped to batch format
     """
-    policy_td, B, TT = prepare_policy_forward_td(
-        minibatch,
-        policy_spec,
-        clone=False
-    )
+    policy_td, B, TT = prepare_policy_forward_td(minibatch, policy_spec, clone=False)
 
     flat_actions = minibatch["actions"].reshape(B * TT, -1)
 

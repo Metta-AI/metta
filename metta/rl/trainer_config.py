@@ -25,7 +25,6 @@ class OptimizerConfig(Config):
     warmup_steps: int = Field(default=1000, ge=0)  # Number of warmup steps for ScheduleFree
 
 
-
 class SamplingConfig(Config):
     """Configuration for minibatch sampling during training."""
 
