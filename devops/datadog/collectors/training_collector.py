@@ -11,12 +11,14 @@ from devops.datadog.models import MetricSample
 
 class TrainingCollector(BaseCollector):
     """
-    Collector for training health metrics used by the infra dashboard.
+    Utility for formatting training health metrics from structured job results.
 
-    This collector is designed to be used within the new runner workflow.
-    It accepts structured job_results (dictionaries) from the runner and extracts metrics:
-    - Extracts success, hearts, sps, and shaped metrics from job results
-    - Maps jobs to workflows using stable_suite_mapping
+    This collector is designed to be called directly by the stable runner workflow.
+    The runner should pass structured job_results (dictionaries) and push the returned
+    metrics to Datadog directly.
+
+    It does NOT parse logs or read runner outputs - it only formats metrics from
+    structured data that the runner already has in memory.
 
     Job results should be dictionaries with keys: name, acceptance_passed, exit_code, metrics
     """
