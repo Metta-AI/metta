@@ -83,6 +83,26 @@ def apply_teacher_phase(
                 )
             )
 
+    def _grow_student(loss_name: str, start_value: float, teacher_start: float) -> None:
+        """Ramp student proportion up to (teacher_start + student_start), not beyond 1.0."""
+        if not total_steps or start_value <= 0.0:
+            return
+        target = min(1.0, start_value + teacher_start)
+        if target <= start_value:
+            return
+        scheduler_rules.append(
+            HyperUpdateRule(
+                loss_instance_name=loss_name,
+                attr_path="student_led_proportion",
+                mode="progress",
+                style="linear",
+                start_value=start_value,
+                end_value=target,
+                start_agent_step=0,
+                end_agent_step=total_steps,
+            )
+        )
+
     if teacher_cfg.mode in {"sliced_cloner", "supervisor"}:
         _require_policy_uri(teacher_cfg)
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
@@ -100,6 +120,11 @@ def apply_teacher_phase(
 
         _gate_loss("sliced_scripted_cloner")
         _anneal_led("sliced_scripted_cloner", teacher_cfg.teacher_led_proportion)
+        _grow_student(
+            "sliced_scripted_cloner",
+            teacher_cfg.student_led_proportion,
+            teacher_cfg.teacher_led_proportion,
+        )
 
     elif teacher_cfg.mode == "supervisor":
         supervisor = losses.supervisor
