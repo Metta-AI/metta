@@ -510,6 +510,7 @@ def evaluate(
             ICLAssemblerVariant(),
             ICLPerimeterMapVariant(
                 missing_resources=tuple(REQUIRED_RESOURCES),
+
                 num_agents=num_cogs,
             ),
             ICLInventoryVariant(missing_resources=tuple(REQUIRED_RESOURCES)),
