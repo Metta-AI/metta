@@ -106,12 +106,13 @@ def main(
     suite: Annotated[Suite | None, typer.Option(help="Which jobs to run: ci, stable, or all")] = None,
 ):
     """Run job validation."""
+    has_blockers = False
     if suite != Suite.CI:
         print("Checking for blocking bugs in Asana...")
         blocker_result = check_blockers()
         if blocker_result is False:
-            print("\nBlocking bugs found. Fix them before releasing.")
-            sys.exit(1)
+            print("\nBlocking bugs found. Will fail after running jobs.")
+            has_blockers = True
         elif blocker_result is None:
             print("Asana check skipped (not configured or unavailable)")
         print()
@@ -143,6 +144,10 @@ def main(
     success = print_summary(runner.jobs)
     write_github_summary(runner)
     write_discord_summary(runner, state_dir)
+
+    if has_blockers:
+        print("\n❌ FAILED: Blocking bugs found in Asana")
+        sys.exit(1)
 
     sys.exit(0 if success else 1)
 
