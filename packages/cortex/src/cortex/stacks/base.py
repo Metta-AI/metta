@@ -26,7 +26,8 @@ class CortexStack(nn.Module):
         super().__init__()
         self.cfg = cfg
 
-        # Configure TF32 BEFORE torch.compile is called to avoid API mismatch errors
+        # Ensure TF32 is configured BEFORE torch.compile is called to avoid API mismatch errors
+        # This is idempotent - safe to call multiple times
         if torch.cuda.is_available():
             configure_tf32_precision()
 

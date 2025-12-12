@@ -87,12 +87,13 @@ def select_backend(
 
 
 def configure_tf32_precision() -> None:
-    """Ensure TF32 fast paths are enabled using the modern API."""
+    """Ensure TF32 fast paths are enabled using the recommended API."""
     if not torch.cuda.is_available():
         return
 
-    torch.backends.cuda.matmul.fp32_precision = "tf32"
-    torch.backends.cudnn.conv.fp32_precision = "tf32"
+    # Use torch.set_float32_matmul_precision which is the recommended API
+    # and avoids conflicts with torch.compile's internal checks
+    torch.set_float32_matmul_precision("high")
 
 
 __all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision"]

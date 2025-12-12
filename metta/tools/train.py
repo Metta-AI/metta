@@ -8,9 +8,10 @@ from typing import Any, Optional
 import torch
 
 
-if torch.cuda.is_available() and hasattr(torch.backends, "cuda"):
-    torch.backends.cuda.matmul.fp32_precision = "tf32"
-    torch.backends.cudnn.conv.fp32_precision = "tf32"
+if torch.cuda.is_available():
+    # Use torch.set_float32_matmul_precision which is the recommended API
+    # and avoids conflicts with torch.compile's internal checks
+    torch.set_float32_matmul_precision("high")
 from pydantic import Field
 
 from metta.agent.policies.vit import ViTDefaultConfig
