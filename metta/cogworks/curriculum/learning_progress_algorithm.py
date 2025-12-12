@@ -161,30 +161,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if not task_ids:
             return {}
 
-        raw = np.array([self._get_bidirectional_learning_progress_score(tid) for tid in task_ids], dtype=float)
-        positive_mask = raw > 0
-
-        if not np.any(positive_mask):
-            return {tid: 0.0 for tid in task_ids}
-
-        sub = raw[positive_mask]
-        std = np.std(sub)
-        if std > 0:
-            sub = (sub - np.mean(sub)) / std
-        else:
-            sub = sub - np.mean(sub)
-
-        sub = 1.0 / (1.0 + np.exp(-np.clip(sub, -500, 500)))
-        total = float(np.sum(sub))
-        if total <= 0:
-            sub = np.ones_like(sub) / len(sub)
-        else:
-            sub = sub / total
-
-        scores = np.zeros_like(raw)
-        scores[positive_mask] = sub
-
-        return {tid: float(score) for tid, score in zip(task_ids, scores, strict=True)}
+        raw_scores = np.array([self._get_bidirectional_learning_progress_score(tid) for tid in task_ids], dtype=float)
+        norm_scores = self._normalize_bidirectional_scores(raw_scores)
+        return {tid: float(score) for tid, score in zip(task_ids, norm_scores, strict=True)}
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using basic EMA variance method."""
@@ -525,6 +504,37 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     def _sigmoid(self, x: np.ndarray) -> np.ndarray:
         """Apply sigmoid function to array values with clipping for stability."""
         return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
+
+    def _normalize_bidirectional_scores(self, raw_scores: np.ndarray) -> np.ndarray:
+        """Apply smoothing, drop zero-progress, standardize, sigmoid, normalize."""
+        if raw_scores.size == 0:
+            return raw_scores
+
+        # Remove non-progress tasks from the mass
+        positive_mask = raw_scores > 0
+        if not np.any(positive_mask):
+            return np.zeros_like(raw_scores)
+
+        sub = raw_scores[positive_mask]
+
+        # Optional smoothing already applied in _get_bidirectional_learning_progress_score
+        std = np.std(sub)
+        if std > 0:
+            sub = (sub - np.mean(sub)) / std
+        else:
+            sub = sub - np.mean(sub)
+
+        sub = self._sigmoid(sub)
+
+        total = float(np.sum(sub))
+        if total > 0:
+            sub = sub / total
+        else:
+            sub = np.ones_like(sub) / len(sub)
+
+        scores = np.zeros_like(raw_scores)
+        scores[positive_mask] = sub
+        return scores
 
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
