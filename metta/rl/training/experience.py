@@ -196,6 +196,67 @@ class Experience:
             device=self.device,
         )
 
+    def sample_sequential(self, mb_idx: int) -> tuple[TensorDict, Tensor]:
+        """Sample a contiguous minibatch from the buffer in sequential order."""
+        segments_per_mb = self.minibatch_segments
+        total_segments = self.segments
+        num_minibatches = max(self.num_minibatches, 1)
+
+        mb_idx_mod = int(mb_idx % num_minibatches)
+        start = mb_idx_mod * segments_per_mb
+        end = start + segments_per_mb
+
+        if end <= total_segments:
+            idx = torch.arange(start, end, dtype=torch.long, device=self.device)
+        else:
+            overflow = end - total_segments
+            front = torch.arange(start, total_segments, dtype= torch.long, device=self.device)
+            back = torch.arange(0, overflow, dtype=torch.long, device=self.device)
+            idx = torch.cat((front, back), dim=0)
+
+        minibatch = self.buffer[idx]
+        return minibatch.clone(), idx
+
+    def sample_prioritized(
+        self,
+        mb_idx: int,
+        epoch: int,
+        total_timesteps: int,
+        batch_size: int,
+        prio_alpha: float,
+        prio_beta0: float,
+        advantages: Tensor,
+    ) -> tuple[TensorDict, Tensor, Tensor]:
+        """Sample minibatch using prioritized experience replay."""
+        if prio_alpha <= 0.0:
+            minibatch, idx = self.sample_sequential(mb_idx)
+            return (
+                minibatch,
+                idx,
+                torch.ones((minibatch.shape[0], minibatch.shape[1]), device=self.device, dtype=torch.float32),
+            )
+
+        from metta.rl.training.batch import calculate_prioritized_sampling_params
+
+        anneal_beta = calculate_prioritized_sampling_params(
+            epoch=epoch,
+            total_timesteps=total_timesteps,
+            batch_size=batch_size,
+            prio_alpha=prio_alpha,
+            prio_beta0=prio_beta0,
+        )
+
+        adv_magnitude = advantages.abs().sum(dim=1)
+        prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
+        prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
+        all_prio_is_weights = (self.segments * prio_probs) ** -anneal_beta
+
+        idx = torch.multinomial(prio_probs, self.minibatch_segments)
+        minibatch = self.buffer[idx].clone()
+
+        return minibatch, idx, all_prio_is_weights[idx, None]
+
+
     @staticmethod
     def from_losses(
         total_agents: int,

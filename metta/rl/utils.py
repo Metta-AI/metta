@@ -43,6 +43,40 @@ def prepare_policy_forward_td(
     return td, B, TT
 
 
+
+def forward_policy_for_training(
+    policy,
+    minibatch: TensorDict,
+    policy_spec: Composite,
+) -> TensorDict:
+    """Forward policy on sampled minibatch for training.
+
+    Centralized forward pass for use in core training loop.
+
+    Args:
+        policy: Policy to forward
+        minibatch: Sampled minibatch data
+        policy_spec: Policy experience specification
+
+    Returns:
+        Policy output TensorDict reshaped to batch format
+    """
+    policy_td, B, TT = prepare_policy_forward_td(
+        minibatch,
+        policy_spec,
+        clone=False
+    )
+
+    flat_actions = minibatch["actions"].reshape(B * TT, -1)
+
+    policy.reset_memory()
+    policy_td = policy.forward(policy_td, action=flat_actions)
+
+    policy_td = policy_td.reshape(B, TT)
+
+    return policy_td
+
+
 def should_run(
     epoch: int,
     interval: int,

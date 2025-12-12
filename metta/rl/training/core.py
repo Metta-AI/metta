@@ -8,11 +8,8 @@ from tensordict import TensorDict, NonTensorData
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
-from metta.rl.loss.replay_samplers import prio_sample
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from mettagrid.base_config import Config
-from metta.rl.utils import prepare_policy_forward_td
-
 
 logger = logging.getLogger(__name__)
 
@@ -310,45 +307,39 @@ class CoreTrainingLoop:
 
         return losses_stats, epochs_trained
 
-    def _sample_minibatch_for_losses(self, context: ComponentContext, mb_idx: int,) -> tuple[TensorDict, Tensor, Tensor]:
-        """Sample minibatch from experience buffer for all losses.
+    def _sample_minibatch_for_losses(
+        self,
+        context: ComponentContext,
+        mb_idx: int,
+    ) -> tuple[TensorDict, Tensor, Tensor]:
+        """Sample minibatch from experience buffer for all losses."""
+        sampling_cfg = context.config.sampling
 
-        Centralized sampling moved from individual losses (primarily ppo_critic).
-        Gets sampling parameters from the first loss that provides them.
-
-        Args:
-            context: Training context with epoch info
-            mb_idx: Current minibatch index
-
-        Returns:
-            Tuple of (minibatch, indices, priority_weights)
-        """
-
-        prio_alpha = 0.0
-        prio_beta0 = 0.6
+        # Get advantages from losses (still needed for prioritized sampling)
         advantages = None
-
         for loss_obj in self.losses.values():
-            if hasattr(loss_obj.cfg, 'prio_alpha'):
-                prio_alpha = loss_obj.cfg.prio_alpha
-                prio_beta0 = loss_obj.cfg.prio_beta0
-
             if hasattr(loss_obj, 'advantages'):
                 advantages = loss_obj.advantages
-
-            if hasattr(loss_obj.cfg, 'prio_alpha') and hasattr(loss_obj, 'advantages'):
                 break
 
-        minibatch, indices, prio_weights = prio_sample(
-            buffer=self.experience,
-            mb_idx=mb_idx,
-            epoch=context.epoch,
-            total_timesteps=context.config.total_timesteps,
-            batch_size=context.config.batch_size,
-            prio_alpha=prio_alpha,
-            prio_beta0=prio_beta0,
-            advantages=advantages,
-        )
+        # Use Experience sampling methods
+        if sampling_cfg.method == "sequential" or advantages is None:
+            minibatch, indices = self.experience.sample_sequential(mb_idx)
+            prio_weights = torch.ones(
+                (minibatch.shape[0], minibatch.shape[1]),
+                device=self.device,
+                dtype=torch.float32
+            )
+        else:
+            minibatch, indices, prio_weights = self.experience.sample_prioritized(
+                mb_idx=mb_idx,
+                epoch=context.epoch,
+                total_timesteps=context.config.total_timesteps,
+                batch_size=context.config.batch_size,
+                prio_alpha=sampling_cfg.prio_alpha,
+                prio_beta0=sampling_cfg.prio_beta0,
+                advantages=advantages,
+            )
 
         return minibatch, indices, prio_weights
 
@@ -357,30 +348,14 @@ class CoreTrainingLoop:
         self,
         minibatch: TensorDict,
     ) -> TensorDict:
-        """Forward policy on sampled minibatch for all losses.
+        """Forward policy on sampled minibatch for all losses."""
+        from metta.rl.utils import forward_policy_for_training
 
-        Centralized forward pass moved from individual losses (primarily ppo_critic).
-
-        Args:
-            minibatch: Sampled minibatch data
-
-        Returns:
-            Policy output TensorDict reshaped for loss computation
-        """
-        policy_td, B, TT = prepare_policy_forward_td(
+        return forward_policy_for_training(
+            self.policy,
             minibatch,
             self.policy_spec,
-            clone=False
         )
-
-        flat_actions = minibatch["actions"].reshape(B * TT, -1)
-
-        self.policy.reset_memory()
-        policy_td = self.policy.forward(policy_td, action=flat_actions)
-
-        policy_td = policy_td.reshape(B, TT)
-
-        return policy_td
 
     def on_epoch_start(self, context: ComponentContext) -> None:
         """Called at the start of each epoch.

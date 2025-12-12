@@ -133,8 +133,8 @@ class PPOCritic(Loss):
                 advantages,
                 self.cfg.gamma,
                 self.cfg.gae_lambda,
-                1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
-                1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
+                1.0,
+                1.0,
                 self.device,
             )
 
@@ -143,11 +143,10 @@ class PPOCritic(Loss):
         if isinstance(indices, NonTensorData):
             indices = indices.data
 
-        if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
+        if minibatch.batch_size.numel() == 0:
             return self._zero_tensor, shared_loss_data, False
 
         shared_loss_data["advantages"] = self.advantages[indices]
-        # Share gamma/lambda with other losses (e.g. actor) to ensure consistency
         batch_size = shared_loss_data.batch_size
         shared_loss_data["gamma"] = torch.full(batch_size, self.cfg.gamma, device=self.device)
         shared_loss_data["gae_lambda"] = torch.full(batch_size, self.cfg.gae_lambda, device=self.device)
@@ -176,7 +175,6 @@ class PPOCritic(Loss):
             else:
                 v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
 
-            # Update values in experience buffer
             update_td = TensorDict(
                 {
                     "values": newvalue.view(minibatch["values"].shape).detach(),
@@ -187,7 +185,6 @@ class PPOCritic(Loss):
         else:
             v_loss = 0.5 * ((old_values - returns) ** 2).mean()
 
-        # Scale value loss by coefficient
         v_loss = v_loss * self.cfg.vf_coef
         self.loss_tracker["value_loss"].append(float(v_loss.item()))
 

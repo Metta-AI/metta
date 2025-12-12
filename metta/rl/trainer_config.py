@@ -25,6 +25,15 @@ class OptimizerConfig(Config):
     warmup_steps: int = Field(default=1000, ge=0)  # Number of warmup steps for ScheduleFree
 
 
+
+class SamplingConfig(Config):
+    """Configuration for minibatch sampling during training."""
+
+    method: Literal["sequential", "prioritized"] = "prioritized"
+    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
+    prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
+
+
 class InitialPolicyConfig(Config):
     uri: str | None = None
     type: Literal["top", "latest", "specific"] = "top"
@@ -52,6 +61,7 @@ class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
     losses: LossesConfig = Field(default_factory=LossesConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
+    sampling: SamplingConfig = Field(default_factory=SamplingConfig)
 
     require_contiguous_env_ids: bool = False
     verbose: bool = True
