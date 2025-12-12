@@ -213,7 +213,7 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
                 timeout_s=spec.timeout_s,
                 remote=remote,
                 dependencies=dependencies,
-                wandb_run_name=job_name if is_train else None,
+                wandb_run_name=job_name if is_train and is_remote else None,
                 acceptance=spec.acceptance,
             )
         )
