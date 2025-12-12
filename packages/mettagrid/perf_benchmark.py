@@ -17,7 +17,7 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.simulator import Simulator
 
 
