@@ -124,15 +124,6 @@ class CoreTrainingLoop:
 
                 self._ensure_rollout_metadata(td)
 
-            # Reset LSTM state when curriculum task changes to prevent memory conflicts
-            if info:
-                task_changed = any(
-                    info_dict.get("_task_changed", False) for info_dict in info if isinstance(info_dict, dict)
-                )
-                if task_changed:
-                    for loss in self.losses.values():
-                        loss.policy.reset_memory()
-
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             with context.stopwatch("_rollout.inference"):
                 context.training_env_id = training_env_id
