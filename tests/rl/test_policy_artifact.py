@@ -95,7 +95,7 @@ def test_artifact_instantiate() -> None:
 
     artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
 
-    instantiated = artifact.instantiate(policy_env_info, torch.device("cpu"))
+    instantiated = artifact.instantiate(policy_env_info, "cpu")
     assert isinstance(instantiated, DummyPolicy)
     assert instantiated.device.type == "cpu"
 
@@ -114,7 +114,7 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     assert isinstance(loaded.architecture, DummyPolicyArchitecture)
     assert loaded.state_dict is not None
 
-    instantiated = loaded.instantiate(policy_env_info, torch.device("cpu"))
+    instantiated = loaded.instantiate(policy_env_info, "cpu")
     assert isinstance(instantiated, DummyPolicy)
 
 
@@ -175,7 +175,7 @@ def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
     save_mpt(artifact_path, architecture=architecture, state_dict=policy.state_dict())
 
     loaded = load_mpt(str(artifact_path))
-    reloaded = loaded.instantiate(policy_env_info, torch.device("cpu"))
+    reloaded = loaded.instantiate(policy_env_info, "cpu")
 
     assert hasattr(reloaded, "core")
     assert isinstance(reloaded.core, CortexTD)
@@ -188,7 +188,7 @@ def test_policy_artifact_reinitializes_environment_dependent_buffers() -> None:
     policy = architecture.make_policy(policy_env_info)
     artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
 
-    reloaded = artifact.instantiate(policy_env_info, torch.device("cpu"), strict=False)
+    reloaded = artifact.instantiate(policy_env_info, "cpu", strict=False)
 
     action_component = reloaded.components["action_embedding"]
     expected_indices = tuple(range(len(policy_env_info.action_names)))
