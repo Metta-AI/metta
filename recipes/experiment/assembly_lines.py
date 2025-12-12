@@ -14,9 +14,14 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.core import Distribution as D
+from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.stub import StubTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import empty_assemblers
 from mettagrid.builder.envs import make_assembly_lines
@@ -429,6 +434,66 @@ def evaluate(policy_uris: str | list[str] | None = None) -> EvaluateTool:
     return EvaluateTool(
         simulations=make_assembly_line_eval_suite(),
         policy_uris=policy_uris or [],
+    )
+
+
+def evaluate_stub(*args, **kwargs) -> StubTool:
+    """Stub evaluator for sweep optimization."""
+    return StubTool()
+
+
+def sweep(
+    sweep_name: str,
+    curriculum_style: str = "level_0",
+    max_trials: int = 80,
+    num_parallel_trials: int = 4,
+) -> SweepTool:
+    """Hyperparameter sweep for assembly lines training.
+
+    Example usage:
+        uv run ./tools/run.py recipes.experiment.assembly_lines.sweep \
+            sweep_name="assembly_lines.sweep.test" -- gpus=4 nodes=2
+
+    We recommend running using local_test=True before running the sweep on remote:
+        uv run ./tools/run.py recipes.experiment.assembly_lines.sweep \
+            sweep_name="assembly_lines.sweep.test" -- local_test=True
+
+    Args:
+        sweep_name: Identifier for this sweep
+        curriculum_style: Curriculum configuration to use (e.g., "level_0", "tiny", "full")
+        max_trials: Maximum number of trials to run
+        num_parallel_trials: Number of parallel training jobs
+    """
+    # Common parameters accessible via SP (SweepParameters)
+    parameters = [
+        SP.LEARNING_RATE,
+        SP.PPO_CLIP_COEF,
+        SP.PPO_GAE_LAMBDA,
+        SP.PPO_VF_COEF,
+        SP.ADAM_EPS,
+        SP.param(
+            "trainer.total_timesteps",
+            D.INT_UNIFORM,
+            min=5e8,
+            max=2e9,
+            search_center=1e9,
+        ),
+        # Fixed parameters
+        {"curriculum_style": curriculum_style},
+    ]
+
+    return make_sweep(
+        name=sweep_name,
+        recipe="recipes.experiment.assembly_lines",
+        train_entrypoint="train",
+        # NB: Using evaluate_stub to avoid running full evaluations during sweep.
+        # This optimizes on training metrics instead, which is much faster.
+        eval_entrypoint="evaluate_stub",
+        # Optimizing on experience/rewards from training rather than eval metrics
+        metric_key="experience/rewards",
+        search_space=parameters,
+        max_trials=max_trials,
+        num_parallel_trials=num_parallel_trials,
     )
 
 
