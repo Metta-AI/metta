@@ -14,7 +14,6 @@ from metta.common.util.log_config import getRankAwareLogger
 from mettagrid.map_builder import MapGrid
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig, WithMaxRetriesConfig
 from mettagrid.util.file import ParsedURI
-from mettagrid.util.uri_resolvers.base import S3ParsedScheme
 
 logger = getRankAwareLogger(__name__)
 
@@ -35,9 +34,7 @@ def pick_random_file(path, rng):
 
 def download_from_s3(s3_path: str, save_path: str):
     parsed = ParsedURI.parse(s3_path)
-    if not isinstance(parsed, S3ParsedScheme):
-        raise ValueError(f"Expected S3 URI, got: {parsed.scheme}")
-    bucket, key = parsed.bucket, parsed.key
+    bucket, key = parsed.require_s3()
 
     try:
         # Create directory if it doesn't exist
