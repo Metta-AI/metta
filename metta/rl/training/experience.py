@@ -8,6 +8,9 @@ from torchrl.data import Composite
 from metta.common.util.collections import duplicates
 from metta.rl.training.batch import calculate_prioritized_sampling_params
 
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import SamplingConfig
+
 class Experience:
     """Segmented tensor storage for RL experience with BPTT support."""
 

@@ -2,18 +2,16 @@ import logging
 from typing import Any
 
 import torch
-from torch import Tensor
 from pydantic import ConfigDict
-from tensordict import TensorDict, NonTensorData
+from tensordict import NonTensorData, TensorDict
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from mettagrid.base_config import Config
 from metta.rl.utils import forward_policy_for_training
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
-
 
 class RolloutResult(Config):
     """Results from a rollout phase."""
