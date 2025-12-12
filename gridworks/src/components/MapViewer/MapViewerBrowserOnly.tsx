@@ -164,7 +164,15 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
   useCallOnElementResize(canvasRef.current, initCanvas);
 
   useEffect(() => {
-    drawGrid();
+    let cancelled = false;
+
+    drawGrid().then(() => {
+      if (cancelled) return;
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [drawGrid]);
 
   // Benchmark: uncomment to redraw 60 frames per second when the canvas is visible on screen
