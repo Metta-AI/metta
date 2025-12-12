@@ -1,9 +1,8 @@
 """Simplified protocols for adaptive experiments."""
 
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
-if TYPE_CHECKING:
-    from .models import JobDefinition, RunInfo
+from metta.adaptive.models import JobDefinition, RunInfo
 
 
 @runtime_checkable

@@ -1,17 +1,16 @@
-from typing import TYPE_CHECKING, Type
+from typing import Type
 
-if TYPE_CHECKING:
-    from metta.setup.components.base import SetupModule
+from metta.setup.components.base import SetupModule
 
-_REGISTRY: list[Type["SetupModule"]] = []
+_REGISTRY: list[Type[SetupModule]] = []
 
 
-def register_module(cls: Type["SetupModule"]) -> Type["SetupModule"]:
+def register_module(cls: Type[SetupModule]) -> Type[SetupModule]:
     _REGISTRY.append(cls)
     return cls
 
 
-def get_all_modules() -> list["SetupModule"]:
+def get_all_modules() -> list[SetupModule]:
     all_modules = [cls() for cls in _REGISTRY]
 
     # Create a mapping from name to module for easy lookup
@@ -20,9 +19,9 @@ def get_all_modules() -> list["SetupModule"]:
     # Topological sort based on dependencies
     visited: set[str] = set()
     temp_visited: set[str] = set()
-    result: list["SetupModule"] = []
+    result: list[SetupModule] = []
 
-    def visit(module: "SetupModule") -> None:
+    def visit(module: SetupModule) -> None:
         if module.name in temp_visited:
             raise ValueError(f"Circular dependency detected involving setup module {module.name}")
         if module.name in visited:
