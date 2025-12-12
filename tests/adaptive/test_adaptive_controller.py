@@ -36,12 +36,19 @@ class TestAdaptiveController:
         return store
 
     @pytest.fixture
+    def phase_manager(self, mock_store):
+        """RunPhaseManager uses the mocked store."""
+        from metta.adaptive.run_phase import RunPhaseManager
+
+        return RunPhaseManager(mock_store)
+
+    @pytest.fixture
     def config(self):
         """Basic adaptive config."""
         return AdaptiveConfig(max_parallel=2, monitoring_interval=1)
 
     @pytest.fixture
-    def controller(self, mock_scheduler, mock_dispatcher, mock_store, config):
+    def controller(self, mock_scheduler, mock_dispatcher, mock_store, phase_manager, config):
         """Basic controller setup."""
         return AdaptiveController(
             experiment_id="test_experiment",
@@ -49,6 +56,7 @@ class TestAdaptiveController:
             dispatcher=mock_dispatcher,
             store=mock_store,
             config=config,
+            phase_manager=phase_manager,
         )
 
     def test_init(self, controller, mock_scheduler, mock_dispatcher, mock_store, config):
@@ -117,7 +125,7 @@ class TestAdaptiveController:
         # Scheduler should be called with 0 available slots
         mock_scheduler.schedule.assert_called_with(active_runs, 0)
 
-    def test_eval_completion_hook(self, controller, mock_store):
+    def test_eval_completion_hook(self, controller, mock_store, phase_manager):
         """Test that eval completion hook is called correctly."""
         hook_mock = Mock()
 
@@ -136,18 +144,18 @@ class TestAdaptiveController:
         # Mock experiment completion after processing
         controller.scheduler.is_experiment_complete.side_effect = [False, True]
 
-        controller.run(on_eval_completed=hook_mock)
+        controller.run(on_trial_completed=hook_mock)
 
         # Verify hook was called
-        hook_mock.assert_called_once_with(evaluated_run, mock_store, [evaluated_run])
+        hook_mock.assert_called_once_with(phase_manager, evaluated_run, mock_store, [evaluated_run])
 
         # Verify processing flag was set (check structure, not exact timestamp)
         mock_store.update_run_summary.assert_called()
         call_args = mock_store.update_run_summary.call_args
         assert call_args[0][0] == "test_run_001"
         update_dict = call_args[0][1]
-        assert update_dict["sweep/post_eval_processed"] is True
-        assert "sweep/post_eval_processed_at" in update_dict
+        assert update_dict["sweep/on_trial_completed_processed"] is True
+        assert "sweep/on_trial_completed_processed_at" in update_dict
 
     def test_job_dispatch_hook(self, controller, mock_scheduler, mock_dispatcher, mock_store):
         """Test that job dispatch hook is called after store operations."""

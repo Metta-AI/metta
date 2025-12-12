@@ -14,6 +14,7 @@ from metta.adaptive import AdaptiveConfig, AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
 from metta.adaptive.run_phase import RunPhaseManager
 from metta.adaptive.stores import WandbStore
+from metta.adaptive.utils import make_monitor_table
 from metta.common.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
@@ -25,9 +26,8 @@ from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
-
+# TODO This should 't take a phase manager I think
 def create_observation_hook(
-    phase_manager: RunPhaseManager,
     metric_path: str,
     cost_key: Optional[str] = None,
     source: str = "evaluation",
@@ -44,7 +44,7 @@ def create_observation_hook(
         A hook function that extracts the metric and records the observation.
     """
 
-    def hook(run, store, all_runs):
+    def hook(phase_manager, run, store, all_runs):
         """Extract metric and record observation."""
         summary = run.summary or {}
 
@@ -277,7 +277,7 @@ class SweepTool(Tool):
         )
 
         store = WandbStore(entity=self.wandb.entity, project=self.wandb.project, evaluator_prefix=evaluator_prefix)
-        phase_manager = RunPhaseManager(store)
+        run_phase_manager = RunPhaseManager(store, self.skip_evaluation)
 
         # Create dispatcher based on type
         if self.dispatcher_type == DispatcherType.LOCAL:
@@ -308,7 +308,7 @@ class SweepTool(Tool):
                 base_overrides=base_overrides,
                 skip_evaluation=self.skip_evaluation,
             )
-            scheduler = AsyncCappedOptimizingScheduler(scheduler_config, phase_manager)
+            scheduler = AsyncCappedOptimizingScheduler(scheduler_config, run_phase_manager)
         else:
             # GRID_SEARCH scheduler: derive categorical parameters and enumerate
             from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
@@ -349,7 +349,7 @@ class SweepTool(Tool):
                 base_overrides=base_overrides,
                 skip_evaluation=self.skip_evaluation,
             )
-            scheduler = GridSearchScheduler(scheduler_config, phase_manager)
+            scheduler = GridSearchScheduler(scheduler_config, run_phase_manager)
 
         # Create adaptive config
         adaptive_config = AdaptiveConfig(
@@ -369,10 +369,13 @@ class SweepTool(Tool):
             dispatcher=dispatcher,
             store=store,
             config=adaptive_config,
+            phase_manager = run_phase_manager
         )
 
         try:
             logger.info("[SweepTool] Starting adaptive controller with sweep hooks...")
+
+            # TODO This is messy, why? 
             metric_for_hook = (
                 self.grid_metric
                 if self.scheduler_type == SweepSchedulerType.GRID_SEARCH and self.grid_metric
@@ -382,23 +385,13 @@ class SweepTool(Tool):
             if self.cost_key:
                 logger.info(f"[SweepTool] Cost metric: {self.cost_key}")
 
-            # Create hooks based on skip_evaluation setting
-            if self.skip_evaluation:
-                # Extract observations from training completion
-                on_training_completed = create_observation_hook(
-                    phase_manager, metric_for_hook, cost_key=self.cost_key, source="training"
-                )
-                on_eval_completed = None
-            else:
-                # Extract observations from evaluation completion (default)
-                on_training_completed = None
-                on_eval_completed = create_observation_hook(
-                    phase_manager, metric_for_hook, cost_key=self.cost_key, source="evaluation"
-                )
-
+            # Extract observations from training completion
+            # TODO Refactor this hook
+            on_trial_completed = create_observation_hook(
+               metric_for_hook, cost_key=self.cost_key, source="training"
+            )
             controller.run(
-                on_training_completed=on_training_completed,
-                on_eval_completed=on_eval_completed,
+                on_trial_completed=on_trial_completed
             )
 
         except KeyboardInterrupt:
@@ -418,7 +411,6 @@ class SweepTool(Tool):
 
             # Show detailed status table
             if final_runs:
-                from metta.adaptive.utils import make_monitor_table
 
                 table_lines = make_monitor_table(
                     runs=final_runs,
@@ -426,7 +418,7 @@ class SweepTool(Tool):
                     logger_prefix="[SweepTool]",
                     include_score=True,
                     truncate_run_id=True,
-                    phase_manager=phase_manager,
+                    phase_manager=run_phase_manager,
                 )
                 for line in table_lines:
                     logger.info(line)

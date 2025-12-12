@@ -33,22 +33,24 @@ class AdaptiveController:
         dispatcher: Dispatcher,
         store: Store,
         config: AdaptiveConfig,
+        phase_manager: RunPhaseManager
     ):
         self.experiment_id = experiment_id
         self.scheduler = scheduler
         self.dispatcher = dispatcher
         self.store = store
         self.config = config
-        self.phase_manager = RunPhaseManager(store)
+        self.phase_manager = phase_manager
 
         # Job tracking by (run_id, job_type) to handle train/eval jobs with same run_id
         self.dispatched_jobs: set[tuple[str, str]] = set()
 
     def run(
         self,
-        on_training_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
-        on_eval_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
+
+        # TODO We should have a HookXYZ dataclass I think
         on_job_dispatch: Optional[Callable[[JobDefinition, Store], None]] = None,
+        on_trial_completed:  Optional[Callable[[RunPhaseManager, RunInfo, Store, list[RunInfo]], None]] = None,
     ) -> None:
         """Main adaptive experiment loop - everything inline."""
         logger.info(f"[AdaptiveController] Starting experiment {self.experiment_id}")
@@ -59,6 +61,7 @@ class AdaptiveController:
             try:
                 # 1. Get current state
                 if has_data:
+                    # Don't wait at all if we just resumed the sweep 
                     interval = (
                         self.config.initial_monitoring_interval
                         if first_resume_poll
@@ -75,7 +78,6 @@ class AdaptiveController:
                 else:
                     runs = []
                     has_data = True  # Skip first fetch because WandB will just timeout.
-                    first_resume_poll = self.config.resume
 
                 # Display monitoring table every interval
                 if runs:
@@ -91,29 +93,14 @@ class AdaptiveController:
                         logger.info(line)
 
                 # 1.a Run lifecycle hooks (guarded to prevent re-triggering)
-                if runs and on_training_completed is not None:
-                    for run in runs:
-                        try:
-                            if run.has_completed_training and not self.phase_manager.is_hook_processed(
-                                run, "post_train"
-                            ):
-                                logger.info(f"[AdaptiveController] Running on_training_completed for {run.run_id}")
-                                on_training_completed(run, self.store, runs)
-                                self.phase_manager.mark_hook_processed(run.run_id, "post_train")
-                        except Exception as e:
-                            logger.error(
-                                f"[AdaptiveController] Error running on_training_completed for {run.run_id}: {e}",
-                                exc_info=True,
-                            )
-
-                if runs and on_eval_completed is not None:
+                if runs and on_trial_completed is not None:
                     for run in runs:
                         try:
                             phase = self.phase_manager.get_phase(run)
                             if phase == JobStatus.COMPLETED and not self.phase_manager.is_hook_processed(
-                                run, "post_eval"
+                                run, "on_trial_completed"
                             ):
-                                logger.info(f"[AdaptiveController] Running on_eval_completed for {run.run_id}")
+                                logger.info(f"[AdaptiveController] Running on_trial_completed for {run.run_id}")
 
                                 for attempt in Retrying(
                                     stop=stop_after_attempt(4),
@@ -121,12 +108,12 @@ class AdaptiveController:
                                     reraise=True,
                                 ):
                                     with attempt:
-                                        on_eval_completed(run, self.store, runs)
+                                        on_trial_completed(self.phase_manager, run, self.store, runs)
 
-                                self.phase_manager.mark_hook_processed(run.run_id, "post_eval")
+                                self.phase_manager.mark_hook_processed(run.run_id, "on_trial_completed")
                         except Exception as e:
                             logger.error(
-                                f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}",
+                                f"[AdaptiveController] on_trial_completed failed for {run.run_id}: {e}",
                                 exc_info=True,
                             )
 

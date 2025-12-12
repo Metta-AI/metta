@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 from metta.adaptive.models import JobStatus
 
 
+# TODO Why do we have another store protocol here? Very silly
 class StoreProtocol(Protocol):
     """Minimal store interface needed by RunPhaseManager."""
 
@@ -27,9 +28,11 @@ class RunPhaseManager:
     """
 
     STALE_THRESHOLD = timedelta(seconds=1200)
-
-    def __init__(self, store: StoreProtocol):
+    
+    # TODO Should the manager take a skip_eval flag? 
+    def __init__(self, store: StoreProtocol, skip_eval: bool = False):
         self.store = store
+        self.skip_eval = skip_eval
 
     # ─────────────────────────────────────────────────────────────────
     # Phase queries
@@ -46,12 +49,14 @@ class RunPhaseManager:
         if not run.has_completed_training:
             return JobStatus.IN_TRAINING
         # Training complete
-        if not self._has_eval_started(run):
+        # Jump straight to COMPLETED if we are skipping evals
+        if not self.skip_eval and not self._has_eval_started(run):
             return JobStatus.TRAINING_DONE_NO_EVAL
-        if not self._has_eval_completed(run):
+        if not self.skip_eval and not self._has_eval_completed(run):
             return JobStatus.IN_EVAL
         return JobStatus.COMPLETED
-
+    
+    # TODO I'm not sure why we need this? 
     def has_observation(self, run: "RunInfo") -> bool:
         """Check if this run has a recorded sweep observation."""
         summary = run.summary or {}
@@ -60,7 +65,10 @@ class RunPhaseManager:
     # ─────────────────────────────────────────────────────────────────
     # Phase transitions
     # ─────────────────────────────────────────────────────────────────
-
+    
+    # TODO It's a little weird that the evaluation marking code 
+    # is here but not the training part. I think we should have them both 
+    # in the same spot
     def mark_eval_started(self, run_id: str) -> None:
         """Record that evaluation has been dispatched."""
         self.store.update_run_summary(
@@ -76,6 +84,8 @@ class RunPhaseManager:
         run_id: str,
         score: float,
         cost: float,
+
+        # TODO Why do we need a source? I don't think we actually need that 
         source: str,
     ) -> None:
         """Record the sweep observation for the optimizer."""
@@ -88,7 +98,8 @@ class RunPhaseManager:
                 "sweep/observation_recorded_at": datetime.now(timezone.utc).isoformat(),
             },
         )
-
+    
+    # Note: Wandb structure dependence
     def mark_hook_processed(self, run_id: str, hook_name: str) -> None:
         """Mark a lifecycle hook as processed to prevent re-triggering."""
         self.store.update_run_summary(
@@ -99,6 +110,7 @@ class RunPhaseManager:
             },
         )
 
+    # Note: Wandb structure dependence
     def is_hook_processed(self, run: "RunInfo", hook_name: str) -> bool:
         """Check if a lifecycle hook has already been processed."""
         summary = run.summary or {}
@@ -112,8 +124,7 @@ class RunPhaseManager:
         """Check if run is stale (no updates for too long while training)."""
         if run.has_failed or run.has_completed_training:
             return False
-        if run.last_updated_at is None:
-            return False
+
         time_since_update = datetime.now(timezone.utc) - run.last_updated_at
         return time_since_update > self.STALE_THRESHOLD
 
