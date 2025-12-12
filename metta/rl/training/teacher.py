@@ -61,6 +61,7 @@ def apply_teacher_phase(
         # Let the cloner own sampling if desired, but keep PPO critic sampling/training on.
         losses.ppo_critic.sample_enabled = True
         losses.ppo_critic.train_forward_enabled = True
+        losses.ppo_critic.rollout_forward_enabled = False
         losses.ppo_critic.deferred_training_start_step = None
 
         slicer = losses.sliced_scripted_cloner
