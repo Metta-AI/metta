@@ -18,6 +18,7 @@ from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, resolve_uri
 
 
@@ -112,7 +113,8 @@ class TestCheckpointManagerFlows:
         assert latest is not None
 
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        policy = MptPolicy(env_info, checkpoint_uri=latest.rstrip("/") + "/policy.mpt")
+        spec = policy_spec_from_uri(latest)
+        policy = MptPolicy(env_info, checkpoint_uri=spec.init_kwargs["checkpoint_uri"])
 
         obs_shape = env_info.observation_space.shape
         env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)
