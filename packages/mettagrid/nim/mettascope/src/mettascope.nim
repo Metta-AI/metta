@@ -25,7 +25,6 @@ proc parseUrlParams() =
   let url = parseUrl(window.url)
   commandLineReplay = url.query["replay"]
 
-
 find "/UI/Main":
 
   onLoad:
