@@ -75,8 +75,8 @@ def train(
             env=eval_env,
         )
     ]
-    # Slow down evals for long runs
-    tt.evaluator.epoch_interval = 3000
+    # Run evals periodically during long runs
+    tt.evaluator.epoch_interval = 1000
     return tt
 
 
