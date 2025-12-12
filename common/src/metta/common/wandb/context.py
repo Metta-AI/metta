@@ -229,7 +229,7 @@ class WandbRunAppendContext:
             id=self.wandb_config.run_id,
             project=self.wandb_config.project,
             entity=self.wandb_config.entity,
-            resume="must",
+            resume="allow",
             reinit="return_previous",
             settings=settings,
         )
