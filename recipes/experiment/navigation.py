@@ -153,7 +153,7 @@ def make_curriculum(
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
             use_bidirectional=True,  # Default: bidirectional learning progress
-            ema_timescale=0.001,
+            ema_timescale=0.006,  # Tuned via sweep prashant.lp_sweep.12_10_2 (was 0.001)
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=3,
