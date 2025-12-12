@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterable, List
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List
 
 import torch
 from tensordict import TensorDict
@@ -10,6 +10,7 @@ from metta.rl.training.batch import calculate_prioritized_sampling_params
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import SamplingConfig
+
 
 class Experience:
     """Segmented tensor storage for RL experience with BPTT support."""
@@ -213,7 +214,7 @@ class Experience:
             idx = torch.arange(start, end, dtype=torch.long, device=self.device)
         else:
             overflow = end - total_segments
-            front = torch.arange(start, total_segments, dtype= torch.long, device=self.device)
+            front = torch.arange(start, total_segments, dtype=torch.long, device=self.device)
             back = torch.arange(0, overflow, dtype=torch.long, device=self.device)
             idx = torch.cat((front, back), dim=0)
 
@@ -265,15 +266,11 @@ class Experience:
         batch_size: int,
         advantages: Tensor | None = None,
     ) -> tuple[TensorDict, Tensor, Tensor]:
-        """ WRITE DOC STRING """
+        """WRITE DOC STRING"""
 
         if self.sampling_config.method == "sequential" or advantages is None:
             minibatch, indices = self.sample_sequential(mb_idx)
-            prio_weights = torch.ones(
-                (minibatch.shape[0], minibatch.shape[1]),
-                device=self.device,
-                dtype=torch.float32
-            )
+            prio_weights = torch.ones((minibatch.shape[0], minibatch.shape[1]), device=self.device, dtype=torch.float32)
         else:
             minibatch, indices, prio_weights = self.sample_prioritized(
                 mb_idx,
@@ -282,7 +279,7 @@ class Experience:
                 batch_size,
                 self.sampling_config.prio_alpha,
                 self.sampling_config.prio_beta0,
-                advantages
+                advantages,
             )
 
         return minibatch, indices, prio_weights

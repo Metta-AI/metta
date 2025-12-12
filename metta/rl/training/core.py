@@ -13,6 +13,7 @@ from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
+
 class RolloutResult(Config):
     """Results from a rollout phase."""
 
@@ -252,7 +253,7 @@ class CoreTrainingLoop:
                 # Get advantages from losses for sampling
                 advantages = None
                 for loss_obj in self.losses.values():
-                    if hasattr(loss_obj, 'advantages'):
+                    if hasattr(loss_obj, "advantages"):
                         advantages = loss_obj.advantages
                         break
 

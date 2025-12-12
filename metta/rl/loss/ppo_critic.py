@@ -10,9 +10,7 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.replay_samplers import prio_sample
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from metta.rl.utils import prepare_policy_forward_td
 
 
 class PPOCriticConfig(LossConfig):
