@@ -1,3 +1,9 @@
+"""CLI for Datadog utilities.
+
+Note: Training and eval collectors were removed. The stable runner workflow
+emits metrics directly. This CLI only supports CI collector for GitHub metrics.
+"""
+
 from __future__ import annotations
 
 import json
@@ -14,7 +20,7 @@ from devops.datadog.models import MetricSample
 logging.basicConfig(level=logging.INFO)
 
 app = typer.Typer(
-    help="Metta Datadog metric collectors",
+    help="Metta Datadog utilities",
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
@@ -22,7 +28,7 @@ app = typer.Typer(
 
 @app.command("collect")
 def collect_command(
-    collector: str = typer.Argument(..., help="Collector slug (ci, training, eval)"),
+    collector: str = typer.Argument(..., help="Collector slug (ci)"),
     push: bool = typer.Option(
         False,
         "--push",
@@ -40,7 +46,7 @@ def collect_command(
         help="Optional path to write JSON payload (useful for debugging).",
     ),
 ) -> None:
-    """Collect metrics using the specified collector."""
+    """Collect metrics using the specified collector (CI only)."""
     if push and dry_run:
         typer.echo("Error: --push and --dry-run are mutually exclusive")
         raise typer.Exit(1)
